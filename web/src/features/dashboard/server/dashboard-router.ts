@@ -14,8 +14,6 @@ import {
   getScoreAggregate,
   getDistinctModels,
   getScoresAggregateOverTime,
-  getTracesGroupedByUsers,
-  getModelUsageByUser,
   getModelLatenciesOverTime,
   getObservationLatencies,
   getTracesLatencies,
@@ -29,7 +27,6 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { dashboardColumnDefinitions } from "@langfuse/shared";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import {
   type QueryType,
@@ -55,8 +52,8 @@ export const dashboardRouter = createTRPCRouter({
             "observations-cost-by-type-timeseries",
             "distinct-models",
             "scores-aggregate-timeseries",
-            "observations-usage-by-users",
-            "traces-grouped-by-user",
+            // "observations-usage-by-users",
+            // "traces-grouped-by-user",
             "observation-latencies-aggregated",
             "traces-latencies-aggregated",
             "model-latencies-over-time",
@@ -167,33 +164,31 @@ export const dashboardRouter = createTRPCRouter({
           );
 
           return aggregatedScores as DatabaseRow[];
-
-        case "observations-usage-by-users":
-          const rowsUsers = await getModelUsageByUser(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return rowsUsers.map((row) => ({
-            sumTotalTokens: row.sumUsageDetails,
-            sumCalculatedTotalCost: row.sumCostDetails,
-            user: row.userId,
-          })) as DatabaseRow[];
-
-        case "traces-grouped-by-user":
-          const traces = await getTracesGroupedByUsers(
-            input.projectId,
-            input.filter ?? [],
-            undefined,
-            1000,
-            0,
-            dashboardColumnDefinitions,
-          );
-
-          return traces.map((row) => ({
-            user: row.user,
-            countTraceId: Number(row.count),
-          })) as DatabaseRow[];
+        // case "observations-usage-by-users":
+        //   const rowsUsers = await getModelUsageByUser(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return rowsUsers.map((row) => ({
+        //     sumTotalTokens: row.sumUsageDetails,
+        //     sumCalculatedTotalCost: row.sumCostDetails,
+        //     user: row.userId,
+        //   })) as DatabaseRow[];
+        // case "traces-grouped-by-user":
+        //   const traces = await getTracesGroupedByUsers(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //     undefined,
+        //     1000,
+        //     0,
+        //     dashboardColumnDefinitions,
+        //   );
+        //
+        //   return traces.map((row) => ({
+        //     user: row.user,
+        //     countTraceId: Number(row.count),
+        //   })) as DatabaseRow[];
         case "observation-latencies-aggregated":
           const latencies = await getObservationLatencies(
             input.projectId,

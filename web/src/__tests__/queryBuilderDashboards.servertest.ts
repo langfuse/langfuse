@@ -10,6 +10,8 @@ import {
   getScoreAggregate,
   groupTracesByTime,
   getTotalObservationUsageByTimeByModel,
+  getModelUsageByUser,
+  getTracesGroupedByUsers,
 } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 import { type QueryType } from "@/src/features/query/types";
@@ -1037,6 +1039,133 @@ describe("selfServeDashboards", () => {
         expect(legacyData).toBeDefined();
         expect(Number(row.sum_total_cost)).toBe(Number(legacyData?.cost));
         expect(Number(row.sum_total_tokens)).toBe(Number(legacyData?.units));
+      });
+    });
+  });
+
+  describe("observations-usage-by-users query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getModelUsageByUser(projectId, [
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "timestamp",
+          value: new Date(defaultFromTime),
+        },
+        {
+          type: "datetime",
+          operator: "<=",
+          column: "timestamp",
+          value: new Date(defaultToTime),
+        },
+      ]);
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "userId" }],
+        metrics: [{ measure: "totalCost", aggregation: "sum" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(queryBuilderResult).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Verify both result sets have the same number of rows
+      expect(legacyResult.length).toBe(queryBuilderResult.length);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [item.userId, item]),
+      );
+
+      // Verify each user's costs and token usage match
+      queryBuilderResult.forEach((row: any) => {
+        const userId = row.user_id;
+        const legacyData = legacyResultMap.get(userId);
+
+        expect(legacyData).toBeDefined();
+        expect(Number(row.sum_total_cost)).toBe(
+          Number(legacyData?.sumCostDetails),
+        );
+      });
+    });
+  });
+
+  describe("traces-grouped-by-user query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getTracesGroupedByUsers(
+        projectId,
+        [
+          {
+            type: "datetime",
+            operator: ">=",
+            column: "timestamp",
+            value: new Date(defaultFromTime),
+          },
+          {
+            type: "datetime",
+            operator: "<=",
+            column: "timestamp",
+            value: new Date(defaultToTime),
+          },
+        ],
+        undefined,
+        1000,
+        0,
+        dashboardColumnDefinitions,
+      );
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "traces",
+        dimensions: [{ field: "userId" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(queryBuilderResult).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Verify both result sets have the same number of rows
+      expect(legacyResult.length).toBe(queryBuilderResult.length);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [item.user, item]),
+      );
+
+      // Verify each user's trace count matches
+      queryBuilderResult.forEach((row: any) => {
+        const userId = row.user_id;
+        const legacyData = legacyResultMap.get(userId);
+
+        expect(legacyData).toBeDefined();
+        expect(Number(row.count_count)).toBe(Number(legacyData?.count));
       });
     });
   });
