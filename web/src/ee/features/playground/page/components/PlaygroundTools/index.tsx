@@ -116,7 +116,20 @@ export const PlaygroundTools = () => {
   return (
     <div className="flex h-full flex-col pr-1">
       <div className="mb-2 flex items-center justify-between">
-        <p className="font-semibold">Tools</p>
+        <div className="flex items-center gap-2">
+          <p className="font-semibold">Tools</p>
+          <a
+            href="https://github.com/orgs/langfuse/discussions/3166"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center"
+            title="Tool calling is currently in beta. Click here to learn more and provide feedback!"
+          >
+            <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+              Beta
+            </span>
+          </a>
+        </div>
         <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
           <PopoverTrigger asChild>
             <Button className="h-7 w-7" variant="outline" size="icon">
