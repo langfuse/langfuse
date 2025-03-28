@@ -1,5 +1,5 @@
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { OnChangeFn, Updater } from "@tanstack/react-table";
+import { type OnChangeFn, type Updater } from "@tanstack/react-table";
 import { useState } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
