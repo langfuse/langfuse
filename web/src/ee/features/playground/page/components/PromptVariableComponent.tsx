@@ -1,8 +1,7 @@
-import { type ChangeEvent } from "react";
 import { CheckCircle2, Circle, TrashIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Textarea } from "@/src/components/ui/textarea";
 import { type PromptVariable } from "@langfuse/shared";
+import { CodeMirrorEditor } from "@/src/components/editor";
 
 import { usePlaygroundContext } from "../context";
 
@@ -13,13 +12,12 @@ export const PromptVariableComponent: React.FC<{
     usePlaygroundContext();
   const { name, value, isUsed } = promptVariable;
 
-  const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    updatePromptVariableValue(name, event.target.value);
+  const handleInputChange = (value: string) => {
+    updatePromptVariableValue(name, value);
   };
   const handleDeleteVariable = () => {
     deletePromptVariable(name);
   };
-  const displayName = name.slice(0, 10) + (name.length > 10 ? "..." : "");
   const isUsedIcon = isUsed ? (
     <CheckCircle2 size={16} color="green" />
   ) : (
@@ -34,8 +32,8 @@ export const PromptVariableComponent: React.FC<{
       <div className="mb-1 flex flex-row items-center">
         <span className="flex flex-1 flex-row space-x-2 text-xs">
           <p title={isUsedTooltip}>{isUsedIcon}</p>
-          <p className="min-w-[90px] font-mono" title={name}>
-            {displayName}
+          <p className="min-w-[90px] truncate font-mono" title={name}>
+            {name}
           </p>
         </span>
         <Button
@@ -49,10 +47,15 @@ export const PromptVariableComponent: React.FC<{
           {!isUsed && <TrashIcon size={16} />}
         </Button>
       </div>
-      <Textarea
-        className="max-h-[10rem] min-h-[3rem] w-full resize-y pt-3 font-mono text-xs focus:outline-none"
+
+      <CodeMirrorEditor
         value={value}
-        onChange={handleInputChange}
+        onChange={(e) => handleInputChange(e)}
+        mode="prompt"
+        minHeight="none"
+        className="max-h-[10rem] w-full resize-y p-1 font-mono text-xs focus:outline-none"
+        editable={true}
+        lineNumbers={false}
         placeholder={name}
       />
     </div>

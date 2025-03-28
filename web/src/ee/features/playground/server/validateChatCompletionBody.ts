@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { ChatMessageRole, LLMAdapter } from "@langfuse/shared";
+import {
+  LLMAdapter,
+  LLMJSONSchema,
+  LLMToolDefinitionSchema,
+  ChatMessageSchema,
+} from "@langfuse/shared";
 
 const ModelParamsSchema = z.object({
   provider: z.string(),
@@ -9,15 +14,13 @@ const ModelParamsSchema = z.object({
   max_tokens: z.number().optional(),
   top_p: z.number().optional(),
 });
-const MessageSchema = z.object({
-  role: z.nativeEnum(ChatMessageRole),
-  content: z.string(),
-  id: z.string().optional(),
-});
+
 export const ChatCompletionBodySchema = z.object({
   projectId: z.string(),
-  messages: z.array(MessageSchema),
+  messages: z.array(ChatMessageSchema),
   modelParams: ModelParamsSchema,
+  tools: z.array(LLMToolDefinitionSchema).optional(),
+  structuredOutputSchema: LLMJSONSchema.optional(),
 });
 
 export const validateChatCompletionBody = (input: unknown) => {

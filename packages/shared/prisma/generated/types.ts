@@ -401,6 +401,24 @@ export type LlmApiKeys = {
     config: unknown | null;
     project_id: string;
 };
+export type LlmSchema = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    description: string;
+    schema: unknown;
+};
+export type LlmTool = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    description: string;
+    parameters: unknown;
+};
 export type Media = {
     id: string;
     sha_256_hash: string;
@@ -606,6 +624,8 @@ export type DB = {
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
+    llm_schemas: LlmSchema;
+    llm_tools: LlmTool;
     media: Media;
     membership_invitations: MembershipInvitation;
     models: Model;
