@@ -111,12 +111,18 @@ const DatasetRunTableMultiSelectAction = ({
                   }
             }
           >
-            <DropdownMenuItem disabled={selectedRunIds.length < 2}>
+            <DropdownMenuItem
+              key="compare"
+              disabled={selectedRunIds.length < 2}
+            >
               <Columns3 className="mr-2 h-4 w-4" />
               <span>Compare</span>
             </DropdownMenuItem>
           </Link>
-          <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)}>
+          <DropdownMenuItem
+            key="delete"
+            onClick={() => setIsDeleteDialogOpen(true)}
+          >
             <Trash className="mr-2 h-4 w-4" />
             <span>Delete</span>
           </DropdownMenuItem>
