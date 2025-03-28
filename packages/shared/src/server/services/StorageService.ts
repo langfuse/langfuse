@@ -87,7 +87,9 @@ export class StorageServiceFactory {
       // Use provided credentials or fall back to environment variable
       const googleParams = {
         ...params,
-        googleCloudCredentials: params.googleCloudCredentials || env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS,
+        googleCloudCredentials:
+          params.googleCloudCredentials ||
+          env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS,
       };
       return new GoogleCloudStorageService(googleParams);
     }
@@ -574,20 +576,8 @@ class S3StorageService implements StorageService {
 class GoogleCloudStorageService implements StorageService {
   private storage: Storage;
   private bucket: Bucket;
-  private externalEndpoint: string | undefined;
 
-  constructor(params: {
-    accessKeyId: string | undefined;
-    secretAccessKey: string | undefined;
-    bucketName: string;
-    endpoint: string | undefined;
-    externalEndpoint?: string | undefined;
-    region: string | undefined;
-    forcePathStyle: boolean;
-    googleCloudCredentials?: string;
-  }) {
-    this.externalEndpoint = params.externalEndpoint;
-
+  constructor(params: { bucketName: string; googleCloudCredentials?: string }) {
     // Initialize Google Cloud Storage client
     if (params.googleCloudCredentials) {
       try {
@@ -739,24 +729,6 @@ class GoogleCloudStorageService implements StorageService {
       }
 
       const [url] = await file.getSignedUrl(options);
-
-      // Replace internal endpoint with external endpoint if configured
-      if (this.externalEndpoint) {
-        try {
-          const gcsUrl = new URL(url);
-          const externalUrl = new URL(this.externalEndpoint);
-
-          // Replace the hostname while keeping the path and query parameters
-          gcsUrl.hostname = externalUrl.hostname;
-          if (externalUrl.port) gcsUrl.port = externalUrl.port;
-          gcsUrl.protocol = externalUrl.protocol;
-
-          return gcsUrl.toString();
-        } catch (err) {
-          logger.warn(`Failed to replace GCS URL with external endpoint: ${err}`);
-        }
-      }
-
       return url;
     } catch (err) {
       logger.error(
@@ -790,24 +762,6 @@ class GoogleCloudStorageService implements StorageService {
       };
 
       const [url] = await file.getSignedUrl(options);
-
-      // Replace internal endpoint with external endpoint if configured
-      if (this.externalEndpoint) {
-        try {
-          const gcsUrl = new URL(url);
-          const externalUrl = new URL(this.externalEndpoint);
-
-          // Replace the hostname while keeping the path and query parameters
-          gcsUrl.hostname = externalUrl.hostname;
-          if (externalUrl.port) gcsUrl.port = externalUrl.port;
-          gcsUrl.protocol = externalUrl.protocol;
-
-          return gcsUrl.toString();
-        } catch (err) {
-          logger.warn(`Failed to replace GCS URL with external endpoint: ${err}`);
-        }
-      }
-
       return url;
     } catch (err) {
       logger.error(
