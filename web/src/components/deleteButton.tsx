@@ -6,7 +6,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
-import { TrashIcon } from "lucide-react";
+import { LockIcon, TrashIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { api } from "@/src/utils/api";
@@ -100,7 +100,11 @@ function DeleteButton({
             <TrashIcon className="h-4 w-4" />
           ) : (
             <>
-              <TrashIcon className="mr-2 h-4 w-4" />
+              {hasAccess ? (
+                <TrashIcon className="mr-2 h-4 w-4" />
+              ) : (
+                <LockIcon className="mr-2 h-4 w-4" />
+              )}
               Delete
             </>
           )}
