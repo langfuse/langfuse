@@ -123,7 +123,7 @@ export function TableActionDialog({
                   hasAccess={hasAccess}
                   hasEntitlement={hasEntitlement}
                   loading={isInProgress.isLoading}
-                  disabled={isInProgress.data}
+                  disabled={isInProgress.data || !form.watch("targetId")}
                 >
                   Confirm
                 </ActionButton>

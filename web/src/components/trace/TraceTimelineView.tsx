@@ -6,7 +6,13 @@ import {
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useLayoutEffect,
+} from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import type Decimal from "decimal.js";
@@ -93,7 +99,10 @@ function TreeItemInner({
       className={cn("group my-0.5 flex w-full min-w-fit flex-row items-center")}
     >
       <div className="flex items-center" style={{ width: `${SCALE_WIDTH}px` }}>
-        <div className={`relative w-[${SCALE_WIDTH}px] flex flex-row`}>
+        <div
+          className={`relative flex flex-row`}
+          style={{ width: `${SCALE_WIDTH}px` }}
+        >
           {firstTokenTimeOffset ? (
             <div
               className={cn(
@@ -103,7 +112,6 @@ function TreeItemInner({
                   : "group-hover:ring group-hover:ring-tertiary",
               )}
               style={{ marginLeft: `${startOffset}px` }}
-              title="First token"
             >
               <div
                 className={cn(
@@ -168,8 +176,8 @@ function TreeItemInner({
                     </span>
                   )}
                   {showScores && scores && scores.length > 0 && (
-                    <div className="flex max-h-8 flex-wrap gap-1 overflow-y-auto">
-                      <GroupedScoreBadges scores={scores} />
+                    <div className="flex max-h-8 gap-1">
+                      <GroupedScoreBadges scores={scores} maxVisible={3} />
                     </div>
                   )}
                 </div>
@@ -237,8 +245,8 @@ function TreeItemInner({
                     </span>
                   )}
                   {showScores && scores && scores.length > 0 && (
-                    <div className="flex max-h-8 flex-wrap gap-1 overflow-y-auto">
-                      <GroupedScoreBadges scores={scores} />
+                    <div className="flex max-h-8 gap-1">
+                      <GroupedScoreBadges scores={scores} maxVisible={3} />
                     </div>
                   )}
                 </div>
@@ -456,7 +464,7 @@ export function TraceTimelineView({
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, [parentRef]);
+  }, []);
 
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -494,8 +502,26 @@ export function TraceTimelineView({
     },
   );
 
-  if (!latency) return null;
+  const timeIndexRef = useRef<HTMLDivElement>(null);
+  const timelineContentRef = useRef<HTMLDivElement>(null);
+  const outerContainerRef = useRef<HTMLDivElement>(null);
 
+  const [contentWidth, setContentWidth] = useState(SCALE_WIDTH);
+
+  // Use a useLayoutEffect to measure the actual content width after rendering
+  useLayoutEffect(() => {
+    if (!timelineContentRef.current) return;
+
+    // Use scrollWidth which accounts for all content, including overflow
+    const scrollWidth = timelineContentRef.current.scrollWidth;
+
+    const newWidth = Math.max(SCALE_WIDTH, scrollWidth);
+    if (newWidth !== contentWidth) {
+      setContentWidth(newWidth);
+    }
+  }, [observations, expandedItems, contentWidth]);
+
+  if (!latency) return null;
   const stepSize = calculateStepSize(latency, SCALE_WIDTH);
   const totalScaleSpan = stepSize * (SCALE_WIDTH / STEP_SIZE);
 
@@ -504,130 +530,175 @@ export function TraceTimelineView({
 
   return (
     <div ref={parentRef} className="h-full w-full px-3">
-      <div className="flex max-h-full flex-col" style={{ width: cardWidth }}>
-        <div style={{ width: `${SCALE_WIDTH + 8}px` }} className="mb-2 ml-2">
+      <div className="relative flex max-h-full flex-col">
+        {/* Sticky time index section - positioned absolutely at the top */}
+        <div className="sticky top-0 z-20 bg-background">
           <div
-            className="relative mr-2 h-8"
-            style={{ width: `${SCALE_WIDTH}px` }}
+            ref={timeIndexRef}
+            className="overflow-x-auto"
+            style={{
+              width: cardWidth,
+              scrollbarWidth: "none" /* Firefox */,
+              msOverflowStyle: "none" /* IE and Edge */,
+              WebkitOverflowScrolling: "touch",
+            }}
+            onScroll={(e) => {
+              if (outerContainerRef.current) {
+                outerContainerRef.current.scrollLeft =
+                  e.currentTarget.scrollLeft;
+              }
+            }}
           >
-            {Array.from({ length: SCALE_WIDTH / STEP_SIZE + 1 }).map(
-              (_, index) => {
-                const step = stepSize * index;
-                const isLastStep = index === SCALE_WIDTH / STEP_SIZE;
+            <div style={{ width: `${contentWidth}px` }}>
+              <div className="mb-2 ml-2">
+                <div
+                  className="relative mr-2 h-8"
+                  style={{ width: `${SCALE_WIDTH}px` }}
+                >
+                  {Array.from({
+                    length: Math.ceil(SCALE_WIDTH / STEP_SIZE) + 1,
+                  }).map((_, index) => {
+                    const step = stepSize * index;
 
-                return isLastStep ? (
-                  <span
-                    className="absolute -right-2 text-xs text-muted-foreground"
-                    key={index}
-                  >
-                    {step.toFixed(latency.toString().length >= 8 ? 0 : 2)}s
-                  </span>
-                ) : (
-                  <div
-                    key={index}
-                    className="absolute h-full border border-l text-xs"
-                    style={{ left: `${index * STEP_SIZE}px` }}
-                  >
-                    <span className="absolute left-2 text-xs text-muted-foreground">
-                      {step.toFixed(2)}s
-                    </span>
-                  </div>
-                );
-              },
-            )}
+                    return (
+                      <div
+                        key={index}
+                        className="absolute h-full border border-l text-xs"
+                        style={{ left: `${index * STEP_SIZE}px` }}
+                      >
+                        <span
+                          className="absolute left-2 text-xs text-muted-foreground"
+                          title={`${step.toFixed(2)}s`}
+                        >
+                          {step.toFixed(2)}s
+                        </span>
+                      </div>
+                    );
+                  })}
+
+                  {/* Add end marker if content exceeds scale */}
+                  {contentWidth > SCALE_WIDTH && (
+                    <div
+                      className="absolute h-full border-r border-dashed"
+                      style={{ left: `${SCALE_WIDTH}px` }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Main content with scrolling */}
         <div
-          style={{ width: `${SCALE_WIDTH}px` }}
-          className="overflow-y-auto overflow-x-hidden"
+          ref={outerContainerRef}
+          className="overflow-x-auto"
+          style={{ width: cardWidth }}
+          onScroll={(e) => {
+            if (timeIndexRef.current) {
+              timeIndexRef.current.scrollLeft = e.currentTarget.scrollLeft;
+            }
+          }}
         >
-          <SimpleTreeView
-            expandedItems={expandedItems}
-            onExpandedItemsChange={(_, itemIds) => setExpandedItems(itemIds)}
-            itemChildrenIndentation={TREE_INDENTATION}
-            expansionTrigger="iconContainer"
-          >
-            <TreeItem
-              key={`trace-${id}`}
-              itemId={`trace-${id}`}
-              classes={{
-                content: `!min-w-fit hover:!bg-background`,
-                selected: "!bg-background !important",
-                label: "!min-w-fit",
-                iconContainer: "absolute left-3 top-1/2 z-10 -translate-y-1/2",
-              }}
-              onClick={(e) => {
-                const isIconClick = (e.target as HTMLElement).closest(
-                  "svg.MuiSvgIcon-root",
-                );
-                if (!isIconClick) {
-                  setCurrentObservationId(null);
-                }
-              }}
-              label={
-                <TreeItemInner
-                  name={name}
-                  latency={latency}
-                  totalScaleSpan={totalScaleSpan}
-                  type="TRACE"
-                  hasChildren={!!nestedObservations.length}
-                  isSelected={currentObservationId === null}
-                  showMetrics={showMetrics}
-                  showScores={showScores}
-                  showComments={showComments}
-                  colorCodeMetrics={colorCodeMetrics}
-                  scores={traceScores}
-                  commentCount={traceCommentCounts.data?.get(id)}
-                  totalCost={totalCost}
-                />
-              }
+          <div style={{ width: `${contentWidth}px` }}>
+            {/* Main timeline content */}
+            <div
+              ref={timelineContentRef}
+              className="overflow-y-auto"
+              style={{ width: `${contentWidth}px` }}
             >
-              {Boolean(nestedObservations.length)
-                ? nestedObservations.map((observation) => (
-                    <TraceTreeItem
-                      key={`observation-${observation.id}`}
-                      observation={observation}
-                      level={1}
-                      traceStartTime={nestedObservations[0].startTime}
+              <SimpleTreeView
+                expandedItems={expandedItems}
+                onExpandedItemsChange={(_, itemIds) =>
+                  setExpandedItems(itemIds)
+                }
+                itemChildrenIndentation={TREE_INDENTATION}
+                expansionTrigger="iconContainer"
+              >
+                <TreeItem
+                  key={`trace-${id}`}
+                  itemId={`trace-${id}`}
+                  classes={{
+                    content: `!min-w-fit hover:!bg-background`,
+                    selected: "!bg-background !important",
+                    label: "!min-w-fit",
+                    iconContainer:
+                      "absolute left-3 top-1/2 z-10 -translate-y-1/2",
+                  }}
+                  onClick={(e) => {
+                    const isIconClick = (e.target as HTMLElement).closest(
+                      "svg.MuiSvgIcon-root",
+                    );
+                    if (!isIconClick) {
+                      setCurrentObservationId(null);
+                    }
+                  }}
+                  label={
+                    <TreeItemInner
+                      name={name}
+                      latency={latency}
                       totalScaleSpan={totalScaleSpan}
-                      projectId={projectId}
-                      scores={scores}
-                      observations={observations}
-                      cardWidth={cardWidth}
-                      commentCounts={observationCommentCounts.data}
-                      currentObservationId={currentObservationId}
-                      setCurrentObservationId={setCurrentObservationId}
+                      type="TRACE"
+                      hasChildren={!!nestedObservations.length}
+                      isSelected={currentObservationId === null}
                       showMetrics={showMetrics}
                       showScores={showScores}
                       showComments={showComments}
                       colorCodeMetrics={colorCodeMetrics}
-                      parentTotalDuration={totalDuration}
-                      parentTotalCost={totalCost}
+                      scores={traceScores}
+                      commentCount={traceCommentCounts.data?.get(id)}
+                      totalCost={totalCost}
                     />
-                  ))
-                : null}
-            </TreeItem>
-          </SimpleTreeView>
+                  }
+                >
+                  {Boolean(nestedObservations.length)
+                    ? nestedObservations.map((observation) => (
+                        <TraceTreeItem
+                          key={`observation-${observation.id}`}
+                          observation={observation}
+                          level={1}
+                          traceStartTime={nestedObservations[0].startTime}
+                          totalScaleSpan={totalScaleSpan}
+                          projectId={projectId}
+                          scores={scores}
+                          observations={observations}
+                          cardWidth={cardWidth}
+                          commentCounts={observationCommentCounts.data}
+                          currentObservationId={currentObservationId}
+                          setCurrentObservationId={setCurrentObservationId}
+                          showMetrics={showMetrics}
+                          showScores={showScores}
+                          showComments={showComments}
+                          colorCodeMetrics={colorCodeMetrics}
+                          parentTotalDuration={totalDuration}
+                          parentTotalCost={totalCost}
+                        />
+                      ))
+                    : null}
+                </TreeItem>
+              </SimpleTreeView>
 
-          {minLevel && hiddenObservationsCount > 0 ? (
-            <div className="flex items-center gap-1 p-2 py-4">
-              <InfoIcon className="h-4 w-4 text-muted-foreground" />
-              <span className="flex flex-row gap-1 text-sm text-muted-foreground">
-                <p>
-                  {hiddenObservationsCount} observations below {minLevel} level
-                  are hidden.
-                </p>
-                {setMinLevel && (
-                  <p
-                    className="cursor-pointer underline"
-                    onClick={() => setMinLevel(ObservationLevel.DEBUG)}
-                  >
-                    Show all
-                  </p>
-                )}
-              </span>
+              {minLevel && hiddenObservationsCount > 0 ? (
+                <div className="flex items-center gap-1 p-2 py-4">
+                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="flex flex-row gap-1 text-sm text-muted-foreground">
+                    <p>
+                      {hiddenObservationsCount} observations below {minLevel}
+                      level are hidden.
+                    </p>
+                    {setMinLevel && (
+                      <p
+                        className="cursor-pointer underline"
+                        onClick={() => setMinLevel(ObservationLevel.DEBUG)}
+                      >
+                        Show all
+                      </p>
+                    )}
+                  </span>
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          </div>
         </div>
       </div>
     </div>

@@ -5006,11 +5006,13 @@ components:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
         completion_tokens_details:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
       required:
         - prompt_tokens
@@ -5031,11 +5033,13 @@ components:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
         output_tokens_details:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
       required:
         - input_tokens
