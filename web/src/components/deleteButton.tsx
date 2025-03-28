@@ -70,11 +70,19 @@ function DeleteButton({
   const onDeleteSuccess = useMemo(() => {
     return () => {
       setIsDeleted(true);
+      captureDeleteSuccess(capture, isTableAction);
       !isTableAction && redirectUrl
         ? void router.push(redirectUrl)
         : invalidateFunc();
     };
-  }, [isTableAction, redirectUrl, invalidateFunc, router]);
+  }, [
+    isTableAction,
+    redirectUrl,
+    invalidateFunc,
+    router,
+    captureDeleteSuccess,
+    capture,
+  ]);
 
   return (
     <Popover key={itemId}>
@@ -130,7 +138,6 @@ function DeleteButton({
                 return;
               }
               void executeDeleteMutation(onDeleteSuccess);
-              captureDeleteSuccess(capture, isTableAction);
             }}
           >
             Delete {entityToDeleteName}
