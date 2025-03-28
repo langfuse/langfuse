@@ -25,13 +25,7 @@ CREATE TABLE "llm_tools" (
 );
 
 -- CreateIndex
-CREATE INDEX "llm_schemas_project_id_idx" ON "llm_schemas"("project_id");
-
--- CreateIndex
 CREATE UNIQUE INDEX "llm_schemas_project_id_name_key" ON "llm_schemas"("project_id", "name");
-
--- CreateIndex
-CREATE INDEX "llm_tools_project_id_idx" ON "llm_tools"("project_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "llm_tools_project_id_name_key" ON "llm_tools"("project_id", "name");

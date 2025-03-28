@@ -1026,7 +1026,6 @@ model LlmSchema {
   schema      Json   @map("schema") @db.Json
 
   @@unique([projectId, name])
-  @@index([projectId])
   @@map("llm_schemas")
 }
 
@@ -1043,6 +1042,5 @@ model LlmTool {
   parameters  Json   @map("parameters") @db.Json
 
   @@unique([projectId, name])
-  @@index([projectId])
   @@map("llm_tools")
 }
