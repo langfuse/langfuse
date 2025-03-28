@@ -956,12 +956,19 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:read",
         });
 
-        const prompt = await ctx.prisma.prompt.findUniqueOrThrow({
+        const prompt = await ctx.prisma.prompt.findUnique({
           where: {
             id: promptId,
             projectId,
           },
         });
+
+        if (!prompt) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Prompt not found",
+          });
+        }
 
         const promptService = new PromptService(ctx.prisma, redis);
 
