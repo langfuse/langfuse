@@ -16,7 +16,6 @@ import {
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-
 import type { RouterOutput } from "@/src/utils/types";
 import {
   isPresent,
@@ -25,7 +24,6 @@ import {
   BatchExportTableName,
   BatchActionType,
 } from "@langfuse/shared";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -44,6 +42,7 @@ import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { usePagination } from "@/src/components/table/hooks/usePagination";
 
 export type ScoresTableRow = {
   id: string;
@@ -91,6 +90,7 @@ export default function ScoresTable({
   omittedFilter = [],
   hiddenColumns = [],
   localStorageSuffix = "",
+  isLocalPagination = false,
 }: {
   projectId: string;
   userId?: string;
@@ -99,13 +99,14 @@ export default function ScoresTable({
   omittedFilter?: string[];
   hiddenColumns?: string[];
   localStorageSuffix?: string;
+  isLocalPagination?: boolean;
 }) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
-  });
+  const { paginationState, setPaginationState } = usePagination(
+    isLocalPagination,
+    { pageIndex: 0, pageSize: 50 },
+  );
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");

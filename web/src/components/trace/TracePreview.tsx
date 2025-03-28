@@ -295,6 +295,7 @@ export const TracePreview = ({
                   traceId={trace.id}
                   hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
                   localStorageSuffix="TracePreview"
+                  isLocalPagination
                 />
               </div>
             </TabsBarContent>
