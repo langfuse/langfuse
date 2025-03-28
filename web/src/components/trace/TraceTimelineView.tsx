@@ -516,7 +516,7 @@ export function TraceTimelineView({
     const scrollWidth = timelineContentRef.current.scrollWidth;
 
     // Add 20px to account for scrollbar padding
-    const newWidth = Math.max(SCALE_WIDTH, scrollWidth + 20);
+    const newWidth = Math.max(SCALE_WIDTH, scrollWidth);
     if (newWidth !== contentWidth) {
       setContentWidth(newWidth);
     }
