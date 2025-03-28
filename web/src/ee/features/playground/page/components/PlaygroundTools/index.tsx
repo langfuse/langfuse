@@ -142,7 +142,7 @@ export const PlaygroundTools = () => {
                 placeholder="Search tools..."
                 className="h-8 border-none p-1 focus:ring-0 focus:ring-offset-0"
               />
-              <CommandList className="max-h-[300px] overflow-auto">
+              <CommandList className="max-h-[300px] overflow-y-auto">
                 <CommandEmpty>No tools found.</CommandEmpty>
                 <CommandGroup>
                   {savedTools.map((tool) => (
