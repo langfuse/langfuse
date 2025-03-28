@@ -130,8 +130,17 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     setMessages(cachedMessages.map((m) => ({ ...m, id: uuidv4() })));
 
     if (cachedOutput) {
-      setOutput(cachedOutput);
-      setOutputJson("");
+      // Try parsing a previous output with tool calls
+      try {
+        const completion = JSON.parse(cachedOutput);
+        const parsed = ToolCallResponseSchema.parse(completion);
+
+        setOutput(String(parsed.content));
+        setOutputToolCalls(parsed.tool_calls);
+      } catch {
+        setOutput(cachedOutput);
+        setOutputJson("");
+      }
     }
 
     if (cachedModelParams) {
