@@ -85,7 +85,7 @@ export default function BlobStorageIntegrationSettings() {
     >
       <p className="mb-4 text-sm text-primary">
         Configure scheduled exports of your trace data to AWS S3, S3-compatible
-        storages, or Azure Blob Storage. Set up a daily, weekly, or monthly
+        storages, or Azure Blob Storage. Set up a hourly, daily, or weekly
         export to your own storage for data analysis or backup purposes.
       </p>
       {!hasAccess && (
