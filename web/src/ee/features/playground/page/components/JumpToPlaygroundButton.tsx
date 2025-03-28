@@ -26,7 +26,6 @@ import {
   OpenAIToolCallSchema,
   OpenAIToolSchema,
   type ChatMessage,
-  LLMJSONSchema,
   OpenAIResponseFormatSchema,
 } from "@langfuse/shared";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -126,7 +125,7 @@ const ParsedChatMessageListSchema = z.array(
             .transform((v) => v.text),
         )
         .transform((v) => v.join("")),
-      z.null().transform((v) => ""),
+      z.null().transform((_) => ""),
       z.any().transform((v) => JSON.stringify(v, null, 2)),
     ]),
     tool_calls: z
