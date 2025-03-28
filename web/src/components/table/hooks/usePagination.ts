@@ -22,9 +22,9 @@ type usePaginationProps = {
 /**
  * A hook for managing pagination state, either through URL or local state
  *
- * @param isLocalPagination If true, uses local React state in combination with session storage instead of URL parameters
  * @param initialState The initial pagination state
- * @param paramNames Optional custom parameter names for URL-based pagination
+ * @param isLocalPagination If true, uses local React state in combination with session storage instead of URL parameters
+ * @param tableName The name of the table to store the pagination state in session storage
  */
 export function usePagination({
   initialState = { pageIndex: 0, pageSize: 50 },
