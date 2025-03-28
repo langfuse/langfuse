@@ -167,6 +167,12 @@ export function CodeMirrorEditor({
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        // Remove outline if field is focussed
+        EditorView.theme({
+          "&.cm-focused": {
+            outline: "none",
+          },
+        }),
         // Hide gutter when lineNumbers is false
         // Fix missing gutter border
         ...(!lineNumbers

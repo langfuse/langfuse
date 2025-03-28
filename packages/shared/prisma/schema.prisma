@@ -142,6 +142,8 @@ model Project {
   LegacyObservation      LegacyPrismaObservation[]
   LegacyScore            LegacyPrismaScore[]
   PromptDependency       PromptDependency[]
+  LlmSchema              LlmSchema[]
+  LlmTool                LlmTool[]
 
   @@index([orgId])
   @@map("projects")
@@ -859,6 +861,7 @@ model SsoConfig {
   authProvider String   @map("auth_provider") // e.g. "okta", ee/sso/types.ts
 
   authConfig Json? @map("auth_config")
+
   // e.g. { "clientId": "1234", "clientSecret": "5678" }, null if credentials from env should be used
   // secrets like clientSecret are encrypted on the application level
   @@map("sso_configs")
@@ -1008,4 +1011,36 @@ model BillingMeterBackup {
   @@unique([stripeCustomerId, meterId, startTime, endTime])
   @@index([stripeCustomerId, meterId, startTime, endTime])
   @@map("billing_meter_backups")
+}
+
+model LlmSchema {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name        String @map("name")
+  description String @map("description")
+  schema      Json   @map("schema") @db.Json
+
+  @@unique([projectId, name])
+  @@map("llm_schemas")
+}
+
+model LlmTool {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name        String @map("name")
+  description String @map("description")
+  parameters  Json   @map("parameters") @db.Json
+
+  @@unique([projectId, name])
+  @@map("llm_tools")
 }

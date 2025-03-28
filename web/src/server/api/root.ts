@@ -17,6 +17,8 @@ import { evalRouter } from "@/src/ee/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { blobStorageIntegrationRouter } from "@/src/features/blobstorage-integration/blobstorage-integration-router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
+import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
+import { llmToolRouter } from "@/src/features/llm-tools/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
 import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
 import { publicRouter } from "@/src/server/api/routers/public";
@@ -64,6 +66,8 @@ export const appRouter = createTRPCRouter({
   posthogIntegration: posthogIntegrationRouter,
   blobStorageIntegration: blobStorageIntegrationRouter,
   llmApiKey: llmApiKeyRouter,
+  llmSchemas: llmSchemaRouter,
+  llmTools: llmToolRouter,
   public: publicRouter,
   credentials: credentialsRouter,
   utilities: utilsRouter,

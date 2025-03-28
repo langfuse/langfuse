@@ -29,6 +29,7 @@ import {
   QueueName,
   QueueJobs,
   LLMApiKeySchema,
+  ChatMessageType,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
@@ -735,7 +736,13 @@ export const evalRouter = createTRPCRouter({
               parsedKey.data.extraHeaders,
             ),
             baseURL: parsedKey.data.baseURL ?? undefined,
-            messages: [{ role: ChatMessageRole.User, content: input.prompt }],
+            messages: [
+              {
+                role: ChatMessageRole.User,
+                content: input.prompt,
+                type: ChatMessageType.User,
+              },
+            ],
             modelParams: {
               provider: input.provider,
               model: input.model,

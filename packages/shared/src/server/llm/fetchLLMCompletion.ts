@@ -1,4 +1,4 @@
-import type { ZodSchema } from "zod";
+import { type ZodSchema } from "zod";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -9,6 +9,7 @@ import {
   BaseMessage,
   HumanMessage,
   SystemMessage,
+  ToolMessage,
 } from "@langchain/core/messages";
 import {
   BytesOutputParser,
@@ -25,8 +26,13 @@ import { logger } from "../logger";
 import {
   ChatMessage,
   ChatMessageRole,
+  ChatMessageType,
   LLMAdapter,
+  LLMJSONSchema,
+  LLMToolDefinition,
   ModelParams,
+  ToolCallResponse,
+  ToolCallResponseSchema,
   TraceParams,
 } from "./types";
 import { CallbackHandler } from "langfuse-langchain";
@@ -37,7 +43,7 @@ type ProcessTracedEvents = () => Promise<void>;
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
-  structuredOutputSchema?: ZodSchema;
+  structuredOutputSchema?: ZodSchema | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
   baseURL?: string;
   apiKey: string;
@@ -50,6 +56,7 @@ type LLMCompletionParams = {
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
   streaming: boolean;
+  tools?: LLMToolDefinition[];
 };
 
 export async function fetchLLMCompletion(
@@ -65,7 +72,10 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<{ completion: string; processTracedEvents: ProcessTracedEvents }>;
+): Promise<{
+  completion: string;
+  processTracedEvents: ProcessTracedEvents;
+}>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
@@ -73,19 +83,34 @@ export async function fetchLLMCompletion(
     structuredOutputSchema: ZodSchema;
   },
 ): Promise<{
-  completion: unknown;
+  completion: Record<string, unknown>;
+  processTracedEvents: ProcessTracedEvents;
+}>;
+
+export async function fetchLLMCompletion(
+  params: LLMCompletionParams & {
+    tools: LLMToolDefinition[];
+    streaming: false;
+  },
+): Promise<{
+  completion: ToolCallResponse;
   processTracedEvents: ProcessTracedEvents;
 }>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
 ): Promise<{
-  completion: string | IterableReadableStream<Uint8Array> | unknown;
+  completion:
+    | string
+    | IterableReadableStream<Uint8Array>
+    | Record<string, unknown>
+    | ToolCallResponse;
   processTracedEvents: ProcessTracedEvents;
 }> {
   // the apiKey must never be printed to the console
   const {
     messages,
+    tools,
     modelParams,
     streaming,
     callbacks,
@@ -140,11 +165,25 @@ export async function fetchLLMCompletion(
       )
         return new SystemMessage(message.content);
 
-      return new AIMessage(message.content);
+      if (message.type === ChatMessageType.ToolResult)
+        return new ToolMessage({
+          content: message.content,
+          tool_call_id: message.toolCallId,
+        });
+
+      return new AIMessage({
+        content: message.content,
+        tool_calls:
+          message.type === ChatMessageType.AssistantToolCall
+            ? (message.toolCalls as any)
+            : undefined,
+      });
     });
   }
 
-  finalMessages = finalMessages.filter((m) => m.content.length > 0);
+  finalMessages = finalMessages.filter(
+    (m) => m.content.length > 0 || "tool_calls" in m,
+  );
 
   let chatModel:
     | ChatOpenAI
@@ -320,6 +359,25 @@ export async function fetchLLMCompletion(
       };
     }
 
+    if (tools && tools.length > 0) {
+      const langchainTools = tools.map((tool) => ({
+        type: "function",
+        function: tool,
+      }));
+
+      const result = await chatModel
+        .bindTools(langchainTools)
+        .invoke(finalMessages, runConfig);
+
+      const parsed = ToolCallResponseSchema.safeParse(result);
+      if (!parsed.success) throw Error("Failed to parse LLM tool call result");
+
+      return {
+        completion: parsed.data,
+        processTracedEvents,
+      };
+    }
+
     if (streaming) {
       return {
         completion: await chatModel
@@ -339,6 +397,7 @@ export async function fetchLLMCompletion(
     if (throwOnError) {
       throw error;
     }
-    return { completion: null, processTracedEvents };
+
+    return { completion: "", processTracedEvents };
   }
 }
