@@ -9,7 +9,7 @@ import Link from "next/link";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
-import { DeleteButton } from "@/src/components/deleteButton";
+import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
@@ -33,7 +33,6 @@ export default function DatasetItems() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
-  const utils = api.useUtils();
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -127,13 +126,9 @@ export default function DatasetItems() {
                   />
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <DeleteButton
+                  <DeleteDatasetButton
                     itemId={datasetId}
                     projectId={projectId}
-                    isTableAction={false}
-                    scope="datasets:CUD"
-                    invalidateFunc={() => void utils.datasets.invalidate()}
-                    type="dataset"
                     redirectUrl={`/project/${projectId}/datasets`}
                     deleteConfirmation={dataset.data?.name}
                   />

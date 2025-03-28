@@ -77,6 +77,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               variant={props.variant || "ghost"}
               size={props.size || "icon"}
               className={props.className}
+              disabled={!hasAccess}
               onClick={() => {
                 setOpen(true);
                 capture("datasets:update_form_open", {
@@ -97,6 +98,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             variant={props.variant || "ghost"}
             size={props.size}
             className={props.className}
+            disabled={!hasAccess}
             onClick={() => {
               setOpen(true);
               capture("datasets:delete_form_open", {
