@@ -5,8 +5,7 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { ErrorPage } from "@/src/components/error-page";
-import { DeleteButton } from "@/src/components/deleteButton";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { DeleteTraceButton } from "@/src/components/deleteButton";
 import Page from "@/src/components/layouts/page";
 import { Trace } from "@/src/components/trace";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
@@ -20,7 +19,6 @@ export function TracePage({
   timestamp?: Date;
 }) {
   const router = useRouter();
-  const utils = api.useUtils();
 
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     {
@@ -69,8 +67,6 @@ export function TracePage({
     "display",
     withDefault(StringParam, "details"),
   );
-
-  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
 
   if (trace.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
@@ -153,18 +149,13 @@ export function TracePage({
               }}
               listKey="traces"
             />
-            {hasTraceDeletionEntitlement && (
-              <DeleteButton
-                itemId={traceId}
-                projectId={trace.data.projectId}
-                scope="traces:delete"
-                invalidateFunc={() => void utils.traces.all.invalidate()}
-                type="trace"
-                redirectUrl={`/project/${router.query.projectId as string}/traces`}
-                deleteConfirmation={trace.data.name ?? ""}
-                icon
-              />
-            )}
+            <DeleteTraceButton
+              itemId={traceId}
+              projectId={trace.data.projectId}
+              redirectUrl={`/project/${router.query.projectId as string}/traces`}
+              deleteConfirmation={trace.data.name ?? ""}
+              icon
+            />
           </>
         ),
       }}

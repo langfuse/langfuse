@@ -67,6 +67,8 @@ const events = {
     "activate",
     "deactivate",
     "update",
+    "delete_form_open",
+    "delete_evaluator_button_click",
   ],
   eval_templates: [
     "view_version",
@@ -74,6 +76,8 @@ const events = {
     "update_form_open",
     "new_form_submit",
     "update_form_submit",
+    "delete_form_open",
+    "delete_template_button_click",
   ],
   integrations: ["posthog_form_submitted", "blob_storage_form_submitted"],
   sign_in: ["cloud_region_switch", "button_click"],

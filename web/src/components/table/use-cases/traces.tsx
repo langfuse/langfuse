@@ -21,7 +21,7 @@ import {
 } from "use-query-params";
 import type Decimal from "decimal.js";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { DeleteButton } from "@/src/components/deleteButton";
+import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
   LevelColors,
@@ -880,29 +880,27 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        return traceId &&
-          typeof traceId === "string" &&
-          hasTraceDeletionEntitlement ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem asChild>
-                <DeleteButton
-                  itemId={traceId}
-                  projectId={projectId}
-                  scope="traces:delete"
-                  invalidateFunc={() => void utils.traces.all.invalidate()}
-                  type="trace"
-                  isTableAction={true}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : undefined;
+        return (
+          traceId &&
+          typeof traceId === "string" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem asChild>
+                  <DeleteTraceButton
+                    itemId={traceId}
+                    projectId={projectId}
+                    isTableAction
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        );
       },
     },
   ];

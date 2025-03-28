@@ -306,7 +306,14 @@ export const evaluate = async ({
     .selectAll()
     .where("id", "=", event.jobExecutionId)
     .where("project_id", "=", event.projectId)
-    .executeTakeFirstOrThrow();
+    .executeTakeFirst();
+
+  if (!job) {
+    logger.info(
+      `Job execution with id ${event.jobExecutionId} for project ${event.projectId} not found. This was likely deleted by the user.`,
+    );
+    return;
+  }
 
   if (!job?.job_input_trace_id) {
     throw new ForbiddenError(
