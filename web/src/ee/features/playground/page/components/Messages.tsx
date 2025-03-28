@@ -42,7 +42,7 @@ const SubmitButton = () => {
       }}
       loading={isStreaming}
     >
-      <p>Submit ({"\u2318"} + Enter)</p>
+      <p>Submit (Ctrl + Enter)</p>
     </Button>
   );
 };
