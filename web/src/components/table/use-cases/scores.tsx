@@ -103,10 +103,11 @@ export default function ScoresTable({
 }) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const { paginationState, setPaginationState } = usePagination(
+  const { paginationState, setPaginationState } = usePagination({
+    initialState: { pageIndex: 0, pageSize: 50 },
     isLocalPagination,
-    { pageIndex: 0, pageSize: 50 },
-  );
+    tableName: "scores",
+  });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");

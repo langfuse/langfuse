@@ -13,6 +13,12 @@ type PaginationHookResult = {
   setPaginationState: OnChangeFn<PaginationState>;
 };
 
+type usePaginationProps = {
+  initialState: PaginationState;
+  isLocalPagination?: boolean;
+  tableName: string;
+};
+
 /**
  * A hook for managing pagination state, either through URL or local state
  *
@@ -20,16 +26,13 @@ type PaginationHookResult = {
  * @param initialState The initial pagination state
  * @param paramNames Optional custom parameter names for URL-based pagination
  */
-export function usePagination(
+export function usePagination({
+  initialState = { pageIndex: 0, pageSize: 50 },
   isLocalPagination = false,
-  initialState: PaginationState = { pageIndex: 0, pageSize: 50 },
-  paramNames: { pageIndex: string; pageSize: string } = {
-    pageIndex: "pageIndex",
-    pageSize: "pageSize",
-  },
-): PaginationHookResult {
+  tableName,
+}: usePaginationProps): PaginationHookResult {
   const [storedPageSize, setStoredPageSize] = useSessionStorage(
-    "scoresPageSize",
+    `storedPageSize-${tableName}`,
     initialState.pageSize,
   );
   const [localState, setLocalState] = useState<PaginationState>({
@@ -39,15 +42,15 @@ export function usePagination(
 
   // URL state version
   const [urlState, setUrlState] = useQueryParams({
-    [paramNames.pageIndex]: withDefault(NumberParam, initialState.pageIndex),
-    [paramNames.pageSize]: withDefault(NumberParam, initialState.pageSize),
+    pageIndex: withDefault(NumberParam, initialState.pageIndex),
+    pageSize: withDefault(NumberParam, initialState.pageSize),
   });
 
   const paginationState = isLocalPagination
     ? localState
     : {
-        pageIndex: urlState[paramNames.pageIndex],
-        pageSize: urlState[paramNames.pageSize],
+        pageIndex: urlState.pageIndex,
+        pageSize: urlState.pageSize,
       };
 
   // Create a unified setter function
@@ -64,8 +67,8 @@ export function usePagination(
       setStoredPageSize(updatedState.pageSize);
     } else {
       setUrlState({
-        [paramNames.pageIndex]: updatedState.pageIndex,
-        [paramNames.pageSize]: updatedState.pageSize,
+        pageIndex: updatedState.pageIndex,
+        pageSize: updatedState.pageSize,
       });
     }
   };
