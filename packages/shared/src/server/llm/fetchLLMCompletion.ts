@@ -105,7 +105,7 @@ export async function fetchLLMCompletion(
     const handler = new CallbackHandler({
       _projectId: traceParams.projectId,
       _isLocalEventExportEnabled: true,
-      tags: traceParams.tags,
+      environment: traceParams.environment,
     });
     finalCallbacks.push(handler);
 
