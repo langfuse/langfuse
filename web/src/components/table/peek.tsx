@@ -9,7 +9,6 @@ import { Expand, ExternalLink } from "lucide-react";
 import { Separator } from "@/src/components/ui/separator";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { useRouter } from "next/router";
 
 type PeekViewItemType = Extract<LangfuseItemType, "TRACE">;
 
@@ -19,6 +18,7 @@ export type DataTablePeekViewProps<TData> = {
   onOpenChange: (open: boolean, row?: TData) => void;
   onExpand: (openInNewTab: boolean) => void;
   render: () => React.ReactNode;
+  urlPathname: string;
 };
 
 const mapItemTypeToPageUrl: Record<PeekViewItemType, string> = {
@@ -31,8 +31,8 @@ export function TablePeekView<TData>({
   onOpenChange,
   onExpand,
   render,
+  urlPathname,
 }: DataTablePeekViewProps<TData>) {
-  const router = useRouter();
   const pageUrl = mapItemTypeToPageUrl[itemType];
 
   return (
@@ -74,11 +74,10 @@ export function TablePeekView<TData>({
               <DetailPageNav
                 currentId={selectedRowId}
                 path={(entry) => {
-                  const { projectId } = router.query;
                   const url = new URL(window.location.href);
 
                   // Update the path part
-                  url.pathname = `/project/${projectId as string}/${pageUrl}`;
+                  url.pathname = urlPathname;
 
                   // Keep all existing query params
                   const params = new URLSearchParams(url.search);

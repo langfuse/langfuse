@@ -11,11 +11,7 @@ import {
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
 import {
-  getTotalTraces,
-  getTracesGroupedByName,
-  getObservationsCostGroupedByName,
   getScoreAggregate,
-  groupTracesByTime,
   getDistinctModels,
   getScoresAggregateOverTime,
   getTracesGroupedByUsers,
@@ -26,12 +22,11 @@ import {
   getNumericScoreHistogram,
   getNumericScoreTimeSeries,
   getCategoricalScoreTimeSeries,
-  getObservationsStatusTimeSeries,
   extractFromAndToTimestampsFromFilter,
   logger,
-  getTotalObservationUsageByTimeByModel,
   getObservationCostByTypeByTime,
   getObservationUsageByTypeByTime,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -40,7 +35,6 @@ import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
-import { clickhouseClient } from "@langfuse/shared/src/server";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
@@ -50,12 +44,13 @@ export const dashboardRouter = createTRPCRouter({
         filter: filterInterface.optional(),
         queryName: z
           .enum([
-            "traces-total",
-            "traces-grouped-by-name",
-            "observations-model-cost",
+            // "traces-total",
+            // "traces-grouped-by-name",
+            // "observations-model-cost",
             "score-aggregate",
-            "traces-timeseries",
-            "observations-total-cost-by-model-timeseries",
+            // "traces-timeseries",
+            // "observations-total-cost-by-model-timeseries",
+            // Cost by type and usage by type are currently not supported in the new data model
             "observations-usage-by-type-timeseries",
             "observations-cost-by-type-timeseries",
             "distinct-models",
@@ -67,7 +62,7 @@ export const dashboardRouter = createTRPCRouter({
             "model-latencies-over-time",
             "numeric-score-time-series",
             "categorical-score-chart",
-            "observations-status-timeseries",
+            // "observations-status-timeseries",
           ])
           .nullish(),
       }),
@@ -83,43 +78,42 @@ export const dashboardRouter = createTRPCRouter({
       }
 
       switch (input.queryName) {
-        case "traces-total":
-          const count = await getTotalTraces(
-            input.projectId,
-            input.filter ?? [],
-          );
-          return count as DatabaseRow[];
-        case "traces-grouped-by-name":
-          return (
-            await getTracesGroupedByName(
-              input.projectId,
-              dashboardColumnDefinitions,
-              input.filter,
-            )
-          ).map(
-            (row) =>
-              ({
-                traceName: row.name,
-                countTraceId: row.count,
-              }) as DatabaseRow,
-          );
-        case "observations-model-cost":
-          const cost = await getObservationsCostGroupedByName(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return cost.map((row) => ({
-            model: row.name,
-            sumCalculatedTotalCost: row.sum_cost_details,
-            sumTotalTokens: row.sum_usage_details,
-          })) as DatabaseRow[];
+        // case "traces-total":
+        //   const count = await getTotalTraces(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //   return count as DatabaseRow[];
+        // case "traces-grouped-by-name":
+        //   return (
+        //     await getTracesGroupedByName(
+        //       input.projectId,
+        //       dashboardColumnDefinitions,
+        //       input.filter,
+        //     )
+        //   ).map(
+        //     (row) =>
+        //       ({
+        //         traceName: row.name,
+        //         countTraceId: row.count,
+        //       }) as DatabaseRow,
+        //   );
+        // case "observations-model-cost":
+        //   const cost = await getObservationsCostGroupedByName(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return cost.map((row) => ({
+        //     model: row.name,
+        //     sumCalculatedTotalCost: row.sum_cost_details,
+        //     sumTotalTokens: row.sum_usage_details,
+        //   })) as DatabaseRow[];
         case "score-aggregate":
           const scores = await getScoreAggregate(
             input.projectId,
             input.filter ?? [],
           );
-
           return scores.map((row) => ({
             scoreName: row.name,
             scoreSource: row.source,
@@ -127,26 +121,24 @@ export const dashboardRouter = createTRPCRouter({
             avgValue: row.avg_value,
             countScoreId: Number(row.count),
           })) as DatabaseRow[];
-
-        case "traces-timeseries":
-          const rows = await groupTracesByTime(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return rows as DatabaseRow[];
-        case "observations-total-cost-by-model-timeseries":
-          const dateTruncObs = extractTimeSeries(input.groupBy);
-          if (!dateTruncObs) {
-            return [];
-          }
-          const rowsObs = await getTotalObservationUsageByTimeByModel(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return rowsObs as DatabaseRow[];
-
+        // case "traces-timeseries":
+        //   const rows = await groupTracesByTime(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return rows as DatabaseRow[];
+        // case "observations-total-cost-by-model-timeseries":
+        //   const dateTruncObs = extractTimeSeries(input.groupBy);
+        //   if (!dateTruncObs) {
+        //     return [];
+        //   }
+        //   const rowsObs = await getTotalObservationUsageByTimeByModel(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return rowsObs as DatabaseRow[];
         case "observations-usage-by-type-timeseries":
           const rowsObsType = await getObservationUsageByTypeByTime(
             input.projectId,
@@ -154,7 +146,6 @@ export const dashboardRouter = createTRPCRouter({
           );
 
           return rowsObsType as DatabaseRow[];
-
         case "observations-cost-by-type-timeseries":
           const rowsObsCostByType = await getObservationCostByTypeByTime(
             input.projectId,
@@ -162,7 +153,6 @@ export const dashboardRouter = createTRPCRouter({
           );
 
           return rowsObsCostByType as DatabaseRow[];
-
         case "distinct-models":
           const models = await getDistinctModels(
             input.projectId,
@@ -264,12 +254,11 @@ export const dashboardRouter = createTRPCRouter({
               input.filter ?? [],
             );
           return categoricalScoreTimeSeries as DatabaseRow[];
-        case "observations-status-timeseries":
-          return (await getObservationsStatusTimeSeries(
-            input.projectId,
-            input.filter ?? [],
-          )) as DatabaseRow[];
-
+        // case "observations-status-timeseries":
+        //   return (await getObservationsStatusTimeSeries(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   )) as DatabaseRow[];
         default:
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -325,32 +314,29 @@ export async function executeQuery(
   query: QueryType,
 ): Promise<Array<Record<string, unknown>>> {
   try {
-    // Initialize query builder with ClickHouse client
-    const queryBuilder = new QueryBuilder();
-
-    // Build the query
-    const { query: compiledQuery, parameters } = queryBuilder.build(
+    const { query: compiledQuery, parameters } = new QueryBuilder().build(
       query,
       projectId,
     );
 
-    // Execute the query
-    const result = await clickhouseClient({
+    const result = await queryClickhouse<Record<string, unknown>>({
+      query: compiledQuery,
+      params: parameters,
+      clickhouseConfigs: {
+        clickhouse_settings: {
+          date_time_output_format: "iso",
+        },
+      },
       tags: {
         feature: "custom-queries",
         type: query.view,
         kind: "analytic",
         projectId,
       },
-    }).query({
-      query: compiledQuery,
-      query_params: parameters,
     });
-
-    // Return the result
-    return (await result.json<Record<string, unknown>>()).data;
+    return result;
   } catch (error) {
-    logger.error("Error executing query", { error, projectId, query });
+    logger.error("Error executing query", error, { projectId, query });
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
       message: "Failed to execute query",

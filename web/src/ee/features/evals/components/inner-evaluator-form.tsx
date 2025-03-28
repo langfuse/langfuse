@@ -456,6 +456,7 @@ export const InnerEvaluatorForm = (props: {
                           filterState={field.value ?? []}
                           onChange={(value) => field.onChange(value)}
                           disabled={props.disabled}
+                          columnsWithCustomSelect={["tags"]}
                         />
                       </FormControl>
                       <FormDescription>
