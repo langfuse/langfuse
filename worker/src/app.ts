@@ -114,7 +114,7 @@ if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED === "true") {
       limiter: {
         // Process at most `max` jobs per 30 seconds
         max: 1,
-        duration: 30_000,
+        duration: 120_000,
       },
     },
   );
@@ -126,7 +126,7 @@ if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 15 seconds
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
-      duration: 30_000,
+      duration: 120_000,
     },
   });
 }
@@ -137,7 +137,7 @@ if (env.QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 15 seconds
       max: env.LANGFUSE_SCORE_DELETE_CONCURRENCY,
-      duration: 30_000,
+      duration: 120_000,
     },
   });
 }
@@ -148,7 +148,7 @@ if (env.QUEUE_CONSUMER_PROJECT_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 3 seconds
       max: env.LANGFUSE_PROJECT_DELETE_CONCURRENCY,
-      duration: 30_000,
+      duration: 120_000,
     },
   });
 }
@@ -231,7 +231,7 @@ if (
       limiter: {
         // Process at most `max` jobs per 30 seconds
         max: 1,
-        duration: 30_000,
+        duration: 120_000,
       },
     },
   );
