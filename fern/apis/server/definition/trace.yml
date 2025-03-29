@@ -24,6 +24,56 @@ service:
           type: string
           docs: The unique langfuse identifier of the trace to delete
       response: DeleteTraceResponse
+    update:
+      docs: Update a specific trace. Updates are performed in the background.
+      method: PATCH
+      path: /traces/{traceId}
+      path-parameters:
+        traceId:
+          type: string
+          docs: The unique langfuse identifier of the trace to update
+      request:
+        name: UpdateTraceRequest
+        body:
+          properties:
+            bookmarked:
+              type: optional<boolean>
+              docs: Whether the trace is bookmarked
+            public:
+              type: optional<boolean>
+              docs: Whether the trace is publicly accessible
+            tags:
+              type: optional<list<string>>
+              docs: List of tags associated with the trace
+      response: PatchTraceResponse
+    addTag:
+      docs: Add a single tag to a trace. Tags are added in the background.
+      method: POST
+      path: /traces/{traceId}/tags
+      path-parameters:
+        traceId:
+          type: string
+          docs: The unique langfuse identifier of the trace
+      request:
+        name: AddTagRequest
+        body:
+          properties:
+            tag:
+              type: string
+              docs: The tag to add to the trace
+      response: PatchTraceResponse
+    removeTag:
+      docs: Remove a single tag from a trace. Tags are removed in the background.
+      method: DELETE
+      path: /traces/{traceId}/tags/{tagId}
+      path-parameters:
+        traceId:
+          type: string
+          docs: The unique langfuse identifier of the trace
+        tagId:
+          type: string
+          docs: The tag to remove from the trace
+      response: PatchTraceResponse
     list:
       docs: Get list of traces
       method: GET
@@ -82,6 +132,9 @@ types:
     properties:
       data: list<commons.TraceWithDetails>
       meta: pagination.MetaResponse
+  PatchTraceResponse:
+    properties:
+      id: string
   DeleteTraceResponse:
     properties:
       message: string
