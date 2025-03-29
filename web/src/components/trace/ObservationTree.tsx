@@ -2,10 +2,10 @@ import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import {
   type APIScore,
-  type Trace,
   ObservationLevel,
   type ObservationLevelType,
   type ObservationType,
+  type Trace,
 } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment, useMemo, useRef, useEffect } from "react";

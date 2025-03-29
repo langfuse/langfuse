@@ -50,3 +50,6 @@ export * from "./server/repositories/types";
 export * from "./errors/index";
 
 export * from "./utils/environment";
+
+// domain
+export * from "./domain";
