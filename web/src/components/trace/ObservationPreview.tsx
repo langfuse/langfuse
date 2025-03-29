@@ -427,6 +427,7 @@ export const ObservationPreview = ({
                     "userId",
                   ]}
                   localStorageSuffix="ObservationPreview"
+                  isLocalPagination
                 />
               </div>
             </TabsBarContent>
