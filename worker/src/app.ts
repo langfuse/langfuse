@@ -114,7 +114,7 @@ if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED === "true") {
       limiter: {
         // Process at most `max` jobs per 30 seconds
         max: 1,
-        duration: 120_000,
+        duration: 30_000,
       },
     },
   );
@@ -231,7 +231,7 @@ if (
       limiter: {
         // Process at most `max` jobs per 30 seconds
         max: 1,
-        duration: 120_000,
+        duration: 30_000,
       },
     },
   );
