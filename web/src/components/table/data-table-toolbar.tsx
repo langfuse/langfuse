@@ -25,6 +25,7 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -38,7 +39,7 @@ export interface MultiSelect {
 
 interface SearchConfig {
   placeholder: string;
-  updateQuery(event: string): void;
+  updateQuery(event: string, isFullText?: boolean): void;
   currentQuery?: string;
 }
 
@@ -95,36 +96,52 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+  const [isFullText, setIsFullText] = useState(false);
   const capture = usePostHogClientCapture();
 
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
-          <div className="flex max-w-md items-center rounded-md border">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                capture("table:search_submit");
-                searchConfig.updateQuery(searchString);
-              }}
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-            <Input
-              autoFocus
-              placeholder={searchConfig.placeholder}
-              value={searchString}
-              onChange={(event) => setSearchString(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
+          <div className="flex max-w-md flex-col gap-1">
+            <div className="flex items-center rounded-md border">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
                   capture("table:search_submit");
-                  searchConfig.updateQuery(searchString);
-                }
-              }}
-              className="min-w-0 max-w-fit border-none px-0"
-            />
+                  searchConfig.updateQuery(searchString, isFullText);
+                }}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+              <Input
+                autoFocus
+                placeholder={searchConfig.placeholder}
+                value={searchString}
+                onChange={(event) => setSearchString(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    capture("table:search_submit");
+                    searchConfig.updateQuery(searchString, isFullText);
+                  }
+                }}
+                className="min-w-0 max-w-fit border-none px-0"
+              />
+            </div>
+            <ToggleGroup
+              type="single"
+              value={isFullText ? "full" : "simple"}
+              onValueChange={(value) => setIsFullText(value === "full")}
+              className="flex justify-start"
+            >
+              <ToggleGroupItem value="simple" size="xs" className="text-xs">
+                Simple
+              </ToggleGroupItem>
+              <ToggleGroupItem value="full" size="xs" className="text-xs">
+                Full Text
+              </ToggleGroupItem>
+            </ToggleGroup>
           </div>
         )}
         {selectedOption && setDateRangeAndOption && (
