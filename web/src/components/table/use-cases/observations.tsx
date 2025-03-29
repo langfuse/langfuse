@@ -51,6 +51,10 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  convertSelectedTraceTagsToFilter,
+  useTraceTagsFilter,
+} from "@/src/hooks/use-trace-tags-filter";
 
 export type ObservationsTableRow = {
   id: string;
@@ -206,12 +210,35 @@ export default function ObservationsTable({
     selectedEnvironments,
   );
 
+  const traceTagsFilterOptions = api.traces.filterOptions.useQuery(
+    { projectId },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const traceTagsOptions =
+    traceTagsFilterOptions.data?.tags.map((item) => item.value) || [];
+
+  const { selectedTraceTags, setSelectedTraceTags } =
+    useTraceTagsFilter(traceTagsOptions);
+
+  const traceTagsFilter = convertSelectedTraceTagsToFilter(
+    ["traceTags"],
+    selectedTraceTags,
+  );
+
   const filterState = inputFilterState.concat(
     dateRangeFilter,
     promptNameFilter,
     promptVersionFilter,
     modelIdFilter,
     environmentFilter,
+    traceTagsFilter,
   );
 
   const getCountPayload = {
@@ -880,6 +907,11 @@ export default function ObservationsTable({
           values: selectedEnvironments,
           onValueChange: setSelectedEnvironments,
           options: environmentOptions.map((env) => ({ value: env })),
+        }}
+        traceTagsFilter={{
+          values: selectedTraceTags,
+          onValueChange: setSelectedTraceTags,
+          options: traceTagsOptions.map((tag) => ({ value: tag })),
         }}
       />
       <DataTable
