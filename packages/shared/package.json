@@ -110,7 +110,7 @@
     "nodemon": "^3.1.7",
     "prettier": "^3.3.3",
     "prisma": "^6.3.0",
-    "prisma-erd-generator": "^1.11.2",
+    "prisma-erd-generator": "^2.0.4",
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
