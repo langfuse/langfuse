@@ -503,7 +503,7 @@ export function DatasetRunsTable(props: {
                   const scoreData = scoreKeyToData.get(key);
                   if (!scoreData)
                     return (
-                      <div key={key} className="h-full min-w-72 max-w-full">
+                      <div key={key} className="h-full min-w-80 max-w-full">
                         <TimeseriesChart
                           chartData={chartData}
                           chartLabels={chartLabels}
@@ -513,12 +513,17 @@ export function DatasetRunsTable(props: {
                             )?.label ?? key
                           }
                           type="numeric"
+                          maxFractionDigits={
+                            RESOURCE_METRICS.find(
+                              (metric) => metric.key === key,
+                            )?.maxFractionDigits
+                          }
                         />
                       </div>
                     );
 
                   return (
-                    <div key={key} className="h-full min-w-72 max-w-full">
+                    <div key={key} className="h-full min-w-80 max-w-full">
                       <TimeseriesChart
                         chartData={chartData}
                         chartLabels={chartLabels}

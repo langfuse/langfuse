@@ -13,12 +13,14 @@ export const RESOURCE_METRICS = [
     value: "Latency",
     objectKey: "avgLatency",
     label: "Latency (s)",
+    maxFractionDigits: 2,
   },
   {
     key: "cost",
     value: "Cost",
     objectKey: "avgTotalCost",
     label: "Average Total Cost ($)",
+    maxFractionDigits: 5,
   },
 ];
 

@@ -345,6 +345,11 @@ export default function DatasetCompare() {
                               )?.label ?? key
                             }
                             type="numeric"
+                            maxFractionDigits={
+                              RESOURCE_METRICS.find(
+                                (metric) => metric.key === key,
+                              )?.maxFractionDigits
+                            }
                           />
                         </div>
                       );

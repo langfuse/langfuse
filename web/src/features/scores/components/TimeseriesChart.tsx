@@ -19,6 +19,7 @@ export function TimeseriesChart({
   title,
   type,
   index,
+  maxFractionDigits,
 }: TimeseriesChartProps) {
   const chartIndex = index ?? "binLabel";
 
@@ -38,6 +39,7 @@ export function TimeseriesChart({
             chartLabels={chartLabels}
             chartData={chartData}
             index={chartIndex}
+            maxFractionDigits={maxFractionDigits}
           />
         )}
       </div>

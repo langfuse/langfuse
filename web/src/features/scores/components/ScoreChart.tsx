@@ -58,6 +58,7 @@ export function NumericChart(props: {
   chartData: ChartBin[];
   chartLabels: string[];
   index: string;
+  maxFractionDigits?: number;
 }) {
   const colors = getColorsForCategories(props.chartLabels);
 
@@ -71,7 +72,9 @@ export function NumericChart(props: {
         index={props.index}
         categories={props.chartLabels}
         colors={colors}
-        valueFormatter={compactNumberFormatter}
+        valueFormatter={(value) => {
+          return compactNumberFormatter(value, props.maxFractionDigits);
+        }}
         noDataText="No data"
         showAnimation={true}
         onValueChange={() => {}}
