@@ -359,7 +359,13 @@ export function AnnotateDrawerContent({
 
     await Promise.all([
       utils.scores.invalidate(),
-      utils.traces.invalidate(),
+      utils.traces.byIdWithObservationsAndScores.invalidate(
+        { projectId, traceId },
+        {
+          type: "all",
+          refetchType: "all",
+        },
+      ),
       utils.sessions.invalidate(),
     ]);
 
