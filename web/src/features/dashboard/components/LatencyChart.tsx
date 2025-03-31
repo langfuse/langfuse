@@ -52,7 +52,6 @@ export const GenerationLatencyChart = ({
     toTimestamp,
   );
 
-  // Define the query for model latencies using the new QueryType structure
   const latenciesQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "providedModelName" }],
@@ -86,7 +85,6 @@ export const GenerationLatencyChart = ({
     orderBy: null,
   };
 
-  // Execute the query using the new dashboard.executeQuery functionality
   const latencies = api.dashboard.executeQuery.useQuery(
     {
       projectId,

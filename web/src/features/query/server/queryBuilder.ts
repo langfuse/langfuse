@@ -123,19 +123,20 @@ export class QueryBuilder {
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
         }
-      } else if (filter.column in view.measures) {
-        const measure = view.measures[filter.column];
-        clickhouseSelect = measure.sql;
-        type = measure.type;
-        if (measure.relationTable) {
-          clickhouseTableName = measure.relationTable;
-        }
+        // Filters on measures are underdefined and not allowed in the initial version
+        // } else if (filter.column in view.measures) {
+        //   const measure = view.measures[filter.column];
+        //   clickhouseSelect = measure.sql;
+        //   type = measure.type;
+        //   if (measure.relationTable) {
+        //     clickhouseTableName = measure.relationTable;
+        //   }
       } else if (filter.column === view.timeDimension) {
         clickhouseSelect = view.timeDimension;
         type = "datetime";
       } else {
         throw new Error(
-          `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${Object.keys(view.measures)} or ${view.timeDimension}`,
+          `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${view.timeDimension}`,
         );
       }
 

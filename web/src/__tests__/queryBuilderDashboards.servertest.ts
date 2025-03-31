@@ -12,6 +12,9 @@ import {
   getTotalObservationUsageByTimeByModel,
   getModelUsageByUser,
   getTracesGroupedByUsers,
+  getScoresAggregateOverTime,
+  getNumericScoreTimeSeries,
+  getCategoricalScoreTimeSeries,
   getObservationLatencies,
   getTracesLatencies,
   getModelLatenciesOverTime,
@@ -1408,6 +1411,315 @@ describe("selfServeDashboards", () => {
           expect(Number(row.p99_latency) / 1000).toBeCloseTo(
             Number(legacyData.p99),
           );
+        }
+      });
+
+      // Ensure we found at least some matches
+      expect(matchCount).toBeGreaterThan(0);
+    });
+  });
+
+  describe("scores-aggregate-timeseries query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getScoresAggregateOverTime(projectId, [
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "timestamp",
+          value: new Date(defaultFromTime),
+        },
+        {
+          type: "datetime",
+          operator: "<=",
+          column: "timestamp",
+          value: new Date(defaultToTime),
+        },
+      ]);
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "scores-numeric",
+        dimensions: [
+          { field: "name" },
+          { field: "dataType" },
+          { field: "source" },
+        ],
+        metrics: [{ measure: "value", aggregation: "avg" }],
+        filters: [
+          {
+            column: "dataType",
+            operator: "any of",
+            value: ["NUMERIC", "BOOLEAN"],
+            type: "stringOptions",
+          },
+        ],
+        timeDimension: {
+          granularity: "hour",
+        },
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(queryBuilderResult).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Verify both result sets have a similar number of rows
+      // The exact number might differ due to time granularity differences
+      expect(queryBuilderResult.length).toBeGreaterThan(0);
+      expect(legacyResult.length).toBeGreaterThan(0);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [
+          `${item.name}-${item.source}-${item.data_type}-${new Date(item.timestamp).getTime()}`,
+          item,
+        ]),
+      );
+
+      // Verify score metrics match for some samples
+      // Note: We can't check all rows as the time granularity might differ
+      let matchCount = 0;
+      queryBuilderResult.forEach((row: any) => {
+        const key = `${row.name}-${row.source}-${row.data_type}-${new Date(row.time_dimension).getTime()}`;
+        const legacyData = legacyResultMap.get(key);
+
+        if (legacyData) {
+          matchCount++;
+          expect(Number(row.value_avg)).toBeCloseTo(Number(legacyData.avg_value));
+        }
+      });
+
+      // Ensure we found at least some matches
+      expect(matchCount).toBeGreaterThan(0);
+    });
+  });
+
+  describe("numeric-score-time-series query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getNumericScoreTimeSeries(projectId, [
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "timestamp",
+          value: new Date(defaultFromTime),
+        },
+        {
+          type: "datetime",
+          operator: "<=",
+          column: "timestamp",
+          value: new Date(defaultToTime),
+        },
+        {
+          type: "string",
+          column: "scoreName",
+          value: "test-score",
+          operator: "=",
+        },
+        {
+          type: "string",
+          column: "scoreSource",
+          value: "API",
+          operator: "=",
+        },
+        {
+          type: "string",
+          column: "scoreDataType",
+          value: "NUMERIC",
+          operator: "=",
+        },
+      ]);
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "scores-numeric",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "value", aggregation: "avg" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "test-score",
+            type: "string",
+          },
+          {
+            column: "source",
+            operator: "=",
+            value: "API",
+            type: "string",
+          },
+          {
+            column: "dataType",
+            operator: "=",
+            value: "NUMERIC",
+            type: "string",
+          },
+        ],
+        timeDimension: {
+          granularity: "hour",
+        },
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(queryBuilderResult).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Verify both result sets have a similar number of rows
+      // The exact number might differ due to time granularity differences
+      expect(queryBuilderResult.length).toBeGreaterThan(0);
+      expect(legacyResult.length).toBeGreaterThan(0);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [
+          `${item.name}-${new Date(item.timestamp).getTime()}`,
+          item,
+        ]),
+      );
+
+      // Verify score metrics match for some samples
+      // Note: We can't check all rows as the time granularity might differ
+      let matchCount = 0;
+      queryBuilderResult.forEach((row: any) => {
+        const key = `${row.name}-${new Date(row.time_dimension).getTime()}`;
+        const legacyData = legacyResultMap.get(key);
+
+        if (legacyData) {
+          matchCount++;
+          expect(Number(row.value_avg)).toBeCloseTo(Number(legacyData.avg_value));
+        }
+      });
+
+      // Ensure we found at least some matches
+      expect(matchCount).toBeGreaterThan(0);
+    });
+  });
+
+  describe("categorical-score-chart query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getCategoricalScoreTimeSeries(projectId, [
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "timestamp",
+          value: new Date(defaultFromTime),
+        },
+        {
+          type: "datetime",
+          operator: "<=",
+          column: "timestamp",
+          value: new Date(defaultToTime),
+        },
+        {
+          type: "string",
+          column: "scoreName",
+          value: "test-categorical-score",
+          operator: "=",
+        },
+        {
+          type: "string",
+          column: "scoreSource",
+          value: "API",
+          operator: "=",
+        },
+        {
+          type: "string",
+          column: "scoreDataType",
+          value: "CATEGORICAL",
+          operator: "=",
+        },
+      ]);
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "scores-categorical",
+        dimensions: [
+          { field: "name" },
+          { field: "source" },
+          { field: "dataType" },
+          { field: "stringValue" },
+        ],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "test-categorical-score",
+            type: "string",
+          },
+          {
+            column: "source",
+            operator: "=",
+            value: "API",
+            type: "string",
+          },
+          {
+            column: "dataType",
+            operator: "=",
+            value: "CATEGORICAL",
+            type: "string",
+          },
+        ],
+        timeDimension: {
+          granularity: "hour",
+        },
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(queryBuilderResult).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Verify both result sets have a similar number of rows
+      // The exact number might differ due to time granularity differences
+      expect(queryBuilderResult.length).toBeGreaterThan(0);
+      expect(legacyResult.length).toBeGreaterThan(0);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [
+          `${item.name}-${item.source}-${item.data_type}-${item.string_value}-${new Date(item.timestamp).getTime()}`,
+          item,
+        ]),
+      );
+
+      // Verify score metrics match for some samples
+      // Note: We can't check all rows as the time granularity might differ
+      let matchCount = 0;
+      queryBuilderResult.forEach((row: any) => {
+        const key = `${row.name}-${row.source}-${row.data_type}-${row.string_value}-${new Date(row.time_dimension).getTime()}`;
+        const legacyData = legacyResultMap.get(key);
+
+        if (legacyData) {
+          matchCount++;
+          expect(Number(row.count_count)).toBe(Number(legacyData.count));
         }
       });
 

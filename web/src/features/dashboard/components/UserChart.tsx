@@ -35,7 +35,6 @@ export const UserChart = ({
   isLoading?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  // Define the query for user cost data using the new QueryType structure
   const userCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "userId" }],
@@ -58,7 +57,6 @@ export const UserChart = ({
     orderBy: null,
   };
 
-  // Execute the query using the new dashboard.executeQuery functionality
   const user = api.dashboard.executeQuery.useQuery(
     {
       projectId,
@@ -74,7 +72,6 @@ export const UserChart = ({
     },
   );
 
-  // Define the query for trace count data using the new QueryType structure
   const traceCountQuery: QueryType = {
     view: "traces",
     dimensions: [{ field: "userId" }],
@@ -86,7 +83,6 @@ export const UserChart = ({
     orderBy: null,
   };
 
-  // Execute the query using the new dashboard.executeQuery functionality
   const traces = api.dashboard.executeQuery.useQuery(
     {
       projectId,
