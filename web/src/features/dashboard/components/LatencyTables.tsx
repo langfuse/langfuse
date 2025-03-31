@@ -4,46 +4,57 @@ import { DashboardTable } from "@/src/features/dashboard/components/cards/Dashbo
 import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 
-import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { truncate } from "@/src/utils/string";
 import { Popup } from "@/src/components/layouts/doc-popup";
+import {
+  type QueryType,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
 
 export const LatencyTables = ({
   projectId,
   globalFilterState,
+  fromTimestamp,
+  toTimestamp,
   isLoading = false,
 }: {
   projectId: string;
   globalFilterState: FilterState;
+  fromTimestamp: Date;
+  toTimestamp: Date;
   isLoading?: boolean;
 }) => {
-  const generationsLatencies = api.dashboard.chart.useQuery(
+  // Define the query for generation latencies using the new QueryType structure
+  const generationsLatenciesQuery: QueryType = {
+    view: "observations",
+    dimensions: [{ field: "name" }],
+    metrics: [
+      { measure: "latency", aggregation: "p50" },
+      { measure: "latency", aggregation: "p90" },
+      { measure: "latency", aggregation: "p95" },
+      { measure: "latency", aggregation: "p99" },
+    ],
+    filters: [
+      ...mapLegacyUiTableFilterToView("observations", globalFilterState),
+      {
+        column: "type",
+        operator: "=",
+        value: "GENERATION",
+        type: "string",
+      },
+    ],
+    timeDimension: null,
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: [{ field: "p95_latency", direction: "desc" }],
+  };
+
+  // Execute the query using the new dashboard.executeQuery functionality
+  const generationsLatencies = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: "traces_observations",
-      select: [
-        { column: "duration", agg: "50thPercentile" },
-        { column: "duration", agg: "90thPercentile" },
-        { column: "duration", agg: "95thPercentile" },
-        { column: "duration", agg: "99thPercentile" },
-        { column: "name" },
-      ],
-      filter: [
-        ...globalFilterState,
-        {
-          type: "string",
-          column: "type",
-          operator: "=",
-          value: "GENERATION",
-        },
-      ],
-      groupBy: [{ type: "string", column: "name" }],
-      orderBy: [
-        { column: "duration", agg: "95thPercentile", direction: "DESC" },
-      ],
-      queryName: "observation-latencies-aggregated",
+      query: generationsLatenciesQuery,
     },
     {
       trpc: {
@@ -55,31 +66,36 @@ export const LatencyTables = ({
     },
   );
 
-  const spansLatencies = api.dashboard.chart.useQuery(
+  // Define the query for span latencies using the new QueryType structure
+  const spansLatenciesQuery: QueryType = {
+    view: "observations",
+    dimensions: [{ field: "name" }],
+    metrics: [
+      { measure: "latency", aggregation: "p50" },
+      { measure: "latency", aggregation: "p90" },
+      { measure: "latency", aggregation: "p95" },
+      { measure: "latency", aggregation: "p99" },
+    ],
+    filters: [
+      ...mapLegacyUiTableFilterToView("observations", globalFilterState),
+      {
+        column: "type",
+        operator: "=",
+        value: "SPAN",
+        type: "string",
+      },
+    ],
+    timeDimension: null,
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: [{ field: "p95_latency", direction: "desc" }],
+  };
+
+  // Execute the query using the new dashboard.executeQuery functionality
+  const spansLatencies = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: "traces_observations",
-      select: [
-        { column: "duration", agg: "50thPercentile" },
-        { column: "duration", agg: "90thPercentile" },
-        { column: "duration", agg: "95thPercentile" },
-        { column: "duration", agg: "99thPercentile" },
-        { column: "name" },
-      ],
-      filter: [
-        ...globalFilterState,
-        {
-          type: "string",
-          column: "type",
-          operator: "=",
-          value: "SPAN",
-        },
-      ],
-      groupBy: [{ type: "string", column: "name" }],
-      orderBy: [
-        { column: "duration", agg: "95thPercentile", direction: "DESC" },
-      ],
-      queryName: "observation-latencies-aggregated",
+      query: spansLatenciesQuery,
     },
     {
       trpc: {
@@ -91,23 +107,28 @@ export const LatencyTables = ({
     },
   );
 
-  const tracesLatencies = api.dashboard.chart.useQuery(
+  // Define the query for trace latencies using the new QueryType structure
+  const tracesLatenciesQuery: QueryType = {
+    view: "traces",
+    dimensions: [{ field: "name" }],
+    metrics: [
+      { measure: "latency", aggregation: "p50" },
+      { measure: "latency", aggregation: "p90" },
+      { measure: "latency", aggregation: "p95" },
+      { measure: "latency", aggregation: "p99" },
+    ],
+    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
+    timeDimension: null,
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: [{ field: "p95_latency", direction: "desc" }],
+  };
+
+  // Execute the query using the new dashboard.executeQuery functionality
+  const tracesLatencies = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: "traces_metrics",
-      select: [
-        { column: "duration", agg: "50thPercentile" },
-        { column: "duration", agg: "90thPercentile" },
-        { column: "duration", agg: "95thPercentile" },
-        { column: "duration", agg: "99thPercentile" },
-        { column: "traceName" },
-      ],
-      filter: [...createTracesTimeFilter(globalFilterState)],
-      groupBy: [{ type: "string", column: "traceName" }],
-      orderBy: [
-        { column: "duration", agg: "95thPercentile", direction: "DESC" },
-      ],
-      queryName: "traces-latencies-aggregated",
+      query: tracesLatenciesQuery,
     },
     {
       trpc: {
@@ -119,7 +140,7 @@ export const LatencyTables = ({
     },
   );
 
-  const generateLatencyData = (data?: DatabaseRow[]) => {
+  const generateLatencyData = (data?: Record<string, unknown>[]) => {
     return data
       ? data
           .filter((item) => item.name !== null)
@@ -130,18 +151,26 @@ export const LatencyTables = ({
                 description={item.name as string}
               />
             </div>,
-            ...[
-              "percentile50Duration",
-              "percentile90Duration",
-              "percentile95Duration",
-              "percentile99Duration",
-            ].map((percentile) => (
-              <RightAlignedCell key={`${i}-${percentile}`}>
-                {item[percentile]
-                  ? formatIntervalSeconds(item[percentile] as number, 3)
-                  : "-"}
-              </RightAlignedCell>
-            )),
+            <RightAlignedCell key={`${i}-p50`}>
+              {item.p50_latency
+                ? formatIntervalSeconds(Number(item.p50_latency) / 1000, 3)
+                : "-"}
+            </RightAlignedCell>,
+            <RightAlignedCell key={`${i}-p90`}>
+              {item.p90_latency
+                ? formatIntervalSeconds(Number(item.p90_latency) / 1000, 3)
+                : "-"}
+            </RightAlignedCell>,
+            <RightAlignedCell key={`${i}-p95`}>
+              {item.p95_latency
+                ? formatIntervalSeconds(Number(item.p95_latency) / 1000, 3)
+                : "-"}
+            </RightAlignedCell>,
+            <RightAlignedCell key={`${i}-p99`}>
+              {item.p99_latency
+                ? formatIntervalSeconds(Number(item.p99_latency) / 1000, 3)
+                : "-"}
+            </RightAlignedCell>,
           ])
       : [];
   };
@@ -163,13 +192,7 @@ export const LatencyTables = ({
             </RightAlignedCell>,
             <RightAlignedCell key="99th">99th</RightAlignedCell>,
           ]}
-          rows={generateLatencyData(
-            tracesLatencies.data
-              ?.filter((item) => item.traceName !== null)
-              .map((item) => {
-                return { ...item, name: item.traceName as string };
-              }),
-          )}
+          rows={generateLatencyData(tracesLatencies.data)}
           isLoading={isLoading || tracesLatencies.isLoading}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
