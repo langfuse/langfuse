@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   LLMAdapter,
   supportedModels,
@@ -24,6 +25,14 @@ export const useModelParams = () => {
     },
     { enabled: Boolean(projectId) },
   );
+
+  const [persistedModelName, setPersistedModelName] = useLocalStorage<
+    string | null
+  >("llmModelName", null);
+
+  const [persistedModelProvider, setPersistedModelProvider] = useLocalStorage<
+    string | null
+  >("llmModelProvider", null);
 
   const availableProviders = useMemo(() => {
     const adapter = availableLLMApiKeys.data?.data ?? [];
@@ -56,6 +65,13 @@ export const useModelParams = () => {
       ...prev,
       [key]: { ...prev[key], value },
     }));
+
+    if (value && key === "model") {
+      setPersistedModelName(String(value));
+    }
+    if (value && key === "provider") {
+      setPersistedModelProvider(String(value));
+    }
   };
 
   const setModelParamEnabled: ModelParamsContext["setModelParamEnabled"] = (
@@ -71,18 +87,33 @@ export const useModelParams = () => {
   // Set default provider and model
   useEffect(() => {
     if (availableProviders.length > 0 && !modelParams.provider.value) {
-      updateModelParamValue("provider", availableProviders[0]);
+      if (
+        persistedModelProvider &&
+        availableProviders.includes(persistedModelProvider)
+      ) {
+        updateModelParamValue("provider", persistedModelProvider);
+      } else {
+        updateModelParamValue("provider", availableProviders[0]);
+      }
     }
-  }, [availableProviders, modelParams.provider.value]);
+  }, [availableProviders, modelParams.provider.value, persistedModelProvider]);
 
   useEffect(() => {
     if (
       (availableModels.length > 0 && !modelParams.model.value) ||
       !availableModels.includes(modelParams.model.value)
     ) {
-      updateModelParamValue("model", availableModels[0]);
+      console.log({
+        persistedModelName,
+        availableModels,
+      });
+      if (persistedModelName && availableModels.includes(persistedModelName)) {
+        updateModelParamValue("model", persistedModelName);
+      } else {
+        updateModelParamValue("model", availableModels[0]);
+      }
     }
-  }, [availableModels, modelParams.model.value]);
+  }, [availableModels, modelParams.model.value, persistedModelName]);
 
   // Update adapter, max temperature, temperature, max_tokens, top_p when provider changes
   useEffect(() => {
