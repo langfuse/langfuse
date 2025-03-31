@@ -38,12 +38,14 @@ const DatasetAggregateCell = ({
   selectedMetrics,
   actionButtons,
   output,
+  isHighlighted = false,
 }: RunMetrics & {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics: DatasetRunMetric[];
   actionButtons?: ReactNode;
   output?: Prisma.JsonValue;
+  isHighlighted?: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   // conditionally fetch the trace or observation depending on the presence of observationId
@@ -88,7 +90,12 @@ const DatasetAggregateCell = ({
   const scoresEntries = Object.entries(scores);
 
   return (
-    <div className="group relative flex h-full w-full flex-col overflow-y-auto overflow-x-hidden rounded-md border">
+    <div
+      className={cn(
+        "group relative flex h-full w-full flex-col overflow-y-auto overflow-x-hidden rounded-md",
+        isHighlighted ? "border-4" : "border",
+      )}
+    >
       {actionButtons}
       {selectedMetrics.includes("scores") && (
         <div className="flex flex-shrink-0">
@@ -229,6 +236,7 @@ export const DatasetAggregateTableCell = ({
   selectedMetrics,
   actionButtons,
   output,
+  isHighlighted = false,
 }: {
   value: RunMetrics;
   projectId: string;
@@ -236,6 +244,7 @@ export const DatasetAggregateTableCell = ({
   selectedMetrics: DatasetRunMetric[];
   actionButtons?: ReactNode;
   output?: Prisma.JsonValue;
+  isHighlighted?: boolean;
 }) => {
   return value ? (
     <DatasetAggregateCell
@@ -245,6 +254,7 @@ export const DatasetAggregateTableCell = ({
       selectedMetrics={selectedMetrics}
       actionButtons={actionButtons}
       output={output}
+      isHighlighted={isHighlighted}
     />
   ) : null;
 };

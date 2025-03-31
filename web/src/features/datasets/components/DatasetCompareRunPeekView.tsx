@@ -1,4 +1,5 @@
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { SubHeader } from "@/src/components/layouts/header";
 import PeekView from "@/src/components/layouts/peek-view";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { ObservationTree } from "@/src/components/trace/ObservationTree";
@@ -10,6 +11,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/src/components/ui/resizable";
+import { Separator } from "@/src/components/ui/separator";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
@@ -105,6 +107,13 @@ export function DatasetCompareRunPeekView({
           <Card className="h-full overflow-y-auto p-2">
             {trace.data ? (
               <Command>
+                <SubHeader
+                  title={`Run: ${
+                    runsData?.find((r) => r.id === traceAndObservationId.runId)
+                      ?.name
+                  }`}
+                  className="mb-2"
+                />
                 <ObservationTree
                   observations={trace.data?.observations ?? []}
                   collapsedObservations={[]}
@@ -194,6 +203,9 @@ export function DatasetCompareRunPeekView({
                           scoreKeyToDisplayName={scoreKeyToDisplayName}
                           selectedMetrics={["scores", "resourceMetrics"]}
                           output={clickedRow.expectedOutput}
+                          isHighlighted={
+                            run.id === traceAndObservationId?.runId
+                          }
                           actionButtons={
                             <div className="absolute right-1 top-1 z-10 hidden items-center justify-center gap-1 group-hover:flex">
                               <Button
