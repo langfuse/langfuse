@@ -45,6 +45,8 @@ export const EvalTemplateDetail = () => {
     },
   );
 
+  // const utils = api.useUtils();
+
   return (
     <Page
       withPadding
@@ -77,6 +79,18 @@ export const EvalTemplateDetail = () => {
                 );
               }}
             />
+            {/* TODO: moved to LFE-4573 */}
+            {/* <DeleteEvaluatorTemplateButton
+              itemId={templateId}
+              projectId={projectId}
+              redirectUrl={`/project/${projectId}/evals/templates`}
+              deleteConfirmation={
+                template.data != null
+                  ? `${template.data.name}-v${template.data.version}`
+                  : undefined
+              }
+              enabled={!template.isLoading}
+            /> */}
           </>
         ),
       }}
@@ -145,7 +159,7 @@ export function UpdateTemplate({
 }) {
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:create",
+    scope: "evalTemplate:CUD",
   });
   const capture = usePostHogClientCapture();
 
