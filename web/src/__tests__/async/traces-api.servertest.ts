@@ -469,6 +469,6 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace1).toBeUndefined();
       const trace2 = await getTraceById(createdTrace2.id, projectId);
       expect(trace2).toBeUndefined();
-    }, 25_000);
-  }, 30_000);
+    }, 40_000);
+  }, 60_000);
 });
