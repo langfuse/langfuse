@@ -297,6 +297,7 @@ export const anthropicModels = [
 ] as const;
 
 export const vertexAIModels = [
+  "gemini-2.5-pro-exp-03-25",
   "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash-001",
   "gemini-2.0-flash-lite-preview-02-05",
@@ -307,6 +308,7 @@ export const vertexAIModels = [
 ] as const;
 
 export const googleAIStudioModels = [
+  "gemini-2.5-pro-exp-03-25",
   "gemini-2.0-flash",
   "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-thinking-exp-01-21",
