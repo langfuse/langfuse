@@ -463,36 +463,17 @@ export function DatasetRunsTable(props: {
     <>
       {Boolean(props.selectedMetrics.length) &&
         Boolean(runAggregatedMetrics?.size) && (
-          <Card className="my-4 max-h-64">
-            <CardContent className="mt-2 h-full">
-              <div className="flex h-full w-full gap-4 overflow-x-auto">
-                {props.selectedMetrics.map((key) => {
-                  const adapter = new CompareViewAdapter(
-                    runAggregatedMetrics,
-                    key,
-                  );
-                  const { chartData, chartLabels } = adapter.toChartData();
+          <div className="my-4 max-h-64 pl-3">
+            <div className="flex h-full w-full gap-4 overflow-x-auto">
+              {props.selectedMetrics.map((key) => {
+                const adapter = new CompareViewAdapter(
+                  runAggregatedMetrics,
+                  key,
+                );
+                const { chartData, chartLabels } = adapter.toChartData();
 
-                  const scoreData = scoreKeyToData.get(key);
-                  if (!scoreData)
-                    return (
-                      <div
-                        key={key}
-                        className="max-h-52 min-h-0 min-w-72 max-w-full"
-                      >
-                        <TimeseriesChart
-                          chartData={chartData}
-                          chartLabels={chartLabels}
-                          title={
-                            RESOURCE_METRICS.find(
-                              (metric) => metric.key === key,
-                            )?.label ?? key
-                          }
-                          type="numeric"
-                        />
-                      </div>
-                    );
-
+                const scoreData = scoreKeyToData.get(key);
+                if (!scoreData)
                   return (
                     <div
                       key={key}
@@ -501,19 +482,35 @@ export function DatasetRunsTable(props: {
                       <TimeseriesChart
                         chartData={chartData}
                         chartLabels={chartLabels}
-                        title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
-                        type={
-                          isNumericDataType(scoreData.dataType)
-                            ? "numeric"
-                            : "categorical"
+                        title={
+                          RESOURCE_METRICS.find((metric) => metric.key === key)
+                            ?.label ?? key
                         }
+                        type="numeric"
                       />
                     </div>
                   );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+
+                return (
+                  <div
+                    key={key}
+                    className="max-h-52 min-h-0 min-w-72 max-w-full"
+                  >
+                    <TimeseriesChart
+                      chartData={chartData}
+                      chartLabels={chartLabels}
+                      title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
+                      type={
+                        isNumericDataType(scoreData.dataType)
+                          ? "numeric"
+                          : "categorical"
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
       <DataTableToolbar
         columns={columns}
