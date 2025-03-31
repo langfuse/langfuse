@@ -582,7 +582,7 @@ class GoogleCloudStorageService implements StorageService {
     if (params.googleCloudCredentials) {
       try {
         // Check if the credentials are a JSON string or a path to a file
-        if (params.googleCloudCredentials.startsWith("{")) {
+        if (params.googleCloudCredentials.trim().startsWith("{")) {
           // It's a JSON string
           this.storage = new Storage({
             credentials: JSON.parse(params.googleCloudCredentials),
