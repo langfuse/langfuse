@@ -140,7 +140,7 @@ export const LatencyTables = ({
     },
   );
 
-  const generateLatencyData = (data?: any[]) => {
+  const generateLatencyData = (data?: Record<string, unknown>[]) => {
     return data
       ? data
           .filter((item) => item.name !== null)
