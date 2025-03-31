@@ -59,6 +59,11 @@ export const CommentObjectType = {
     PROMPT: "PROMPT"
 } as const;
 export type CommentObjectType = (typeof CommentObjectType)[keyof typeof CommentObjectType];
+export const AuditLogRecordType = {
+    USER: "USER",
+    API_KEY: "API_KEY"
+} as const;
+export type AuditLogRecordType = (typeof AuditLogRecordType)[keyof typeof AuditLogRecordType];
 export const JobType = {
     EVAL: "EVAL"
 } as const;
@@ -75,6 +80,12 @@ export const JobExecutionStatus = {
     CANCELLED: "CANCELLED"
 } as const;
 export type JobExecutionStatus = (typeof JobExecutionStatus)[keyof typeof JobExecutionStatus];
+export const BlobStorageIntegrationType = {
+    S3: "S3",
+    S3_COMPATIBLE: "S3_COMPATIBLE",
+    AZURE_BLOB_STORAGE: "AZURE_BLOB_STORAGE"
+} as const;
+export type BlobStorageIntegrationType = (typeof BlobStorageIntegrationType)[keyof typeof BlobStorageIntegrationType];
 export type Account = {
     id: string;
     user_id: string;
@@ -132,9 +143,11 @@ export type AuditLog = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
-    user_id: string;
+    type: Generated<AuditLogRecordType>;
+    api_key_id: string | null;
+    user_id: string | null;
     org_id: string;
-    user_org_role: string;
+    user_org_role: string | null;
     project_id: string | null;
     user_project_role: string | null;
     resource_type: string;
@@ -178,6 +191,23 @@ export type BillingMeterBackup = {
     aggregated_value: number;
     event_name: string;
     org_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
+export type BlobStorageIntegration = {
+    project_id: string;
+    type: BlobStorageIntegrationType;
+    bucket_name: string;
+    prefix: string;
+    access_key_id: string;
+    secret_access_key: string;
+    region: string;
+    endpoint: string | null;
+    force_path_style: boolean;
+    next_sync_at: Timestamp | null;
+    last_sync_at: Timestamp | null;
+    enabled: boolean;
+    export_frequency: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
@@ -371,6 +401,24 @@ export type LlmApiKeys = {
     config: unknown | null;
     project_id: string;
 };
+export type LlmSchema = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    description: string;
+    schema: unknown;
+};
+export type LlmTool = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    description: string;
+    parameters: unknown;
+};
 export type Media = {
     id: string;
     sha_256_hash: string;
@@ -485,12 +533,15 @@ export type Prompt = {
     labels: Generated<string[]>;
     commit_message: string | null;
 };
-export type QueueBackUp = {
+export type PromptDependency = {
     id: string;
-    project_id: string | null;
-    queue_name: string;
-    content: unknown;
     created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    parent_id: string;
+    child_name: string;
+    child_label: string | null;
+    child_version: number | null;
 };
 export type ScoreConfig = {
     id: string;
@@ -562,6 +613,7 @@ export type DB = {
     background_migrations: BackgroundMigration;
     batch_exports: BatchExport;
     billing_meter_backups: BillingMeterBackup;
+    blob_storage_integrations: BlobStorageIntegration;
     comments: Comment;
     cron_jobs: CronJobs;
     dataset_items: DatasetItem;
@@ -572,6 +624,8 @@ export type DB = {
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
+    llm_schemas: LlmSchema;
+    llm_tools: LlmTool;
     media: Media;
     membership_invitations: MembershipInvitation;
     models: Model;
@@ -583,8 +637,8 @@ export type DB = {
     prices: Price;
     project_memberships: ProjectMembership;
     projects: Project;
+    prompt_dependencies: PromptDependency;
     prompts: Prompt;
-    queue_backups: QueueBackUp;
     score_configs: ScoreConfig;
     scores: LegacyPrismaScore;
     Session: Session;

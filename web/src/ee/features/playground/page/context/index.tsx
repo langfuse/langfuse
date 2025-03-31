@@ -21,20 +21,36 @@ import {
   extractVariables,
   type ChatMessageWithId,
   type PromptVariable,
+  ToolCallResponseSchema,
   type UIModelParams,
+  type ToolCallResponse,
+  type LLMToolDefinition,
+  type LLMToolCall,
+  ChatMessageType,
 } from "@langfuse/shared";
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
 import type { ModelParamsContext } from "@/src/components/ModelParameters";
 import { env } from "@/src/env.mjs";
+import {
+  type PlaygroundSchema,
+  type PlaygroundTool,
+} from "@/src/ee/features/playground/page/types";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
   updatePromptVariableValue: (variable: string, value: string) => void;
   deletePromptVariable: (variable: string) => void;
 
+  tools: PlaygroundTool[];
+  setTools: React.Dispatch<React.SetStateAction<PlaygroundTool[]>>;
+
+  structuredOutputSchema: PlaygroundSchema | null;
+  setStructuredOutputSchema: (schema: PlaygroundSchema | null) => void;
+
   output: string;
   outputJson: string;
+  outputToolCalls: LLMToolCall[];
 
   handleSubmit: () => Promise<void>;
   isStreaming: boolean;
@@ -63,12 +79,25 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache();
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
+  const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [tools, setTools] = useState<PlaygroundTool[]>([]);
+  const [structuredOutputSchema, setStructuredOutputSchema] =
+    useState<PlaygroundSchema | null>(null);
   const [messages, setMessages] = useState<ChatMessageWithId[]>([
-    createEmptyMessage(ChatMessageRole.System),
-    createEmptyMessage(ChatMessageRole.User),
+    createEmptyMessage({
+      type: ChatMessageType.System,
+      role: ChatMessageRole.System,
+      content: "",
+    }),
+    createEmptyMessage({
+      type: ChatMessageType.User,
+      role: ChatMessageRole.User,
+      content: "",
+    }),
   ]);
+
   const {
     modelParams,
     setModelParams,
@@ -77,6 +106,13 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     updateModelParamValue,
     setModelParamEnabled,
   } = useModelParams();
+
+  const toolCallIds = messages.reduce((acc, m) => {
+    if (m.type === ChatMessageType.AssistantToolCall) {
+      acc.push(...m.toolCalls.map((tc) => tc.id));
+    }
+    return acc;
+  }, [] as string[]);
 
   // Load state from cache
   useEffect(() => {
@@ -87,13 +123,24 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       modelParams: cachedModelParams,
       output: cachedOutput,
       promptVariables: cachedPromptVariables,
+      tools: cachedTools,
+      structuredOutputSchema: cachedStructuredOutputSchema,
     } = playgroundCache;
 
     setMessages(cachedMessages.map((m) => ({ ...m, id: uuidv4() })));
 
     if (cachedOutput) {
-      setOutput(cachedOutput);
-      setOutputJson("");
+      // Try parsing a previous output with tool calls
+      try {
+        const completion = JSON.parse(cachedOutput);
+        const parsed = ToolCallResponseSchema.parse(completion);
+
+        setOutput(String(parsed.content));
+        setOutputToolCalls(parsed.tool_calls);
+      } catch {
+        setOutput(cachedOutput);
+        setOutputJson("");
+      }
     }
 
     if (cachedModelParams) {
@@ -102,6 +149,14 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
     if (cachedPromptVariables) {
       setPromptVariables(cachedPromptVariables);
+    }
+
+    if (cachedTools) {
+      setTools(cachedTools);
+    }
+
+    if (cachedStructuredOutputSchema) {
+      setStructuredOutputSchema(cachedStructuredOutputSchema);
     }
   }, [playgroundCache, setModelParams]);
 
@@ -136,28 +191,71 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   useEffect(updatePromptVariables, [messages, updatePromptVariables]);
 
-  const addMessage: PlaygroundContextType["addMessage"] = (role, content) => {
-    const message = createEmptyMessage(role, content);
-    setMessages((prev) => [...prev, message]);
+  const addMessage: PlaygroundContextType["addMessage"] = useCallback(
+    (message) => {
+      if (message.type === ChatMessageType.AssistantToolCall) {
+        const toolCallMessage = createEmptyMessage({
+          type: ChatMessageType.AssistantToolCall,
+          role: ChatMessageRole.Assistant,
+          content: message.content ?? "",
+          toolCalls: message.toolCalls,
+        });
+        const toolResultMessages: ChatMessageWithId[] = [];
 
-    return message;
-  };
+        for (const toolCall of message.toolCalls) {
+          const toolResultMessage = createEmptyMessage({
+            type: ChatMessageType.ToolResult,
+            role: ChatMessageRole.Tool,
+            content: "",
+            toolCallId: toolCall.id,
+          });
 
-  const updateMessage: PlaygroundContextType["updateMessage"] = (
-    id,
-    key,
-    value,
-  ) => {
-    setMessages((prev) =>
-      prev.map((message) =>
-        message.id === id ? { ...message, [key]: value } : message,
-      ),
-    );
-  };
+          toolResultMessages.push(toolResultMessage);
+        }
 
-  const deleteMessage: PlaygroundContextType["deleteMessage"] = (id) => {
-    setMessages((prev) => prev.filter((message) => message.id !== id));
-  };
+        setMessages((prev) => [
+          ...prev,
+          ...[toolCallMessage],
+          ...toolResultMessages,
+        ]);
+
+        return toolCallMessage;
+      } else {
+        const newMessage = createEmptyMessage(message);
+        setMessages((prev) => [...prev, newMessage]);
+
+        return newMessage;
+      }
+    },
+    [],
+  );
+
+  const updateMessage: PlaygroundContextType["updateMessage"] = useCallback(
+    (_, id, key, value) => {
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === id ? { ...message, [key]: value } : message,
+        ),
+      );
+    },
+    [],
+  );
+
+  const replaceMessage: PlaygroundContextType["replaceMessage"] = useCallback(
+    (id, message) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { id, ...message } : m)),
+      );
+    },
+    [],
+  );
+
+  const deleteMessage: PlaygroundContextType["deleteMessage"] = useCallback(
+    (id) => {
+      setMessages((prev) => prev.filter((message) => message.id !== id));
+    },
+    [],
+  );
 
   const handleSubmit: PlaygroundContextType["handleSubmit"] =
     useCallback(async () => {
@@ -165,6 +263,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         setIsStreaming(true);
         setOutput("");
         setOutputJson("");
+        setOutputToolCalls([]);
 
         const finalMessages = getFinalMessages(promptVariables, messages);
         const leftOverVariables = extractVariables(
@@ -179,29 +278,78 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           throw Error("Error replacing variables. Please check your inputs.");
         }
 
-        const completionStream = getChatCompletionStream(
-          projectId,
-          finalMessages,
-          modelParams,
-        );
+        if (tools.length > 0 && structuredOutputSchema) {
+          throw new Error(
+            "Cannot use both tools and structured output at the same time",
+          );
+        }
 
         let response = "";
-        for await (const token of completionStream) {
-          response += token;
+        if (tools.length > 0) {
+          const completion = await getChatCompletionWithTools(
+            projectId,
+            finalMessages,
+            modelParams,
+            tools,
+          );
+
+          const displayContent =
+            typeof completion.content === "string"
+              ? completion.content
+              : (completion.content.find(
+                  (m): m is { type: "text"; text: string } => m.type === "text",
+                )?.text as string);
+
+          setOutput(displayContent);
+          setOutputToolCalls(completion.tool_calls);
+
+          response = JSON.stringify(completion, null, 2);
+        } else if (structuredOutputSchema) {
+          response = await getChatCompletionWithStructuredOutput(
+            projectId,
+            finalMessages,
+            modelParams,
+            structuredOutputSchema,
+          );
+
           setOutput(response);
+        } else {
+          const completionStream = getChatCompletionStream(
+            projectId,
+            finalMessages,
+            modelParams,
+          );
+
+          for await (const token of completionStream) {
+            response += token;
+            setOutput(response);
+          }
         }
-        setOutputJson(getOutputJson(response, finalMessages, modelParams));
+
+        setOutputJson(
+          getOutputJson(
+            response,
+            finalMessages,
+            modelParams,
+            tools,
+            structuredOutputSchema,
+          ),
+        );
         setPlaygroundCache({
           messages,
           modelParams,
           output: response,
           promptVariables,
+          tools,
+          structuredOutputSchema,
         });
         capture("playground:execute_button_click", {
           inputLength: finalMessages.length,
           modelName: modelParams.model,
           modelProvider: modelParams.provider,
           outputLength: response.length,
+          toolCount: tools.length,
+          isStructuredOutput: Boolean(structuredOutputSchema),
         });
       } catch (err) {
         console.error(err);
@@ -211,20 +359,31 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       } finally {
         setIsStreaming(false);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [messages, modelParams, promptVariables]);
+    }, [
+      messages,
+      modelParams,
+      promptVariables,
+      tools,
+      capture,
+      setPlaygroundCache,
+      structuredOutputSchema,
+      projectId,
+    ]);
 
   useCommandEnter(!isStreaming, handleSubmit);
 
-  const updatePromptVariableValue = (variable: string, value: string) => {
-    setPromptVariables((prev) =>
-      prev.map((v) => (v.name === variable ? { ...v, value } : v)),
-    );
-  };
+  const updatePromptVariableValue = useCallback(
+    (variable: string, value: string) => {
+      setPromptVariables((prev) =>
+        prev.map((v) => (v.name === variable ? { ...v, value } : v)),
+      );
+    },
+    [],
+  );
 
-  const deletePromptVariable = (variable: string) => {
+  const deletePromptVariable = useCallback((variable: string) => {
     setPromptVariables((prev) => prev.filter((v) => v.name !== variable));
-  };
+  }, []);
 
   return (
     <PlaygroundContext.Provider
@@ -233,11 +392,19 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         updatePromptVariableValue,
         deletePromptVariable,
 
+        tools,
+        setTools,
+
+        structuredOutputSchema,
+        setStructuredOutputSchema,
+
         messages,
         addMessage,
         setMessages,
         updateMessage,
+        replaceMessage,
         deleteMessage,
+        toolCallIds,
 
         modelParams,
         updateModelParamValue,
@@ -245,6 +412,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
         output,
         outputJson,
+        outputToolCalls,
         handleSubmit,
         isStreaming,
 
@@ -256,6 +424,84 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     </PlaygroundContext.Provider>
   );
 };
+
+async function getChatCompletionWithTools(
+  projectId: string | undefined,
+  messages: ChatMessageWithId[],
+  modelParams: UIModelParams,
+  tools: unknown[],
+): Promise<ToolCallResponse> {
+  if (!projectId) throw Error("Project ID is not set");
+
+  const body = JSON.stringify({
+    projectId,
+    messages,
+    modelParams: getFinalModelParams(modelParams),
+    tools,
+  });
+  const result = await fetch(
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    },
+  );
+
+  const responseData = await result.json();
+
+  if (!result.ok) {
+    throw new Error(`Completion failed: ${responseData.message}`);
+  }
+
+  const parsed = ToolCallResponseSchema.safeParse(responseData);
+  if (!parsed.success)
+    throw Error(
+      "Failed to parse tool call response client-side:\n" +
+        JSON.stringify(responseData, null, 2),
+    );
+
+  return parsed.data;
+}
+
+async function getChatCompletionWithStructuredOutput(
+  projectId: string | undefined,
+  messages: ChatMessageWithId[],
+  modelParams: UIModelParams,
+  structuredOutputSchema: PlaygroundSchema | null,
+): Promise<string> {
+  if (!projectId) throw Error("Project ID is not set");
+
+  const body = JSON.stringify({
+    projectId,
+    messages,
+    modelParams: getFinalModelParams(modelParams),
+    structuredOutputSchema: structuredOutputSchema?.schema,
+  });
+
+  const result = await fetch(
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    },
+  );
+
+  if (!result.ok) {
+    const responseData = await result.json();
+    throw new Error(`Completion failed: ${responseData.message}`);
+  }
+
+  const responseData = await result.text();
+
+  try {
+    const parsed = JSON.parse(responseData);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return responseData;
+  }
+}
 
 async function* getChatCompletionStream(
   projectId: string | undefined,
@@ -324,7 +570,10 @@ function getFinalMessages(
 
   // Dynamically replace variables in the prompt
   const finalMessages = messages
-    .filter((m) => m.content.length > 0)
+    .filter(
+      (m) =>
+        m.content.length > 0 || ("toolCalls" in m && m.toolCalls.length > 0),
+    )
     .map((m) => {
       let content = m.content;
       for (const variable of promptVariables) {
@@ -343,12 +592,16 @@ function getOutputJson(
   output: string,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
+  tools: LLMToolDefinition[],
+  structuredOutputSchema: PlaygroundSchema | null,
 ) {
   return JSON.stringify(
     {
       input: messages.map((obj) => filterKeyFromObject(obj, "id")),
       output,
       model: getFinalModelParams(modelParams),
+      tools,
+      structuredOutputSchema,
     },
     null,
     2,

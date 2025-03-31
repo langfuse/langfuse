@@ -236,9 +236,6 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={
-          <CreateOrEditAnnotationQueueButton projectId={projectId} />
-        }
       />
       <DataTable
         columns={columns}

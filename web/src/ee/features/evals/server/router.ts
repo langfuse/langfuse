@@ -29,6 +29,7 @@ import {
   QueueName,
   QueueJobs,
   LLMApiKeySchema,
+  ChatMessageType,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
@@ -37,6 +38,8 @@ import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
+import { type PrismaClient } from "@prisma/client";
+import { type JobExecutionState } from "@/src/ee/features/evals/utils/job-execution-utils";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -116,6 +119,56 @@ const UpdateEvalJobSchema = z.object({
   status: z.nativeEnum(EvaluatorStatus).optional(),
   timeScope: TimeScopeSchema.optional(),
 });
+
+const fetchJobExecutionsByState = async ({
+  prisma,
+  projectId,
+  configIds,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  configIds: string[];
+}) => {
+  return prisma.jobExecution.groupBy({
+    where: {
+      jobConfiguration: {
+        projectId: projectId,
+        jobType: "EVAL",
+        id: { in: configIds },
+      },
+      projectId: projectId,
+    },
+    by: ["status", "jobConfigurationId"],
+    _count: true,
+  });
+};
+
+export const calculateEvaluatorFinalStatus = (
+  status: string,
+  timeScope: string[],
+  jobExecutionsByState: JobExecutionState[],
+): string => {
+  // If timeScope is only "EXISTING" and there are no pending jobs and there are some jobs,
+  // then the status is "FINISHED", otherwise it's the original status
+  const hasPendingJobs = jobExecutionsByState.some(
+    (je) => je.status === "PENDING",
+  );
+  const totalJobCount = jobExecutionsByState.reduce(
+    (acc, je) => acc + je._count,
+    0,
+  );
+
+  if (
+    timeScope.length === 1 &&
+    timeScope[0] === "EXISTING" &&
+    !hasPendingJobs &&
+    totalJobCount > 0
+  ) {
+    return "FINISHED";
+  }
+
+  return status;
+};
 
 export const evalRouter = createTRPCRouter({
   globalJobConfigs: protectedProjectProcedure
@@ -220,17 +273,10 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      const jobExecutionsByState = await ctx.prisma.jobExecution.groupBy({
-        where: {
-          jobConfiguration: {
-            projectId: input.projectId,
-            jobType: "EVAL",
-            id: { in: configs.map((c) => c.id) },
-          },
-          projectId: input.projectId,
-        },
-        by: ["status", "jobConfigurationId"],
-        _count: true,
+      const jobExecutionsByState = await fetchJobExecutionsByState({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        configIds: configs.map((c) => c.id),
       });
 
       return {
@@ -238,6 +284,13 @@ export const evalRouter = createTRPCRouter({
           ...config,
           jobExecutionsByState: jobExecutionsByState.filter(
             (je) => je.jobConfigurationId === config.id,
+          ),
+          finalStatus: calculateEvaluatorFinalStatus(
+            config.status,
+            Array.isArray(config.timeScope) ? config.timeScope : [],
+            jobExecutionsByState.filter(
+              (je) => je.jobConfigurationId === config.id,
+            ),
           ),
         })),
         totalCount: count,
@@ -273,7 +326,25 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      return config;
+      if (!config) return null;
+
+      const jobExecutionsByState = await fetchJobExecutionsByState({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        configIds: [config.id],
+      });
+
+      const finalStatus = calculateEvaluatorFinalStatus(
+        config.status,
+        Array.isArray(config.timeScope) ? config.timeScope : [],
+        jobExecutionsByState,
+      );
+
+      return {
+        ...config,
+        jobExecutionsByState: jobExecutionsByState,
+        finalStatus,
+      };
     }),
 
   allTemplatesForName: protectedProjectProcedure
@@ -639,7 +710,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:create",
+        scope: "evalTemplate:CUD",
       });
 
       const matchingLLMKey = await ctx.prisma.llmApiKeys.findFirst({
@@ -665,7 +736,13 @@ export const evalRouter = createTRPCRouter({
               parsedKey.data.extraHeaders,
             ),
             baseURL: parsedKey.data.baseURL ?? undefined,
-            messages: [{ role: ChatMessageRole.User, content: input.prompt }],
+            messages: [
+              {
+                role: ChatMessageRole.User,
+                content: input.prompt,
+                type: ChatMessageType.User,
+              },
+            ],
             modelParams: {
               provider: input.provider,
               model: input.model,
@@ -863,6 +940,98 @@ export const evalRouter = createTRPCRouter({
       return updatedJob;
     }),
 
+  deleteEvalJob: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalConfigId: z.string() }))
+    .mutation(async ({ ctx, input: { projectId, evalConfigId } }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const existingJob = await ctx.prisma.jobConfiguration.findUnique({
+        where: {
+          id: evalConfigId,
+          projectId: projectId,
+        },
+      });
+
+      if (!existingJob) {
+        logger.warn(
+          `Job for deletion not found for project ${projectId} and id ${evalConfigId}`,
+        );
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Job not found",
+        });
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "job",
+        resourceId: evalConfigId,
+        action: "delete",
+      });
+
+      await ctx.prisma.jobConfiguration.delete({
+        where: {
+          id: evalConfigId,
+          projectId: projectId,
+        },
+      });
+    }),
+
+  // TODO: moved to LFE-4573
+  // deleteEvalTemplate: protectedProjectProcedure
+  //   .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
+  //   .mutation(async ({ ctx, input: { projectId, evalTemplateId } }) => {
+  //     throwIfNoEntitlement({
+  //       entitlement: "model-based-evaluations",
+  //       projectId: projectId,
+  //       sessionUser: ctx.session.user,
+  //     });
+  //     throwIfNoProjectAccess({
+  //       session: ctx.session,
+  //       projectId: projectId,
+  //       scope: "evalTemplate:CUD",
+  //     });
+
+  //     const existingTemplate = await ctx.prisma.evalTemplate.findUnique({
+  //       where: {
+  //         id: evalTemplateId,
+  //         projectId: projectId,
+  //       },
+  //     });
+
+  //     if (!existingTemplate) {
+  //       logger.warn(
+  //         `Template for deletion not found for project ${projectId} and id ${evalTemplateId}`,
+  //       );
+  //       throw new TRPCError({
+  //         code: "NOT_FOUND",
+  //         message: "Template not found",
+  //       });
+  //     }
+
+  //     await auditLog({
+  //       session: ctx.session,
+  //       resourceType: "evalTemplate",
+  //       resourceId: evalTemplateId,
+  //       action: "delete",
+  //     });
+
+  //     await ctx.prisma.evalTemplate.delete({
+  //       where: {
+  //         id: evalTemplateId,
+  //         projectId: projectId,
+  //       },
+  //     });
+  //   }),
   getLogs: protectedProjectProcedure
     .input(
       z.object({

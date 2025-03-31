@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Check, ChevronDown, Filter, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Plus, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -105,23 +105,24 @@ export function PopoverFilterBuilder({
       >
         <PopoverTrigger asChild>
           <Button variant="outline">
-            <Filter className="h-4 w-4" />
-            <span className="hidden @6xl:ml-2 @6xl:inline">Filter</span>
+            <span>Filters</span>
             {filterState.length > 0 && filterState.length < 3 ? (
               <InlineFilterState
                 filterState={filterState}
                 className="hidden @6xl:block"
               />
             ) : null}
-            {filterState.length > 0 && (
+            {filterState.length > 0 ? (
               <span
                 className={cn(
-                  "ml-3 rounded-md bg-input px-2 py-1 text-xs @6xl:hidden",
+                  "ml-1.5 rounded-sm bg-input px-1 text-xs shadow-sm @6xl:hidden",
                   filterState.length > 2 && "@6xl:inline",
                 )}
               >
                 {filterState.length}
               </span>
+            ) : (
+              <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
             )}
           </Button>
         </PopoverTrigger>
@@ -193,11 +194,13 @@ export function InlineFilterBuilder({
   filterState,
   onChange,
   disabled,
+  columnsWithCustomSelect,
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
   onChange: Dispatch<SetStateAction<FilterState>>;
   disabled?: boolean;
+  columnsWithCustomSelect?: string[];
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -222,6 +225,7 @@ export function InlineFilterBuilder({
         filterState={wipFilterState}
         onChange={setWipFilterState}
         disabled={disabled}
+        columnsWithCustomSelect={columnsWithCustomSelect}
       />
     </div>
   );

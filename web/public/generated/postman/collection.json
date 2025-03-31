@@ -40,6 +40,296 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Annotation Queues",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "List Queues",
+          "request": {
+            "description": "Get all annotation queues",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Queue",
+          "request": {
+            "description": "Get an annotation queue by ID",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List Queue Items",
+          "request": {
+            "description": "Get items for a specific annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items?status=&page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter by status"
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Queue Item",
+          "request": {
+            "description": "Get a specific item from an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items/:itemId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items",
+                ":itemId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                },
+                {
+                  "key": "itemId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue item"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create Queue Item",
+          "request": {
+            "description": "Add an item to an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"objectId\": \"example\",\n    \"objectType\": \"TRACE\",\n    \"status\": \"PENDING\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Queue Item",
+          "request": {
+            "description": "Update an annotation queue item",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items/:itemId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items",
+                ":itemId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                },
+                {
+                  "key": "itemId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue item"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"PENDING\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Queue Item",
+          "request": {
+            "description": "Remove an item from an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items/:itemId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items",
+                ":itemId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                },
+                {
+                  "key": "itemId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue item"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Comments",
       "item": [
         {
@@ -1915,6 +2205,38 @@
         },
         {
           "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a specific trace",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/traces/:traceId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces",
+                ":traceId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "traceId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of the trace to delete"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "List",
           "request": {
             "description": "Get list of traces",
@@ -1996,6 +2318,39 @@
             "method": "GET",
             "auth": null,
             "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Multiple",
+          "request": {
+            "description": "Delete multiple traces",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/traces",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"traceIds\": [\n        \"example\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         }

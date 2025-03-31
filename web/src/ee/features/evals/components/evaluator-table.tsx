@@ -8,12 +8,12 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type RouterOutputs, api } from "@/src/utils/api";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { z } from "zod";
+import { generateJobExecutionCounts } from "@/src/ee/features/evals/utils/job-execution-utils";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -169,44 +169,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
-    const result = [
-      {
-        level: "pending",
-        count:
-          jobConfig.jobExecutionsByState.find((je) => je.status === "PENDING")
-            ?._count || 0,
-        symbol: "🕒",
-        customNumberFormatter: compactNumberFormatter,
-      },
-      {
-        level: "error",
-        count:
-          jobConfig.jobExecutionsByState.find((je) => je.status === "ERROR")
-            ?._count || 0,
-        symbol: "❌",
-        customNumberFormatter: compactNumberFormatter,
-      },
-      {
-        level: "succeeded",
-        count:
-          jobConfig.jobExecutionsByState.find((je) => je.status === "COMPLETED")
-            ?._count || 0,
-        symbol: "✅",
-        customNumberFormatter: compactNumberFormatter,
-      },
-    ];
-
-    const finalStatus =
-      jobConfig.timeScope.length === 1 &&
-      jobConfig.timeScope[0] === "EXISTING" &&
-      !jobConfig.jobExecutionsByState.some((je) => je.status === "PENDING") &&
-      jobConfig.jobExecutionsByState.reduce((acc, je) => acc + je._count, 0) > 0
-        ? "FINISHED"
-        : jobConfig.status;
+    const result = generateJobExecutionCounts(jobConfig.jobExecutionsByState);
 
     return {
       id: jobConfig.id,
-      status: finalStatus,
+      status: jobConfig.finalStatus,
       createdAt: jobConfig.createdAt.toLocaleString(),
       template: jobConfig.evalTemplate
         ? {

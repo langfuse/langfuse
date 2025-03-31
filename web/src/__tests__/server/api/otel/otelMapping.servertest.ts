@@ -389,6 +389,34 @@ describe("OTel Resource Span Mapping", () => {
       ).toBe(true);
     });
 
+    it("should use logfire.msg as span name", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                name: "wrong name",
+                attributes: [
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "right name" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+      // Then
+      expect(langfuseEvents[0].body.name).toBe("right name");
+      expect(langfuseEvents[1].body.name).toBe("right name");
+    });
+
     it.each([
       [
         "should cast input_tokens from string to number",
@@ -703,6 +731,36 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "#6084: should map input to input for pydantic",
+        {
+          entity: "observation",
+          otelAttributeKey: "input",
+          otelAttributeValue: {
+            stringValue: JSON.stringify({
+              task: "Play some chess",
+              stream: false,
+            }),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: JSON.stringify({
+            task: "Play some chess",
+            stream: false,
+          }),
+        },
+      ],
+      [
+        "#6084: should map model_config to modelParameters",
+        {
+          entity: "observation",
+          otelAttributeKey: "model_config",
+          otelAttributeValue: {
+            stringValue: '{"max_tokens": 4096}',
+          },
+          entityAttributeKey: "modelParameters.max_tokens",
+          entityAttributeValue: 4096,
+        },
+      ],
+      [
         "#5412: should map input.value to input for smolagents",
         {
           entity: "observation",
@@ -766,6 +824,54 @@ describe("OTel Resource Span Mapping", () => {
           },
           entityAttributeKey: "input",
           entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map langfuse.metadata string to top-level metadata for trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.metadata",
+          otelAttributeValue: {
+            stringValue: '{"customer_id": "123", "experiment": "test-run-1"}',
+          },
+          entityAttributeKey: "metadata.customer_id",
+          entityAttributeValue: "123",
+        },
+      ],
+      [
+        "should map langfuse.metadata string to top-level metadata for observation",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.metadata",
+          otelAttributeValue: {
+            stringValue: '{"customer_id": "123", "experiment": "test-run-1"}',
+          },
+          entityAttributeKey: "metadata.customer_id",
+          entityAttributeValue: "123",
+        },
+      ],
+      [
+        "should extract metadata from langfuse.metadata.* keys for trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.metadata.user_type",
+          otelAttributeValue: {
+            stringValue: "premium",
+          },
+          entityAttributeKey: "metadata.user_type",
+          entityAttributeValue: "premium",
+        },
+      ],
+      [
+        "should extract metadata from langfuse.metadata.* keys for observation",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.metadata.user_type",
+          otelAttributeValue: {
+            stringValue: "premium",
+          },
+          entityAttributeKey: "metadata.user_type",
+          entityAttributeValue: "premium",
         },
       ],
     ])(
@@ -854,6 +960,30 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: "default",
         },
       ],
+      [
+        "should extract metadata from resource attributes",
+        {
+          entity: "observation",
+          otelResourceAttributeKey: "langfuse.metadata",
+          otelResourceAttributeValue: {
+            stringValue: '{"resource_id": "xyz", "region": "us-west-2"}',
+          },
+          entityAttributeKey: "metadata.resource_id",
+          entityAttributeValue: "xyz",
+        },
+      ],
+      [
+        "should extract metadata from langfuse.metadata.* resource attributes",
+        {
+          entity: "observation",
+          otelResourceAttributeKey: "langfuse.metadata.server_name",
+          otelResourceAttributeValue: {
+            stringValue: "web-server-01",
+          },
+          entityAttributeKey: "metadata.server_name",
+          entityAttributeValue: "web-server-01",
+        },
+      ],
     ])(
       "ResourceAttributes: %s",
       (
@@ -889,9 +1019,11 @@ describe("OTel Resource Span Mapping", () => {
         // Then
         const entity: { body: Record<string, any> } =
           spec.entity === "trace" ? langfuseEvents[0] : langfuseEvents[1];
-        expect(entity.body[spec.entityAttributeKey]).toEqual(
-          spec.entityAttributeValue,
-        );
+        expect(
+          spec.entityAttributeKey // This logic allows to follow a path in the object, e.g. foo.bar.baz.
+            .split(".")
+            .reduce((acc: any, key: string) => acc && acc[key], entity.body),
+        ).toEqual(spec.entityAttributeValue);
       },
     );
 

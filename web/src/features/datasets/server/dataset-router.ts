@@ -7,7 +7,7 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { paginationZod, DatasetStatus } from "@langfuse/shared";
+import { paginationZod, DatasetStatus, singleFilter } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
   createDatasetRunsTable,
@@ -16,7 +16,10 @@ import {
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  getDatasetRunItemsTableCount,
+  logger,
+} from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
@@ -128,6 +131,22 @@ export const datasetRouter = createTRPCRouter({
         totalDatasets,
         datasets,
       };
+    }),
+  // counts all dataset run items that match the filter
+  countAllDatasetItems: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(), // Required for protectedProjectProcedure
+        filter: z.array(singleFilter).nullable(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const count = await getDatasetRunItemsTableCount({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+      });
+
+      return count;
     }),
   byId: protectedProjectProcedure
     .input(
@@ -766,6 +785,7 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: string;
           projectId: string;
           datasetRunId: string;
+          datasetRunName: string;
         }>
       >`
         SELECT 
@@ -777,11 +797,15 @@ export const datasetRouter = createTRPCRouter({
           dri.created_at AS "createdAt",
           dri.updated_at AS "updatedAt",
           dri.project_id AS "projectId",
-          dri.dataset_run_id AS "datasetRunId"
+          dri.dataset_run_id AS "datasetRunId",
+          dr.name AS "datasetRunName"
         FROM dataset_run_items dri
         INNER JOIN dataset_items di
           ON dri.dataset_item_id = di.id 
           AND dri.project_id = di.project_id
+        INNER JOIN dataset_runs dr
+          ON dri.dataset_run_id = dr.id
+          AND dri.project_id = dr.project_id
         WHERE 
           dri.project_id = ${input.projectId}
           ${filterQuery}
@@ -801,10 +825,25 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
+      // Add scores to the run items while also keeping the datasetRunName
+      const runItemNameMap = runItems.reduce(
+        (map, item) => {
+          map[item.id] = item.datasetRunName;
+          return map;
+        },
+        {} as Record<string, string>,
+      );
+      const parsedRunItems = (
+        await getRunItemsByRunIdOrItemId(input.projectId, runItems)
+      ).map((ri) => ({
+        ...ri,
+        datasetRunName: runItemNameMap[ri.id],
+      }));
+
       // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
         totalRunItems,
-        runItems: await getRunItemsByRunIdOrItemId(input.projectId, runItems),
+        runItems: parsedRunItems,
       };
     }),
   datasetItemsBasedOnTraceOrObservation: protectedProjectProcedure
@@ -838,11 +877,11 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
-  deleteDatasetRun: protectedProjectProcedure
+  deleteDatasetRuns: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        datasetRunId: z.string(),
+        datasetRunIds: z.array(z.string()),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -852,21 +891,33 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const deletedDatasetRun = await ctx.prisma.datasetRuns.delete({
+      // Get all dataset runs first for audit logging
+      const datasetRuns = await ctx.prisma.datasetRuns.findMany({
         where: {
-          id_projectId: {
-            id: input.datasetRunId,
-            projectId: input.projectId,
-          },
+          id: { in: input.datasetRunIds },
+          projectId: input.projectId,
         },
       });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "datasetRun",
-        resourceId: deletedDatasetRun.id,
-        action: "delete",
-        before: deletedDatasetRun,
+
+      // Delete all dataset runs
+      await ctx.prisma.datasetRuns.deleteMany({
+        where: {
+          id: { in: input.datasetRunIds },
+          projectId: input.projectId,
+        },
       });
-      return deletedDatasetRun;
+
+      // Log audit entries for each deleted run
+      await Promise.all(
+        datasetRuns.map((run) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "datasetRun",
+            resourceId: run.id,
+            action: "delete",
+            before: run,
+          }),
+        ),
+      );
     }),
 });

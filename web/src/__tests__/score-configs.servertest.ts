@@ -15,10 +15,11 @@ import {
   PostScoreConfigResponse,
   GetScoreConfigsResponse,
 } from "@langfuse/shared";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 
 const configOne = [
   {
-    projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    projectId: "<to be replaced>",
     name: "Test Boolean Config",
     description: "Test Description",
     dataType: "BOOLEAN" as ScoreDataType,
@@ -32,7 +33,7 @@ const configOne = [
 ];
 const configTwo = [
   {
-    projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    projectId: "<to be replaced>",
     name: "Test Numeric Config",
     description: "Test Description",
     dataType: "NUMERIC" as ScoreDataType,
@@ -44,7 +45,7 @@ const configTwo = [
 
 const configThree = [
   {
-    projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    projectId: "<to be replaced>",
     name: "Test Categorical Config",
     description: "Test Description",
     dataType: "CATEGORICAL" as ScoreDataType,
@@ -59,9 +60,23 @@ const configThree = [
 ];
 
 describe("/api/public/score-configs API Endpoint", () => {
+  let auth: string;
+  let projectId: string;
+
   beforeAll(
     async () => {
       await pruneDatabase();
+
+      // Create authentication pairs
+      const { auth: newAuth, projectId: newProjectId } =
+        await createOrgProjectAndApiKey();
+      auth = newAuth;
+      projectId = newProjectId;
+
+      // Update the project IDs in configs to use the new project ID
+      configOne[0].projectId = projectId;
+      configTwo[0].projectId = projectId;
+      configThree[0].projectId = projectId;
 
       await prisma.scoreConfig.createMany({
         data: [...configOne, ...configTwo, ...configThree],
@@ -75,7 +90,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   it("should GET a score config", async () => {
     const { id: configId } = (await prisma.scoreConfig.findFirst({
       where: {
-        projectId: configOne[0].projectId,
+        projectId,
         name: configOne[0].name,
       },
     })) as ScoreConfig;
@@ -84,6 +99,8 @@ describe("/api/public/score-configs API Endpoint", () => {
       GetScoreConfigResponse,
       "GET",
       `/api/public/score-configs/${configId}`,
+      undefined,
+      auth,
     );
 
     expect(getScoreConfig.status).toBe(200);
@@ -100,6 +117,8 @@ describe("/api/public/score-configs API Endpoint", () => {
       GetScoreConfigsResponse,
       "GET",
       `/api/public/score-configs?limit=50&page=1`,
+      undefined,
+      auth,
     );
 
     expect(fetchedConfigs.status).toBe(200);
@@ -125,6 +144,8 @@ describe("/api/public/score-configs API Endpoint", () => {
     const getScoreConfig = await makeAPICall(
       "GET",
       `/api/public/score-configs/${configId}`,
+      undefined,
+      auth,
     );
 
     expect(getScoreConfig.status).toBe(404);
@@ -147,6 +168,8 @@ describe("/api/public/score-configs API Endpoint", () => {
     const getScoreConfig = await makeAPICall(
       "GET",
       `/api/public/score-configs/${configId}`,
+      undefined,
+      auth,
     );
 
     expect(getScoreConfig.status).toBe(500);
@@ -165,12 +188,15 @@ describe("/api/public/score-configs API Endpoint", () => {
         dataType: "NUMERIC",
         maxValue: 0,
       },
+      auth,
     );
 
     const scoreConfig = await makeZodVerifiedAPICall(
       GetScoreConfigResponse,
       "GET",
       `/api/public/score-configs/${postScoreConfig.body.id}`,
+      undefined,
+      auth,
     );
 
     expect(postScoreConfig.status).toBe(200);
@@ -188,12 +214,15 @@ describe("/api/public/score-configs API Endpoint", () => {
         name: "boolean-config-name",
         dataType: "BOOLEAN",
       },
+      auth,
     );
 
     const scoreConfig = await makeZodVerifiedAPICall(
       GetScoreConfigResponse,
       "GET",
       `/api/public/score-configs/${postScoreConfig.body.id}`,
+      undefined,
+      auth,
     );
 
     expect(postScoreConfig.status).toBe(200);
@@ -218,12 +247,15 @@ describe("/api/public/score-configs API Endpoint", () => {
           { label: "Bad", value: 0 },
         ],
       },
+      auth,
     );
 
     const scoreConfig = await makeZodVerifiedAPICall(
       GetScoreConfigResponse,
       "GET",
       `/api/public/score-configs/${postScoreConfig.body.id}`,
+      undefined,
+      auth,
     );
 
     expect(postScoreConfig.status).toBe(200);
@@ -247,6 +279,7 @@ describe("/api/public/score-configs API Endpoint", () => {
           maxValue: 0,
           minValue: 1,
         },
+        auth,
       );
     } catch (error) {
       expect((error as Error).message).toBe(
@@ -267,6 +300,7 @@ describe("/api/public/score-configs API Endpoint", () => {
           { label: "Bad", value: 0 },
         ],
       },
+      auth,
     );
 
     expect(postScoreConfig.status).toBe(400);
@@ -283,6 +317,7 @@ describe("/api/public/score-configs API Endpoint", () => {
         name: "invalid-categorical-config-name",
         dataType: "CATEGORICAL",
       },
+      auth,
     );
 
     expect(postScoreConfig.status).toBe(400);
@@ -303,6 +338,7 @@ describe("/api/public/score-configs API Endpoint", () => {
           { key: "second", value: 0 },
         ],
       },
+      auth,
     );
 
     expect(postScoreConfig.status).toBe(400);
@@ -331,6 +367,7 @@ describe("/api/public/score-configs API Endpoint", () => {
           { label: "first", value: 0 },
         ],
       },
+      auth,
     );
 
     expect(postScoreConfig.status).toBe(400);
@@ -359,6 +396,7 @@ describe("/api/public/score-configs API Endpoint", () => {
           { label: "second", value: 1 },
         ],
       },
+      auth,
     );
 
     expect(postScoreConfig.status).toBe(400);

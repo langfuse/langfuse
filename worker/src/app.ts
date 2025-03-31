@@ -27,6 +27,7 @@ import {
   PostHogIntegrationQueue,
   QueueName,
   logger,
+  BlobStorageIntegrationQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -38,6 +39,10 @@ import {
   postHogIntegrationProcessingProcessor,
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
+import {
+  blobStorageIntegrationProcessingProcessor,
+  blobStorageIntegrationProcessor,
+} from "./queues/blobStorageIntegrationQueue";
 import { coreDataS3ExportProcessor } from "./queues/coreDataS3ExportQueue";
 import { meteringDataPostgresExportProcessor } from "./ee/meteringDataPostgresExport/handleMeteringDataPostgresExportJob";
 import {
@@ -45,6 +50,7 @@ import {
   dataRetentionProcessor,
 } from "./queues/dataRetentionQueue";
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
+import { scoreDeleteProcessor } from "./queues/scoreDelete";
 
 const app = express();
 
@@ -120,7 +126,18 @@ if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 15 seconds
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
-      duration: 15_000,
+      duration: 120_000,
+    },
+  });
+}
+
+if (env.QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.ScoreDelete, scoreDeleteProcessor, {
+    concurrency: env.LANGFUSE_SCORE_DELETE_CONCURRENCY,
+    limiter: {
+      // Process at most `max` delete jobs per 15 seconds
+      max: env.LANGFUSE_SCORE_DELETE_CONCURRENCY,
+      duration: 120_000,
     },
   });
 }
@@ -131,7 +148,7 @@ if (env.QUEUE_CONSUMER_PROJECT_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 3 seconds
       max: env.LANGFUSE_PROJECT_DELETE_CONCURRENCY,
-      duration: 3_000,
+      duration: 120_000,
     },
   });
 }
@@ -245,6 +262,27 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.PostHogIntegrationProcessingQueue,
     postHogIntegrationProcessingProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  BlobStorageIntegrationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.BlobStorageIntegrationQueue,
+    blobStorageIntegrationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+
+  WorkerManager.register(
+    QueueName.BlobStorageIntegrationProcessingQueue,
+    blobStorageIntegrationProcessingProcessor,
     {
       concurrency: 1,
     },

@@ -27,11 +27,7 @@ const TagList = ({
       />
     ))
   ) : (
-    <Button
-      variant="tertiary"
-      size="icon-xs"
-      className={isTableCell ? "opacity-0 hover:opacity-100" : ""}
-    >
+    <Button variant={isTableCell ? "ghost" : "tertiary"} size="icon-xs">
       <TagIcon className="h-3.5 w-3.5" />
     </Button>
   );

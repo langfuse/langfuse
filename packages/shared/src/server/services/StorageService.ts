@@ -51,15 +51,27 @@ export interface StorageService {
 }
 
 export class StorageServiceFactory {
+  /**
+   * Get an instance of the StorageService
+   * @param params.accessKeyId - Access key ID
+   * @param params.secretAccessKey - Secret access key
+   * @param params.bucketName - Bucket name to store files
+   * @param params.endpoint - Endpoint - Endpoint to an S3 compatible API (or Azure Blob Storage)
+   * @param params.externalEndpoint - External endpoint to replace the internal endpoint in the signed URL.
+   * @param params.region - Region in which the bucket resides
+   * @param params.forcePathStyle - Add bucket name into the path instead of the domain name. Mainly used for MinIO.
+   */
   public static getInstance(params: {
     accessKeyId: string | undefined;
     secretAccessKey: string | undefined;
     bucketName: string;
     endpoint: string | undefined;
+    externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
+    useAzureBlob?: boolean;
   }): StorageService {
-    if (env.LANGFUSE_USE_AZURE_BLOB === "true") {
+    if (params.useAzureBlob || env.LANGFUSE_USE_AZURE_BLOB === "true") {
       return new AzureBlobStorageService(params);
     }
     return new S3StorageService(params);
@@ -69,22 +81,25 @@ export class StorageServiceFactory {
 class AzureBlobStorageService implements StorageService {
   private client: ContainerClient;
   private container: string;
+  private externalEndpoint: string | undefined;
 
   constructor(params: {
     accessKeyId: string | undefined;
     secretAccessKey: string | undefined;
     bucketName: string;
     endpoint: string | undefined;
+    externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
   }) {
-    const { accessKeyId, secretAccessKey, endpoint } = params;
+    const { accessKeyId, secretAccessKey, endpoint, externalEndpoint } = params;
     if (!accessKeyId || !secretAccessKey || !endpoint) {
       throw new Error(
         `Endpoint, account and account key must be configured to use Azure Blob Storage`,
       );
     }
 
+    this.externalEndpoint = externalEndpoint;
     const sharedKeyCredential = new StorageSharedKeyCredential(
       accessKeyId,
       secretAccessKey,
@@ -119,10 +134,13 @@ class AzureBlobStorageService implements StorageService {
       if (typeof data === "string") {
         await blockBlobClient.upload(data, data.length);
       } else if (data instanceof Readable) {
-        let offset = 0;
         const blockIds = [];
         for await (const chunk of data) {
-          const blockId = Buffer.from(`block-${offset}`).toString("base64");
+          // Azure requires block IDs to be base64 strings of the same length
+          // Use a fixed format with padded index to ensure consistent length
+          const blockIdStr: string = `block-${blockIds.length.toString().padStart(10, "0")}`;
+          const blockId = Buffer.from(blockIdStr).toString("base64");
+
           const bufferChunk = Buffer.isBuffer(chunk)
             ? chunk
             : Buffer.from(chunk);
@@ -133,11 +151,10 @@ class AzureBlobStorageService implements StorageService {
             bufferChunk.length,
           );
           blockIds.push(blockId);
-
-          offset += bufferChunk.length;
         }
-
-        await blockBlobClient.commitBlockList(blockIds);
+        if (blockIds.length > 0) {
+          await blockBlobClient.commitBlockList(blockIds);
+        }
       } else {
         throw new Error("Unsupported data type. Must be Readable or string.");
       }
@@ -258,13 +275,20 @@ class AzureBlobStorageService implements StorageService {
       await this.createContainerIfNotExists();
 
       const blockBlobClient = this.client.getBlockBlobClient(fileName);
-      return blockBlobClient.generateSasUrl({
+      let url = await blockBlobClient.generateSasUrl({
         permissions: BlobSASPermissions.parse("r"),
         expiresOn: new Date(Date.now() + ttlSeconds * 1000),
         contentDisposition: asAttachment
           ? `attachment; filename="${fileName}"`
           : undefined,
       });
+
+      // Replace internal endpoint with external endpoint if configured
+      if (this.externalEndpoint && url.includes(this.client.url)) {
+        url = url.replace(this.client.url, this.externalEndpoint);
+      }
+
+      return url;
     } catch (err) {
       logger.error(
         `Failed to generate presigned URL for Azure Blob Storage ${fileName}`,
@@ -286,11 +310,18 @@ class AzureBlobStorageService implements StorageService {
       await this.createContainerIfNotExists();
 
       const blockBlobClient = this.client.getBlockBlobClient(path);
-      return blockBlobClient.generateSasUrl({
+      let url = await blockBlobClient.generateSasUrl({
         permissions: BlobSASPermissions.parse("w"),
         expiresOn: new Date(Date.now() + ttlSeconds * 1000),
         contentType: contentType,
       });
+
+      // Replace internal endpoint with external endpoint if configured
+      if (this.externalEndpoint && url.includes(this.client.url)) {
+        url = url.replace(this.client.url, this.externalEndpoint);
+      }
+
+      return url;
     } catch (err) {
       logger.error(
         `Failed to generate presigned upload URL for Azure Blob Storage ${path}`,
@@ -306,12 +337,15 @@ class AzureBlobStorageService implements StorageService {
 class S3StorageService implements StorageService {
   private client: S3Client;
   private bucketName: string;
+  private endpoint: string | undefined;
+  private externalEndpoint: string | undefined;
 
   constructor(params: {
     accessKeyId: string | undefined;
     secretAccessKey: string | undefined;
     bucketName: string;
     endpoint: string | undefined;
+    externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
   }) {
@@ -337,6 +371,8 @@ class S3StorageService implements StorageService {
       },
     });
     this.bucketName = params.bucketName;
+    this.endpoint = params.endpoint;
+    this.externalEndpoint = params.externalEndpoint;
   }
 
   public async uploadFile({
@@ -425,7 +461,7 @@ class S3StorageService implements StorageService {
     asAttachment: boolean = true,
   ): Promise<string> {
     try {
-      return await getSignedUrl(
+      let url = await getSignedUrl(
         this.client,
         new GetObjectCommand({
           Bucket: this.bucketName,
@@ -436,6 +472,17 @@ class S3StorageService implements StorageService {
         }),
         { expiresIn: ttlSeconds },
       );
+
+      // Replace internal endpoint with external endpoint if configured
+      if (
+        this.externalEndpoint &&
+        this.endpoint &&
+        url.includes(this.endpoint)
+      ) {
+        url = url.replace(this.endpoint, this.externalEndpoint);
+      }
+
+      return url;
     } catch (err) {
       logger.error(`Failed to generate presigned URL for ${fileName}`, err);
       throw Error("Failed to generate signed URL");
@@ -482,7 +529,7 @@ class S3StorageService implements StorageService {
   }): Promise<string> {
     const { path, ttlSeconds, contentType, contentLength, sha256Hash } = params;
 
-    return await getSignedUrl(
+    let url = await getSignedUrl(
       this.client,
       new PutObjectCommand({
         Bucket: this.bucketName,
@@ -497,5 +544,12 @@ class S3StorageService implements StorageService {
         unhoistableHeaders: new Set(["x-amz-checksum-sha256"]),
       },
     );
+
+    // Replace internal endpoint with external endpoint if configured
+    if (this.externalEndpoint && this.endpoint && url.includes(this.endpoint)) {
+      url = url.replace(this.endpoint, this.externalEndpoint);
+    }
+
+    return url;
   }
 }

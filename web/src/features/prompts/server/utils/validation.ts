@@ -22,8 +22,15 @@ export const PromptLabelSchema = z
     "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
   );
 
+export const PromptNameSchema = z
+  .string()
+  .min(1)
+  .regex(/^[^|]*$/, "Name cannot contain '|' character")
+  .transform((s) => s.trim())
+  .refine((s) => s.length > 0, "Name cannot be empty");
+
 const BaseCreateTextPromptSchema = z.object({
-  name: z.string(),
+  name: PromptNameSchema,
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Text).optional(),
   prompt: z.string(),
@@ -38,7 +45,7 @@ export const CreateTextPromptSchema = BaseCreateTextPromptSchema.extend({
 });
 
 const BaseCreateChatPromptSchema = z.object({
-  name: z.string(),
+  name: PromptNameSchema,
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),

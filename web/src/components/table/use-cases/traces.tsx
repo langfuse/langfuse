@@ -1,7 +1,6 @@
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import TableLink from "@/src/components/table/table-link";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
@@ -22,7 +21,7 @@ import {
 } from "use-query-params";
 import type Decimal from "decimal.js";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { DeleteButton } from "@/src/components/deleteButton";
+import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
   LevelColors,
@@ -75,6 +74,9 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
+import { Trace } from "@/src/components/trace";
+import router from "next/router";
+import TableId from "@/src/components/table/table-id";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
@@ -122,6 +124,7 @@ export type TracesTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: string[];
+  pinFirstColumn?: boolean;
 };
 
 export default function TracesTable({
@@ -130,13 +133,17 @@ export default function TracesTable({
   omittedFilter = [],
 }: TracesTableProps) {
   const utils = api.useUtils();
+  const [peekViewId] = useQueryParam("peek", withDefault(StringParam, null));
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
   );
-
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "display",
+    withDefault(StringParam, "details"),
+  );
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange(projectId);
   const [userFilterState, setUserFilterState] = useQueryFilterState(
@@ -441,14 +448,9 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const value: TracesTableRow["id"] = row.getValue("id");
-        const timestamp: TracesTableRow["timestamp"] =
-          row.getValue("timestamp");
 
         return value && typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(value)}?timestamp=${encodeURIComponent(timestamp.toISOString())}`}
-            value={value}
-          />
+          <TableId value={value} />
         ) : undefined;
       },
       enableSorting: true,
@@ -479,7 +481,6 @@ export default function TracesTable({
       id: "environment",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value: TracesTableRow["environment"] =
           row.getValue("environment");
@@ -505,10 +506,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["userId"] = row.getValue("userId");
         return value && typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
-            value={value}
-          />
+          <TableId value={value} />
         ) : undefined;
       },
       enableHiding: true,
@@ -527,10 +525,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
         return value && typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
-            value={value}
-          />
+          <TableId value={value} />
         ) : undefined;
       },
       enableHiding: true,
@@ -545,7 +540,9 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["latency"] = row.getValue("latency");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return value !== undefined ? formatIntervalSeconds(value) : undefined;
+        return value !== undefined ? (
+          <span>{formatIntervalSeconds(value)}</span>
+        ) : undefined;
       },
       enableHiding: true,
       enableSorting: true,
@@ -883,29 +880,27 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        return traceId &&
-          typeof traceId === "string" &&
-          hasTraceDeletionEntitlement ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem asChild>
-                <DeleteButton
-                  itemId={traceId}
-                  projectId={projectId}
-                  scope="traces:delete"
-                  invalidateFunc={() => void utils.traces.all.invalidate()}
-                  type="trace"
-                  isTableAction={true}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : undefined;
+        return (
+          traceId &&
+          typeof traceId === "string" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem asChild>
+                  <DeleteTraceButton
+                    itemId={traceId}
+                    projectId={projectId}
+                    isTableAction
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        );
       },
     },
   ];
@@ -970,7 +965,7 @@ export default function TracesTable({
         columns={columns}
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
-          placeholder: "Search by id, name, user id",
+          placeholder: "Search (by id, name, trace name, user id)",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
@@ -1049,6 +1044,101 @@ export default function TracesTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        pinFirstColumn
+        peekView={{
+          itemType: "TRACE",
+          urlPathname: userId
+            ? `/project/${projectId}/users/${userId}`
+            : `/project/${projectId}/traces`,
+          onOpenChange: (open: boolean, row?: TracesTableRow) => {
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            if (!open || !row) {
+              // Remove peek and timestamp params while keeping others
+              params.delete("peek");
+              params.delete("timestamp");
+              params.delete("observation");
+              params.delete("display");
+            } else if (open && row.id && peekViewId !== row.id) {
+              // Update or add peek and timestamp params
+              params.set("peek", row.id);
+              params.set("timestamp", row.timestamp.toISOString());
+              params.delete("observation");
+            } else {
+              return;
+            }
+
+            router.replace(
+              {
+                pathname: userId
+                  ? `/project/${projectId}/users/${userId}`
+                  : `/project/${projectId}/traces`,
+                query: params.toString(),
+              },
+              undefined,
+              { shallow: true },
+            );
+          },
+          onExpand: (openInNewTab: boolean) => {
+            if (peekViewId) {
+              const url = new URL(window.location.href);
+              const params = new URLSearchParams(url.search);
+              const timestamp = params.get("timestamp");
+              const display = params.get("display") ?? "details";
+
+              if (openInNewTab) {
+                window.open(
+                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}&display=${display}`,
+                  "_blank",
+                );
+              } else {
+                router.replace(
+                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}&display=${display}`,
+                );
+              }
+            }
+          },
+          render: () => {
+            const { peek, timestamp } = router.query;
+
+            const trace = api.traces.byIdWithObservationsAndScores.useQuery(
+              {
+                traceId: peek as string,
+                timestamp:
+                  typeof timestamp === "string"
+                    ? new Date(timestamp)
+                    : undefined,
+                projectId,
+              },
+              {
+                enabled: !!peek && !!timestamp,
+                retry(failureCount, error) {
+                  if (
+                    error.data?.code === "UNAUTHORIZED" ||
+                    error.data?.code === "NOT_FOUND"
+                  )
+                    return false;
+                  return failureCount < 3;
+                },
+              },
+            );
+
+            return !trace.data ? (
+              <Skeleton className="h-full w-full" />
+            ) : (
+              <Trace
+                key={trace.data.id}
+                trace={trace.data}
+                scores={trace.data.scores}
+                projectId={trace.data.projectId}
+                observations={trace.data.observations}
+                selectedTab={selectedTab}
+                setSelectedTab={setSelectedTab}
+              />
+            );
+          },
+        }}
       />
     </>
   );

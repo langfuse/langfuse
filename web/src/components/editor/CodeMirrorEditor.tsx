@@ -1,4 +1,7 @@
-import CodeMirror, { EditorView } from "@uiw/react-codemirror";
+import CodeMirror, {
+  EditorView,
+  type ReactCodeMirrorRef,
+} from "@uiw/react-codemirror";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
@@ -11,15 +14,26 @@ import {
   MULTILINE_VARIABLE_REGEX,
   MUSTACHE_REGEX,
   UNCLOSED_VARIABLE_REGEX,
+  PromptDependencyRegex,
+  parsePromptDependencyTags,
 } from "@langfuse/shared";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 
-// Custom language mode for prompts that highlights mustache variables
+// Custom language mode for prompts that highlights mustache variables and prompt dependency tags
 const promptLanguage = StreamLanguage.define({
   name: "prompt",
   startState: () => ({}),
   token: (stream: StringStream) => {
+    // Highlight prompt tags
+    if (stream.match("@@@langfusePrompt:")) {
+      stream.skipTo("@@@") || stream.skipToEnd();
+      stream.match("@@@");
+
+      return "keyword";
+    }
+
+    // Highlight mustache variables
     if (stream.match("{{")) {
       const start = stream.pos;
       stream.skipTo("}}") || stream.skipToEnd();
@@ -78,6 +92,30 @@ const promptLinter = linter((view) => {
     }
   }
 
+  // Check for malformed prompt dependency tags
+  for (const match of content.matchAll(PromptDependencyRegex)) {
+    const tagContent = match[0];
+    try {
+      const parsedTags = parsePromptDependencyTags(tagContent);
+
+      if (parsedTags.length === 0) {
+        diagnostics.push({
+          from: match.index,
+          to: match.index + match[0].length,
+          severity: "warning",
+          message: "Malformed prompt dependency tag",
+        });
+      }
+    } catch (error) {
+      diagnostics.push({
+        from: match.index,
+        to: match.index + match[0].length,
+        severity: "warning",
+        message: "Invalid prompt dependency tag format",
+      });
+    }
+  }
+
   return diagnostics;
 });
 
@@ -95,6 +133,7 @@ export function CodeMirrorEditor({
   mode,
   minHeight,
   placeholder,
+  editorRef,
 }: {
   value: string;
   onChange?: (value: string) => void;
@@ -106,6 +145,7 @@ export function CodeMirrorEditor({
   mode: "json" | "text" | "prompt";
   minHeight: "none" | 30 | 100 | 200;
   placeholder?: string;
+  editorRef?: React.RefObject<ReactCodeMirrorRef>;
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
@@ -119,6 +159,7 @@ export function CodeMirrorEditor({
     <CodeMirror
       value={value}
       theme={codeMirrorTheme}
+      ref={editorRef}
       basicSetup={{
         foldGutter: lineNumbers,
         highlightActiveLine: false,
@@ -126,6 +167,12 @@ export function CodeMirrorEditor({
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        // Remove outline if field is focussed
+        EditorView.theme({
+          "&.cm-focused": {
+            outline: "none",
+          },
+        }),
         // Hide gutter when lineNumbers is false
         // Fix missing gutter border
         ...(!lineNumbers

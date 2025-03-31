@@ -24,6 +24,391 @@ info:
     - Postman collection:
     https://cloud.langfuse.com/generated/postman/collection.json
 paths:
+  /api/public/annotation-queues:
+    get:
+      description: Get all annotation queues
+      operationId: annotationQueues_listQueues
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAnnotationQueues'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/annotation-queues/{queueId}:
+    get:
+      description: Get an annotation queue by ID
+      operationId: annotationQueues_getQueue
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationQueue'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/annotation-queues/{queueId}/items:
+    get:
+      description: Get items for a specific annotation queue
+      operationId: annotationQueues_listQueueItems
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by status
+          required: false
+          schema:
+            $ref: '#/components/schemas/AnnotationQueueStatus'
+            nullable: true
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAnnotationQueueItems'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    post:
+      description: Add an item to an annotation queue
+      operationId: annotationQueues_createQueueItem
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationQueueItem'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnotationQueueItemRequest'
+  /api/public/annotation-queues/{queueId}/items/{itemId}:
+    get:
+      description: Get a specific item from an annotation queue
+      operationId: annotationQueues_getQueueItem
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+        - name: itemId
+          in: path
+          description: The unique identifier of the annotation queue item
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationQueueItem'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    patch:
+      description: Update an annotation queue item
+      operationId: annotationQueues_updateQueueItem
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+        - name: itemId
+          in: path
+          description: The unique identifier of the annotation queue item
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationQueueItem'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAnnotationQueueItemRequest'
+    delete:
+      description: Remove an item from an annotation queue
+      operationId: annotationQueues_deleteQueueItem
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+        - name: itemId
+          in: path
+          description: The unique identifier of the annotation queue item
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAnnotationQueueItemResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/comments:
     post:
       description: >-
@@ -2536,6 +2921,52 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    delete:
+      description: Delete a specific trace
+      operationId: trace_delete
+      tags:
+        - Trace
+      parameters:
+        - name: traceId
+          in: path
+          description: The unique langfuse identifier of the trace to delete
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteTraceResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/traces:
     get:
       description: Get list of traces
@@ -2675,8 +3106,192 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    delete:
+      description: Delete multiple traces
+      operationId: trace_deleteMultiple
+      tags:
+        - Trace
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteTraceResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                traceIds:
+                  type: array
+                  items:
+                    type: string
+                  description: List of trace IDs to delete
+              required:
+                - traceIds
 components:
   schemas:
+    AnnotationQueueStatus:
+      title: AnnotationQueueStatus
+      type: string
+      enum:
+        - PENDING
+        - COMPLETED
+    AnnotationQueueObjectType:
+      title: AnnotationQueueObjectType
+      type: string
+      enum:
+        - TRACE
+        - OBSERVATION
+    AnnotationQueue:
+      title: AnnotationQueue
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        scoreConfigIds:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - scoreConfigIds
+        - createdAt
+        - updatedAt
+    AnnotationQueueItem:
+      title: AnnotationQueueItem
+      type: object
+      properties:
+        id:
+          type: string
+        queueId:
+          type: string
+        objectId:
+          type: string
+        objectType:
+          $ref: '#/components/schemas/AnnotationQueueObjectType'
+        status:
+          $ref: '#/components/schemas/AnnotationQueueStatus'
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - queueId
+        - objectId
+        - objectType
+        - status
+        - createdAt
+        - updatedAt
+    PaginatedAnnotationQueues:
+      title: PaginatedAnnotationQueues
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnnotationQueue'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    PaginatedAnnotationQueueItems:
+      title: PaginatedAnnotationQueueItems
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnnotationQueueItem'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    CreateAnnotationQueueItemRequest:
+      title: CreateAnnotationQueueItemRequest
+      type: object
+      properties:
+        objectId:
+          type: string
+        objectType:
+          $ref: '#/components/schemas/AnnotationQueueObjectType'
+        status:
+          $ref: '#/components/schemas/AnnotationQueueStatus'
+          nullable: true
+          description: Defaults to PENDING for new queue items
+      required:
+        - objectId
+        - objectType
+    UpdateAnnotationQueueItemRequest:
+      title: UpdateAnnotationQueueItemRequest
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/AnnotationQueueStatus'
+          nullable: true
+    DeleteAnnotationQueueItemResponse:
+      title: DeleteAnnotationQueueItemResponse
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
     CreateCommentRequest:
       title: CreateCommentRequest
       type: object
@@ -4365,9 +4980,10 @@ components:
       required:
         - successes
         - errors
-    OpenAIUsageSchema:
-      title: OpenAIUsageSchema
+    OpenAICompletionUsageSchema:
+      title: OpenAICompletionUsageSchema
       type: object
+      description: OpenAI Usage schema from (Chat-)Completion APIs
       properties:
         prompt_tokens:
           type: integer
@@ -4379,15 +4995,44 @@ components:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
         completion_tokens_details:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
       required:
         - prompt_tokens
         - completion_tokens
+        - total_tokens
+    OpenAIResponseUsageSchema:
+      title: OpenAIResponseUsageSchema
+      type: object
+      description: OpenAI Usage schema from Response API
+      properties:
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        input_tokens_details:
+          type: object
+          additionalProperties:
+            type: integer
+            nullable: true
+          nullable: true
+        output_tokens_details:
+          type: object
+          additionalProperties:
+            type: integer
+            nullable: true
+          nullable: true
+      required:
+        - input_tokens
+        - output_tokens
         - total_tokens
     UsageDetails:
       title: UsageDetails
@@ -4395,7 +5040,8 @@ components:
         - type: object
           additionalProperties:
             type: integer
-        - $ref: '#/components/schemas/OpenAIUsageSchema'
+        - $ref: '#/components/schemas/OpenAICompletionUsageSchema'
+        - $ref: '#/components/schemas/OpenAIResponseUsageSchema'
     GetMediaResponse:
       title: GetMediaResponse
       type: object
@@ -4899,6 +5545,13 @@ components:
           type: string
           nullable: true
           description: Commit message for this prompt version.
+        resolutionGraph:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: >-
+            The dependency resolution graph for the current prompt. Null if
+            prompt has no dependencies.
       required:
         - name
         - version
@@ -5174,6 +5827,14 @@ components:
       required:
         - data
         - meta
+    DeleteTraceResponse:
+      title: DeleteTraceResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     Sort:
       title: Sort
       type: object

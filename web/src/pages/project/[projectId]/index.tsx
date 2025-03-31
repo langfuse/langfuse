@@ -18,7 +18,6 @@ import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";
-import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -42,10 +41,6 @@ export default function Dashboard() {
   const uiCustomization = useUiCustomization();
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
-
-  const session = useSession();
-  const disableExpensiveDashboardComponents =
-    session.data?.environment.disableExpensivePostgresQueries ?? true;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -138,35 +133,24 @@ export default function Dashboard() {
     [dateRange],
   );
 
-  const timeFilter = dateRange
-    ? [
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: ">" as const,
-          value: dateRange.from,
-        },
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: "<" as const,
-          value: dateRange.to,
-        },
-      ]
-    : [
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: ">" as const,
-          value: new Date(new Date().getTime() - 1000),
-        },
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: "<" as const,
-          value: new Date(),
-        },
-      ];
+  const fromTimestamp = dateRange
+    ? dateRange.from
+    : new Date(new Date().getTime() - 1000);
+  const toTimestamp = dateRange ? dateRange.to : new Date();
+  const timeFilter = [
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: ">" as const,
+      value: fromTimestamp,
+    },
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: "<" as const,
+      value: toTimestamp,
+    },
+  ];
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
     ["environment"],
@@ -181,6 +165,7 @@ export default function Dashboard() {
 
   return (
     <Page
+      withPadding
       scrollable
       headerProps={{
         title: "Dashboard",
@@ -207,12 +192,13 @@ export default function Dashboard() {
           />
           <MultiSelect
             title="Environment"
+            label="Env"
             values={selectedEnvironments}
             onValueChange={useDebounce(setSelectedEnvironments)}
             options={environmentOptions.map((env) => ({
               value: env,
             }))}
-            className="my-0 w-auto min-w-[150px] max-w-[250px] overflow-hidden"
+            className="my-0 w-auto overflow-hidden"
           />
           <PopoverFilterBuilder
             columns={filterColumns}
@@ -246,17 +232,19 @@ export default function Dashboard() {
         <TracesBarListChart
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
-          globalFilterState={mergedFilterState}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isLoading}
         />
-        {!disableExpensiveDashboardComponents && (
-          <ModelCostTable
-            className="col-span-1 xl:col-span-2"
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
+        <ModelCostTable
+          className="col-span-1 xl:col-span-2"
+          projectId={projectId}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
+          isLoading={environmentFilterOptions.isLoading}
+        />
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
@@ -266,27 +254,30 @@ export default function Dashboard() {
         <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
-          globalFilterState={mergedFilterState}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
           agg={agg}
           isLoading={environmentFilterOptions.isLoading}
         />
-        {!disableExpensiveDashboardComponents && (
-          <ModelUsageChart
-            className="col-span-1 min-h-24 xl:col-span-3"
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            agg={agg}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
-        {!disableExpensiveDashboardComponents && (
-          <UserChart
-            className="col-span-1 xl:col-span-3"
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
+        <ModelUsageChart
+          className="col-span-1 min-h-24 xl:col-span-3"
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
+          userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
+          agg={agg}
+          isLoading={environmentFilterOptions.isLoading}
+        />
+        <UserChart
+          className="col-span-1 xl:col-span-3"
+          projectId={projectId}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
+          isLoading={environmentFilterOptions.isLoading}
+        />
         <ChartScores
           className="col-span-1 xl:col-span-3"
           agg={agg}
@@ -294,31 +285,25 @@ export default function Dashboard() {
           globalFilterState={mergedFilterState}
           isLoading={environmentFilterOptions.isLoading}
         />
-        {!disableExpensiveDashboardComponents && (
-          <LatencyTables
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
-        {!disableExpensiveDashboardComponents && (
-          <GenerationLatencyChart
-            className="col-span-1 flex-auto justify-between lg:col-span-full"
-            projectId={projectId}
-            agg={agg}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
-        {!disableExpensiveDashboardComponents && (
-          <ScoreAnalytics
-            className="col-span-1 flex-auto justify-between lg:col-span-full"
-            agg={agg}
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
+        <LatencyTables
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+          isLoading={environmentFilterOptions.isLoading}
+        />
+        <GenerationLatencyChart
+          className="col-span-1 flex-auto justify-between lg:col-span-full"
+          projectId={projectId}
+          agg={agg}
+          globalFilterState={mergedFilterState}
+          isLoading={environmentFilterOptions.isLoading}
+        />
+        <ScoreAnalytics
+          className="col-span-1 flex-auto justify-between lg:col-span-full"
+          agg={agg}
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+          isLoading={environmentFilterOptions.isLoading}
+        />
       </div>
     </Page>
   );

@@ -154,9 +154,10 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         session_output_usage,
         session_total_usage`;
       break;
-    default:
+    default: {
       const exhaustiveCheckDefault: never = select;
-      throw new Error(`Unknown select type: ${select}`);
+      throw new Error(`Unknown select type: ${exhaustiveCheckDefault}`);
+    }
   }
 
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {

@@ -30,7 +30,7 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
   return (
     <>
       <Header title="Audit Logs" />
-      <p className="mb-3 text-sm text-muted-foreground">
+      <p className="mb-2 text-sm text-muted-foreground">
         Track who changed what in your project and when. Monitor settings,
         configurations, and data changes over time. Reach out to the Langfuse
         team if you require more detailed/filtered audit logs.

@@ -301,7 +301,7 @@ export default function ObservationsTable({
       accessorKey: "type",
       id: "type",
       header: "Type",
-      size: 100,
+      size: 120,
       enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationType = row.getValue("type");
@@ -318,7 +318,6 @@ export default function ObservationsTable({
       id: "environment",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationsTableRow["environment"] =
           row.getValue("environment");
@@ -857,7 +856,7 @@ export default function ObservationsTable({
         filterState={inputFilterState}
         setFilterState={useDebounce(setInputFilterState)}
         searchConfig={{
-          placeholder: "Search by id, name, traceName, model",
+          placeholder: "Search (by id, name, trace name, model)",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
@@ -873,7 +872,7 @@ export default function ObservationsTable({
         actionButtons={
           <BatchExportTableButton
             {...{ projectId, filterState, orderByState }}
-            tableName={BatchExportTableName.Generations}
+            tableName={BatchExportTableName.Observations}
             key="batchExport"
           />
         }

@@ -34,6 +34,10 @@ export const TracesQueueEventSchema = z.object({
   projectId: z.string(),
   traceIds: z.array(z.string()),
 });
+export const ScoresQueueEventSchema = z.object({
+  projectId: z.string(),
+  scoreIds: z.array(z.string()),
+});
 export const ProjectQueueEventSchema = z.object({
   projectId: z.string(),
   orgId: z.string(),
@@ -52,6 +56,9 @@ export const EvalExecutionEvent = z.object({
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
+export const BlobStorageIntegrationProcessingEventSchema = z.object({
+  projectId: z.string(),
+});
 export const ExperimentCreateEventSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
@@ -65,6 +72,15 @@ export const DataRetentionProcessingEventSchema = z.object({
 export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   "actionId",
   [
+    z.object({
+      actionId: z.literal("score-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.nativeEnum(BatchExportTableName),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.nativeEnum(BatchActionType),
+    }),
     z.object({
       actionId: z.literal("trace-delete"),
       projectId: z.string(),
@@ -114,6 +130,7 @@ export type CreateEvalQueueEventType = z.infer<
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
+export type ScoresQueueEventType = z.infer<typeof ScoresQueueEventSchema>;
 export type ProjectQueueEventType = z.infer<typeof ProjectQueueEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
@@ -132,6 +149,9 @@ export type DataRetentionProcessingEventType = z.infer<
 export type BatchActionProcessingEventType = z.infer<
   typeof BatchActionProcessingEventSchema
 >;
+export type BlobStorageIntegrationProcessingEventType = z.infer<
+  typeof BlobStorageIntegrationProcessingEventSchema
+>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -146,12 +166,15 @@ export enum QueueName {
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
+  BlobStorageIntegrationQueue = "blobstorage-integration-queue",
+  BlobStorageIntegrationProcessingQueue = "blobstorage-integration-processing-queue",
   CoreDataS3ExportQueue = "core-data-s3-export-queue",
   MeteringDataPostgresExportQueue = "metering-data-postgres-export-queue",
   DataRetentionQueue = "data-retention-queue",
   DataRetentionProcessingQueue = "data-retention-processing-queue",
   BatchActionQueue = "batch-action-queue",
   CreateEvalQueue = "create-eval-queue",
+  ScoreDelete = "score-delete",
 }
 
 export enum QueueJobs {
@@ -167,12 +190,15 @@ export enum QueueJobs {
   ExperimentCreateJob = "experiment-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
+  BlobStorageIntegrationJob = "blobstorage-integration-job",
+  BlobStorageIntegrationProcessingJob = "blobstorage-integration-processing-job",
   CoreDataS3ExportJob = "core-data-s3-export-job",
   MeteringDataPostgresExportJob = "metering-data-postgres-export-job",
   DataRetentionJob = "data-retention-job",
   DataRetentionProcessingJob = "data-retention-processing-job",
   BatchActionProcessingJob = "batch-action-processing-job",
   CreateEvalJob = "create-eval-job",
+  ScoreDelete = "score-delete",
 }
 
 export type TQueueJobTypes = {
@@ -187,6 +213,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: TracesQueueEventType | TraceQueueEventType;
     name: QueueJobs.TraceDelete;
+  };
+  [QueueName.ScoreDelete]: {
+    timestamp: Date;
+    id: string;
+    payload: ScoresQueueEventType;
+    name: QueueJobs.ScoreDelete;
   };
   [QueueName.ProjectDelete]: {
     timestamp: Date;
@@ -253,5 +285,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: CreateEvalQueueEventType;
     name: QueueJobs.CreateEvalJob;
+  };
+  [QueueName.BlobStorageIntegrationProcessingQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: BlobStorageIntegrationProcessingEventType;
+    name: QueueJobs.BlobStorageIntegrationProcessingJob;
   };
 };

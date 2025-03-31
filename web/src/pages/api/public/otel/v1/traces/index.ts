@@ -22,7 +22,6 @@ export default withMiddlewares({
     querySchema: z.any(),
     responseSchema: z.any(),
     rateLimitResource: "ingestion",
-    successStatusCode: 207,
     fn: async ({ req, res, auth }) => {
       let body: Buffer;
       try {

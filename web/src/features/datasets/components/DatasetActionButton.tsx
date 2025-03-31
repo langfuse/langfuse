@@ -77,6 +77,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               variant={props.variant || "ghost"}
               size={props.size || "icon"}
               className={props.className}
+              disabled={!hasAccess}
               onClick={() => {
                 setOpen(true);
                 capture("datasets:update_form_open", {
@@ -97,6 +98,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             variant={props.variant || "ghost"}
             size={props.size}
             className={props.className}
+            disabled={!hasAccess}
             onClick={() => {
               setOpen(true);
               capture("datasets:delete_form_open", {
@@ -104,7 +106,11 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               });
             }}
           >
-            <Trash className="mr-2 h-4 w-4" />
+            {hasAccess ? (
+              <Trash className="mr-2 h-4 w-4" />
+            ) : (
+              <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            )}
             Delete
           </Button>
         ) : (
@@ -113,7 +119,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             className={props.className}
             disabled={!hasAccess}
             onClick={() => capture("datasets:new_form_open")}
-            variant={props.variant || "secondary"}
+            variant={props.variant || "default"}
           >
             {hasAccess ? (
               <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />

@@ -14,6 +14,7 @@ import {
 } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { traceException } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const inflateConfigBody = (body: z.infer<typeof PostScoreConfigBody>) => {
   if (isBooleanDataType(body.dataType)) {
@@ -43,6 +44,16 @@ export default withMiddlewares({
           id: v4(),
           projectId: auth.scope.projectId,
         },
+      });
+
+      await auditLog({
+        action: "create",
+        resourceType: "scoreConfig",
+        resourceId: config.id,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        after: config,
       });
 
       return validateDbScoreConfig(config);

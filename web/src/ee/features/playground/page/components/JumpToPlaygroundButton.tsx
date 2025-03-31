@@ -6,7 +6,11 @@ import { z } from "zod";
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { Button } from "@/src/components/ui/button";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
-import { type PlaygroundCache } from "@/src/ee/features/playground/page/types";
+import {
+  type PlaygroundTool,
+  type PlaygroundCache,
+  type PlaygroundSchema,
+} from "@/src/ee/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -17,6 +21,12 @@ import {
   supportedModels as playgroundSupportedModels,
   type UIModelParams,
   ZodModelConfig,
+  ChatMessageType,
+  LLMToolCallSchema,
+  OpenAIToolCallSchema,
+  OpenAIToolSchema,
+  type ChatMessage,
+  OpenAIResponseFormatSchema,
 } from "@langfuse/shared";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { cn } from "@/src/utils/tailwind";
@@ -60,12 +70,12 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   }, [props]);
 
   useEffect(() => {
-    if (capturedState && isEntitled) {
+    if (capturedState) {
       setIsAvailable(true);
     } else {
       setIsAvailable(false);
     }
-  }, [capturedState, isEntitled, setIsAvailable]);
+  }, [capturedState, setIsAvailable]);
 
   const handleClick = () => {
     capture(props.analyticsEventName);
@@ -73,6 +83,8 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
     router.push(`/project/${projectId}/playground`);
   };
+
+  if (!isEntitled) return null;
 
   return (
     <Button
@@ -104,7 +116,6 @@ const ParsedChatMessageListSchema = z.array(
     role: z.nativeEnum(ChatMessageRole),
     content: z.union([
       z.string(),
-      // If system message is cached, the message is an array of objects with a text property
       z
         .array(
           z
@@ -114,25 +125,75 @@ const ParsedChatMessageListSchema = z.array(
             .transform((v) => v.text),
         )
         .transform((v) => v.join("")),
+      z.null().transform((_) => ""),
       z.any().transform((v) => JSON.stringify(v, null, 2)),
     ]),
+    tool_calls: z
+      .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
+      .optional(),
+    tool_call_id: z.string().optional(),
   }),
 );
+
+const transformToPlaygroundMessage = (
+  message: z.infer<typeof ParsedChatMessageListSchema>[0],
+): ChatMessage => {
+  const { role, content } = message;
+
+  if (message.role === "assistant" && message.tool_calls) {
+    const playgroundMessage: ChatMessage = {
+      role: ChatMessageRole.Assistant,
+      content,
+      type: ChatMessageType.AssistantToolCall,
+      toolCalls: message.tool_calls.map((tc) => {
+        if ("function" in tc) {
+          return {
+            name: tc.function.name,
+            id: tc.id,
+            args: tc.function.arguments,
+          };
+        }
+
+        return tc;
+      }),
+    };
+
+    return playgroundMessage;
+  } else if (message.role === "tool" && message.tool_call_id) {
+    const playgroundMessage: ChatMessage = {
+      role: ChatMessageRole.Tool,
+      content,
+      type: ChatMessageType.ToolResult,
+      toolCallId: message.tool_call_id,
+    };
+
+    return playgroundMessage;
+  } else {
+    return {
+      role,
+      content,
+      type: ChatMessageType.PublicAPICreated,
+    };
+  }
+};
 
 const parsePrompt = (prompt: Prompt): PlaygroundCache => {
   if (prompt.type === PromptType.Chat) {
     const parsedMessages = ParsedChatMessageListSchema.safeParse(prompt.prompt);
 
-    return parsedMessages.success ? { messages: parsedMessages.data } : null;
+    return parsedMessages.success
+      ? { messages: parsedMessages.data.map(transformToPlaygroundMessage) }
+      : null;
   } else {
     const promptString = prompt.prompt?.valueOf();
 
     return {
       messages: [
-        createEmptyMessage(
-          ChatMessageRole.System,
-          typeof promptString === "string" ? promptString : "",
-        ),
+        createEmptyMessage({
+          type: ChatMessageType.System,
+          role: ChatMessageRole.System,
+          content: typeof promptString === "string" ? promptString : "",
+        }),
       ],
     };
   }
@@ -147,6 +208,9 @@ const parseGeneration = (
   if (generation.type !== "GENERATION") return null;
 
   const modelParams = parseModelParams(generation);
+  const tools = parseTools(generation);
+  const structuredOutputSchema = parseStructuredOutputSchema(generation);
+
   let input = generation.input?.valueOf();
 
   if (typeof input === "string") {
@@ -155,25 +219,48 @@ const parseGeneration = (
 
       if (typeof input === "string") {
         return {
-          messages: [createEmptyMessage(ChatMessageRole.System, input)],
+          messages: [
+            createEmptyMessage({
+              type: ChatMessageType.System,
+              role: ChatMessageRole.System,
+              content: input,
+            }),
+          ],
           modelParams,
+          tools,
+          structuredOutputSchema,
         };
       }
     } catch (err) {
       return {
         messages: [
-          createEmptyMessage(ChatMessageRole.System, input?.toString()),
+          createEmptyMessage({
+            type: ChatMessageType.System,
+            role: ChatMessageRole.System,
+            content: input?.toString() ?? "",
+          }),
         ],
         modelParams,
+        tools,
+        structuredOutputSchema,
       };
     }
   }
 
   if (typeof input === "object") {
-    const parsedMessages = ParsedChatMessageListSchema.safeParse(input);
+    const parsedMessages = ParsedChatMessageListSchema.safeParse(
+      "messages" in input ? input["messages"] : input,
+    );
+
+    console.log(parsedMessages);
 
     if (parsedMessages.success)
-      return { messages: parsedMessages.data, modelParams };
+      return {
+        messages: parsedMessages.data.map(transformToPlaygroundMessage),
+        modelParams,
+        tools,
+        structuredOutputSchema,
+      };
   }
 
   if (typeof input === "object" && "messages" in input) {
@@ -182,7 +269,12 @@ const parseGeneration = (
     );
 
     if (parsedMessages.success)
-      return { messages: parsedMessages.data, modelParams };
+      return {
+        messages: parsedMessages.data.map(transformToPlaygroundMessage),
+        modelParams,
+        tools,
+        structuredOutputSchema,
+      };
   }
 
   return null;
@@ -230,4 +322,48 @@ function parseModelParams(
   }
 
   return modelParams;
+}
+
+function parseTools(generation: Observation): PlaygroundTool[] {
+  try {
+    const input = JSON.parse(generation.input as string);
+    if (typeof input === "object" && input !== null && "tools" in input) {
+      const parsedTools = z.array(OpenAIToolSchema).safeParse(input["tools"]);
+
+      if (parsedTools.success)
+        return parsedTools.data.map((tool) => ({
+          id: Math.random().toString(36).substring(2),
+          ...tool.function,
+        }));
+    }
+  } catch {}
+
+  return [];
+}
+
+function parseStructuredOutputSchema(
+  generation: Observation,
+): PlaygroundSchema | null {
+  try {
+    const metadata = generation.metadata;
+
+    if (
+      typeof metadata === "object" &&
+      metadata !== null &&
+      "response_format" in metadata
+    ) {
+      const parseStructuredOutputSchema = OpenAIResponseFormatSchema.safeParse(
+        metadata["response_format"],
+      );
+
+      if (parseStructuredOutputSchema.success)
+        return {
+          id: Math.random().toString(36).substring(2),
+          name: parseStructuredOutputSchema.data.json_schema.name,
+          description: "Schema parsed from generation",
+          schema: parseStructuredOutputSchema.data.json_schema.schema,
+        };
+    }
+  } catch {}
+  return null;
 }

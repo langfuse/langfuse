@@ -1,6 +1,8 @@
-import { UiColumnMapping } from "./types";
+import { UiColumnMappings } from "./types";
 
-export const dashboardColumnDefinitions: UiColumnMapping[] = [
+// Make sure to update web/src/features/query/dashboardUiTableToViewMapping.ts if you make changes
+
+export const dashboardColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
