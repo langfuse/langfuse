@@ -15,8 +15,6 @@ import {
   getDistinctModels,
   getScoresAggregateOverTime,
   getModelLatenciesOverTime,
-  getObservationLatencies,
-  getTracesLatencies,
   getNumericScoreHistogram,
   getNumericScoreTimeSeries,
   getCategoricalScoreTimeSeries,
@@ -54,8 +52,8 @@ export const dashboardRouter = createTRPCRouter({
             "scores-aggregate-timeseries",
             // "observations-usage-by-users",
             // "traces-grouped-by-user",
-            "observation-latencies-aggregated",
-            "traces-latencies-aggregated",
+            // "observation-latencies-aggregated",
+            // "traces-latencies-aggregated",
             "model-latencies-over-time",
             "numeric-score-time-series",
             "categorical-score-chart",
@@ -189,19 +187,19 @@ export const dashboardRouter = createTRPCRouter({
         //     user: row.user,
         //     countTraceId: Number(row.count),
         //   })) as DatabaseRow[];
-        case "observation-latencies-aggregated":
-          const latencies = await getObservationLatencies(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return latencies.map((row) => ({
-            name: row.name,
-            percentile50Duration: row.p50,
-            percentile90Duration: row.p90,
-            percentile95Duration: row.p95,
-            percentile99Duration: row.p99,
-          })) as DatabaseRow[];
+        // case "observation-latencies-aggregated":
+        //   const latencies = await getObservationLatencies(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return latencies.map((row) => ({
+        //     name: row.name,
+        //     percentile50Duration: row.p50,
+        //     percentile90Duration: row.p90,
+        //     percentile95Duration: row.p95,
+        //     percentile99Duration: row.p99,
+        //   })) as DatabaseRow[];
         case "model-latencies-over-time":
           const modelLatencies = await getModelLatenciesOverTime(
             input.projectId,
@@ -217,19 +215,19 @@ export const dashboardRouter = createTRPCRouter({
             percentile95Duration: row.p95,
             percentile99Duration: row.p99,
           })) as DatabaseRow[];
-        case "traces-latencies-aggregated":
-          const traceLatencies = await getTracesLatencies(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return traceLatencies.map((row) => ({
-            traceName: row.name,
-            percentile50Duration: row.p50,
-            percentile90Duration: row.p90,
-            percentile95Duration: row.p95,
-            percentile99Duration: row.p99,
-          })) as DatabaseRow[];
+        // case "traces-latencies-aggregated":
+        //   const traceLatencies = await getTracesLatencies(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return traceLatencies.map((row) => ({
+        //     traceName: row.name,
+        //     percentile50Duration: row.p50,
+        //     percentile90Duration: row.p90,
+        //     percentile95Duration: row.p95,
+        //     percentile99Duration: row.p99,
+        //   })) as DatabaseRow[];
         case "numeric-score-time-series":
           const dateTruncNumericScoreTimeSeries = extractTimeSeries(
             input.groupBy,

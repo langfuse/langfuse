@@ -12,6 +12,8 @@ import {
   getTotalObservationUsageByTimeByModel,
   getModelUsageByUser,
   getTracesGroupedByUsers,
+  getObservationLatencies,
+  getTracesLatencies,
 } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 import { type QueryType } from "@/src/features/query/types";
@@ -1166,6 +1168,156 @@ describe("selfServeDashboards", () => {
 
         expect(legacyData).toBeDefined();
         expect(Number(row.count_count)).toBe(Number(legacyData?.count));
+      });
+    });
+  });
+
+  describe("observation-latencies-aggregated query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getObservationLatencies(projectId, [
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "timestamp",
+          value: new Date(defaultFromTime),
+        },
+        {
+          type: "datetime",
+          operator: "<=",
+          column: "timestamp",
+          value: new Date(defaultToTime),
+        },
+      ]);
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [
+          { measure: "latency", aggregation: "p50" },
+          { measure: "latency", aggregation: "p90" },
+          { measure: "latency", aggregation: "p95" },
+          { measure: "latency", aggregation: "p99" },
+        ],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: [{ field: "p95_latency", direction: "desc" }],
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(queryBuilderResult).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Verify both result sets have the same number of rows
+      expect(legacyResult.length).toBe(queryBuilderResult.length);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [item.name, item]),
+      );
+
+      // Verify each observation's latency metrics match
+      queryBuilderResult.forEach((row: any) => {
+        const name = row.name;
+        const legacyData = legacyResultMap.get(name);
+
+        expect(legacyData).toBeDefined();
+        expect(Number(row.p50_latency) / 1000).toBeCloseTo(
+          Number(legacyData?.p50),
+        );
+        expect(Number(row.p90_latency) / 1000).toBeCloseTo(
+          Number(legacyData?.p90),
+        );
+        expect(Number(row.p95_latency) / 1000).toBeCloseTo(
+          Number(legacyData?.p95),
+        );
+        expect(Number(row.p99_latency) / 1000).toBeCloseTo(
+          Number(legacyData?.p99),
+        );
+      });
+    });
+  });
+
+  describe("traces-latencies-aggregated query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getTracesLatencies(projectId, [
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "timestamp",
+          value: new Date(defaultFromTime),
+        },
+        {
+          type: "datetime",
+          operator: "<=",
+          column: "timestamp",
+          value: new Date(defaultToTime),
+        },
+      ]);
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [
+          { measure: "latency", aggregation: "p50" },
+          { measure: "latency", aggregation: "p90" },
+          { measure: "latency", aggregation: "p95" },
+          { measure: "latency", aggregation: "p99" },
+        ],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: [{ field: "p95_latency", direction: "desc" }],
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(queryBuilderResult).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Verify both result sets have the same number of rows
+      expect(legacyResult.length).toBe(queryBuilderResult.length);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [item.name, item]),
+      );
+
+      // Verify each trace's latency metrics match
+      queryBuilderResult.forEach((row: any) => {
+        const name = row.name;
+        const legacyData = legacyResultMap.get(name);
+
+        expect(legacyData).toBeDefined();
+        expect(Number(row.p50_latency) / 1000).toBeCloseTo(
+          Number(legacyData?.p50),
+        );
+        expect(Number(row.p90_latency) / 1000).toBeCloseTo(
+          Number(legacyData?.p90),
+        );
+        expect(Number(row.p95_latency) / 1000).toBeCloseTo(
+          Number(legacyData?.p95),
+        );
+        expect(Number(row.p99_latency) / 1000).toBeCloseTo(
+          Number(legacyData?.p99),
+        );
       });
     });
   });

@@ -287,7 +287,9 @@ export default function Dashboard() {
         />
         <LatencyTables
           projectId={projectId}
-          globalFilterState={mergedFilterState}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isLoading}
         />
         <GenerationLatencyChart
