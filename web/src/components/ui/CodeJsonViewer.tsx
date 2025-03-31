@@ -55,7 +55,6 @@ export function JSONView(props: {
       <div
         className={cn(
           "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
-          props.codeClassName,
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
             : "",
@@ -63,6 +62,7 @@ export function JSONView(props: {
             ? "bg-primary-foreground"
             : "",
           props.scrollable ? "" : "rounded-sm border",
+          props.codeClassName,
         )}
       >
         {props.isLoading ? (

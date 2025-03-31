@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.43.0",
+  "version": "3.46.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -122,7 +122,7 @@
     "langchain": "^0.3.6",
     "lodash": "^4.17.21",
     "lucide-react": "^0.462.0",
-    "next": "^14.2.21",
+    "next": "^14.2.25",
     "next-auth": "^4.24.11",
     "next-query-params": "^5.0.1",
     "next-themes": "^0.3.0",

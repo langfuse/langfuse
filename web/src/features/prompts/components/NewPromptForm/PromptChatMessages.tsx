@@ -9,7 +9,8 @@ import {
   ChatMessageRole,
   ChatMessageDefaultRoleSchema,
   type ChatMessageWithId,
-  ChatMessageListSchema,
+  PromptChatMessageListSchema,
+  ChatMessageType,
 } from "@langfuse/shared";
 
 import { type NewPromptFormSchemaType } from "./validation";
@@ -33,10 +34,17 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
-    const parsedMessages = ChatMessageListSchema.safeParse(initialMessages);
+    const parsedMessages =
+      PromptChatMessageListSchema.safeParse(initialMessages);
 
     if (!parsedMessages.success || !parsedMessages.data.length) {
-      setMessages([createEmptyMessage(ChatMessageRole.System)]);
+      setMessages([
+        createEmptyMessage({
+          type: ChatMessageType.System,
+          role: ChatMessageRole.System,
+          content: "",
+        }),
+      ]);
 
       return;
     }
@@ -45,6 +53,7 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
       parsedMessages.data.map((message) => ({
         ...message,
         id: uuidv4(),
+        type: ChatMessageType.PublicAPICreated,
       })),
     );
 
@@ -64,18 +73,15 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
     }
   }, [initialMessages]);
 
-  const addMessage: MessagesContext["addMessage"] = useCallback(
-    (role, content) => {
-      const message = createEmptyMessage(role, content);
-      setMessages((prev) => [...prev, message]);
+  const addMessage: MessagesContext["addMessage"] = useCallback((message) => {
+    const newMessage = { ...message, id: uuidv4() };
+    setMessages((prev) => [...prev, newMessage]);
 
-      return message;
-    },
-    [],
-  );
+    return newMessage;
+  }, []);
 
   const updateMessage: MessagesContext["updateMessage"] = useCallback(
-    (id, key, value) => {
+    (type, id, key, value) => {
       setMessages((prev) =>
         prev.map((message) =>
           message.id === id ? { ...message, [key]: value } : message,
@@ -88,6 +94,15 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
   const deleteMessage: MessagesContext["deleteMessage"] = useCallback((id) => {
     setMessages((prev) => prev.filter((message) => message.id !== id));
   }, []);
+
+  const replaceMessage: MessagesContext["replaceMessage"] = useCallback(
+    (id, message) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { id, ...message } : m)),
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     onChange(messages);
@@ -122,6 +137,7 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
           setMessages,
           deleteMessage,
           updateMessage,
+          replaceMessage,
           availableRoles,
         }}
       />

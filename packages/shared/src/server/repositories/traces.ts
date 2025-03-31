@@ -810,6 +810,52 @@ export const getUserMetrics = async (
   }));
 };
 
+export const getTracesForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT
+      id,
+      timestamp,
+      name,
+      environment,
+      project_id,
+      metadata,
+      user_id,
+      session_id,
+      release,
+      version,
+      public,
+      bookmarked,
+      tags,
+      input,
+      output
+    FROM traces FINAL
+    WHERE project_id = {projectId: String}
+    AND timestamp >= {minTimestamp: DateTime64(3)}
+    AND timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "blobstorage",
+      type: "trace",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return records;
+};
+
 export const getTracesForPostHog = async function* (
   projectId: string,
   minTimestamp: Date,
@@ -860,6 +906,13 @@ export const getTracesForPostHog = async function* (
       type: "trace",
       kind: "analytic",
       projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 300_000, // 5 minutes
+      clickhouse_settings: {
+        join_algorithm: "grace_hash",
+        grace_hash_join_initial_buckets: "32",
+      },
     },
   });
 

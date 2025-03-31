@@ -1,7 +1,6 @@
 import { Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
-
 import {
   LangfuseNotFoundError,
   Model,
@@ -38,7 +37,6 @@ import {
   TraceUpsertQueue,
   QueueJobs,
   recordIncrement,
-  findModel,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -50,6 +48,7 @@ import {
 } from "./utils";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
+import { findModel } from "../modelMatch";
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -929,12 +928,6 @@ export class IngestionService {
     const { traceEventList, projectId, entityId } = params;
 
     return traceEventList.map((trace) => {
-      if (!trace.body?.timestamp) {
-        logger.warn(
-          `Trace ${entityId} in project ${projectId} does not have a timestamp, using event time`,
-        );
-      }
-
       const traceRecord: TraceRecordInsertType = {
         id: entityId,
         timestamp: this.getMillisecondTimestamp(
@@ -1053,12 +1046,6 @@ export class IngestionService {
             ) as Record<string, number>)
           : {}),
       };
-
-      if (obs.type?.endsWith("-create") && !obs.body?.startTime) {
-        logger.warn(
-          `Observation ${entityId} in project ${projectId} does not have a startTime, using event time`,
-        );
-      }
 
       const observationRecord: ObservationRecordInsertType = {
         id: entityId,

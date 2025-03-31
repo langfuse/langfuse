@@ -9,6 +9,7 @@ const entitlements = [
   "cloud-billing",
   "cloud-multi-tenant-sso",
   "integration-posthog",
+  "integration-blobstorage",
   "annotation-queues",
   "self-host-ui-customization",
   "self-host-allowed-organization-creators",
@@ -91,6 +92,7 @@ export const entitlementAccess: Record<
       "audit-logs",
       "data-retention",
       "cloud-multi-tenant-sso",
+      "integration-blobstorage",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -107,6 +109,7 @@ export const entitlementAccess: Record<
       "audit-logs",
       "data-retention",
       "cloud-multi-tenant-sso",
+      "integration-blobstorage",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -134,6 +137,7 @@ export const entitlementAccess: Record<
       "playground",
       "prompt-experiments",
       "integration-posthog",
+      "integration-blobstorage",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -154,6 +158,7 @@ export const entitlementAccess: Record<
       "self-host-allowed-organization-creators",
       "self-host-ui-customization",
       "integration-posthog",
+      "integration-blobstorage",
       "audit-logs",
       "data-retention",
     ],

@@ -260,136 +260,146 @@ export class PromptService {
     parentPrompt: PartialPrompt;
     dependencies?: ParsedPromptDependencyTag[];
   }): Promise<ResolvedPromptGraph> {
-    const { projectId, parentPrompt, dependencies } = params;
+    try {
+      const { projectId, parentPrompt, dependencies } = params;
 
-    const graph: PromptGraph = {
-      root: {
-        name: parentPrompt.name,
-        version: parentPrompt.version,
-        id: parentPrompt.id,
-      },
-      dependencies: {},
-    };
-    const seen = new Set<string>();
+      const graph: PromptGraph = {
+        root: {
+          name: parentPrompt.name,
+          version: parentPrompt.version,
+          id: parentPrompt.id,
+        },
+        dependencies: {},
+      };
+      const seen = new Set<string>();
 
-    const resolve = async (
-      currentPrompt: PartialPrompt,
-      deps: ParsedPromptDependencyTag[] | undefined,
-      level: number,
-    ) => {
-      // Nesting depth check
-      if (level >= MAX_PROMPT_NESTING_DEPTH) {
-        throw Error(
-          `Maximum nesting depth exceeded (${MAX_PROMPT_NESTING_DEPTH})`,
-        );
-      }
-
-      // Circular dependency check
-      if (
-        seen.has(currentPrompt.id) ||
-        (currentPrompt.name === parentPrompt.name &&
-          currentPrompt.id !== parentPrompt.id) // ensure that the parent prompt cannot reference a prompt of the same name but different version
-      ) {
-        throw Error(
-          `Circular dependency detected involving prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
-        );
-      }
-
-      seen.add(currentPrompt.id);
-
-      // deps can be either passed (if a prompt is created and content was scanned) or retrieved from db
-      let promptDependencies = deps;
-      if (!deps) {
-        promptDependencies = (
-          await this.prisma.promptDependency.findMany({
-            where: {
-              projectId,
-              parentId: currentPrompt.id,
-            },
-            select: {
-              childName: true,
-              childLabel: true,
-              childVersion: true,
-            },
-          })
-        ).map(
-          (dep) =>
-            ({
-              name: dep.childName,
-              ...(dep.childVersion
-                ? { type: "version", version: dep.childVersion }
-                : { type: "label", label: dep.childLabel }),
-            }) as ParsedPromptDependencyTag,
-        );
-      }
-
-      if (promptDependencies && promptDependencies.length) {
-        // Instantiate resolved prompt, use stringfied version for regex operations
-        // Do this inside if clause to skip stringify/parse overhead for prompts without dependencies
-        let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
-
-        for (const dep of promptDependencies) {
-          const depPrompt = await this.prisma.prompt.findFirst({
-            where: {
-              projectId,
-              name: dep.name,
-              ...(dep.type === "version"
-                ? { version: dep.version }
-                : { labels: { has: dep.label } }),
-            },
-          });
-
-          const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
-
-          if (!depPrompt)
-            throw Error(`Prompt dependency not found: ${logName}`);
-          if (depPrompt.type !== "text")
-            throw Error(`Prompt dependency is not a text prompt: ${logName}`);
-
-          // side-effect: populate adjacency list to return later as well
-          graph.dependencies[currentPrompt.id] ??= []; // initializes an empty list if it does not exist yet
-          graph.dependencies[currentPrompt.id].push({
-            id: depPrompt.id,
-            name: depPrompt.name,
-            version: depPrompt.version,
-          });
-
-          // resolve the prompt content recursively
-          const resolvedDepPrompt = await resolve(
-            depPrompt,
-            undefined,
-            level + 1,
+      const resolve = async (
+        currentPrompt: PartialPrompt,
+        deps: ParsedPromptDependencyTag[] | undefined,
+        level: number,
+      ) => {
+        // Nesting depth check
+        if (level >= MAX_PROMPT_NESTING_DEPTH) {
+          throw Error(
+            `Maximum nesting depth exceeded (${MAX_PROMPT_NESTING_DEPTH})`,
           );
-
-          const versionPattern = `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|version=${escapeRegex(depPrompt.version)}@@@`;
-          const labelPatterns = depPrompt.labels.map(
-            (label) =>
-              `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|label=${escapeRegex(label)}@@@`,
-          );
-          const combinedPattern = [versionPattern, ...labelPatterns].join("|");
-          const regex = new RegExp(combinedPattern, "g");
-
-          const replaceValue = JSON.stringify(resolvedDepPrompt).slice(1, -1); // this is necessary to avoid parsing errors as resolved value is unstringified
-
-          resolvedPrompt = resolvedPrompt.replace(regex, replaceValue);
         }
 
-        seen.delete(currentPrompt.id);
+        // Circular dependency check
+        if (
+          seen.has(currentPrompt.id) ||
+          (currentPrompt.name === parentPrompt.name &&
+            currentPrompt.id !== parentPrompt.id) // ensure that the parent prompt cannot reference a prompt of the same name but different version
+        ) {
+          throw Error(
+            `Circular dependency detected involving prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
+          );
+        }
 
-        return JSON.parse(resolvedPrompt);
-      } else {
-        seen.delete(currentPrompt.id);
+        seen.add(currentPrompt.id);
 
-        return currentPrompt.prompt;
-      }
-    };
+        // deps can be either passed (if a prompt is created and content was scanned) or retrieved from db
+        let promptDependencies = deps;
+        if (!deps) {
+          promptDependencies = (
+            await this.prisma.promptDependency.findMany({
+              where: {
+                projectId,
+                parentId: currentPrompt.id,
+              },
+              select: {
+                childName: true,
+                childLabel: true,
+                childVersion: true,
+              },
+            })
+          ).map(
+            (dep) =>
+              ({
+                name: dep.childName,
+                ...(dep.childVersion
+                  ? { type: "version", version: dep.childVersion }
+                  : { type: "label", label: dep.childLabel }),
+              }) as ParsedPromptDependencyTag,
+          );
+        }
 
-    const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
+        if (promptDependencies && promptDependencies.length) {
+          // Instantiate resolved prompt, use stringfied version for regex operations
+          // Do this inside if clause to skip stringify/parse overhead for prompts without dependencies
+          let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
-    return {
-      graph: Object.keys(graph.dependencies).length > 0 ? graph : null,
-      resolvedPrompt,
-    };
+          for (const dep of promptDependencies) {
+            const depPrompt = await this.prisma.prompt.findFirst({
+              where: {
+                projectId,
+                name: dep.name,
+                ...(dep.type === "version"
+                  ? { version: dep.version }
+                  : { labels: { has: dep.label } }),
+              },
+            });
+
+            const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
+
+            if (!depPrompt)
+              throw Error(`Prompt dependency not found: ${logName}`);
+            if (depPrompt.type !== "text")
+              throw Error(`Prompt dependency is not a text prompt: ${logName}`);
+
+            // side-effect: populate adjacency list to return later as well
+            graph.dependencies[currentPrompt.id] ??= []; // initializes an empty list if it does not exist yet
+            graph.dependencies[currentPrompt.id].push({
+              id: depPrompt.id,
+              name: depPrompt.name,
+              version: depPrompt.version,
+            });
+
+            // resolve the prompt content recursively
+            const resolvedDepPrompt = await resolve(
+              depPrompt,
+              undefined,
+              level + 1,
+            );
+
+            const versionPattern = `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|version=${escapeRegex(depPrompt.version)}@@@`;
+            const labelPatterns = depPrompt.labels.map(
+              (label) =>
+                `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|label=${escapeRegex(label)}@@@`,
+            );
+            const combinedPattern = [versionPattern, ...labelPatterns].join(
+              "|",
+            );
+            const regex = new RegExp(combinedPattern, "g");
+
+            const replaceValue = JSON.stringify(resolvedDepPrompt)
+              .slice(1, -1) // this is necessary to avoid parsing errors as resolved value is unstringified
+              .replace(/\$/g, "$$$$"); // Escape dollar signs in replacement string. $ has special meaning in replace(), so we need to escape it with $$. Since we're in a string that will be used as a replacement, we need to double escape it (hence $$$$)
+
+            resolvedPrompt = resolvedPrompt.replace(regex, replaceValue);
+          }
+
+          seen.delete(currentPrompt.id);
+
+          return JSON.parse(resolvedPrompt);
+        } else {
+          seen.delete(currentPrompt.id);
+
+          return currentPrompt.prompt;
+        }
+      };
+
+      const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
+
+      return {
+        graph: Object.keys(graph.dependencies).length > 0 ? graph : null,
+        resolvedPrompt,
+      };
+    } catch (err) {
+      console.error(err);
+
+      throw err;
+    }
   }
 
   private logError(message: string, ...args: any[]) {

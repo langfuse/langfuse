@@ -17,7 +17,6 @@ export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
 export * from "./repositories/definitions";
 export * from "../server/ingestion/types";
-export * from "./ingestion/modelMatch";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/types";
 export * from "../server/ingestion/validateAndInflateScore";
@@ -35,6 +34,8 @@ export * from "./redis/batchActionQueue";
 export * from "./redis/ingestionQueue";
 export * from "./redis/postHogIntegrationQueue";
 export * from "./redis/postHogIntegrationProcessingQueue";
+export * from "./redis/blobStorageIntegrationQueue";
+export * from "./redis/blobStorageIntegrationProcessingQueue";
 export * from "./redis/dataRetentionQueue";
 export * from "./redis/dataRetentionProcessingQueue";
 export * from "./redis/coreDataS3ExportQueue";
@@ -50,6 +51,7 @@ export * from "./queries";
 export * from "./repositories";
 export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
+export * from "./services/datasets-ui-table-service";
 
 // test utils
 export * from "./test-utils";

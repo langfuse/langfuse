@@ -1,13 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
-import type { ChatMessageRole, ChatMessageWithId } from "@langfuse/shared";
+import { type ChatMessage, type ChatMessageWithId } from "@langfuse/shared";
 
-export function createEmptyMessage(
-  role: ChatMessageRole,
-  content?: string,
-): ChatMessageWithId {
+export function createEmptyMessage(message: ChatMessage): ChatMessageWithId {
   return {
-    role,
-    content: content ?? "",
+    ...message,
+    content: message.content ?? "",
     id: uuidv4(),
   };
 }
