@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -57,22 +57,24 @@ export const useModelParams = () => {
     [selectedProviderApiKey],
   );
 
-  const updateModelParamValue: ModelParamsContext["updateModelParamValue"] = (
-    key,
-    value,
-  ) => {
-    setModelParams((prev) => ({
-      ...prev,
-      [key]: { ...prev[key], value },
-    }));
+  const updateModelParamValue = useCallback<
+    ModelParamsContext["updateModelParamValue"]
+  >(
+    (key, value) => {
+      setModelParams((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], value },
+      }));
 
-    if (value && key === "model") {
-      setPersistedModelName(String(value));
-    }
-    if (value && key === "provider") {
-      setPersistedModelProvider(String(value));
-    }
-  };
+      if (value && key === "model") {
+        setPersistedModelName(String(value));
+      }
+      if (value && key === "provider") {
+        setPersistedModelProvider(String(value));
+      }
+    },
+    [setPersistedModelName, setPersistedModelProvider, setModelParams],
+  );
 
   const setModelParamEnabled: ModelParamsContext["setModelParamEnabled"] = (
     key,
@@ -96,7 +98,12 @@ export const useModelParams = () => {
         updateModelParamValue("provider", availableProviders[0]);
       }
     }
-  }, [availableProviders, modelParams.provider.value, persistedModelProvider]);
+  }, [
+    availableProviders,
+    modelParams.provider.value,
+    updateModelParamValue,
+    persistedModelProvider,
+  ]);
 
   useEffect(() => {
     if (
@@ -109,7 +116,12 @@ export const useModelParams = () => {
         updateModelParamValue("model", availableModels[0]);
       }
     }
-  }, [availableModels, modelParams.model.value, persistedModelName]);
+  }, [
+    availableModels,
+    modelParams.model.value,
+    updateModelParamValue,
+    persistedModelName,
+  ]);
 
   // Update adapter, max temperature, temperature, max_tokens, top_p when provider changes
   useEffect(() => {
