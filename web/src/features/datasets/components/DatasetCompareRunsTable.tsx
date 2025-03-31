@@ -285,7 +285,7 @@ export function DatasetCompareRunsTable(props: {
             >
               <Expand className="h-4 w-4" />
             </Button>
-            <IOTableCell data={input} isPretty={true} />
+            <IOTableCell data={input} />
           </div>
         ) : null;
       },
@@ -316,7 +316,6 @@ export function DatasetCompareRunsTable(props: {
             <IOTableCell
               data={expectedOutput}
               className="bg-accent-light-green"
-              isPretty={true}
             />
           </div>
         ) : null;

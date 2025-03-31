@@ -476,30 +476,39 @@ export function DatasetRunsTable(props: {
                   const scoreData = scoreKeyToData.get(key);
                   if (!scoreData)
                     return (
-                      <TimeseriesChart
+                      <div
                         key={key}
-                        chartData={chartData}
-                        chartLabels={chartLabels}
-                        title={
-                          RESOURCE_METRICS.find((metric) => metric.key === key)
-                            ?.label ?? key
-                        }
-                        type="numeric"
-                      />
+                        className="max-h-52 min-h-0 min-w-72 max-w-full"
+                      >
+                        <TimeseriesChart
+                          chartData={chartData}
+                          chartLabels={chartLabels}
+                          title={
+                            RESOURCE_METRICS.find(
+                              (metric) => metric.key === key,
+                            )?.label ?? key
+                          }
+                          type="numeric"
+                        />
+                      </div>
                     );
 
                   return (
-                    <TimeseriesChart
+                    <div
                       key={key}
-                      chartData={chartData}
-                      chartLabels={chartLabels}
-                      title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
-                      type={
-                        isNumericDataType(scoreData.dataType)
-                          ? "numeric"
-                          : "categorical"
-                      }
-                    />
+                      className="max-h-52 min-h-0 min-w-72 max-w-full"
+                    >
+                      <TimeseriesChart
+                        chartData={chartData}
+                        chartLabels={chartLabels}
+                        title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
+                        type={
+                          isNumericDataType(scoreData.dataType)
+                            ? "numeric"
+                            : "categorical"
+                        }
+                      />
+                    </div>
                   );
                 })}
               </div>

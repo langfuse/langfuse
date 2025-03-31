@@ -4,6 +4,7 @@ import { IOPreview } from "@/src/components/trace/IOPreview";
 import { ObservationTree } from "@/src/components/trace/ObservationTree";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
+import { Command } from "@/src/components/ui/command";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -103,30 +104,32 @@ export function DatasetCompareRunPeekView({
         {traceAndObservationId?.traceId && (
           <Card className="h-full overflow-y-auto p-2">
             {trace.data ? (
-              <ObservationTree
-                observations={trace.data?.observations ?? []}
-                collapsedObservations={[]}
-                toggleCollapsedObservation={() => {}}
-                collapseAll={() => {}}
-                expandAll={() => {}}
-                trace={trace.data}
-                scores={trace.data?.scores ?? []}
-                currentObservationId={undefined}
-                setCurrentObservationId={(id) => {
-                  if (id)
-                    window.open(
-                      `/project/${projectId}/traces/${encodeURIComponent(traceAndObservationId?.traceId)}?observation=${encodeURIComponent(id)}`,
-                      "_blank",
-                      "noopener noreferrer",
-                    );
-                }}
-                showComments={false}
-                showMetrics={false}
-                showScores={true}
-                colorCodeMetrics={false}
-                className="flex w-full flex-col overflow-y-auto"
-                showExpandControls={false}
-              />
+              <Command>
+                <ObservationTree
+                  observations={trace.data?.observations ?? []}
+                  collapsedObservations={[]}
+                  toggleCollapsedObservation={() => {}}
+                  collapseAll={() => {}}
+                  expandAll={() => {}}
+                  trace={trace.data}
+                  scores={trace.data.scores ?? []}
+                  currentObservationId={undefined}
+                  setCurrentObservationId={(id) => {
+                    if (id)
+                      window.open(
+                        `/project/${projectId}/traces/${encodeURIComponent(traceAndObservationId?.traceId)}?observation=${encodeURIComponent(id)}`,
+                        "_blank",
+                        "noopener noreferrer",
+                      );
+                  }}
+                  showComments={false}
+                  showMetrics={false}
+                  showScores={true}
+                  colorCodeMetrics={false}
+                  className="flex w-full flex-col overflow-y-auto"
+                  showExpandControls={false}
+                />
+              </Command>
             ) : (
               <Skeleton className="min-h-full w-full" />
             )}
@@ -190,12 +193,6 @@ export function DatasetCompareRunPeekView({
                           projectId={projectId}
                           scoreKeyToDisplayName={scoreKeyToDisplayName}
                           selectedMetrics={["scores", "resourceMetrics"]}
-                          singleLine={false}
-                          variant="peek"
-                          className={cn(
-                            "relative flex-1 overflow-y-auto",
-                            traceAndObservationId?.runId === id && "border-4",
-                          )}
                           output={clickedRow.expectedOutput}
                           actionButtons={
                             <div className="absolute right-1 top-1 z-10 hidden items-center justify-center gap-1 group-hover:flex">

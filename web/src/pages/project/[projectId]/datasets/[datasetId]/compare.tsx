@@ -252,49 +252,6 @@ export default function DatasetCompare() {
                 }
               }}
             />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <div className="relative">
-                    <ChartLine className="h-4 w-4" />
-                    <Cog className="absolute -bottom-1.5 -right-1 h-3.5 w-3.5 rounded-full bg-background p-0.5" />
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Chart settings</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="w-full">
-                  <Button variant="ghost" className="w-full">
-                    <div className="flex w-full items-center justify-between">
-                      <span className="mr-2">Hide all charts</span>
-                      <Switch
-                        checked={!showCharts}
-                        onCheckedChange={(e) => {
-                          setShowCharts(!e);
-                        }}
-                      />
-                    </div>
-                  </Button>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-
-                {runIds && runIds.length > 1 && (
-                  <DropdownMenuItem
-                    asChild
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <DatasetAnalytics
-                      key="dataset-analytics"
-                      projectId={projectId}
-                      scoreOptions={scoreAnalyticsOptions}
-                      selectedMetrics={selectedMetrics}
-                      setSelectedMetrics={setSelectedMetrics}
-                    />
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </>
         ),
       }}
