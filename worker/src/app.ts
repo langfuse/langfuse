@@ -124,7 +124,7 @@ if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.TraceDelete, traceDeleteProcessor, {
     concurrency: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
     limiter: {
-      // Process at most `max` delete jobs per 15 seconds
+      // Process at most `max` delete jobs per 2 min
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
       duration: 120_000,
     },

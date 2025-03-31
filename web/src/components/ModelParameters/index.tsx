@@ -84,7 +84,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   }
 
   return (
-    <div className="flex flex-col space-y-2 pr-1 pt-2">
+    <div className="flex flex-col space-y-2 pb-1 pr-1 pt-2">
       <div className="flex items-center justify-between">
         <p className="font-semibold">Model</p>
         <Popover open={modelSettingsOpen} onOpenChange={setModelSettingsOpen}>

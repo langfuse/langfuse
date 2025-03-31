@@ -147,7 +147,7 @@ function getDefaultAdapterParams(
         },
         temperature: { value: 0, enabled: false },
         maxTemperature: { value: 2, enabled: false },
-        max_tokens: { value: 256, enabled: false },
+        max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
       };
 
@@ -159,7 +159,7 @@ function getDefaultAdapterParams(
         },
         temperature: { value: 0, enabled: false },
         maxTemperature: { value: 2, enabled: false },
-        max_tokens: { value: 256, enabled: false },
+        max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
       };
 
@@ -172,7 +172,7 @@ function getDefaultAdapterParams(
         },
         temperature: { value: 0, enabled: false },
         maxTemperature: { value: 1, enabled: false },
-        max_tokens: { value: 256, enabled: false },
+        max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
       };
 
@@ -184,7 +184,7 @@ function getDefaultAdapterParams(
         },
         temperature: { value: 0, enabled: false },
         maxTemperature: { value: 1, enabled: false },
-        max_tokens: { value: 256, enabled: false },
+        max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
       };
 
@@ -196,7 +196,7 @@ function getDefaultAdapterParams(
         },
         temperature: { value: 1, enabled: false },
         maxTemperature: { value: 2, enabled: false },
-        max_tokens: { value: 256, enabled: false },
+        max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
       };
 
@@ -208,7 +208,7 @@ function getDefaultAdapterParams(
         },
         temperature: { value: 1, enabled: false },
         maxTemperature: { value: 2, enabled: false },
-        max_tokens: { value: 256, enabled: false },
+        max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
       };
     case LLMAdapter.Atla:
