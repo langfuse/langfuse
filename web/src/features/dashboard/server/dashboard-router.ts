@@ -12,9 +12,7 @@ import { createHistogramData } from "@/src/features/dashboard/lib/score-analytic
 import { TRPCError } from "@trpc/server";
 import {
   getScoreAggregate,
-  getDistinctModels,
   getScoresAggregateOverTime,
-  getModelLatenciesOverTime,
   getNumericScoreHistogram,
   getNumericScoreTimeSeries,
   getCategoricalScoreTimeSeries,
@@ -48,13 +46,13 @@ export const dashboardRouter = createTRPCRouter({
             // Cost by type and usage by type are currently not supported in the new data model
             "observations-usage-by-type-timeseries",
             "observations-cost-by-type-timeseries",
-            "distinct-models",
+            // "distinct-models",
             "scores-aggregate-timeseries",
             // "observations-usage-by-users",
             // "traces-grouped-by-user",
             // "observation-latencies-aggregated",
             // "traces-latencies-aggregated",
-            "model-latencies-over-time",
+            // "model-latencies-over-time",
             "numeric-score-time-series",
             "categorical-score-chart",
             // "observations-status-timeseries",
@@ -148,13 +146,12 @@ export const dashboardRouter = createTRPCRouter({
           );
 
           return rowsObsCostByType as DatabaseRow[];
-        case "distinct-models":
-          const models = await getDistinctModels(
-            input.projectId,
-            input.filter ?? [],
-          );
-          return models as DatabaseRow[];
-
+        // case "distinct-models":
+        //   const models = await getDistinctModels(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //   return models as DatabaseRow[];
         case "scores-aggregate-timeseries":
           const aggregatedScores = await getScoresAggregateOverTime(
             input.projectId,
@@ -200,21 +197,21 @@ export const dashboardRouter = createTRPCRouter({
         //     percentile95Duration: row.p95,
         //     percentile99Duration: row.p99,
         //   })) as DatabaseRow[];
-        case "model-latencies-over-time":
-          const modelLatencies = await getModelLatenciesOverTime(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return modelLatencies.map((row) => ({
-            model: row.model,
-            startTime: row.start_time,
-            percentile50Duration: row.p50,
-            percentile75Duration: row.p75,
-            percentile90Duration: row.p90,
-            percentile95Duration: row.p95,
-            percentile99Duration: row.p99,
-          })) as DatabaseRow[];
+        // case "model-latencies-over-time":
+        //   const modelLatencies = await getModelLatenciesOverTime(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return modelLatencies.map((row) => ({
+        //     model: row.model,
+        //     startTime: row.start_time,
+        //     percentile50Duration: row.p50,
+        //     percentile75Duration: row.p75,
+        //     percentile90Duration: row.p90,
+        //     percentile95Duration: row.p95,
+        //     percentile99Duration: row.p99,
+        //   })) as DatabaseRow[];
         // case "traces-latencies-aggregated":
         //   const traceLatencies = await getTracesLatencies(
         //     input.projectId,

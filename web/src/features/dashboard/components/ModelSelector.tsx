@@ -104,8 +104,15 @@ export const ModelSelectorPopover = ({
 export const useModelSelection = (
   projectId: string,
   globalFilterState: FilterState,
+  fromTimestamp: Date,
+  toTimestamp: Date,
 ) => {
-  const allModels = getAllModels(projectId, globalFilterState);
+  const allModels = getAllModels(
+    projectId,
+    globalFilterState,
+    fromTimestamp,
+    toTimestamp,
+  );
 
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [firstAllModelUpdate, setFirstAllModelUpdate] = useState(true);

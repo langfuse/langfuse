@@ -78,7 +78,7 @@ export class QueryBuilder {
     return dimensions.map((dimension) => {
       if (!(dimension.field in view.dimensions)) {
         throw new Error(
-          `Invalid dimension. Must be one of ${Object.keys(view.dimensions)}`,
+          `Invalid dimension ${dimension.field}. Must be one of ${Object.keys(view.dimensions)}`,
         );
       }
       const dim = view.dimensions[dimension.field];
@@ -96,7 +96,7 @@ export class QueryBuilder {
     return metrics.map((metric) => {
       if (!(metric.measure in view.measures)) {
         throw new Error(
-          `Invalid metric. Must be one of ${Object.keys(view.measures)}`,
+          `Invalid metric ${metric.measure}. Must be one of ${Object.keys(view.measures)}`,
         );
       }
       return {

@@ -52,7 +52,12 @@ export const ModelUsageChart = ({
     isAllSelected,
     buttonText,
     handleSelectAll,
-  } = useModelSelection(projectId, globalFilterState);
+  } = useModelSelection(
+    projectId,
+    userAndEnvFilterState,
+    fromTimestamp,
+    toTimestamp,
+  );
 
   // Define the query for model usage data using the new QueryType structure
   const modelUsageQuery: QueryType = {
