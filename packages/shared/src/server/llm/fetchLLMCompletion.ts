@@ -295,7 +295,9 @@ export async function fetchLLMCompletion(
   } else {
     // eslint-disable-next-line no-unused-vars
     const _exhaustiveCheck: never = modelParams.adapter;
-    throw new Error("This model provider is not supported.");
+    throw new Error(
+      `This model provider is not supported: ${_exhaustiveCheck}`,
+    );
   }
 
   const runConfig = {
