@@ -14,9 +14,10 @@ import { DuplicateDatasetButton } from "@/src/features/datasets/components/Dupli
 import { useState } from "react";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import {
+  ChartLine,
+  Cog,
   ExternalLink,
   FlaskConical,
-  FolderKanban,
   MoreVertical,
 } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -46,6 +47,7 @@ import {
   TabsBarTrigger,
   TabsBar,
 } from "@/src/components/ui/tabs-bar";
+import { Separator } from "@/src/components/ui/separator";
 
 export default function Dataset() {
   const router = useRouter();
@@ -176,14 +178,6 @@ export default function Dataset() {
               </DialogContent>
             </Dialog>
 
-            <DatasetAnalytics
-              key="dataset-analytics"
-              projectId={projectId}
-              scoreOptions={scoreOptions}
-              selectedMetrics={selectedMetrics}
-              setSelectedMetrics={setSelectedMetrics}
-            />
-
             {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
               <MultiSelectKeyValues
                 variant="outline"
@@ -212,6 +206,34 @@ export default function Dataset() {
                 }
               />
             )}
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="focus-visible:ring-0 focus-visible:ring-offset-0"
+                >
+                  <div className="relative" title="Chart settings">
+                    <ChartLine className="h-4 w-4" />
+                    <Cog className="absolute -bottom-1.5 -right-1 h-3.5 w-3.5 rounded-full bg-background p-0.5" />
+                  </div>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[250px] p-0">
+                <div className="px-3 py-2 font-medium">Chart settings</div>
+                <Separator />
+                <div onClick={(e) => e.stopPropagation()} className="p-1">
+                  <DatasetAnalytics
+                    key="dataset-analytics"
+                    projectId={projectId}
+                    scoreOptions={scoreOptions}
+                    selectedMetrics={selectedMetrics}
+                    setSelectedMetrics={setSelectedMetrics}
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
 
             <DetailPageNav
               currentId={datasetId}

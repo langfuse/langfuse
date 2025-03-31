@@ -28,16 +28,6 @@ import {
 } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
-import {
-  DropdownMenuContent,
-  DropdownMenuLabel,
-} from "@/src/components/ui/dropdown-menu";
-import {
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { SubHeader, SubHeaderLabel } from "@/src/components/layouts/header";
 import {
   SidePanel,
@@ -45,7 +35,12 @@ import {
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
-import { Switch } from "@/src/components/ui/switch";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { Separator } from "@/src/components/ui/separator";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -294,35 +289,33 @@ export default function DatasetCompare() {
             <>
               <div className="flex w-full flex-row items-center justify-between gap-2">
                 <SubHeader title="Charts" />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="focus-visible:ring-0 focus-visible:ring-offset-0"
+                    >
                       <div className="relative" title="Chart settings">
                         <ChartLine className="h-4 w-4" />
                         <Cog className="absolute -bottom-1.5 -right-1 h-3.5 w-3.5 rounded-full bg-background p-0.5" />
                       </div>
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Chart settings</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-
-                    {runIds && runIds.length > 1 && (
-                      <DropdownMenuItem
-                        asChild
-                        onSelect={(e) => e.preventDefault()}
-                      >
-                        <DatasetAnalytics
-                          key="dataset-analytics"
-                          projectId={projectId}
-                          scoreOptions={scoreAnalyticsOptions}
-                          selectedMetrics={selectedMetrics}
-                          setSelectedMetrics={setSelectedMetrics}
-                        />
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[250px] p-0">
+                    <div className="px-3 py-2 font-medium">Chart settings</div>
+                    <Separator />
+                    <div onClick={(e) => e.stopPropagation()} className="p-1">
+                      <DatasetAnalytics
+                        key="dataset-analytics"
+                        projectId={projectId}
+                        scoreOptions={scoreAnalyticsOptions}
+                        selectedMetrics={selectedMetrics}
+                        setSelectedMetrics={setSelectedMetrics}
+                      />
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {Boolean(selectedMetrics.length) &&

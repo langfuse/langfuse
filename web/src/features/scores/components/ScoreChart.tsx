@@ -7,7 +7,6 @@ import { Card } from "@/src/components/ui/card";
 import { type ChartBin } from "@/src/features/scores/types";
 import { cn } from "@/src/utils/tailwind";
 
-// TODO: fix width of chart on score analytics view
 export function CategoricalChart(props: {
   chartData: ChartBin[];
   chartLabels: string[];
