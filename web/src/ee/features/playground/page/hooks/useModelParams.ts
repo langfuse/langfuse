@@ -103,10 +103,6 @@ export const useModelParams = () => {
       (availableModels.length > 0 && !modelParams.model.value) ||
       !availableModels.includes(modelParams.model.value)
     ) {
-      console.log({
-        persistedModelName,
-        availableModels,
-      });
       if (persistedModelName && availableModels.includes(persistedModelName)) {
         updateModelParamValue("model", persistedModelName);
       } else {
