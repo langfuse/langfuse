@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   CreatePromptTRPCSchema,
+  PromptLabelSchema,
   PromptType,
 } from "@/src/features/prompts/server/utils/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -12,6 +13,7 @@ import {
 } from "@/src/server/api/trpc";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
+import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
@@ -193,6 +195,20 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
+        const hasProtectedLabel = await checkHasProtectedLabels({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          labelsToCheck: input.labels,
+        });
+
+        if (hasProtectedLabel) {
+          throwIfNoProjectAccess({
+            session: ctx.session,
+            projectId: input.projectId,
+            scope: "promptProtectedLabels:CUD",
+          });
+        }
+
         const prompt = await createPrompt({
           ...input,
           prisma: ctx.prisma,
@@ -367,6 +383,21 @@ export const promptRouter = createTRPCRouter({
           });
         }
 
+        // Check if any prompt has a protected label
+        const hasProtectedLabel = await checkHasProtectedLabels({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          labelsToCheck: prompts.flatMap((prompt) => prompt.labels),
+        });
+
+        if (hasProtectedLabel) {
+          throwIfNoProjectAccess({
+            session: ctx.session,
+            projectId: input.projectId,
+            scope: "promptProtectedLabels:CUD",
+          });
+        }
+
         for (const prompt of prompts) {
           await auditLog(
             {
@@ -426,6 +457,21 @@ export const promptRouter = createTRPCRouter({
           },
         });
         const { name: promptName, version, labels } = promptVersion;
+
+        // Check if prompt has a protected label
+        const hasProtectedLabel = await checkHasProtectedLabels({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          labelsToCheck: promptVersion.labels,
+        });
+
+        if (hasProtectedLabel) {
+          throwIfNoProjectAccess({
+            session: ctx.session,
+            projectId: input.projectId,
+            scope: "promptProtectedLabels:CUD",
+          });
+        }
 
         if (labels.length > 0) {
           const dependents = await ctx.prisma.$queryRaw<
@@ -550,6 +596,21 @@ export const promptRouter = createTRPCRouter({
           projectId,
           scope: "prompts:CUD",
         });
+
+        // Check if any label is protected
+        const hasProtectedLabel = await checkHasProtectedLabels({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          labelsToCheck: input.labels,
+        });
+
+        if (hasProtectedLabel) {
+          throwIfNoProjectAccess({
+            session: ctx.session,
+            projectId: input.projectId,
+            scope: "promptProtectedLabels:CUD",
+          });
+        }
 
         const toBeLabeledPrompt = await ctx.prisma.prompt.findUniqueOrThrow({
           where: {
@@ -980,6 +1041,107 @@ export const promptRouter = createTRPCRouter({
         logger.error(e);
         throw e;
       }
+    }),
+
+  getProtectedLabels: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const { projectId } = input;
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "prompts:read",
+      });
+
+      const protectedLabels = await ctx.prisma.promptProtectedLabels.findMany({
+        where: {
+          projectId,
+        },
+      });
+
+      return protectedLabels.map((l) => l.label);
+    }),
+
+  addProtectedLabel: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), label: PromptLabelSchema }))
+    .mutation(async ({ input, ctx }) => {
+      const { projectId, label } = input;
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "promptProtectedLabels:CUD",
+      });
+
+      if (label === LATEST_PROMPT_LABEL) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `You cannot protect the label '${LATEST_PROMPT_LABEL}' as this would effectively block prompt creation.`,
+        });
+      }
+
+      const protectedLabel = await ctx.prisma.promptProtectedLabels.upsert({
+        where: {
+          projectId_label: {
+            projectId,
+            label,
+          },
+        },
+        create: {
+          projectId,
+          label,
+        },
+        update: {},
+      });
+
+      await auditLog(
+        {
+          session: ctx.session,
+          resourceType: "promptProtectedLabel",
+          resourceId: protectedLabel.id,
+          action: "create",
+          after: protectedLabel.label,
+        },
+        ctx.prisma,
+      );
+
+      return protectedLabel;
+    }),
+
+  removeProtectedLabel: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), label: PromptLabelSchema }))
+    .mutation(async ({ input, ctx }) => {
+      const { projectId, label } = input;
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "promptProtectedLabels:CUD",
+      });
+
+      const protectedLabel = await ctx.prisma.promptProtectedLabels.delete({
+        where: {
+          projectId_label: {
+            projectId,
+            label,
+          },
+        },
+      });
+
+      await auditLog(
+        {
+          session: ctx.session,
+          resourceType: "promptProtectedLabel",
+          resourceId: protectedLabel.id,
+          action: "delete",
+          before: protectedLabel.label,
+          after: null,
+        },
+        ctx.prisma,
+      );
+
+      return { success: true };
     }),
 });
 

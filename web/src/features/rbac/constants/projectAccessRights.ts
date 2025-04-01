@@ -31,6 +31,7 @@ const projectScopes = [
 
   "prompts:CUD",
   "prompts:read",
+  "promptProtectedLabels:CUD",
 
   "models:CUD",
 
@@ -85,6 +86,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "promptProtectedLabels:CUD",
     "models:CUD",
     "evalTemplate:CUD",
     "evalTemplate:read",
@@ -126,6 +128,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "promptProtectedLabels:CUD",
     "models:CUD",
     "evalTemplate:CUD",
     "evalTemplate:read",
