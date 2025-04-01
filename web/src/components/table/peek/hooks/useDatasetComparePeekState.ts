@@ -55,42 +55,14 @@ type UseDatasetComparePeekDataProps = {
   projectId: string;
   traceId?: string;
   timestamp?: Date;
-  datasetItemId?: string;
-  datasetId?: string;
 };
 
 export const useDatasetComparePeekData = ({
   projectId,
   traceId,
   timestamp,
-  datasetItemId,
-  // datasetId,
 }: UseDatasetComparePeekDataProps) => {
-  // const router = useRouter();
-  // const runItemData = getRow();
-
-  // const timestamp =
-  //   router.query.timestamp && typeof router.query.timestamp === "string"
-  //     ? new Date(decodeURIComponent(router.query.timestamp))
-  //     : undefined;
-
-  // Fetch all run data for this specific item
-  // const runItems = api.datasets.runItemsByDatasetItemId.useQuery(
-  //   {
-  //     projectId,
-  //     datasetId,
-  //     datasetItemId: datasetItemId as string,
-  //   },
-  //   {
-  //     enabled: !!datasetItemId,
-  //     retry(failureCount, error) {
-  //       if (error.data?.code === "UNAUTHORIZED") return false;
-  //       return failureCount < 3;
-  //     },
-  //   },
-  // );
-
-  const trace = api.traces.byIdWithObservationsAndScores.useQuery(
+  return api.traces.byIdWithObservationsAndScores.useQuery(
     {
       traceId: traceId as string,
       projectId,
@@ -104,6 +76,4 @@ export const useDatasetComparePeekData = ({
       },
     },
   );
-
-  return { trace };
 };

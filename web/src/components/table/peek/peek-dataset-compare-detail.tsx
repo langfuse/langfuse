@@ -56,12 +56,10 @@ export const PeekDatasetCompareDetail = ({
     );
   const { runId, traceId } = selectedRunItemProps ?? {};
 
-  const { trace } = useDatasetComparePeekData({
+  const trace = useDatasetComparePeekData({
     projectId,
     traceId: traceId,
     timestamp,
-    datasetItemId,
-    datasetId,
   });
 
   const handleToggleTrace = (
