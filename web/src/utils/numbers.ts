@@ -19,7 +19,7 @@ export const numberFormatter = (
   }).format(number ?? 0);
 };
 
-export const latencyFormatter = (number?: number | bigint) => {
+export const latencyFormatter = (milliseconds?: number) => {
   return Intl.NumberFormat("en-US", {
     style: "unit",
     unit: "second",
@@ -27,7 +27,7 @@ export const latencyFormatter = (number?: number | bigint) => {
     notation: "compact",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(number ?? 0);
+  }).format((milliseconds ?? 0) / 1000);
 };
 
 export const usdFormatter = (

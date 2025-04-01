@@ -78,7 +78,7 @@ export class QueryBuilder {
     return dimensions.map((dimension) => {
       if (!(dimension.field in view.dimensions)) {
         throw new Error(
-          `Invalid dimension. Must be one of ${Object.keys(view.dimensions)}`,
+          `Invalid dimension ${dimension.field}. Must be one of ${Object.keys(view.dimensions)}`,
         );
       }
       const dim = view.dimensions[dimension.field];
@@ -96,7 +96,7 @@ export class QueryBuilder {
     return metrics.map((metric) => {
       if (!(metric.measure in view.measures)) {
         throw new Error(
-          `Invalid metric. Must be one of ${Object.keys(view.measures)}`,
+          `Invalid metric ${metric.measure}. Must be one of ${Object.keys(view.measures)}`,
         );
       }
       return {
@@ -123,19 +123,20 @@ export class QueryBuilder {
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
         }
-      } else if (filter.column in view.measures) {
-        const measure = view.measures[filter.column];
-        clickhouseSelect = measure.sql;
-        type = measure.type;
-        if (measure.relationTable) {
-          clickhouseTableName = measure.relationTable;
-        }
+        // Filters on measures are underdefined and not allowed in the initial version
+        // } else if (filter.column in view.measures) {
+        //   const measure = view.measures[filter.column];
+        //   clickhouseSelect = measure.sql;
+        //   type = measure.type;
+        //   if (measure.relationTable) {
+        //     clickhouseTableName = measure.relationTable;
+        //   }
       } else if (filter.column === view.timeDimension) {
         clickhouseSelect = view.timeDimension;
         type = "datetime";
       } else {
         throw new Error(
-          `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${Object.keys(view.measures)} or ${view.timeDimension}`,
+          `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${view.timeDimension}`,
         );
       }
 
