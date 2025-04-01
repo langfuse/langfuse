@@ -1,6 +1,6 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -31,17 +31,9 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { useRouter } from "next/router";
-import {
-  TablePeekView,
-  type DataTablePeekViewProps,
-} from "@/src/components/table/peek";
-import { usePeekStore } from "@/src/components/table/peek/store/usePeekStore";
-
-type PeekViewProps<TData> = Omit<
-  DataTablePeekViewProps<TData>,
-  "selectedRowId"
->;
+import { TablePeekView } from "@/src/components/table/peek";
+import { PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
+import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -124,15 +116,6 @@ export function DataTable<TData extends object, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
-  const router = useRouter();
-  const peekViewId = router.query.peek as string | undefined;
-  const previousPeekViewIdRef = useRef<string | undefined>();
-  const inflatedPeekView = peekView
-    ? { ...peekView, selectedRowId: peekViewId }
-    : undefined;
-  const setRow = usePeekStore((state) => state.setRow);
-  const clearRow = usePeekStore((state) => state.clearRow);
-
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();
 
@@ -144,25 +127,6 @@ export function DataTable<TData extends object, TValue>({
     });
     return flatColumnsByGroup;
   }, [columns]);
-
-  const handleOnRowClick = (row: TData) => {
-    if (inflatedPeekView) {
-      const rowId =
-        "id" in row && typeof row.id === "string" ? row.id : undefined;
-      // If clicking the same row that's already open, close it
-      if (rowId === inflatedPeekView.selectedRowId) {
-        inflatedPeekView.onOpenChange(false);
-        clearRow(inflatedPeekView.storageKey);
-      }
-      // If clicking a different row, just update the URL without setting row data yet
-      else {
-        inflatedPeekView.onOpenChange(true, rowId);
-        setRow(inflatedPeekView.storageKey, row);
-      }
-    }
-    onRowClick?.(row);
-  };
-  const hasRowClickAction = !!onRowClick || !!inflatedPeekView;
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -207,23 +171,17 @@ export function DataTable<TData extends object, TValue>({
     columnResizeMode: "onChange",
   });
 
-  useEffect(() => {
-    if (peekViewId !== previousPeekViewIdRef.current) {
-      previousPeekViewIdRef.current = peekViewId;
-
-      if (peekViewId && inflatedPeekView) {
-        try {
-          const row = table.getRow(peekViewId);
-          if (row) {
-            // Store row data without causing re-renders
-            setRow(inflatedPeekView.storageKey, row.original);
-          }
-        } catch (error) {
-          console.log("Row not found in table:", error);
-        }
-      }
+  const { inflatedPeekView, peekViewId, handleOnRowClickPeek } = usePeekView({
+    table,
+    peekView,
+  });
+  const handleOnRowClick = (row: TData) => {
+    if (inflatedPeekView) {
+      handleOnRowClickPeek?.(row);
     }
-  }, [peekViewId]);
+    onRowClick?.(row);
+  };
+  const hasRowClickAction = !!onRowClick || !!inflatedPeekView;
 
   // memo column sizes for performance
   // https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance

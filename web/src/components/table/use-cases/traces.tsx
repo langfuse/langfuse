@@ -1051,7 +1051,6 @@ export default function TracesTable({
         peekView={{
           itemType: "TRACE",
           listKey: "traces",
-          storageKey: userId ?? "traces",
           urlPathname,
           peekEventOptions: {
             ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],

@@ -26,9 +26,7 @@ import { getQueryKey } from "@trpc/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import _ from "lodash";
 import { useDatasetComparePeekState } from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
-import { useDatasetComparePeekNavigation } from "@/src/components/table/peek/hooks/useDatasetComparePeekNavigation";
 import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 
 export type RunMetrics = {
   id: string;
@@ -76,7 +74,6 @@ export function DatasetCompareRunsTable(props: {
     "scores",
     "resourceMetrics",
   ]);
-  const { setDetailPageList } = useDetailPageLists();
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
   const [unchangedCounts, setUnchangedCounts] = useState<
     Record<string, number>
@@ -208,18 +205,6 @@ export function DatasetCompareRunsTable(props: {
     );
   }, [baseDatasetItems.data, runs]);
 
-  useEffect(() => {
-    if (baseDatasetItems.isSuccess) {
-      setDetailPageList(
-        "compareRuns",
-        baseDatasetItems.data.datasetItems.map((t) => ({
-          id: t.id,
-        })),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
-
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
     {
       projectId: props.projectId,
@@ -341,7 +326,6 @@ export function DatasetCompareRunsTable(props: {
     props.datasetId,
     urlPathname,
   );
-  const { getNavigationPath } = useDatasetComparePeekNavigation(urlPathname);
 
   return (
     <>
@@ -418,19 +402,17 @@ export function DatasetCompareRunsTable(props: {
         }}
         rowHeight={rowHeight}
         peekView={{
-          itemType: "TRACE",
-          listKey: "compareRuns",
+          itemType: "DATASET_ITEM",
           urlPathname,
-          storageKey: "compare-runs",
           onOpenChange: setPeekView,
-          getNavigationPath,
-          children: (
+          children: (row: DatasetCompareRunRowData) => (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
               datasetId={props.datasetId}
               scoreKeyToDisplayName={scoreKeyToDisplayName}
               runsData={props.runsData ?? []}
               selectedMetrics={selectedMetrics}
+              row={row}
             />
           ),
         }}

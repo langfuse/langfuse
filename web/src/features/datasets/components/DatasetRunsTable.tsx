@@ -107,6 +107,7 @@ const DatasetRunTableMultiSelectAction = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <Link
+            key="compare"
             href={
               selectedRunIds.length < 2
                 ? "#"
@@ -116,10 +117,7 @@ const DatasetRunTableMultiSelectAction = ({
                   }
             }
           >
-            <DropdownMenuItem
-              key="compare"
-              disabled={selectedRunIds.length < 2}
-            >
+            <DropdownMenuItem disabled={selectedRunIds.length < 2}>
               <Columns3 className="mr-2 h-4 w-4" />
               <span>Compare</span>
             </DropdownMenuItem>
@@ -135,6 +133,7 @@ const DatasetRunTableMultiSelectAction = ({
       </DropdownMenu>
 
       <Dialog
+        key="delete-dialog"
         open={isDeleteDialogOpen}
         onOpenChange={(isOpen) => {
           if (!mutDelete.isLoading) {

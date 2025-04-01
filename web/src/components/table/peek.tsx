@@ -12,19 +12,19 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 
-type PeekViewItemType = Extract<LangfuseItemType, "TRACE">;
+type PeekViewItemType = Extract<LangfuseItemType, "TRACE" | "DATASET_ITEM">;
 
 export type DataTablePeekViewProps<TData> = {
   itemType: PeekViewItemType;
   selectedRowId?: string | null;
-  onOpenChange: (open: boolean, id?: string) => void;
+  onOpenChange: (open: boolean, id?: string, timestamp?: string) => void;
   onExpand?: (openInNewTab: boolean) => void;
-  getNavigationPath: (entry: ListEntry) => string;
-  children: React.ReactNode;
+  getNavigationPath?: (entry: ListEntry) => string;
+  children: React.ReactNode | ((row: any) => React.ReactNode);
   urlPathname: string;
-  listKey: string;
-  storageKey: string;
+  listKey?: string;
   peekEventOptions?: PeekEventControlOptions;
+  row?: TData;
 };
 
 // Ignore close events from checkbox or bookmark star toggle clicks to ensure integrity of table row actions
@@ -61,6 +61,7 @@ export function TablePeekView<TData>({
   children,
   listKey,
   peekEventOptions,
+  row,
 }: DataTablePeekViewProps<TData>) {
   const eventHandler = createPeekEventHandler(peekEventOptions);
 
@@ -101,7 +102,7 @@ export function TablePeekView<TData>({
               !canExpand && "mr-8",
             )}
           >
-            {selectedRowId && (
+            {selectedRowId && listKey && getNavigationPath && (
               <DetailPageNav
                 currentId={selectedRowId}
                 path={getNavigationPath}
@@ -133,7 +134,9 @@ export function TablePeekView<TData>({
         </SheetHeader>
         <Separator />
         <div className="flex max-h-full min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-auto">{children}</div>
+          <div className="flex-1 overflow-auto">
+            {typeof children === "function" ? children(row) : children}
+          </div>
         </div>
       </SheetContent>
     </Sheet>

@@ -17,13 +17,11 @@ import { Button } from "@/src/components/ui/button";
 import { PanelLeftOpen, PanelLeftClose, ListTree } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Command } from "@/src/components/ui/command";
-import { SubHeaderLabel } from "@/src/components/layouts/header";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   DatasetCompareRunRowData,
   DatasetRunMetric,
 } from "@/src/features/datasets/components/DatasetCompareRunsTable";
-import { usePeekStore } from "@/src/components/table/peek/store/usePeekStore";
 import { useRouter } from "next/router";
 
 export type PeekDatasetCompareDetailProps = {
@@ -32,6 +30,7 @@ export type PeekDatasetCompareDetailProps = {
   runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics?: DatasetRunMetric[];
+  row: DatasetCompareRunRowData;
 };
 
 export const PeekDatasetCompareDetail = ({
@@ -40,6 +39,7 @@ export const PeekDatasetCompareDetail = ({
   runsData,
   scoreKeyToDisplayName,
   selectedMetrics = ["scores", "resourceMetrics"],
+  row,
 }: PeekDatasetCompareDetailProps) => {
   const router = useRouter();
 
@@ -64,11 +64,6 @@ export const PeekDatasetCompareDetail = ({
     datasetId,
   });
 
-  const row = usePeekStore((state) =>
-    state.getRow("compare-runs"),
-  ) as DatasetCompareRunRowData;
-
-  // Toggle trace panel
   const handleToggleTrace = (
     newTraceId?: string,
     newRunId?: string,

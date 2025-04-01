@@ -1,17 +1,14 @@
 import { useRouter } from "next/router";
 import { useCallback } from "react";
 import { api } from "@/src/utils/api";
-import { usePeekStorage } from "@/src/components/table/peek/hooks/usePeekStorage";
 import { TracesTableRow } from "@/src/components/table/use-cases/traces";
-import { usePeekStore } from "@/src/components/table/peek/store/usePeekStore";
 
 export const useTracePeekState = (projectId: string, pathname: string) => {
   const router = useRouter();
-  const row = usePeekStore((state) => state.getRow("traces")) as TracesTableRow;
   const { peek, timestamp } = router.query;
 
   const setPeekView = useCallback(
-    (open: boolean, id?: string) => {
+    (open: boolean, id?: string, time?: string) => {
       const url = new URL(window.location.href);
       const params = new URLSearchParams(url.search);
 
@@ -24,8 +21,8 @@ export const useTracePeekState = (projectId: string, pathname: string) => {
       } else if (open && id !== peek) {
         // open peek view or update peek view
         params.set("peek", id);
-        const timestamp = row?.timestamp;
-        if (timestamp) params.set("timestamp", timestamp.toISOString());
+        const relevantTimestamp = time ?? (timestamp as string);
+        if (relevantTimestamp) params.set("timestamp", relevantTimestamp);
         params.delete("observation");
       } else {
         return;
