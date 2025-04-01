@@ -2,6 +2,7 @@ import { z } from "zod";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
