@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   Bug,
   Github,
+  Radio,
   LibraryBig,
   LifeBuoy,
   Lightbulb,
@@ -31,6 +32,7 @@ import {
 } from "@/src/features/support-chat/chat";
 import { Switch } from "@/src/components/ui/switch";
 import { SiDiscord } from "react-icons/si";
+import { env } from "@/src/env.mjs";
 
 type SupportMenuItem = {
   title: string;
@@ -105,6 +107,13 @@ export const SupportMenuDropdown = () => {
       icon: LibraryBig,
       customizableHref: "documentationHref",
     });
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      items.push({
+        title: "Status Page",
+        pathname: "https://status.langfuse.com",
+        icon: Radio,
+      });
+    }
     items.push("separator");
 
     if (uiCustomization?.feedbackHref) {

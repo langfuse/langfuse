@@ -9,7 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { DeleteButton } from "@/src/components/deleteButton";
+import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { useState } from "react";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
@@ -146,7 +146,7 @@ export default function Dataset() {
             </TabsBarList>
           </TabsBar>
         ),
-        actionButtonsRight: [
+        actionButtonsRight: (
           <>
             <Dialog
               open={isCreateExperimentDialogOpen}
@@ -265,21 +265,17 @@ export default function Dataset() {
                   />
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <DeleteButton
+                  <DeleteDatasetButton
                     itemId={datasetId}
                     projectId={projectId}
-                    isTableAction={false}
-                    scope="datasets:CUD"
-                    invalidateFunc={() => void utils.datasets.invalidate()}
-                    type="dataset"
                     redirectUrl={`/project/${projectId}/datasets`}
                     deleteConfirmation={dataset.data?.name}
                   />
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </>,
-        ],
+          </>
+        ),
       }}
     >
       <DatasetRunsTable

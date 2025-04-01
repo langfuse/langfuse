@@ -2,7 +2,11 @@ import { PlusCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
-import { ChatMessageRole, SYSTEM_ROLES } from "@langfuse/shared";
+import {
+  ChatMessageRole,
+  ChatMessageType,
+  SYSTEM_ROLES,
+} from "@langfuse/shared";
 
 import { ChatMessageComponent } from "./ChatMessageComponent";
 
@@ -75,7 +79,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
     >
       <div className="flex h-full flex-col">
         <div className="flex-1 overflow-auto scroll-smooth" ref={scrollAreaRef}>
-          <div className="mb-4 flex-1 space-y-3">
+          <div className="mb-4 flex-1 space-y-2">
             <SortableContext
               items={props.messages.map((message) => message.id)}
               strategy={verticalListSortingStrategy}
@@ -88,7 +92,9 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
                     index={index}
                     deleteMessage={props.deleteMessage}
                     updateMessage={props.updateMessage}
+                    replaceMessage={props.replaceMessage}
                     availableRoles={props.availableRoles}
+                    toolCallIds={props.toolCallIds}
                   />
                 );
               })}
@@ -119,7 +125,21 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
       type="button" // prevents submitting a form if this button is inside a form
       variant="outline"
       className="w-full"
-      onClick={() => addMessage(nextMessageRole)}
+      onClick={() => {
+        if (nextMessageRole === ChatMessageRole.User) {
+          addMessage({
+            role: nextMessageRole,
+            content: "",
+            type: ChatMessageType.User,
+          });
+        } else {
+          addMessage({
+            role: nextMessageRole,
+            content: "",
+            type: ChatMessageType.AssistantText,
+          });
+        }
+      }}
     >
       <PlusCircleIcon size={14} className="mr-2" />
       <p>Add message</p>

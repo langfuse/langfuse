@@ -7,6 +7,8 @@ import {
   ExperimentMetadataSchema,
   PromptContentSchema,
   DatasetRunItemUpsertQueue,
+  ChatMessageType,
+  ChatMessage,
 } from "@langfuse/shared/src/server";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
@@ -38,7 +40,7 @@ const replaceVariablesInPrompt = (
   prompt: PromptContent,
   itemInput: Record<string, any>,
   variables: string[],
-): { role: string; content: string }[] => {
+): ChatMessage[] => {
   const processContent = (content: string) => {
     // Extract only relevant variables from itemInput
     const filteredContext = Object.fromEntries(
@@ -54,11 +56,18 @@ const replaceVariablesInPrompt = (
   };
 
   if (typeof prompt === "string") {
-    return [{ role: ChatMessageRole.System, content: processContent(prompt) }];
+    return [
+      {
+        role: ChatMessageRole.System,
+        content: processContent(prompt),
+        type: ChatMessageType.System as const,
+      },
+    ];
   } else {
     return prompt.map((message) => ({
       ...message,
       content: processContent(message.content),
+      type: ChatMessageType.PublicAPICreated as const,
     }));
   }
 };
@@ -230,7 +239,7 @@ export const createExperimentJob = async ({
      * VARIABLE EXTRACTION *
      ********************/
 
-    let messages: { role: string; content: string }[] = [];
+    let messages: ChatMessage[] = [];
     try {
       messages = replaceVariablesInPrompt(
         validatedPrompt.data,

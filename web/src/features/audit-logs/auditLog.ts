@@ -26,6 +26,7 @@ export type AuditableResource =
   | "apiKey"
   | "evalTemplate"
   | "job"
+  | "blobStorageIntegration"
   | "posthogIntegration"
   | "llmApiKey"
   | "batchExport"

@@ -51,7 +51,7 @@ export default function Dataset() {
           },
           { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
         ],
-        actionButtonsRight: [
+        actionButtonsRight: (
           <>
             <Link
               href={{
@@ -87,8 +87,8 @@ export default function Dataset() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </>,
-        ],
+          </>
+        ),
       }}
     >
       <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">

@@ -37,6 +37,7 @@ import {
   type JobExecutionState,
   generateJobExecutionCounts,
 } from "@/src/ee/features/evals/utils/job-execution-utils";
+import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
 
 const JobExecutionCounts = ({
   jobExecutionsByState,
@@ -140,6 +141,13 @@ export const EvaluatorDetail = () => {
                 listKey="evals"
               />
             )}
+            <DeleteEvaluatorButton
+              itemId={evaluatorId}
+              projectId={projectId}
+              redirectUrl={`/project/${projectId}/evals`}
+              deleteConfirmation={evaluator.data?.scoreName}
+              icon
+            />
           </>
         ),
       }}

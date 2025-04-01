@@ -25,7 +25,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
     const body = validateChatCompletionBody(await req.json());
     const { userId } = await authorizeRequestOrThrow(body.projectId);
 
-    const { messages, modelParams } = body;
+    const { messages, modelParams, tools, structuredOutputSchema } = body;
 
     const LLMApiKey = await prisma.llmApiKeys.findFirst({
       where: {
@@ -46,15 +46,31 @@ export default async function chatCompletionHandler(req: NextRequest) {
       );
     }
 
-    const { completion } = await fetchLLMCompletion({
+    const fetchLLMCompletionParams = {
       messages,
       modelParams,
-      streaming: true,
+      structuredOutputSchema,
       callbacks: [new PosthogCallbackHandler("playground", body, userId)],
       apiKey: decrypt(parsedKey.data.secretKey),
       extraHeaders: decryptAndParseExtraHeaders(parsedKey.data.extraHeaders),
       baseURL: parsedKey.data.baseURL || undefined,
       config: parsedKey.data.config,
+    };
+
+    if ((tools && tools.length > 0) || structuredOutputSchema) {
+      const { completion } = await fetchLLMCompletion({
+        ...fetchLLMCompletionParams,
+        streaming: false,
+        tools: tools ?? [],
+        structuredOutputSchema,
+      });
+
+      return NextResponse.json(completion);
+    }
+
+    const { completion } = await fetchLLMCompletion({
+      ...fetchLLMCompletionParams,
+      streaming: true,
     });
 
     return new StreamingTextResponse(completion);

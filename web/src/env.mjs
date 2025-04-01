@@ -49,10 +49,6 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
-    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES: z
-      .enum(["true", "false"])
-      .optional()
-      .default("false"),
     SALT: z.string({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
@@ -224,7 +220,7 @@ export const env = createEnv({
     REDIS_PORT: z.coerce
       .number({
         description:
-          ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+          ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
       })
       .positive()
       .max(65536, `options.port should be >= 0 and < 65536`)
@@ -274,6 +270,8 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
+    BETTERSTACK_UPTIME_API_KEY: z.string().optional(),
+    BETTERSTACK_UPTIME_STATUS_PAGE_ID: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
 
     LANGFUSE_INIT_ORG_ID: z.string().optional(),
@@ -340,8 +338,6 @@ export const env = createEnv({
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
-    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES:
-      process.env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
@@ -550,6 +546,9 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
+    BETTERSTACK_UPTIME_API_KEY: process.env.BETTERSTACK_UPTIME_API_KEY,
+    BETTERSTACK_UPTIME_STATUS_PAGE_ID:
+      process.env.BETTERSTACK_UPTIME_STATUS_PAGE_ID,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
     // provisioning
     LANGFUSE_INIT_ORG_ID: process.env.LANGFUSE_INIT_ORG_ID,

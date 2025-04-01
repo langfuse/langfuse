@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
   Select,
@@ -17,6 +19,12 @@ import {
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
+import { Settings2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
@@ -44,19 +52,112 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParamsDescription,
 }) => {
   const projectId = useProjectIdFromURL();
+  const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+  const [modelSettingsUsed, setModelSettingsUsed] = useState(false);
+
+  useEffect(() => {
+    const hasEnabledModelSetting = Object.keys(modelParams).some(
+      (key) =>
+        !["adapter", "provider", "model"].includes(key) &&
+        modelParams[key as keyof typeof modelParams].enabled === true,
+    );
+
+    if (hasEnabledModelSetting) {
+      setModelSettingsUsed(true);
+    } else {
+      setModelSettingsUsed(false);
+    }
+  }, [setModelSettingsUsed, modelParams]);
 
   if (!projectId) return null;
 
+  if (availableProviders.length === 0) {
+    return (
+      <div className="flex flex-col space-y-4 pr-1">
+        <div className="flex items-center justify-between">
+          <p className="font-semibold">Model</p>
+        </div>
+        <p className="text-xs">No LLM API key set in project. </p>
+        <CreateLLMApiKeyDialog />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col space-y-4">
-      <p className="font-semibold">Model</p>
-      {availableProviders.length === 0 ? (
-        <>
-          <p className="text-xs">No LLM API key set in project. </p>
-          <CreateLLMApiKeyDialog />
-        </>
-      ) : (
-        <div className="space-y-4">
+    <div className="flex flex-col space-y-2 pb-1 pr-1 pt-2">
+      <div className="flex items-center justify-between">
+        <p className="font-semibold">Model</p>
+        <Popover open={modelSettingsOpen} onOpenChange={setModelSettingsOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="relative h-7 w-7"
+              disabled={formDisabled}
+            >
+              <Settings2 size={14} />
+              {modelSettingsUsed && (
+                <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary" />
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="p-4" align="end" sideOffset={5}>
+            <div className="mb-3">
+              <h4 className="mb-1 text-sm font-medium">
+                Model Advanced Settings
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Configure advanced parameters for your model.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <ModelParamsSlider
+                title="Temperature"
+                modelParamsKey="temperature"
+                formDisabled={formDisabled}
+                enabled={modelParams.temperature.enabled}
+                setModelParamEnabled={setModelParamEnabled}
+                value={modelParams.temperature.value}
+                min={0}
+                max={modelParams.maxTemperature.value}
+                step={0.01}
+                tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
+                updateModelParam={updateModelParamValue}
+              />
+              <ModelParamsSlider
+                title="Output token limit"
+                modelParamsKey="max_tokens"
+                formDisabled={formDisabled}
+                enabled={modelParams.max_tokens.enabled}
+                setModelParamEnabled={setModelParamEnabled}
+                value={modelParams.max_tokens.value}
+                min={1}
+                max={16384}
+                step={1}
+                tooltip="The maximum number of tokens that can be generated in the chat completion."
+                updateModelParam={updateModelParamValue}
+              />
+              <ModelParamsSlider
+                title="Top P"
+                modelParamsKey="top_p"
+                formDisabled={formDisabled}
+                enabled={modelParams.top_p.enabled}
+                setModelParamEnabled={setModelParamEnabled}
+                value={modelParams.top_p.value}
+                min={0}
+                max={1}
+                step={0.01}
+                tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
+                updateModelParam={updateModelParamValue}
+              />
+              <LLMApiKeyComponent {...{ projectId, modelParams }} />
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-3">
           <ModelParamsSelect
             title="Provider"
             modelParamsKey="provider"
@@ -70,66 +171,27 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             modelParamsKey="model"
             disabled={formDisabled}
             value={modelParams.model.value}
-            options={availableModels}
+            options={[...new Set(availableModels)]}
             updateModelParam={updateModelParamValue}
             modelParamsDescription={modelParamsDescription}
           />
-          {modelParams.model.value?.startsWith("o1-") ? (
-            <p className="text-sm text-dark-yellow">
-              For {modelParams.model.value}, the system message and the
-              temperature, max_tokens and top_p setting are not supported while
-              it is in beta.{" "}
-              <a
-                href="https://platform.openai.com/docs/guides/reasoning/beta-limitations"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                More info ↗
-              </a>
-            </p>
-          ) : null}
-          <ModelParamsSlider
-            title="Temperature"
-            modelParamsKey="temperature"
-            formDisabled={formDisabled}
-            enabled={modelParams.temperature.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.temperature.value}
-            min={0}
-            max={modelParams.maxTemperature.value}
-            step={0.01}
-            tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
-            updateModelParam={updateModelParamValue}
-          />
-          <ModelParamsSlider
-            title="Output token limit"
-            modelParamsKey="max_tokens"
-            formDisabled={formDisabled}
-            enabled={modelParams.max_tokens.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.max_tokens.value}
-            min={1}
-            max={16384}
-            step={1}
-            tooltip="The maximum number of tokens that can be generated in the chat completion."
-            updateModelParam={updateModelParamValue}
-          />
-          <ModelParamsSlider
-            title="Top P"
-            modelParamsKey="top_p"
-            formDisabled={formDisabled}
-            enabled={modelParams.top_p.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.top_p.value}
-            min={0}
-            max={1}
-            step={0.01}
-            tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
-            updateModelParam={updateModelParamValue}
-          />
-          <LLMApiKeyComponent {...{ projectId, modelParams }} />
         </div>
-      )}
+
+        {modelParams.model.value?.startsWith("o1-") ? (
+          <p className="mt-1 text-xs text-dark-yellow">
+            For {modelParams.model.value}, the system message and the
+            temperature, max_tokens and top_p setting are not supported while it
+            is in beta.{" "}
+            <a
+              href="https://platform.openai.com/docs/guides/reasoning/beta-limitations"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              More info ↗
+            </a>
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 };
@@ -153,41 +215,47 @@ const ModelParamsSelect = ({
   modelParamsDescription,
 }: ModelParamsSelectProps) => {
   return (
-    <div className="space-y-2">
-      <p
-        className={cn(
-          "text-xs font-semibold",
-          disabled && "text-muted-foreground",
-        )}
-      >
-        {title}
-      </p>
-      <Select
-        disabled={disabled}
-        onValueChange={(value) =>
-          updateModelParam(
-            modelParamsKey,
-            value as (typeof supportedModels)[LLMAdapter][number],
-          )
-        }
-        value={value}
-      >
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem value={option} key={option}>
-              {option}
-            </SelectItem>
-          ))}
-          <SelectSeparator />
-          <CreateLLMApiKeyDialog />
-        </SelectContent>
-      </Select>
-      {modelParamsDescription ? (
-        <FormDescription>{modelParamsDescription}</FormDescription>
-      ) : undefined}
+    <div className="flex items-center gap-4">
+      <div className="w-24 flex-shrink-0">
+        <p
+          className={cn(
+            "text-xs font-semibold",
+            disabled && "text-muted-foreground",
+          )}
+        >
+          {title}
+        </p>
+      </div>
+      <div className="flex-1">
+        <Select
+          disabled={disabled}
+          onValueChange={(value) =>
+            updateModelParam(
+              modelParamsKey,
+              value as (typeof supportedModels)[LLMAdapter][number],
+            )
+          }
+          value={value}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((option) => (
+              <SelectItem value={option} key={option}>
+                {option}
+              </SelectItem>
+            ))}
+            <SelectSeparator />
+            <CreateLLMApiKeyDialog />
+          </SelectContent>
+        </Select>
+        {modelParamsDescription ? (
+          <FormDescription className="mt-1 text-xs">
+            {modelParamsDescription}
+          </FormDescription>
+        ) : undefined}
+      </div>
     </div>
   );
 };

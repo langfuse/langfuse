@@ -40,7 +40,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: "20.18.3"
+          node-version: 20
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -97,7 +97,7 @@ jobs:
     name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
-        node-version: ["20.18.3"]
+        node-version: [20]
         postgres-version: [12, 15]
     steps:
       - name: Set Swap Space
@@ -174,7 +174,7 @@ jobs:
     name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
-        node-version: ["20.18.3"]
+        node-version: [20]
         postgres-version: [12, 15]
         blob-provider: ["", "-azure"]
     steps:
@@ -212,6 +212,7 @@ jobs:
           grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
+          echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
       - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
@@ -250,7 +251,7 @@ jobs:
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
-        node-version: ["20.18.3"]
+        node-version: [20]
         postgres-version: [12, 15]
         blob-provider: ["", "-azure"]
     steps:
@@ -322,7 +323,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: "20.18.3"
+          node-version: 20
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
@@ -372,7 +373,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: "20.18.3"
+          node-version: 20
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -459,7 +460,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: "20.18.3"
+          node-version: 20
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Checkout
         uses: actions/checkout@v4

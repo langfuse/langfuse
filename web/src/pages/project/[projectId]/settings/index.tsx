@@ -228,7 +228,10 @@ export default function SettingsPage() {
 }
 
 const Integrations = (props: { projectId: string }) => {
-  const hasEntitlement = useHasEntitlement("integration-posthog");
+  const hasPosthogEntitlement = useHasEntitlement("integration-posthog");
+  const hasBlobStorageEntitlement = useHasEntitlement(
+    "integration-blobstorage",
+  );
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "integrations:CRUD",
@@ -237,29 +240,61 @@ const Integrations = (props: { projectId: string }) => {
   return (
     <div>
       <Header title="Integrations" />
-      <Card className="p-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <PostHogLogo className="mb-4 w-40 text-foreground" />
-        <p className="mb-4 text-sm text-primary">
-          We have teamed up with PostHog (OSS product analytics) to make
-          Langfuse Events/Metrics available in your Posthog Dashboards.
-        </p>
-        <div className="flex items-center gap-2">
-          <ActionButton
-            variant="secondary"
-            hasAccess={hasAccess}
-            hasEntitlement={hasEntitlement}
-            href={`/project/${props.projectId}/settings/integrations/posthog`}
-          >
-            Configure
-          </ActionButton>
-          <Button asChild variant="ghost">
-            <Link href="https://langfuse.com/docs/analytics/posthog">
-              Integration Docs ↗
-            </Link>
-          </Button>
-        </div>
-      </Card>
+      <div className="space-y-6">
+        <Card className="p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <PostHogLogo className="mb-4 w-40 text-foreground" />
+          <p className="mb-4 text-sm text-primary">
+            We have teamed up with PostHog (OSS product analytics) to make
+            Langfuse Events/Metrics available in your Posthog Dashboards.
+          </p>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="secondary"
+              hasAccess={hasAccess}
+              hasEntitlement={hasPosthogEntitlement}
+              href={`/project/${props.projectId}/settings/integrations/posthog`}
+            >
+              Configure
+            </ActionButton>
+            <Button asChild variant="ghost">
+              <Link
+                href="https://langfuse.com/docs/analytics/posthog"
+                target="_blank"
+              >
+                Integration Docs ↗
+              </Link>
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <span className="font-semibold">Blob Storage (Beta)</span>
+          <p className="mb-4 text-sm text-primary">
+            Configure scheduled exports of your trace data to S3 compatible
+            storages or Azure Blob Storage. Set up a scheduled export to your
+            own storage for data analysis or backup purposes.
+          </p>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="secondary"
+              hasAccess={hasAccess}
+              hasEntitlement={hasBlobStorageEntitlement}
+              href={`/project/${props.projectId}/settings/integrations/blobstorage`}
+            >
+              Configure
+            </ActionButton>
+            <Button asChild variant="ghost">
+              <Link
+                href="https://langfuse.com/docs/query-traces#blob-storage"
+                target="_blank"
+              >
+                Integration Docs ↗
+              </Link>
+            </Button>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };

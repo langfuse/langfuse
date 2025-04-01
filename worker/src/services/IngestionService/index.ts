@@ -1,7 +1,6 @@
 import { Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
-
 import {
   LangfuseNotFoundError,
   Model,
@@ -16,7 +15,6 @@ import {
   convertScoreReadToInsert,
   convertTraceReadToInsert,
   eventTypes,
-  findModel,
   IngestionEventType,
   instrumentAsync,
   logger,
@@ -50,6 +48,7 @@ import {
 } from "./utils";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
+import { findModel } from "../modelMatch";
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -606,16 +605,12 @@ export class IngestionService {
     | {}
   > {
     const { projectId, observationRecord } = params;
-    const internalModel = await findModel({
-      event: {
-        projectId,
-        model: observationRecord.provided_model_name ?? undefined,
-      },
-    });
-
-    logger.debug(
-      `Found internal model name ${internalModel?.modelName} (id: ${internalModel?.id}) for observation ${observationRecord.id}`,
-    );
+    const internalModel = observationRecord.provided_model_name
+      ? await findModel({
+          projectId,
+          model: observationRecord.provided_model_name,
+        })
+      : null;
 
     const final_usage_details = this.getUsageUnits(
       observationRecord,
@@ -933,12 +928,6 @@ export class IngestionService {
     const { traceEventList, projectId, entityId } = params;
 
     return traceEventList.map((trace) => {
-      if (!trace.body?.timestamp) {
-        logger.warn(
-          `Trace ${entityId} in project ${projectId} does not have a timestamp, using event time`,
-        );
-      }
-
       const traceRecord: TraceRecordInsertType = {
         id: entityId,
         timestamp: this.getMillisecondTimestamp(
@@ -1057,12 +1046,6 @@ export class IngestionService {
             ) as Record<string, number>)
           : {}),
       };
-
-      if (obs.type?.endsWith("-create") && !obs.body?.startTime) {
-        logger.warn(
-          `Observation ${entityId} in project ${projectId} does not have a startTime, using event time`,
-        );
-      }
 
       const observationRecord: ObservationRecordInsertType = {
         id: entityId,

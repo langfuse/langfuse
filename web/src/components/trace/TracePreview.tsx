@@ -35,6 +35,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useRouter } from "next/router";
 
 export const TracePreview = ({
   trace,
@@ -67,6 +68,9 @@ export const TracePreview = ({
     trace.projectId,
   );
   const capture = usePostHogClientCapture();
+  const router = useRouter();
+  const { peek } = router.query;
+  const showScoresTab = isAuthenticatedAndProjectMember && peek === undefined;
 
   const traceMedia = api.media.getByTraceOrObservationId.useQuery(
     {
@@ -231,7 +235,7 @@ export const TracePreview = ({
           {viewType === "detailed" && (
             <TabsBarList>
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-              {isAuthenticatedAndProjectMember && (
+              {showScoresTab && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
               {selectedTab.includes("preview") && isPrettyViewAvailable && (
@@ -283,7 +287,7 @@ export const TracePreview = ({
               </div>
             </div>
           </TabsBarContent>
-          {isAuthenticatedAndProjectMember && (
+          {showScoresTab && (
             <TabsBarContent
               value="scores"
               className="mb-2 mr-4 mt-0 flex h-full min-h-0 w-full overflow-hidden md:flex-1"
