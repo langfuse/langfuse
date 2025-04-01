@@ -1,6 +1,6 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -36,6 +36,7 @@ import {
   TablePeekView,
   type DataTablePeekViewProps,
 } from "@/src/components/table/peek";
+import { usePeekStore } from "@/src/components/table/peek/store/usePeekStore";
 
 type PeekViewProps<TData> = Omit<
   DataTablePeekViewProps<TData>,
@@ -125,6 +126,12 @@ export function DataTable<TData extends object, TValue>({
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const peekViewId = router.query.peek as string | undefined;
+  const previousPeekViewIdRef = useRef<string | undefined>();
+  const inflatedPeekView = peekView
+    ? { ...peekView, selectedRowId: peekViewId }
+    : undefined;
+  const setRow = usePeekStore((state) => state.setRow);
+  const clearRow = usePeekStore((state) => state.clearRow);
 
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();
@@ -139,22 +146,23 @@ export function DataTable<TData extends object, TValue>({
   }, [columns]);
 
   const handleOnRowClick = (row: TData) => {
-    if (peekView) {
+    if (inflatedPeekView) {
       const rowId =
         "id" in row && typeof row.id === "string" ? row.id : undefined;
-
       // If clicking the same row that's already open, close it
-      if (rowId === peekViewId) {
-        peekView.onOpenChange(false);
+      if (rowId === inflatedPeekView.selectedRowId) {
+        inflatedPeekView.onOpenChange(false);
+        clearRow(inflatedPeekView.storageKey);
       }
-      // If clicking a different row, update without closing first
+      // If clicking a different row, just update the URL without setting row data yet
       else {
-        peekView.onOpenChange(true, row);
+        inflatedPeekView.onOpenChange(true, rowId);
+        setRow(inflatedPeekView.storageKey, row);
       }
     }
     onRowClick?.(row);
   };
-  const hasRowClickAction = !!onRowClick || !!peekView;
+  const hasRowClickAction = !!onRowClick || !!inflatedPeekView;
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -198,6 +206,24 @@ export function DataTable<TData extends object, TValue>({
     },
     columnResizeMode: "onChange",
   });
+
+  useEffect(() => {
+    if (peekViewId !== previousPeekViewIdRef.current) {
+      previousPeekViewIdRef.current = peekViewId;
+
+      if (peekViewId && inflatedPeekView) {
+        try {
+          const row = table.getRow(peekViewId);
+          if (row) {
+            // Store row data without causing re-renders
+            setRow(inflatedPeekView.storageKey, row.original);
+          }
+        } catch (error) {
+          console.log("Row not found in table:", error);
+        }
+      }
+    }
+  }, [peekViewId]);
 
   // memo column sizes for performance
   // https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
@@ -370,9 +396,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
         <div className="grow"></div>
       </div>
-      {peekView && peekViewId && (
-        <TablePeekView selectedRowId={peekViewId} {...peekView} />
-      )}
+      {inflatedPeekView && <TablePeekView {...inflatedPeekView} />}
       {pagination !== undefined ? (
         <div
           className={cn(
