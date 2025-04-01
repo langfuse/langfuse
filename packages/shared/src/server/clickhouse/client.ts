@@ -19,7 +19,11 @@ export const clickhouseClient = (
   }
 
   const cloudOptions: Record<string, unknown> = {};
-  if (Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)) {
+  if (
+    ["STAGING", "EU", "US"].includes(
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
+    )
+  ) {
     cloudOptions.input_format_json_throw_on_bad_escape_sequence = 0;
   }
 
