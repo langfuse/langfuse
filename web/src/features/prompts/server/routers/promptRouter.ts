@@ -196,17 +196,19 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        const hasProtectedLabel = await checkHasProtectedLabels({
-          prisma: ctx.prisma,
-          projectId: input.projectId,
-          labelsToCheck: input.labels,
-        });
+        const { hasProtectedLabels, protectedLabels } =
+          await checkHasProtectedLabels({
+            prisma: ctx.prisma,
+            projectId: input.projectId,
+            labelsToCheck: input.labels,
+          });
 
-        if (hasProtectedLabel) {
+        if (hasProtectedLabels) {
           throwIfNoProjectAccess({
             session: ctx.session,
             projectId: input.projectId,
             scope: "promptProtectedLabels:CUD",
+            message: `You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
           });
         }
 
@@ -385,17 +387,19 @@ export const promptRouter = createTRPCRouter({
         }
 
         // Check if any prompt has a protected label
-        const hasProtectedLabel = await checkHasProtectedLabels({
-          prisma: ctx.prisma,
-          projectId: input.projectId,
-          labelsToCheck: prompts.flatMap((prompt) => prompt.labels),
-        });
+        const { hasProtectedLabels, protectedLabels } =
+          await checkHasProtectedLabels({
+            prisma: ctx.prisma,
+            projectId: input.projectId,
+            labelsToCheck: prompts.flatMap((prompt) => prompt.labels),
+          });
 
-        if (hasProtectedLabel) {
+        if (hasProtectedLabels) {
           throwIfNoProjectAccess({
             session: ctx.session,
             projectId: input.projectId,
             scope: "promptProtectedLabels:CUD",
+            message: `You don't have permission to delete a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
           });
         }
 
@@ -460,17 +464,19 @@ export const promptRouter = createTRPCRouter({
         const { name: promptName, version, labels } = promptVersion;
 
         // Check if prompt has a protected label
-        const hasProtectedLabel = await checkHasProtectedLabels({
-          prisma: ctx.prisma,
-          projectId: input.projectId,
-          labelsToCheck: promptVersion.labels,
-        });
+        const { hasProtectedLabels, protectedLabels } =
+          await checkHasProtectedLabels({
+            prisma: ctx.prisma,
+            projectId: input.projectId,
+            labelsToCheck: promptVersion.labels,
+          });
 
-        if (hasProtectedLabel) {
+        if (hasProtectedLabels) {
           throwIfNoProjectAccess({
             session: ctx.session,
             projectId: input.projectId,
             scope: "promptProtectedLabels:CUD",
+            message: `You don't have permission to delete a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
           });
         }
 
@@ -598,21 +604,6 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        // Check if any label is protected
-        const hasProtectedLabel = await checkHasProtectedLabels({
-          prisma: ctx.prisma,
-          projectId: input.projectId,
-          labelsToCheck: input.labels,
-        });
-
-        if (hasProtectedLabel) {
-          throwIfNoProjectAccess({
-            session: ctx.session,
-            projectId: input.projectId,
-            scope: "promptProtectedLabels:CUD",
-          });
-        }
-
         const toBeLabeledPrompt = await ctx.prisma.prompt.findUniqueOrThrow({
           where: {
             id: input.promptId,
@@ -623,12 +614,36 @@ export const promptRouter = createTRPCRouter({
         const { name: promptName } = toBeLabeledPrompt;
         const newLabelSet = new Set(input.labels);
         const newLabels = [...newLabelSet];
-        const removedLabels = [];
 
+        const removedLabels = [];
         for (const oldLabel of toBeLabeledPrompt.labels) {
           if (!newLabelSet.has(oldLabel)) {
             removedLabels.push(oldLabel);
           }
+        }
+
+        const addedLabels = [];
+        for (const newLabel of newLabels) {
+          if (!toBeLabeledPrompt.labels.includes(newLabel)) {
+            addedLabels.push(newLabel);
+          }
+        }
+
+        // Check if any label is protected (both new and to be removed)
+        const { hasProtectedLabels, protectedLabels } =
+          await checkHasProtectedLabels({
+            prisma: ctx.prisma,
+            projectId: input.projectId,
+            labelsToCheck: [...addedLabels, ...removedLabels],
+          });
+
+        if (hasProtectedLabels) {
+          throwIfNoProjectAccess({
+            session: ctx.session,
+            projectId: input.projectId,
+            scope: "promptProtectedLabels:CUD",
+            message: `You don't have permission to add/remove a protected label to/from a prompt. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
+          });
         }
 
         if (removedLabels.length > 0) {
@@ -1079,6 +1094,8 @@ export const promptRouter = createTRPCRouter({
         session: ctx.session,
         projectId,
         scope: "promptProtectedLabels:CUD",
+        message:
+          "You don't have permission to mark a label as protected. Please contact your project admin for assistance.",
       });
 
       throwIfNoEntitlement({
@@ -1131,6 +1148,8 @@ export const promptRouter = createTRPCRouter({
         session: ctx.session,
         projectId,
         scope: "promptProtectedLabels:CUD",
+        message:
+          "You don't have permission to mark a label as unprotected. Please contact your project admin for assistance.",
       });
 
       throwIfNoEntitlement({

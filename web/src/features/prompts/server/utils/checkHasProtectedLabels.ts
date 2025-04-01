@@ -8,7 +8,7 @@ type CheckHasProtectedLabelsParams = {
 
 export async function checkHasProtectedLabels(
   params: CheckHasProtectedLabelsParams,
-): Promise<boolean> {
+): Promise<{ hasProtectedLabels: boolean; protectedLabels: string[] }> {
   const { labelsToCheck, projectId, prisma } = params;
 
   const protectedLabels = (
@@ -17,9 +17,9 @@ export async function checkHasProtectedLabels(
     })
   ).map((l) => l.label);
 
-  const hasProtectedLabel = labelsToCheck.some((label) =>
+  const hasProtectedLabels = labelsToCheck.some((label) =>
     protectedLabels.includes(label),
   );
 
-  return hasProtectedLabel;
+  return { hasProtectedLabels, protectedLabels };
 }

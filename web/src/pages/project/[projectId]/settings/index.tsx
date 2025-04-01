@@ -28,6 +28,7 @@ import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditL
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
+import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -41,6 +42,9 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const { project, organization } = useQueryProject();
   const showBillingSettings = useHasEntitlement("cloud-billing");
   const showRetentionSettings = useHasEntitlement("data-retention");
+  const showProtectedLabelsSettings = useHasEntitlement(
+    "prompt-protected-labels",
+  );
 
   const entitlements = useEntitlements();
   const showLLMConnectionsSettings =
@@ -57,6 +61,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     showBillingSettings,
     showRetentionSettings,
     showLLMConnectionsSettings,
+    showProtectedLabelsSettings,
   });
 }
 
@@ -66,12 +71,14 @@ export const getProjectSettingsPages = ({
   showBillingSettings,
   showRetentionSettings,
   showLLMConnectionsSettings,
+  showProtectedLabelsSettings,
 }: {
   project: { id: string; name: string };
   organization: { id: string; name: string };
   showBillingSettings: boolean;
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
+  showProtectedLabelsSettings: boolean;
 }): ProjectSettingsPage[] => [
   {
     title: "General",
@@ -147,6 +154,13 @@ export const getProjectSettingsPages = ({
     slug: "models",
     cmdKKeywords: ["cost", "token"],
     content: <ModelsSettings projectId={project.id} />,
+  },
+  {
+    title: "Protected Prompt Labels",
+    slug: "protected-prompt-labels",
+    cmdKKeywords: ["prompt", "label", "protect", "lock"],
+    content: <ProtectedLabelsSettings projectId={project.id} />,
+    show: showProtectedLabelsSettings,
   },
   {
     title: "Scores / Evaluation",
