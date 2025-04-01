@@ -64,7 +64,6 @@ export const constructDatasetRunAggregateColumns = ({
             projectId={projectId}
             scoreKeyToDisplayName={scoreKeyToDisplayName}
             selectedMetrics={selectedMetrics}
-            singleLine={false}
           />
         );
       },

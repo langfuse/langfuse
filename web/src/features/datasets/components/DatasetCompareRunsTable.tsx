@@ -10,22 +10,26 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDown, Cog, Expand, Rows3 } from "lucide-react";
+import { Cog } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { DatasetCompareRunPeekView } from "@/src/features/datasets/components/DatasetCompareRunPeekView";
 import { getQueryKey } from "@trpc/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import _ from "lodash";
+import { useDatasetComparePeekState } from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
+import { useDatasetComparePeekNavigation } from "@/src/components/table/peek/hooks/useDatasetComparePeekNavigation";
+import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+
 export type RunMetrics = {
   id: string;
   scores: ScoreAggregate;
@@ -72,15 +76,8 @@ export function DatasetCompareRunsTable(props: {
     "scores",
     "resourceMetrics",
   ]);
+  const { setDetailPageList } = useDetailPageLists();
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
-  const [clickedRow, setClickedRow] = useState<DatasetCompareRunRowData | null>(
-    null,
-  );
-  const [traceAndObservationId, setTraceAndObservationId] = useState<{
-    runId: string;
-    traceId: string;
-    observationId?: string;
-  } | null>(null);
   const [unchangedCounts, setUnchangedCounts] = useState<
     Record<string, number>
   >({});
@@ -211,6 +208,18 @@ export function DatasetCompareRunsTable(props: {
     );
   }, [baseDatasetItems.data, runs]);
 
+  useEffect(() => {
+    if (baseDatasetItems.isSuccess) {
+      setDetailPageList(
+        "compareRuns",
+        baseDatasetItems.data.datasetItems.map((t) => ({
+          id: t.id,
+        })),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
+
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
     {
       projectId: props.projectId,
@@ -273,18 +282,7 @@ export function DatasetCompareRunsTable(props: {
           "input",
         ) as DatasetCompareRunRowData["input"];
         return input !== null ? (
-          <div className="group relative h-full w-full">
-            <Button
-              variant="outline"
-              size="icon"
-              className="absolute right-1 top-1 z-[5] hidden items-center justify-center group-hover:flex"
-              onClick={() => {
-                setTraceAndObservationId(null);
-                setClickedRow(row.original);
-              }}
-            >
-              <Expand className="h-4 w-4" />
-            </Button>
+          <div className="h-full w-full">
             <IOTableCell data={input} />
           </div>
         ) : null;
@@ -301,18 +299,7 @@ export function DatasetCompareRunsTable(props: {
           "expectedOutput",
         ) as DatasetCompareRunRowData["expectedOutput"];
         return expectedOutput !== null ? (
-          <div className="group relative h-full w-full">
-            <Button
-              variant="outline"
-              size="icon"
-              className="absolute right-1 top-1 z-[5] hidden items-center justify-center group-hover:flex"
-              onClick={() => {
-                setTraceAndObservationId(null);
-                setClickedRow(row.original);
-              }}
-            >
-              <Expand className="h-4 w-4" />
-            </Button>
+          <div className="h-full w-full">
             <IOTableCell
               data={expectedOutput}
               className="bg-accent-light-green"
@@ -346,6 +333,15 @@ export function DatasetCompareRunsTable(props: {
       "datasetCompareRunsColumnVisibility",
       columns,
     );
+
+  const urlPathname = `/project/${props.projectId}/datasets/${props.datasetId}/compare`;
+
+  const { setPeekView } = useDatasetComparePeekState(
+    props.projectId,
+    props.datasetId,
+    urlPathname,
+  );
+  const { getNavigationPath } = useDatasetComparePeekNavigation(urlPathname);
 
   return (
     <>
@@ -421,19 +417,24 @@ export function DatasetCompareRunsTable(props: {
           state: paginationState,
         }}
         rowHeight={rowHeight}
+        peekView={{
+          itemType: "TRACE",
+          listKey: "compareRuns",
+          urlPathname,
+          storageKey: "compare-runs",
+          onOpenChange: setPeekView,
+          getNavigationPath,
+          children: (
+            <PeekDatasetCompareDetail
+              projectId={props.projectId}
+              datasetId={props.datasetId}
+              scoreKeyToDisplayName={scoreKeyToDisplayName}
+              runsData={props.runsData ?? []}
+              selectedMetrics={selectedMetrics}
+            />
+          ),
+        }}
       />
-      {scoreKeysAndProps.isSuccess && (
-        <DatasetCompareRunPeekView
-          projectId={props.projectId}
-          datasetId={props.datasetId}
-          scoreKeyToDisplayName={scoreKeyToDisplayName}
-          clickedRow={clickedRow}
-          setClickedRow={setClickedRow}
-          traceAndObservationId={traceAndObservationId}
-          setTraceAndObservationId={setTraceAndObservationId}
-          runsData={props.runsData ?? []}
-        />
-      )}
     </>
   );
 }
