@@ -29,7 +29,7 @@ Sentry.init({
     ? Number(process.env.NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE)
     : 0,
   replaysOnErrorSampleRate: 1.0,
-  debug: false,
+  debug: true,
 
   // Set profilesSampleRate to 1.0 to profile every transaction.
   // Since profilesSampleRate is relative to tracesSampleRate,
