@@ -5,17 +5,13 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterInterface,
-  type groupByInterface,
   sqlInterface,
 } from "@/src/server/api/services/sqlInterface";
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
 import {
   getScoreAggregate,
-  getScoresAggregateOverTime,
   getNumericScoreHistogram,
-  getNumericScoreTimeSeries,
-  getCategoricalScoreTimeSeries,
   extractFromAndToTimestampsFromFilter,
   logger,
   getObservationCostByTypeByTime,
@@ -47,14 +43,14 @@ export const dashboardRouter = createTRPCRouter({
             "observations-usage-by-type-timeseries",
             "observations-cost-by-type-timeseries",
             // "distinct-models",
-            "scores-aggregate-timeseries",
+            // "scores-aggregate-timeseries",
             // "observations-usage-by-users",
             // "traces-grouped-by-user",
             // "observation-latencies-aggregated",
             // "traces-latencies-aggregated",
             // "model-latencies-over-time",
-            "numeric-score-time-series",
-            "categorical-score-chart",
+            // "numeric-score-time-series",
+            // "categorical-score-chart",
             // "observations-status-timeseries",
           ])
           .nullish(),
@@ -152,13 +148,13 @@ export const dashboardRouter = createTRPCRouter({
         //     input.filter ?? [],
         //   );
         //   return models as DatabaseRow[];
-        case "scores-aggregate-timeseries":
-          const aggregatedScores = await getScoresAggregateOverTime(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return aggregatedScores as DatabaseRow[];
+        // case "scores-aggregate-timeseries":
+        //   const aggregatedScores = await getScoresAggregateOverTime(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return aggregatedScores as DatabaseRow[];
         // case "observations-usage-by-users":
         //   const rowsUsers = await getModelUsageByUser(
         //     input.projectId,
@@ -225,25 +221,25 @@ export const dashboardRouter = createTRPCRouter({
         //     percentile95Duration: row.p95,
         //     percentile99Duration: row.p99,
         //   })) as DatabaseRow[];
-        case "numeric-score-time-series":
-          const dateTruncNumericScoreTimeSeries = extractTimeSeries(
-            input.groupBy,
-          );
-          if (!dateTruncNumericScoreTimeSeries) {
-            return [];
-          }
-          const numericScoreTimeSeries = await getNumericScoreTimeSeries(
-            input.projectId,
-            input.filter ?? [],
-          );
-          return numericScoreTimeSeries as DatabaseRow[];
-        case "categorical-score-chart":
-          const categoricalScoreTimeSeries =
-            await getCategoricalScoreTimeSeries(
-              input.projectId,
-              input.filter ?? [],
-            );
-          return categoricalScoreTimeSeries as DatabaseRow[];
+        // case "numeric-score-time-series":
+        //   const dateTruncNumericScoreTimeSeries = extractTimeSeries(
+        //     input.groupBy,
+        //   );
+        //   if (!dateTruncNumericScoreTimeSeries) {
+        //     return [];
+        //   }
+        //   const numericScoreTimeSeries = await getNumericScoreTimeSeries(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //   return numericScoreTimeSeries as DatabaseRow[];
+        // case "categorical-score-chart":
+        //   const categoricalScoreTimeSeries =
+        //     await getCategoricalScoreTimeSeries(
+        //       input.projectId,
+        //       input.filter ?? [],
+        //     );
+        //   return categoricalScoreTimeSeries as DatabaseRow[];
         // case "observations-status-timeseries":
         //   return (await getObservationsStatusTimeSeries(
         //     input.projectId,
@@ -283,14 +279,14 @@ export const dashboardRouter = createTRPCRouter({
     }),
 });
 
-const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
-  const temporal = groupBy?.find((group) => {
-    if (group.type === "datetime") {
-      return group;
-    }
-  });
-  return temporal?.type === "datetime" ? temporal.temporalUnit : undefined;
-};
+// const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
+//   const temporal = groupBy?.find((group) => {
+//     if (group.type === "datetime") {
+//       return group;
+//     }
+//   });
+//   return temporal?.type === "datetime" ? temporal.temporalUnit : undefined;
+// };
 
 /**
  * Execute a query using the QueryBuilder.

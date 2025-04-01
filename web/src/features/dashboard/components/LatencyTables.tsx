@@ -25,7 +25,6 @@ export const LatencyTables = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
-  // Define the query for generation latencies using the new QueryType structure
   const generationsLatenciesQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "name" }],
@@ -50,7 +49,6 @@ export const LatencyTables = ({
     orderBy: [{ field: "p95_latency", direction: "desc" }],
   };
 
-  // Execute the query using the new dashboard.executeQuery functionality
   const generationsLatencies = api.dashboard.executeQuery.useQuery(
     {
       projectId,
@@ -66,7 +64,6 @@ export const LatencyTables = ({
     },
   );
 
-  // Define the query for span latencies using the new QueryType structure
   const spansLatenciesQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "name" }],
@@ -91,7 +88,6 @@ export const LatencyTables = ({
     orderBy: [{ field: "p95_latency", direction: "desc" }],
   };
 
-  // Execute the query using the new dashboard.executeQuery functionality
   const spansLatencies = api.dashboard.executeQuery.useQuery(
     {
       projectId,
@@ -107,7 +103,6 @@ export const LatencyTables = ({
     },
   );
 
-  // Define the query for trace latencies using the new QueryType structure
   const tracesLatenciesQuery: QueryType = {
     view: "traces",
     dimensions: [{ field: "name" }],
@@ -124,7 +119,6 @@ export const LatencyTables = ({
     orderBy: [{ field: "p95_latency", direction: "desc" }],
   };
 
-  // Execute the query using the new dashboard.executeQuery functionality
   const tracesLatencies = api.dashboard.executeQuery.useQuery(
     {
       projectId,

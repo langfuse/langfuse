@@ -282,7 +282,9 @@ export default function Dashboard() {
           className="col-span-1 xl:col-span-3"
           agg={agg}
           projectId={projectId}
-          globalFilterState={mergedFilterState}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isLoading}
         />
         <LatencyTables
@@ -305,7 +307,9 @@ export default function Dashboard() {
           className="col-span-1 flex-auto justify-between lg:col-span-full"
           agg={agg}
           projectId={projectId}
-          globalFilterState={mergedFilterState}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isLoading}
         />
       </div>

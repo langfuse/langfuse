@@ -59,7 +59,6 @@ export const ModelUsageChart = ({
     toTimestamp,
   );
 
-  // Define the query for model usage data using the new QueryType structure
   const modelUsageQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "providedModelName" }],
@@ -90,7 +89,6 @@ export const ModelUsageChart = ({
     orderBy: null,
   };
 
-  // Execute the query using the new dashboard.executeQuery functionality
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
       projectId,
