@@ -5,21 +5,13 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterInterface,
-  type groupByInterface,
   sqlInterface,
 } from "@/src/server/api/services/sqlInterface";
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
 import {
   getScoreAggregate,
-  getDistinctModels,
-  getScoresAggregateOverTime,
-  getModelLatenciesOverTime,
-  getObservationLatencies,
-  getTracesLatencies,
   getNumericScoreHistogram,
-  getNumericScoreTimeSeries,
-  getCategoricalScoreTimeSeries,
   extractFromAndToTimestampsFromFilter,
   logger,
   getObservationCostByTypeByTime,
@@ -50,15 +42,15 @@ export const dashboardRouter = createTRPCRouter({
             // Cost by type and usage by type are currently not supported in the new data model
             "observations-usage-by-type-timeseries",
             "observations-cost-by-type-timeseries",
-            "distinct-models",
-            "scores-aggregate-timeseries",
+            // "distinct-models",
+            // "scores-aggregate-timeseries",
             // "observations-usage-by-users",
             // "traces-grouped-by-user",
-            "observation-latencies-aggregated",
-            "traces-latencies-aggregated",
-            "model-latencies-over-time",
-            "numeric-score-time-series",
-            "categorical-score-chart",
+            // "observation-latencies-aggregated",
+            // "traces-latencies-aggregated",
+            // "model-latencies-over-time",
+            // "numeric-score-time-series",
+            // "categorical-score-chart",
             // "observations-status-timeseries",
           ])
           .nullish(),
@@ -150,20 +142,19 @@ export const dashboardRouter = createTRPCRouter({
           );
 
           return rowsObsCostByType as DatabaseRow[];
-        case "distinct-models":
-          const models = await getDistinctModels(
-            input.projectId,
-            input.filter ?? [],
-          );
-          return models as DatabaseRow[];
-
-        case "scores-aggregate-timeseries":
-          const aggregatedScores = await getScoresAggregateOverTime(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return aggregatedScores as DatabaseRow[];
+        // case "distinct-models":
+        //   const models = await getDistinctModels(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //   return models as DatabaseRow[];
+        // case "scores-aggregate-timeseries":
+        //   const aggregatedScores = await getScoresAggregateOverTime(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return aggregatedScores as DatabaseRow[];
         // case "observations-usage-by-users":
         //   const rowsUsers = await getModelUsageByUser(
         //     input.projectId,
@@ -189,66 +180,66 @@ export const dashboardRouter = createTRPCRouter({
         //     user: row.user,
         //     countTraceId: Number(row.count),
         //   })) as DatabaseRow[];
-        case "observation-latencies-aggregated":
-          const latencies = await getObservationLatencies(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return latencies.map((row) => ({
-            name: row.name,
-            percentile50Duration: row.p50,
-            percentile90Duration: row.p90,
-            percentile95Duration: row.p95,
-            percentile99Duration: row.p99,
-          })) as DatabaseRow[];
-        case "model-latencies-over-time":
-          const modelLatencies = await getModelLatenciesOverTime(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return modelLatencies.map((row) => ({
-            model: row.model,
-            startTime: row.start_time,
-            percentile50Duration: row.p50,
-            percentile75Duration: row.p75,
-            percentile90Duration: row.p90,
-            percentile95Duration: row.p95,
-            percentile99Duration: row.p99,
-          })) as DatabaseRow[];
-        case "traces-latencies-aggregated":
-          const traceLatencies = await getTracesLatencies(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return traceLatencies.map((row) => ({
-            traceName: row.name,
-            percentile50Duration: row.p50,
-            percentile90Duration: row.p90,
-            percentile95Duration: row.p95,
-            percentile99Duration: row.p99,
-          })) as DatabaseRow[];
-        case "numeric-score-time-series":
-          const dateTruncNumericScoreTimeSeries = extractTimeSeries(
-            input.groupBy,
-          );
-          if (!dateTruncNumericScoreTimeSeries) {
-            return [];
-          }
-          const numericScoreTimeSeries = await getNumericScoreTimeSeries(
-            input.projectId,
-            input.filter ?? [],
-          );
-          return numericScoreTimeSeries as DatabaseRow[];
-        case "categorical-score-chart":
-          const categoricalScoreTimeSeries =
-            await getCategoricalScoreTimeSeries(
-              input.projectId,
-              input.filter ?? [],
-            );
-          return categoricalScoreTimeSeries as DatabaseRow[];
+        // case "observation-latencies-aggregated":
+        //   const latencies = await getObservationLatencies(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return latencies.map((row) => ({
+        //     name: row.name,
+        //     percentile50Duration: row.p50,
+        //     percentile90Duration: row.p90,
+        //     percentile95Duration: row.p95,
+        //     percentile99Duration: row.p99,
+        //   })) as DatabaseRow[];
+        // case "model-latencies-over-time":
+        //   const modelLatencies = await getModelLatenciesOverTime(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return modelLatencies.map((row) => ({
+        //     model: row.model,
+        //     startTime: row.start_time,
+        //     percentile50Duration: row.p50,
+        //     percentile75Duration: row.p75,
+        //     percentile90Duration: row.p90,
+        //     percentile95Duration: row.p95,
+        //     percentile99Duration: row.p99,
+        //   })) as DatabaseRow[];
+        // case "traces-latencies-aggregated":
+        //   const traceLatencies = await getTracesLatencies(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return traceLatencies.map((row) => ({
+        //     traceName: row.name,
+        //     percentile50Duration: row.p50,
+        //     percentile90Duration: row.p90,
+        //     percentile95Duration: row.p95,
+        //     percentile99Duration: row.p99,
+        //   })) as DatabaseRow[];
+        // case "numeric-score-time-series":
+        //   const dateTruncNumericScoreTimeSeries = extractTimeSeries(
+        //     input.groupBy,
+        //   );
+        //   if (!dateTruncNumericScoreTimeSeries) {
+        //     return [];
+        //   }
+        //   const numericScoreTimeSeries = await getNumericScoreTimeSeries(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //   return numericScoreTimeSeries as DatabaseRow[];
+        // case "categorical-score-chart":
+        //   const categoricalScoreTimeSeries =
+        //     await getCategoricalScoreTimeSeries(
+        //       input.projectId,
+        //       input.filter ?? [],
+        //     );
+        //   return categoricalScoreTimeSeries as DatabaseRow[];
         // case "observations-status-timeseries":
         //   return (await getObservationsStatusTimeSeries(
         //     input.projectId,
@@ -288,14 +279,14 @@ export const dashboardRouter = createTRPCRouter({
     }),
 });
 
-const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
-  const temporal = groupBy?.find((group) => {
-    if (group.type === "datetime") {
-      return group;
-    }
-  });
-  return temporal?.type === "datetime" ? temporal.temporalUnit : undefined;
-};
+// const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
+//   const temporal = groupBy?.find((group) => {
+//     if (group.type === "datetime") {
+//       return group;
+//     }
+//   });
+//   return temporal?.type === "datetime" ? temporal.temporalUnit : undefined;
+// };
 
 /**
  * Execute a query using the QueryBuilder.
