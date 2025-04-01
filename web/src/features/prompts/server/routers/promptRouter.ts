@@ -7,6 +7,7 @@ import {
   PromptType,
 } from "@/src/features/prompts/server/utils/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -1054,6 +1055,12 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
+      throwIfNoEntitlement({
+        projectId,
+        entitlement: "prompt-protected-labels",
+        sessionUser: ctx.session.user,
+      });
+
       const protectedLabels = await ctx.prisma.promptProtectedLabels.findMany({
         where: {
           projectId,
@@ -1072,6 +1079,12 @@ export const promptRouter = createTRPCRouter({
         session: ctx.session,
         projectId,
         scope: "promptProtectedLabels:CUD",
+      });
+
+      throwIfNoEntitlement({
+        projectId,
+        entitlement: "prompt-protected-labels",
+        sessionUser: ctx.session.user,
       });
 
       if (label === LATEST_PROMPT_LABEL) {
@@ -1118,6 +1131,12 @@ export const promptRouter = createTRPCRouter({
         session: ctx.session,
         projectId,
         scope: "promptProtectedLabels:CUD",
+      });
+
+      throwIfNoEntitlement({
+        projectId,
+        entitlement: "prompt-protected-labels",
+        sessionUser: ctx.session.user,
       });
 
       const protectedLabel = await ctx.prisma.promptProtectedLabels.delete({

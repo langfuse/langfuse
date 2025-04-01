@@ -17,6 +17,7 @@ const entitlements = [
   "trace-deletion", // Not in use anymore, but necessary to use the TableAction type.
   "audit-logs",
   "data-retention",
+  "prompt-protected-labels",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -110,6 +111,7 @@ export const entitlementAccess: Record<
       "data-retention",
       "cloud-multi-tenant-sso",
       "integration-blobstorage",
+      "prompt-protected-labels",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -161,6 +163,7 @@ export const entitlementAccess: Record<
       "integration-blobstorage",
       "audit-logs",
       "data-retention",
+      "prompt-protected-labels",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
