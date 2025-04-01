@@ -5,7 +5,6 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterInterface,
-  type groupByInterface,
   sqlInterface,
 } from "@/src/server/api/services/sqlInterface";
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
@@ -280,14 +279,14 @@ export const dashboardRouter = createTRPCRouter({
     }),
 });
 
-const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
-  const temporal = groupBy?.find((group) => {
-    if (group.type === "datetime") {
-      return group;
-    }
-  });
-  return temporal?.type === "datetime" ? temporal.temporalUnit : undefined;
-};
+// const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
+//   const temporal = groupBy?.find((group) => {
+//     if (group.type === "datetime") {
+//       return group;
+//     }
+//   });
+//   return temporal?.type === "datetime" ? temporal.temporalUnit : undefined;
+// };
 
 /**
  * Execute a query using the QueryBuilder.
