@@ -10,7 +10,7 @@ import {
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { ObservationTree } from "@/src/components/trace/ObservationTree";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { RouterOutputs } from "@/src/utils/api";
+import { type RouterOutputs } from "@/src/utils/api";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { Button } from "@/src/components/ui/button";
 import { PanelLeftOpen, PanelLeftClose, ListTree } from "lucide-react";

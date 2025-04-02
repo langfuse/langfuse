@@ -57,11 +57,9 @@ export const usePeekView = <TData extends object>({
   // Populate the row after the table is mounted
   const attemptRef = useRef(false);
 
-  if (!peekView) return { inflatedPeekView: undefined, peekViewId: undefined };
-
   // Try to find the row with delayed attempts
   useEffect(() => {
-    if (peekViewId && !row && !attemptRef.current) {
+    if (peekView && peekViewId && !row && !attemptRef.current) {
       attemptRef.current = true;
 
       const attempts = [0, 500, 1000, 2000]; // Attempt delays in ms
@@ -75,6 +73,7 @@ export const usePeekView = <TData extends object>({
         }, delay);
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const inflatedPeekView = peekView
@@ -103,7 +102,7 @@ export const usePeekView = <TData extends object>({
 
   // Update the row state when the peekViewId changes on detail page navigation
   useEffect(() => {
-    if (!shouldUpdateRowOnDetailPageNavigation) return;
+    if (!shouldUpdateRowOnDetailPageNavigation || !peekView) return;
 
     const rowId =
       row && "id" in row && typeof row.id === "string" ? row.id : undefined;
@@ -124,7 +123,7 @@ export const usePeekView = <TData extends object>({
   }, [peekViewId]);
 
   return {
-    handleOnRowClickPeek,
+    handleOnRowClickPeek: peekView ? handleOnRowClickPeek : undefined,
     inflatedPeekView,
     peekViewId,
   };

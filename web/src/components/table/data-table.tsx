@@ -173,6 +173,7 @@ export function DataTable<TData extends object, TValue>({
 
   const getRowMemoized = useCallback(
     (id: string) => table.getRow(id)?.original,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

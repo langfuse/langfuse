@@ -36,7 +36,7 @@ export const useDatasetComparePeekState = (pathname: string) => {
         { shallow: true },
       );
     },
-    [router, datasetItem],
+    [router, datasetItem, pathname],
   );
 
   return {

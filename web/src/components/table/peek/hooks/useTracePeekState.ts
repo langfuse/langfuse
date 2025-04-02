@@ -36,7 +36,7 @@ export const useTracePeekState = (projectId: string, pathname: string) => {
         { shallow: true },
       );
     },
-    [projectId, router],
+    [router, pathname, peek, timestamp],
   );
 
   return {
