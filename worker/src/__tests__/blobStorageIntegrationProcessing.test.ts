@@ -15,7 +15,10 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
 import { handleBlobStorageIntegrationProjectJob } from "../ee/integrations/blobstorage/handleBlobStorageIntegrationProjectJob";
-import { BlobStorageIntegrationType } from "@langfuse/shared";
+import {
+  BlobStorageIntegrationType,
+  BlobStorageIntegrationFileType,
+} from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 
 describe("BlobStorageIntegrationProcessingJob", () => {
@@ -299,5 +302,141 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     // All files should have the prefix
     expect(projectFiles.every((f) => f.file.startsWith(prefix))).toBe(true);
+  });
+
+  it("should handle CSV, JSON, and JSONL file types correctly", async () => {
+    // Setup
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    // Create test data
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+    const scoreId = randomUUID();
+
+    await Promise.all([
+      createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          timestamp: now.getTime() - 40 * 60 * 1000, // 40 min before now
+          name: "Test Trace",
+        }),
+      ]),
+      createObservationsCh([
+        createObservation({
+          id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          start_time: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+          name: "Test Observation",
+        }),
+      ]),
+      createScoresCh([
+        createScore({
+          id: scoreId,
+          trace_id: traceId,
+          project_id: projectId,
+          timestamp: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+          name: "Test Score",
+          value: 0.95,
+        }),
+      ]),
+    ]);
+
+    // Test each file type
+    for (const fileType of [
+      BlobStorageIntegrationFileType.CSV,
+      BlobStorageIntegrationFileType.JSON,
+      BlobStorageIntegrationFileType.JSONL,
+    ]) {
+      // Create integration with specific file type
+      await prisma.blobStorageIntegration.upsert({
+        where: { projectId },
+        update: {
+          prefix: `${fileType.toLowerCase()}-test/`,
+          fileType,
+          lastSyncAt: oneHourAgo,
+        },
+        create: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: `${fileType.toLowerCase()}-test/`,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          fileType,
+          lastSyncAt: oneHourAgo,
+        },
+      });
+
+      // Process the integration
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Get files for this file type
+      const files = await storageService.listFiles("");
+      const projectFiles = files.filter(
+        (f) =>
+          f.file.includes(projectId) &&
+          f.file.includes(`${fileType.toLowerCase()}-test/`),
+      );
+
+      // Should have 3 files (traces, observations, scores)
+      expect(projectFiles).toHaveLength(3);
+
+      // Check file extensions
+      const expectedExtension = fileType.toLowerCase();
+      expect(
+        projectFiles.every((f) => f.file.endsWith(`.${expectedExtension}`)),
+      ).toBe(true);
+
+      // Check file contents for each type
+      for (const file of projectFiles) {
+        const content = await storageService.download(file.file);
+
+        // Verify content based on file type
+        if (file.file.includes("/traces/")) {
+          expect(content).toContain(traceId);
+          expect(content).toContain("Test Trace");
+        } else if (file.file.includes("/observations/")) {
+          expect(content).toContain(observationId);
+          expect(content).toContain("Test Observation");
+        } else if (file.file.includes("/scores/")) {
+          expect(content).toContain(scoreId);
+          expect(content).toContain("Test Score");
+          expect(content).toContain("0.95");
+        }
+
+        // Verify format based on file type
+        switch (fileType) {
+          case BlobStorageIntegrationFileType.CSV:
+            // CSV should have commas and newlines
+            expect(content).toContain(",");
+            break;
+          case BlobStorageIntegrationFileType.JSON:
+            // JSON should be parseable and have array brackets
+            expect(content.trim().startsWith("[")).toBe(true);
+            expect(content.trim().endsWith("]")).toBe(true);
+            expect(() => JSON.parse(content)).not.toThrow();
+            break;
+          case BlobStorageIntegrationFileType.JSONL:
+            // JSONL should have newlines and each line should be parseable JSON
+            const lines = content.trim().split("\n");
+            expect(lines.length).toBeGreaterThan(0);
+            // Check first line is valid JSON
+            expect(() => JSON.parse(lines[0])).not.toThrow();
+            break;
+        }
+      }
+    }
   });
 });

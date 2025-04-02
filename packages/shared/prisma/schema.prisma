@@ -693,7 +693,6 @@ model PromptProtectedLabels {
   label     String
 
   @@unique([projectId, label])
-
   @@map("prompt_protected_labels")
 }
 
@@ -908,15 +907,24 @@ model BlobStorageIntegration {
   forcePathStyle  Boolean                    @map("force_path_style")
 
   // Integration Config
-  nextSyncAt      DateTime? @map("next_sync_at")
-  lastSyncAt      DateTime? @map("last_sync_at")
+  nextSyncAt      DateTime?                      @map("next_sync_at")
+  lastSyncAt      DateTime?                      @map("last_sync_at")
   enabled         Boolean
-  exportFrequency String    @map("export_frequency")
+  exportFrequency String                         @map("export_frequency")
+  fileType        BlobStorageIntegrationFileType @default(CSV) @map("file_type")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("blob_storage_integrations")
+}
+
+enum BlobStorageIntegrationFileType {
+  JSON
+  CSV
+  JSONL
+
+  @@map("BlobStorageIntegrationFileType")
 }
 
 enum BlobStorageIntegrationType {

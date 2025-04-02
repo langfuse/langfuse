@@ -37,6 +37,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   BlobStorageIntegrationType,
+  BlobStorageIntegrationFileType,
   type BlobStorageIntegration,
 } from "@langfuse/shared";
 
@@ -150,6 +151,7 @@ const BlobStorageIntegrationSettingsForm = ({
         | "hourly",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
+      fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
     },
     disabled: isLoading,
   });
@@ -169,6 +171,7 @@ const BlobStorageIntegrationSettingsForm = ({
         | "hourly",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
+      fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -432,6 +435,35 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormDescription>
                 How often the data should be exported. Changes are taken into
                 consideration from the next run onwards.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={blobStorageForm.control}
+          name="fileType"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>File Type</FormLabel>
+              <FormControl>
+                <Select
+                  defaultValue={field.value}
+                  onValueChange={field.onChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select file type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="JSONL">JSONL</SelectItem>
+                    <SelectItem value="CSV">CSV</SelectItem>
+                    <SelectItem value="JSON">JSON</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormDescription>
+                The file format for exported data.
               </FormDescription>
               <FormMessage />
             </FormItem>
