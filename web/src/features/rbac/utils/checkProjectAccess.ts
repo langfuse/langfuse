@@ -7,7 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 
-type HasProjectAccessParams =
+type HasProjectAccessParams = (
   | {
       role: Role;
       scope: ProjectScope;
@@ -17,7 +17,8 @@ type HasProjectAccessParams =
       session: null | Session;
       projectId: string;
       scope: ProjectScope;
-    };
+    }
+) & { forbiddenErrorMessage?: string };
 
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
@@ -27,7 +28,9 @@ export const throwIfNoProjectAccess = (p: HasProjectAccessParams) => {
   if (!hasProjectAccess(p))
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "User does not have access to this resource or action",
+      message:
+        p.forbiddenErrorMessage ??
+        "User does not have access to this resource or action",
     });
 };
 
