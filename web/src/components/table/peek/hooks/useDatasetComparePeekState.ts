@@ -1,6 +1,5 @@
 import { useRouter } from "next/router";
 import { useCallback, useState } from "react";
-import { api } from "@/src/utils/api";
 
 export const useDatasetComparePeekState = (pathname: string) => {
   const router = useRouter();
@@ -45,31 +44,4 @@ export const useDatasetComparePeekState = (pathname: string) => {
     setSelectedRunItemProps,
     setPeekView,
   };
-};
-
-type UseDatasetComparePeekDataProps = {
-  projectId: string;
-  traceId?: string;
-  timestamp?: Date;
-};
-
-export const useDatasetComparePeekData = ({
-  projectId,
-  traceId,
-  timestamp,
-}: UseDatasetComparePeekDataProps) => {
-  return api.traces.byIdWithObservationsAndScores.useQuery(
-    {
-      traceId: traceId as string,
-      projectId,
-      timestamp,
-    },
-    {
-      enabled: !!traceId,
-      retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
-        return failureCount < 3;
-      },
-    },
-  );
 };

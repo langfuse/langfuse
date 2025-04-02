@@ -45,28 +45,3 @@ export const useTracePeekState = (projectId: string, pathname: string) => {
     setPeekView,
   };
 };
-
-export const usePeekData = (
-  projectId: string,
-  peekId?: string,
-  timestamp?: Date,
-) => {
-  return api.traces.byIdWithObservationsAndScores.useQuery(
-    {
-      traceId: peekId as string,
-      timestamp,
-      projectId,
-    },
-    {
-      enabled: !!peekId,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
-    },
-  );
-};

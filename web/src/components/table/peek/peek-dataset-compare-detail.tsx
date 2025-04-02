@@ -1,7 +1,4 @@
-import {
-  useDatasetComparePeekData,
-  useDatasetComparePeekState,
-} from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
+import { useDatasetComparePeekState } from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -22,6 +19,7 @@ import type {
   DatasetRunMetric,
 } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { useRouter } from "next/router";
+import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 
 export type PeekDatasetCompareDetailProps = {
   projectId: string;
@@ -53,7 +51,7 @@ export const PeekDatasetCompareDetail = ({
     );
   const { runId, traceId } = selectedRunItemProps ?? {};
 
-  const trace = useDatasetComparePeekData({
+  const trace = usePeekData({
     projectId,
     traceId: traceId,
     timestamp,

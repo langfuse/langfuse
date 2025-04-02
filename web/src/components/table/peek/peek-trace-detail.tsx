@@ -1,11 +1,15 @@
-import { usePeekData } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 import { Trace } from "@/src/components/trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
-export const PeakViewTraceDetail = ({ projectId }: { projectId: string }) => {
+export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
   const { peekId, timestamp } = useTracePeekState(projectId, "traces");
-  const trace = usePeekData(projectId, peekId, timestamp);
+  const trace = usePeekData({
+    projectId,
+    traceId: peekId,
+    timestamp,
+  });
 
   return !peekId || !trace.data ? (
     <Skeleton className="h-full w-full" />

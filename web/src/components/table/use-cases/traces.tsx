@@ -79,7 +79,7 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
-import { PeakViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 
@@ -1058,7 +1058,7 @@ export default function TracesTable({
           onOpenChange: setPeekView,
           onExpand: expandPeek,
           getNavigationPath,
-          children: <PeakViewTraceDetail projectId={projectId} />,
+          children: <PeekViewTraceDetail projectId={projectId} />,
         }}
       />
     </>
