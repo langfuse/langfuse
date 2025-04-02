@@ -202,10 +202,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   );
 
   const showDragHandle = !SYSTEM_ROLES.includes(message.role);
-  const showToolCallSelect =
-    message.type === ChatMessageType.ToolResult &&
-    toolCallIds &&
-    toolCallIds.length > 0;
+  const showToolCallSelect = message.type === ChatMessageType.ToolResult;
 
   return (
     <Card
@@ -259,11 +256,14 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                     )
                   }
                 >
-                  <SelectTrigger className="h-[25px] w-[96px] border-0 bg-muted text-[9px]">
-                    <SelectValue placeholder="Tool Call ID" />
+                  <SelectTrigger
+                    title="Select Tool Call ID"
+                    className="h-[25px] w-[96px] border-0 bg-muted text-[9px]"
+                  >
+                    <SelectValue placeholder="Select Call ID" />
                   </SelectTrigger>
                   <SelectContent>
-                    {toolCallIds.map((id) => (
+                    {toolCallIds?.map((id) => (
                       <SelectItem key={id} value={id} className="text-[10px]">
                         {id}
                       </SelectItem>
