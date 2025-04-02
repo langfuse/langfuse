@@ -94,6 +94,7 @@ export const entitlementAccess: Record<
       "data-retention",
       "cloud-multi-tenant-sso",
       "integration-blobstorage",
+      "prompt-protected-labels",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
