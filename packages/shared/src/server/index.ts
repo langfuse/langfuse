@@ -1,5 +1,6 @@
 export * from "./services/StorageService";
 export * from "./services/email/organizationInvitation/sendMembershipInvitationEmail";
+export * from "./services/email/organizationInvitation/sendMembershipNotificationEmail";
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
 export * from "./services/PromptService";
