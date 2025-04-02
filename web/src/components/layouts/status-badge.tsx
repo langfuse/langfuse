@@ -1,4 +1,5 @@
 import { cn } from "@/src/utils/tailwind";
+import { type ReactNode } from "react";
 
 const statusCategories = {
   active: ["production", "live", "active", "public"],
@@ -16,11 +17,13 @@ export const StatusBadge = ({
   isLive = true,
   className,
   showText = true,
+  children,
 }: {
   type: Status | (string & {});
   isLive?: boolean;
   className?: string;
   showText?: boolean;
+  children?: ReactNode;
 }) => {
   let badgeColor = "bg-muted-gray text-primary";
   let dotColor = "bg-muted-foreground";
@@ -68,6 +71,7 @@ export const StatusBadge = ({
         </span>
       )}
       {showText && <span>{type}</span>}
+      {children}
     </div>
   );
 };

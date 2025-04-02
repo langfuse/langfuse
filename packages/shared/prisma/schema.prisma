@@ -144,6 +144,7 @@ model Project {
   PromptDependency       PromptDependency[]
   LlmSchema              LlmSchema[]
   LlmTool                LlmTool[]
+  PromptProtectedLabels  PromptProtectedLabels[]
 
   @@index([orgId])
   @@map("projects")
@@ -681,6 +682,19 @@ model PromptDependency {
   @@index([projectId, parentId], map: "prompt_dependencies_project_id_parent_id")
   @@index([projectId, childName], map: "prompt_dependencies_project_id_child_name")
   @@map("prompt_dependencies")
+}
+
+model PromptProtectedLabels {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  projectId String   @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label     String
+
+  @@unique([projectId, label])
+
+  @@map("prompt_protected_labels")
 }
 
 // Update ObservationView below when making changes to this model!
