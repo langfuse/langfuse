@@ -35,9 +35,9 @@ export class WorkerManager {
         },
       );
       const result = await processor(job);
-      await WorkerManager.getQueue(queueName)
-        ?.count()
-        .then((count) => {
+      const queue = WorkerManager.getQueue(queueName);
+      await Promise.allSettled([
+        queue?.count().then((count) => {
           recordGauge(
             convertQueueNameToMetricName(queueName) + ".length",
             count,
@@ -45,9 +45,17 @@ export class WorkerManager {
               unit: "records",
             },
           );
-          return count;
-        })
-        .catch();
+        }),
+        queue?.getFailedCount().then((count) => {
+          recordGauge(
+            convertQueueNameToMetricName(queueName) + ".dlq_length",
+            count,
+            {
+              unit: "records",
+            },
+          );
+        }),
+      ]);
       recordHistogram(
         convertQueueNameToMetricName(queueName) + ".processing_time",
         Date.now() - startTime,
