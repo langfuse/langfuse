@@ -1,7 +1,6 @@
-import { DataTablePeekViewProps } from "@/src/components/table/peek";
-import { useReactTable } from "@tanstack/react-table";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type PeekViewProps<TData> = Omit<
   DataTablePeekViewProps<TData>,
@@ -10,19 +9,19 @@ export type PeekViewProps<TData> = Omit<
 
 function getInitialRow<TData>(
   peekViewId: string | undefined,
-  table: ReturnType<typeof useReactTable<TData>>,
+  getRow: (id: string) => TData | undefined,
 ): TData | undefined {
   if (!peekViewId) return undefined;
   try {
-    const row = table.getRow(peekViewId);
-    return row ? row.original : undefined;
+    const row = getRow(peekViewId);
+    return row ? row : undefined;
   } catch (error) {
     return undefined;
   }
 }
 
 type UsePeekViewProps<TData> = {
-  table: ReturnType<typeof useReactTable<TData>>;
+  getRow: (id: string) => TData | undefined;
   peekView?: PeekViewProps<TData>;
   shouldUpdateRowOnDetailPageNavigation?: boolean;
 };
@@ -44,17 +43,40 @@ type UsePeekViewProps<TData> = {
  */
 
 export const usePeekView = <TData extends object>({
-  table,
+  getRow,
   peekView,
   shouldUpdateRowOnDetailPageNavigation = false,
 }: UsePeekViewProps<TData>) => {
-  if (!peekView) return { inflatedPeekView: undefined, peekViewId: undefined };
-
   const router = useRouter();
+
   const peekViewId = router.query.peek as string | undefined;
   const [row, setRow] = useState<TData | undefined>(
-    getInitialRow(peekViewId, table),
+    getInitialRow(peekViewId, getRow),
   );
+
+  // Populate the row after the table is mounted
+  const attemptRef = useRef(false);
+
+  if (!peekView) return { inflatedPeekView: undefined, peekViewId: undefined };
+
+  // Try to find the row with delayed attempts
+  useEffect(() => {
+    if (peekViewId && !row && !attemptRef.current) {
+      attemptRef.current = true;
+
+      const attempts = [0, 500, 1000, 2000]; // Attempt delays in ms
+
+      attempts.forEach((delay) => {
+        setTimeout(() => {
+          if (!row) {
+            const foundRow = getInitialRow(peekViewId, getRow);
+            if (foundRow) setRow(foundRow);
+          }
+        }, delay);
+      });
+    }
+  }, []);
+
   const inflatedPeekView = peekView
     ? { ...peekView, selectedRowId: peekViewId, row }
     : undefined;
@@ -89,15 +111,16 @@ export const usePeekView = <TData extends object>({
     if (peekViewId !== rowId) {
       if (peekViewId && inflatedPeekView) {
         try {
-          const row = table.getRow(peekViewId);
+          const row = getRow(peekViewId);
           if (row) {
-            setRow(row.original);
+            setRow(row);
           }
         } catch (error) {
           console.log("Row not found in table:", error);
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peekViewId]);
 
   return {

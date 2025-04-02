@@ -1,4 +1,4 @@
-import { ListEntry } from "@/src/features/navigate-detail-pages/context";
+import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
 
 export const useTracePeekNavigation = (urlPathname: string) => {

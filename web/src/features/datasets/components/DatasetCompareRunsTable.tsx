@@ -363,11 +363,7 @@ export function DatasetCompareRunsTable(props: {
 
   const urlPathname = `/project/${props.projectId}/datasets/${props.datasetId}/compare`;
 
-  const { setPeekView } = useDatasetComparePeekState(
-    props.projectId,
-    props.datasetId,
-    urlPathname,
-  );
+  const { setPeekView } = useDatasetComparePeekState(urlPathname);
 
   return (
     <>

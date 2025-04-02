@@ -13,14 +13,8 @@ import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
-import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { FolderKanban, MoreVertical } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,

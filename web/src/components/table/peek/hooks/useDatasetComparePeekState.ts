@@ -2,11 +2,7 @@ import { useRouter } from "next/router";
 import { useCallback, useState } from "react";
 import { api } from "@/src/utils/api";
 
-export const useDatasetComparePeekState = (
-  projectId: string,
-  datasetId: string,
-  pathname: string,
-) => {
+export const useDatasetComparePeekState = (pathname: string) => {
   const router = useRouter();
   const { peek: datasetItem } = router.query;
 
@@ -40,7 +36,7 @@ export const useDatasetComparePeekState = (
         { shallow: true },
       );
     },
-    [projectId, datasetId, router, pathname, datasetItem],
+    [router, datasetItem],
   );
 
   return {

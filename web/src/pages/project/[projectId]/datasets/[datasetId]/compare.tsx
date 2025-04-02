@@ -56,7 +56,6 @@ export default function DatasetCompare() {
   const [localRuns, setLocalRuns] = useState<
     Array<{ key: string; value: string }>
   >([]);
-  const [showCharts, setShowCharts] = useState(true);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
     RESOURCE_METRICS.map((metric) => metric.key),
   );

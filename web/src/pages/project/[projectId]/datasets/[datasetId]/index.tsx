@@ -40,7 +40,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import Page from "@/src/components/layouts/page";
 import {
   TabsBarList,

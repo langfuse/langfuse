@@ -1,6 +1,6 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -32,7 +32,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { TablePeekView } from "@/src/components/table/peek";
-import { PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
+import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
 
 interface DataTableProps<TData, TValue> {
@@ -171,8 +171,13 @@ export function DataTable<TData extends object, TValue>({
     columnResizeMode: "onChange",
   });
 
+  const getRowMemoized = useCallback(
+    (id: string) => table.getRow(id)?.original,
+    [],
+  );
+
   const { inflatedPeekView, peekViewId, handleOnRowClickPeek } = usePeekView({
-    table,
+    getRow: getRowMemoized,
     peekView,
   });
 

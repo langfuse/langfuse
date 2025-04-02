@@ -9,7 +9,6 @@ import {
 } from "@/src/components/ui/resizable";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { ObservationTree } from "@/src/components/trace/ObservationTree";
-import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { RouterOutputs } from "@/src/utils/api";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
@@ -50,8 +49,6 @@ export const PeekDatasetCompareDetail = ({
 
   const { datasetItemId, selectedRunItemProps, setSelectedRunItemProps } =
     useDatasetComparePeekState(
-      projectId,
-      datasetId,
       `/project/${projectId}/datasets/${datasetId}/compare`,
     );
   const { runId, traceId } = selectedRunItemProps ?? {};

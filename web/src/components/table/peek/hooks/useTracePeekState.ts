@@ -1,7 +1,6 @@
 import { useRouter } from "next/router";
 import { useCallback } from "react";
 import { api } from "@/src/utils/api";
-import { TracesTableRow } from "@/src/components/table/use-cases/traces";
 
 export const useTracePeekState = (projectId: string, pathname: string) => {
   const router = useRouter();

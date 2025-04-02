@@ -9,7 +9,7 @@ import { Expand, ExternalLink } from "lucide-react";
 import { Separator } from "@/src/components/ui/separator";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { ListEntry } from "@/src/features/navigate-detail-pages/context";
+import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 
 type PeekViewItemType = Extract<LangfuseItemType, "TRACE" | "DATASET_ITEM">;
