@@ -245,8 +245,6 @@ export const getScoresForTraces = async <
     },
   });
 
-  console.log(rows);
-
   return rows.map((row) => ({
     ...convertToScore({
       ...row,
@@ -258,16 +256,46 @@ export const getScoresForTraces = async <
   }));
 };
 
+export type GetScoresForObservationsProps<
+  ExcludeMetadata extends boolean,
+  IncludeHasMetadata extends boolean,
+> = {
+  projectId: string;
+  observationIds: string[];
+  limit?: number;
+  offset?: number;
+  excludeMetadata?: ExcludeMetadata;
+  includeHasMetadata?: IncludeHasMetadata;
+};
+
 // Currently only used from the observations table, hence the exclusion of metadata without excludeMetadata flag
-export const getScoresForObservations = async (
-  projectId: string,
-  observationIds: string[],
-  limit?: number,
-  offset?: number,
+export const getScoresForObservations = async <
+  ExcludeMetadata extends boolean,
+  IncludeHasMetadata extends boolean,
+>(
+  props: GetScoresForObservationsProps<ExcludeMetadata, IncludeHasMetadata>,
 ) => {
+  const {
+    projectId,
+    observationIds,
+    limit,
+    offset,
+    excludeMetadata = false,
+    includeHasMetadata = false,
+  } = props;
+
+  const select = [
+    !excludeMetadata ? "*" : "* EXCEPT (metadata)",
+    includeHasMetadata
+      ? "length(mapKeys(s.metadata)) > 0 AS has_metadata"
+      : null,
+  ]
+    .filter((s) => s != null)
+    .join(", ");
+
   const query = `
       select 
-        * EXCEPT (metadata)
+        ${select}
       from scores s
       WHERE s.project_id = {projectId: String}
       AND s.observation_id IN ({observationIds: Array(String)})
@@ -276,7 +304,14 @@ export const getScoresForObservations = async (
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<Omit<ScoreRecordReadType, "metadata">>({
+  const rows = await queryClickhouse<
+    ScoreRecordReadType & {
+      metadata: ExcludeMetadata extends true
+        ? never
+        : ScoreRecordReadType["metadata"];
+      has_metadata: IncludeHasMetadata extends true ? boolean : never;
+    }
+  >({
     query: query,
     params: {
       projectId: projectId,
@@ -295,8 +330,11 @@ export const getScoresForObservations = async (
   return rows.map((row) => ({
     ...convertToScore({
       ...row,
-      metadata: {},
+      metadata: excludeMetadata ? {} : row.metadata,
     }),
+    hasMetadata: (includeHasMetadata
+      ? !!row.has_metadata
+      : undefined) as IncludeHasMetadata extends true ? boolean : never,
   }));
 };
 
