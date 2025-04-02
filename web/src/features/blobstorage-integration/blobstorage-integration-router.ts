@@ -84,6 +84,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           exportFrequency,
           enabled,
           forcePathStyle,
+          fileType,
         } = input;
 
         const data: Partial<BlobStorageIntegration> = {
@@ -96,6 +97,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           enabled,
           accessKeyId,
           forcePathStyle: forcePathStyle || false,
+          fileType,
         };
 
         // Use a transaction to check if record exists, then create or update

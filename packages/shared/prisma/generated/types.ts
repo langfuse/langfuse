@@ -80,6 +80,12 @@ export const JobExecutionStatus = {
     CANCELLED: "CANCELLED"
 } as const;
 export type JobExecutionStatus = (typeof JobExecutionStatus)[keyof typeof JobExecutionStatus];
+export const BlobStorageIntegrationFileType = {
+    JSON: "JSON",
+    CSV: "CSV",
+    JSONL: "JSONL"
+} as const;
+export type BlobStorageIntegrationFileType = (typeof BlobStorageIntegrationFileType)[keyof typeof BlobStorageIntegrationFileType];
 export const BlobStorageIntegrationType = {
     S3: "S3",
     S3_COMPATIBLE: "S3_COMPATIBLE",
@@ -208,6 +214,7 @@ export type BlobStorageIntegration = {
     last_sync_at: Timestamp | null;
     enabled: boolean;
     export_frequency: string;
+    file_type: Generated<BlobStorageIntegrationFileType>;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
