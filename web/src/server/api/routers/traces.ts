@@ -141,7 +141,7 @@ export const traceRouter = createTRPCRouter({
         traceException,
       ).map((s) => ({
         ...s,
-        hasMetadata: hasMetadataMap.get(s.id),
+        hasMetadata: hasMetadataMap.get(s.id) ?? false,
       }));
 
       return res.map((row) => ({
