@@ -20,7 +20,11 @@ export const composeAggregateScoreKey = ({
   return `${formattedName}-${source}-${dataType}`;
 };
 
-export const aggregateScores = <T extends APIScore | ScoreSimplified>(
+type ScoreToAggregate = (APIScore | ScoreSimplified) & {
+  hasMetadata?: boolean;
+};
+
+export const aggregateScores = <T extends ScoreToAggregate>(
   scores: T[],
 ): ScoreAggregate => {
   const groupedScores: Record<string, T[]> = scores.reduce(
@@ -51,6 +55,8 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
         average,
         comment: values.length === 1 ? scores[0].comment : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
+        hasMetadata:
+          values.length === 1 ? (scores[0].hasMetadata ?? false) : undefined,
       };
     } else {
       const values = scores.map((score) => score.stringValue ?? "n/a");
@@ -71,6 +77,8 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
         })),
         comment: values.length === 1 ? scores[0].comment : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
+        hasMetadata:
+          values.length === 1 ? (scores[0].hasMetadata ?? false) : undefined,
       };
     }
     return acc;

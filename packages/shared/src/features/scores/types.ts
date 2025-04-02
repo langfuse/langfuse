@@ -4,6 +4,7 @@ import { ScoreSourceType } from "../../server";
 export type BaseAggregate = {
   comment?: string | null;
   id?: string | null;
+  hasMetadata?: boolean;
 };
 
 export type CategoricalAggregate = BaseAggregate & {

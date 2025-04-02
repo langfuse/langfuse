@@ -12,10 +12,10 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { BracesIcon, MessageCircleMore } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { useRef } from "react";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useElementWasVisible } from "@/src/hooks/use-element-visibility";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import React from "react";
 
 const COLOR_MAP = new Map([
   ["True", "bg-light-green p-0.5 text-dark-green"],
@@ -118,8 +118,7 @@ function AggregateScoreMetadataPeek({
   scoreId: string;
   projectId: string;
 }) {
-  const ref = useRef<HTMLAnchorElement>(null);
-  const hasBeenVisible = useElementWasVisible(ref);
+  const [isOpen, setIsOpen] = React.useState(false);
 
   const { data: metadata } = api.scores.getScoreMetadataById.useQuery(
     {
@@ -127,7 +126,7 @@ function AggregateScoreMetadataPeek({
       id: scoreId,
     },
     {
-      enabled: hasBeenVisible && !!projectId && !!scoreId,
+      enabled: !!projectId && !!scoreId && isOpen,
       trpc: {
         context: {
           skipBatch: true,
@@ -140,16 +139,18 @@ function AggregateScoreMetadataPeek({
     },
   );
 
-  const hasMetadata = !!metadata && Object.keys(metadata).length > 0;
+  const metadataLoaded = !!metadata && Object.keys(metadata).length > 0;
 
   return (
-    <HoverCard>
-      <HoverCardTrigger ref={ref} className="inline-block cursor-pointer">
-        {hasMetadata && <BracesIcon size={12} />}
+    <HoverCard onOpenChange={setIsOpen}>
+      <HoverCardTrigger className="inline-block cursor-pointer">
+        <BracesIcon size={12} />
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0">
-        {hasMetadata && (
+        {metadataLoaded ? (
           <JSONView codeClassName="!rounded-md" json={metadata} />
+        ) : (
+          <Skeleton className="h-12 w-full" />
         )}
       </HoverCardContent>
     </HoverCard>

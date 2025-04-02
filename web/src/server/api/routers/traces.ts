@@ -130,24 +130,24 @@ export const traceRouter = createTRPCRouter({
         includeHasMetadata: true,
       });
 
-      const hasMetadataFlags = scores.map((s) => ({
-        hasMetadata: s.hasMetadata,
-        traceId: s.traceId,
-        id: s.id,
-      }));
+      const hasMetadataMap = new Map<string, boolean>();
+
+      for (const score of scores) {
+        hasMetadataMap.set(score.id, score.hasMetadata);
+      }
 
       const validatedScores = filterAndValidateDbScoreList(
         scores,
         traceException,
-      );
+      ).map((s) => ({
+        ...s,
+        hasMetadata: hasMetadataMap.get(s.id),
+      }));
 
       return res.map((row) => ({
         ...row,
         scores: aggregateScores(
           validatedScores.filter((s) => s.traceId === row.id),
-        ),
-        scoreHasMetadataFlags: hasMetadataFlags.filter(
-          (h) => h.traceId === row.id,
         ),
       }));
     }),
