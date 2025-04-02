@@ -10,7 +10,7 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -48,6 +48,41 @@ export type DatasetCompareRunRowData = {
   metadata: Prisma.JsonValue;
   // runs holds grouped column with individual run metrics
   runs?: RunAggregate;
+};
+
+type QueryKeyType = ReturnType<typeof getQueryKey>;
+
+const formatQueryKey = (queryKey?: QueryKeyType): QueryKeyType => {
+  try {
+    return queryKey
+      ? [
+          queryKey[0],
+          {
+            input: queryKey[1]?.input,
+            type: queryKey[1]?.type ?? "query",
+          },
+        ]
+      : ([[]] as QueryKeyType);
+  } catch (error) {
+    return [[]] as QueryKeyType;
+  }
+};
+
+// Run items are added async for prompt experiment runs, so we must continue to refetch until all items are present
+// As evaluations are added async too, we must compare the scores for all run items to check if they're all complete
+const isDataComplete = (
+  prevData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+  newData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+) => {
+  if (prevData.totalRunItems !== newData.totalRunItems) return false;
+
+  // Compare scores for all run items to check if they're all complete
+  return prevData.runItems.every((prevItem, index) => {
+    const newItem = newData.runItems[index];
+    if (!newItem) return false;
+
+    return JSON.stringify(prevItem.scores) === JSON.stringify(newItem.scores);
+  });
 };
 
 const getRefetchInterval = (
@@ -120,10 +155,17 @@ export function DatasetCompareRunsTable(props: {
       setUnchangedCounts((prev) => {
         const prevCount = prev[runId] || 0;
         const queryKey = runQueries.find((r) => r.runId === runId)?.queryKey;
-        const prevData = queryClient.getQueryData(queryKey || []);
+        const formattedQueryKey = formatQueryKey(queryKey);
+        const prevData = queryClient.getQueryData(formattedQueryKey);
 
-        // Only increment if we have previous data and it matches the new data
-        if (prevData && JSON.stringify(prevData) === JSON.stringify(newData)) {
+        // Only increment if we there are no more items included in the new data that are not in the previous data
+        if (
+          prevData &&
+          isDataComplete(
+            prevData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+            newData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+          )
+        ) {
           const newCount = prevCount + 1;
           return { ...prev, [runId]: newCount };
         }

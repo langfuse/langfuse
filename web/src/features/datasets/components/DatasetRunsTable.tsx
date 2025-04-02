@@ -105,7 +105,7 @@ const DatasetRunTableMultiSelectAction = ({
             <ChevronDown className="h-5 w-5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent>
+        <DropdownMenuContent key="dropdown-menu-content">
           <Link
             key="compare"
             href={

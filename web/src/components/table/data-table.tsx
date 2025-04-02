@@ -175,6 +175,7 @@ export function DataTable<TData extends object, TValue>({
     table,
     peekView,
   });
+
   const handleOnRowClick = (row: TData) => {
     if (inflatedPeekView) {
       handleOnRowClickPeek?.(row);
