@@ -208,7 +208,7 @@ export const promptRouter = createTRPCRouter({
             session: ctx.session,
             projectId: input.projectId,
             scope: "promptProtectedLabels:CUD",
-            message: `You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
+            forbiddenErrorMessage: `You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
           });
         }
 
@@ -399,7 +399,7 @@ export const promptRouter = createTRPCRouter({
             session: ctx.session,
             projectId: input.projectId,
             scope: "promptProtectedLabels:CUD",
-            message: `You don't have permission to delete a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
+            forbiddenErrorMessage: `You don't have permission to delete a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
           });
         }
 
@@ -476,7 +476,7 @@ export const promptRouter = createTRPCRouter({
             session: ctx.session,
             projectId: input.projectId,
             scope: "promptProtectedLabels:CUD",
-            message: `You don't have permission to delete a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
+            forbiddenErrorMessage: `You don't have permission to delete a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
           });
         }
 
@@ -642,7 +642,7 @@ export const promptRouter = createTRPCRouter({
             session: ctx.session,
             projectId: input.projectId,
             scope: "promptProtectedLabels:CUD",
-            message: `You don't have permission to add/remove a protected label to/from a prompt. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
+            forbiddenErrorMessage: `You don't have permission to add/remove a protected label to/from a prompt. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
           });
         }
 
@@ -1094,7 +1094,7 @@ export const promptRouter = createTRPCRouter({
         session: ctx.session,
         projectId,
         scope: "promptProtectedLabels:CUD",
-        message:
+        forbiddenErrorMessage:
           "You don't have permission to mark a label as protected. Please contact your project admin for assistance.",
       });
 
@@ -1148,7 +1148,7 @@ export const promptRouter = createTRPCRouter({
         session: ctx.session,
         projectId,
         scope: "promptProtectedLabels:CUD",
-        message:
+        forbiddenErrorMessage:
           "You don't have permission to mark a label as unprotected. Please contact your project admin for assistance.",
       });
 

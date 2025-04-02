@@ -10,9 +10,6 @@ CREATE TABLE "prompt_protected_labels" (
 );
 
 -- CreateIndex
-CREATE INDEX "prompt_protected_labels_project_id_idx" ON "prompt_protected_labels"("project_id");
-
--- CreateIndex
 CREATE UNIQUE INDEX "prompt_protected_labels_project_id_label_key" ON "prompt_protected_labels"("project_id", "label");
 
 -- AddForeignKey

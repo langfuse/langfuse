@@ -692,7 +692,6 @@ model PromptProtectedLabels {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   label     String
 
-  @@index([projectId])
   @@unique([projectId, label])
 
   @@map("prompt_protected_labels")
