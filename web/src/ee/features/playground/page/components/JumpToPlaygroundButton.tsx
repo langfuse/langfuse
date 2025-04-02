@@ -132,20 +132,45 @@ const ParsedChatMessageListSchema = z.array(
       .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
       .optional(),
     tool_call_id: z.string().optional(),
+    additional_kwargs: z
+      .object({
+        tool_calls: z
+          .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
+          .optional(),
+      })
+      .optional(),
   }),
 );
+
+// Langchain integration has the tool definition in a tool message
+// Those need to be filtered out in the chat messages and parsed when looking for tools
+const isLangchainToolDefinitionMessage = (
+  message: z.infer<typeof ParsedChatMessageListSchema>[0],
+): message is { content: string; role: ChatMessageRole } => {
+  try {
+    return OpenAIToolSchema.safeParse(JSON.parse(message.content)).success;
+  } catch {
+    return false;
+  }
+};
 
 const transformToPlaygroundMessage = (
   message: z.infer<typeof ParsedChatMessageListSchema>[0],
 ): ChatMessage => {
   const { role, content } = message;
 
-  if (message.role === "assistant" && message.tool_calls) {
+  if (
+    message.role === "assistant" &&
+    (message.tool_calls || message.additional_kwargs?.tool_calls)
+  ) {
+    const toolCalls =
+      message.tool_calls ?? message.additional_kwargs?.tool_calls ?? [];
+
     const playgroundMessage: ChatMessage = {
       role: ChatMessageRole.Assistant,
       content,
       type: ChatMessageType.AssistantToolCall,
-      toolCalls: message.tool_calls.map((tc) => {
+      toolCalls: toolCalls.map((tc) => {
         if ("function" in tc) {
           return {
             name: tc.function.name,
@@ -159,12 +184,12 @@ const transformToPlaygroundMessage = (
     };
 
     return playgroundMessage;
-  } else if (message.role === "tool" && message.tool_call_id) {
+  } else if (message.role === "tool") {
     const playgroundMessage: ChatMessage = {
       role: ChatMessageRole.Tool,
       content,
       type: ChatMessageType.ToolResult,
-      toolCallId: message.tool_call_id,
+      toolCallId: message.tool_call_id ?? "",
     };
 
     return playgroundMessage;
@@ -252,11 +277,11 @@ const parseGeneration = (
       "messages" in input ? input["messages"] : input,
     );
 
-    console.log(parsedMessages);
-
     if (parsedMessages.success)
       return {
-        messages: parsedMessages.data.map(transformToPlaygroundMessage),
+        messages: parsedMessages.data
+          .filter((m) => !isLangchainToolDefinitionMessage(m))
+          .map(transformToPlaygroundMessage),
         modelParams,
         tools,
         structuredOutputSchema,
@@ -270,7 +295,9 @@ const parseGeneration = (
 
     if (parsedMessages.success)
       return {
-        messages: parsedMessages.data.map(transformToPlaygroundMessage),
+        messages: parsedMessages.data
+          .filter((m) => !isLangchainToolDefinitionMessage(m))
+          .map(transformToPlaygroundMessage),
         modelParams,
         tools,
         structuredOutputSchema,
@@ -325,6 +352,7 @@ function parseModelParams(
 }
 
 function parseTools(generation: Observation): PlaygroundTool[] {
+  // OpenAI Schema
   try {
     const input = JSON.parse(generation.input as string);
     if (typeof input === "object" && input !== null && "tools" in input) {
@@ -335,6 +363,25 @@ function parseTools(generation: Observation): PlaygroundTool[] {
           id: Math.random().toString(36).substring(2),
           ...tool.function,
         }));
+    }
+  } catch {}
+
+  // Langchain Schema
+  try {
+    const input = JSON.parse(generation.input as string);
+
+    if (typeof input === "object" && input !== null) {
+      const parsedMessages = ParsedChatMessageListSchema.safeParse(
+        "messages" in input ? input["messages"] : input,
+      );
+
+      if (parsedMessages.success)
+        return parsedMessages.data
+          .filter(isLangchainToolDefinitionMessage)
+          .map((tool) => ({
+            id: Math.random().toString(36).substring(2),
+            ...JSON.parse(tool.content).function,
+          }));
     }
   } catch {}
 

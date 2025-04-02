@@ -22,6 +22,7 @@ export type AuditableResource =
   | "scoreConfig"
   | "model"
   | "prompt"
+  | "promptProtectedLabel"
   | "session"
   | "apiKey"
   | "evalTemplate"

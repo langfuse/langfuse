@@ -12,8 +12,35 @@ import {
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
 } from "@langfuse/shared/src/server";
-import { BlobStorageIntegrationType } from "@langfuse/shared";
+import {
+  BlobStorageIntegrationType,
+  BlobStorageIntegrationFileType,
+} from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+
+const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
+  switch (fileType) {
+    case BlobStorageIntegrationFileType.JSON:
+      return {
+        contentType: "application/json",
+        extension: "json",
+      };
+    case BlobStorageIntegrationFileType.CSV:
+      return {
+        contentType: "text/csv",
+        extension: "csv",
+      };
+    case BlobStorageIntegrationFileType.JSONL:
+      return {
+        contentType: "application/x-ndjson",
+        extension: "jsonl",
+      };
+    default:
+      // eslint-disable-next-line no-case-declarations, no-unused-vars
+      const exhaustiveCheck: never = fileType;
+      throw new Error(`Unsupported file type: ${fileType}`);
+  }
+};
 
 const processBlobStorageExport = async (config: {
   projectId: string;
@@ -28,6 +55,7 @@ const processBlobStorageExport = async (config: {
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
   table: "traces" | "observations" | "scores";
+  fileType: BlobStorageIntegrationFileType;
 }) => {
   logger.info(
     `Processing ${config.table} export for project ${config.projectId}`,
@@ -45,12 +73,14 @@ const processBlobStorageExport = async (config: {
   });
 
   try {
+    const blobStorageProps = getFileTypeProperties(config.fileType);
+
     // Create the file path with prefix if available
     const timestamp = config.maxTimestamp
       .toISOString()
       .replace(/:/g, "-")
       .substring(0, 19);
-    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.csv`;
+    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${blobStorageProps.extension}`;
 
     // Fetch data based on table type
     let dataStream: AsyncGenerator<Record<string, unknown>>;
@@ -83,7 +113,7 @@ const processBlobStorageExport = async (config: {
 
     const fileStream = pipeline(
       dataStream,
-      streamTransformations["CSV"](),
+      streamTransformations[config.fileType](),
       (err) => {
         if (err) {
           logger.error(
@@ -97,7 +127,7 @@ const processBlobStorageExport = async (config: {
     // Upload the file to cloud storage
     await storageService.uploadFile({
       fileName: filePath,
-      fileType: "text/csv",
+      fileType: blobStorageProps.contentType,
       data: fileStream,
       expiresInSeconds: 3600, // 1 hour expiry for the signed URL - is ignored
     });
@@ -158,6 +188,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       prefix: blobStorageIntegration.prefix || undefined,
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
       type: blobStorageIntegration.type,
+      fileType: blobStorageIntegration.fileType,
     };
 
     await Promise.all([

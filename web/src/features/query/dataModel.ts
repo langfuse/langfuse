@@ -311,8 +311,9 @@ export const scoresNumericView: ViewDeclarationType = {
   segments: [
     {
       column: "data_type",
-      operator: "=",
-      value: "NUMERIC",
+      // We consider NUMERIC and BOOLEAN scores as numeric.
+      operator: "does not contain",
+      value: "CATEGORICAL",
       type: "string",
     },
   ],
@@ -353,9 +354,8 @@ export const scoresCategoricalView: ViewDeclarationType = {
   segments: [
     {
       column: "data_type",
-      // Here, we want to include everything that is not numeric.
-      operator: "does not contain",
-      value: "NUMERIC",
+      operator: "=",
+      value: "CATEGORICAL",
       type: "string",
     },
   ],

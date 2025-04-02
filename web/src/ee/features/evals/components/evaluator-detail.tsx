@@ -153,7 +153,7 @@ export const EvaluatorDetail = () => {
       }}
     >
       {existingEvaluator && (
-        <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+        <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden contain-layout">
           <div className="flex h-full flex-col overflow-hidden">
             <EvalLogTable
               projectId={projectId}
