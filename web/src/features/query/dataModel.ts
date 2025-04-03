@@ -19,6 +19,10 @@ export const traceView: ViewDeclarationType = {
       sql: "name",
       type: "string",
     },
+    tags: {
+      sql: "tags",
+      type: "string[]",
+    },
     userId: {
       sql: "user_id",
       alias: "userId",
@@ -128,6 +132,11 @@ export const observationsView: ViewDeclarationType = {
     version: {
       sql: "version",
       type: "string",
+    },
+    tags: {
+      sql: "tags",
+      type: "string[]",
+      relationTable: "traces",
     },
     providedModelName: {
       sql: "provided_model_name",
@@ -240,6 +249,11 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
     sql: "name",
     alias: "traceName",
     type: "string",
+    relationTable: "traces",
+  },
+  tags: {
+    sql: "tags",
+    type: "string[]",
     relationTable: "traces",
   },
   userId: {

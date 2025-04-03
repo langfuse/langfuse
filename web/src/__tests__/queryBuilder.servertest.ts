@@ -523,6 +523,292 @@ describe("queryBuilder", () => {
         expect(fewObsTrace.sum_observationsCount).toBe("2");
       });
 
+      it("should use tags as dimension", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-with-tag-a", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b", tags: ["tag-b", "common-tag"] },
+          { name: "trace-with-tag-c", tags: ["tag-c"] },
+          { name: "trace-with-no-tags", tags: [] },
+        ];
+
+        // Create traces with custom tags
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        // Define query with a filter for tags using "any of" operator
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(4);
+        // Expect one entry for all so index order does not matter
+        expect(result.data[0].count_count).toBe("1");
+      });
+
+      it("should filter traces by tags using 'any of' operator", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-with-tag-a", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b", tags: ["tag-b", "common-tag"] },
+          { name: "trace-with-tag-c", tags: ["tag-c"] },
+          { name: "trace-with-no-tags", tags: [] },
+        ];
+
+        // Create traces with custom tags
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        // Define query with a filter for tags using "any of" operator
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "tags",
+              operator: "any of",
+              value: ["tag-a", "tag-b"],
+              type: "arrayOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - should only return traces with tag-a or tag-b
+        expect(result.data).toHaveLength(2);
+
+        // Find and verify each trace
+        const traceWithTagA = result.data.find(
+          (row: any) => row.name === "trace-with-tag-a",
+        );
+        expect(traceWithTagA).toBeDefined();
+        expect(traceWithTagA.count_count).toBe("1");
+
+        const traceWithTagB = result.data.find(
+          (row: any) => row.name === "trace-with-tag-b",
+        );
+        expect(traceWithTagB).toBeDefined();
+        expect(traceWithTagB.count_count).toBe("1");
+      });
+
+      it("should filter traces by tags using 'all of' operator", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          {
+            name: "trace-with-multiple-tags",
+            tags: ["tag-a", "tag-b", "common-tag"],
+          },
+          { name: "trace-with-tag-a-only", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b-only", tags: ["tag-b", "common-tag"] },
+          { name: "trace-with-other-tags", tags: ["tag-c", "common-tag"] },
+        ];
+
+        // Create traces with custom tags
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        // Define query with a filter for tags using "all of" operator
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "tags",
+              operator: "all of",
+              value: ["tag-a", "tag-b"],
+              type: "arrayOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - should only return traces with both tag-a and tag-b
+        expect(result.data).toHaveLength(1);
+
+        // Verify the trace has both tags
+        expect(result.data[0].name).toBe("trace-with-multiple-tags");
+        expect(result.data[0].count_count).toBe("1");
+      });
+
+      it("should filter traces by tags using 'none of' operator", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-with-tag-a", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b", tags: ["tag-b", "common-tag"] },
+          {
+            name: "trace-with-other-tags",
+            tags: ["tag-c", "tag-d", "common-tag"],
+          },
+          { name: "trace-with-no-tags", tags: [] },
+        ];
+
+        // Create traces with custom tags
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        // Define query with a filter for tags using "none of" operator
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "tags",
+              operator: "none of",
+              value: ["tag-a", "tag-b"],
+              type: "arrayOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - should only return traces without tag-a or tag-b
+        expect(result.data).toHaveLength(2);
+
+        // Find and verify each trace
+        const traceWithOtherTags = result.data.find(
+          (row: any) => row.name === "trace-with-other-tags",
+        );
+        expect(traceWithOtherTags).toBeDefined();
+        expect(traceWithOtherTags.count_count).toBe("1");
+
+        const traceWithNoTags = result.data.find(
+          (row: any) => row.name === "trace-with-no-tags",
+        );
+        expect(traceWithNoTags).toBeDefined();
+        expect(traceWithNoTags.count_count).toBe("1");
+      });
+
       it("should group by environment and calculate metrics correctly", async () => {
         // Setup
         const projectId = randomUUID();

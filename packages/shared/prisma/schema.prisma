@@ -257,6 +257,7 @@ model MembershipInvitation {
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at")
 
+  @@unique([email, orgId]) // do not include projectId as this leads to issues when processing the invites, needs new logic
   @@index([projectId])
   @@index([orgId])
   @@index([email])
