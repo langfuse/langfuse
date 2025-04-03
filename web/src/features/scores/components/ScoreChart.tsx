@@ -31,10 +31,13 @@ export function CategoricalChart(props: {
     />
   ) : (
     <Card
-      className={cn("w-full rounded-tremor-default border", props.className)}
+      className={cn(
+        "max-h-full min-h-0 rounded-tremor-default border",
+        props.className,
+      )}
     >
       <BarChart
-        className={cn("mt-4", props.chartClass)}
+        className={cn("mt-4 max-h-full min-h-0", props.chartClass)}
         data={props.chartData}
         index="binLabel"
         categories={props.chartLabels}
@@ -55,20 +58,23 @@ export function NumericChart(props: {
   chartData: ChartBin[];
   chartLabels: string[];
   index: string;
+  maxFractionDigits?: number;
 }) {
   const colors = getColorsForCategories(props.chartLabels);
 
   return isEmptyChart({ data: props.chartData }) ? (
     <NoDataOrLoading isLoading={false} />
   ) : (
-    <Card className="h-full w-full rounded-tremor-default border">
+    <Card className="max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border">
       <LineChart
-        className="h-full"
+        className="max-h-full min-h-0 min-w-0 max-w-full"
         data={props.chartData}
         index={props.index}
         categories={props.chartLabels}
         colors={colors}
-        valueFormatter={compactNumberFormatter}
+        valueFormatter={(value) => {
+          return compactNumberFormatter(value, props.maxFractionDigits);
+        }}
         noDataText="No data"
         showAnimation={true}
         onValueChange={() => {}}
