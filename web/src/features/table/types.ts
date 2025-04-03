@@ -10,7 +10,7 @@ type BaseTableAction = {
   icon?: ReactElement;
   accessCheck: {
     scope: ProjectScope;
-    entitlement: Entitlement;
+    entitlement?: Entitlement;
   };
 };
 
