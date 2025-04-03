@@ -217,7 +217,8 @@ export const getScoresForTraces = async <
       metadata: ExcludeMetadata extends true
         ? never
         : ScoreRecordReadType["metadata"];
-      has_metadata: IncludeHasMetadata extends true ? number : never;
+      // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
+      has_metadata: IncludeHasMetadata extends true ? 0 | 1 : never;
     }
   >({
     query: query,
@@ -305,7 +306,8 @@ export const getScoresForObservations = async <
       metadata: ExcludeMetadata extends true
         ? never
         : ScoreRecordReadType["metadata"];
-      has_metadata: IncludeHasMetadata extends true ? number : never;
+      // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
+      has_metadata: IncludeHasMetadata extends true ? 0 | 1 : never;
     }
   >({
     query: query,
@@ -492,7 +494,8 @@ export async function getScoresUiTable<
     queue_id: string | null;
     created_at: string;
     updated_at: string;
-    has_metadata: IncludeHasMetadata extends true ? number : never;
+    // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
+    has_metadata: IncludeHasMetadata extends true ? 0 | 1 : never;
   }>({
     select: "rows",
     tags: { kind: "analytic" },
@@ -847,7 +850,11 @@ export const getAggregatedScoresForPrompts = async (
   `;
 
   const rows = await queryClickhouse<
-    ScoreAggregation & { prompt_id: string; has_metadata: number }
+    ScoreAggregation & {
+      prompt_id: string;
+      // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
+      has_metadata: 0 | 1;
+    }
   >({
     query,
     params: {
