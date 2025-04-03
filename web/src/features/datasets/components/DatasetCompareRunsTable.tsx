@@ -443,7 +443,7 @@ export function DatasetCompareRunsTable(props: {
           itemType: "DATASET_ITEM",
           urlPathname,
           onOpenChange: setPeekView,
-          children: (row: DatasetCompareRunRowData) => (
+          children: (row?: DatasetCompareRunRowData) => (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
               datasetId={props.datasetId}
