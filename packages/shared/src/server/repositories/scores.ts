@@ -832,7 +832,8 @@ export const getAggregatedScoresForPrompts = async (
       s.value,
       s.source,
       s.data_type,
-      s.comment
+      s.comment,
+      length(mapKeys(s.metadata)) > 0 AS has_metadata
     FROM scores s FINAL LEFT JOIN observations o FINAL 
       ON o.trace_id = s.trace_id 
       AND o.project_id = s.project_id 
@@ -845,7 +846,9 @@ export const getAggregatedScoresForPrompts = async (
     ${fetchScoreRelation === "trace" ? "AND s.observation_id IS NULL" : ""}
   `;
 
-  const rows = await queryClickhouse<ScoreAggregation & { prompt_id: string }>({
+  const rows = await queryClickhouse<
+    ScoreAggregation & { prompt_id: string; has_metadata: number }
+  >({
     query,
     params: {
       projectId,
@@ -862,6 +865,7 @@ export const getAggregatedScoresForPrompts = async (
   return rows.map((row) => ({
     ...convertScoreAggregation(row),
     promptId: row.prompt_id,
+    hasMetadata: !!row.has_metadata,
   }));
 };
 
