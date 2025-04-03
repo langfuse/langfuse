@@ -34,8 +34,8 @@ const formSchema = z.object({
   name: z
     .string()
     .regex(
-      /^[a-z0-9_-]+$/,
-      "Name must contain only lowercase letters, numbers, hyphens and underscores",
+      /^[a-zA-Z0-9_-]+$/,
+      "Name must contain only alphanumeric letters, hyphens and underscores",
     )
     .min(1, "Name is required"),
   description: z.string().min(1, "Description is required"),
