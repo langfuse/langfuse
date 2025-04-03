@@ -8,12 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { HorizontalBarChart } from "@/src/features/widgets/chart-library/HorizontalBarChart";
+import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
 import { api } from "@/src/utils/api";
 import { metricAggregations, type QueryType } from "@/src/features/query";
 import { useState, useMemo, useEffect } from "react";
@@ -79,6 +75,7 @@ export default function NewWidget() {
 
   const [selectedChartType, setSelectedChartType] =
     useState<string>("line-time-series");
+  const [rowLimit, setRowLimit] = useState<number>(100);
 
   // Reset form fields when view changes
   useEffect(() => {
@@ -110,6 +107,14 @@ export default function NewWidget() {
     }));
   }, [selectedView]);
 
+  // Check if the selected chart type is a time series chart
+  const isTimeSeriesChart = useMemo(() => {
+    return (
+      chartTypes.find((chart) => chart.value === selectedChartType)?.group ===
+      "time-series"
+    );
+  }, [selectedChartType, chartTypes]);
+
   // Create a dynamic query based on the selected view
   const query = useMemo<QueryType>(
     () => ({
@@ -118,12 +123,18 @@ export default function NewWidget() {
         selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
       metrics: [{ measure: selectedMetric, aggregation: selectedAggregation }],
       filters: [],
-      timeDimension: null,
-      fromTimestamp: new Date("2025-03-01").toISOString(),
+      timeDimension: isTimeSeriesChart ? { granularity: "auto" } : null,
+      fromTimestamp: new Date("2025-03-15").toISOString(),
       toTimestamp: new Date("2025-04-04").toISOString(),
       orderBy: null,
     }),
-    [selectedView, selectedDimension, selectedAggregation, selectedMetric],
+    [
+      selectedView,
+      selectedDimension,
+      selectedAggregation,
+      selectedMetric,
+      selectedChartType,
+    ],
   );
 
   const queryResult = api.dashboard.executeQuery.useQuery(
@@ -155,9 +166,16 @@ export default function NewWidget() {
             ? (item[dimensionField] as string)
             : "Unknown",
           metric: Number(item[metricField] || 0),
+          time_dimension: item["time_dimension"],
         };
       }) ?? [],
-    [queryResult.data, selectedAggregation, selectedDimension, selectedMetric],
+    [
+      queryResult.data,
+      selectedAggregation,
+      selectedDimension,
+      selectedMetric,
+      isTimeSeriesChart,
+    ],
   );
 
   if (!isAdmin) {
@@ -330,6 +348,26 @@ export default function NewWidget() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Row Limit Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="row-limit">Row Limit (1-1000)</Label>
+                <Input
+                  id="row-limit"
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={rowLimit}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (!isNaN(value) && value >= 1 && value <= 1000) {
+                      setRowLimit(value);
+                    }
+                  }}
+                  disabled={!selectedView}
+                  placeholder="Enter row limit (1-1000)"
+                />
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -343,54 +381,15 @@ export default function NewWidget() {
             </CardHeader>
             {queryResult.data ? (
               <CardContent>
-                <ChartContainer
-                  config={{
-                    metric: {
-                      theme: {
-                        light: "hsl(var(--chart-1))",
-                        dark: "hsl(var(--chart-1))",
-                      },
-                    },
-                  }}
-                >
-                  <BarChart
-                    accessibilityLayer
-                    data={transformedData}
-                    layout={"vertical"}
-                  >
-                    <XAxis
-                      type="number"
-                      stroke="#888888"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="dimension"
-                      stroke="#888888"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Bar
-                      dataKey="metric"
-                      radius={[0, 4, 4, 0]}
-                      className="fill-[--color-metric]"
-                    />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value) =>
-                            Intl.NumberFormat("en-US")
-                              .format(value as number)
-                              .toString()
-                          }
-                        />
-                      }
-                    />
-                  </BarChart>
-                </ChartContainer>
+                {isTimeSeriesChart ? (
+                  <VerticalBarChartTimeSeries
+                    data={transformedData.slice(0, rowLimit)}
+                  />
+                ) : (
+                  <HorizontalBarChart
+                    data={transformedData.slice(0, rowLimit)}
+                  />
+                )}
               </CardContent>
             ) : (
               <CardContent>

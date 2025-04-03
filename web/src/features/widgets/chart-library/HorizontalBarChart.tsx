@@ -8,12 +8,12 @@ import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
 /**
- * VerticalBarChart component
+ * HorizontalBarChart component
  * @param data - Data to be displayed. Expects an array of objects with dimension and metric properties.
  * @param config - Configuration object for the chart. Can include theme settings for light and dark modes.
  * @param accessibilityLayer - Boolean to enable or disable the accessibility layer. Default is true.
  */
-export const VerticalBarChart: React.FC<ChartProps> = ({
+export const HorizontalBarChart: React.FC<ChartProps> = ({
   data,
   config = {
     metric: {
@@ -30,8 +30,16 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
       <BarChart
         accessibilityLayer={accessibilityLayer}
         data={data}
+        layout="vertical"
       >
         <XAxis
+          type="number"
+          stroke="#888888"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+        />
+        <YAxis
           type="category"
           dataKey="dimension"
           stroke="#888888"
@@ -39,16 +47,9 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
         />
-        <YAxis
-          type="number"
-          stroke="#888888"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-        />
         <Bar
           dataKey="metric"
-          radius={[4, 4, 0, 0]}
+          radius={[0, 4, 4, 0]}
           className="fill-[--color-metric]"
         />
         <ChartTooltip
@@ -67,4 +68,4 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   );
 };
 
-export default VerticalBarChart;
+export default HorizontalBarChart;
