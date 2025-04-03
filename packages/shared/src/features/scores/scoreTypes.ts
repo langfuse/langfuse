@@ -174,7 +174,7 @@ export const filterAndValidateDbScoreList = <
   IncludeHasMetadata extends boolean,
 >({
   scores,
-  includeHasMetadata,
+  includeHasMetadata = false as IncludeHasMetadata,
   onParseError,
 }: {
   scores: InputScore[];
@@ -185,10 +185,11 @@ export const filterAndValidateDbScoreList = <
   return scores.reduce((acc, ts) => {
     const result = APIScoreSchema.safeParse(ts);
     if (result.success) {
-      acc.push({
-        ...result.data,
-        hasMetadata: includeHasMetadata ? (ts.hasMetadata ?? false) : undefined,
-      } as ValidatedAPIScore<IncludeHasMetadata>);
+      const score = { ...result.data };
+      if (includeHasMetadata) {
+        Object.assign(score, { hasMetadata: ts.hasMetadata ?? false });
+      }
+      acc.push(score as ValidatedAPIScore<IncludeHasMetadata>);
     } else {
       console.error("Score parsing error: ", result.error);
       onParseError?.(result.error);

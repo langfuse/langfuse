@@ -55,8 +55,7 @@ export const aggregateScores = <T extends ScoreToAggregate>(
         average,
         comment: values.length === 1 ? scores[0].comment : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
-        hasMetadata:
-          values.length === 1 ? (scores[0].hasMetadata ?? false) : undefined,
+        hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
       };
     } else {
       const values = scores.map((score) => score.stringValue ?? "n/a");
@@ -77,8 +76,7 @@ export const aggregateScores = <T extends ScoreToAggregate>(
         })),
         comment: values.length === 1 ? scores[0].comment : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
-        hasMetadata:
-          values.length === 1 ? (scores[0].hasMetadata ?? false) : undefined,
+        hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
       };
     }
     return acc;

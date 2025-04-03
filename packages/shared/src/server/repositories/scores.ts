@@ -238,15 +238,18 @@ export const getScoresForTraces = async <
     },
   });
 
-  return rows.map((row) => ({
-    ...convertToScore({
+  return rows.map((row) => {
+    const score = convertToScore({
       ...row,
       metadata: excludeMetadata ? {} : row.metadata,
-    }),
-    hasMetadata: (includeHasMetadata
-      ? !!row.has_metadata
-      : undefined) as IncludeHasMetadata extends true ? boolean : never,
-  }));
+    });
+
+    if (includeHasMetadata) {
+      Object.assign(score, { hasMetadata: !!row.has_metadata });
+    }
+
+    return score;
+  });
 };
 
 export type GetScoresForObservationsProps<

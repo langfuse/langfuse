@@ -23,7 +23,6 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
     return acc;
   }, {});
 
-
   return (
     <>
       {Object.entries(groupedScores)
