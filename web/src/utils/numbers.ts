@@ -1,10 +1,13 @@
 import Decimal from "decimal.js";
 
-export const compactNumberFormatter = (number?: number | bigint) => {
+export const compactNumberFormatter = (
+  number?: number | bigint,
+  maxFractionDigits?: number,
+) => {
   return Intl.NumberFormat("en-US", {
     notation: "compact",
     compactDisplay: "short",
-    maximumFractionDigits: 2,
+    maximumFractionDigits: maxFractionDigits ?? 2,
   }).format(number ?? 0);
 };
 

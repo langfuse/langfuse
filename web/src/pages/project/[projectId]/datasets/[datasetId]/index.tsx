@@ -14,9 +14,10 @@ import { DuplicateDatasetButton } from "@/src/features/datasets/components/Dupli
 import { useState } from "react";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import {
+  ChartLine,
+  Cog,
   ExternalLink,
   FlaskConical,
-  FolderKanban,
   MoreVertical,
 } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -39,13 +40,13 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import Page from "@/src/components/layouts/page";
 import {
   TabsBarList,
   TabsBarTrigger,
   TabsBar,
 } from "@/src/components/ui/tabs-bar";
+import { Separator } from "@/src/components/ui/separator";
 
 export default function Dataset() {
   const router = useRouter();
@@ -176,14 +177,6 @@ export default function Dataset() {
               </DialogContent>
             </Dialog>
 
-            <DatasetAnalytics
-              key="dataset-analytics"
-              projectId={projectId}
-              scoreOptions={scoreOptions}
-              selectedMetrics={selectedMetrics}
-              setSelectedMetrics={setSelectedMetrics}
-            />
-
             {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
               <MultiSelectKeyValues
                 variant="outline"
@@ -212,30 +205,35 @@ export default function Dataset() {
                 }
               />
             )}
-            <Popover key="show-dataset-details">
+
+            <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline">
-                  <FolderKanban className="mr-2 h-4 w-4" />
-                  <span className="hidden md:block">Dataset details</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="focus-visible:ring-0 focus-visible:ring-offset-0"
+                >
+                  <div className="relative" title="Chart settings">
+                    <ChartLine className="h-4 w-4" />
+                    <Cog className="absolute -bottom-1.5 -right-1 h-3.5 w-3.5 rounded-full bg-background p-0.5" />
+                  </div>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="mb-1 font-medium">Description</h4>
-                    <span className="text-sm text-muted-foreground">
-                      {dataset.data?.description ?? "No description"}
-                    </span>
-                  </div>
-                  <div>
-                    <h4 className="mb-1 font-medium">Metadata</h4>
-                    <MarkdownJsonView
-                      content={dataset.data?.metadata ?? null}
-                    />
-                  </div>
+              <PopoverContent align="end" className="w-[250px] p-0">
+                <div className="px-3 py-2 font-medium">Chart settings</div>
+                <Separator />
+                <div onClick={(e) => e.stopPropagation()} className="p-1">
+                  <DatasetAnalytics
+                    key="dataset-analytics"
+                    projectId={projectId}
+                    scoreOptions={scoreOptions}
+                    selectedMetrics={selectedMetrics}
+                    setSelectedMetrics={setSelectedMetrics}
+                  />
                 </div>
               </PopoverContent>
             </Popover>
+
             <DetailPageNav
               currentId={datasetId}
               path={(entry) => `/project/${projectId}/datasets/${entry.id}`}

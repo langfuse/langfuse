@@ -26,11 +26,13 @@ const SidePanel = ({
   children,
   className,
   mobileTitle,
+  scrollable = true,
 }: {
   id: string;
   children: ReactNode;
   className?: string;
   mobileTitle?: string;
+  scrollable?: boolean;
 }) => {
   const [showPanel, setShowPanel] = useSessionStorage<boolean>(
     `${id}-showPanel`,
@@ -84,6 +86,7 @@ const SidePanel = ({
             className={cn(
               "flex h-full w-full flex-col gap-2",
               showPanel ? "p-2" : "p-1 pr-2 pt-2",
+              scrollable ? "overflow-y-auto" : "overflow-hidden",
             )}
           >
             {children}

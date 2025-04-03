@@ -35,7 +35,7 @@ export const constructDatasetRunAggregateColumns = ({
       id,
       accessorKey: id,
       header: name,
-      size: 150,
+      size: 250,
       ...(description && {
         headerTooltip: {
           description,
