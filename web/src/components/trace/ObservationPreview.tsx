@@ -33,6 +33,7 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { useRouter } from "next/router";
 
 export const ObservationPreview = ({
   observations,
@@ -66,6 +67,9 @@ export const ObservationPreview = ({
   const hasEntitlement = useHasEntitlement("annotation-queues");
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
+  const router = useRouter();
+  const { peek } = router.query;
+  const showScoresTab = isAuthenticatedAndProjectMember && peek === undefined;
 
   const currentObservation = observations.find(
     (o) => o.id === currentObservationId,
@@ -122,7 +126,7 @@ export const ObservationPreview = ({
             <div className="mt-1.5">
               <ItemBadge type={preloadedObservation.type} isSmall />
             </div>
-            <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
+            <span className="mb-0 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
               {preloadedObservation.name}
             </span>
           </div>
@@ -339,7 +343,7 @@ export const ObservationPreview = ({
           {viewType === "detailed" && (
             <TabsBarList>
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-              {isAuthenticatedAndProjectMember && (
+              {showScoresTab && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
               {selectedTab.includes("preview") && isPrettyViewAvailable && (
@@ -404,7 +408,7 @@ export const ObservationPreview = ({
               </div>
             </div>
           </TabsBarContent>
-          {isAuthenticatedAndProjectMember && (
+          {showScoresTab && (
             <TabsBarContent
               value="scores"
               className="mb-2 mr-4 mt-0 flex h-full min-h-0 flex-1 overflow-hidden"

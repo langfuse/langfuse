@@ -1,7 +1,16 @@
+import DiffViewer from "@/src/components/DiffViewer";
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
-import TableLink from "@/src/components/table/table-link";
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import {
+  Dialog,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { DialogTrigger } from "@/src/components/ui/dialog";
+import { DialogContent } from "@/src/components/ui/dialog";
 import {
   type DatasetRunMetric,
   type RunMetrics,
@@ -9,8 +18,15 @@ import {
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { ClockIcon, ListTree } from "lucide-react";
-import { type ReactNode } from "react";
+import { type Prisma } from "@langfuse/shared";
+import {
+  ChartNoAxesCombined,
+  ClockIcon,
+  FileDiffIcon,
+  GaugeCircle,
+  ListCheck,
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
 
 const DatasetAggregateCell = ({
   scores,
@@ -20,19 +36,18 @@ const DatasetAggregateCell = ({
   observationId,
   scoreKeyToDisplayName,
   selectedMetrics,
-  singleLine = true,
-  className,
-  variant = "table",
   actionButtons,
+  output,
+  isHighlighted = false,
 }: RunMetrics & {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics: DatasetRunMetric[];
-  singleLine?: boolean;
-  className?: string;
-  variant?: "table" | "peek";
   actionButtons?: ReactNode;
+  output?: Prisma.JsonValue;
+  isHighlighted?: boolean;
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
     { traceId, projectId },
@@ -72,83 +87,148 @@ const DatasetAggregateCell = ({
   );
 
   const data = observationId === undefined ? trace.data : observation.data;
+  const scoresEntries = Object.entries(scores);
 
   return (
     <div
       className={cn(
-        "group flex h-full w-full flex-col gap-1.5 overflow-hidden overflow-y-auto rounded-sm border p-1",
-        className,
+        "group relative flex h-full w-full flex-col overflow-y-auto overflow-x-hidden rounded-md",
+        isHighlighted ? "border-4" : "border",
       )}
     >
-      {variant === "peek" && actionButtons}
-      <div className="flex flex-row items-center justify-center gap-1">
-        <IOTableCell
-          isLoading={
-            (!!!observationId ? trace.isLoading : observation.isLoading) ||
-            !data
-          }
-          data={data?.output ?? "null"}
-          className={"bg-accent-light-green"}
-          singleLine={singleLine}
-        />
-      </div>
-
+      {actionButtons}
       {selectedMetrics.includes("scores") && (
-        <div className="flex w-full flex-wrap gap-1">
-          {Object.entries(scores).map(([key, score]) => (
-            <Badge
-              variant="outline"
-              className="flex-wrap p-0.5 px-1 font-normal"
-              key={key}
-            >
-              <span className="whitespace-nowrap capitalize">
-                {scoreKeyToDisplayName.get(key)}:
-              </span>
-              <span className="ml-[2px]">
-                <ScoresTableCell aggregate={score} />
-              </span>
-            </Badge>
-          ))}
+        <div className="flex flex-shrink-0">
+          <div className="w-fit min-w-0 border-r px-1">
+            <ChartNoAxesCombined className="mt-2 h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="mt-1 w-full min-w-0 p-1">
+            <div className="flex w-full flex-wrap gap-1 overflow-hidden">
+              {scoresEntries.length > 0 ? (
+                scoresEntries.map(([key, score]) => (
+                  <Badge
+                    variant="tertiary"
+                    className="flex-wrap p-0.5 px-1 font-normal"
+                    key={key}
+                  >
+                    <span className="whitespace-nowrap capitalize">
+                      {scoreKeyToDisplayName.get(key)}:
+                    </span>
+                    <span className="ml-[2px]">
+                      <ScoresTableCell
+                        aggregate={score}
+                        showSingleValue
+                        wrap={false}
+                      />
+                    </span>
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground">No scores</span>
+              )}
+            </div>
+          </div>
         </div>
       )}
-
-      {selectedMetrics.includes("resourceMetrics") &&
-        (resourceMetrics.latency || resourceMetrics.totalCost) && (
-          <div className="flex w-full flex-row flex-wrap gap-1">
-            {!!resourceMetrics.latency && (
-              <Badge variant="outline" className="p-0.5 px-1 font-normal">
-                <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
-                <span className="capitalize">
-                  {formatIntervalSeconds(resourceMetrics.latency)}
-                </span>
-              </Badge>
-            )}
-            {resourceMetrics.totalCost && (
-              <Badge variant="outline" className="p-0.5 px-1 font-normal">
-                <span className="mr-0.5">{resourceMetrics.totalCost}</span>
-              </Badge>
-            )}
+      {selectedMetrics.includes("resourceMetrics") && (
+        <div className="flex flex-shrink-0">
+          <div className="w-fit min-w-0 border-r px-1">
+            <GaugeCircle className="mt-1 h-4 w-4 text-muted-foreground" />
           </div>
-        )}
-
-      <div className="flex-grow" />
-
-      {variant === "table" &&
-        (observationId ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
-            value={`Trace: ${traceId}, Observation: ${observationId}`}
-            icon={<ListTree className="h-4 w-4" />}
-            className="hidden w-fit self-end group-hover:block"
+          <div className="w-full min-w-0 p-1">
+            <div className="flex w-full flex-row flex-wrap gap-1">
+              {!!resourceMetrics.latency && (
+                <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
+                  <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
+                  <span className="capitalize">
+                    {formatIntervalSeconds(resourceMetrics.latency)}
+                  </span>
+                </Badge>
+              )}
+              {resourceMetrics.totalCost && (
+                <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
+                  <span className="mr-0.5">{resourceMetrics.totalCost}</span>
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="flex min-h-0 flex-grow">
+        <div className="w-fit min-w-0 border-r px-1">
+          <ListCheck className="mt-1 h-4 w-4 text-muted-foreground" />
+        </div>
+        <div className="relative w-full min-w-0 overflow-auto p-1">
+          <IOTableCell
+            isLoading={
+              (!!!observationId ? trace.isLoading : observation.isLoading) ||
+              !data
+            }
+            data={data?.output ?? "null"}
+            className={"bg-accent-light-green"}
+            singleLine={false}
           />
-        ) : (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}`}
-            value={`Trace: ${traceId}`}
-            icon={<ListTree className="h-4 w-4" />}
-            className="hidden w-fit self-end group-hover:block"
-          />
-        ))}
+          {output && data?.output && (
+            <Dialog
+              open={isOpen}
+              onOpenChange={(open) => {
+                setIsOpen(open);
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  title="Compare expected output with actual output"
+                  className="absolute right-2 top-2 rounded bg-background p-1 opacity-0 transition-opacity hover:bg-secondary group-hover:opacity-100"
+                  aria-label="Action button"
+                >
+                  <FileDiffIcon className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+
+              <DialogContent
+                className="max-w-screen-xl"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <DialogHeader>
+                  <DialogTitle>Expected Output → Actual Output</DialogTitle>
+                </DialogHeader>
+
+                <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div>
+                        <DiffViewer
+                          oldString={JSON.stringify(output, null, 2)}
+                          newString={JSON.stringify(
+                            data?.output ?? "null",
+                            null,
+                            2,
+                          )}
+                          oldLabel="Expected Output"
+                          newLabel="Actual Output"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter className="flex flex-row">
+                  <Button
+                    onClick={() => {
+                      setIsOpen(false);
+                    }}
+                    className="w-full"
+                  >
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
@@ -158,19 +238,17 @@ export const DatasetAggregateTableCell = ({
   projectId,
   scoreKeyToDisplayName,
   selectedMetrics,
-  singleLine = true,
-  className,
-  variant = "table",
   actionButtons,
+  output,
+  isHighlighted = false,
 }: {
   value: RunMetrics;
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics: DatasetRunMetric[];
-  singleLine?: boolean;
-  className?: string;
-  variant?: "table" | "peek";
   actionButtons?: ReactNode;
+  output?: Prisma.JsonValue;
+  isHighlighted?: boolean;
 }) => {
   return value ? (
     <DatasetAggregateCell
@@ -178,10 +256,9 @@ export const DatasetAggregateTableCell = ({
       {...value}
       scoreKeyToDisplayName={scoreKeyToDisplayName}
       selectedMetrics={selectedMetrics}
-      singleLine={singleLine}
-      className={className}
-      variant={variant}
       actionButtons={actionButtons}
+      output={output}
+      isHighlighted={isHighlighted}
     />
   ) : null;
 };

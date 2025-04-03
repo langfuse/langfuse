@@ -15,7 +15,7 @@ export const Variables = () => {
     </div>
   );
   const renderVariables = () => (
-    <div className="h-full overflow-auto pr-4">
+    <div className="h-full overflow-auto">
       {promptVariables
         .sort((a, b) => {
           if (a.isUsed && !b.isUsed) return -1;

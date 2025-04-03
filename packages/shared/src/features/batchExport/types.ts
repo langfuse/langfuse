@@ -15,6 +15,7 @@ export enum BatchExportStatus {
 export enum BatchExportFileFormat {
   JSON = "JSON",
   CSV = "CSV",
+  JSONL = "JSONL",
 }
 
 export enum BatchExportTableName {
@@ -35,6 +36,11 @@ export const exportOptions: Record<
 > = {
   CSV: { label: "CSV", extension: "csv", fileType: "text/csv" },
   JSON: { label: "JSON", extension: "json", fileType: "application/json" },
+  JSONL: {
+    label: "JSONL",
+    extension: "jsonl",
+    fileType: "application/x-ndjson",
+  },
 } as const;
 
 export const BatchExportQuerySchema = z.object({

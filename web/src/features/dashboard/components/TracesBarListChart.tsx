@@ -7,30 +7,44 @@ import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { BarList } from "@tremor/react";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import {
+  type QueryType,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
 
 export const TracesBarListChart = ({
   className,
   projectId,
   globalFilterState,
+  fromTimestamp,
+  toTimestamp,
   isLoading = false,
 }: {
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
+  fromTimestamp: Date;
+  toTimestamp: Date;
   isLoading?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const timeFilter = globalFilterState.map((f) =>
-    f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-  );
 
-  const totalTraces = api.dashboard.chart.useQuery(
+  // Total traces query using executeQuery
+  const totalTracesQuery: QueryType = {
+    view: "traces",
+    dimensions: [],
+    metrics: [{ measure: "count", aggregation: "count" }],
+    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
+    timeDimension: null,
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const totalTraces = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: "traces",
-      select: [{ column: "traceId", agg: "COUNT" }],
-      filter: timeFilter,
-      queryName: "traces-total",
+      query: totalTracesQuery,
     },
     {
       trpc: {
@@ -42,15 +56,22 @@ export const TracesBarListChart = ({
     },
   );
 
-  const traces = api.dashboard.chart.useQuery(
+  // Traces grouped by name query using executeQuery
+  const tracesQuery: QueryType = {
+    view: "traces",
+    dimensions: [{ field: "name" }],
+    metrics: [{ measure: "count", aggregation: "count" }],
+    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
+    timeDimension: null,
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const traces = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: "traces",
-      select: [{ column: "traceId", agg: "COUNT" }, { column: "traceName" }],
-      filter: timeFilter,
-      groupBy: [{ column: "traceName", type: "string" }],
-      orderBy: [{ column: "traceId", direction: "DESC", agg: "COUNT" }],
-      queryName: "traces-grouped-by-name",
+      query: tracesQuery,
     },
     {
       trpc: {
@@ -62,14 +83,14 @@ export const TracesBarListChart = ({
     },
   );
 
-  const transformedTraces = traces.data
-    ? traces.data.map((item) => {
-        return {
-          name: item.traceName ? (item.traceName as string) : "Unknown",
-          value: item.countTraceId as number,
-        };
-      })
-    : [];
+  // Transform the data to match the expected format for the BarList
+  const transformedTraces =
+    traces.data?.map((item: any) => {
+      return {
+        name: item.name ? (item.name as string) : "Unknown",
+        value: Number(item.count_count),
+      };
+    }) ?? [];
 
   const maxNumberOfEntries = { collapsed: 5, expanded: 20 };
 
@@ -87,7 +108,9 @@ export const TracesBarListChart = ({
       <>
         <TotalMetric
           metric={compactNumberFormatter(
-            totalTraces.data?.[0]?.countTraceId as number,
+            totalTraces.data?.[0]?.count_count
+              ? Number(totalTraces.data[0].count_count)
+              : 0,
           )}
           description={"Total traces tracked"}
         />

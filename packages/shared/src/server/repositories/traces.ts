@@ -82,11 +82,12 @@ export const checkTraceExists = async (
     SELECT 
       t.id as id, 
       t.project_id as project_id
-    FROM traces t FINAL 
+    FROM traces t FINAL
     ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
     WHERE ${tracesFilterRes.query}
     AND t.project_id = {projectId: String}
     AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+    AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY
     GROUP BY t.id, t.project_id
   `;
 
@@ -810,6 +811,52 @@ export const getUserMetrics = async (
   }));
 };
 
+export const getTracesForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT
+      id,
+      timestamp,
+      name,
+      environment,
+      project_id,
+      metadata,
+      user_id,
+      session_id,
+      release,
+      version,
+      public,
+      bookmarked,
+      tags,
+      input,
+      output
+    FROM traces FINAL
+    WHERE project_id = {projectId: String}
+    AND timestamp >= {minTimestamp: DateTime64(3)}
+    AND timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "blobstorage",
+      type: "trace",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return records;
+};
+
 export const getTracesForPostHog = async function* (
   projectId: string,
   minTimestamp: Date,
@@ -860,6 +907,13 @@ export const getTracesForPostHog = async function* (
       type: "trace",
       kind: "analytic",
       projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 300_000, // 5 minutes
+      clickhouse_settings: {
+        join_algorithm: "grace_hash",
+        grace_hash_join_initial_buckets: "32",
+      },
     },
   });
 

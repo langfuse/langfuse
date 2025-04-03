@@ -2,15 +2,10 @@ import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { api } from "@/src/utils/api";
-import { FlaskConical, FolderKanban } from "lucide-react";
+import { ChartLine, Cog, FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/src/components/ui/popover";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import {
   Dialog,
@@ -20,7 +15,6 @@ import {
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
-import { Card, CardContent } from "@/src/components/ui/card";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
 import {
@@ -34,6 +28,19 @@ import {
 } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
+import { SubHeader, SubHeaderLabel } from "@/src/components/layouts/header";
+import {
+  SidePanel,
+  SidePanelContent,
+  SidePanelHeader,
+  SidePanelTitle,
+} from "@/src/components/ui/side-panel";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { Separator } from "@/src/components/ui/separator";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -206,46 +213,14 @@ export default function DatasetCompare() {
                 />
               </DialogContent>
             </Dialog>
-            <Popover key="show-dataset-details">
-              <PopoverTrigger asChild>
-                <Button variant="outline">
-                  <FolderKanban className="mr-2 h-4 w-4" />
-                  <span className="hidden md:block">Dataset details</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="mb-1 font-medium">Description</h4>
-                    <span className="text-sm text-muted-foreground">
-                      {dataset.data?.description ?? "No description"}
-                    </span>
-                  </div>
-                  <div>
-                    <h4 className="mb-1 font-medium">Metadata</h4>
-                    <MarkdownJsonView
-                      content={dataset.data?.metadata ?? null}
-                    />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-            {runIds && runIds.length > 1 ? (
-              <DatasetAnalytics
-                key="dataset-analytics"
-                projectId={projectId}
-                scoreOptions={scoreAnalyticsOptions}
-                selectedMetrics={selectedMetrics}
-                setSelectedMetrics={setSelectedMetrics}
-              />
-            ) : null}
             <MultiSelectKeyValues
               key="select-runs"
-              title="Select runs"
+              title="Runs"
               placeholder="Select runs to compare"
               className="w-fit"
               variant="outline"
               hideClearButton
+              iconLeft={<List className="mr-2 h-4 w-4" />}
               options={runs.map((run) => ({
                 key: run.key,
                 value: run.value,
@@ -275,60 +250,140 @@ export default function DatasetCompare() {
         ),
       }}
     >
-      {Boolean(selectedMetrics.length) &&
-        Boolean(runAggregatedMetrics?.size) && (
-          <Card className="my-4 max-h-64">
-            <CardContent className="mt-2 h-full">
-              <div className="flex h-full w-full gap-4 overflow-x-auto">
-                {selectedMetrics.map((key) => {
-                  const adapter = new CompareViewAdapter(
-                    runAggregatedMetrics,
-                    key,
-                  );
-                  const { chartData, chartLabels } = adapter.toChartData();
-
-                  const scoreData = scoreKeyToData.get(key);
-                  if (!scoreData)
-                    return (
-                      <TimeseriesChart
-                        key={key}
-                        chartData={chartData}
-                        chartLabels={chartLabels}
-                        title={
-                          RESOURCE_METRICS.find((metric) => metric.key === key)
-                            ?.label ?? key
-                        }
-                        type="numeric"
-                      />
-                    );
-
-                  return (
-                    <TimeseriesChart
-                      key={key}
-                      chartData={chartData}
-                      chartLabels={chartLabels}
-                      title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
-                      type={
-                        isNumericDataType(scoreData.dataType)
-                          ? "numeric"
-                          : "categorical"
-                      }
-                    />
-                  );
-                })}
+      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+        <div className="flex h-full flex-col overflow-hidden">
+          <DatasetCompareRunsTable
+            key={runIds?.join(",") ?? "empty"}
+            projectId={projectId}
+            datasetId={datasetId}
+            runsData={runsData.data}
+            runIds={runIds ?? []}
+            localExperiments={localRuns}
+          />
+        </div>
+        <SidePanel
+          mobileTitle="Compare Experiments"
+          id="compare-experiments"
+          scrollable={false}
+        >
+          <SidePanelHeader>
+            <SidePanelTitle>Compare Experiments</SidePanelTitle>
+          </SidePanelHeader>
+          <SidePanelContent className="overflow-y-auto p-1">
+            <div className="w-full space-y-4">
+              <div>
+                <SubHeaderLabel title="Description" />
+                <span className="text-sm text-muted-foreground">
+                  {dataset.data?.description ?? "No description"}
+                </span>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              {dataset.data?.metadata && (
+                <div>
+                  <SubHeaderLabel title="Metadata" />
+                  <MarkdownJsonView content={dataset.data?.metadata} />
+                </div>
+              )}
+            </div>
 
-      <DatasetCompareRunsTable
-        key={runIds?.join(",") ?? "empty"}
-        projectId={projectId}
-        datasetId={datasetId}
-        runsData={runsData.data}
-        runIds={runIds ?? []}
-        localExperiments={localRuns}
-      />
+            <>
+              <div className="flex w-full flex-row items-center justify-between gap-2">
+                <SubHeader title="Charts" />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="focus-visible:ring-0 focus-visible:ring-offset-0"
+                    >
+                      <div className="relative" title="Chart settings">
+                        <ChartLine className="h-4 w-4" />
+                        <Cog className="absolute -bottom-1.5 -right-1 h-3.5 w-3.5 rounded-full bg-background p-0.5" />
+                      </div>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[250px] p-0">
+                    <div className="px-3 py-2 font-medium">Chart settings</div>
+                    <Separator />
+                    <div onClick={(e) => e.stopPropagation()} className="p-1">
+                      <DatasetAnalytics
+                        key="dataset-analytics"
+                        projectId={projectId}
+                        scoreOptions={scoreAnalyticsOptions}
+                        selectedMetrics={selectedMetrics}
+                        setSelectedMetrics={setSelectedMetrics}
+                      />
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {Boolean(selectedMetrics.length) &&
+              Boolean(runAggregatedMetrics?.size) ? (
+                <div className="grid w-full grid-cols-1 gap-4">
+                  {selectedMetrics.map((key) => {
+                    const adapter = new CompareViewAdapter(
+                      runAggregatedMetrics,
+                      key,
+                    );
+                    const { chartData, chartLabels } = adapter.toChartData();
+
+                    const scoreData = scoreKeyToData.get(key);
+                    if (!scoreData)
+                      return (
+                        <div
+                          key={key}
+                          className="max-h-52 min-h-0 min-w-0 max-w-full"
+                        >
+                          <TimeseriesChart
+                            key={key}
+                            chartData={chartData}
+                            chartLabels={chartLabels}
+                            title={
+                              RESOURCE_METRICS.find(
+                                (metric) => metric.key === key,
+                              )?.label ?? key
+                            }
+                            type="numeric"
+                            maxFractionDigits={
+                              RESOURCE_METRICS.find(
+                                (metric) => metric.key === key,
+                              )?.maxFractionDigits
+                            }
+                          />
+                        </div>
+                      );
+
+                    return (
+                      <div
+                        key={key}
+                        className="max-h-52 min-h-0 min-w-0 max-w-full"
+                      >
+                        <TimeseriesChart
+                          key={key}
+                          chartData={chartData}
+                          chartLabels={chartLabels}
+                          title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
+                          type={
+                            isNumericDataType(scoreData.dataType)
+                              ? "numeric"
+                              : "categorical"
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="-mt-2 text-sm text-muted-foreground">
+                  {Boolean(runAggregatedMetrics?.size)
+                    ? "All charts hidden. Enable them in settings."
+                    : "Select more than one run to generate charts."}
+                </span>
+              )}
+            </>
+          </SidePanelContent>
+        </SidePanel>
+      </div>
     </Page>
   );
 }

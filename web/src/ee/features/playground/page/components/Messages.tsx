@@ -12,7 +12,7 @@ import {
 
 export const Messages: React.FC<MessagesContext> = (props) => {
   return (
-    <div className="flex h-full flex-col space-y-4 pr-4">
+    <div className="flex h-full flex-col space-y-4 pr-4 pt-2">
       <ResizablePanelGroup direction="vertical">
         <ResizablePanel minSize={10}>
           <ChatMessages {...props} />
@@ -42,7 +42,7 @@ const SubmitButton = () => {
       }}
       loading={isStreaming}
     >
-      <p>Submit ({"\u2318"} + Enter)</p>
+      <p>Submit (Ctrl + Enter)</p>
     </Button>
   );
 };

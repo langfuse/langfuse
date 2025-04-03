@@ -9,6 +9,7 @@ const entitlements = [
   "cloud-billing",
   "cloud-multi-tenant-sso",
   "integration-posthog",
+  "integration-blobstorage",
   "annotation-queues",
   "self-host-ui-customization",
   "self-host-allowed-organization-creators",
@@ -16,6 +17,7 @@ const entitlements = [
   "trace-deletion", // Not in use anymore, but necessary to use the TableAction type.
   "audit-logs",
   "data-retention",
+  "prompt-protected-labels",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -91,6 +93,8 @@ export const entitlementAccess: Record<
       "audit-logs",
       "data-retention",
       "cloud-multi-tenant-sso",
+      "integration-blobstorage",
+      "prompt-protected-labels",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -107,6 +111,8 @@ export const entitlementAccess: Record<
       "audit-logs",
       "data-retention",
       "cloud-multi-tenant-sso",
+      "integration-blobstorage",
+      "prompt-protected-labels",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -134,6 +140,7 @@ export const entitlementAccess: Record<
       "playground",
       "prompt-experiments",
       "integration-posthog",
+      "integration-blobstorage",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -154,8 +161,10 @@ export const entitlementAccess: Record<
       "self-host-allowed-organization-creators",
       "self-host-ui-customization",
       "integration-posthog",
+      "integration-blobstorage",
       "audit-logs",
       "data-retention",
+      "prompt-protected-labels",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

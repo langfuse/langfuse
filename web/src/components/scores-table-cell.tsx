@@ -25,13 +25,18 @@ const COLLAPSE_CATEGORICAL_SCORES_AFTER = 2;
 
 const ScoreValueCounts = ({
   valueCounts,
+  wrap,
 }: {
   valueCounts: CategoricalAggregate["valueCounts"];
+  wrap: boolean;
 }) => {
-  return valueCounts.map(({ value, count }) => (
+  return valueCounts.map(({ value, count }, index) => (
     <div key={value} className="flex flex-row">
       <span className="truncate">{value}</span>
       <span>{`: ${numberFormatter(count, 0)}`}</span>
+      {!wrap && index < valueCounts.length - 1 && (
+        <span className="mr-1">{";"}</span>
+      )}
     </div>
   ));
 };
@@ -39,10 +44,12 @@ const ScoreValueCounts = ({
 export const ScoresTableCell = ({
   aggregate,
   showSingleValue = false,
+  wrap = true,
   hasMetadata,
 }: {
   aggregate: CategoricalAggregate | NumericAggregate;
   showSingleValue?: boolean;
+  wrap?: boolean;
   hasMetadata?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
@@ -95,16 +102,17 @@ export const ScoresTableCell = ({
                   0,
                   COLLAPSE_CATEGORICAL_SCORES_AFTER,
                 )}
+                wrap={wrap}
               />
             </div>
           </HoverCardTrigger>
           <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto whitespace-normal break-normal">
-            <ScoreValueCounts valueCounts={aggregate.valueCounts} />
+            <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap={wrap} />
           </HoverCardContent>
         </HoverCard>
       ) : (
-        <div className="flex flex-col">
-          <ScoreValueCounts valueCounts={aggregate.valueCounts} />
+        <div className={cn("flex", wrap ? "flex-col" : "flex-row")}>
+          <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap={wrap} />
         </div>
       )}
     </div>

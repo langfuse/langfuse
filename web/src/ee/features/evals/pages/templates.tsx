@@ -18,7 +18,7 @@ export default function TemplatesPage() {
   const capture = usePostHogClientCapture();
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:create",
+    scope: "evalTemplate:CUD",
   });
 
   const hasReadAccess = useHasProjectAccess({

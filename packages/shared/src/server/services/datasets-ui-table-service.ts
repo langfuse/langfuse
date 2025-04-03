@@ -9,7 +9,7 @@ type FetchDatasetItemsTableProps = {
   filter: FilterState;
 };
 
-const getDatasetItemsTableGeneric = async <T>(
+const getDatasetRunItemsTableGeneric = async <T>(
   props: FetchDatasetItemsTableProps,
 ) => {
   const { select, projectId, filter } = props;
@@ -34,10 +34,10 @@ const getDatasetItemsTableGeneric = async <T>(
   const query = Prisma.sql`
     SELECT 
       ${sqlSelect}
-    FROM dataset_items di
-    WHERE 
-      di.project_id = ${projectId}
-      ${datasetItemsFilter}
+      FROM dataset_run_items as dri
+        JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${projectId}
+        WHERE dri.project_id = ${projectId}
+        ${datasetItemsFilter}
   `;
 
   const res = await prisma.$queryRaw<T>(query);
@@ -45,11 +45,11 @@ const getDatasetItemsTableGeneric = async <T>(
   return res;
 };
 
-export const getDatasetItemsTableCount = async (props: {
+export const getDatasetRunItemsTableCount = async (props: {
   projectId: string;
   filter: FilterState;
 }) => {
-  const res = await getDatasetItemsTableGeneric<Array<{ count: bigint }>>({
+  const res = await getDatasetRunItemsTableGeneric<Array<{ count: bigint }>>({
     select: "count",
     projectId: props.projectId,
     filter: props.filter,
