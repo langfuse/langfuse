@@ -26,14 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { Label } from "@/src/components/ui/label";
 import { viewDeclarations } from "@/src/features/query/dataModel";
 import { type z } from "zod";
 import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
 import { startCase } from "lodash";
-import { FilterState } from "@langfuse/shared";
 
 export default function NewWidget() {
   const session = useSession();
@@ -41,10 +39,6 @@ export default function NewWidget() {
 
   const router = useRouter();
   const { projectId } = router.query as { projectId: string };
-
-  // Define timestamps for the query
-  const toTimestamp = new Date("2025-04-04");
-  const fromTimestamp = new Date("2025-03-01");
 
   // State for form fields
   const [widgetName, setWidgetName] = useState<string>("Traces");
@@ -57,7 +51,7 @@ export default function NewWidget() {
   const [selectedAggregation, setSelectedAggregation] =
     useState<z.infer<typeof metricAggregations>>("count");
   const [selectedDimension, setSelectedDimension] = useState<string>("none");
-  const [selectedFilters, setSelectedFilters] = useState<FilterState>([]);
+  // const [selectedFilters, setSelectedFilters] = useState<FilterState>([]);
 
   // Chart type options
   type ChartType = {
@@ -92,7 +86,7 @@ export default function NewWidget() {
       setSelectedMetric("count");
       setSelectedMetric("count");
       setSelectedDimension("none");
-      setSelectedFilters([]);
+      // setSelectedFilters([]);
     }
   }, [selectedView]);
 
@@ -125,18 +119,11 @@ export default function NewWidget() {
       metrics: [{ measure: selectedMetric, aggregation: selectedAggregation }],
       filters: [],
       timeDimension: null,
-      fromTimestamp: fromTimestamp.toISOString(),
-      toTimestamp: toTimestamp.toISOString(),
+      fromTimestamp: new Date("2025-03-01").toISOString(),
+      toTimestamp: new Date("2025-04-04").toISOString(),
       orderBy: null,
     }),
-    [
-      selectedView,
-      selectedDimension,
-      selectedAggregation,
-      selectedMetric,
-      fromTimestamp,
-      toTimestamp,
-    ],
+    [selectedView, selectedDimension, selectedAggregation, selectedMetric],
   );
 
   const queryResult = api.dashboard.executeQuery.useQuery(
@@ -163,9 +150,6 @@ export default function NewWidget() {
         // Get the metric field (first metric in the query with its aggregation)
         const metricField = `${selectedAggregation}_${selectedMetric}`;
 
-        console.log(`Dimension Field ${dimensionField}`);
-        console.log(`Metric Field ${metricField}`);
-        console.log(`Item ${JSON.stringify(item)}`);
         return {
           dimension: item[dimensionField]
             ? (item[dimensionField] as string)
@@ -173,7 +157,7 @@ export default function NewWidget() {
           metric: Number(item[metricField] || 0),
         };
       }) ?? [],
-    [queryResult.data],
+    [queryResult.data, selectedAggregation, selectedDimension, selectedMetric],
   );
 
   if (!isAdmin) {
@@ -279,7 +263,7 @@ export default function NewWidget() {
                   </SelectTrigger>
                   <SelectContent>
                     {metricAggregations.options.map((aggregation) => (
-                      <SelectItem value={aggregation}>
+                      <SelectItem key={aggregation} value={aggregation}>
                         {startCase(aggregation)}
                       </SelectItem>
                     ))}
@@ -328,7 +312,7 @@ export default function NewWidget() {
                       {chartTypes
                         .filter((item) => item.group === "time-series")
                         .map((chart) => (
-                          <SelectItem value={chart.value}>
+                          <SelectItem key={chart.value} value={chart.value}>
                             {chart.name}
                           </SelectItem>
                         ))}
@@ -338,7 +322,7 @@ export default function NewWidget() {
                       {chartTypes
                         .filter((item) => item.group === "total-value")
                         .map((chart) => (
-                          <SelectItem value={chart.value}>
+                          <SelectItem key={chart.value} value={chart.value}>
                             {chart.name}
                           </SelectItem>
                         ))}
