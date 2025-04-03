@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 /**
  * useLocalStorage is a hook for managing data with the localStorage API.
@@ -47,25 +47,28 @@ function useLocalStorage<T>(
 
   // Helper object to safely interact with localStorage
   // Handles all error cases and provides consistent interface
-  const safeLocalStorage = {
-    set: (value: T) => {
-      try {
-        const stringified = JSON.stringify(value);
-        localStorage.setItem(localStorageKey, stringified);
-        return stringified;
-      } catch (error) {
-        console.error("Error writing to local storage", error);
-        return null;
-      }
-    },
-    remove: () => {
-      try {
-        localStorage.removeItem(localStorageKey);
-      } catch (error) {
-        console.error("Error clearing local storage", error);
-      }
-    },
-  };
+  const safeLocalStorage = useMemo(
+    () => ({
+      set: (value: T) => {
+        try {
+          const stringified = JSON.stringify(value);
+          localStorage.setItem(localStorageKey, stringified);
+          return stringified;
+        } catch (error) {
+          console.error("Error writing to local storage", error);
+          return null;
+        }
+      },
+      remove: () => {
+        try {
+          localStorage.removeItem(localStorageKey);
+        } catch (error) {
+          console.error("Error clearing local storage", error);
+        }
+      },
+    }),
+    [localStorageKey],
+  );
 
   // Function to clear both localStorage and state
   const clearValue = () => {
@@ -130,27 +133,29 @@ function useLocalStorage<T>(
   }, [localStorageKey, initialValue]);
 
   // Enhanced setValue function that also notifies other tabs
-  const setValueAndNotify: React.Dispatch<React.SetStateAction<T>> = (
-    newValue,
-  ) => {
-    setValue((prev) => {
-      // Handle both direct values and updater functions
-      const resolvedValue =
-        newValue instanceof Function ? newValue(prev) : newValue;
-      const stringified = safeLocalStorage.set(resolvedValue);
+  const setValueAndNotify: React.Dispatch<React.SetStateAction<T>> =
+    useCallback(
+      (newValue) => {
+        setValue((prev) => {
+          // Handle both direct values and updater functions
+          const resolvedValue =
+            newValue instanceof Function ? newValue(prev) : newValue;
+          const stringified = safeLocalStorage.set(resolvedValue);
 
-      // Dispatch custom event to notify other instances in the same tab
-      if (stringified) {
-        window.dispatchEvent(
-          new CustomEvent("localStorageChange", {
-            detail: { key: localStorageKey, newValue: stringified },
-          }),
-        );
-      }
+          // Dispatch custom event to notify other instances in the same tab
+          if (stringified) {
+            window.dispatchEvent(
+              new CustomEvent("localStorageChange", {
+                detail: { key: localStorageKey, newValue: stringified },
+              }),
+            );
+          }
 
-      return resolvedValue;
-    });
-  };
+          return resolvedValue;
+        });
+      },
+      [localStorageKey, safeLocalStorage],
+    );
 
   return [value, setValueAndNotify, clearValue] as const;
 }
