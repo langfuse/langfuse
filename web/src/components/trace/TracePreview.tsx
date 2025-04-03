@@ -110,7 +110,7 @@ export const TracePreview = ({
             <div className="mt-1.5">
               <ItemBadge type="TRACE" isSmall />
             </div>
-            <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
+            <span className="mb-0 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
               {trace.name}
             </span>
           </div>
