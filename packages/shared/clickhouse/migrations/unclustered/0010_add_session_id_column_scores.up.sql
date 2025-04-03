@@ -1,0 +1,1 @@
+ALTER TABLE scores ADD COLUMN session_id Nullable(String) AFTER project_id;

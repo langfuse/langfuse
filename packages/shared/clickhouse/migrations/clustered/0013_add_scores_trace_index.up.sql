@@ -1,0 +1,1 @@
+ALTER TABLE scores ON CLUSTER default ADD INDEX IF NOT EXISTS idx_project_trace_observation (project_id, trace_id, observation_id) TYPE bloom_filter(0.001) GRANULARITY 1;

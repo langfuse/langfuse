@@ -1,1 +1,0 @@
-ALTER TABLE scores ON CLUSTER default MODIFY COLUMN trace_id String NOT NULL;
