@@ -40,7 +40,7 @@ export const searchExistingAnnotationScore = async (
     throw new Error("Either name or configId (or both) must be provided.");
   }
   const query = `
-    SELECT * EXCEPT (metadata)
+    SELECT *
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.source = 'ANNOTATION'
@@ -56,7 +56,7 @@ export const searchExistingAnnotationScore = async (
     LIMIT 1
   `;
 
-  const rows = await queryClickhouse<Omit<ScoreRecordReadType, "metadata">>({
+  const rows = await queryClickhouse<ScoreRecordReadType>({
     query,
     params: {
       projectId,
@@ -72,14 +72,7 @@ export const searchExistingAnnotationScore = async (
       projectId,
     },
   });
-  return rows
-    .map((row) =>
-      convertToScore({
-        ...row,
-        metadata: {},
-      }),
-    )
-    .shift();
+  return rows.map((row) => convertToScore(row)).shift();
 };
 
 export const getScoreById = async (
