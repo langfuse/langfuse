@@ -31,6 +31,7 @@ import { Label } from "@/src/components/ui/label";
 import { viewDeclarations } from "@/src/features/query/dataModel";
 import { type z } from "zod";
 import { type views } from "@/src/features/query/types";
+import { Input } from "@/src/components/ui/input";
 
 export default function NewWidget() {
   const session = useSession();
@@ -44,6 +45,8 @@ export default function NewWidget() {
   const fromTimestamp = new Date("2025-03-01");
 
   // State for form fields
+  const [widgetName, setWidgetName] = useState<string>("Traces");
+  const [widgetDescription, setWidgetDescription] = useState<string>("Traces grouped by name for the last 30 days.");
   const [selectedView, setSelectedView] = useState<z.infer<typeof views> | "">(
     "traces",
   );
@@ -171,6 +174,28 @@ export default function NewWidget() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Widget Name */}
+              <div className="space-y-2">
+                <Label htmlFor="widget-name">Name</Label>
+                <Input
+                  id="widget-name"
+                  value={widgetName}
+                  onChange={(e) => setWidgetName(e.target.value)}
+                  placeholder="Enter widget name"
+                />
+              </div>
+
+              {/* Widget Description */}
+              <div className="space-y-2">
+                <Label htmlFor="widget-description">Description</Label>
+                <Input
+                  id="widget-description"
+                  value={widgetDescription}
+                  onChange={(e) => setWidgetDescription(e.target.value)}
+                  placeholder="Enter widget description"
+                />
+              </div>
+
               {/* View Selection */}
               <div className="space-y-2">
                 <Label htmlFor="view-select">View</Label>
@@ -297,9 +322,9 @@ export default function NewWidget() {
         <div className="w-2/3">
           <Card>
             <CardHeader>
-              <CardTitle>Traces</CardTitle>
+              <CardTitle>{widgetName}</CardTitle>
               <CardDescription>
-                Traces grouped by name for the last 30 days.
+                {widgetDescription}
               </CardDescription>
             </CardHeader>
             {traces.data ? (
