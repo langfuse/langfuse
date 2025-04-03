@@ -217,7 +217,7 @@ export const getScoresForTraces = async <
       metadata: ExcludeMetadata extends true
         ? never
         : ScoreRecordReadType["metadata"];
-      has_metadata: IncludeHasMetadata extends true ? boolean : never;
+      has_metadata: IncludeHasMetadata extends true ? number : never;
     }
   >({
     query: query,
@@ -305,7 +305,7 @@ export const getScoresForObservations = async <
       metadata: ExcludeMetadata extends true
         ? never
         : ScoreRecordReadType["metadata"];
-      has_metadata: IncludeHasMetadata extends true ? boolean : never;
+      has_metadata: IncludeHasMetadata extends true ? number : never;
     }
   >({
     query: query,
@@ -492,7 +492,7 @@ export async function getScoresUiTable<
     queue_id: string | null;
     created_at: string;
     updated_at: string;
-    has_metadata: IncludeHasMetadata extends true ? boolean : never;
+    has_metadata: IncludeHasMetadata extends true ? number : never;
   }>({
     select: "rows",
     tags: { kind: "analytic" },
@@ -530,7 +530,7 @@ export async function getScoresUiTable<
         ? never
         : NonNullable<ReturnType<typeof parseMetadataCHRecordToDomain>>,
       hasMetadata: (includeHasMetadataFlag
-        ? (!!row.has_metadata as unknown as boolean)
+        ? !!row.has_metadata
         : undefined) as IncludeHasMetadata extends true ? boolean : never,
     };
   });

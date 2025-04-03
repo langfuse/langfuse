@@ -216,6 +216,9 @@ describe("Fetch datasets for UI presentation", () => {
         type: "NUMERIC",
         values: expect.arrayContaining([1, 100.5]),
         average: 50.75,
+        id: undefined,
+        comment: undefined,
+        hasMetadata: undefined,
       },
       [`${anotherScoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
         id: score3.id,
@@ -223,6 +226,7 @@ describe("Fetch datasets for UI presentation", () => {
         values: expect.arrayContaining([1]),
         average: 1,
         comment: "some other comment for non run related score",
+        hasMetadata: true,
       },
     };
 
@@ -355,6 +359,8 @@ describe("Fetch datasets for UI presentation", () => {
         values: expect.arrayContaining([100.5]),
         average: 100.5,
         comment: "comment",
+        // createScore adds metadata to the score
+        hasMetadata: true,
       },
     };
 
@@ -513,6 +519,8 @@ describe("Fetch datasets for UI presentation", () => {
         values: expect.arrayContaining([100.5]),
         average: 100.5,
         comment: "comment",
+        // createScore adds metadata to the score
+        hasMetadata: true,
       },
     };
 

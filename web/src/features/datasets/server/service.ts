@@ -270,7 +270,7 @@ const getScoresFromTempTable = async (
   `;
 
   const rows = await queryClickhouse<
-    ScoreRecordReadType & { run_id: string; has_metadata: boolean }
+    ScoreRecordReadType & { run_id: string; has_metadata: number }
   >({
     query: query,
     params: {
@@ -284,7 +284,7 @@ const getScoresFromTempTable = async (
   return rows.map((row) => ({
     ...convertToScore({ ...row, metadata: {} }),
     run_id: row.run_id,
-    hasMetadata: row.has_metadata,
+    hasMetadata: !!row.has_metadata,
   }));
 };
 
