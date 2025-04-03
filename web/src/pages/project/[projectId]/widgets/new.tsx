@@ -381,8 +381,10 @@ export default function NewWidget() {
                     <ChartTooltip
                       content={
                         <ChartTooltipContent
-                          formatter={(value: number) =>
-                            Intl.NumberFormat("en-US").format(value).toString()
+                          formatter={(value) =>
+                            Intl.NumberFormat("en-US")
+                              .format(value as number)
+                              .toString()
                           }
                         />
                       }
