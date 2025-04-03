@@ -235,152 +235,165 @@ export default function NewWidget() {
                 />
               </div>
 
-              {/* View Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="view-select">View</Label>
-                <Select
-                  value={selectedView}
-                  onValueChange={(value) =>
-                    setSelectedView(value as z.infer<typeof views>)
-                  }
-                >
-                  <SelectTrigger id="view-select">
-                    <SelectValue placeholder="Select a view" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {views.options.map((view) => (
-                      <SelectItem key={view} value={view}>
-                        {startCase(view)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Data Selection Section */}
+              <div className="mt-6 space-y-4">
+                <h3 className="text-lg font-bold">Data Selection</h3>
 
-              {/* Metrics Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="metrics-select">Metric</Label>
-                <Select
-                  disabled={!selectedView}
-                  value={selectedMetric}
-                  onValueChange={(value) => setSelectedMetric(value)}
-                >
-                  <SelectTrigger id="metrics-select">
-                    <SelectValue placeholder="Select metrics" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableMetrics.map((metric) => (
-                      <SelectItem key={metric.value} value={metric.value}>
-                        {metric.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedMetric !== "count" && (
+                {/* View Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="view-select">View</Label>
                   <Select
-                    disabled={!selectedView}
-                    value={selectedAggregation}
+                    value={selectedView}
                     onValueChange={(value) =>
-                      setSelectedAggregation(
-                        value as z.infer<typeof metricAggregations>,
-                      )
+                      setSelectedView(value as z.infer<typeof views>)
                     }
                   >
-                    <SelectTrigger id="metrics-select">
-                      <SelectValue placeholder="Select Aggregation" />
+                    <SelectTrigger id="view-select">
+                      <SelectValue placeholder="Select a view" />
                     </SelectTrigger>
                     <SelectContent>
-                      {metricAggregations.options.map((aggregation) => (
-                        <SelectItem key={aggregation} value={aggregation}>
-                          {startCase(aggregation)}
+                      {views.options.map((view) => (
+                        <SelectItem key={view} value={view}>
+                          {startCase(view)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Metrics Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="metrics-select">Metric</Label>
+                  <Select
+                    disabled={!selectedView}
+                    value={selectedMetric}
+                    onValueChange={(value) => setSelectedMetric(value)}
+                  >
+                    <SelectTrigger id="metrics-select">
+                      <SelectValue placeholder="Select metrics" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableMetrics.map((metric) => (
+                        <SelectItem key={metric.value} value={metric.value}>
+                          {metric.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedMetric !== "count" && (
+                    <Select
+                      disabled={!selectedView}
+                      value={selectedAggregation}
+                      onValueChange={(value) =>
+                        setSelectedAggregation(
+                          value as z.infer<typeof metricAggregations>,
+                        )
+                      }
+                    >
+                      <SelectTrigger id="metrics-select">
+                        <SelectValue placeholder="Select Aggregation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {metricAggregations.options.map((aggregation) => (
+                          <SelectItem key={aggregation} value={aggregation}>
+                            {startCase(aggregation)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {/* Dimension Selection (Breakdown) */}
+                <div className="space-y-2">
+                  <Label htmlFor="dimension-select">
+                    Breakdown Dimension (Optional)
+                  </Label>
+                  <Select
+                    value={selectedDimension}
+                    onValueChange={setSelectedDimension}
+                    disabled={!selectedView}
+                  >
+                    <SelectTrigger id="dimension-select">
+                      <SelectValue placeholder="Select a dimension" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {availableDimensions.map((dimension) => (
+                        <SelectItem
+                          key={dimension.value}
+                          value={dimension.value}
+                        >
+                          {dimension.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Visualization Section */}
+              <div className="mt-6 space-y-4">
+                <h3 className="text-lg font-bold">Visualization</h3>
+
+                {/* Chart Type Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="chart-type-select">Chart Type</Label>
+                  <Select
+                    value={selectedChartType}
+                    onValueChange={setSelectedChartType}
+                    disabled={!selectedView}
+                  >
+                    <SelectTrigger id="chart-type-select">
+                      <SelectValue placeholder="Select a chart type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Time Series</SelectLabel>
+                        {chartTypes
+                          .filter((item) => item.group === "time-series")
+                          .map((chart) => (
+                            <SelectItem key={chart.value} value={chart.value}>
+                              {chart.name}
+                            </SelectItem>
+                          ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel>Total Value</SelectLabel>
+                        {chartTypes
+                          .filter((item) => item.group === "total-value")
+                          .map((chart) => (
+                            <SelectItem key={chart.value} value={chart.value}>
+                              {chart.name}
+                            </SelectItem>
+                          ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Row Limit Selection - Only shown for non-time series charts */}
+                {!isTimeSeriesChart && (
+                  <div className="space-y-2">
+                    <Label htmlFor="row-limit">Row Limit (1-1000)</Label>
+                    <Input
+                      id="row-limit"
+                      type="number"
+                      min={1}
+                      max={1000}
+                      value={rowLimit}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 1 && value <= 1000) {
+                          setRowLimit(value);
+                        }
+                      }}
+                      disabled={!selectedView}
+                      placeholder="Enter row limit (1-1000)"
+                    />
+                  </div>
                 )}
               </div>
-
-              {/* Dimension Selection (Breakdown) */}
-              <div className="space-y-2">
-                <Label htmlFor="dimension-select">
-                  Breakdown Dimension (Optional)
-                </Label>
-                <Select
-                  value={selectedDimension}
-                  onValueChange={setSelectedDimension}
-                  disabled={!selectedView}
-                >
-                  <SelectTrigger id="dimension-select">
-                    <SelectValue placeholder="Select a dimension" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {availableDimensions.map((dimension) => (
-                      <SelectItem key={dimension.value} value={dimension.value}>
-                        {dimension.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Chart Type Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="chart-type-select">Chart Type</Label>
-                <Select
-                  value={selectedChartType}
-                  onValueChange={setSelectedChartType}
-                  disabled={!selectedView}
-                >
-                  <SelectTrigger id="chart-type-select">
-                    <SelectValue placeholder="Select a chart type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Time Series</SelectLabel>
-                      {chartTypes
-                        .filter((item) => item.group === "time-series")
-                        .map((chart) => (
-                          <SelectItem key={chart.value} value={chart.value}>
-                            {chart.name}
-                          </SelectItem>
-                        ))}
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Total Value</SelectLabel>
-                      {chartTypes
-                        .filter((item) => item.group === "total-value")
-                        .map((chart) => (
-                          <SelectItem key={chart.value} value={chart.value}>
-                            {chart.name}
-                          </SelectItem>
-                        ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Row Limit Selection - Only shown for non-time series charts */}
-              {!isTimeSeriesChart && (
-                <div className="space-y-2">
-                  <Label htmlFor="row-limit">Row Limit (1-1000)</Label>
-                  <Input
-                    id="row-limit"
-                    type="number"
-                    min={1}
-                    max={1000}
-                    value={rowLimit}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      if (!isNaN(value) && value >= 1 && value <= 1000) {
-                        setRowLimit(value);
-                      }
-                    }}
-                    disabled={!selectedView}
-                    placeholder="Enter row limit (1-1000)"
-                  />
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -397,16 +410,10 @@ export default function NewWidget() {
                 {(() => {
                   switch (selectedChartType) {
                     case "line-time-series":
-                      return (
-                        <LineChartTimeSeries
-                          data={transformedData}
-                        />
-                      );
+                      return <LineChartTimeSeries data={transformedData} />;
                     case "bar-time-series":
                       return (
-                        <VerticalBarChartTimeSeries
-                          data={transformedData}
-                        />
+                        <VerticalBarChartTimeSeries data={transformedData} />
                       );
                     case "bar-horizontal":
                       return (
@@ -422,9 +429,7 @@ export default function NewWidget() {
                       );
                     case "pie":
                       return (
-                        <PieChart
-                          data={transformedData.slice(0, rowLimit)}
-                        />
+                        <PieChart data={transformedData.slice(0, rowLimit)} />
                       );
                     default:
                       return (
