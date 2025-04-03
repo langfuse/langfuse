@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowUpRight } from "lucide-react";
 import * as z from "zod";
 
 import { Button } from "@/src/components/ui/button";
@@ -24,20 +25,14 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
+import { LLMSchemaNameSchema } from "@/src/features/llm-schemas/validation";
 import { api } from "@/src/utils/api";
 
 import { JSONSchemaFormSchema, type LlmSchema } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { ArrowUpRight } from "lucide-react";
 
 const formSchema = z.object({
-  name: z
-    .string()
-    .regex(
-      /^[a-z0-9_-]+$/,
-      "Name must contain only lowercase letters, numbers, hyphens and underscores",
-    )
-    .min(1, "Name is required"),
+  name: LLMSchemaNameSchema,
   description: z.string().min(1, "Description is required"),
   schema: JSONSchemaFormSchema,
 });
