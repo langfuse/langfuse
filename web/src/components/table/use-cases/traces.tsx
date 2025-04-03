@@ -74,13 +74,14 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { Trace } from "@/src/components/trace";
-import router from "next/router";
 import TableId from "@/src/components/table/table-id";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
+import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
+import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -133,16 +134,11 @@ export default function TracesTable({
   omittedFilter = [],
 }: TracesTableProps) {
   const utils = api.useUtils();
-  const [peekViewId] = useQueryParam("peek", withDefault(StringParam, null));
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
-  );
-  const [selectedTab, setSelectedTab] = useQueryParam(
-    "display",
-    withDefault(StringParam, "details"),
   );
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange(projectId);
@@ -916,6 +912,13 @@ export default function TracesTable({
     columns,
   );
 
+  const urlPathname = userId
+    ? `/project/${projectId}/users/${userId}`
+    : `/project/${projectId}/traces`;
+
+  const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
+  const { setPeekView } = useTracePeekState(urlPathname);
+
   const rows = useMemo(() => {
     return traces.isSuccess
       ? (traceRowData?.rows?.map((trace) => {
@@ -1047,97 +1050,15 @@ export default function TracesTable({
         pinFirstColumn
         peekView={{
           itemType: "TRACE",
-          urlPathname: userId
-            ? `/project/${projectId}/users/${userId}`
-            : `/project/${projectId}/traces`,
-          onOpenChange: (open: boolean, row?: TracesTableRow) => {
-            const url = new URL(window.location.href);
-            const params = new URLSearchParams(url.search);
-
-            if (!open || !row) {
-              // Remove peek and timestamp params while keeping others
-              params.delete("peek");
-              params.delete("timestamp");
-              params.delete("observation");
-              params.delete("display");
-            } else if (open && row.id && peekViewId !== row.id) {
-              // Update or add peek and timestamp params
-              params.set("peek", row.id);
-              params.set("timestamp", row.timestamp.toISOString());
-              params.delete("observation");
-            } else {
-              return;
-            }
-
-            router.replace(
-              {
-                pathname: userId
-                  ? `/project/${projectId}/users/${userId}`
-                  : `/project/${projectId}/traces`,
-                query: params.toString(),
-              },
-              undefined,
-              { shallow: true },
-            );
+          listKey: "traces",
+          urlPathname,
+          peekEventOptions: {
+            ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
           },
-          onExpand: (openInNewTab: boolean) => {
-            if (peekViewId) {
-              const url = new URL(window.location.href);
-              const params = new URLSearchParams(url.search);
-              const timestamp = params.get("timestamp");
-              const display = params.get("display") ?? "details";
-
-              if (openInNewTab) {
-                window.open(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}&display=${display}`,
-                  "_blank",
-                );
-              } else {
-                router.replace(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}&display=${display}`,
-                );
-              }
-            }
-          },
-          render: () => {
-            const { peek, timestamp } = router.query;
-
-            const trace = api.traces.byIdWithObservationsAndScores.useQuery(
-              {
-                traceId: peek as string,
-                timestamp:
-                  typeof timestamp === "string"
-                    ? new Date(timestamp)
-                    : undefined,
-                projectId,
-              },
-              {
-                enabled: !!peek && !!timestamp,
-                retry(failureCount, error) {
-                  if (
-                    error.data?.code === "UNAUTHORIZED" ||
-                    error.data?.code === "NOT_FOUND"
-                  )
-                    return false;
-                  return failureCount < 3;
-                },
-              },
-            );
-
-            return !trace.data ? (
-              <Skeleton className="h-full w-full" />
-            ) : (
-              <Trace
-                key={trace.data.id}
-                trace={trace.data}
-                scores={trace.data.scores}
-                projectId={trace.data.projectId}
-                observations={trace.data.observations}
-                selectedTab={selectedTab}
-                setSelectedTab={setSelectedTab}
-              />
-            );
-          },
+          onOpenChange: setPeekView,
+          onExpand: expandPeek,
+          getNavigationPath,
+          children: <PeekViewTraceDetail projectId={projectId} />,
         }}
       />
     </>

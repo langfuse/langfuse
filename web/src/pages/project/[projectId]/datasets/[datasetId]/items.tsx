@@ -13,14 +13,8 @@ import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
-import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { FolderKanban, MoreVertical } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,
@@ -71,30 +65,6 @@ export default function DatasetItems() {
               projectId={projectId}
               datasetId={datasetId}
             />
-            <Popover key="show-dataset-details">
-              <PopoverTrigger asChild>
-                <Button variant="outline">
-                  <FolderKanban className="mr-2 h-4 w-4" />
-                  <span className="hidden md:block">Dataset details</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="mb-1 font-medium">Description</h4>
-                    <span className="text-sm text-muted-foreground">
-                      {dataset.data?.description ?? "No description"}
-                    </span>
-                  </div>
-                  <div>
-                    <h4 className="mb-1 font-medium">Metadata</h4>
-                    <MarkdownJsonView
-                      content={dataset.data?.metadata ?? null}
-                    />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
             <DetailPageNav
               currentId={datasetId}
               path={(entry) =>
