@@ -15,7 +15,7 @@ import {
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { api } from "@/src/utils/api";
-import { type QueryType } from "@/src/features/query";
+import {metricAggregations, type QueryType} from "@/src/features/query";
 import { useState, useMemo, useEffect } from "react";
 import {
   Select,
@@ -30,8 +30,9 @@ import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { Label } from "@/src/components/ui/label";
 import { viewDeclarations } from "@/src/features/query/dataModel";
 import { type z } from "zod";
-import { type views } from "@/src/features/query/types";
+import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
+import { startCase, kebabCase } from "lodash";
 
 export default function NewWidget() {
   const session = useSession();
@@ -46,7 +47,9 @@ export default function NewWidget() {
 
   // State for form fields
   const [widgetName, setWidgetName] = useState<string>("Traces");
-  const [widgetDescription, setWidgetDescription] = useState<string>("Traces grouped by name for the last 30 days.");
+  const [widgetDescription, setWidgetDescription] = useState<string>(
+    "Traces grouped by name for the last 30 days.",
+  );
   const [selectedView, setSelectedView] = useState<z.infer<typeof views> | "">(
     "traces",
   );
@@ -116,21 +119,33 @@ export default function NewWidget() {
     );
   }, [selectedView]);
 
-  const tracesQuery: QueryType = {
-    view: "traces",
-    dimensions: [{ field: "name" }],
-    metrics: [{ measure: "count", aggregation: "count" }],
-    filters: [],
-    timeDimension: null,
-    fromTimestamp: fromTimestamp.toISOString(),
-    toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
-  };
+  // Create a dynamic query based on the selected view
+  const query = useMemo<QueryType>(
+    () => ({
+      view: selectedView || "traces",
+      dimensions: [{ field: selectedDimension || "name" }],
+      metrics: [
+        { measure: selectedMetrics[0] || "count", aggregation: "count" },
+      ],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: fromTimestamp.toISOString(),
+      toTimestamp: toTimestamp.toISOString(),
+      orderBy: null,
+    }),
+    [
+      selectedView,
+      selectedDimension,
+      selectedMetrics,
+      fromTimestamp,
+      toTimestamp,
+    ],
+  );
 
-  const traces = api.dashboard.executeQuery.useQuery(
+  const queryResult = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      query: tracesQuery,
+      query,
     },
     {
       trpc: {
@@ -138,15 +153,28 @@ export default function NewWidget() {
           skipBatch: true,
         },
       },
-      enabled: isAdmin, // Only run query if isAdmin is true and projectId exists
+      enabled: isAdmin && !!selectedView, // Only run query if isAdmin is true and a view is selected
     },
   );
 
-  const transformedTraces =
-    traces.data?.map((item: any) => ({
-      name: item.name ? (item.name as string) : "Unknown",
-      total: Number(item.count_count),
-    })) ?? [];
+  // Transform the query results to a consistent format for charts
+  const transformedData = useMemo(
+    () =>
+      queryResult.data?.map((item: any) => {
+        // Get the dimension field (first dimension in the query)
+        const dimensionField = query.dimensions[0]?.field || "name";
+        // Get the metric field (first metric in the query with its aggregation)
+        const metricField = `${query.metrics[0]?.measure || "count"}_${query.metrics[0]?.aggregation || "count"}`;
+
+        return {
+          dimension: item[dimensionField]
+            ? (item[dimensionField] as string)
+            : "Unknown",
+          metric: Number(item[metricField] || 0),
+        };
+      }) ?? [],
+    [queryResult.data, query],
+  );
 
   if (!isAdmin) {
     return null; // Blank page for non-admins
@@ -209,14 +237,11 @@ export default function NewWidget() {
                     <SelectValue placeholder="Select a view" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="traces">Traces</SelectItem>
-                    <SelectItem value="observations">Observations</SelectItem>
-                    <SelectItem value="scores-numeric">
-                      Scores (Numeric)
-                    </SelectItem>
-                    <SelectItem value="scores-categorical">
-                      Scores (Categorical)
-                    </SelectItem>
+                    {views.options.map((view) => (
+                      <SelectItem key={view} value={view}>
+                        {startCase(view)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -241,6 +266,9 @@ export default function NewWidget() {
                     <SelectValue placeholder="Select Aggregation" />
                   </SelectTrigger>
                   <SelectContent>
+                    {metricAggregations.options.map((aggregation) => (
+                        <SelectItem value={}
+                    )))}
                     <SelectItem value="count">Count</SelectItem>
                     <SelectItem value="sum">Sum</SelectItem>
                     <SelectItem value="avg">Average</SelectItem>
@@ -323,15 +351,13 @@ export default function NewWidget() {
           <Card>
             <CardHeader>
               <CardTitle>{widgetName}</CardTitle>
-              <CardDescription>
-                {widgetDescription}
-              </CardDescription>
+              <CardDescription>{widgetDescription}</CardDescription>
             </CardHeader>
-            {traces.data ? (
+            {queryResult.data ? (
               <CardContent>
                 <ChartContainer
                   config={{
-                    total: {
+                    metric: {
                       theme: {
                         light: "hsl(var(--chart-1))",
                         dark: "hsl(var(--chart-1))",
@@ -341,7 +367,7 @@ export default function NewWidget() {
                 >
                   <BarChart
                     accessibilityLayer
-                    data={transformedTraces}
+                    data={transformedData}
                     layout={"vertical"}
                   >
                     <XAxis
@@ -353,16 +379,16 @@ export default function NewWidget() {
                     />
                     <YAxis
                       type="category"
-                      dataKey="name"
+                      dataKey="dimension"
                       stroke="#888888"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                     />
                     <Bar
-                      dataKey="total"
+                      dataKey="metric"
                       radius={[0, 4, 4, 0]}
-                      className="fill-[--color-total]"
+                      className="fill-[--color-metric]"
                     />
                     <ChartTooltip
                       content={
