@@ -130,19 +130,11 @@ export const traceRouter = createTRPCRouter({
         includeHasMetadata: true,
       });
 
-      const hasMetadataMap = new Map<string, boolean>();
-
-      for (const score of scores) {
-        hasMetadataMap.set(score.id, score.hasMetadata);
-      }
-
-      const validatedScores = filterAndValidateDbScoreList(
+      const validatedScores = filterAndValidateDbScoreList({
         scores,
-        traceException,
-      ).map((s) => ({
-        ...s,
-        hasMetadata: hasMetadataMap.get(s.id) ?? false,
-      }));
+        includeHasMetadata: true,
+        onParseError: traceException,
+      });
 
       return res.map((row) => ({
         ...row,
@@ -232,10 +224,10 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const validatedScores = filterAndValidateDbScoreList(
+      const validatedScores = filterAndValidateDbScoreList({
         scores,
-        traceException,
-      );
+        onParseError: traceException,
+      });
 
       const obsStartTimes = observations
         .map((o) => o.startTime)

@@ -31,19 +31,11 @@ export async function getAllGenerations({
     includeHasMetadata: true,
   });
 
-  const hasMetadataMap = new Map<string, boolean>();
-
-  for (const score of scores) {
-    hasMetadataMap.set(score.id, score.hasMetadata);
-  }
-
-  const validatedScores = filterAndValidateDbScoreList(
+  const validatedScores = filterAndValidateDbScoreList({
     scores,
-    traceException,
-  ).map((s) => ({
-    ...s,
-    hasMetadata: hasMetadataMap.get(s.id) ?? false,
-  }));
+    includeHasMetadata: true,
+    onParseError: traceException,
+  });
 
   const fullGenerations = generations.map((generation) => {
     const filteredScores = aggregateScores(

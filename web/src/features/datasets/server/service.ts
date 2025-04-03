@@ -524,10 +524,10 @@ export const getRunItemsByRunIdOrItemId = async (
       ),
     ]);
 
-  const validatedTraceScores = filterAndValidateDbScoreList(
-    traceScores,
-    traceException,
-  );
+  const validatedTraceScores = filterAndValidateDbScoreList({
+    scores: traceScores,
+    onParseError: traceException,
+  });
 
   return runItems.map((ri) => {
     const trace = traceAggregate
