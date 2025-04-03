@@ -16,6 +16,21 @@ import {
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { api } from "@/src/utils/api";
 import { type QueryType } from "@/src/features/query";
+import { useState, useMemo, useEffect } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { Label } from "@/src/components/ui/label";
+import { viewDeclarations } from "@/src/features/query/dataModel";
+import { type z } from "zod";
+import { type views } from "@/src/features/query/types";
 
 export default function NewWidget() {
   const session = useSession();
@@ -27,6 +42,76 @@ export default function NewWidget() {
   // Define timestamps for the query
   const toTimestamp = new Date("2025-04-04");
   const fromTimestamp = new Date("2025-03-01");
+
+  // State for form fields
+  const [selectedView, setSelectedView] = useState<z.infer<typeof views> | "">(
+    "traces",
+  );
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
+  const [selectedDimension, setSelectedDimension] = useState<string>("");
+  const [selectedFilters, setSelectedFilters] = useState<any[]>([]);
+
+  // Chart type options
+  type ChartType = {
+    group: "Time Series" | "Total Value";
+    name: string;
+    value: string;
+  };
+
+  const chartTypes: ChartType[] = [
+    { group: "Time Series", name: "Line Chart", value: "line-time-series" },
+    {
+      group: "Time Series",
+      name: "Vertical Bar Chart",
+      value: "bar-time-series",
+    },
+    { group: "Total Value", name: "Number", value: "number" },
+    {
+      group: "Total Value",
+      name: "Horizontal Bar Chart",
+      value: "bar-horizontal",
+    },
+    { group: "Total Value", name: "Vertical Bar Chart", value: "bar-vertical" },
+    { group: "Total Value", name: "Pie Chart", value: "pie" },
+  ];
+
+  const [selectedChartType, setSelectedChartType] =
+    useState<string>("line-time-series");
+
+  // Reset form fields when view changes
+  useEffect(() => {
+    if (selectedView) {
+      setSelectedMetrics([]);
+      setSelectedDimension("");
+      setSelectedFilters([]);
+    }
+  }, [selectedView]);
+
+  // Get available metrics for the selected view
+  const availableMetrics = useMemo(() => {
+    if (!selectedView) return [];
+
+    const viewDeclaration = viewDeclarations[selectedView];
+    return Object.entries(viewDeclaration.measures).map(([key, measure]) => ({
+      value: key,
+      label:
+        key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1"),
+    }));
+  }, [selectedView]);
+
+  // Get available dimensions for the selected view
+  const availableDimensions = useMemo(() => {
+    if (!selectedView) return [];
+
+    const viewDeclaration = viewDeclarations[selectedView];
+    return Object.entries(viewDeclaration.dimensions).map(
+      ([key, dimension]) => ({
+        value: key,
+        label:
+          key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1"),
+      }),
+    );
+  }, [selectedView]);
 
   const tracesQuery: QueryType = {
     view: "traces",
@@ -66,6 +151,7 @@ export default function NewWidget() {
 
   return (
     <Page
+      withPadding
       headerProps={{
         title: "New Widget",
         help: {
@@ -73,67 +159,207 @@ export default function NewWidget() {
         },
       }}
     >
-      <div className="flex h-full flex-col gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Traces</CardTitle>
-            <CardDescription>
-              Traces grouped by name for the last 30 days.
-            </CardDescription>
-          </CardHeader>
-          {traces.data ? (
-            <CardContent>
-              <ChartContainer
-                config={{
-                  total: {
-                    theme: {
-                      light: "hsl(var(--chart-1))",
-                      dark: "hsl(var(--chart-1))",
-                    },
-                  },
-                }}
-              >
-                <BarChart
-                  accessibilityLayer={true}
-                  data={transformedTraces}
-                  layout={"vertical"}
+      <div className="flex h-full gap-4">
+        {/* Left column - Form */}
+        <div className="w-1/3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Widget Configuration</CardTitle>
+              <CardDescription>
+                Configure your widget by selecting data and visualization
+                options
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* View Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="view-select">View</Label>
+                <Select
+                  value={selectedView}
+                  onValueChange={(value) =>
+                    setSelectedView(value as z.infer<typeof views>)
+                  }
                 >
-                  <XAxis
-                    type="number"
-                    stroke="#888888"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    stroke="#888888"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Bar
-                    dataKey="total"
-                    radius={[0, 4, 4, 0]}
-                    className="fill-[--color-total]"
-                  />
-                  <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        formatter={(value: number) =>
-                          Intl.NumberFormat("en-US").format(value).toString()
-                        }
-                      />
-                    }
-                  />
-                </BarChart>
-              </ChartContainer>
+                  <SelectTrigger id="view-select">
+                    <SelectValue placeholder="Select a view" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="traces">Traces</SelectItem>
+                    <SelectItem value="observations">Observations</SelectItem>
+                    <SelectItem value="scores-numeric">
+                      Scores (Numeric)
+                    </SelectItem>
+                    <SelectItem value="scores-categorical">
+                      Scores (Categorical)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Metrics Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="metrics-select">Metric</Label>
+                <Select disabled={!selectedView}>
+                  <SelectTrigger id="metrics-select">
+                    <SelectValue placeholder="Select metrics" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableMetrics.map((metric) => (
+                      <SelectItem key={metric.value} value={metric.value}>
+                        {metric.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select disabled={!selectedView}>
+                  <SelectTrigger id="metrics-select">
+                    <SelectValue placeholder="Select Aggregation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="count">Count</SelectItem>
+                    <SelectItem value="sum">Sum</SelectItem>
+                    <SelectItem value="avg">Average</SelectItem>
+                    <SelectItem value="max">Max</SelectItem>
+                    <SelectItem value="min">Min</SelectItem>
+                    <SelectItem value="p50">P50</SelectItem>
+                    <SelectItem value="p75">P75</SelectItem>
+                    <SelectItem value="p90">P90</SelectItem>
+                    <SelectItem value="p95">P95</SelectItem>
+                    <SelectItem value="p99">P99</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Dimension Selection (Breakdown) */}
+              <div className="space-y-2">
+                <Label htmlFor="dimension-select">
+                  Breakdown Dimension (Optional)
+                </Label>
+                <Select
+                  value={selectedDimension}
+                  onValueChange={setSelectedDimension}
+                  disabled={!selectedView}
+                >
+                  <SelectTrigger id="dimension-select">
+                    <SelectValue placeholder="Select a dimension" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {availableDimensions.map((dimension) => (
+                      <SelectItem key={dimension.value} value={dimension.value}>
+                        {dimension.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Chart Type Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="chart-type-select">Chart Type</Label>
+                <Select
+                  value={selectedChartType}
+                  onValueChange={setSelectedChartType}
+                  disabled={!selectedView}
+                >
+                  <SelectTrigger id="chart-type-select">
+                    <SelectValue placeholder="Select a chart type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Time Series</SelectLabel>
+                      <SelectItem value="line-time-series">
+                        Line Chart
+                      </SelectItem>
+                      <SelectItem value="bar-time-series">
+                        Vertical Bar Chart
+                      </SelectItem>
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Total Value</SelectLabel>
+                      <SelectItem value="number">Number</SelectItem>
+                      <SelectItem value="bar-horizontal">
+                        Horizontal Bar Chart
+                      </SelectItem>
+                      <SelectItem value="bar-vertical">
+                        Vertical Bar Chart
+                      </SelectItem>
+                      <SelectItem value="pie">Pie Chart</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
-          ) : (
-            <h2>Loading...</h2>
-          )}
-        </Card>
+          </Card>
+        </div>
+
+        {/* Right column - Chart */}
+        <div className="w-2/3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Traces</CardTitle>
+              <CardDescription>
+                Traces grouped by name for the last 30 days.
+              </CardDescription>
+            </CardHeader>
+            {traces.data ? (
+              <CardContent>
+                <ChartContainer
+                  config={{
+                    total: {
+                      theme: {
+                        light: "hsl(var(--chart-1))",
+                        dark: "hsl(var(--chart-1))",
+                      },
+                    },
+                  }}
+                >
+                  <BarChart
+                    accessibilityLayer
+                    data={transformedTraces}
+                    layout={"vertical"}
+                  >
+                    <XAxis
+                      type="number"
+                      stroke="#888888"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      stroke="#888888"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Bar
+                      dataKey="total"
+                      radius={[0, 4, 4, 0]}
+                      className="fill-[--color-total]"
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          formatter={(value: number) =>
+                            Intl.NumberFormat("en-US").format(value).toString()
+                          }
+                        />
+                      }
+                    />
+                  </BarChart>
+                </ChartContainer>
+              </CardContent>
+            ) : (
+              <CardContent>
+                <div className="flex h-[300px] items-center justify-center">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        </div>
       </div>
     </Page>
   );
