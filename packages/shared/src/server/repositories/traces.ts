@@ -82,11 +82,12 @@ export const checkTraceExists = async (
     SELECT 
       t.id as id, 
       t.project_id as project_id
-    FROM traces t FINAL 
+    FROM traces t FINAL
     ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
     WHERE ${tracesFilterRes.query}
     AND t.project_id = {projectId: String}
     AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+    AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY
     GROUP BY t.id, t.project_id
   `;
 
