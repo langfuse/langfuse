@@ -27,7 +27,7 @@ export type PeekDatasetCompareDetailProps = {
   runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics?: DatasetRunMetric[];
-  row: DatasetCompareRunRowData;
+  row?: DatasetCompareRunRowData;
 };
 
 export const PeekDatasetCompareDetail = ({
@@ -84,6 +84,8 @@ export const PeekDatasetCompareDetail = ({
       );
   };
 
+  if (!row) return <Skeleton className="min-h-full w-full" />;
+
   return (
     <div
       className={cn(
@@ -95,7 +97,7 @@ export const PeekDatasetCompareDetail = ({
         <div className="h-full overflow-y-auto border-r p-2">
           {trace.data ? (
             <Command>
-              <h3 className="font-lg mb-3 font-semibold">{`Run: ${
+              <h3 className="mb-3 font-semibold">{`Run: ${
                 runsData?.find((r: any) => r.id === runId)?.name
               }`}</h3>
               <ObservationTree
@@ -129,7 +131,7 @@ export const PeekDatasetCompareDetail = ({
           >
             <div className="grid h-full grid-cols-2 gap-4">
               <div className="min-h-0 overflow-hidden">
-                <h3 className="font-lg mb-1 font-semibold">Input</h3>
+                <h3 className="mb-1 font-semibold">Input</h3>
                 <div className="h-[calc(100%-1.75rem)] space-y-2 overflow-y-auto">
                   <IOPreview
                     key={datasetItemId + "-input"}
@@ -139,7 +141,7 @@ export const PeekDatasetCompareDetail = ({
                 </div>
               </div>
               <div className="min-h-0 overflow-hidden">
-                <h3 className="font-lg mb-1 font-semibold">Expected output</h3>
+                <h3 className="mb-1 font-semibold">Expected output</h3>
                 <div className="h-[calc(100%-1.75rem)] space-y-2 overflow-y-auto">
                   <IOPreview
                     key={datasetItemId + "-output"}
@@ -156,7 +158,7 @@ export const PeekDatasetCompareDetail = ({
             defaultSize={50}
             className="mt-2 min-h-0 overflow-hidden p-2 pl-3"
           >
-            <h3 className="font-lg mb-1 font-semibold">Run outputs</h3>
+            <h3 className="mb-1 font-semibold">Run outputs</h3>
             {row?.runs && (
               <div className="flex h-[calc(100%-2rem)] w-full gap-4 overflow-x-auto">
                 {Object.entries(row.runs).map(([id, run]) => {

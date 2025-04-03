@@ -115,7 +115,11 @@ const DatasetAggregateCell = ({
                       {scoreKeyToDisplayName.get(key)}:
                     </span>
                     <span className="ml-[2px]">
-                      <ScoresTableCell aggregate={score} />
+                      <ScoresTableCell
+                        aggregate={score}
+                        showSingleValue
+                        wrap={false}
+                      />
                     </span>
                   </Badge>
                 ))

@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useCallback } from "react";
 
-export const useTracePeekState = (projectId: string, pathname: string) => {
+export const useTracePeekState = (pathname: string) => {
   const router = useRouter();
   const { peek, timestamp } = router.query;
 

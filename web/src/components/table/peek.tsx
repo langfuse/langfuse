@@ -14,23 +14,51 @@ import { cn } from "@/src/utils/tailwind";
 
 type PeekViewItemType = Extract<LangfuseItemType, "TRACE" | "DATASET_ITEM">;
 
-export type DataTablePeekViewProps<TData> = {
-  itemType: PeekViewItemType;
-  selectedRowId?: string | null;
-  onOpenChange: (open: boolean, id?: string, timestamp?: string) => void;
-  onExpand?: (openInNewTab: boolean) => void;
-  getNavigationPath?: (entry: ListEntry) => string;
-  children: React.ReactNode | ((row: any) => React.ReactNode);
-  urlPathname: string;
-  listKey?: string;
-  peekEventOptions?: PeekEventControlOptions;
-  row?: TData;
-};
-
-// Ignore close events from checkbox or bookmark star toggle clicks to ensure integrity of table row actions
+/**
+ * Options to control peek event behavior.
+ * Ignore close events from certain clickable elements to ensure integrity of table row actions.
+ */
 export type PeekEventControlOptions = {
   ignoredSelectors?: string[];
   customCheck?: (event?: Event) => boolean;
+};
+
+/**
+ * Configuration for a data table peek view.
+ */
+export type DataTablePeekViewProps<TData> = {
+  // Core identification
+  /** The type of item being peeked at */
+  itemType: PeekViewItemType;
+  /** Key used for detail page navigation */
+  listKey?: string;
+
+  // Data
+  /** The currently selected row ID */
+  selectedRowId?: string | null;
+  /** The row data for the selected item */
+  row?: TData;
+
+  // Navigation and URL handling
+  /** The base pathname for constructing URLs */
+  urlPathname: string;
+  /** Function to get navigation path for a list entry */
+  getNavigationPath?: (entry: ListEntry) => string;
+
+  // Event handlers
+  /** Called when the peek view is opened or closed */
+  onOpenChange: (open: boolean, id?: string, timestamp?: string) => void;
+  /** Called when the peek view is expanded to full view */
+  onExpand?: (openInNewTab: boolean) => void;
+  /** Additional peek event options */
+  peekEventOptions?: PeekEventControlOptions;
+
+  // Content
+  /**
+   * The content to display in the peek view.
+   * Can be either a React node or a function that receives the row data and returns a React node.
+   */
+  children: React.ReactNode | ((row?: TData) => React.ReactNode);
 };
 
 export const createPeekEventHandler = (options?: PeekEventControlOptions) => {

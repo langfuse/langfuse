@@ -917,7 +917,7 @@ export default function TracesTable({
     : `/project/${projectId}/traces`;
 
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
-  const { setPeekView } = useTracePeekState(projectId, urlPathname);
+  const { setPeekView } = useTracePeekState(urlPathname);
 
   const rows = useMemo(() => {
     return traces.isSuccess

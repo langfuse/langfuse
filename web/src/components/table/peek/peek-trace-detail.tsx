@@ -4,7 +4,7 @@ import { Trace } from "@/src/components/trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
-  const { peekId, timestamp } = useTracePeekState(projectId, "traces");
+  const { peekId, timestamp } = useTracePeekState("traces");
   const trace = usePeekData({
     projectId,
     traceId: peekId,

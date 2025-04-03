@@ -29,7 +29,7 @@ type UsePeekViewProps<TData> = {
 /**
  * A hook that manages the peek view state for a data table.
  *
- * @param table - The React Table instance
+ * @param getRow - The React Table's getRow function
  * @param peekView - Optional configuration for the peek view
  * @param shouldUpdateRowOnDetailPageNavigation - Whether to update the row when the peekViewId changes on detail page navigation. If you do not require the row data to be updated, set this to false. Be mindful of this setting as it adds one extra re-render to the table when the detail page is navigated to.
  *
@@ -61,17 +61,15 @@ export const usePeekView = <TData extends object>({
   useEffect(() => {
     if (peekView && peekViewId && !row && !attemptRef.current) {
       attemptRef.current = true;
-
-      const attempts = [0, 500, 1000, 2000]; // Attempt delays in ms
-
-      attempts.forEach((delay) => {
-        setTimeout(() => {
-          if (!row) {
-            const foundRow = getInitialRow(peekViewId, getRow);
-            if (foundRow) setRow(foundRow);
-          }
-        }, delay);
-      });
+      let foundOnce = false;
+      let intervalId = setInterval(() => {
+        const foundRow = getInitialRow(peekViewId, getRow);
+        if (foundRow) {
+          setRow(foundRow);
+          if (foundOnce) clearInterval(intervalId);
+          foundOnce = true;
+        }
+      }, 500);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -90,7 +88,7 @@ export const usePeekView = <TData extends object>({
         inflatedPeekView.onOpenChange(false);
         setRow(undefined);
       }
-      // If clicking a different row, just update the URL without setting row data yet
+      // If clicking a different row update the row data and URL
       else {
         const timestamp =
           "timestamp" in row ? (row.timestamp as Date) : undefined;
