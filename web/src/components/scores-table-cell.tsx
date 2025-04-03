@@ -139,7 +139,7 @@ function AggregateScoreMetadataPeek({
     },
   );
 
-  const metadataLoaded = !!metadata && Object.keys(metadata).length > 0;
+  const metadataLoaded = metadata && Object.keys(metadata).length > 0;
 
   return (
     <HoverCard onOpenChange={setIsOpen}>

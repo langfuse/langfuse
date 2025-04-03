@@ -23,6 +23,8 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
     return acc;
   }, {});
 
+  const test = undefined;
+
   return (
     <>
       {Object.entries(groupedScores)
@@ -53,7 +55,7 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
                       </HoverCardContent>
                     </HoverCard>
                   )}
-                  {!!s.metadata && Object.keys(s.metadata).length > 0 && (
+                  {s.metadata && Object.keys(s.metadata).length > 0 && (
                     <HoverCard>
                       <HoverCardTrigger className="inline-block">
                         <BracesIcon className="mb-[0.0625rem] !size-3" />
