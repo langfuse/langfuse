@@ -83,11 +83,18 @@ export default function NewWidget() {
   useEffect(() => {
     if (selectedView) {
       setSelectedMetric("count");
-      setSelectedMetric("count");
+      setSelectedAggregation("count");
       setSelectedDimension("none");
       // setSelectedFilters([]);
     }
   }, [selectedView]);
+
+  // Set aggregation to "count" when metric is "count"
+  useEffect(() => {
+    if (selectedMetric === "count") {
+      setSelectedAggregation("count");
+    }
+  }, [selectedMetric]);
 
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
@@ -269,26 +276,28 @@ export default function NewWidget() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select
-                  disabled={!selectedView}
-                  value={selectedAggregation}
-                  onValueChange={(value) =>
-                    setSelectedAggregation(
-                      value as z.infer<typeof metricAggregations>,
-                    )
-                  }
-                >
-                  <SelectTrigger id="metrics-select">
-                    <SelectValue placeholder="Select Aggregation" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {metricAggregations.options.map((aggregation) => (
-                      <SelectItem key={aggregation} value={aggregation}>
-                        {startCase(aggregation)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {selectedMetric !== "count" && (
+                  <Select
+                    disabled={!selectedView}
+                    value={selectedAggregation}
+                    onValueChange={(value) =>
+                      setSelectedAggregation(
+                        value as z.infer<typeof metricAggregations>,
+                      )
+                    }
+                  >
+                    <SelectTrigger id="metrics-select">
+                      <SelectValue placeholder="Select Aggregation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {metricAggregations.options.map((aggregation) => (
+                        <SelectItem key={aggregation} value={aggregation}>
+                          {startCase(aggregation)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* Dimension Selection (Breakdown) */}
@@ -351,25 +360,27 @@ export default function NewWidget() {
                 </Select>
               </div>
 
-              {/* Row Limit Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="row-limit">Row Limit (1-1000)</Label>
-                <Input
-                  id="row-limit"
-                  type="number"
-                  min={1}
-                  max={1000}
-                  value={rowLimit}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value);
-                    if (!isNaN(value) && value >= 1 && value <= 1000) {
-                      setRowLimit(value);
-                    }
-                  }}
-                  disabled={!selectedView}
-                  placeholder="Enter row limit (1-1000)"
-                />
-              </div>
+              {/* Row Limit Selection - Only shown for non-time series charts */}
+              {!isTimeSeriesChart && (
+                <div className="space-y-2">
+                  <Label htmlFor="row-limit">Row Limit (1-1000)</Label>
+                  <Input
+                    id="row-limit"
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={rowLimit}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      if (!isNaN(value) && value >= 1 && value <= 1000) {
+                        setRowLimit(value);
+                      }
+                    }}
+                    disabled={!selectedView}
+                    placeholder="Enter row limit (1-1000)"
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -388,13 +399,13 @@ export default function NewWidget() {
                     case "line-time-series":
                       return (
                         <LineChartTimeSeries
-                          data={transformedData.slice(0, rowLimit)}
+                          data={transformedData}
                         />
                       );
                     case "bar-time-series":
                       return (
                         <VerticalBarChartTimeSeries
-                          data={transformedData.slice(0, rowLimit)}
+                          data={transformedData}
                         />
                       );
                     case "bar-horizontal":
