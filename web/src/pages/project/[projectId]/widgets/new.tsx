@@ -318,8 +318,8 @@ export default function NewWidget() {
     >
       <div className="flex h-full gap-4">
         {/* Left column - Form */}
-        <div className="w-1/3">
-          <Card>
+        <div className="w-1/3 h-full">
+          <Card className="h-full flex flex-col">
             <CardHeader>
               <CardTitle>Widget Configuration</CardTitle>
               <CardDescription>
@@ -327,7 +327,7 @@ export default function NewWidget() {
                 options
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 overflow-y-auto">
               {/* Widget Name */}
               <div className="space-y-2">
                 <Label htmlFor="widget-name">Name</Label>
