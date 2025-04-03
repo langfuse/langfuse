@@ -157,6 +157,7 @@ const BlobStorageIntegrationSettingsForm = ({
   });
 
   useEffect(() => {
+    setIntegrationType(state?.type || BlobStorageIntegrationType.S3);
     blobStorageForm.reset({
       type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
@@ -216,7 +217,7 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormLabel>Storage Provider</FormLabel>
               <FormControl>
                 <Select
-                  defaultValue={field.value}
+                  value={field.value}
                   onValueChange={(value) =>
                     handleIntegrationTypeChange(
                       value as BlobStorageIntegrationType,
@@ -418,10 +419,7 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Export Frequency</FormLabel>
               <FormControl>
-                <Select
-                  defaultValue={field.value}
-                  onValueChange={field.onChange}
-                >
+                <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select frequency" />
                   </SelectTrigger>
@@ -448,10 +446,7 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>File Type</FormLabel>
               <FormControl>
-                <Select
-                  defaultValue={field.value}
-                  onValueChange={field.onChange}
-                >
+                <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select file type" />
                   </SelectTrigger>
