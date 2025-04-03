@@ -227,10 +227,10 @@ export const getDatabaseReadStream = async ({
             orderBy: orderBy,
             selectIOAndMetadata: true,
           });
-          const scores = await getScoresForObservations(
+          const scores = await getScoresForObservations({
             projectId,
-            generations.map((gen) => gen.id),
-          );
+            observationIds: generations.map((gen) => gen.id),
+          });
 
           const chunk = generations.map((generation) => {
             const filteredScores = scores.filter(
