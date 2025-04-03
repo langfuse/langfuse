@@ -5,7 +5,7 @@ import {
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
-import { ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
 /**
  * VerticalBarChart component
@@ -27,10 +27,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
 }) => {
   return (
     <ChartContainer config={config}>
-      <BarChart
-        accessibilityLayer={accessibilityLayer}
-        data={data}
-      >
+      <BarChart accessibilityLayer={accessibilityLayer} data={data}>
         <XAxis
           type="category"
           dataKey="dimension"

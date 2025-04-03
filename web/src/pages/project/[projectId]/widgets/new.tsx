@@ -39,7 +39,6 @@ import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ColumnDefinition } from "@langfuse/shared";
 
 export default function NewWidget() {
@@ -165,21 +164,28 @@ export default function NewWidget() {
     value: string;
   };
 
-  const chartTypes: ChartType[] = [
-    { group: "time-series", name: "Line Chart", value: "line-time-series" },
-    {
-      group: "time-series",
-      name: "Vertical Bar Chart",
-      value: "bar-time-series",
-    },
-    {
-      group: "total-value",
-      name: "Horizontal Bar Chart",
-      value: "bar-horizontal",
-    },
-    { group: "total-value", name: "Vertical Bar Chart", value: "bar-vertical" },
-    { group: "total-value", name: "Pie Chart", value: "pie" },
-  ];
+  const chartTypes: ChartType[] = useMemo(
+    () => [
+      { group: "time-series", name: "Line Chart", value: "line-time-series" },
+      {
+        group: "time-series",
+        name: "Vertical Bar Chart",
+        value: "bar-time-series",
+      },
+      {
+        group: "total-value",
+        name: "Horizontal Bar Chart",
+        value: "bar-horizontal",
+      },
+      {
+        group: "total-value",
+        name: "Vertical Bar Chart",
+        value: "bar-vertical",
+      },
+      { group: "total-value", name: "Pie Chart", value: "pie" },
+    ],
+    [],
+  );
 
   const [selectedChartType, setSelectedChartType] =
     useState<string>("line-time-series");
@@ -230,15 +236,15 @@ export default function NewWidget() {
     );
   }, [selectedChartType, chartTypes]);
 
-  // Calculate fromTimestamp and toTimestamp from dateRange
-  const fromTimestamp = dateRange
-    ? dateRange.from
-    : new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000); // Default to last 7 days
-  const toTimestamp = dateRange ? dateRange.to : new Date();
-
   // Create a dynamic query based on the selected view
-  const query = useMemo<QueryType>(
-    () => ({
+  const query = useMemo<QueryType>(() => {
+    // Calculate fromTimestamp and toTimestamp from dateRange
+    const fromTimestamp = dateRange
+      ? dateRange.from
+      : new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000); // Default to last 7 days
+    const toTimestamp = dateRange ? dateRange.to : new Date();
+
+    return {
       view: selectedView,
       dimensions:
         selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
@@ -248,18 +254,16 @@ export default function NewWidget() {
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
       orderBy: null,
-    }),
-    [
-      selectedView,
-      selectedDimension,
-      selectedAggregation,
-      selectedMetric,
-      selectedChartType,
-      userFilterState,
-      fromTimestamp,
-      toTimestamp,
-    ],
-  );
+    };
+  }, [
+    selectedView,
+    selectedDimension,
+    selectedAggregation,
+    selectedMetric,
+    userFilterState,
+    dateRange,
+    isTimeSeriesChart,
+  ]);
 
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
@@ -293,13 +297,7 @@ export default function NewWidget() {
           time_dimension: item["time_dimension"],
         };
       }) ?? [],
-    [
-      queryResult.data,
-      selectedAggregation,
-      selectedDimension,
-      selectedMetric,
-      isTimeSeriesChart,
-    ],
+    [queryResult.data, selectedAggregation, selectedDimension, selectedMetric],
   );
 
   if (!isAdmin) {
@@ -318,8 +316,8 @@ export default function NewWidget() {
     >
       <div className="flex h-full gap-4">
         {/* Left column - Form */}
-        <div className="w-1/3 h-full">
-          <Card className="h-full flex flex-col">
+        <div className="h-full w-1/3">
+          <Card className="flex h-full flex-col">
             <CardHeader>
               <CardTitle>Widget Configuration</CardTitle>
               <CardDescription>
@@ -405,7 +403,7 @@ export default function NewWidget() {
                         )
                       }
                     >
-                      <SelectTrigger id="metrics-select">
+                      <SelectTrigger id="aggregation-select">
                         <SelectValue placeholder="Select Aggregation" />
                       </SelectTrigger>
                       <SelectContent>
@@ -426,7 +424,7 @@ export default function NewWidget() {
                     <InlineFilterBuilder
                       columns={filterColumns}
                       filterState={userFilterState}
-                      onChange={useDebounce(setUserFilterState)}
+                      onChange={setUserFilterState}
                     />
                   </div>
                 </div>
@@ -503,7 +501,7 @@ export default function NewWidget() {
                   <Label htmlFor="date-select">Date Range</Label>
                   <DatePickerWithRange
                     dateRange={dateRange}
-                    setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
+                    setDateRangeAndOption={setDateRangeAndOption}
                     selectedOption={selectedOption}
                     className="w-full"
                   />

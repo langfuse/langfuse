@@ -5,7 +5,7 @@ import {
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
-import { ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
 /**
  * HorizontalBarChart component

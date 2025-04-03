@@ -5,7 +5,7 @@ import {
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
-import { ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   expandChartConfig,
   getUniqueDimensions,
@@ -54,7 +54,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
         />
-        {dimensions.map((dimension, index) => (
+        {dimensions.map((dimension) => (
           <Bar
             key={dimension}
             dataKey={dimension}
