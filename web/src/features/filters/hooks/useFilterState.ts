@@ -133,6 +133,15 @@ const tableCols = {
   scores: scoresTableCols,
   prompts: promptsTableCols,
   users: usersTableCols,
+  widgets: [
+    { id: "environment", name: "Environment" },
+    { id: "traceName", name: "Trace Name" },
+    { id: "tags", name: "Tags" },
+    { id: "release", name: "Release" },
+    { id: "user", name: "User" },
+    { id: "session", name: "Session" },
+    { id: "version", name: "Version" },
+  ],
   dashboard: [
     { id: "traceName", name: "Trace Name" },
     { id: "tags", name: "Tags" },

@@ -14,7 +14,11 @@ import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library
 import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import { api } from "@/src/utils/api";
-import { metricAggregations, type QueryType } from "@/src/features/query";
+import {
+  metricAggregations,
+  type QueryType,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
 import { useState, useMemo, useEffect } from "react";
 import {
   Select,
@@ -31,6 +35,12 @@ import { type z } from "zod";
 import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
 import { startCase } from "lodash";
+import { DatePickerWithRange } from "@/src/components/date-picker";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { type ColumnDefinition } from "@langfuse/shared";
 
 export default function NewWidget() {
   const session = useSession();
@@ -50,7 +60,103 @@ export default function NewWidget() {
   const [selectedAggregation, setSelectedAggregation] =
     useState<z.infer<typeof metricAggregations>>("count");
   const [selectedDimension, setSelectedDimension] = useState<string>("none");
-  // const [selectedFilters, setSelectedFilters] = useState<FilterState>([]);
+
+  // Filter state
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useDashboardDateRange();
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "widgets",
+    projectId,
+  );
+
+  const traceFilterOptions = api.traces.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => ({
+      value: value.environment,
+    })) || [];
+  const nameOptions = traceFilterOptions.data?.name || [];
+  const tagsOptions = traceFilterOptions.data?.tags || [];
+
+  // Filter columns for PopoverFilterBuilder
+  const filterColumns: ColumnDefinition[] = [
+    {
+      name: "Environment",
+      id: "environment",
+      type: "stringOptions",
+      options: environmentOptions,
+      internal: "internalValue",
+    },
+    {
+      name: "Trace Name",
+      id: "traceName",
+      type: "stringOptions",
+      options: nameOptions,
+      internal: "internalValue",
+    },
+    {
+      name: "Tags",
+      id: "tags",
+      type: "arrayOptions",
+      options: tagsOptions,
+      internal: "internalValue",
+    },
+    {
+      name: "User",
+      id: "user",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Session",
+      id: "session",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Release",
+      id: "release",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Version",
+      id: "version",
+      type: "string",
+      internal: "internalValue",
+    },
+  ];
 
   // Chart type options
   type ChartType = {
@@ -124,6 +230,12 @@ export default function NewWidget() {
     );
   }, [selectedChartType, chartTypes]);
 
+  // Calculate fromTimestamp and toTimestamp from dateRange
+  const fromTimestamp = dateRange
+    ? dateRange.from
+    : new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000); // Default to last 7 days
+  const toTimestamp = dateRange ? dateRange.to : new Date();
+
   // Create a dynamic query based on the selected view
   const query = useMemo<QueryType>(
     () => ({
@@ -131,10 +243,10 @@ export default function NewWidget() {
       dimensions:
         selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
       metrics: [{ measure: selectedMetric, aggregation: selectedAggregation }],
-      filters: [],
+      filters: [...mapLegacyUiTableFilterToView(selectedView, userFilterState)],
       timeDimension: isTimeSeriesChart ? { granularity: "auto" } : null,
-      fromTimestamp: new Date("2025-03-15").toISOString(),
-      toTimestamp: new Date("2025-04-04").toISOString(),
+      fromTimestamp: fromTimestamp.toISOString(),
+      toTimestamp: toTimestamp.toISOString(),
       orderBy: null,
     }),
     [
@@ -143,6 +255,9 @@ export default function NewWidget() {
       selectedAggregation,
       selectedMetric,
       selectedChartType,
+      userFilterState,
+      fromTimestamp,
+      toTimestamp,
     ],
   );
 
@@ -304,6 +419,18 @@ export default function NewWidget() {
                   )}
                 </div>
 
+                {/* Filters Section */}
+                <div className="space-y-2">
+                  <Label>Filters</Label>
+                  <div className="space-y-2">
+                    <InlineFilterBuilder
+                      columns={filterColumns}
+                      filterState={userFilterState}
+                      onChange={useDebounce(setUserFilterState)}
+                    />
+                  </div>
+                </div>
+
                 {/* Dimension Selection (Breakdown) */}
                 <div className="space-y-2">
                   <Label htmlFor="dimension-select">
@@ -370,6 +497,16 @@ export default function NewWidget() {
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="date-select">Date Range</Label>
+                  <DatePickerWithRange
+                    dateRange={dateRange}
+                    setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
+                    selectedOption={selectedOption}
+                    className="w-full"
+                  />
                 </div>
 
                 {/* Row Limit Selection - Only shown for non-time series charts */}
