@@ -375,7 +375,9 @@ export default function DatasetCompare() {
                 </div>
               ) : (
                 <span className="-mt-2 text-sm text-muted-foreground">
-                  All charts hidden. Enable them in settings.
+                  {Boolean(runAggregatedMetrics?.size)
+                    ? "All charts hidden. Enable them in settings."
+                    : "Select more than one run to generate charts."}
                 </span>
               )}
             </>

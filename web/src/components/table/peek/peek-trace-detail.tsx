@@ -2,6 +2,7 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 import { Trace } from "@/src/components/trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
 export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
   const { peekId, timestamp } = useTracePeekState("traces");
@@ -10,6 +11,11 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
     traceId: peekId,
     timestamp,
   });
+
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "display",
+    withDefault(StringParam, "details"),
+  );
 
   return !peekId || !trace.data ? (
     <Skeleton className="h-full w-full" />
@@ -20,6 +26,8 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
       scores={trace.data.scores}
       projectId={trace.data.projectId}
       observations={trace.data.observations}
+      selectedTab={selectedTab}
+      setSelectedTab={setSelectedTab}
     />
   );
 };
