@@ -15,7 +15,7 @@ import {
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { api } from "@/src/utils/api";
-import {metricAggregations, type QueryType} from "@/src/features/query";
+import { metricAggregations, type QueryType } from "@/src/features/query";
 import { useState, useMemo, useEffect } from "react";
 import {
   Select,
@@ -32,7 +32,8 @@ import { viewDeclarations } from "@/src/features/query/dataModel";
 import { type z } from "zod";
 import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
-import { startCase, kebabCase } from "lodash";
+import { startCase } from "lodash";
+import { FilterState } from "@langfuse/shared";
 
 export default function NewWidget() {
   const session = useSession();
@@ -50,35 +51,36 @@ export default function NewWidget() {
   const [widgetDescription, setWidgetDescription] = useState<string>(
     "Traces grouped by name for the last 30 days.",
   );
-  const [selectedView, setSelectedView] = useState<z.infer<typeof views> | "">(
-    "traces",
-  );
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
-  const [selectedDimension, setSelectedDimension] = useState<string>("");
-  const [selectedFilters, setSelectedFilters] = useState<any[]>([]);
+  const [selectedView, setSelectedView] =
+    useState<z.infer<typeof views>>("traces");
+  const [selectedMetric, setSelectedMetric] = useState<string>("count");
+  const [selectedAggregation, setSelectedAggregation] =
+    useState<z.infer<typeof metricAggregations>>("count");
+  const [selectedDimension, setSelectedDimension] = useState<string>("none");
+  const [selectedFilters, setSelectedFilters] = useState<FilterState>([]);
 
   // Chart type options
   type ChartType = {
-    group: "Time Series" | "Total Value";
+    group: "time-series" | "total-value";
     name: string;
     value: string;
   };
 
   const chartTypes: ChartType[] = [
-    { group: "Time Series", name: "Line Chart", value: "line-time-series" },
+    { group: "time-series", name: "Line Chart", value: "line-time-series" },
     {
-      group: "Time Series",
+      group: "time-series",
       name: "Vertical Bar Chart",
       value: "bar-time-series",
     },
-    { group: "Total Value", name: "Number", value: "number" },
+    { group: "total-value", name: "Number", value: "number" },
     {
-      group: "Total Value",
+      group: "total-value",
       name: "Horizontal Bar Chart",
       value: "bar-horizontal",
     },
-    { group: "Total Value", name: "Vertical Bar Chart", value: "bar-vertical" },
-    { group: "Total Value", name: "Pie Chart", value: "pie" },
+    { group: "total-value", name: "Vertical Bar Chart", value: "bar-vertical" },
+    { group: "total-value", name: "Pie Chart", value: "pie" },
   ];
 
   const [selectedChartType, setSelectedChartType] =
@@ -87,8 +89,9 @@ export default function NewWidget() {
   // Reset form fields when view changes
   useEffect(() => {
     if (selectedView) {
-      setSelectedMetrics([]);
-      setSelectedDimension("");
+      setSelectedMetric("count");
+      setSelectedMetric("count");
+      setSelectedDimension("none");
       setSelectedFilters([]);
     }
   }, [selectedView]);
@@ -96,37 +99,30 @@ export default function NewWidget() {
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
     if (!selectedView) return [];
-
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.measures).map(([key, measure]) => ({
+    return Object.entries(viewDeclaration.measures).map(([key]) => ({
       value: key,
-      label:
-        key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1"),
+      label: startCase(key),
     }));
   }, [selectedView]);
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
     if (!selectedView) return [];
-
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.dimensions).map(
-      ([key, dimension]) => ({
-        value: key,
-        label:
-          key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1"),
-      }),
-    );
+    return Object.entries(viewDeclaration.dimensions).map(([key]) => ({
+      value: key,
+      label: startCase(key),
+    }));
   }, [selectedView]);
 
   // Create a dynamic query based on the selected view
   const query = useMemo<QueryType>(
     () => ({
-      view: selectedView || "traces",
-      dimensions: [{ field: selectedDimension || "name" }],
-      metrics: [
-        { measure: selectedMetrics[0] || "count", aggregation: "count" },
-      ],
+      view: selectedView,
+      dimensions:
+        selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
+      metrics: [{ measure: selectedMetric, aggregation: selectedAggregation }],
       filters: [],
       timeDimension: null,
       fromTimestamp: fromTimestamp.toISOString(),
@@ -136,7 +132,8 @@ export default function NewWidget() {
     [
       selectedView,
       selectedDimension,
-      selectedMetrics,
+      selectedAggregation,
+      selectedMetric,
       fromTimestamp,
       toTimestamp,
     ],
@@ -162,10 +159,13 @@ export default function NewWidget() {
     () =>
       queryResult.data?.map((item: any) => {
         // Get the dimension field (first dimension in the query)
-        const dimensionField = query.dimensions[0]?.field || "name";
+        const dimensionField = selectedDimension;
         // Get the metric field (first metric in the query with its aggregation)
-        const metricField = `${query.metrics[0]?.measure || "count"}_${query.metrics[0]?.aggregation || "count"}`;
+        const metricField = `${selectedAggregation}_${selectedMetric}`;
 
+        console.log(`Dimension Field ${dimensionField}`);
+        console.log(`Metric Field ${metricField}`);
+        console.log(`Item ${JSON.stringify(item)}`);
         return {
           dimension: item[dimensionField]
             ? (item[dimensionField] as string)
@@ -173,7 +173,7 @@ export default function NewWidget() {
           metric: Number(item[metricField] || 0),
         };
       }) ?? [],
-    [queryResult.data, query],
+    [queryResult.data],
   );
 
   if (!isAdmin) {
@@ -249,7 +249,11 @@ export default function NewWidget() {
               {/* Metrics Selection */}
               <div className="space-y-2">
                 <Label htmlFor="metrics-select">Metric</Label>
-                <Select disabled={!selectedView}>
+                <Select
+                  disabled={!selectedView}
+                  value={selectedMetric}
+                  onValueChange={(value) => setSelectedMetric(value)}
+                >
                   <SelectTrigger id="metrics-select">
                     <SelectValue placeholder="Select metrics" />
                   </SelectTrigger>
@@ -261,24 +265,24 @@ export default function NewWidget() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select disabled={!selectedView}>
+                <Select
+                  disabled={!selectedView}
+                  value={selectedAggregation}
+                  onValueChange={(value) =>
+                    setSelectedAggregation(
+                      value as z.infer<typeof metricAggregations>,
+                    )
+                  }
+                >
                   <SelectTrigger id="metrics-select">
                     <SelectValue placeholder="Select Aggregation" />
                   </SelectTrigger>
                   <SelectContent>
                     {metricAggregations.options.map((aggregation) => (
-                        <SelectItem value={}
-                    )))}
-                    <SelectItem value="count">Count</SelectItem>
-                    <SelectItem value="sum">Sum</SelectItem>
-                    <SelectItem value="avg">Average</SelectItem>
-                    <SelectItem value="max">Max</SelectItem>
-                    <SelectItem value="min">Min</SelectItem>
-                    <SelectItem value="p50">P50</SelectItem>
-                    <SelectItem value="p75">P75</SelectItem>
-                    <SelectItem value="p90">P90</SelectItem>
-                    <SelectItem value="p95">P95</SelectItem>
-                    <SelectItem value="p99">P99</SelectItem>
+                      <SelectItem value={aggregation}>
+                        {startCase(aggregation)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -321,23 +325,23 @@ export default function NewWidget() {
                   <SelectContent>
                     <SelectGroup>
                       <SelectLabel>Time Series</SelectLabel>
-                      <SelectItem value="line-time-series">
-                        Line Chart
-                      </SelectItem>
-                      <SelectItem value="bar-time-series">
-                        Vertical Bar Chart
-                      </SelectItem>
+                      {chartTypes
+                        .filter((item) => item.group === "time-series")
+                        .map((chart) => (
+                          <SelectItem value={chart.value}>
+                            {chart.name}
+                          </SelectItem>
+                        ))}
                     </SelectGroup>
                     <SelectGroup>
                       <SelectLabel>Total Value</SelectLabel>
-                      <SelectItem value="number">Number</SelectItem>
-                      <SelectItem value="bar-horizontal">
-                        Horizontal Bar Chart
-                      </SelectItem>
-                      <SelectItem value="bar-vertical">
-                        Vertical Bar Chart
-                      </SelectItem>
-                      <SelectItem value="pie">Pie Chart</SelectItem>
+                      {chartTypes
+                        .filter((item) => item.group === "total-value")
+                        .map((chart) => (
+                          <SelectItem value={chart.value}>
+                            {chart.name}
+                          </SelectItem>
+                        ))}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
@@ -405,7 +409,9 @@ export default function NewWidget() {
             ) : (
               <CardContent>
                 <div className="flex h-[300px] items-center justify-center">
-                  <p className="text-muted-foreground">Loading...</p>
+                  <p className="text-muted-foreground">
+                    Waiting for Input / Loading...
+                  </p>
                 </div>
               </CardContent>
             )}
