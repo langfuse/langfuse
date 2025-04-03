@@ -82,7 +82,7 @@ export const checkTraceExists = async (
     SELECT 
       t.id as id, 
       t.project_id as project_id
-    FROM traces t 
+    FROM traces t FINAL
     ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
     WHERE ${tracesFilterRes.query}
     AND t.project_id = {projectId: String}
