@@ -3,15 +3,14 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  ChartConfig,
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
-  ChartProps,
-  type DataPoint,
-} from "@/src/features/widgets/chart-library/chart-props";
+  expandChartConfig,
+  getUniqueDimensions,
+  groupDataByTimeDimension,
+} from "@/src/features/widgets/chart-library/utils";
 
 /**
  * VerticalBarChartTimeSeries component
@@ -31,56 +30,12 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
 }) => {
-  // Group data by dimension to create multiple bar series
-  const groupedData = useMemo(() => {
-    // First, group by time_dimension
-    const timeGroups: any = data.reduce(
-      (acc: any, item: DataPoint) => {
-        const time = item.time_dimension || "Unknown";
-        if (!acc[time]) {
-          acc[time] = {};
-        }
-
-        const dimension = item.dimension || "Unknown";
-        acc[time][dimension] = item.metric;
-
-        return acc;
-      },
-      {} as Record<string, Record<string, number>>,
-    );
-
-    // Convert to array format for Recharts
-    return Object.entries(timeGroups).map(([time, dimensions]) => ({
-      time_dimension: time,
-      ...(dimensions as any),
-    }));
-  }, [data]);
-
-  // Get unique dimensions for creating bars
-  const dimensions = useMemo(() => {
-    const uniqueDimensions = new Set<string>();
-    data.forEach((item: DataPoint) => {
-      if (item.dimension) {
-        uniqueDimensions.add(item.dimension);
-      }
-    });
-    return Array.from(uniqueDimensions);
-  }, [data]);
-
-  // Create a color config for each dimension
-  const enhancedConfig = useMemo(() => {
-    const result: any = { ...config };
-
-    // Add colors for each dimension
-    dimensions.forEach((dimension, index) => {
-      const colorIndex = (index % 4) + 1; // We have 4 chart colors defined in CSS
-      result[dimension] = {
-        color: `hsl(var(--chart-${colorIndex}))`,
-      };
-    });
-
-    return result as ChartConfig;
-  }, [config, dimensions]);
+  const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
+  const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const enhancedConfig = useMemo(
+    () => expandChartConfig(config, dimensions),
+    [config, dimensions],
+  );
 
   return (
     <ChartContainer config={enhancedConfig}>

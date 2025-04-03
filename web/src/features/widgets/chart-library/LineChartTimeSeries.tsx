@@ -3,11 +3,14 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
 } from "@/src/components/ui/chart";
 import { Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  expandChartConfig,
+  getUniqueDimensions,
+  groupDataByTimeDimension,
+} from "@/src/features/widgets/chart-library/utils";
 
 /**
  * LineChartTimeSeries component
@@ -27,63 +30,16 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
 }) => {
-  // Group data by dimension to create multiple lines
-  const groupedData = useMemo(() => {
-    // First, group by time_dimension
-    const timeGroups = data.reduce((acc, item) => {
-      const time = item.time_dimension || "Unknown";
-      if (!acc[time]) {
-        acc[time] = {};
-      }
-      
-      const dimension = item.dimension || "Unknown";
-      acc[time][dimension] = item.metric;
-      
-      return acc;
-    }, {} as Record<string, Record<string, number>>);
-    
-    // Convert to array format for Recharts
-    return Object.entries(timeGroups).map(([time, dimensions]) => ({
-      time_dimension: time,
-      ...dimensions,
-    }));
-  }, [data]);
-  
-  // Get unique dimensions for creating lines
-  const dimensions = useMemo(() => {
-    const uniqueDimensions = new Set<string>();
-    data.forEach(item => {
-      if (item.dimension) {
-        uniqueDimensions.add(item.dimension);
-      }
-    });
-    return Array.from(uniqueDimensions);
-  }, [data]);
-  
-  // Create a color config for each dimension
-  const enhancedConfig = useMemo(() => {
-    const result = { ...config };
-    
-    // Add colors for each dimension
-    dimensions.forEach((dimension, index) => {
-      const colorIndex = (index % 5) + 1; // We have 5 chart colors defined in CSS
-      result[dimension] = {
-        theme: {
-          light: `hsl(var(--chart-${colorIndex}))`,
-          dark: `hsl(var(--chart-${colorIndex}))`,
-        },
-      };
-    });
-    
-    return result;
-  }, [config, dimensions]);
+  const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
+  const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const enhancedConfig = useMemo(
+    () => expandChartConfig(config, dimensions),
+    [config, dimensions],
+  );
 
   return (
     <ChartContainer config={enhancedConfig}>
-      <LineChart
-        accessibilityLayer={accessibilityLayer}
-        data={groupedData}
-      >
+      <LineChart accessibilityLayer={accessibilityLayer} data={groupedData}>
         <XAxis
           dataKey="time_dimension"
           stroke="#888888"
@@ -106,21 +62,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             strokeWidth={2}
             dot={true}
             activeDot={{ r: 6, strokeWidth: 0 }}
-            className={`stroke-[--color-${dimension}]`}
+            stroke={"var(--color-" + dimension + ")"}
           />
         ))}
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              formatter={(value) =>
-                Intl.NumberFormat("en-US")
-                  .format(value as number)
-                  .toString()
-              }
-            />
-          }
-        />
-        <ChartLegend content={<ChartLegendContent />} />
+        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
       </LineChart>
     </ChartContainer>
   );

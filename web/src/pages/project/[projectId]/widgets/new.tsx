@@ -9,7 +9,10 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { HorizontalBarChart } from "@/src/features/widgets/chart-library/HorizontalBarChart";
+import { VerticalBarChart } from "@/src/features/widgets/chart-library/VerticalBarChart";
 import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
+import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
+import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import { api } from "@/src/utils/api";
 import { metricAggregations, type QueryType } from "@/src/features/query";
 import { useState, useMemo, useEffect } from "react";
@@ -63,7 +66,6 @@ export default function NewWidget() {
       name: "Vertical Bar Chart",
       value: "bar-time-series",
     },
-    { group: "total-value", name: "Number", value: "number" },
     {
       group: "total-value",
       name: "Horizontal Bar Chart",
@@ -381,15 +383,46 @@ export default function NewWidget() {
             </CardHeader>
             {queryResult.data ? (
               <CardContent>
-                {isTimeSeriesChart ? (
-                  <VerticalBarChartTimeSeries
-                    data={transformedData.slice(0, rowLimit)}
-                  />
-                ) : (
-                  <HorizontalBarChart
-                    data={transformedData.slice(0, rowLimit)}
-                  />
-                )}
+                {(() => {
+                  switch (selectedChartType) {
+                    case "line-time-series":
+                      return (
+                        <LineChartTimeSeries
+                          data={transformedData.slice(0, rowLimit)}
+                        />
+                      );
+                    case "bar-time-series":
+                      return (
+                        <VerticalBarChartTimeSeries
+                          data={transformedData.slice(0, rowLimit)}
+                        />
+                      );
+                    case "bar-horizontal":
+                      return (
+                        <HorizontalBarChart
+                          data={transformedData.slice(0, rowLimit)}
+                        />
+                      );
+                    case "bar-vertical":
+                      return (
+                        <VerticalBarChart
+                          data={transformedData.slice(0, rowLimit)}
+                        />
+                      );
+                    case "pie":
+                      return (
+                        <PieChart
+                          data={transformedData.slice(0, rowLimit)}
+                        />
+                      );
+                    default:
+                      return (
+                        <HorizontalBarChart
+                          data={transformedData.slice(0, rowLimit)}
+                        />
+                      );
+                  }
+                })()}
               </CardContent>
             ) : (
               <CardContent>
