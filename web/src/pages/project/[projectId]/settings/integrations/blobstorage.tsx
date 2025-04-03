@@ -218,7 +218,6 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormControl>
                 <Select
                   value={field.value}
-                  defaultValue={field.value}
                   onValueChange={(value) =>
                     handleIntegrationTypeChange(
                       value as BlobStorageIntegrationType,
@@ -420,10 +419,7 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Export Frequency</FormLabel>
               <FormControl>
-                <Select
-                  defaultValue={field.value}
-                  onValueChange={field.onChange}
-                >
+                <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select frequency" />
                   </SelectTrigger>
@@ -450,11 +446,7 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>File Type</FormLabel>
               <FormControl>
-                <Select
-                  value={field.value}
-                  defaultValue={field.value}
-                  onValueChange={field.onChange}
-                >
+                <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select file type" />
                   </SelectTrigger>
