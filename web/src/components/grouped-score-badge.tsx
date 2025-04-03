@@ -53,7 +53,6 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
                       </HoverCardContent>
                     </HoverCard>
                   )}
-                  {/* TODO: metadata could instead be null if empty */}
                   {!!s.metadata && Object.keys(s.metadata).length > 0 && (
                     <HoverCard>
                       <HoverCardTrigger className="inline-block">
