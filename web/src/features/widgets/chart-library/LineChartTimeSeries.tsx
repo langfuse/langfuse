@@ -7,7 +7,6 @@ import {
 import { Line, LineChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
-  expandChartConfig,
   getUniqueDimensions,
   groupDataByTimeDimension,
 } from "@/src/features/widgets/chart-library/utils";
@@ -32,13 +31,9 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
-  const enhancedConfig = useMemo(
-    () => expandChartConfig(config, dimensions),
-    [config, dimensions],
-  );
 
   return (
-    <ChartContainer config={enhancedConfig}>
+    <ChartContainer config={config}>
       <LineChart accessibilityLayer={accessibilityLayer} data={groupedData}>
         <XAxis
           dataKey="time_dimension"
@@ -54,7 +49,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
         />
-        {dimensions.map((dimension) => (
+        {dimensions.map((dimension, index) => (
           <Line
             key={dimension}
             type="monotone"
@@ -62,7 +57,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             strokeWidth={2}
             dot={true}
             activeDot={{ r: 6, strokeWidth: 0 }}
-            stroke={"var(--color-" + dimension + ")"}
+            stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
           />
         ))}
         <ChartTooltip content={<ChartTooltipContent hideLabel />} />

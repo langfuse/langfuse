@@ -38,20 +38,3 @@ export const getUniqueDimensions = (data: DataPoint[]) => {
   });
   return Array.from(uniqueDimensions);
 };
-
-export const expandChartConfig = (
-  config: ChartConfig,
-  dimensions: string[],
-) => {
-  const result: any = { ...config };
-
-  // Add colors for each dimension
-  dimensions.forEach((dimension, index) => {
-    const colorIndex = (index % 4) + 1; // We have 4 chart colors defined in CSS
-    result[dimension] = {
-      color: `hsl(var(--chart-${colorIndex}))`,
-    };
-  });
-
-  return result as ChartConfig;
-};

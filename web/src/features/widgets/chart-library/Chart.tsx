@@ -18,7 +18,6 @@ export const Chart = ({
 }) => {
   return (
     <CardContent>
-      {" "}
       {(() => {
         switch (chartType) {
           case "line-time-series":

@@ -7,7 +7,6 @@ import {
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
-  expandChartConfig,
   getUniqueDimensions,
   groupDataByTimeDimension,
 } from "@/src/features/widgets/chart-library/utils";
@@ -32,13 +31,9 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
-  const enhancedConfig = useMemo(
-    () => expandChartConfig(config, dimensions),
-    [config, dimensions],
-  );
 
   return (
-    <ChartContainer config={enhancedConfig}>
+    <ChartContainer config={config}>
       <BarChart accessibilityLayer={accessibilityLayer} data={groupedData}>
         <XAxis
           dataKey="time_dimension"
@@ -54,11 +49,12 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
         />
-        {dimensions.map((dimension) => (
+        {dimensions.map((dimension, index) => (
           <Bar
             key={dimension}
             dataKey={dimension}
-            fill={"var(--color-" + dimension + ")"}
+            stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
+            fill={`hsl(var(--chart-${(index % 4) + 1}))`}
             // Stack bars if there are multiple dimensions
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />

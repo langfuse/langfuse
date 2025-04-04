@@ -52,17 +52,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           radius={[0, 4, 4, 0]}
           className="fill-[--color-metric]"
         />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              formatter={(value) =>
-                Intl.NumberFormat("en-US")
-                  .format(value as number)
-                  .toString()
-              }
-            />
-          }
-        />
+        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
       </BarChart>
     </ChartContainer>
   );
