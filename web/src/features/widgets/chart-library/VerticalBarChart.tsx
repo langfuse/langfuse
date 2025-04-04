@@ -31,14 +31,14 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
         <XAxis
           type="category"
           dataKey="dimension"
-          stroke="#888888"
+          stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
         />
         <YAxis
           type="number"
-          stroke="#888888"
+          stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}

@@ -42,14 +42,14 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
       <BarChart accessibilityLayer={accessibilityLayer} data={groupedData}>
         <XAxis
           dataKey="time_dimension"
-          stroke="#888888"
+          stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
         />
         <YAxis
           type="number"
-          stroke="#888888"
+          stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}

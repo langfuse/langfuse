@@ -78,6 +78,7 @@
     --chart-2: var(--dark-yellow);
     --chart-3: var(--dark-blue);
     --chart-4: var(--dark-red);
+    --chart-grid: var(--muted-gray);
   }
 
   .dark {
@@ -157,6 +158,7 @@
     --chart-2: var(--dark-yellow);
     --chart-3: var(--dark-blue);
     --chart-4: var(--dark-red);
+    --chart-grid: var(--muted-gray);
   }
 }
 

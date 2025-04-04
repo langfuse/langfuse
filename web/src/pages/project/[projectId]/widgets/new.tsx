@@ -8,11 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { HorizontalBarChart } from "@/src/features/widgets/chart-library/HorizontalBarChart";
-import { VerticalBarChart } from "@/src/features/widgets/chart-library/VerticalBarChart";
-import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
-import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
-import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import { api } from "@/src/utils/api";
 import {
   metricAggregations,
@@ -40,6 +35,8 @@ import { InlineFilterBuilder } from "@/src/features/filters/components/filter-bu
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { type ColumnDefinition } from "@langfuse/shared";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
 export default function NewWidget() {
   const session = useSession();
@@ -281,7 +278,7 @@ export default function NewWidget() {
   );
 
   // Transform the query results to a consistent format for charts
-  const transformedData = useMemo(
+  const transformedData: DataPoint[] = useMemo(
     () =>
       queryResult.data?.map((item: any) => {
         // Get the dimension field (first dimension in the query)
@@ -292,7 +289,7 @@ export default function NewWidget() {
         return {
           dimension: item[dimensionField]
             ? (item[dimensionField] as string)
-            : "Unknown",
+            : "n/a",
           metric: Number(item[metricField] || 0),
           time_dimension: item["time_dimension"],
         };
@@ -541,40 +538,11 @@ export default function NewWidget() {
               <CardDescription>{widgetDescription}</CardDescription>
             </CardHeader>
             {queryResult.data ? (
-              <CardContent>
-                {(() => {
-                  switch (selectedChartType) {
-                    case "line-time-series":
-                      return <LineChartTimeSeries data={transformedData} />;
-                    case "bar-time-series":
-                      return (
-                        <VerticalBarChartTimeSeries data={transformedData} />
-                      );
-                    case "bar-horizontal":
-                      return (
-                        <HorizontalBarChart
-                          data={transformedData.slice(0, rowLimit)}
-                        />
-                      );
-                    case "bar-vertical":
-                      return (
-                        <VerticalBarChart
-                          data={transformedData.slice(0, rowLimit)}
-                        />
-                      );
-                    case "pie":
-                      return (
-                        <PieChart data={transformedData.slice(0, rowLimit)} />
-                      );
-                    default:
-                      return (
-                        <HorizontalBarChart
-                          data={transformedData.slice(0, rowLimit)}
-                        />
-                      );
-                  }
-                })()}
-              </CardContent>
+              <Chart
+                chartType={selectedChartType}
+                data={transformedData}
+                rowLimit={rowLimit}
+              />
             ) : (
               <CardContent>
                 <div className="flex h-[300px] items-center justify-center">

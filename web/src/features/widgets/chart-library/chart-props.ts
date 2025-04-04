@@ -1,3 +1,5 @@
+import { type ChartConfig } from "@/src/components/ui/chart";
+
 export interface DataPoint {
   time_dimension: string | undefined;
   dimension: string | undefined;
@@ -6,13 +8,6 @@ export interface DataPoint {
 
 export interface ChartProps {
   data: DataPoint[];
-  config?: {
-    metric?: {
-      theme?: {
-        light: string;
-        dark: string;
-      };
-    };
-  };
+  config?: ChartConfig;
   accessibilityLayer?: boolean;
 }

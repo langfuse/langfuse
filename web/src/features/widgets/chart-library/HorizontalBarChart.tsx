@@ -34,7 +34,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
       >
         <XAxis
           type="number"
-          stroke="#888888"
+          stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
@@ -42,7 +42,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
         <YAxis
           type="category"
           dataKey="dimension"
-          stroke="#888888"
+          stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
