@@ -1,5 +1,4 @@
 import { type DataPoint } from "./chart-props";
-import { type ChartConfig } from "@/src/components/ui/chart";
 
 /**
  * Groups data by dimension to prepare it for time series breakdowns
