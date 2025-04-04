@@ -616,8 +616,6 @@ const getScoresUiGeneric = async <T>(props: {
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  console.log(query);
-
   const rows = await queryClickhouse<T>({
     query: query,
     params: {
