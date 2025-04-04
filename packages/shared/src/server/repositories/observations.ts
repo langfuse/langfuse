@@ -22,7 +22,6 @@ import {
   observationsTableTraceUiColumnDefinitions,
   observationsTableUiColumnDefinitions,
 } from "../../tableDefinitions";
-import { TableCount } from "./types";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
