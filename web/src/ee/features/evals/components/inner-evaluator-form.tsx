@@ -454,7 +454,7 @@ export const InnerEvaluatorForm = (props: {
                             evalTraceTableCols,
                           )}
                           filterState={field.value ?? []}
-                          onChange={(value) => field.onChange(value)}
+                          onChange={field.onChange}
                           disabled={props.disabled}
                           columnsWithCustomSelect={["tags"]}
                         />
@@ -477,7 +477,7 @@ export const InnerEvaluatorForm = (props: {
                             evalDatasetFormFilterCols,
                           )}
                           filterState={field.value ?? []}
-                          onChange={(value) => field.onChange(value)}
+                          onChange={field.onChange}
                           disabled={props.disabled}
                         />
                       </FormControl>

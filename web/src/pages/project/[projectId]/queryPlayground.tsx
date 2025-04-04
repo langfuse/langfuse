@@ -27,8 +27,7 @@ export default function QueryPlayground() {
   },
   "fromTimestamp": "${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()}",
   "toTimestamp": "${new Date().toISOString()}",
-  "page": 0,
-  "limit": 50
+  "orderBy": null
 }`);
   const [error, setError] = useState<string | null>(null);
 

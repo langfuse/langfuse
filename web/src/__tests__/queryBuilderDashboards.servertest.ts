@@ -450,12 +450,12 @@ describe("selfServeDashboards", () => {
       // Verify each model is present with cost and token metrics
       expectedModels.forEach((modelName) => {
         const modelRow = queryBuilderResult.find(
-          (row: any) => row.provided_model_name === modelName,
+          (row: any) => row.providedModelName === modelName,
         );
 
         expect(modelRow).toBeDefined();
-        expect(modelRow.sum_total_cost).toBeDefined();
-        expect(modelRow.sum_total_tokens).toBeDefined();
+        expect(modelRow.sum_totalCost).toBeDefined();
+        expect(modelRow.sum_totalTokens).toBeDefined();
 
         // We could add more specific assertions about the expected costs and tokens
         // if we had that information calculated from our sample data
@@ -495,9 +495,9 @@ describe("selfServeDashboards", () => {
       expect(queryBuilderResult.length).toBe(2);
 
       const modelRow = queryBuilderResult[0];
-      expect(modelRow.provided_model_name).toBe("gpt-4-turbo");
-      expect(modelRow.sum_total_cost).toBe(900);
-      expect(modelRow.sum_total_tokens).toBe("20736");
+      expect(modelRow.providedModelName).toBe("gpt-4-turbo");
+      expect(modelRow.sum_totalCost).toBe(900);
+      expect(modelRow.sum_totalTokens).toBe("20736");
     });
 
     it("should filter observations by environment", async () => {
@@ -540,12 +540,12 @@ describe("selfServeDashboards", () => {
       // Verify each production model is present
       productionModels.forEach((modelName) => {
         const modelRow = queryBuilderResult.find(
-          (row: any) => row.provided_model_name === modelName,
+          (row: any) => row.providedModelName === modelName,
         );
 
         expect(modelRow).toBeDefined();
-        expect(modelRow.sum_total_cost).toBeGreaterThan(500);
-        expect(Number(modelRow.sum_total_tokens)).toBeGreaterThan(10000);
+        expect(modelRow.sum_totalCost).toBeGreaterThan(500);
+        expect(Number(modelRow.sum_totalTokens)).toBeGreaterThan(10000);
       });
     });
   });
@@ -637,9 +637,9 @@ describe("selfServeDashboards", () => {
       // Each row should have these properties
       queryBuilderResult.forEach((row: any) => {
         expect(row.time_dimension).toBeDefined();
-        expect(row.provided_model_name).toBeDefined();
-        expect(row.sum_total_cost).toBeDefined();
-        expect(row.sum_total_tokens).toBeDefined();
+        expect(row.providedModelName).toBeDefined();
+        expect(row.sum_totalCost).toBeDefined();
+        expect(row.sum_totalTokens).toBeDefined();
       });
 
       // Verify that the hours where we created observations have non-zero costs/tokens
@@ -655,7 +655,7 @@ describe("selfServeDashboards", () => {
         (row: any) =>
           new Date(row.time_dimension).getTime() >= oneHourAgo.getTime() &&
           new Date(row.time_dimension).getTime() <= now.getTime() &&
-          expectedModels.includes(row.provided_model_name),
+          expectedModels.includes(row.providedModelName),
       );
 
       // We should have at least one recent observation
@@ -664,7 +664,7 @@ describe("selfServeDashboards", () => {
       // At least one of the recent observations should have non-zero cost/tokens
       const hasNonZeroValues = recentObservations.some(
         (row: any) =>
-          Number(row.sum_total_cost) > 0 && Number(row.sum_total_tokens) > 0,
+          Number(row.sum_totalCost) > 0 && Number(row.sum_totalTokens) > 0,
       );
       expect(hasNonZeroValues).toBe(true);
     });
@@ -700,19 +700,19 @@ describe("selfServeDashboards", () => {
       // Check that we have results for the expected users
       expectedUsers.forEach((userId) => {
         const userRow = queryBuilderResult.find(
-          (row: any) => row.user_id === userId,
+          (row: any) => row.userId === userId,
         );
 
         // We might not have observations for all users, so we'll just check
         // that the structure is correct for the ones we do have
         if (userRow) {
-          expect(userRow.sum_total_cost).toBeDefined();
+          expect(userRow.sum_totalCost).toBeDefined();
         }
       });
 
       // At least one user should have a non-zero cost
       const hasNonZeroCost = queryBuilderResult.some(
-        (row: any) => Number(row.sum_total_cost) > 0,
+        (row: any) => Number(row.sum_totalCost) > 0,
       );
       expect(hasNonZeroCost).toBe(true);
     });
@@ -754,7 +754,7 @@ describe("selfServeDashboards", () => {
       // Check that we have results for all expected users
       expectedUsers.forEach((userId) => {
         const userRow = queryBuilderResult.find(
-          (row: any) => row.user_id === userId,
+          (row: any) => row.userId === userId,
         );
 
         expect(userRow).toBeDefined();
@@ -949,7 +949,7 @@ describe("selfServeDashboards", () => {
       // Each row should have these properties
       queryBuilderResult.forEach((row: any) => {
         expect(row.time_dimension).toBeDefined();
-        expect(row.provided_model_name).toBeDefined();
+        expect(row.providedModelName).toBeDefined();
         expect(row.p50_latency).toBeDefined();
         expect(row.p75_latency).toBeDefined();
         expect(row.p90_latency).toBeDefined();
@@ -970,7 +970,7 @@ describe("selfServeDashboards", () => {
         (row: any) =>
           new Date(row.time_dimension).getTime() >= oneHourAgo.getTime() &&
           new Date(row.time_dimension).getTime() <= now.getTime() &&
-          expectedModels.includes(row.provided_model_name),
+          expectedModels.includes(row.providedModelName),
       );
 
       // We should have at least one recent observation with latency data
