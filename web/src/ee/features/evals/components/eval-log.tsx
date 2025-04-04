@@ -83,18 +83,6 @@ export default function EvalLogTable({
         return value % 1 === 0 ? value : value.toFixed(4);
       },
     }),
-    columnHelper.accessor("scoreMetadata", {
-      header: "Score Metadata",
-      id: "scoreMetadata",
-      enableHiding: true,
-      // TODO: this metadata could alternatively be loaded in the same way as the score metadata on the scores table -> per cell fetch
-      cell: (row) => {
-        const value = row.getValue();
-        return value !== undefined ? (
-          <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        ) : undefined;
-      },
-    }),
     columnHelper.accessor("scoreComment", {
       header: "Score Comment",
       id: "scoreComment",
