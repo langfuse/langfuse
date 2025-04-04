@@ -112,7 +112,8 @@ export type Score = {
   source: ScoreSourceType;
   authorUserId: string | null;
   comment: string | null;
-  traceId: string;
+  traceId: string | null;
+  sessionId: string | null;
   observationId: string | null;
   configId: string | null;
   stringValue: string | null;

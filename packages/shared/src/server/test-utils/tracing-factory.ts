@@ -72,7 +72,7 @@ export const createObservation = (
   };
 };
 
-export const createScore = (score: Partial<ScoreRecordInsertType>) => {
+export const createTraceScore = (score: Partial<ScoreRecordInsertType>) => {
   return {
     id: v4(),
     project_id: v4(),

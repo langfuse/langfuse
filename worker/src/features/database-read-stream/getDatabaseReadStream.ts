@@ -121,6 +121,7 @@ export const getDatabaseReadStream = async ({
           return scores.map((score: ScoreUiTableRow) => ({
             id: score.id,
             traceId: score.traceId,
+            sessionId: score.sessionId,
             timestamp: score.timestamp,
             source: score.source,
             name: score.name,

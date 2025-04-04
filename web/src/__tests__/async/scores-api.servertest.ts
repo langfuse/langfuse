@@ -1,6 +1,6 @@
 import {
   createObservation,
-  createScore,
+  createTraceScore,
   createTrace,
   getScoresByIds,
 } from "@langfuse/shared/src/server";
@@ -43,6 +43,7 @@ describe("/api/public/scores API Endpoint", () => {
         updated_at: Date.now(),
         event_ts: Date.now(),
         is_deleted: 0,
+        environment: "production",
       };
 
       await createScoresCh([score]);
@@ -81,7 +82,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const minimalScoreId = v4();
 
-      const score = createScore({
+      const score = createTraceScore({
         id: minimalScoreId,
         project_id: projectId,
         trace_id: minimalTraceId,
@@ -112,7 +113,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const scoreId = v4();
 
-      const score = createScore({
+      const score = createTraceScore({
         id: scoreId,
         project_id: projectId,
       });
@@ -151,7 +152,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const scoreId = v4();
 
-      const score = createScore({
+      const score = createTraceScore({
         id: scoreId,
         project_id: projectId,
         trace_id: traceId,
@@ -252,7 +253,7 @@ describe("/api/public/scores API Endpoint", () => {
 
         configId = config.id;
 
-        const score1 = createScore({
+        const score1 = createTraceScore({
           id: scoreId_1,
           project_id: newProjectId,
           trace_id: traceId,
@@ -264,7 +265,7 @@ describe("/api/public/scores API Endpoint", () => {
           comment: "comment",
         });
 
-        const score2 = createScore({
+        const score2 = createTraceScore({
           id: scoreId_2,
           project_id: newProjectId,
           trace_id: traceId,
@@ -275,7 +276,7 @@ describe("/api/public/scores API Endpoint", () => {
           comment: "comment",
         });
 
-        const score3 = createScore({
+        const score3 = createTraceScore({
           id: scoreId_3,
           project_id: newProjectId,
           trace_id: traceId,
@@ -286,7 +287,7 @@ describe("/api/public/scores API Endpoint", () => {
           comment: "comment",
         });
 
-        const score4 = createScore({
+        const score4 = createTraceScore({
           id: scoreId_4,
           project_id: newProjectId,
           trace_id: traceId_2,
@@ -297,7 +298,7 @@ describe("/api/public/scores API Endpoint", () => {
           comment: "comment",
         });
 
-        const score5 = createScore({
+        const score5 = createTraceScore({
           id: scoreId_5,
           project_id: newProjectId,
           trace_id: traceId_3,
@@ -471,7 +472,7 @@ describe("/api/public/scores API Endpoint", () => {
 
           beforeEach(async () => {
             queueId = v4();
-            const score = createScore({
+            const score = createTraceScore({
               id: v4(),
               project_id: newProjectId,
               trace_id: traceId,
@@ -482,7 +483,7 @@ describe("/api/public/scores API Endpoint", () => {
               observation_id: generationId,
               queue_id: queueId,
             });
-            const score2 = createScore({
+            const score2 = createTraceScore({
               id: v4(),
               project_id: newProjectId,
               trace_id: traceId,

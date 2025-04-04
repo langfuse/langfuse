@@ -1,6 +1,6 @@
 import {
   createObservation,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   getTraceById,
@@ -218,13 +218,13 @@ describe("/api/public/traces API Endpoint", () => {
     ]);
 
     await createScoresCh([
-      createScore({
+      createTraceScore({
         trace_id: traceId,
         environment,
         project_id: projectId,
       }),
       // Create one that does not belong to the same environment
-      createScore({
+      createTraceScore({
         trace_id: traceId,
         environment: "default",
         project_id: projectId,
