@@ -116,7 +116,7 @@ export function DataTableToolbar<TData, TValue>({
     searchConfig?.countOfFilteredRecordsInDatabase === undefined ||
     (typeof searchConfig?.countOfFilteredRecordsInDatabase === "number" &&
       searchConfig.countOfFilteredRecordsInDatabase >
-        env.NEXT_PUBLIC_LANGFUSE_FULL_TEXT_SEARCH_MAX_QUERY_LENGTH);
+        env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS);
 
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
@@ -170,7 +170,7 @@ export function DataTableToolbar<TData, TValue>({
                     {fullTextSearchDisabled && (
                       <DocPopup
                         description={`Full text search can only be executed on max. ${compactNumberFormatter(
-                          env.NEXT_PUBLIC_LANGFUSE_FULL_TEXT_SEARCH_MAX_QUERY_LENGTH,
+                          env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS,
                         )} records. Please apply more filters.`}
                       />
                     )}
