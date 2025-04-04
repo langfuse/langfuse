@@ -588,8 +588,8 @@ const getScoresUiGeneric = async <T>(props: {
         s.queue_id,
         t.user_id,
         t.name as trace_name,
-        t.tags as trace_tags,
-        ${includeHasMetadataFlag ? "length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
+        t.tags as trace_tags
+        ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
   const { scoresFilter } = getProjectIdDefaultFilter(projectId, {
@@ -615,6 +615,8 @@ const getScoresUiGeneric = async <T>(props: {
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
+
+  console.log(query);
 
   const rows = await queryClickhouse<T>({
     query: query,
