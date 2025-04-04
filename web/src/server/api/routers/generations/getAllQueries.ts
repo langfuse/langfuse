@@ -31,7 +31,7 @@ export const getAllQueries = {
         offset: 0,
       });
       return {
-        totalCount: countQuery.shift()?.count,
+        totalCount: countQuery,
       };
     }),
 };

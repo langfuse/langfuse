@@ -276,6 +276,7 @@ export const getDatabaseReadStream = async ({
               ? [...filter, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
             undefined,
+            ["id" as const],
             orderBy,
             pageSize,
             Math.floor(offset / pageSize),
