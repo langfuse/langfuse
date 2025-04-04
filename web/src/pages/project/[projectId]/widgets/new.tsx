@@ -194,7 +194,6 @@ export default function NewWidget() {
       setSelectedMetric("count");
       setSelectedAggregation("count");
       setSelectedDimension("none");
-      // setSelectedFilters([]);
     }
   }, [selectedView]);
 
@@ -207,7 +206,6 @@ export default function NewWidget() {
 
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
-    if (!selectedView) return [];
     const viewDeclaration = viewDeclarations[selectedView];
     return Object.entries(viewDeclaration.measures).map(([key]) => ({
       value: key,
@@ -217,7 +215,6 @@ export default function NewWidget() {
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
-    if (!selectedView) return [];
     const viewDeclaration = viewDeclarations[selectedView];
     return Object.entries(viewDeclaration.dimensions).map(([key]) => ({
       value: key,
@@ -273,7 +270,7 @@ export default function NewWidget() {
           skipBatch: true,
         },
       },
-      enabled: isAdmin && !!selectedView, // Only run query if isAdmin is true and a view is selected
+      enabled: isAdmin, // Only run query if isAdmin is true
     },
   );
 
@@ -375,7 +372,6 @@ export default function NewWidget() {
                 <div className="space-y-2">
                   <Label htmlFor="metrics-select">Metric</Label>
                   <Select
-                    disabled={!selectedView}
                     value={selectedMetric}
                     onValueChange={(value) => setSelectedMetric(value)}
                   >
@@ -392,7 +388,6 @@ export default function NewWidget() {
                   </Select>
                   {selectedMetric !== "count" && (
                     <Select
-                      disabled={!selectedView}
                       value={selectedAggregation}
                       onValueChange={(value) =>
                         setSelectedAggregation(
@@ -434,7 +429,6 @@ export default function NewWidget() {
                   <Select
                     value={selectedDimension}
                     onValueChange={setSelectedDimension}
-                    disabled={!selectedView}
                   >
                     <SelectTrigger id="dimension-select">
                       <SelectValue placeholder="Select a dimension" />
@@ -464,7 +458,6 @@ export default function NewWidget() {
                   <Select
                     value={selectedChartType}
                     onValueChange={setSelectedChartType}
-                    disabled={!selectedView}
                   >
                     <SelectTrigger id="chart-type-select">
                       <SelectValue placeholder="Select a chart type" />
@@ -520,7 +513,6 @@ export default function NewWidget() {
                           setRowLimit(value);
                         }
                       }}
-                      disabled={!selectedView}
                       placeholder="Enter row limit (1-1000)"
                     />
                   </div>
