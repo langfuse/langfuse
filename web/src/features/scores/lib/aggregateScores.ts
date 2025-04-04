@@ -44,6 +44,10 @@ export const aggregateScores = <T extends ScoreToAggregate>(
   );
 
   // step 2: for each group, determine if the score is categorical or numeric & compute aggregate for group
+  /* IMPORTANT
+   * Some ScoreAggregates have a single value, and then include extra fields: comment, id, hasMetadata.
+   * When the aggreagate contains multiple values, these extra fields are undefined.
+   */
   return Object.entries(groupedScores).reduce((acc, [key, scores]) => {
     if (scores[0].dataType === "NUMERIC") {
       const values = scores.map((score) => score.value ?? 0);
