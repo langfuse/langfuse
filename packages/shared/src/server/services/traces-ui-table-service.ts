@@ -23,6 +23,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "../repositories";
+import { TracingSearchType } from "../../interfaces/search";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -158,6 +159,7 @@ export type FetchTracesTableProps = {
   projectId: string;
   filter: FilterState;
   searchQuery?: string;
+  searchType?: TracingSearchType[];
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
@@ -207,6 +209,7 @@ export const getTracesTable = async (
   projectId: string,
   filter: FilterState,
   searchQuery?: string,
+  searchType?: TracingSearchType[],
   orderBy?: OrderByState,
   limit?: number,
   page?: number,
@@ -217,6 +220,7 @@ export const getTracesTable = async (
     projectId,
     filter,
     searchQuery,
+    searchType,
     orderBy,
     limit,
     page,
@@ -226,8 +230,16 @@ export const getTracesTable = async (
 };
 
 const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, page, searchQuery } =
-    props;
+  const {
+    select,
+    projectId,
+    filter,
+    orderBy,
+    limit,
+    page,
+    searchQuery,
+    searchType,
+  } = props;
 
   let sqlSelect: string;
   switch (select) {
@@ -334,7 +346,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const scoresFilterRes = scoresFilter.apply();
   const observationFilterRes = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery);
+  const search = clickhouseSearchCondition(searchQuery, searchType);
 
   const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
   const orderByCols = [

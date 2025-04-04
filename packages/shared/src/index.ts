@@ -50,3 +50,4 @@ export * from "./server/repositories/types";
 export * from "./errors/index";
 
 export * from "./utils/environment";
+export * from "./interfaces/search";

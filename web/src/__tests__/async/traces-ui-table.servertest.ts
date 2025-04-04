@@ -25,6 +25,7 @@ describe("Traces table API test", () => {
       [],
       undefined,
       undefined,
+      undefined,
       1,
       0,
     );
@@ -65,6 +66,7 @@ describe("Traces table API test", () => {
       project_id,
       [],
       undefined,
+      undefined,
       { column: "timestamp", order: "DESC" },
       2,
       0,
@@ -89,6 +91,7 @@ describe("Traces table API test", () => {
     const tableRows = await getTracesTable(
       project_id,
       [],
+      undefined,
       undefined,
       undefined,
       1,
@@ -207,6 +210,7 @@ describe("Traces table API test", () => {
       const tableRows = await getTracesTable(
         project_id,
         testConfig.filterstate,
+        undefined,
         undefined,
         undefined,
         1,

@@ -13,6 +13,7 @@ import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrayParam,
   NumberParam,
   StringParam,
   useQueryParam,
@@ -31,6 +32,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
+  type TracingSearchType,
   type FilterState,
   type TraceOptions,
   tracesTableColsWithOptions,
@@ -140,6 +142,18 @@ export default function TracesTable({
     "search",
     withDefault(StringParam, null),
   );
+
+  const [searchType, setSearchType] = useQueryParam(
+    "searchType",
+    withDefault(ArrayParam, ["id"]),
+  );
+
+  const setTypedSearchType = (searchType: TracingSearchType[]) => {
+    setSearchType(searchType);
+  };
+
+  const typedSearchType = (searchType ?? ["id"]) as TracingSearchType[];
+
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange(projectId);
   const [userFilterState, setUserFilterState] = useQueryFilterState(
@@ -211,11 +225,16 @@ export default function TracesTable({
     projectId,
     filter: filterState,
     searchQuery,
+    searchType: typedSearchType,
     // "empty" values as they do not matter for total count
     page: 0,
     limit: 0,
     orderBy: null,
   };
+
+  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
 
   const tracesAllQueryFilter = {
     ...tracesAllCountFilter,
@@ -223,12 +242,11 @@ export default function TracesTable({
     limit: paginationState.pageSize,
     orderBy: orderByState,
   };
+
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
     enabled: environmentFilterOptions.data !== undefined,
   });
-  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
-    enabled: environmentFilterOptions.data !== undefined,
-  });
+
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -971,6 +989,9 @@ export default function TracesTable({
           placeholder: "Search (by id, name, trace name, user id)",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+          searchType: typedSearchType,
+          countOfFilteredRecordsInDatabase: totalCountQuery.data?.totalCount,
+          setSearchType: setTypedSearchType,
         }}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
