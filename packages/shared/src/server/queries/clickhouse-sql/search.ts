@@ -10,7 +10,7 @@ export const clickhouseSearchCondition = (
     !searchType || searchType.includes("id")
       ? `id ILIKE {searchString: String} OR user_id ILIKE {searchString: String} OR name ILIKE {searchString: String}`
       : null,
-    searchType && searchType.includes("text")
+    searchType && searchType.includes("content")
       ? `input ILIKE {searchString: String} OR output ILIKE {searchString: String}`
       : null,
   ].filter(Boolean);

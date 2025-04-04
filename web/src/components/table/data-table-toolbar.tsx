@@ -153,12 +153,12 @@ export function DataTableToolbar<TData, TValue>({
                   <div className="flex items-center space-x-1">
                     <Checkbox
                       id="fullTextSearch"
-                      checked={searchType.includes("text")}
+                      checked={searchType.includes("content")}
                       disabled={fullTextSearchDisabled}
                       onCheckedChange={(checked) => {
                         const newSearchType: TracingSearchType[] = ["id"];
                         if (checked) {
-                          newSearchType.push("text" as const);
+                          newSearchType.push("content" as const);
                         }
                         setSearchType(newSearchType);
                         searchConfig.setSearchType?.(newSearchType);
