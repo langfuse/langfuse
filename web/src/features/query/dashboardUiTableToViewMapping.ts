@@ -19,12 +19,20 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "userId",
     },
     {
+      uiTableName: "Session",
+      viewName: "sessionId",
+    },
+    {
       uiTableName: "Release",
       viewName: "release",
     },
     {
       uiTableName: "Version",
       viewName: "version",
+    },
+    {
+      uiTableName: "Environment",
+      viewName: "environment",
     },
   ],
   observations: [
@@ -44,6 +52,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       uiTableName: "Model",
       viewName: "providedModelName",
     },
+    {
+      uiTableName: "Environment",
+      viewName: "environment",
+    },
   ],
   "scores-numeric": [
     {
@@ -62,6 +74,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       uiTableName: "Tags",
       viewName: "tags",
     },
+    {
+      uiTableName: "Environment",
+      viewName: "environment",
+    },
   ],
   "scores-categorical": [
     {
@@ -79,6 +95,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     {
       uiTableName: "Tags",
       viewName: "tags",
+    },
+    {
+      uiTableName: "Environment",
+      viewName: "environment",
     },
   ],
 };

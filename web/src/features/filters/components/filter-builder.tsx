@@ -198,7 +198,9 @@ export function InlineFilterBuilder({
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
-  onChange: Dispatch<SetStateAction<FilterState>>;
+  onChange:
+    | Dispatch<SetStateAction<FilterState>>
+    | ((newState: FilterState) => void);
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
 }) {
