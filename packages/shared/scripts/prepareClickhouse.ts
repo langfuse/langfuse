@@ -70,7 +70,12 @@ export const prepareClickhouse = async (
       'default' AS environment,
       if(rand() < 0.8, true, false) as public,
       if(rand() < 0.8, true, false) as bookmarked,
-      array('tag1', 'tag2') as tags,
+      case
+          when number % 4 = 0 then  array('tag 1', 'tag-two')
+          when number % 4 = 1 then  array('tag three')
+          when number % 4 = 2 then  array('tag two')
+          else array('4th tag')
+      end as tags,
       repeat('input', toInt64(randExponential(1 / 100))) AS input,
       repeat('output', toInt64(randExponential(1 / 100))) AS output,
       if(randUniform(0, 1) < 0.2, NULL, concat('session_', toString(rand() % 1000))) AS session_id,

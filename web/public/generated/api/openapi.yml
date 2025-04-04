@@ -1939,6 +1939,17 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: traceTags
+          in: query
+          description: >-
+            Only observations linked to traces that include all of these tags 
+            will be returned.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
       responses:
         '200':
           description: ''
