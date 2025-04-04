@@ -96,10 +96,10 @@ export default withMiddlewares({
       }
 
       const outObservations = observationsView.map(transformDbToApiObservation);
-      const validatedScores = filterAndValidateDbScoreList(
+      const validatedScores = filterAndValidateDbScoreList({
         scores,
-        traceException,
-      );
+        onParseError: traceException,
+      });
 
       const obsStartTimes = observations
         .map((o) => o.startTime)

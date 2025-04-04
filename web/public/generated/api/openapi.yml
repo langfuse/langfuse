@@ -3807,6 +3807,8 @@ components:
         comment:
           type: string
           nullable: true
+        metadata:
+          nullable: true
         configId:
           type: string
           nullable: true
@@ -4799,6 +4801,8 @@ components:
         comment:
           type: string
           nullable: true
+        metadata:
+          nullable: true
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
           nullable: true
@@ -5669,6 +5673,8 @@ components:
           nullable: true
         comment:
           type: string
+          nullable: true
+        metadata:
           nullable: true
         environment:
           type: string

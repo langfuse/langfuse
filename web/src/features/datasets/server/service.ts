@@ -255,7 +255,8 @@ const getScoresFromTempTable = async (
   // Only then, we can guarantee that the created mergetree before was replicated.
   const query = `
       SELECT 
-        s.*,
+        s.* EXCEPT (metadata),
+        length(mapKeys(s.metadata)) > 0 AS has_metadata,
         tmp.run_id
       FROM ${tableName} tmp JOIN scores s 
         ON tmp.project_id = s.project_id 
@@ -268,7 +269,13 @@ const getScoresFromTempTable = async (
       SETTINGS select_sequential_consistency = 1;
   `;
 
-  const rows = await queryClickhouse<ScoreRecordReadType & { run_id: string }>({
+  const rows = await queryClickhouse<
+    ScoreRecordReadType & {
+      run_id: string;
+      // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
+      has_metadata: 0 | 1;
+    }
+  >({
     query: query,
     params: {
       projectId: input.projectId,
@@ -278,7 +285,11 @@ const getScoresFromTempTable = async (
     tags: { feature: "dataset", projectId: input.projectId },
   });
 
-  return rows.map((row) => ({ ...convertToScore(row), run_id: row.run_id }));
+  return rows.map((row) => ({
+    ...convertToScore({ ...row, metadata: {} }),
+    run_id: row.run_id,
+    hasMetadata: !!row.has_metadata,
+  }));
 };
 
 const getObservationLatencyAndCostForDataset = async (
@@ -509,6 +520,8 @@ export const getRunItemsByRunIdOrItemId = async (
         projectId,
         traceIds: runItems.map((ri) => ri.traceId),
         timestamp: filterTimestamp,
+        includeHasMetadata: true,
+        excludeMetadata: true,
       }),
       getLatencyAndTotalCostForObservations(
         projectId,
@@ -524,10 +537,11 @@ export const getRunItemsByRunIdOrItemId = async (
       ),
     ]);
 
-  const validatedTraceScores = filterAndValidateDbScoreList(
-    traceScores,
-    traceException,
-  );
+  const validatedTraceScores = filterAndValidateDbScoreList({
+    scores: traceScores,
+    includeHasMetadata: true,
+    onParseError: traceException,
+  });
 
   return runItems.map((ri) => {
     const trace = traceAggregate
@@ -561,15 +575,17 @@ export const getRunItemsByRunIdOrItemId = async (
           }
         : undefined);
 
+    const scores = aggregateScores([
+      ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
+    ]);
+
     return {
       id: ri.id,
       createdAt: ri.createdAt,
       datasetItemId: ri.datasetItemId,
       observation,
       trace,
-      scores: aggregateScores([
-        ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
-      ]),
+      scores,
     };
   });
 };

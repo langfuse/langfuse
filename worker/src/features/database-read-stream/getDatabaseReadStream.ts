@@ -9,7 +9,6 @@ import {
   FullObservationsWithScores,
   DatabaseReadStream,
   getScoresUiTable,
-  type ScoreUiTableRow,
   getPublicSessionsFilter,
   getSessionsWithMetrics,
   getDistinctScoreNames,
@@ -118,7 +117,7 @@ export const getDatabaseReadStream = async ({
             offset,
           });
 
-          return scores.map((score: ScoreUiTableRow) => ({
+          return scores.map((score) => ({
             id: score.id,
             traceId: score.traceId,
             timestamp: score.timestamp,
@@ -128,6 +127,7 @@ export const getDatabaseReadStream = async ({
             value: score.value,
             stringValue: score.stringValue,
             comment: score.comment,
+            metadata: score.metadata,
             observationId: score.observationId,
             traceName: score.traceName,
             userId: score.traceUserId,
@@ -227,10 +227,10 @@ export const getDatabaseReadStream = async ({
             orderBy: orderBy,
             selectIOAndMetadata: true,
           });
-          const scores = await getScoresForObservations(
+          const scores = await getScoresForObservations({
             projectId,
-            generations.map((gen) => gen.id),
-          );
+            observationIds: generations.map((gen) => gen.id),
+          });
 
           const chunk = generations.map((generation) => {
             const filteredScores = scores.filter(
