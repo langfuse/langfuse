@@ -874,6 +874,60 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: "premium",
         },
       ],
+      [
+        "should extract tags from single string from langfuse.tags to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.tags",
+          otelAttributeValue: {
+            stringValue: "2",
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["2"],
+        },
+      ],
+      [
+        "should extract array input on trace event attributes",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.tags",
+          otelAttributeValue: {
+            arrayValue: {
+              values: [
+                {
+                  stringValue: "2",
+                },
+              ],
+            },
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["2"],
+        },
+      ],
+      [
+        "should extract array input tags to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.tags",
+          otelAttributeValue: {
+            stringValue: '["2"]',
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["2"],
+        },
+      ],
+      [
+        "should extract array csv input tags to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.tags",
+          otelAttributeValue: {
+            stringValue: "2,3,4",
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["2", "3", "4"],
+        },
+      ],
     ])(
       "Attributes: %s",
       (
