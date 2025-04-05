@@ -87,7 +87,10 @@ export default withMiddlewares({
 
       const finalCount = count || 0;
       return {
-        data: items,
+        data: items.map((item) => ({
+          ...item,
+          externalId: null,
+        })),
         meta: {
           page: query.page,
           limit: query.limit,

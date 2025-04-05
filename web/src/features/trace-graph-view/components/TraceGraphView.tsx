@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
-import type { APIScore, Trace } from "@langfuse/shared";
+import type { APIScore, TraceDomain } from "@langfuse/shared";
 import type { ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
@@ -14,7 +14,7 @@ import {
 
 type TraceGraphViewProps = {
   observations: ObservationReturnTypeWithMetadata[];
-  trace: Omit<Trace, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output"> & {
     input: string | undefined;
     output: string | undefined;
   };

@@ -121,6 +121,7 @@ export default withMiddlewares({
           : undefined;
       return {
         ...trace,
+        externalId: null,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : 0,
         observations: outObservations,

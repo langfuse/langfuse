@@ -121,24 +121,3 @@ export type Score = {
   updatedAt: Date;
   dataType: ScoreDataType;
 };
-
-export type Trace = {
-  id: string;
-  timestamp: Date;
-  name: string | null;
-  userId: string | null;
-  environment: string;
-  metadata: Prisma.JsonValue | null;
-  release: string | null;
-  version: string | null;
-  projectId: string;
-  public: boolean;
-  bookmarked: boolean;
-  tags: string[];
-  input: unknown | null;
-  output: unknown | null;
-  sessionId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  externalId: string | null;
-};

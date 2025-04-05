@@ -1,4 +1,4 @@
-import { type ObservationLevelType, type Trace } from "@langfuse/shared";
+import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -53,7 +53,7 @@ const getNestedObservationKeys = (
 
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<Trace, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output"> & {
     input: string | undefined;
     output: string | undefined;
   };
