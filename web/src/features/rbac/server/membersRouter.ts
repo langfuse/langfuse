@@ -9,7 +9,7 @@ import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { type PrismaClient, Role } from "@langfuse/shared";
+import { Prisma, type PrismaClient, Role } from "@langfuse/shared";
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -279,38 +279,54 @@ export const membersRouter = createTRPCRouter({
           env: env,
         });
       } else {
-        const invitation = await ctx.prisma.membershipInvitation.create({
-          data: {
-            orgId: input.orgId,
-            projectId:
-              project && input.projectRole && input.projectRole !== Role.NONE
-                ? project.id
-                : null,
-            email: input.email.toLowerCase(),
-            orgRole: input.orgRole,
-            projectRole:
-              input.projectRole && input.projectRole !== Role.NONE && project
-                ? input.projectRole
-                : null,
-            invitedByUserId: ctx.session.user.id,
-          },
-        });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "membershipInvitation",
-          resourceId: invitation.id,
-          action: "create",
-          after: invitation,
-        });
-        await sendMembershipInvitationEmail({
-          inviterEmail: ctx.session.user.email!,
-          inviterName: ctx.session.user.name!,
-          to: input.email,
-          orgName: org.name,
-          env: env,
-        });
+        try {
+          const invitation = await ctx.prisma.membershipInvitation.create({
+            data: {
+              orgId: input.orgId,
+              projectId:
+                project && input.projectRole && input.projectRole !== Role.NONE
+                  ? project.id
+                  : null,
+              email: input.email.toLowerCase(),
+              orgRole: input.orgRole,
+              projectRole:
+                input.projectRole && input.projectRole !== Role.NONE && project
+                  ? input.projectRole
+                  : null,
+              invitedByUserId: ctx.session.user.id,
+            },
+          });
 
-        return invitation;
+          await auditLog({
+            session: ctx.session,
+            resourceType: "membershipInvitation",
+            resourceId: invitation.id,
+            action: "create",
+            after: invitation,
+          });
+          await sendMembershipInvitationEmail({
+            inviterEmail: ctx.session.user.email!,
+            inviterName: ctx.session.user.name!,
+            to: input.email,
+            orgName: org.name,
+            env: env,
+          });
+
+          return invitation;
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002"
+          ) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "A pending membership invitation with this email and organization already exists",
+            });
+          } else {
+            throw error;
+          }
+        }
       }
     }),
   deleteMembership: protectedOrganizationProcedure

@@ -18,6 +18,15 @@ export const clickhouseClient = (
     propagation.inject(context.active(), headers);
   }
 
+  const cloudOptions: Record<string, unknown> = {};
+  if (
+    ["STAGING", "EU", "US"].includes(
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
+    )
+  ) {
+    cloudOptions.input_format_json_throw_on_bad_escape_sequence = 0;
+  }
+
   return createClient({
     ...params.opts,
     url: env.CLICKHOUSE_URL,
@@ -26,11 +35,11 @@ export const clickhouseClient = (
     database: env.CLICKHOUSE_DB,
     http_headers: headers,
     clickhouse_settings: {
+      ...cloudOptions,
       ...(params.opts?.clickhouse_settings ?? {}),
       log_comment: JSON.stringify(params.tags ?? {}),
       async_insert: 1,
       wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
-      input_format_json_throw_on_bad_escape_sequence: 0,
     },
   });
 };

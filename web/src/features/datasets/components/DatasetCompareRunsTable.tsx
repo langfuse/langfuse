@@ -15,17 +15,19 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDown, Expand, Rows3 } from "lucide-react";
+import { Cog } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { DatasetCompareRunPeekView } from "@/src/features/datasets/components/DatasetCompareRunPeekView";
 import { getQueryKey } from "@trpc/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import _ from "lodash";
+import { useDatasetComparePeekState } from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
+import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
+
 export type RunMetrics = {
   id: string;
   scores: ScoreAggregate;
@@ -46,6 +48,41 @@ export type DatasetCompareRunRowData = {
   metadata: Prisma.JsonValue;
   // runs holds grouped column with individual run metrics
   runs?: RunAggregate;
+};
+
+type QueryKeyType = ReturnType<typeof getQueryKey>;
+
+const formatQueryKey = (queryKey?: QueryKeyType): QueryKeyType => {
+  try {
+    return queryKey
+      ? [
+          queryKey[0],
+          {
+            input: queryKey[1]?.input,
+            type: queryKey[1]?.type ?? "query",
+          },
+        ]
+      : ([[]] as QueryKeyType);
+  } catch (error) {
+    return [[]] as QueryKeyType;
+  }
+};
+
+// Run items are added async for prompt experiment runs, so we must continue to refetch until all items are present
+// As evaluations are added async too, we must compare the scores for all run items to check if they're all complete
+const isDataComplete = (
+  prevData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+  newData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+) => {
+  if (prevData.totalRunItems !== newData.totalRunItems) return false;
+
+  // Compare scores for all run items to check if they're all complete
+  return prevData.runItems.every((prevItem, index) => {
+    const newItem = newData.runItems[index];
+    if (!newItem) return false;
+
+    return JSON.stringify(prevItem.scores) === JSON.stringify(newItem.scores);
+  });
 };
 
 const getRefetchInterval = (
@@ -73,14 +110,6 @@ export function DatasetCompareRunsTable(props: {
     "resourceMetrics",
   ]);
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
-  const [clickedRow, setClickedRow] = useState<DatasetCompareRunRowData | null>(
-    null,
-  );
-  const [traceAndObservationId, setTraceAndObservationId] = useState<{
-    runId: string;
-    traceId: string;
-    observationId?: string;
-  } | null>(null);
   const [unchangedCounts, setUnchangedCounts] = useState<
     Record<string, number>
   >({});
@@ -126,10 +155,17 @@ export function DatasetCompareRunsTable(props: {
       setUnchangedCounts((prev) => {
         const prevCount = prev[runId] || 0;
         const queryKey = runQueries.find((r) => r.runId === runId)?.queryKey;
-        const prevData = queryClient.getQueryData(queryKey || []);
+        const formattedQueryKey = formatQueryKey(queryKey);
+        const prevData = queryClient.getQueryData(formattedQueryKey);
 
-        // Only increment if we have previous data and it matches the new data
-        if (prevData && JSON.stringify(prevData) === JSON.stringify(newData)) {
+        // Only increment if we there are no more items included in the new data that are not in the previous data
+        if (
+          prevData &&
+          isDataComplete(
+            prevData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+            newData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+          )
+        ) {
           const newCount = prevCount + 1;
           return { ...prev, [runId]: newCount };
         }
@@ -273,18 +309,7 @@ export function DatasetCompareRunsTable(props: {
           "input",
         ) as DatasetCompareRunRowData["input"];
         return input !== null ? (
-          <div className="group relative h-full w-full">
-            <Button
-              variant="outline"
-              size="icon"
-              className="absolute right-1 top-1 z-[5] hidden items-center justify-center group-hover:flex"
-              onClick={() => {
-                setTraceAndObservationId(null);
-                setClickedRow(row.original);
-              }}
-            >
-              <Expand className="h-4 w-4" />
-            </Button>
+          <div className="h-full w-full">
             <IOTableCell data={input} />
           </div>
         ) : null;
@@ -301,18 +326,7 @@ export function DatasetCompareRunsTable(props: {
           "expectedOutput",
         ) as DatasetCompareRunRowData["expectedOutput"];
         return expectedOutput !== null ? (
-          <div className="group relative h-full w-full">
-            <Button
-              variant="outline"
-              size="icon"
-              className="absolute right-1 top-1 z-[5] hidden items-center justify-center group-hover:flex"
-              onClick={() => {
-                setTraceAndObservationId(null);
-                setClickedRow(row.original);
-              }}
-            >
-              <Expand className="h-4 w-4" />
-            </Button>
+          <div className="h-full w-full">
             <IOTableCell
               data={expectedOutput}
               className="bg-accent-light-green"
@@ -347,6 +361,10 @@ export function DatasetCompareRunsTable(props: {
       columns,
     );
 
+  const urlPathname = `/project/${props.projectId}/datasets/${props.datasetId}/compare`;
+
+  const { setPeekView } = useDatasetComparePeekState(urlPathname);
+
   return (
     <>
       <DataTableToolbar
@@ -359,11 +377,10 @@ export function DatasetCompareRunsTable(props: {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
+                size="icon"
                 onClick={() => setIsMetricsDropdownOpen(!isMetricsDropdownOpen)}
               >
-                <Rows3 className="mr-2 h-4 w-4" />
-                <span className="text-xs text-muted-foreground">Metrics</span>
-                <ChevronDown className="ml-2 h-4 w-4" />
+                <Cog className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -422,19 +439,22 @@ export function DatasetCompareRunsTable(props: {
           state: paginationState,
         }}
         rowHeight={rowHeight}
+        peekView={{
+          itemType: "DATASET_ITEM",
+          urlPathname,
+          onOpenChange: setPeekView,
+          children: (row?: DatasetCompareRunRowData) => (
+            <PeekDatasetCompareDetail
+              projectId={props.projectId}
+              datasetId={props.datasetId}
+              scoreKeyToDisplayName={scoreKeyToDisplayName}
+              runsData={props.runsData ?? []}
+              selectedMetrics={selectedMetrics}
+              row={row}
+            />
+          ),
+        }}
       />
-      {scoreKeysAndProps.isSuccess && (
-        <DatasetCompareRunPeekView
-          projectId={props.projectId}
-          datasetId={props.datasetId}
-          scoreKeyToDisplayName={scoreKeyToDisplayName}
-          clickedRow={clickedRow}
-          setClickedRow={setClickedRow}
-          traceAndObservationId={traceAndObservationId}
-          setTraceAndObservationId={setTraceAndObservationId}
-          runsData={props.runsData ?? []}
-        />
-      )}
     </>
   );
 }

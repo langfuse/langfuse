@@ -24,7 +24,7 @@ import { type TableAction } from "@/src/features/table/types";
 import { TableActionTargetOptions } from "@/src/features/table/components/TableActionTargetOptions";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useOptionalEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -50,7 +50,7 @@ export function TableActionDialog({
     scope: action.accessCheck.scope,
   });
   const { setSelectAll } = useSelectAll(projectId, tableName);
-  const hasEntitlement = useHasEntitlement(action.accessCheck.entitlement);
+  const hasEntitlement = useOptionalEntitlement(action.accessCheck.entitlement);
   const form = useForm({ defaultValues: { targetId: "" } });
 
   const isInProgress = api.table.getIsBatchActionInProgress.useQuery(

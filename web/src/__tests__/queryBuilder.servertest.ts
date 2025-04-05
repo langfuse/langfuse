@@ -37,6 +37,29 @@ describe("queryBuilder", () => {
           orderBy: null,
         } as QueryType,
       ],
+      // [
+      //   "trace query with metric filter",
+      //   {
+      //     view: "traces",
+      //     dimensions: [{ field: "name" }],
+      //     metrics: [
+      //       { measure: "count", aggregation: "count" },
+      //       { measure: "observationsCount", aggregation: "p95" },
+      //     ],
+      //     filters: [
+      //       {
+      //         column: "observationsCount",
+      //         operator: ">",
+      //         value: 0,
+      //         type: "number",
+      //       },
+      //     ],
+      //     timeDimension: null,
+      //     fromTimestamp: "2025-01-01T00:00:00.000Z",
+      //     toTimestamp: "2025-03-01T00:00:00.000Z",
+      //     orderBy: null,
+      //   } as QueryType,
+      // ],
       [
         "query with auto time dimension for month granularity",
         {
@@ -492,12 +515,298 @@ describe("queryBuilder", () => {
         const manyObsTrace = result.data.find(
           (row: any) => row.name === "trace-with-many-obs",
         );
-        expect(manyObsTrace.sum_observations_count).toBe("5");
+        expect(manyObsTrace.sum_observationsCount).toBe("5");
 
         const fewObsTrace = result.data.find(
           (row: any) => row.name === "trace-with-few-obs",
         );
-        expect(fewObsTrace.sum_observations_count).toBe("2");
+        expect(fewObsTrace.sum_observationsCount).toBe("2");
+      });
+
+      it("should use tags as dimension", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-with-tag-a", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b", tags: ["tag-b", "common-tag"] },
+          { name: "trace-with-tag-c", tags: ["tag-c"] },
+          { name: "trace-with-no-tags", tags: [] },
+        ];
+
+        // Create traces with custom tags
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        // Define query with a filter for tags using "any of" operator
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(4);
+        // Expect one entry for all so index order does not matter
+        expect(result.data[0].count_count).toBe("1");
+      });
+
+      it("should filter traces by tags using 'any of' operator", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-with-tag-a", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b", tags: ["tag-b", "common-tag"] },
+          { name: "trace-with-tag-c", tags: ["tag-c"] },
+          { name: "trace-with-no-tags", tags: [] },
+        ];
+
+        // Create traces with custom tags
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        // Define query with a filter for tags using "any of" operator
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "tags",
+              operator: "any of",
+              value: ["tag-a", "tag-b"],
+              type: "arrayOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - should only return traces with tag-a or tag-b
+        expect(result.data).toHaveLength(2);
+
+        // Find and verify each trace
+        const traceWithTagA = result.data.find(
+          (row: any) => row.name === "trace-with-tag-a",
+        );
+        expect(traceWithTagA).toBeDefined();
+        expect(traceWithTagA.count_count).toBe("1");
+
+        const traceWithTagB = result.data.find(
+          (row: any) => row.name === "trace-with-tag-b",
+        );
+        expect(traceWithTagB).toBeDefined();
+        expect(traceWithTagB.count_count).toBe("1");
+      });
+
+      it("should filter traces by tags using 'all of' operator", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          {
+            name: "trace-with-multiple-tags",
+            tags: ["tag-a", "tag-b", "common-tag"],
+          },
+          { name: "trace-with-tag-a-only", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b-only", tags: ["tag-b", "common-tag"] },
+          { name: "trace-with-other-tags", tags: ["tag-c", "common-tag"] },
+        ];
+
+        // Create traces with custom tags
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        // Define query with a filter for tags using "all of" operator
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "tags",
+              operator: "all of",
+              value: ["tag-a", "tag-b"],
+              type: "arrayOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - should only return traces with both tag-a and tag-b
+        expect(result.data).toHaveLength(1);
+
+        // Verify the trace has both tags
+        expect(result.data[0].name).toBe("trace-with-multiple-tags");
+        expect(result.data[0].count_count).toBe("1");
+      });
+
+      it("should filter traces by tags using 'none of' operator", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-with-tag-a", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b", tags: ["tag-b", "common-tag"] },
+          {
+            name: "trace-with-other-tags",
+            tags: ["tag-c", "tag-d", "common-tag"],
+          },
+          { name: "trace-with-no-tags", tags: [] },
+        ];
+
+        // Create traces with custom tags
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        // Define query with a filter for tags using "none of" operator
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "tags",
+              operator: "none of",
+              value: ["tag-a", "tag-b"],
+              type: "arrayOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - should only return traces without tag-a or tag-b
+        expect(result.data).toHaveLength(2);
+
+        // Find and verify each trace
+        const traceWithOtherTags = result.data.find(
+          (row: any) => row.name === "trace-with-other-tags",
+        );
+        expect(traceWithOtherTags).toBeDefined();
+        expect(traceWithOtherTags.count_count).toBe("1");
+
+        const traceWithNoTags = result.data.find(
+          (row: any) => row.name === "trace-with-no-tags",
+        );
+        expect(traceWithNoTags).toBeDefined();
+        expect(traceWithNoTags.count_count).toBe("1");
       });
 
       it("should group by environment and calculate metrics correctly", async () => {
@@ -568,14 +877,14 @@ describe("queryBuilder", () => {
           (row: any) => row.environment === "production",
         );
         expect(prodEnv.count_count).toBe("2"); // 2 traces
-        expect(prodEnv.sum_observations_count).toBe("7"); // 3+4 observations
+        expect(prodEnv.sum_observationsCount).toBe("7"); // 3+4 observations
 
         // Verify development environment data
         const devEnv = result.data.find(
           (row: any) => row.environment === "development",
         );
         expect(devEnv.count_count).toBe("2"); // 2 traces
-        expect(devEnv.sum_observations_count).toBe("3"); // 2+1 observations
+        expect(devEnv.sum_observationsCount).toBe("3"); // 2+1 observations
       });
 
       it("should handle multiple dimensions (name and environment) correctly", async () => {
@@ -706,10 +1015,10 @@ describe("queryBuilder", () => {
         const row = result.data[0];
         expect(row.name).toBe("multi-metric-test");
         expect(row.count_count).toBe("2"); // 2 traces
-        expect(row.sum_observations_count).toBe("30"); // 10+20 observations
-        expect(row.avg_observations_count).toBe(15); // (10+20)/2 average
-        expect(row.max_observations_count).toBe("20"); // max is 20
-        expect(row.min_observations_count).toBe("10"); // min is 10
+        expect(row.sum_observationsCount).toBe("30"); // 10+20 observations
+        expect(row.avg_observationsCount).toBe(15); // (10+20)/2 average
+        expect(row.max_observationsCount).toBe("20"); // max is 20
+        expect(row.min_observationsCount).toBe("10"); // min is 10
       });
 
       it("should order by a dimension field correctly", async () => {
@@ -787,7 +1096,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
-          orderBy: [{ field: "sum_observations_count", direction: "desc" }],
+          orderBy: [{ field: "sum_observationsCount", direction: "desc" }],
         };
 
         // Execute query
@@ -798,7 +1107,7 @@ describe("queryBuilder", () => {
         );
 
         // Verify ORDER BY clause is present in the query
-        expect(compiledQuery).toContain("ORDER BY sum_observations_count desc");
+        expect(compiledQuery).toContain("ORDER BY sum_observationsCount desc");
 
         const result = await (
           await clickhouseClient().query({
@@ -841,7 +1150,7 @@ describe("queryBuilder", () => {
           ).toISOString(),
           orderBy: [
             { field: "environment", direction: "asc" },
-            { field: "sum_observations_count", direction: "desc" },
+            { field: "sum_observationsCount", direction: "desc" },
           ],
         };
 
@@ -854,7 +1163,7 @@ describe("queryBuilder", () => {
 
         // Verify ORDER BY clause is present in the query with both fields
         expect(compiledQuery).toContain(
-          "ORDER BY environment asc, sum_observations_count desc",
+          "ORDER BY environment asc, sum_observationsCount desc",
         );
 
         const result = await (
@@ -989,7 +1298,7 @@ describe("queryBuilder", () => {
         );
 
         // Verify ORDER BY clause includes default metric ordering (descending)
-        expect(compiledQuery).toContain("ORDER BY sum_observations_count desc");
+        expect(compiledQuery).toContain("ORDER BY sum_observationsCount desc");
 
         const result = await (
           await clickhouseClient().query({
@@ -1668,8 +1977,10 @@ describe("queryBuilder", () => {
         );
 
         // Verify SQL includes segment filter for NUMERIC types
-        expect(compiledQuery).toContain("data_type = {");
-        expect(Object.values(parameters)).toContain("NUMERIC");
+        // Verify SQL includes segment filter for non-NUMERIC types
+        expect(compiledQuery).toContain("position(scores_numeric.data_type, {");
+        expect(compiledQuery).toContain(": String}) = 0");
+        expect(Object.values(parameters)).toContain("CATEGORICAL");
 
         const result = await (
           await clickhouseClient().query({
@@ -1915,8 +2226,8 @@ describe("queryBuilder", () => {
         // Check qa trace with gpt-4
         const qaTraceRow = result.data.find(
           (row: any) =>
-            row.trace_name === "qa-trace" &&
-            row.observation_model_name === "gpt-4",
+            row.traceName === "qa-trace" &&
+            row.observationModelName === "gpt-4",
         );
         expect(qaTraceRow.count_count).toBe("2"); // 2 scores (accuracy + relevance)
         expect(parseFloat(qaTraceRow.avg_value)).toBeCloseTo(0.875, 2); // (0.90 + 0.85) / 2
@@ -1924,11 +2235,132 @@ describe("queryBuilder", () => {
         // Check summarization trace with claude-3
         const summaryTraceRow = result.data.find(
           (row: any) =>
-            row.trace_name === "summarization-trace" &&
-            row.observation_model_name === "claude-3",
+            row.traceName === "summarization-trace" &&
+            row.observationModelName === "claude-3",
         );
         expect(summaryTraceRow.count_count).toBe("1"); // 1 score (accuracy)
         expect(parseFloat(summaryTraceRow.avg_value)).toBeCloseTo(0.95, 2);
+      });
+
+      it("should filter boolean scores correctly", async () => {
+        // Setup
+        const projectId = randomUUID();
+
+        // Create traces
+        const traces = [
+          createTrace({
+            project_id: projectId,
+            name: "trace-1",
+            environment: "production",
+          }),
+          createTrace({
+            project_id: projectId,
+            name: "trace-2",
+            environment: "production",
+          }),
+        ];
+        await createTracesCh(traces);
+
+        // Create observations
+        const observations = [
+          createObservation({
+            project_id: projectId,
+            trace_id: traces[0].id,
+            name: "observation-1",
+            environment: "production",
+          }),
+          createObservation({
+            project_id: projectId,
+            trace_id: traces[1].id,
+            name: "observation-2",
+            environment: "production",
+          }),
+        ];
+        await createObservationsCh(observations);
+
+        // Create boolean scores
+        const scores = [
+          {
+            name: "is_hallucination",
+            traceId: traces[0].id,
+            observationId: observations[0].id,
+            stringValue: "true",
+            dataType: "BOOLEAN" as const,
+          },
+          {
+            name: "is_hallucination",
+            traceId: traces[1].id,
+            observationId: observations[1].id,
+            stringValue: "false",
+            dataType: "BOOLEAN" as const,
+          },
+          {
+            name: "is_helpful",
+            traceId: traces[0].id,
+            observationId: observations[0].id,
+            stringValue: "false",
+            dataType: "BOOLEAN" as const,
+          },
+          {
+            name: "is_helpful",
+            traceId: traces[1].id,
+            observationId: observations[1].id,
+            stringValue: "true",
+            dataType: "BOOLEAN" as const,
+          },
+        ];
+
+        await setupScores(projectId, scores);
+
+        // Define query to filter for true Boolean scores only
+        const query: QueryType = {
+          view: "scores-numeric",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "name",
+              operator: "any of",
+              value: ["is_hallucination", "is_helpful"],
+              type: "stringOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - should only return true scores
+        expect(result.data).toHaveLength(2);
+
+        // Check which scores were true
+        const isHallucination = result.data.find(
+          (row: any) => row.name === "is_hallucination",
+        );
+        const isHelpful = result.data.find(
+          (row: any) => row.name === "is_helpful",
+        );
+
+        expect(isHallucination.count_count).toBe("2");
+        expect(isHelpful.count_count).toBe("2");
       });
     });
 
@@ -2052,12 +2484,9 @@ describe("queryBuilder", () => {
           projectId,
         );
 
-        // Verify SQL includes segment filter for non-NUMERIC types
-        expect(compiledQuery).toContain(
-          "position(scores_categorical.data_type, {",
-        );
-        expect(compiledQuery).toContain(": String}) = 0");
-        expect(Object.values(parameters)).toContain("NUMERIC");
+        // Verify SQL includes segment filter for CATEGORICAL type
+        expect(compiledQuery).toContain("data_type = {");
+        expect(Object.values(parameters)).toContain("CATEGORICAL");
 
         const result = await (
           await clickhouseClient().query({
@@ -2066,46 +2495,32 @@ describe("queryBuilder", () => {
           })
         ).json();
 
-        // Assert - should have 6 rows for different name+value combinations
-        expect(result.data).toHaveLength(6);
+        // Assert - should have 4 rows for different name+value combinations
+        expect(result.data).toHaveLength(4);
 
         // Check each combination
         const evaluationExcellent = result.data.find(
           (row: any) =>
-            row.name === "evaluation" && row.string_value === "excellent",
+            row.name === "evaluation" && row.stringValue === "excellent",
         );
         expect(evaluationExcellent.count_count).toBe("1");
 
         const evaluationGood = result.data.find(
-          (row: any) =>
-            row.name === "evaluation" && row.string_value === "good",
+          (row: any) => row.name === "evaluation" && row.stringValue === "good",
         );
         expect(evaluationGood.count_count).toBe("2");
 
         const categoryQuestion = result.data.find(
           (row: any) =>
-            row.name === "category" && row.string_value === "question",
+            row.name === "category" && row.stringValue === "question",
         );
         expect(categoryQuestion.count_count).toBe("1");
 
         const categoryFactual = result.data.find(
           (row: any) =>
-            row.name === "category" && row.string_value === "factual",
+            row.name === "category" && row.stringValue === "factual",
         );
         expect(categoryFactual.count_count).toBe("1");
-
-        // Check boolean scores
-        const isCorrectTrue = result.data.find(
-          (row: any) =>
-            row.name === "is_correct" && row.string_value === "true",
-        );
-        expect(isCorrectTrue.count_count).toBe("1");
-
-        const isCorrectFalse = result.data.find(
-          (row: any) =>
-            row.name === "is_correct" && row.string_value === "false",
-        );
-        expect(isCorrectFalse.count_count).toBe("1");
       });
 
       it("should filter categorical scores by source", async () => {
@@ -2203,130 +2618,9 @@ describe("queryBuilder", () => {
 
         // Check specific values
         const stringValues = result.data
-          .map((row: any) => row.string_value)
+          .map((row: any) => row.stringValue)
           .sort();
         expect(stringValues).toEqual(["command", "statement"]);
-      });
-
-      it("should filter boolean scores correctly", async () => {
-        // Setup
-        const projectId = randomUUID();
-
-        // Create traces
-        const traces = [
-          createTrace({
-            project_id: projectId,
-            name: "trace-1",
-            environment: "production",
-          }),
-          createTrace({
-            project_id: projectId,
-            name: "trace-2",
-            environment: "production",
-          }),
-        ];
-        await createTracesCh(traces);
-
-        // Create observations
-        const observations = [
-          createObservation({
-            project_id: projectId,
-            trace_id: traces[0].id,
-            name: "observation-1",
-            environment: "production",
-          }),
-          createObservation({
-            project_id: projectId,
-            trace_id: traces[1].id,
-            name: "observation-2",
-            environment: "production",
-          }),
-        ];
-        await createObservationsCh(observations);
-
-        // Create boolean scores
-        const scores = [
-          {
-            name: "is_hallucination",
-            traceId: traces[0].id,
-            observationId: observations[0].id,
-            stringValue: "true",
-            dataType: "BOOLEAN" as const,
-          },
-          {
-            name: "is_hallucination",
-            traceId: traces[1].id,
-            observationId: observations[1].id,
-            stringValue: "false",
-            dataType: "BOOLEAN" as const,
-          },
-          {
-            name: "is_helpful",
-            traceId: traces[0].id,
-            observationId: observations[0].id,
-            stringValue: "false",
-            dataType: "BOOLEAN" as const,
-          },
-          {
-            name: "is_helpful",
-            traceId: traces[1].id,
-            observationId: observations[1].id,
-            stringValue: "true",
-            dataType: "BOOLEAN" as const,
-          },
-        ];
-
-        await setupScores(projectId, scores);
-
-        // Define query to filter for true Boolean scores only
-        const query: QueryType = {
-          view: "scores-categorical",
-          dimensions: [{ field: "name" }],
-          metrics: [{ measure: "count", aggregation: "count" }],
-          filters: [
-            {
-              column: "stringValue",
-              operator: "=",
-              value: "true",
-              type: "string",
-            },
-          ],
-          timeDimension: null,
-          fromTimestamp: new Date(
-            new Date().setDate(new Date().getDate() - 1),
-          ).toISOString(),
-          toTimestamp: new Date(
-            new Date().setDate(new Date().getDate() + 1),
-          ).toISOString(),
-          orderBy: null,
-        };
-
-        // Execute query
-        const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery, parameters } = queryBuilder.build(
-          query,
-          projectId,
-        );
-        const result = await (
-          await clickhouseClient().query({
-            query: compiledQuery,
-            query_params: parameters,
-          })
-        ).json();
-
-        // Assert - should only return true scores
-        expect(result.data).toHaveLength(2);
-
-        // Check which scores were true
-        const isHallucination = result.data.find(
-          (row: any) => row.name === "is_hallucination",
-        );
-        const isHelpful = result.data.find(
-          (row: any) => row.name === "is_helpful",
-        );
-
-        expect(isHallucination.count_count).toBe("1");
-        expect(isHelpful.count_count).toBe("1");
       });
     });
 
@@ -2483,39 +2777,39 @@ describe("queryBuilder", () => {
 
         // Get results for each trace
         const gpt4Result = result.data.find(
-          (row: any) => row.trace_name === "gpt-4-completion",
+          (row: any) => row.traceName === "gpt-4-completion",
         );
         const gpt35Result = result.data.find(
-          (row: any) => row.trace_name === "gpt-3.5-completion",
+          (row: any) => row.traceName === "gpt-3.5-completion",
         );
         const claudeResult = result.data.find(
-          (row: any) => row.trace_name === "claude-completion",
+          (row: any) => row.traceName === "claude-completion",
         );
 
         // The p95 should be close to the 95th percentile value we generated
         // For GPT-4: the 95th percentile of values from 500-1400 would be around 1350ms
         expect(
-          parseInt(gpt4Result.p95_time_to_first_token),
+          parseInt(gpt4Result.p95_timeToFirstToken),
         ).toBeGreaterThanOrEqual(1300);
-        expect(
-          parseInt(gpt4Result.p95_time_to_first_token),
-        ).toBeLessThanOrEqual(1400);
+        expect(parseInt(gpt4Result.p95_timeToFirstToken)).toBeLessThanOrEqual(
+          1400,
+        );
 
         // For GPT-3.5: the 95th percentile of values from 200-650 would be around 625ms
         expect(
-          parseInt(gpt35Result.p95_time_to_first_token),
+          parseInt(gpt35Result.p95_timeToFirstToken),
         ).toBeGreaterThanOrEqual(600);
-        expect(
-          parseInt(gpt35Result.p95_time_to_first_token),
-        ).toBeLessThanOrEqual(650);
+        expect(parseInt(gpt35Result.p95_timeToFirstToken)).toBeLessThanOrEqual(
+          650,
+        );
 
         // For Claude: the 95th percentile of values from 300-1200 would be around 1150ms
         expect(
-          parseInt(claudeResult.p95_time_to_first_token),
+          parseInt(claudeResult.p95_timeToFirstToken),
         ).toBeGreaterThanOrEqual(1100);
-        expect(
-          parseInt(claudeResult.p95_time_to_first_token),
-        ).toBeLessThanOrEqual(1200);
+        expect(parseInt(claudeResult.p95_timeToFirstToken)).toBeLessThanOrEqual(
+          1200,
+        );
       });
     });
   });

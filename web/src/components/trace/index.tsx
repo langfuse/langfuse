@@ -378,7 +378,7 @@ export function Trace(props: {
               <div className="h-full w-full flex-1 flex-col overflow-hidden">
                 {isLanggraphTrace(props.observations) && showGraph ? (
                   <div className="flex h-full w-full flex-col overflow-hidden">
-                    <div className="h-1/2 w-full overflow-y-auto">
+                    <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden">
                       <TraceTimelineView
                         key={`timeline-${props.trace.id}`}
                         trace={props.trace}
@@ -408,7 +408,7 @@ export function Trace(props: {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex h-full w-full overflow-auto">
+                  <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
                     <TraceTimelineView
                       key={props.trace.id}
                       trace={props.trace}

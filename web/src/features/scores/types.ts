@@ -10,6 +10,7 @@ export type TimeseriesChartProps = {
   title: string;
   type: "numeric" | "categorical";
   index?: string;
+  maxFractionDigits?: number;
 };
 
 export type ChartData = {

@@ -37,6 +37,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   BlobStorageIntegrationType,
+  BlobStorageIntegrationFileType,
   type BlobStorageIntegration,
 } from "@langfuse/shared";
 
@@ -85,7 +86,7 @@ export default function BlobStorageIntegrationSettings() {
     >
       <p className="mb-4 text-sm text-primary">
         Configure scheduled exports of your trace data to AWS S3, S3-compatible
-        storages, or Azure Blob Storage. Set up a daily, weekly, or monthly
+        storages, or Azure Blob Storage. Set up a hourly, daily, or weekly
         export to your own storage for data analysis or backup purposes.
       </p>
       {!hasAccess && (
@@ -150,11 +151,13 @@ const BlobStorageIntegrationSettingsForm = ({
         | "hourly",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
+      fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
     },
     disabled: isLoading,
   });
 
   useEffect(() => {
+    setIntegrationType(state?.type || BlobStorageIntegrationType.S3);
     blobStorageForm.reset({
       type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
@@ -169,6 +172,7 @@ const BlobStorageIntegrationSettingsForm = ({
         | "hourly",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
+      fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -213,7 +217,7 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormLabel>Storage Provider</FormLabel>
               <FormControl>
                 <Select
-                  defaultValue={field.value}
+                  value={field.value}
                   onValueChange={(value) =>
                     handleIntegrationTypeChange(
                       value as BlobStorageIntegrationType,
@@ -415,10 +419,7 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Export Frequency</FormLabel>
               <FormControl>
-                <Select
-                  defaultValue={field.value}
-                  onValueChange={field.onChange}
-                >
+                <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select frequency" />
                   </SelectTrigger>
@@ -432,6 +433,32 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormDescription>
                 How often the data should be exported. Changes are taken into
                 consideration from the next run onwards.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={blobStorageForm.control}
+          name="fileType"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>File Type</FormLabel>
+              <FormControl>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select file type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="JSONL">JSONL</SelectItem>
+                    <SelectItem value="CSV">CSV</SelectItem>
+                    <SelectItem value="JSON">JSON</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormDescription>
+                The file format for exported data.
               </FormDescription>
               <FormMessage />
             </FormItem>

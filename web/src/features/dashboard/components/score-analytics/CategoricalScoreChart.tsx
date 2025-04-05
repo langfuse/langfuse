@@ -1,79 +1,67 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
-import {
-  type DashboardDateRangeAggregationOption,
-  dashboardDateRangeAggregationSettings,
-} from "@/src/utils/date-range-utils";
+import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
 import { DashboardCategoricalScoreAdapter } from "@/src/features/scores/adapters";
 import { type ScoreData } from "@/src/features/scores/types";
 import { CategoricalChart } from "@/src/features/scores/components/ScoreChart";
+import {
+  type QueryType,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
   scoreData: ScoreData;
   globalFilterState: FilterState;
+  fromTimestamp: Date;
+  toTimestamp: Date;
   agg?: DashboardDateRangeAggregationOption;
 }) {
-  const scores = api.dashboard.chart.useQuery(
+  const scoresQuery: QueryType = {
+    view: "scores-categorical",
+    dimensions: [{ field: "name" }, { field: "stringValue" }],
+    metrics: [{ measure: "count", aggregation: "count" }],
+    filters: [
+      ...mapLegacyUiTableFilterToView(
+        "scores-categorical",
+        createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
+      ),
+      {
+        column: "name",
+        operator: "=",
+        value: props.scoreData.name,
+        type: "string",
+      },
+      {
+        column: "source",
+        operator: "=",
+        value: props.scoreData.source,
+        type: "string",
+      },
+      {
+        column: "dataType",
+        operator: "=",
+        value: props.scoreData.dataType,
+        type: "string",
+      },
+    ],
+    timeDimension: props.agg
+      ? {
+          granularity: "day",
+        }
+      : null,
+    fromTimestamp: props.fromTimestamp.toISOString(),
+    toTimestamp: props.toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const scores = api.dashboard.executeQuery.useQuery(
     {
       projectId: props.projectId,
-      from: "traces_scores",
-      select: [
-        { column: "scoreName" },
-        { column: "scoreDataType" },
-        { column: "scoreSource" },
-        { column: "stringValue" },
-        { column: "stringValue", agg: "COUNT" },
-      ],
-      filter: [
-        ...createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
-        {
-          type: "string",
-          column: "scoreName",
-          value: props.scoreData.name,
-          operator: "=",
-        },
-        {
-          type: "string",
-          column: "scoreSource",
-          value: props.scoreData.source,
-          operator: "=",
-        },
-        {
-          type: "string",
-          column: "scoreDataType",
-          value: props.scoreData.dataType,
-          operator: "=",
-        },
-      ],
-      groupBy: [
-        { type: "string", column: "stringValue" },
-        {
-          type: "string",
-          column: "scoreName",
-        },
-        {
-          type: "string",
-          column: "scoreSource",
-        },
-        {
-          type: "string",
-          column: "scoreDataType",
-        },
-        ...(props.agg
-          ? [
-              {
-                type: "datetime",
-                column: "scoreTimestamp",
-                temporalUnit:
-                  dashboardDateRangeAggregationSettings[props.agg].date_trunc,
-              } as const,
-            ]
-          : []),
-      ],
-      queryName: "categorical-score-chart",
+      query: scoresQuery,
     },
     {
       trpc: {
@@ -88,8 +76,12 @@ export function CategoricalScoreChart(props: {
     if (!scores.data) return { chartData: [], chartLabels: [] };
 
     const adapter = new DashboardCategoricalScoreAdapter(
-      scores.data,
-      "scoreTimestamp",
+      scores.data.map((row) => ({
+        ...row,
+        scoreValue: row.string_value,
+        count: row.count_count,
+      })) as DatabaseRow[],
+      "time_dimension",
       props.agg,
     );
     return adapter.toChartData();

@@ -37,6 +37,7 @@ import {
   type JobExecutionState,
   generateJobExecutionCounts,
 } from "@/src/ee/features/evals/utils/job-execution-utils";
+import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
 
 const JobExecutionCounts = ({
   jobExecutionsByState,
@@ -140,12 +141,19 @@ export const EvaluatorDetail = () => {
                 listKey="evals"
               />
             )}
+            <DeleteEvaluatorButton
+              itemId={evaluatorId}
+              projectId={projectId}
+              redirectUrl={`/project/${projectId}/evals`}
+              deleteConfirmation={evaluator.data?.scoreName}
+              icon
+            />
           </>
         ),
       }}
     >
       {existingEvaluator && (
-        <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+        <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden contain-layout">
           <div className="flex h-full flex-col overflow-hidden">
             <EvalLogTable
               projectId={projectId}

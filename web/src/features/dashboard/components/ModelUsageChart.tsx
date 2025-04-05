@@ -1,5 +1,4 @@
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { env } from "@/src/env.mjs";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
@@ -21,18 +20,29 @@ import {
   ModelSelectorPopover,
   useModelSelection,
 } from "@/src/features/dashboard/components/ModelSelector";
+import {
+  type QueryType,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 
 export const ModelUsageChart = ({
   className,
   projectId,
   globalFilterState,
   agg,
+  fromTimestamp,
+  toTimestamp,
+  userAndEnvFilterState,
   isLoading = false,
 }: {
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
   agg: DashboardDateRangeAggregationOption;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  userAndEnvFilterState: FilterState;
   isLoading?: boolean;
 }) => {
   const {
@@ -42,44 +52,47 @@ export const ModelUsageChart = ({
     isAllSelected,
     buttonText,
     handleSelectAll,
-  } = useModelSelection(projectId, globalFilterState);
+  } = useModelSelection(
+    projectId,
+    userAndEnvFilterState,
+    fromTimestamp,
+    toTimestamp,
+  );
 
-  const queryResult = api.dashboard.chart.useQuery(
+  const modelUsageQuery: QueryType = {
+    view: "observations",
+    dimensions: [{ field: "providedModelName" }],
+    metrics: [
+      { measure: "totalCost", aggregation: "sum" },
+      { measure: "totalTokens", aggregation: "sum" },
+    ],
+    filters: [
+      ...mapLegacyUiTableFilterToView("observations", userAndEnvFilterState),
+      {
+        column: "type",
+        operator: "=",
+        value: "GENERATION",
+        type: "string",
+      },
+      {
+        column: "providedModelName",
+        operator: "any of",
+        value: selectedModels,
+        type: "stringOptions",
+      },
+    ],
+    timeDimension: {
+      granularity: "auto",
+    },
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const queryResult = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
-        ? "traces_observations"
-        : "traces_observationsview",
-      select: [
-        { column: "totalTokens", agg: "SUM" },
-        { column: "calculatedTotalCost", agg: "SUM" },
-        { column: "model" },
-      ],
-      filter: [
-        ...globalFilterState,
-        { type: "string", column: "type", operator: "=", value: "GENERATION" },
-        {
-          type: "stringOptions",
-          column: "model",
-          operator: "any of",
-          value: selectedModels,
-        } as const,
-      ],
-      groupBy: [
-        {
-          type: "datetime",
-          column: "startTime",
-          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
-        },
-        {
-          type: "string",
-          column: "model",
-        },
-      ],
-      orderBy: [
-        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
-      ],
-      queryName: "observations-total-cost-by-model-timeseries",
+      query: modelUsageQuery,
     },
     {
       enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
@@ -94,9 +107,7 @@ export const ModelUsageChart = ({
   const queryCostByType = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
-        ? "traces_observations"
-        : "traces_observationsview",
+      from: "traces_observations",
       select: [
         { column: "totalTokens", agg: "SUM" },
         { column: "calculatedTotalCost", agg: "SUM" },
@@ -141,9 +152,7 @@ export const ModelUsageChart = ({
   const queryUsageByType = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
-        ? "traces_observations"
-        : "traces_observationsview",
+      from: "traces_observations",
       select: [
         { column: "totalTokens", agg: "SUM" },
         { column: "calculatedTotalCost", agg: "SUM" },
@@ -212,12 +221,16 @@ export const ModelUsageChart = ({
   const unitsByModel =
     queryResult.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(queryResult.data, "startTime", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "model" }],
-              valueColumn: "units",
-            },
-          ]),
+          extractTimeSeriesData(
+            queryResult.data as DatabaseRow[],
+            "time_dimension",
+            [
+              {
+                uniqueIdentifierColumns: [{ accessor: "provided_model_name" }],
+                valueColumn: "sum_total_tokens",
+              },
+            ],
+          ),
           selectedModels,
         )
       : [];
@@ -225,25 +238,33 @@ export const ModelUsageChart = ({
   const costByModel =
     queryResult.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(queryResult.data, "startTime", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "model" }],
-              valueColumn: "cost",
-            },
-          ]),
+          extractTimeSeriesData(
+            queryResult.data as DatabaseRow[],
+            "time_dimension",
+            [
+              {
+                uniqueIdentifierColumns: [{ accessor: "provided_model_name" }],
+                valueColumn: "sum_total_cost",
+              },
+            ],
+          ),
           selectedModels,
         )
       : [];
 
   const totalCost = queryResult.data?.reduce(
     (acc, curr) =>
-      acc + (!isNaN(curr.cost as number) ? (curr.cost as number) : 0),
+      acc +
+      (!isNaN(Number(curr.sum_total_cost)) ? Number(curr.sum_total_cost) : 0),
     0,
   );
 
   const totalTokens = queryResult.data?.reduce(
     (acc, curr) =>
-      acc + (!isNaN(curr.units as number) ? (curr.units as number) : 0),
+      acc +
+      (!isNaN(Number(curr.sum_total_tokens))
+        ? Number(curr.sum_total_tokens)
+        : 0),
     0,
   );
 

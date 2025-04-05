@@ -80,6 +80,12 @@ export const JobExecutionStatus = {
     CANCELLED: "CANCELLED"
 } as const;
 export type JobExecutionStatus = (typeof JobExecutionStatus)[keyof typeof JobExecutionStatus];
+export const BlobStorageIntegrationFileType = {
+    JSON: "JSON",
+    CSV: "CSV",
+    JSONL: "JSONL"
+} as const;
+export type BlobStorageIntegrationFileType = (typeof BlobStorageIntegrationFileType)[keyof typeof BlobStorageIntegrationFileType];
 export const BlobStorageIntegrationType = {
     S3: "S3",
     S3_COMPATIBLE: "S3_COMPATIBLE",
@@ -208,6 +214,7 @@ export type BlobStorageIntegration = {
     last_sync_at: Timestamp | null;
     enabled: boolean;
     export_frequency: string;
+    file_type: Generated<BlobStorageIntegrationFileType>;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
@@ -401,6 +408,24 @@ export type LlmApiKeys = {
     config: unknown | null;
     project_id: string;
 };
+export type LlmSchema = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    description: string;
+    schema: unknown;
+};
+export type LlmTool = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    description: string;
+    parameters: unknown;
+};
 export type Media = {
     id: string;
     sha_256_hash: string;
@@ -525,6 +550,13 @@ export type PromptDependency = {
     child_label: string | null;
     child_version: number | null;
 };
+export type PromptProtectedLabels = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    label: string;
+};
 export type ScoreConfig = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -606,6 +638,8 @@ export type DB = {
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
+    llm_schemas: LlmSchema;
+    llm_tools: LlmTool;
     media: Media;
     membership_invitations: MembershipInvitation;
     models: Model;
@@ -618,6 +652,7 @@ export type DB = {
     project_memberships: ProjectMembership;
     projects: Project;
     prompt_dependencies: PromptDependency;
+    prompt_protected_labels: PromptProtectedLabels;
     prompts: Prompt;
     score_configs: ScoreConfig;
     scores: LegacyPrismaScore;

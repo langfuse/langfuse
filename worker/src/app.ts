@@ -124,9 +124,9 @@ if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.TraceDelete, traceDeleteProcessor, {
     concurrency: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
     limiter: {
-      // Process at most `max` delete jobs per 15 seconds
+      // Process at most `max` delete jobs per 2 min
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
-      duration: 15_000,
+      duration: 120_000,
     },
   });
 }
@@ -137,7 +137,7 @@ if (env.QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 15 seconds
       max: env.LANGFUSE_SCORE_DELETE_CONCURRENCY,
-      duration: 15_000,
+      duration: 120_000,
     },
   });
 }
@@ -148,7 +148,7 @@ if (env.QUEUE_CONSUMER_PROJECT_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 3 seconds
       max: env.LANGFUSE_PROJECT_DELETE_CONCURRENCY,
-      duration: 3_000,
+      duration: 120_000,
     },
   });
 }

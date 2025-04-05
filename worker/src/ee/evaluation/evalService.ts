@@ -23,6 +23,7 @@ import {
   StorageService,
   StorageServiceFactory,
   CreateEvalQueueEventType,
+  ChatMessageType,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -305,7 +306,14 @@ export const evaluate = async ({
     .selectAll()
     .where("id", "=", event.jobExecutionId)
     .where("project_id", "=", event.projectId)
-    .executeTakeFirstOrThrow();
+    .executeTakeFirst();
+
+  if (!job) {
+    logger.info(
+      `Job execution with id ${event.jobExecutionId} for project ${event.projectId} not found. This was likely deleted by the user.`,
+    );
+    return;
+  }
 
   if (!job?.job_input_trace_id) {
     throw new ForbiddenError(
@@ -430,7 +438,13 @@ export const evaluate = async ({
     );
   }
 
-  const messages = [{ role: ChatMessageRole.User, content: prompt }];
+  const messages = [
+    {
+      type: ChatMessageType.User,
+      role: ChatMessageRole.User,
+      content: prompt,
+    } as const,
+  ];
 
   const parsedLLMOutput = await backOff(
     async () =>
