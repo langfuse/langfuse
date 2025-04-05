@@ -1,8 +1,8 @@
+import { ObservationLevelType } from "./domain";
 import {
   type OptionsDefinition,
   type ColumnDefinition,
 } from "./tableDefinitions";
-import { ObservationLevelType } from "./server";
 
 // to be used server side
 export const observationsTableCols: ColumnDefinition[] = [

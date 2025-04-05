@@ -256,9 +256,9 @@ export const ObservationPreview = ({
                         className="flex items-center gap-1"
                       >
                         <span>
-                          {preloadedObservation.promptTokens} prompt →{" "}
-                          {preloadedObservation.completionTokens} completion (∑{" "}
-                          {preloadedObservation.totalTokens})
+                          {preloadedObservation.inputUsage} prompt →{" "}
+                          {preloadedObservation.outputUsage} completion (∑{" "}
+                          {preloadedObservation.totalUsage})
                         </span>
                         <InfoIcon className="h-3 w-3" />
                       </Badge>
@@ -270,10 +270,10 @@ export const ObservationPreview = ({
                     </Badge>
                   ) : undefined}
                   {preloadedObservation.model ? (
-                    preloadedObservation.modelId ? (
+                    preloadedObservation.internalModelId ? (
                       <Badge>
                         <Link
-                          href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.modelId}`}
+                          href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.internalModelId}`}
                           className="flex items-center"
                           title="View model details"
                         >

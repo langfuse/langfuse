@@ -1,5 +1,4 @@
-import { ObservationLevelType } from "../server";
-import { ColumnDefinition, OptionsDefinition } from "..";
+import { ColumnDefinition, ObservationLevelType, OptionsDefinition } from "..";
 
 export const tracesOnlyCols: ColumnDefinition[] = [
   {

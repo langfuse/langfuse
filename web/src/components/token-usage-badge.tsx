@@ -9,14 +9,14 @@ export const AggUsageBadge = (props: {
   variant?: "default" | "secondary" | "destructive" | "outline" | "tertiary";
 }) => {
   const usage = {
-    promptTokens: props.observations
-      .map((o) => o.promptTokens)
+    inputUsage: props.observations
+      .map((o) => o.inputUsage)
       .reduce((a, b) => a + b, 0),
-    completionTokens: props.observations
-      .map((o) => o.completionTokens)
+    outputUsage: props.observations
+      .map((o) => o.outputUsage)
       .reduce((a, b) => a + b, 0),
-    totalTokens: props.observations
-      .map((o) => o.totalTokens)
+    totalUsage: props.observations
+      .map((o) => o.totalUsage)
       .reduce((a, b) => a + b, 0),
   };
   return (
@@ -34,9 +34,9 @@ export const TokenUsageBadge = (
         observation: Observation;
       }
     | {
-        promptTokens: number | bigint;
-        completionTokens: number | bigint;
-        totalTokens: number | bigint;
+        inputUsage: number;
+        outputUsage: number;
+        totalUsage: number;
       }
   ) & {
     inline?: boolean;
@@ -47,20 +47,20 @@ export const TokenUsageBadge = (
   const usage =
     "observation" in props
       ? {
-          promptTokens: props.observation.promptTokens,
-          completionTokens: props.observation.completionTokens,
-          totalTokens: props.observation.totalTokens,
+          inputUsage: props.observation.inputUsage,
+          outputUsage: props.observation.outputUsage,
+          totalUsage: props.observation.totalUsage,
         }
       : props;
 
   if (
-    usage.promptTokens === 0 &&
-    usage.completionTokens === 0 &&
-    usage.totalTokens === 0
+    usage.inputUsage === 0 &&
+    usage.outputUsage === 0 &&
+    usage.totalUsage === 0
   )
     return <></>;
 
-  const content = `${numberFormatter(usage.promptTokens, 0)} → ${numberFormatter(usage.completionTokens, 0)} (∑ ${numberFormatter(usage.totalTokens, 0)})`;
+  const content = `${numberFormatter(usage.inputUsage, 0)} → ${numberFormatter(usage.outputUsage, 0)} (∑ ${numberFormatter(usage.totalUsage, 0)})`;
 
   if (props.inline)
     return (

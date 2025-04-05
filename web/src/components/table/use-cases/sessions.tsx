@@ -468,9 +468,9 @@ export default function SessionsTable({
         }
         return (
           <TokenUsageBadge
-            promptTokens={Number(promptTokens)}
-            completionTokens={Number(completionTokens)}
-            totalTokens={Number(totalTokens)}
+            inputUsage={Number(promptTokens ?? 0)}
+            outputUsage={Number(completionTokens ?? 0)}
+            totalUsage={Number(totalTokens ?? 0)}
             inline
           />
         );

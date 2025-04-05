@@ -1,10 +1,14 @@
 import {
-  type ObservationView,
+  type Observation,
   paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "@langfuse/shared";
 
-import { stringDateTime } from "@langfuse/shared/src/server";
+import {
+  reduceUsageOrCostDetails,
+  stringDateTime,
+} from "@langfuse/shared/src/server";
+import type Decimal from "decimal.js";
 import { z } from "zod";
 
 /**
@@ -86,25 +90,36 @@ export const APIObservation = z
  * @returns API Observation as defined in the public API
  */
 export const transformDbToApiObservation = (
-  observation: ObservationView,
+  observation: Observation & {
+    inputPrice: Decimal | null;
+    outputPrice: Decimal | null;
+    totalPrice: Decimal | null;
+  },
 ): z.infer<typeof APIObservation> => {
-  const { promptTokens, completionTokens, totalTokens, unit, ...rest } =
-    observation;
+  const reducedUsageDetails = reduceUsageOrCostDetails(
+    observation.usageDetails,
+  );
+  const reducedCostDetails = reduceUsageOrCostDetails(observation.costDetails);
+
+  const unit = "TOKENS";
+
+  const promptTokens = reducedUsageDetails.input ?? 0;
+  const completionTokens = reducedUsageDetails.output ?? 0;
+  const totalTokens = reducedUsageDetails.total ?? 0;
 
   return {
-    usageDetails: {}, // Important: order matters here, in PG there are no usageDetails but in CH there are and will be written by rest
-    costDetails: {}, // Important: order matters here, in PG there are no costDetails but in CH there are and will be written by rest
-    ...rest,
-    unit,
-    promptTokens,
-    completionTokens,
-    totalTokens,
+    ...observation,
+    calculatedInputCost: reducedCostDetails.input,
+    calculatedOutputCost: reducedCostDetails.output,
+    calculatedTotalCost: reducedCostDetails.total,
+    unit: unit,
     inputPrice: observation.inputPrice?.toNumber() ?? null,
     outputPrice: observation.outputPrice?.toNumber() ?? null,
     totalPrice: observation.totalPrice?.toNumber() ?? null,
-    calculatedInputCost: observation.calculatedInputCost?.toNumber() ?? null,
-    calculatedOutputCost: observation.calculatedOutputCost?.toNumber() ?? null,
-    calculatedTotalCost: observation.calculatedTotalCost?.toNumber() ?? null,
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    modelId: observation.internalModelId ?? null,
     usage: {
       unit,
       input: promptTokens,
