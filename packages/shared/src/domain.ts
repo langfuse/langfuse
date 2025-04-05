@@ -90,6 +90,14 @@ export const ObservationSchema = z.object({
   usageDetails: z.record(z.string(), z.number()),
   costDetails: z.record(z.string(), z.number()),
   providedCostDetails: z.record(z.string(), z.number()),
+  // aggregated data from cost_details
+  inputCost: z.number().nullable(),
+  outputCost: z.number().nullable(),
+  totalCost: z.number().nullable(),
+  // aggregated data from usage_details
+  inputUsage: z.number().nullable(),
+  outputUsage: z.number().nullable(),
+  totalUsage: z.number().nullable(),
 });
 
 export type Observation = z.infer<typeof ObservationSchema>;

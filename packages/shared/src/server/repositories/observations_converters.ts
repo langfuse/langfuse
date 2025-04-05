@@ -10,6 +10,9 @@ import {
 export const convertObservation = (
   record: ObservationRecordReadType,
 ): Observation => {
+  const reducedCostDetails = reduceUsageOrCostDetails(record.cost_details);
+  const reducedUsageDetails = reduceUsageOrCostDetails(record.usage_details);
+
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -79,6 +82,12 @@ export const convertObservation = (
           parseClickhouseUTCDateTimeFormat(record.start_time).getTime()) /
         1000
       : null,
+    inputCost: reducedCostDetails.input,
+    outputCost: reducedCostDetails.output,
+    totalCost: reducedCostDetails.total,
+    inputUsage: reducedUsageDetails.input,
+    outputUsage: reducedUsageDetails.output,
+    totalUsage: reducedUsageDetails.total,
   };
 };
 
