@@ -415,9 +415,9 @@ const ObservationTreeNodeCard = ({
           {/* Metrics on their own line */}
           {showMetrics && (
             <>
-              {(observation.promptTokens ||
-                observation.completionTokens ||
-                observation.totalTokens ||
+              {(observation.inputUsage ||
+                observation.outputUsage ||
+                observation.totalUsage ||
                 duration ||
                 totalCost) && (
                 <div className="flex w-full flex-wrap gap-2">
@@ -436,13 +436,12 @@ const ObservationTreeNodeCard = ({
                       {formatIntervalSeconds(duration / 1000)}
                     </span>
                   ) : null}
-                  {observation.promptTokens ||
-                  observation.completionTokens ||
-                  observation.totalTokens ? (
+                  {observation.inputUsage ||
+                  observation.outputUsage ||
+                  observation.totalUsage ? (
                     <span className="text-xs text-muted-foreground">
-                      {observation.promptTokens} →{" "}
-                      {observation.completionTokens} (∑{" "}
-                      {observation.totalTokens})
+                      {observation.inputUsage} → {observation.outputUsage} (∑{" "}
+                      {observation.totalUsage})
                     </span>
                   ) : null}
                   {totalCost ? (
