@@ -74,7 +74,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { TraceDomain } from "@/src/components/trace";
+import { Trace } from "@/src/components/trace";
 import router from "next/router";
 import TableId from "@/src/components/table/table-id";
 import {

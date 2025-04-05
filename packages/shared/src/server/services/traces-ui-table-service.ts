@@ -23,6 +23,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "../repositories";
+import { TraceDomain } from "../../domain";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -40,20 +41,21 @@ export type TracesTableReturnType = Pick<
   | "public"
 >;
 
-export type TracesAllUiReturnType = {
-  id: string;
-  timestamp: Date;
-  name: string | null;
-  projectId: string;
-  userId: string | null;
-  release: string | null;
-  version: string | null;
-  public: boolean;
-  bookmarked: boolean;
-  environment: string | null;
-  sessionId: string | null;
-  tags: string[];
-};
+export type TracesTableUiReturnType = Pick<
+  TraceDomain,
+  | "id"
+  | "projectId"
+  | "timestamp"
+  | "tags"
+  | "bookmarked"
+  | "name"
+  | "release"
+  | "version"
+  | "userId"
+  | "environment"
+  | "sessionId"
+  | "public"
+>;
 
 export type TracesMetricsUiReturnType = {
   id: string;
@@ -78,7 +80,7 @@ export type TracesMetricsUiReturnType = {
 
 export const convertToUiTableRows = (
   row: TracesTableReturnType,
-): TracesAllUiReturnType => {
+): TracesTableUiReturnType => {
   return {
     id: row.id,
     projectId: row.project_id,
