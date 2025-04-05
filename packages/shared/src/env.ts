@@ -60,6 +60,11 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   STRIPE_SECRET_KEY: z.string().optional(),
+
+  LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default("email"),
+  LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default("name"),
+  LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
+  LANGFUSE_CUSTOM_SSO_PICTURE_CLAIM: z.string().default("picture"),
 });
 
 export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));
