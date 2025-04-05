@@ -273,7 +273,7 @@ export const ObservationPreview = ({
                     preloadedObservation.internalModelId ? (
                       <Badge>
                         <Link
-                          href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.modelId}`}
+                          href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.internalModelId}`}
                           className="flex items-center"
                           title="View model details"
                         >
