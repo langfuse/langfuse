@@ -163,7 +163,7 @@ describe("Clickhouse Observations Repository Test", () => {
     );
     expect(firstObservation.timeToFirstToken).toBeGreaterThan(0);
     expect(firstObservation.inputCost).toEqual(
-      new Decimal(observation.total_cost!),
+      new Decimal(observation.cost_details!.input!),
     );
     expect(firstObservation.inputUsage).toEqual(1234);
     expect(firstObservation.outputUsage).toEqual(5678);
