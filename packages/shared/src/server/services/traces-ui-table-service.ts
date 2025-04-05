@@ -18,12 +18,11 @@ import { ScoreAggregate } from "../../features/scores";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
-  ObservationLevelType,
   reduceUsageOrCostDetails,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "../repositories";
-import { TraceDomain } from "../../domain";
+import { ObservationLevelType, TraceDomain } from "../../domain";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,

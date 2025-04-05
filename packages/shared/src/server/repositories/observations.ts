@@ -26,10 +26,7 @@ import { TableCount } from "./types";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import {
-  convertObservationToView,
-  convertObservation,
-} from "./observations_converters";
+import { convertObservation } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -161,7 +158,7 @@ export const getObservationsViewForTrace = async (
     },
   });
 
-  return records.map(convertObservationToView);
+  return records.map(convertObservation);
 };
 
 export const getObservationForTraceIdByName = async (
@@ -227,7 +224,7 @@ export const getObservationForTraceIdByName = async (
     },
   });
 
-  return records.map(convertObservationToView);
+  return records.map(convertObservation);
 };
 
 export const getObservationById = async (
@@ -316,7 +313,7 @@ export const getObservationViewById = async (
     projectId,
     fetchWithInputOutput,
   );
-  const mapped = records.map(convertObservationToView);
+  const mapped = records.map(convertObservation);
 
   if (mapped.length === 0) {
     throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
@@ -467,7 +464,7 @@ export const getObservationsTableWithModelData = async (
     const trace = traces.find((t) => t.id === o.trace_id);
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...convertObservationToView(o),
+      ...convertObservation(o),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
