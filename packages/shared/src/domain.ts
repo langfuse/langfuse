@@ -90,6 +90,7 @@ export const ObservationSchema = z.object({
   timeToFirstToken: z.number().nullable(),
   usageDetails: z.record(z.string(), z.number()),
   costDetails: z.record(z.string(), z.number()),
+  providedCostDetails: z.record(z.string(), z.number()),
 });
 
 // calculatedInputCost: z.instanceof(Decimal).nullable(),

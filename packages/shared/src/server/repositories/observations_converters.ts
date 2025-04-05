@@ -58,6 +58,12 @@ export const convertObservation = (
         Number(value),
       ]),
     ),
+    providedCostDetails: Object.fromEntries(
+      Object.entries(record.provided_cost_details ?? {}).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
     promptName: record.prompt_name ?? null,
@@ -75,58 +81,3 @@ export const convertObservation = (
       : null,
   };
 };
-
-export const reduceUsageOrCostDetails = (
-  details: Record<string, number> | null | undefined,
-): {
-  input: number | null;
-  output: number | null;
-  total: number | null;
-} => {
-  return {
-    input: Object.entries(details ?? {})
-      .filter(([usageType]) => usageType.startsWith("input"))
-      .reduce(
-        (acc, [_, value]) => (acc ?? 0) + Number(value),
-        null as number | null, // default to null if no input usage is found
-      ),
-    output: Object.entries(details ?? {})
-      .filter(([usageType]) => usageType.startsWith("output"))
-      .reduce(
-        (acc, [_, value]) => (acc ?? 0) + Number(value),
-        null as number | null, // default to null if no output usage is found
-      ),
-    total: Number(details?.total ?? 0),
-  };
-};
-
-// const reducedUsageDetails = reduceUsageOrCostDetails(record.usage_details);
-// const reducedCostDetails = reduceUsageOrCostDetails(record.cost_details);
-// const reducedProvidedCostDetails = reduceUsageOrCostDetails(
-//   record.provided_cost_details,
-// );
-
-// promptTokens: reducedUsageDetails.input ?? 0,
-//     completionTokens: reducedUsageDetails.output ?? 0,
-//     totalTokens: reducedUsageDetails.total ?? 0,
-//     calculatedInputCost:
-//       reducedCostDetails.input != null
-//         ? new Decimal(reducedCostDetails.input)
-//         : null,
-//     calculatedOutputCost:
-//       reducedCostDetails.output != null
-//         ? new Decimal(reducedCostDetails.output)
-//         : null,
-//     calculatedTotalCost: record.cost_details?.total
-//       ? new Decimal(record.cost_details.total)
-//       : null,
-//     inputCost:
-//       reducedProvidedCostDetails.input != null
-//         ? new Decimal(reducedProvidedCostDetails.input)
-//         : null,
-//     outputCost:
-//       reducedProvidedCostDetails.output != null
-//         ? new Decimal(reducedProvidedCostDetails.output)
-//         : null,
-//     totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
-//     unit: "TOKENS", // to be removed.

@@ -26,12 +26,12 @@ export default withMiddlewares({
         );
       }
 
-      const model = clickhouseObservation.modelId
+      const model = clickhouseObservation.internalModelId
         ? await prisma.model.findFirst({
             where: {
               AND: [
                 {
-                  id: clickhouseObservation.modelId,
+                  id: clickhouseObservation.internalModelId,
                 },
                 {
                   OR: [
