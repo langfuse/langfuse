@@ -107,8 +107,26 @@ export const transformDbToApiObservation = (
   const completionTokens = reducedUsageDetails.output ?? 0;
   const totalTokens = reducedUsageDetails.total ?? 0;
 
+  const {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    providedCostDetails,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    internalModelId,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    inputCost,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    outputCost,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    totalCost,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    inputUsage,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    outputUsage,
+    ...rest
+  } = observation;
+
   return {
-    ...observation,
+    ...rest,
     calculatedInputCost: reducedCostDetails.input,
     calculatedOutputCost: reducedCostDetails.output,
     calculatedTotalCost: reducedCostDetails.total,
