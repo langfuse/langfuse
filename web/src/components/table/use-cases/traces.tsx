@@ -597,9 +597,9 @@ export default function TracesTable({
           <BreakdownTooltip details={row.original.usageDetails ?? []}>
             <div className="flex items-center gap-1">
               <TokenUsageBadge
-                inputUsage={value.inputUsage ? Number(value.inputUsage) : 0}
-                outputUsage={value.outputUsage ? Number(value.outputUsage) : 0}
-                totalUsage={value.totalUsage ? Number(value.totalUsage) : 0}
+                inputUsage={Number(value.inputUsage ?? 0)}
+                outputUsage={Number(value.outputUsage ?? 0)}
+                totalUsage={Number(value.totalUsage ?? 0)}
                 inline
               />
               <InfoIcon className="h-3 w-3" />
