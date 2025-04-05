@@ -246,8 +246,8 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
-        input: trace.input ? JSON.stringify(trace.input) : undefined,
-        output: trace.output ? JSON.stringify(trace.output) : undefined,
+        input: trace.input ? JSON.stringify(trace.input) : null,
+        output: trace.output ? JSON.stringify(trace.output) : null,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({

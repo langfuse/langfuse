@@ -414,8 +414,8 @@ export function TraceTimelineView({
 }: {
   trace: Omit<TraceDomain, "input" | "output"> & {
     latency?: number;
-    input: string | undefined;
-    output: string | undefined;
+    input: string | null;
+    output: string | null;
   };
   observations: Array<ObservationReturnTypeWithMetadata>;
   projectId: string;

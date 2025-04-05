@@ -46,8 +46,8 @@ export const TracePreview = ({
 }: {
   trace: Omit<TraceDomain, "input" | "output"> & {
     latency?: number;
-    input: string | undefined;
-    output: string | undefined;
+    input: string | null;
+    output: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
   scores: APIScore[];
