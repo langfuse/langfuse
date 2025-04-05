@@ -832,9 +832,9 @@ export default function ObservationsTable({
             level: generation.level,
             statusMessage: generation.statusMessage ?? undefined,
             usage: {
-              promptTokens: generation.inputUsage ?? 0,
-              completionTokens: generation.outputUsage ?? 0,
-              totalTokens: generation.totalUsage ?? 0,
+              promptTokens: generation.inputUsage,
+              completionTokens: generation.outputUsage,
+              totalTokens: generation.totalUsage,
             },
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,

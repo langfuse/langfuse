@@ -95,9 +95,9 @@ export const ObservationSchema = z.object({
   outputCost: z.number().nullable(),
   totalCost: z.number().nullable(),
   // aggregated data from usage_details
-  inputUsage: z.number().nullable(),
-  outputUsage: z.number().nullable(),
-  totalUsage: z.number().nullable(),
+  inputUsage: z.number(),
+  outputUsage: z.number(),
+  totalUsage: z.number(),
 });
 
 export type Observation = z.infer<typeof ObservationSchema>;

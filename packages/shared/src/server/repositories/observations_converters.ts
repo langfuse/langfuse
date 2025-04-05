@@ -85,9 +85,9 @@ export const convertObservation = (
     inputCost: reducedCostDetails.input,
     outputCost: reducedCostDetails.output,
     totalCost: reducedCostDetails.total,
-    inputUsage: reducedUsageDetails.input,
-    outputUsage: reducedUsageDetails.output,
-    totalUsage: reducedUsageDetails.total,
+    inputUsage: reducedUsageDetails.input ?? 0,
+    outputUsage: reducedUsageDetails.output ?? 0,
+    totalUsage: reducedUsageDetails.total ?? 0,
   };
 };
 
