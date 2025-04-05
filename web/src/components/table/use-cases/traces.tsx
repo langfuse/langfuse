@@ -110,9 +110,9 @@ export type TracesTableRow = {
   metadata?: unknown;
   tags: string[];
   usage: {
-    promptTokens?: bigint;
-    completionTokens?: bigint;
-    totalTokens?: bigint;
+    inputUsage?: bigint;
+    outputUsage?: bigint;
+    totalUsage?: bigint;
   };
   usageDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
@@ -551,7 +551,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.promptTokens, 0)}</span>;
+        return <span>{numberFormatter(value.inputUsage, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -565,7 +565,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.completionTokens, 0)}</span>;
+        return <span>{numberFormatter(value.outputUsage, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -579,7 +579,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.totalTokens, 0)}</span>;
+        return <span>{numberFormatter(value.totalUsage, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -597,9 +597,9 @@ export default function TracesTable({
           <BreakdownTooltip details={row.original.usageDetails ?? []}>
             <div className="flex items-center gap-1">
               <TokenUsageBadge
-                promptTokens={value.promptTokens ?? 0}
-                completionTokens={value.completionTokens ?? 0}
-                totalTokens={value.totalTokens ?? 0}
+                inputUsage={value.inputUsage ? Number(value.inputUsage) : 0}
+                outputUsage={value.outputUsage ? Number(value.outputUsage) : 0}
+                totalUsage={value.totalUsage ? Number(value.totalUsage) : 0}
                 inline
               />
               <InfoIcon className="h-3 w-3" />
@@ -937,9 +937,9 @@ export default function TracesTable({
             latency: trace.latency === null ? undefined : trace.latency,
             tags: trace.tags,
             usage: {
-              promptTokens: trace.promptTokens,
-              completionTokens: trace.completionTokens,
-              totalTokens: trace.totalTokens,
+              inputUsage: trace.promptTokens,
+              outputUsage: trace.completionTokens,
+              totalUsage: trace.totalTokens,
             },
             levelCounts: {
               errorCount: trace.errorCount,
