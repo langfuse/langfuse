@@ -15,7 +15,7 @@ export const AggUsageBadge = (props: {
     outputUsage: props.observations
       .map((o) => o.outputUsage)
       .reduce((a, b) => a + b, 0),
-    totalTokens: props.observations
+    totalUsage: props.observations
       .map((o) => o.totalUsage)
       .reduce((a, b) => a + b, 0),
   };
