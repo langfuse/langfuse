@@ -8,7 +8,7 @@ import { ErrorPage } from "@/src/components/error-page";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
-import { Trace } from "@/src/components/trace";
+import { TraceDomain } from "@/src/components/trace";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 

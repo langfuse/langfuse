@@ -2,7 +2,7 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import {
   isPresent,
   type APIScore,
-  type Trace,
+  type TraceDomain,
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
@@ -404,7 +404,7 @@ export function TraceTimelineView({
   minLevel,
   setMinLevel,
 }: {
-  trace: Omit<Trace, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output"> & {
     latency?: number;
     input: string | undefined;
     output: string | undefined;

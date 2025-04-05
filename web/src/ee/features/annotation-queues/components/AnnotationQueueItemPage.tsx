@@ -1,4 +1,4 @@
-import { Trace } from "@/src/components/trace";
+import { TraceDomain } from "@/src/components/trace";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 import { TracePreview } from "@/src/components/trace/TracePreview";
 import {

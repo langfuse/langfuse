@@ -27,4 +27,4 @@ export const TraceDomain = z.object({
   projectId: z.string(),
 });
 
-export type Trace = z.infer<typeof TraceDomain>;
+export type TraceDomain = z.infer<typeof TraceDomain>;

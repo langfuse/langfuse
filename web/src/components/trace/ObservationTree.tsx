@@ -5,7 +5,7 @@ import {
   ObservationLevel,
   type ObservationLevelType,
   type ObservationType,
-  type Trace,
+  type TraceDomain,
 } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment, useMemo, useRef, useEffect } from "react";
@@ -43,7 +43,7 @@ export const ObservationTree = ({
   toggleCollapsedObservation: (id: string) => void;
   collapseAll: () => void;
   expandAll: () => void;
-  trace: Omit<Trace, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output"> & {
     latency?: number;
     input: string | undefined;
     output: string | undefined;
@@ -129,7 +129,7 @@ export const ObservationTree = ({
 };
 
 const ObservationTreeTraceNode = (props: {
-  trace: Omit<Trace, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output"> & {
     input: string | undefined;
     output: string | undefined;
     latency?: number;
