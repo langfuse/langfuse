@@ -5,7 +5,7 @@ import {
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationById,
-  getObservationsViewForTrace,
+  getObservationsForTrace,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { v4 } from "uuid";
@@ -127,7 +127,7 @@ describe("Clickhouse Observations Repository Test", () => {
 
     await createObservationsCh([observation]);
 
-    const result = await getObservationsViewForTrace(traceId, projectId);
+    const result = await getObservationsForTrace(traceId, projectId);
     if (!result || result.length === 0) {
       throw new Error("Observation not found");
     }
@@ -163,7 +163,7 @@ describe("Clickhouse Observations Repository Test", () => {
     );
     expect(firstObservation.timeToFirstToken).toBeGreaterThan(0);
     expect(firstObservation.inputCost).toEqual(
-      new Decimal(observation.cost_details!.input!),
+      observation.cost_details!.input!,
     );
     expect(firstObservation.inputUsage).toEqual(1234);
     expect(firstObservation.outputUsage).toEqual(5678);

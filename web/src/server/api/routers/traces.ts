@@ -27,7 +27,7 @@ import {
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
-  getObservationsViewForTrace,
+  getObservationsForTrace,
   getTraceById,
   logger,
   upsertTrace,
@@ -202,7 +202,7 @@ export const traceRouter = createTRPCRouter({
           input.projectId,
           input.timestamp ?? undefined,
         ),
-        getObservationsViewForTrace(
+        getObservationsForTrace(
           input.traceId,
           input.projectId,
           input.timestamp ?? undefined,

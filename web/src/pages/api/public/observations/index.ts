@@ -65,18 +65,8 @@ export default withMiddlewares({
         data: items
           .map((i) => {
             const model = models.find((m) => m.id === i.internalModelId);
-            const {
-              providedCostDetails,
-              internalModelId,
-              inputCost,
-              outputCost,
-              totalCost,
-              inputUsage,
-              outputUsage,
-              ...rest
-            } = i;
             return {
-              ...rest,
+              ...i,
               modelId: model?.id ?? null,
               inputPrice:
                 model?.Price?.find((m) => m.usageType === "input")?.price ??

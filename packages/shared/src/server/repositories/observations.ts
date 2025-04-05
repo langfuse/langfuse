@@ -98,7 +98,7 @@ export const upsertObservation = async (
   });
 };
 
-export const getObservationsViewForTrace = async (
+export const getObservationsForTrace = async (
   traceId: string,
   projectId: string,
   timestamp?: Date,

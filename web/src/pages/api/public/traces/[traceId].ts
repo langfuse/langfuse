@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getObservationsViewForTrace,
+  getObservationsForTrace,
   getScoresForTraces,
   getTraceById,
   traceException,
@@ -34,7 +34,7 @@ export default withMiddlewares({
       const { traceId } = query;
       const trace = await getTraceById(traceId, auth.scope.projectId);
       const [observations, scores] = await Promise.all([
-        getObservationsViewForTrace(
+        getObservationsForTrace(
           traceId,
           auth.scope.projectId,
           trace?.timestamp,
