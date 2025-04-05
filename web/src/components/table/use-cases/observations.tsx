@@ -75,9 +75,9 @@ export type ObservationsTableRow = {
   totalCost?: number;
   traceName?: string;
   usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+    inputUsage: number;
+    outputUsage: number;
+    totalUsage: number;
   };
   usageDetails: Record<string, number>;
   costDetails: Record<string, number>;
@@ -642,17 +642,17 @@ export default function ObservationsTable({
       size: 150,
       cell: ({ row }) => {
         const value: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
+          inputUsage: number;
+          outputUsage: number;
+          totalUsage: number;
         } = row.getValue("usage");
         return (
           <BreakdownTooltip details={row.original.usageDetails}>
             <div className="flex items-center gap-1">
               <TokenUsageBadge
-                promptTokens={value.promptTokens}
-                completionTokens={value.completionTokens}
-                totalTokens={value.totalTokens}
+                inputUsage={value.inputUsage}
+                outputUsage={value.outputUsage}
+                totalUsage={value.totalUsage}
                 inline
               />
               <InfoIcon className="h-3 w-3" />
@@ -832,9 +832,9 @@ export default function ObservationsTable({
             level: generation.level,
             statusMessage: generation.statusMessage ?? undefined,
             usage: {
-              promptTokens: generation.inputUsage,
-              completionTokens: generation.outputUsage,
-              totalTokens: generation.totalUsage,
+              inputUsage: generation.inputUsage,
+              outputUsage: generation.outputUsage,
+              totalUsage: generation.totalUsage,
             },
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,
