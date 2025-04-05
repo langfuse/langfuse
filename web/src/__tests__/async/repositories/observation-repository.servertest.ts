@@ -1,4 +1,7 @@
-import { createObservationsCh } from "@langfuse/shared/src/server";
+import {
+  createObservation,
+  createObservationsCh,
+} from "@langfuse/shared/src/server";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationById,
@@ -22,7 +25,7 @@ describe("Clickhouse Observations Repository Test", () => {
     const observationId = v4();
     const traceId = v4();
 
-    const observation = {
+    const observation = createObservation({
       id: observationId,
       trace_id: traceId,
       project_id: projectId,
@@ -52,7 +55,7 @@ describe("Clickhouse Observations Repository Test", () => {
       prompt_version: 1,
       end_time: Date.now(),
       completion_start_time: Date.now(),
-    };
+    });
 
     await createObservationsCh([observation]);
 
@@ -77,20 +80,20 @@ describe("Clickhouse Observations Repository Test", () => {
     expect(result.internalModelId).toEqual(observation.internal_model_id);
     expect(result.modelParameters).toEqual({ something: "sample_param" });
     expect(result.promptId).toEqual(observation.prompt_id);
-    expect(result.endTime).toEqual(new Date(observation.end_time));
+    expect(result.endTime).toEqual(new Date(observation.end_time!));
     expect(result.completionStartTime).toEqual(
-      new Date(observation.completion_start_time),
+      new Date(observation.completion_start_time!),
     );
-    expect(result.totalCost).toEqual(new Decimal(observation.total_cost));
-    expect(result.promptTokens).toEqual(1234);
-    expect(result.completionTokens).toEqual(5678);
-    expect(result.totalTokens).toEqual(6912);
+    expect(result.totalCost).toEqual(new Decimal(observation.total_cost!));
+    expect(result.inputUsage).toEqual(1234);
+    expect(result.outputUsage).toEqual(5678);
+    expect(result.totalUsage).toEqual(6912);
   });
   it("should return an observation view", async () => {
     const observationId = v4();
     const traceId = v4();
 
-    const observation = {
+    const observation = createObservation({
       id: observationId,
       trace_id: traceId,
       project_id: projectId,
@@ -120,7 +123,7 @@ describe("Clickhouse Observations Repository Test", () => {
       prompt_version: 1,
       end_time: Date.now(),
       completion_start_time: Date.now() + 1000,
-    };
+    });
 
     await createObservationsCh([observation]);
 
@@ -152,18 +155,18 @@ describe("Clickhouse Observations Repository Test", () => {
       something: "sample_param",
     });
     expect(firstObservation.promptId).toEqual(observation.prompt_id);
-    expect(firstObservation.endTime).toEqual(new Date(observation.end_time));
+    expect(firstObservation.endTime).toEqual(new Date(observation.end_time!));
     expect(firstObservation.timeToFirstToken).toEqual(
-      (new Date(observation.completion_start_time).getTime() -
+      (new Date(observation.completion_start_time!).getTime() -
         new Date(observation.start_time).getTime()) /
         1000,
     );
     expect(firstObservation.timeToFirstToken).toBeGreaterThan(0);
-    expect(firstObservation.calculatedTotalCost).toEqual(
-      new Decimal(observation.total_cost),
+    expect(firstObservation.inputCost).toEqual(
+      new Decimal(observation.total_cost!),
     );
-    expect(firstObservation.promptTokens).toEqual(1234);
-    expect(firstObservation.completionTokens).toEqual(5678);
-    expect(firstObservation.totalTokens).toEqual(6912);
+    expect(firstObservation.inputUsage).toEqual(1234);
+    expect(firstObservation.outputUsage).toEqual(5678);
+    expect(firstObservation.totalUsage).toEqual(6912);
   });
 });
