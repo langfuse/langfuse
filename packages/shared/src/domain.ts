@@ -1,6 +1,5 @@
 import z from "zod";
 import { jsonSchema, jsonSchemaNullable } from "./utils/zod";
-import Decimal from "decimal.js";
 
 const MetadataDomain = z.record(
   z.string(),
@@ -93,55 +92,4 @@ export const ObservationSchema = z.object({
   providedCostDetails: z.record(z.string(), z.number()),
 });
 
-// calculatedInputCost: z.instanceof(Decimal).nullable(),
-//   calculatedOutputCost: z.instanceof(Decimal).nullable(),
-//   calculatedTotalCost: z.instanceof(Decimal).nullable(),
-// promptTokens: z.number(),
-//   completionTokens: z.number(),
-//   totalTokens: z.number(),
-// unit: z.string().nullable(),
-// inputCost: z.instanceof(Decimal).nullable(),
-// outputCost: z.instanceof(Decimal).nullable(),
-// totalCost: z.instanceof(Decimal).nullable(),
-
 export type Observation = z.infer<typeof ObservationSchema>;
-
-export const ObservationViewSchema = z.object({
-  id: z.string(),
-  traceId: z.string().nullable(),
-  projectId: z.string(),
-  type: ObservationTypeDomain,
-  startTime: z.date(),
-  endTime: z.date().nullable(),
-  environment: z.string(),
-  name: z.string().nullable(),
-  metadata: jsonSchemaNullable,
-  parentObservationId: z.string().nullable(),
-  level: ObservationLevelDomain,
-  statusMessage: z.string().nullable(),
-  version: z.string().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-  model: z.string().nullable(),
-  modelParameters: z.unknown().nullable(),
-  input: z.unknown().nullable(),
-  output: z.unknown().nullable(),
-  promptTokens: z.number(),
-  completionTokens: z.number(),
-  totalTokens: z.number(),
-  unit: z.string().nullable(),
-  completionStartTime: z.date().nullable(),
-  promptId: z.string().nullable(),
-  promptName: z.string().nullable(),
-  promptVersion: z.number().nullable(),
-  modelId: z.string().nullable(),
-  inputPrice: z.instanceof(Decimal).nullable(),
-  outputPrice: z.instanceof(Decimal).nullable(),
-  totalPrice: z.instanceof(Decimal).nullable(),
-  calculatedInputCost: z.instanceof(Decimal).nullable(),
-  calculatedOutputCost: z.instanceof(Decimal).nullable(),
-  calculatedTotalCost: z.instanceof(Decimal).nullable(),
-  latency: z.number().nullable(),
-  timeToFirstToken: z.number().nullable(),
-});
-export type ObservationView = z.infer<typeof ObservationViewSchema>;
