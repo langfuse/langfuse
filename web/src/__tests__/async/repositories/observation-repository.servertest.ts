@@ -84,7 +84,7 @@ describe("Clickhouse Observations Repository Test", () => {
     expect(result.completionStartTime).toEqual(
       new Date(observation.completion_start_time!),
     );
-    expect(result.totalCost).toEqual(new Decimal(observation.total_cost!));
+    expect(result.totalCost).toEqual(observation.total_cost!);
     expect(result.inputUsage).toEqual(1234);
     expect(result.outputUsage).toEqual(5678);
     expect(result.totalUsage).toEqual(6912);
