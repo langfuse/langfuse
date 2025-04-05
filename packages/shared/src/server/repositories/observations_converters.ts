@@ -81,3 +81,27 @@ export const convertObservation = (
       : null,
   };
 };
+
+export const reduceUsageOrCostDetails = (
+  details: Record<string, number> | null | undefined,
+): {
+  input: number | null;
+  output: number | null;
+  total: number | null;
+} => {
+  return {
+    input: Object.entries(details ?? {})
+      .filter(([usageType]) => usageType.startsWith("input"))
+      .reduce(
+        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        null as number | null, // default to null if no input usage is found
+      ),
+    output: Object.entries(details ?? {})
+      .filter(([usageType]) => usageType.startsWith("output"))
+      .reduce(
+        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        null as number | null, // default to null if no output usage is found
+      ),
+    total: Number(details?.total ?? 0),
+  };
+};

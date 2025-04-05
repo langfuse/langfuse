@@ -18,9 +18,9 @@ import { ScoreAggregate } from "../../features/scores";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
-  reduceUsageOrCostDetails,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  reduceUsageOrCostDetails,
 } from "../repositories";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 
