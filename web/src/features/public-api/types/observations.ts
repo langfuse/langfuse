@@ -1,6 +1,5 @@
 import {
   type Observation,
-  type ObservationView,
   paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "@langfuse/shared";

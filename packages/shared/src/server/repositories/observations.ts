@@ -303,33 +303,6 @@ export const getObservationsById = async (
   return records.map(convertObservation);
 };
 
-export const getObservationViewById = async (
-  id: string,
-  projectId: string,
-  fetchWithInputOutput: boolean = false,
-) => {
-  const records = await getObservationByIdInternal(
-    id,
-    projectId,
-    fetchWithInputOutput,
-  );
-  const mapped = records.map(convertObservation);
-
-  if (mapped.length === 0) {
-    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
-  }
-
-  if (mapped.length > 1) {
-    logger.error(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-    throw new InternalServerError(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-  }
-  return mapped.shift();
-};
-
 const getObservationByIdInternal = async (
   id: string,
   projectId: string,

@@ -17,8 +17,8 @@ import {
   singleFilter,
   timeFilter,
   tracesTableUiColumnDefinitions,
+  type Observation,
 } from "@langfuse/shared";
-import { type ObservationView } from "@langfuse/shared";
 import {
   traceException,
   getTracesTable,
@@ -51,17 +51,17 @@ const TraceFilterOptions = z.object({
 });
 type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
 
-export type ObservationReturnType = Omit<
-  ObservationView,
-  "input" | "output" | "inputPrice" | "outputPrice" | "totalPrice" | "metadata"
+export type ObservationReturnTypeWithMetadata = Omit<
+  Observation,
+  "input" | "output"
 > & {
   traceId: string;
-  usageDetails: Record<string, number>;
-  costDetails: Record<string, number>;
 };
 
-export type ObservationReturnTypeWithMetadata = ObservationReturnType &
-  Pick<ObservationView, "metadata">;
+export type ObservationReturnType = Omit<
+  ObservationReturnTypeWithMetadata,
+  "metadata"
+>;
 
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure

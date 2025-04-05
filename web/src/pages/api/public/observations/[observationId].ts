@@ -7,7 +7,7 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { getObservationViewById } from "@langfuse/shared/src/server";
+import { getObservationById } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -15,7 +15,7 @@ export default withMiddlewares({
     querySchema: GetObservationV1Query,
     responseSchema: GetObservationV1Response,
     fn: async ({ query, auth }) => {
-      const clickhouseObservation = await getObservationViewById(
+      const clickhouseObservation = await getObservationById(
         query.observationId,
         auth.scope.projectId,
         true,
