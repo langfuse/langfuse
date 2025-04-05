@@ -39,8 +39,8 @@ export const NewDatasetItemFromExistingObject = (props: {
   traceId?: string;
   observationId?: string;
   fromDatasetId?: string;
-  input: string | undefined;
-  output: string | undefined;
+  input: string | null;
+  output: string | null;
   metadata: Prisma.JsonValue;
   isCopyItem?: boolean;
 }) => {
