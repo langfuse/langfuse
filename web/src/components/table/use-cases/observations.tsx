@@ -70,9 +70,9 @@ export type ObservationsTableRow = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
-  inputCost?: Decimal;
-  outputCost?: Decimal;
-  totalCost?: Decimal;
+  inputCost?: number;
+  outputCost?: number;
+  totalCost?: number;
   traceName?: string;
   usage: {
     promptTokens: number;
@@ -832,9 +832,9 @@ export default function ObservationsTable({
             level: generation.level,
             statusMessage: generation.statusMessage ?? undefined,
             usage: {
-              promptTokens: generation.inputUsage,
-              completionTokens: generation.outputUsage,
-              totalTokens: generation.totalUsage,
+              promptTokens: generation.inputUsage ?? 0,
+              completionTokens: generation.outputUsage ?? 0,
+              totalTokens: generation.totalUsage ?? 0,
             },
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,
