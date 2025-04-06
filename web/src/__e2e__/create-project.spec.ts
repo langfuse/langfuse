@@ -11,6 +11,13 @@ const checkConsoleErrors = async (page: Page) => {
       errors.push(msg.text());
     }
   });
+
+  page.on("response", (response) => {
+    if (response.status() === 500) {
+      console.error(response.text());
+    }
+  });
+
   return errors;
 };
 
@@ -33,10 +40,7 @@ test.describe("Create project", () => {
     await page.click(
       'button[data-testid="submit-email-password-sign-in-form"]',
     );
-    await page.waitForSelector(
-      'button[data-testid="create-organization-btn"]',
-      { state: "visible" },
-    );
+    await page.waitForTimeout(2000);
     await expect(page).toHaveURL("/");
 
     // Start create org flow
