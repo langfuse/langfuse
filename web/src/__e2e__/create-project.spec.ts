@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-describe("Create project", () => {
+test.describe("Create project", () => {
   test("Sign in, create an organization, create a project", async ({
     page,
   }) => {
