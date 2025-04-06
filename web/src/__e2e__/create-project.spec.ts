@@ -112,7 +112,7 @@ test.describe("Create project", () => {
       await signin(page);
 
       const projectUrl = await getProjectUrlForEmail("demo@langfuse.com");
-      await page.goto(projectUrl + "/traces");
+      await page.goto(projectUrl + url);
       await page.waitForTimeout(2000);
       await expect(page).toHaveURL(projectUrl + url);
       await checkPageHeaderTitle(page, title);
