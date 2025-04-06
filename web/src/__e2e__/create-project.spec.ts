@@ -12,9 +12,13 @@ const checkConsoleErrors = async (page: Page) => {
     }
   });
 
-  page.on("response", (response) => {
+  page.on("response", async (response) => {
     if (response.status() === 500) {
-      console.error("Network request error: ", response.url, await response.text());
+      console.error(
+        "Network request error: ",
+        response.url,
+        await response.text(),
+      );
     }
   });
 
