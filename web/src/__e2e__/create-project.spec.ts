@@ -118,6 +118,8 @@ test.describe("Create project", () => {
       const errors = await checkConsoleErrors(page);
       await signin(page);
 
+      await page.waitForTimeout(2000);
+
       const projectUrl = await getProjectUrlForEmail("demo@langfuse.com");
       await page.goto(projectUrl + url);
       await page.waitForTimeout(2000);
