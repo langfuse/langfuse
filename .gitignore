@@ -63,3 +63,5 @@ node_modules
 **/.turbo/*
 .yarn
 .turbo
+
+web/test-results/*
