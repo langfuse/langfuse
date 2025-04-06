@@ -28,7 +28,7 @@ test.describe("Create project", () => {
     await page.click(
       'button[data-testid="submit-email-password-sign-in-form"]',
     );
-    await page.waitForTimeout(2000);
+    await page.waitForSelector('button[data-testid="create-organization-btn"]', { state: 'visible' });
     await expect(page).toHaveURL("/");
 
     // Start create org flow
