@@ -229,14 +229,14 @@ export default function Dashboard() {
         )}
       </div>
       <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
-        {/* <TracesBarListChart
+        <TracesBarListChart
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isLoading}
-        /> */}
+        />
         <ModelCostTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
