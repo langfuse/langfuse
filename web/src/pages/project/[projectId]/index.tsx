@@ -245,7 +245,7 @@ export default function Dashboard() {
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isLoading}
         />
-        {/* <ScoresTable
+        <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
@@ -311,7 +311,7 @@ export default function Dashboard() {
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isLoading}
-        /> */}
+        />
       </div>
     </Page>
   );

@@ -72,8 +72,6 @@ export const ModelCostTable = ({
     0,
   );
 
-  console.log(metrics.data);
-
   const metricsData = metrics.data
     ? metrics.data
         .filter((item) => item.providedModelName !== null)
