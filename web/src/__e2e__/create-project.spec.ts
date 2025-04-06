@@ -1,10 +1,24 @@
 import { test, expect, type Page } from "@playwright/test";
 
+const checkConsoleErrors = async (page: Page) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => {
+    errors.push(err.message);
+  });
+  page.on("console", (msg) => {
+    if (msg.type() === "error") {
+      errors.push(msg.text());
+    }
+  });
+  return errors;
+};
+
 test.describe("Create project", () => {
   test("Sign in, create an organization, create a project", async ({
     page,
   }) => {
     test.setTimeout(60000);
+    const errors = await checkConsoleErrors(page);
 
     // Sign in
     await page.goto("/auth/sign-in");
@@ -69,46 +83,59 @@ test.describe("Create project", () => {
     const subheadings = await page.locator("h3").allTextContents();
     expect(subheadings).toContain("Traces");
     expect(subheadings).toContain("Model Costs");
+
+    // Check for console errors
+    expect(errors).toHaveLength(0);
   });
 
   test("Sign in", async ({ page }) => {
+    const errors = await checkConsoleErrors(page);
     await signin(page);
+    expect(errors).toHaveLength(0);
   });
 
   test("Check traces page", async ({ page }) => {
+    const errors = await checkConsoleErrors(page);
     await signin(page);
     const projectUrl = page.url();
     await page.goto(projectUrl + "/traces");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(projectUrl + "/traces");
     await checkPageHeaderTitle(page, "Traces");
+    expect(errors).toHaveLength(0);
   });
 
   test("Check sessions page", async ({ page }) => {
+    const errors = await checkConsoleErrors(page);
     await signin(page);
     const projectUrl = page.url();
     await page.goto(projectUrl + "/sessions");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(projectUrl + "/sessions");
     await checkPageHeaderTitle(page, "Sessions");
+    expect(errors).toHaveLength(0);
   });
 
   test("Check observations page", async ({ page }) => {
+    const errors = await checkConsoleErrors(page);
     await signin(page);
     const projectUrl = page.url();
     await page.goto(projectUrl + "/observations");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(projectUrl + "/observations");
     await checkPageHeaderTitle(page, "Observations");
+    expect(errors).toHaveLength(0);
   });
 
   test("Check scores page", async ({ page }) => {
+    const errors = await checkConsoleErrors(page);
     await signin(page);
     const projectUrl = page.url();
     await page.goto(projectUrl + "/scores");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(projectUrl + "/scores");
     await checkPageHeaderTitle(page, "Scores");
+    expect(errors).toHaveLength(0);
   });
 });
 
