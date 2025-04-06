@@ -72,15 +72,17 @@ export const ModelCostTable = ({
     0,
   );
 
+  console.log(metrics.data);
+
   const metricsData = metrics.data
     ? metrics.data
-        .filter((item) => item.provided_model_name !== null)
+        .filter((item) => item.providedModelName !== null)
         .map((item, i) => [
           <LeftAlignedCell
             key={`${i}-model`}
-            title={item.provided_model_name as string}
+            title={item.providedModelName as string}
           >
-            {truncate(item.provided_model_name as string, 30)}
+            {truncate(item.providedModelName as string, 30)}
           </LeftAlignedCell>,
           <RightAlignedCell key={`${i}-tokens`}>
             {item.sum_total_tokens

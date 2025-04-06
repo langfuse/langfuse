@@ -104,6 +104,8 @@ export const ModelUsageChart = ({
     },
   );
 
+  console.log(queryResult.data);
+
   const queryCostByType = api.dashboard.chart.useQuery(
     {
       projectId,
@@ -149,6 +151,8 @@ export const ModelUsageChart = ({
     },
   );
 
+  console.log(queryCostByType.data);
+
   const queryUsageByType = api.dashboard.chart.useQuery(
     {
       projectId,
@@ -192,6 +196,7 @@ export const ModelUsageChart = ({
     },
   );
 
+  console.log(queryUsageByType.data);
   const costByType =
     queryCostByType.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
