@@ -164,6 +164,10 @@ describe("Clickhouse Observations Repository Test", () => {
     expect(firstObservation.inputCost).toEqual(
       observation.cost_details!.input!,
     );
+    expect(firstObservation.outputCost).toEqual(
+      observation.cost_details!.output!,
+    );
+    expect(firstObservation.totalCost).toEqual(observation.total_cost!);
     expect(firstObservation.inputUsage).toEqual(1234);
     expect(firstObservation.outputUsage).toEqual(5678);
     expect(firstObservation.totalUsage).toEqual(6912);
