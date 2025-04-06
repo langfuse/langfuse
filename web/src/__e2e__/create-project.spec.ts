@@ -71,8 +71,7 @@ test.describe("Create project", () => {
     expect(subheadings).toContain("Model Costs");
   });
 
-  test("Browse main pages", async ({ page }) => {
-    // Sign in
+  test("Sign in", async ({ page }) => {
     await page.goto("/auth/sign-in");
     await page.fill('input[name="email"]', "demo@langfuse.com");
     await page.fill('input[type="password"]', "password");
@@ -81,28 +80,33 @@ test.describe("Create project", () => {
     );
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL("/");
+  });
 
-    // check traces page
-    await page.goto("/traces");
+  test("Check traces page", async ({ page }) => {
+    const projectUrl = page.url();
+    await page.goto(projectUrl + "/traces");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL("/traces");
+  });
 
-    // check sessions page
-    await page.goto("/sessions");
+  test("Check sessions page", async ({ page }) => {
+    const projectUrl = page.url();
+    await page.goto(projectUrl + "/sessions");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL("/sessions");
+  });
 
-    // check observations page
-    await page.goto("/observations");
+  test("Check observations page", async ({ page }) => {
+    const projectUrl = page.url();
+    await page.goto(projectUrl + "/observations");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL("/observations");
+  });
 
-    // check model costs page
-    await page.goto("/scores");
+  test("Check scores page", async ({ page }) => {
+    const projectUrl = page.url();
+    await page.goto(projectUrl + "/scores");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL("/scores");
-
-    // check model costs page
-    await page.goto("/observations");
   });
 });
