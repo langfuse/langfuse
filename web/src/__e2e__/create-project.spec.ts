@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 test.describe("Create project", () => {
   test("Sign in, create an organization, create a project", async ({
@@ -72,41 +72,47 @@ test.describe("Create project", () => {
   });
 
   test("Sign in", async ({ page }) => {
-    await page.goto("/auth/sign-in");
-    await page.fill('input[name="email"]', "demo@langfuse.com");
-    await page.fill('input[type="password"]', "password");
-    await page.click(
-      'button[data-testid="submit-email-password-sign-in-form"]',
-    );
-    await page.waitForTimeout(2000);
-    await expect(page).toHaveURL("/");
+    await signin(page);
   });
 
   test("Check traces page", async ({ page }) => {
+    await signin(page);
     const projectUrl = page.url();
     await page.goto(projectUrl + "/traces");
     await page.waitForTimeout(2000);
-    await expect(page).toHaveURL("/traces");
+    await expect(page).toHaveURL(projectUrl + "/traces");
   });
 
   test("Check sessions page", async ({ page }) => {
+    await signin(page);
     const projectUrl = page.url();
     await page.goto(projectUrl + "/sessions");
     await page.waitForTimeout(2000);
-    await expect(page).toHaveURL("/sessions");
+    await expect(page).toHaveURL(projectUrl + "/sessions");
   });
 
   test("Check observations page", async ({ page }) => {
+    await signin(page);
     const projectUrl = page.url();
     await page.goto(projectUrl + "/observations");
     await page.waitForTimeout(2000);
-    await expect(page).toHaveURL("/observations");
+    await expect(page).toHaveURL(projectUrl + "/observations");
   });
 
   test("Check scores page", async ({ page }) => {
+    await signin(page);
     const projectUrl = page.url();
     await page.goto(projectUrl + "/scores");
     await page.waitForTimeout(2000);
-    await expect(page).toHaveURL("/scores");
+    await expect(page).toHaveURL(projectUrl + "/scores");
   });
 });
+
+const signin = async (page: Page) => {
+  await page.goto("/auth/sign-in");
+  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[type="password"]', "password");
+  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+  await page.waitForTimeout(2000);
+  await expect(page).toHaveURL("/");
+};
