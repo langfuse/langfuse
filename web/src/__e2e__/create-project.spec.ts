@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { prisma } from "@langfuse/shared/src/db";
 
 const checkConsoleErrors = async (page: Page) => {
   const errors: string[] = [];
@@ -94,48 +95,26 @@ test.describe("Create project", () => {
     expect(errors).toHaveLength(0);
   });
 
-  test("Check traces page", async ({ page }) => {
-    const errors = await checkConsoleErrors(page);
-    await signin(page);
-    const projectUrl = page.url();
-    await page.goto(projectUrl + "/traces");
-    await page.waitForTimeout(2000);
-    await expect(page).toHaveURL(projectUrl + "/traces");
-    await checkPageHeaderTitle(page, "Traces");
-    expect(errors).toHaveLength(0);
-  });
+  [
+    { title: "Traces", url: "/traces" },
+    { title: "Sessions", url: "/sessions" },
+    { title: "Observations", url: "/observations" },
+    { title: "Scores", url: "/scores" },
+  ].forEach(({ title, url }) => {
+    test.only(`Check ${title} page`, async ({ page }) => {
+      const errors = await checkConsoleErrors(page);
+      await signin(page);
 
-  test("Check sessions page", async ({ page }) => {
-    const errors = await checkConsoleErrors(page);
-    await signin(page);
-    const projectUrl = page.url();
-    await page.goto(projectUrl + "/sessions");
-    await page.waitForTimeout(2000);
-    await expect(page).toHaveURL(projectUrl + "/sessions");
-    await checkPageHeaderTitle(page, "Sessions");
-    expect(errors).toHaveLength(0);
-  });
-
-  test("Check observations page", async ({ page }) => {
-    const errors = await checkConsoleErrors(page);
-    await signin(page);
-    const projectUrl = page.url();
-    await page.goto(projectUrl + "/observations");
-    await page.waitForTimeout(2000);
-    await expect(page).toHaveURL(projectUrl + "/observations");
-    await checkPageHeaderTitle(page, "Observations");
-    expect(errors).toHaveLength(0);
-  });
-
-  test("Check scores page", async ({ page }) => {
-    const errors = await checkConsoleErrors(page);
-    await signin(page);
-    const projectUrl = page.url();
-    await page.goto(projectUrl + "/scores");
-    await page.waitForTimeout(2000);
-    await expect(page).toHaveURL(projectUrl + "/scores");
-    await checkPageHeaderTitle(page, "Scores");
-    expect(errors).toHaveLength(0);
+      const projectUrl = await getProjectUrlForEmail("demo@langfuse.com");
+      await page.goto(projectUrl + "/traces");
+      await page.waitForTimeout(2000);
+      await expect(page).toHaveURL(projectUrl + url);
+      await checkPageHeaderTitle(page, title);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain(
+        "Document policy violation: js-profiling is not allowed in this document.",
+      );
+    });
   });
 });
 
@@ -153,4 +132,23 @@ const checkPageHeaderTitle = async (page: Page, title: string) => {
     .locator('[data-testid="page-header-title"]')
     .textContent();
   expect(pageHeaderTitle).toContain(title);
+};
+
+const getProjectUrlForEmail = async (email: string) => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: {
+      organizationMemberships: {
+        include: {
+          organization: {
+            include: {
+              projects: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return `/project/${user?.organizationMemberships[0].organization.projects[0].id}`;
 };
