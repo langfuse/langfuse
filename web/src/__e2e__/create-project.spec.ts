@@ -110,7 +110,7 @@ test.describe("Create project", () => {
     { title: "Observations", url: "/observations" },
     { title: "Scores", url: "/scores" },
   ].forEach(({ title, url }) => {
-    test.only(`Check ${title} page`, async ({ page }) => {
+    test(`Check ${title} page`, async ({ page }) => {
       const errors = await checkConsoleErrors(page);
       await signin(page);
 
