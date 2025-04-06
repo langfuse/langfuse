@@ -14,6 +14,11 @@ const checkConsoleErrors = async (page: Page) => {
   return errors;
 };
 
+const cleanUpConsoleEventListeners = (page: Page) => {
+  page.removeAllListeners("pageerror");
+  page.removeAllListeners("console");
+};
+
 test.describe("Create project", () => {
   test("Sign in, create an organization, create a project", async ({
     page,
@@ -93,6 +98,7 @@ test.describe("Create project", () => {
     const errors = await checkConsoleErrors(page);
     await signin(page);
     expect(errors).toHaveLength(0);
+    cleanUpConsoleEventListeners(page);
   });
 
   [
@@ -114,6 +120,7 @@ test.describe("Create project", () => {
       expect(errors[0]).toContain(
         "Document policy violation: js-profiling is not allowed in this document.",
       );
+      cleanUpConsoleEventListeners(page);
     });
   });
 });
