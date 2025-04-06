@@ -344,11 +344,11 @@ jobs:
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
-          - name: Run + migrate
-          run: |
-            docker compose -f docker-compose.dev.yml up -d
-            docker compose ps
-            sleep 5 # Wait for PostgreSQL to accept connections
+      - name: Run + migrate
+        run: |
+          docker compose -f docker-compose.dev.yml up -d
+          docker compose ps
+          sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure Docker dependencies are healthy
         run: |
           if docker-compose ps | grep "(unhealthy)"; then
