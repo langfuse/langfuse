@@ -81,6 +81,7 @@ test.describe("Create project", () => {
     await page.goto(projectUrl + "/traces");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(projectUrl + "/traces");
+    await checkPageHeaderTitle(page, "Traces");
   });
 
   test("Check sessions page", async ({ page }) => {
@@ -89,6 +90,7 @@ test.describe("Create project", () => {
     await page.goto(projectUrl + "/sessions");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(projectUrl + "/sessions");
+    await checkPageHeaderTitle(page, "Sessions");
   });
 
   test("Check observations page", async ({ page }) => {
@@ -97,6 +99,7 @@ test.describe("Create project", () => {
     await page.goto(projectUrl + "/observations");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(projectUrl + "/observations");
+    await checkPageHeaderTitle(page, "Observations");
   });
 
   test("Check scores page", async ({ page }) => {
@@ -105,6 +108,7 @@ test.describe("Create project", () => {
     await page.goto(projectUrl + "/scores");
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(projectUrl + "/scores");
+    await checkPageHeaderTitle(page, "Scores");
   });
 });
 
@@ -115,4 +119,11 @@ const signin = async (page: Page) => {
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
   await page.waitForTimeout(2000);
   await expect(page).toHaveURL("/");
+};
+
+const checkPageHeaderTitle = async (page: Page, title: string) => {
+  const pageHeaderTitle = await page
+    .locator('[data-testid="page-header-title"]')
+    .textContent();
+  expect(pageHeaderTitle).toContain(title);
 };
