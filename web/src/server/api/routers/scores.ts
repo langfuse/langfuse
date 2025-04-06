@@ -20,12 +20,12 @@ import {
   UpdateAnnotationScoreData,
   validateDbScore,
   ScoreSource,
-  type Score,
   LangfuseNotFoundError,
   InternalServerError,
   BatchActionQuerySchema,
   BatchActionType,
   BatchExportTableName,
+  type ScoreDomain,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -59,7 +59,7 @@ const ScoreFilterOptions = z.object({
 const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
 });
-type AllScoresReturnType = Score & {
+type AllScoresReturnType = ScoreDomain & {
   traceName: string | null;
   traceUserId: string | null;
   traceTags: Array<string> | null;
