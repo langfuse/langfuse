@@ -68,11 +68,11 @@ const ResetPasswordTemplate = ({ url }: ResetPasswordTemplateProps) => {
 };
 
 export async function sendResetPasswordVerificationRequest(
-  params: SendVerificationRequestParams
+  params: SendVerificationRequestParams,
 ) {
   const { identifier, url, provider } = params;
   const transport = createTransport(provider.server);
-  const htmlTemplate = render(<ResetPasswordTemplate url={url} />);
+  const htmlTemplate = await render(<ResetPasswordTemplate url={url} />);
   const result = await transport.sendMail({
     to: identifier,
     from: provider.from,
