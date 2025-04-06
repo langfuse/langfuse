@@ -56,4 +56,9 @@ test("Sign in, create an organization, create a project", async ({ page }) => {
 
   const headings = await page.locator("h2").allTextContents();
   expect(headings).toContain("Dashboard");
+  expect(headings).toContain("Sessions");
+
+  const subheadings = await page.locator("h3").allTextContents();
+  expect(subheadings).toContain("Traces");
+  expect(subheadings).toContain("Model Costs");
 });
