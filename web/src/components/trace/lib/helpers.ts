@@ -114,7 +114,10 @@ export function calculateDisplayTotalCost(p: {
           ? new Decimal(curr.inputCost)
           : new Decimal(0);
 
-        const outputCost = curr.outputCost ?? new Decimal(0);
+        const outputCost = curr.outputCost
+          ? new Decimal(curr.outputCost)
+          : new Decimal(0);
+
         const combinedCost = inputCost.plus(outputCost);
 
         return prev
