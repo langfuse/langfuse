@@ -1,13 +1,13 @@
 import { z } from "zod";
 
 import { isPresent, stringDateTime } from "../../utils/typeChecks";
-import { Score } from "../../server";
 import {
   NonEmptyString,
   paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "../../utils/zod";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
+import { ScoreDomain } from "../../domain";
 
 /**
  * Types to use across codebase
@@ -162,7 +162,7 @@ export const ScorePropsAgainstConfig = z.union([
  * @returns list of validated scores
  */
 export const filterAndValidateDbScoreList = (
-  scores: Score[],
+  scores: ScoreDomain[],
   onParseError?: (error: z.ZodError) => void,
 ): APIScore[] =>
   scores.reduce((acc, ts) => {
@@ -183,7 +183,7 @@ export const filterAndValidateDbScoreList = (
  * @returns validated score
  * @throws error if score fails validation
  */
-export const validateDbScore = (score: Score): APIScore =>
+export const validateDbScore = (score: ScoreDomain): APIScore =>
   APIScoreSchema.parse(score);
 
 /**
