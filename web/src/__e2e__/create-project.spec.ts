@@ -14,7 +14,7 @@ const checkConsoleErrors = async (page: Page) => {
 
   page.on("response", (response) => {
     if (response.status() === 500) {
-      console.error(response.text());
+      console.error("Network request error: ", response.url, response.text());
     }
   });
 
