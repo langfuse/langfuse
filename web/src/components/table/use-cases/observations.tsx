@@ -443,10 +443,10 @@ export default function ObservationsTable({
       header: "Input Cost",
       size: 120,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("inputCost");
+        const value: number | undefined = row.getValue("inputCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value.toNumber())}</span>
+          <span>{usdFormatter(value)}</span>
         ) : undefined;
       },
       enableHiding: true,
@@ -459,10 +459,10 @@ export default function ObservationsTable({
       header: "Output Cost",
       size: 120,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("outputCost");
+        const value: number | undefined = row.getValue("outputCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value.toNumber())}</span>
+          <span>{usdFormatter(value)}</span>
         ) : undefined;
       },
       enableHiding: true,
@@ -475,12 +475,12 @@ export default function ObservationsTable({
       id: "totalCost",
       size: 120,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("totalCost");
+        const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
           <BreakdownTooltip details={row.original.costDetails} isCost>
             <div className="flex items-center gap-1">
-              <span>{usdFormatter(value.toNumber())}</span>
+              <span>{usdFormatter(value)}</span>
               <InfoIcon className="h-3 w-3" />
             </div>
           </BreakdownTooltip>
