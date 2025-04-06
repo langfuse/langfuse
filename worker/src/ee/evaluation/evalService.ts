@@ -3,7 +3,6 @@ import { sql } from "kysely";
 import { z } from "zod";
 import { JobConfigState } from "@prisma/client";
 import {
-  ScoreSource,
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
@@ -40,6 +39,7 @@ import {
   availableDatasetEvalVariables,
   variableMapping,
   JobTimeScope,
+  ScoreSource,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
