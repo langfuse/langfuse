@@ -122,6 +122,8 @@ export const transformDbToApiObservation = (
     inputUsage,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     outputUsage,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    totalUsage,
     ...rest
   } = observation;
 
