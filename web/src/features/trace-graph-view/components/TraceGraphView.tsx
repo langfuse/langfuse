@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
-import type { APIScore, TraceDomain } from "@langfuse/shared";
+import type { APIScoreV2, TraceDomain } from "@langfuse/shared";
 import type { ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
@@ -18,7 +18,7 @@ type TraceGraphViewProps = {
     input: string | null;
     output: string | null;
   };
-  scores: APIScore[];
+  scores: APIScoreV2[];
   projectId: string;
 };
 

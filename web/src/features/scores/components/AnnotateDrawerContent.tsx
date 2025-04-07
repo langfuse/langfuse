@@ -25,7 +25,7 @@ import {
 } from "@/src/components/ui/form";
 import { DrawerHeader, DrawerTitle } from "@/src/components/ui/drawer";
 import {
-  type APIScore,
+  type APIScoreV2,
   isPresent,
   CreateAnnotationScoreData,
   UpdateAnnotationScoreData,
@@ -249,7 +249,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
     prevEmptySelectedConfigIdsRef.current = emptySelectedConfigIds;
   }, [emptySelectedConfigIds, scores, configs, scoreTarget, form]);
 
-  const pendingCreates = useRef(new Map<number, Promise<APIScore>>());
+  const pendingCreates = useRef(new Map<number, Promise<APIScoreV2>>());
   const description = formatAnnotateDescription(scoreTarget);
 
   async function handleScoreChange(

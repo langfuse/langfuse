@@ -1,7 +1,7 @@
 import {
   type ScoreAggregate,
   type ScoreSimplified,
-  type APIScore,
+  type APIScoreV2,
   type ScoreSourceType,
   type ScoreDataType,
 } from "@langfuse/shared";
@@ -20,7 +20,7 @@ export const composeAggregateScoreKey = ({
   return `${formattedName}-${source}-${dataType}`;
 };
 
-export const aggregateScores = <T extends APIScore | ScoreSimplified>(
+export const aggregateScores = <T extends APIScoreV2 | ScoreSimplified>(
   scores: T[],
 ): ScoreAggregate => {
   const groupedScores: Record<string, T[]> = scores.reduce(

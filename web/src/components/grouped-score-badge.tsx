@@ -5,9 +5,9 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { MessageCircleMoreIcon } from "lucide-react";
-import { type APIScore, type LastUserScore } from "@langfuse/shared";
+import { type APIScoreV2, type LastUserScore } from "@langfuse/shared";
 
-const partitionScores = <T extends APIScore | LastUserScore>(
+const partitionScores = <T extends APIScoreV2 | LastUserScore>(
   scores: Record<string, T[]>,
   maxVisible?: number,
 ) => {
@@ -21,7 +21,7 @@ const partitionScores = <T extends APIScore | LastUserScore>(
   return { visibleScores, hiddenScores };
 };
 
-const ScoreGroupBadge = <T extends APIScore | LastUserScore>({
+const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
   name,
   scores,
 }: {
@@ -62,7 +62,7 @@ const ScoreGroupBadge = <T extends APIScore | LastUserScore>({
   );
 };
 
-export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
+export const GroupedScoreBadges = <T extends APIScoreV2 | LastUserScore>({
   scores,
   maxVisible,
 }: {

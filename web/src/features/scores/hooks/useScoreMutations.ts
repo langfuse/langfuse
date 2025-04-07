@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import { type AnnotateFormSchemaType, type ScoreTarget } from "../types";
-import { type ValidatedScoreConfig, type APIScore } from "@langfuse/shared";
+import { type ValidatedScoreConfig, type APIScoreV2 } from "@langfuse/shared";
 import {
   type UseFieldArrayUpdate,
   type UseFieldArrayRemove,
@@ -26,7 +26,7 @@ const onTraceScoreSettledUpsert =
     isDrawerOpen: boolean;
     setShowSaving: (showSaving: boolean) => void;
   }) =>
-  async (data?: APIScore, error?: unknown) => {
+  async (data?: APIScoreV2, error?: unknown) => {
     if (!data || error) return;
 
     const { id, value, stringValue, name, dataType, configId, comment } = data;
@@ -79,7 +79,7 @@ const onTraceScoreSettledDelete =
     isDrawerOpen: boolean;
     setShowSaving: (showSaving: boolean) => void;
   }) =>
-  async (data?: APIScore, error?: unknown) => {
+  async (data?: APIScoreV2, error?: unknown) => {
     if (!data || error) return;
 
     const { id, name, dataType, configId } = data;
@@ -123,7 +123,7 @@ const onSessionScoreSettledUpsert =
     isDrawerOpen: boolean;
     setShowSaving: (showSaving: boolean) => void;
   }) =>
-  async (data?: APIScore, error?: unknown) => {
+  async (data?: APIScoreV2, error?: unknown) => {
     if (!data || error) return;
 
     const { id, value, stringValue, name, dataType, configId, comment } = data;

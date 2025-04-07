@@ -19,7 +19,7 @@ describe("Clickhouse Scores Repository Test", () => {
   it("should return a score if it exists", async () => {
     const scoreId = v4();
 
-    // Assuming createScore is a helper function to insert a score into the database
+    // Assuming createTraceScore is a helper function to insert a score into the database
     const score = {
       id: scoreId,
       project_id: projectId,

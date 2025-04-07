@@ -12,7 +12,8 @@ import { ScoreDomain } from "../../domain";
 /**
  * Types to use across codebase
  */
-export type APIScore = z.infer<typeof APIScoreSchemaV2>;
+export type APIScoreV2 = z.infer<typeof APIScoreSchemaV2>;
+export type APIScoreV1 = z.infer<typeof APIScoreSchemaV1>;
 
 /**
  * Helpers
@@ -176,10 +177,31 @@ export const ScorePropsAgainstConfig = z.union([
  * @param scores
  * @returns list of validated scores
  */
+export const legacyFilterAndValidateDbScoreList = (
+  scores: ScoreDomain[],
+  onParseError?: (error: z.ZodError) => void,
+): APIScoreV1[] =>
+  scores.reduce((acc, ts) => {
+    const result = APIScoreSchemaV1.safeParse(ts);
+    if (result.success) {
+      acc.push(result.data);
+    } else {
+      console.error("Score parsing error: ", result.error);
+      onParseError?.(result.error);
+    }
+    return acc;
+  }, [] as APIScoreV1[]);
+
+/**
+ * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
+ * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.
+ * @param scores
+ * @returns list of validated scores
+ */
 export const filterAndValidateDbScoreList = (
   scores: ScoreDomain[],
   onParseError?: (error: z.ZodError) => void,
-): APIScore[] =>
+): APIScoreV2[] =>
   scores.reduce((acc, ts) => {
     const result = APIScoreSchemaV2.safeParse(ts);
     if (result.success) {
@@ -189,7 +211,7 @@ export const filterAndValidateDbScoreList = (
       onParseError?.(result.error);
     }
     return acc;
-  }, [] as APIScore[]);
+  }, [] as APIScoreV2[]);
 
 /**
  * Use this function when pulling a single score from the database before using in the application to ensure type safety.
@@ -198,7 +220,7 @@ export const filterAndValidateDbScoreList = (
  * @returns validated score
  * @throws error if score fails validation
  */
-export const validateDbScore = (score: ScoreDomain): APIScore =>
+export const validateDbScore = (score: ScoreDomain): APIScoreV2 =>
   APIScoreSchemaV2.parse(score);
 
 /**

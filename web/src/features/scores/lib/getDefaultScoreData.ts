@@ -1,16 +1,16 @@
 import { type ScoreTarget } from "@/src/features/scores/types";
 import { ScoreSource } from "@langfuse/shared";
-import { type APIScore, type ValidatedScoreConfig } from "@langfuse/shared";
+import { type APIScoreV2, type ValidatedScoreConfig } from "@langfuse/shared";
 
 const filterTraceScores =
-  (traceId: string, observationId?: string) => (s: APIScore) =>
+  (traceId: string, observationId?: string) => (s: APIScoreV2) =>
     s.source === ScoreSource.ANNOTATION &&
     s.traceId === traceId &&
     (observationId !== undefined
       ? s.observationId === observationId
       : s.observationId === null);
 
-const filterSessionScores = (sessionId: string) => (s: APIScore) =>
+const filterSessionScores = (sessionId: string) => (s: APIScoreV2) =>
   s.source === ScoreSource.ANNOTATION && s.sessionId === sessionId;
 
 export const getDefaultScoreData = ({
@@ -19,7 +19,7 @@ export const getDefaultScoreData = ({
   configs,
   scoreTarget,
 }: {
-  scores: APIScore[];
+  scores: APIScoreV2[];
   emptySelectedConfigIds: string[];
   configs: ValidatedScoreConfig[];
   scoreTarget: ScoreTarget;

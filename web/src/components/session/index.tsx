@@ -25,7 +25,7 @@ import {
 } from "@/src/components/ui/popover";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Label } from "@/src/components/ui/label";
-import { type APIScore } from "@langfuse/shared";
+import { type APIScoreV2 } from "@langfuse/shared";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -121,7 +121,7 @@ export function SessionUsers({
   );
 }
 
-const SessionScores = ({ scores }: { scores: APIScore[] }) => {
+const SessionScores = ({ scores }: { scores: APIScoreV2[] }) => {
   return (
     <div className="flex flex-wrap gap-1">
       <GroupedScoreBadges scores={scores} />

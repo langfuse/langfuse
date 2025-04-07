@@ -8,7 +8,7 @@ import {
   DeleteTraceV1Response,
 } from "@/src/features/public-api/types/traces";
 import {
-  filterAndValidateDbScoreList,
+  legacyFilterAndValidateDbScoreList,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -96,7 +96,7 @@ export default withMiddlewares({
       }
 
       const outObservations = observationsView.map(transformDbToApiObservation);
-      const validatedScores = filterAndValidateDbScoreList(
+      const validatedScores = legacyFilterAndValidateDbScoreList(
         scores,
         traceException,
       );

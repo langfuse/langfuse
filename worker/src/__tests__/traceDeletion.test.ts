@@ -4,7 +4,7 @@ import {
   createObservation,
   createObservationsCh,
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -51,7 +51,7 @@ describe("trace deletion", () => {
     const traceId = randomUUID();
     await createTracesCh([createTrace({ id: traceId })]);
     await createObservationsCh([createObservation({ trace_id: traceId })]);
-    await createScoresCh([createScore({ trace_id: traceId })]);
+    await createScoresCh([createTraceScore({ trace_id: traceId })]);
 
     // When
     await processClickhouseTraceDelete("projectId", [traceId]);
@@ -262,7 +262,11 @@ describe("trace deletion", () => {
       }),
     ]);
     await createScoresCh([
-      createScore({ id: scoreId, trace_id: traceId, project_id: projectId }),
+      createTraceScore({
+        id: scoreId,
+        trace_id: traceId,
+        project_id: projectId,
+      }),
     ]);
 
     const fileType = "application/json";
