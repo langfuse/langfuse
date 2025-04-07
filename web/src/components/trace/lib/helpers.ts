@@ -110,13 +110,13 @@ export function calculateDisplayTotalCost(p: {
 
       // if we have either input or output cost, but not total cost, we can use that
       if (!curr.totalCost && (curr.inputCost || curr.outputCost)) {
-        const inputCost = curr.inputCost
-          ? new Decimal(curr.inputCost)
-          : new Decimal(0);
+        const inputCost =
+          curr.inputCost != null ? new Decimal(curr.inputCost) : new Decimal(0);
 
-        const outputCost = curr.outputCost
-          ? new Decimal(curr.outputCost)
-          : new Decimal(0);
+        const outputCost =
+          curr.outputCost != null
+            ? new Decimal(curr.outputCost)
+            : new Decimal(0);
 
         const combinedCost = inputCost.plus(outputCost);
 
