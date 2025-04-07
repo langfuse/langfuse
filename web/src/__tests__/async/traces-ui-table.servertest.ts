@@ -6,7 +6,7 @@ import {
 import { createObservation, createTrace } from "@langfuse/shared/src/server";
 import {
   getTracesTable,
-  type TracesAllUiReturnType,
+  type TracesTableUiReturnType,
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
@@ -112,7 +112,7 @@ describe("Traces table API test", () => {
     traceInput: Partial<TraceRecordInsertType>;
     observationInput: Partial<ObservationRecordInsertType>[];
     filterstate: FilterState;
-    expected: Partial<TracesAllUiReturnType>[];
+    expected: Partial<TracesTableUiReturnType>[];
   };
 
   [
