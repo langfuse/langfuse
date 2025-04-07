@@ -124,7 +124,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           }
           acc[ts].values.push({
             label: item.level as string,
-            value: Number(item.count_countCount),
+            value: Number(item.count_count),
           });
 
           return acc;
@@ -133,7 +133,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     : [];
 
   const totalObservations = observations.data?.reduce((acc, item) => {
-    return acc + Number(item.count_countCount);
+    return acc + Number(item.count_count);
   }, 0);
 
   const data = [
