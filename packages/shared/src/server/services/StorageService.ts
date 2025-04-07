@@ -17,6 +17,7 @@ import {
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
 import { logger } from "../logger";
 import { env } from "../../env";
+import { backOff } from "exponential-backoff";
 
 type UploadFile = {
   fileName: string;
@@ -241,6 +242,12 @@ class AzureBlobStorageService implements StorageService {
   }
 
   public async deleteFiles(paths: string[]): Promise<void> {
+    await backOff(() => this.deleteFileNonRetrying(paths), {
+      numOfAttempts: 3,
+    });
+  }
+
+  async deleteFileNonRetrying(paths: string[]): Promise<void> {
     try {
       await this.createContainerIfNotExists();
 
@@ -509,6 +516,12 @@ class S3StorageService implements StorageService {
   }
 
   public async deleteFiles(paths: string[]): Promise<void> {
+    await backOff(() => this.deleteFilesNonRetrying(paths), {
+      numOfAttempts: 3,
+    });
+  }
+
+  async deleteFilesNonRetrying(paths: string[]): Promise<void> {
     const chunkSize = 900;
     const chunks = [];
 
@@ -527,10 +540,11 @@ class S3StorageService implements StorageService {
         });
         const result = await this.client.send(command);
         if (result?.Errors && result?.Errors?.length > 0) {
-          logger.error("Failed to delete files from S3", {
+          const errors = result.Errors.map((e) => e.Key).join(", ");
+          logger.error(`Failed to delete files from S3: ${errors} `, {
             errors: result.Errors,
           });
-          throw new Error("Failed to delete files from S3");
+          throw new Error(`Failed to delete files from S3: ${errors}`);
         }
       }
     } catch (err) {
