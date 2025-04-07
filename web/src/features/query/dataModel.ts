@@ -19,12 +19,18 @@ export const traceView: ViewDeclarationType = {
       sql: "name",
       type: "string",
     },
+    tags: {
+      sql: "tags",
+      type: "string[]",
+    },
     userId: {
       sql: "user_id",
+      alias: "userId",
       type: "string",
     },
     sessionId: {
       sql: "session_id",
+      alias: "sessionId",
       type: "string",
     },
     release: {
@@ -48,13 +54,13 @@ export const traceView: ViewDeclarationType = {
     },
     observationsCount: {
       sql: "uniq(observations.id)",
-      alias: "observations_count",
+      alias: "observationsCount",
       type: "count",
       relationTable: "observations",
     },
     scoresCount: {
       sql: "uniq(scores.id)",
-      alias: "scores_count",
+      alias: "scoresCount",
       type: "count",
       relationTable: "scores",
     },
@@ -93,11 +99,12 @@ export const observationsView: ViewDeclarationType = {
     },
     traceId: {
       sql: "trace_id",
+      alias: "traceId",
       type: "string",
     },
     traceName: {
       sql: "name",
-      alias: "trace_name",
+      alias: "traceName",
       type: "string",
       relationTable: "traces",
     },
@@ -107,6 +114,7 @@ export const observationsView: ViewDeclarationType = {
     },
     parentObservationId: {
       sql: "parent_observation_id",
+      alias: "parentObservationId",
       type: "string",
     },
     type: {
@@ -125,25 +133,35 @@ export const observationsView: ViewDeclarationType = {
       sql: "version",
       type: "string",
     },
+    tags: {
+      sql: "tags",
+      type: "string[]",
+      relationTable: "traces",
+    },
     providedModelName: {
       sql: "provided_model_name",
+      alias: "providedModelName",
       type: "string",
     },
     promptName: {
       sql: "prompt_name",
+      alias: "promptName",
       type: "string",
     },
     promptVersion: {
       sql: "prompt_version",
+      alias: "promptVersion",
       type: "string",
     },
     userId: {
       sql: "user_id",
+      alias: "userId",
       type: "string",
       relationTable: "traces",
     },
     sessionId: {
       sql: "session_id",
+      alias: "sessionId",
       type: "string",
       relationTable: "traces",
     },
@@ -161,22 +179,22 @@ export const observationsView: ViewDeclarationType = {
     },
     totalTokens: {
       sql: "sumMap(usage_details)['total']",
-      alias: "total_tokens",
+      alias: "totalTokens",
       type: "sum",
     },
     totalCost: {
       sql: "sum(total_cost)",
-      alias: "total_cost",
+      alias: "totalCost",
       type: "sum",
     },
     timeToFirstToken: {
       sql: "date_diff('millisecond', any(observations.start_time), any(observations.completion_start_time))",
-      alias: "time_to_first_token",
+      alias: "timeToFirstToken",
       type: "number",
     },
     countScores: {
       sql: "uniq(scores.id)",
-      alias: "count_scores",
+      alias: "countScores",
       type: "count",
       relationTable: "scores",
     },
@@ -219,60 +237,69 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   },
   dataType: {
     sql: "data_type",
+    alias: "dataType",
     type: "string",
   },
   traceId: {
     sql: "trace_id",
+    alias: "traceId",
     type: "string",
   },
   traceName: {
     sql: "name",
-    alias: "trace_name",
+    alias: "traceName",
     type: "string",
+    relationTable: "traces",
+  },
+  tags: {
+    sql: "tags",
+    type: "string[]",
     relationTable: "traces",
   },
   userId: {
     sql: "user_id",
-    alias: "user_id",
+    alias: "userId",
     type: "string",
     relationTable: "traces",
   },
   sessionId: {
     sql: "session_id",
-    alias: "session_id",
+    alias: "sessionId",
     type: "string",
     relationTable: "traces",
   },
   observationId: {
     sql: "observation_id",
+    alias: "observationId",
     type: "string",
   },
   observationName: {
     sql: "name",
-    alias: "observation_name",
+    alias: "observationName",
     type: "string",
     relationTable: "observations",
   },
   observationModelName: {
     sql: "provided_model_name",
-    alias: "observation_model_name",
+    alias: "observationModelName",
     type: "string",
     relationTable: "observations",
   },
   observationPromptName: {
     sql: "prompt_name",
-    alias: "observation_prompt_name",
+    alias: "observationPromptName",
     type: "string",
     relationTable: "observations",
   },
   observationPromptVersion: {
     sql: "prompt_version",
-    alias: "observation_prompt_version",
+    alias: "observationPromptVersion",
     type: "string",
     relationTable: "observations",
   },
   configId: {
     sql: "config_id",
+    alias: "configId",
     type: "string",
   },
 };
@@ -327,6 +354,7 @@ export const scoresCategoricalView: ViewDeclarationType = {
     ...scoreBaseDimensions,
     stringValue: {
       sql: "string_value",
+      alias: "stringValue",
       type: "string",
     },
   },

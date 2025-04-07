@@ -1,6 +1,6 @@
 import { ScoreDataType } from "@prisma/client";
 import { ScoreRecordReadType } from "./definitions";
-import { Score, ScoreSourceType } from "./types";
+import { ScoreDomain, ScoreSourceType } from "../../domain/scores";
 
 export type ScoreAggregation = {
   id: string;
@@ -12,7 +12,7 @@ export type ScoreAggregation = {
   comment: string | null;
 };
 
-export const convertToScore = (row: ScoreRecordReadType): Score => {
+export const convertToScore = (row: ScoreRecordReadType): ScoreDomain => {
   return {
     id: row.id,
     timestamp: new Date(row.timestamp),

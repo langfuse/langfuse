@@ -3,7 +3,7 @@ import {
   StringFilter,
   type ObservationRecordReadType,
   queryClickhouse,
-  convertObservationToView,
+  convertObservation,
 } from "@langfuse/shared/src/server";
 
 type QueryType = {
@@ -88,7 +88,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         : {}),
     },
   });
-  return result.map(convertObservationToView);
+  return result.map(convertObservation);
 };
 
 export const getObservationsCountForPublicApi = async (props: QueryType) => {

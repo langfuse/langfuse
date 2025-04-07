@@ -14,7 +14,7 @@ export const viewDeclaration = z.object({
     z.object({
       sql: z.string(),
       alias: z.string().optional(),
-      type: z.enum(["string", "number", "bool"]),
+      type: z.enum(["string", "number", "bool", "string[]"]),
       relationTable: z.string().optional(),
     }),
   ),

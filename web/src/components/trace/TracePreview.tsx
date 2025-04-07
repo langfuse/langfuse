@@ -1,7 +1,7 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
   type APIScore,
-  type Trace,
+  type TraceDomain,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
@@ -44,10 +44,10 @@ export const TracePreview = ({
   commentCounts,
   viewType = "detailed",
 }: {
-  trace: Omit<Trace, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output"> & {
     latency?: number;
-    input: string | undefined;
-    output: string | undefined;
+    input: string | null;
+    output: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
   scores: APIScore[];
@@ -110,7 +110,7 @@ export const TracePreview = ({
             <div className="mt-1.5">
               <ItemBadge type="TRACE" isSmall />
             </div>
-            <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
+            <span className="mb-0 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
               {trace.name}
             </span>
           </div>

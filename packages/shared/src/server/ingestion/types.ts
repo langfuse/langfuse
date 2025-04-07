@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { type ScoreSourceType } from "../repositories";
+import { ScoreSourceType } from "../../domain";
 
 export const idSchema = z
   .string()

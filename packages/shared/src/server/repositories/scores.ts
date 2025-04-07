@@ -1,5 +1,5 @@
 import { ScoreDataType } from "@prisma/client";
-import { Score, ScoreSourceType } from "./types";
+import { ScoreDomain, ScoreSourceType } from "../../domain/scores";
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -397,7 +397,7 @@ export const getScoresUiCount = async (props: {
   return Number(rows[0].count);
 };
 
-export type ScoreUiTableRow = Score & {
+export type ScoreUiTableRow = ScoreDomain & {
   traceName: string | null;
   traceUserId: string | null;
   traceTags: Array<string> | null;
