@@ -27,6 +27,7 @@ import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -166,10 +167,12 @@ export type GetScoresForTracesProps = {
   timestamp?: Date;
   limit?: number;
   offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
 export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
-  const { projectId, traceIds, timestamp, limit, offset } = props;
+  const { projectId, traceIds, timestamp, limit, offset, clickhouseConfigs } =
+    props;
   const query = `
       select 
         *
@@ -199,17 +202,20 @@ export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
       kind: "list",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return rows.map(convertToScore);
 };
 
-export const getScoresForObservations = async (
-  projectId: string,
-  observationIds: string[],
-  limit?: number,
-  offset?: number,
-) => {
+export const getScoresForObservations = async (p: {
+  projectId: string;
+  observationIds: string[];
+  limit?: number;
+  offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const { projectId, observationIds, limit, offset, clickhouseConfigs } = p;
   const query = `
       select 
         *
@@ -235,6 +241,7 @@ export const getScoresForObservations = async (
       kind: "list",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return rows.map(convertToScore);
@@ -366,6 +373,7 @@ export const getScoresUiTable = async (props: {
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 }): Promise<ScoreUiTableRow[]> => {
   const rows = await getScoresUiGeneric<{
     id: string;
@@ -395,6 +403,7 @@ export const getScoresUiTable = async (props: {
     select: "rows",
     tags: { kind: "analytic" },
     ...props,
+    clickhouseConfigs: props.clickhouseConfigs,
   });
 
   return rows.map((row) => ({
@@ -429,8 +438,10 @@ export const getScoresUiGeneric = async <T>(props: {
   limit?: number;
   offset?: number;
   tags?: Record<string, string>;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 }): Promise<T[]> => {
-  const { projectId, filter, orderBy, limit, offset } = props;
+  const { projectId, filter, orderBy, limit, offset, clickhouseConfigs } =
+    props;
 
   const select =
     props.select === "count"
@@ -500,6 +511,7 @@ export const getScoresUiGeneric = async <T>(props: {
       type: "score",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return rows;
@@ -805,12 +817,20 @@ export const getScoreCountOfProjectsSinceCreationDate = async ({
   return Number(rows[0]?.count ?? 0);
 };
 
-export const getDistinctScoreNames = async (
-  projectId: string,
-  cutoffCreatedAt: Date,
-  filter: FilterState,
-  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter,
-) => {
+export const getDistinctScoreNames = async (p: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterState;
+  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter,
+    isTimestampFilter,
+    clickhouseConfigs,
+  } = p;
   const scoreTimestampFilter = filter?.find(isTimestampFilter);
 
   const query = `
@@ -841,6 +861,7 @@ export const getDistinctScoreNames = async (
       kind: "list",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return rows.map((row) => row.name);

@@ -33,6 +33,7 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
 import { env } from "../../env";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
 export const checkObservationExists = async (
   projectId: string,
@@ -372,6 +373,7 @@ export type ObservationTableQuery = {
   limit?: number;
   offset?: number;
   selectIOAndMetadata?: boolean;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
 export type ObservationsTableQueryResult = ObservationRecordReadType & {
@@ -495,8 +497,15 @@ const getObservationsTableInternal = async <T>(
         if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
         if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token"`;
 
-  const { projectId, filter, selectIOAndMetadata, limit, offset, orderBy } =
-    opts;
+  const {
+    projectId,
+    filter,
+    selectIOAndMetadata,
+    limit,
+    offset,
+    orderBy,
+    clickhouseConfigs,
+  } = opts;
 
   const selectString = selectIOAndMetadata
     ? `
@@ -659,6 +668,7 @@ const getObservationsTableInternal = async <T>(
       type: "observation",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return res;

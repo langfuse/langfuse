@@ -76,14 +76,14 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const traces = await getTracesTable(
-        ctx.session.projectId,
-        input.filter ?? [],
-        input.searchQuery ?? undefined,
-        input.orderBy,
-        input.limit,
-        input.page,
-      );
+      const traces = await getTracesTable({
+        projectId: ctx.session.projectId,
+        filter: input.filter ?? [],
+        searchQuery: input.searchQuery ?? undefined,
+        orderBy: input.orderBy,
+        limit: input.limit,
+        page: input.page,
+      });
       return { traces };
     }),
   countAll: protectedProjectProcedure
