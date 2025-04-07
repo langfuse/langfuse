@@ -55,6 +55,7 @@ export const projectDeleteProcessor: Processor = async (
 
   // Delete media data from S3 for project
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
+    logger.info(`Deleting media for ${projectId} in org ${orgId}`);
     const mediaFilesToDelete = await prisma.media.findMany({
       select: {
         id: true,
@@ -75,6 +76,8 @@ export const projectDeleteProcessor: Processor = async (
     // No need to delete from table as this will be done below via Prisma
   }
 
+  logger.info(`Deleting S3 event logs for ${projectId} in org ${orgId}`);
+
   // Remove event files from S3
   const eventLogStream = getEventLogByProjectId(projectId);
   let eventLogPaths: string[] = [];
@@ -92,6 +95,8 @@ export const projectDeleteProcessor: Processor = async (
   // Delete any remaining files
   await eventStorageClient.deleteFiles(eventLogPaths);
 
+  logger.info(`Deleting ClickHouse data for ${projectId} in org ${orgId}`);
+
   // Delete project data from ClickHouse first
   await Promise.all([
     deleteTracesByProjectId(projectId),
@@ -99,6 +104,8 @@ export const projectDeleteProcessor: Processor = async (
     deleteScoresByProjectId(projectId),
     deleteEventLogByProjectId(projectId),
   ]);
+
+  logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);
 
   // Finally, delete the project itself which should delete all related
   // resources due to the referential actions defined via Prisma
