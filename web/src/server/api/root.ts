@@ -79,7 +79,7 @@ export const appRouter = createTRPCRouter({
   auditLogs: auditLogsRouter,
   table: tableRouter,
   cloudStatus: cloudStatusRouter,
-  dashboardsWidgets: dashboardWidgetRouter,
+  dashboardWidgets: dashboardWidgetRouter,
 });
 
 // export type definition of API

@@ -34,7 +34,7 @@ export function DashboardWidgetTable() {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const widgets = api.dashboardsWidgets.all.useQuery(
+  const widgets = api.dashboardWidgets.all.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
