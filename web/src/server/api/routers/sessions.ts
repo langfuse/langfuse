@@ -370,7 +370,6 @@ export const sessionRouter = createTRPCRouter({
     .input(
       z.object({
         sessionId: z.string(), // used for security check
-        // timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         projectId: z.string(), // used for security check
       }),
     )
@@ -379,7 +378,6 @@ export const sessionRouter = createTRPCRouter({
         getScoresForSessions({
           projectId: input.projectId,
           sessionIds: [input.sessionId],
-          // timestamp: input.timestamp ?? undefined,
         }),
       ]);
 

@@ -198,45 +198,45 @@ export const prepareClickhouse = async (
       project_id: string;
     }>();
 
-    // const sessionsToScore = sessionData
-    //   .filter(() => Math.random() < 0.5)
-    //   .slice(0, Math.min(500, sessionData.length));
+    const sessionsToScore = sessionData
+      .filter(() => Math.random() < 0.5)
+      .slice(0, Math.min(500, sessionData.length));
 
-    // if (sessionsToScore.length > 0) {
-    //   // Generate session scores query with specific session IDs
-    //   const sessionScoresQuery = `
-    //     INSERT INTO scores
-    //     SELECT
-    //       concat('session-', toString(number)) AS id,
-    //       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
-    //       arrayElement(['${sessionsToScore.map((s) => s.project_id).join("','")}'], 1 + (number % ${sessionsToScore.length})) AS project_id,
-    //       'default' AS environment,
-    //       NULL AS trace_id,
-    //       arrayElement(['${sessionsToScore.map((s) => s.session_id).join("','")}'], 1 + (number % ${sessionsToScore.length})) AS session_id,
-    //       NULL AS observation_id,
-    //       concat('session_quality_', toString(rand() % 3)) AS name,
-    //       randUniform(0, 100) AS value,
-    //       'API' AS source,
-    //       'Session-level assessment score' AS comment,
-    //       toString(rand() % 100) AS author_user_id,
-    //       toString(rand() % 100) AS config_id,
-    //       if(rand() < 0.33, 'NUMERIC', if(rand() < 0.5, 'CATEGORICAL', 'BOOLEAN')) AS data_type,
-    //       toString(rand() % 100) AS string_value,
-    //       NULL AS queue_id,
-    //       now() AS created_at,
-    //       now() AS updated_at,
-    //       now() AS event_ts,
-    //       0 AS is_deleted
-    //     FROM numbers(${sessionsToScore.length})
-    //   `;
+    if (sessionsToScore.length > 0) {
+      // Generate session scores query with specific session IDs
+      const sessionScoresQuery = `
+        INSERT INTO scores
+        SELECT
+          concat('session-', toString(number)) AS id,
+          toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
+          arrayElement(['${sessionsToScore.map((s) => s.project_id).join("','")}'], 1 + (number % ${sessionsToScore.length})) AS project_id,
+          arrayElement(['${sessionsToScore.map((s) => s.session_id).join("','")}'], 1 + (number % ${sessionsToScore.length})) AS session_id,
+          'default' AS environment,
+          NULL AS trace_id,
+          NULL AS observation_id,
+          concat('session_quality_', toString(rand() % 10)) AS name,
+          randUniform(0, 100) AS value,
+          'API' AS source,
+          'Session-level assessment score' AS comment,
+          toString(rand() % 100) AS author_user_id,
+          toString(rand() % 100) AS config_id,
+          if(rand() < 0.33, 'NUMERIC', if(rand() < 0.5, 'CATEGORICAL', 'BOOLEAN')) AS data_type,
+          toString(rand() % 100) AS string_value,
+          NULL AS queue_id,
+          timestamp AS created_at,
+          timestamp AS updated_at,
+          timestamp AS event_ts,
+          0 AS is_deleted
+        FROM numbers(${sessionsToScore.length})
+      `;
 
-    //   await clickhouseClient().command({
-    //     query: sessionScoresQuery,
-    //     clickhouse_settings: {
-    //       wait_end_of_query: 1,
-    //     },
-    //   });
-    // }
+      await clickhouseClient().command({
+        query: sessionScoresQuery,
+        clickhouse_settings: {
+          wait_end_of_query: 1,
+        },
+      });
+    }
 
     const idProjectIdCombinations = sessionData.map((session) => ({
       id: session.session_id,

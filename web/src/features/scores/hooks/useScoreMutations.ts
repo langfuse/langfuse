@@ -1,7 +1,12 @@
 import { api } from "@/src/utils/api";
-import { type ScoreTarget } from "../types";
+import { type AnnotateFormSchemaType, type ScoreTarget } from "../types";
 import { type ValidatedScoreConfig, type APIScore } from "@langfuse/shared";
-import { type useFieldArray } from "react-hook-form";
+import {
+  type UseFieldArrayUpdate,
+  type UseFieldArrayRemove,
+  type FieldArrayWithId,
+  type useFieldArray,
+} from "react-hook-form";
 
 const onTraceScoreSettledUpsert =
   ({
@@ -16,8 +21,8 @@ const onTraceScoreSettledUpsert =
     projectId: string;
     traceId: string;
     utils: ReturnType<typeof api.useUtils>;
-    fields: ReturnType<typeof useFieldArray>["fields"];
-    update: ReturnType<typeof useFieldArray>["update"];
+    fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
+    update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
     isDrawerOpen: boolean;
     setShowSaving: (showSaving: boolean) => void;
   }) =>
@@ -67,8 +72,8 @@ const onTraceScoreSettledDelete =
     setShowSaving,
   }: {
     utils: ReturnType<typeof api.useUtils>;
-    fields: ReturnType<typeof useFieldArray>["fields"];
-    update: ReturnType<typeof useFieldArray>["update"];
+    fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
+    update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
     configs: ValidatedScoreConfig[];
     remove: ReturnType<typeof useFieldArray>["remove"];
     isDrawerOpen: boolean;
@@ -113,8 +118,8 @@ const onSessionScoreSettledUpsert =
     setShowSaving,
   }: {
     utils: ReturnType<typeof api.useUtils>;
-    fields: ReturnType<typeof useFieldArray>["fields"];
-    update: ReturnType<typeof useFieldArray>["update"];
+    fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
+    update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
     isDrawerOpen: boolean;
     setShowSaving: (showSaving: boolean) => void;
   }) =>
@@ -147,9 +152,9 @@ const onSessionScoreSettledUpsert =
 export function useScoreMutations(
   scoreTarget: ScoreTarget,
   projectId: string,
-  fields: ReturnType<typeof useFieldArray>["fields"],
-  update: ReturnType<typeof useFieldArray>["update"],
-  remove: ReturnType<typeof useFieldArray>["remove"],
+  fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[],
+  update: UseFieldArrayUpdate<AnnotateFormSchemaType>,
+  remove: UseFieldArrayRemove,
   configs: ValidatedScoreConfig[],
   isDrawerOpen: boolean,
   setShowSaving: (showSaving: boolean) => void,
