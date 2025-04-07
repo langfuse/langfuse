@@ -541,7 +541,7 @@ class S3StorageService implements StorageService {
         const result = await this.client.send(command);
         if (result?.Errors && result?.Errors?.length > 0) {
           const errors = result.Errors.map((e) => e.Key).join(", ");
-          logger.error(`ailed to delete files from S3: ${errors} `, {
+          logger.error(`Failed to delete files from S3: ${errors} `, {
             errors: result.Errors,
           });
           throw new Error(`Failed to delete files from S3: ${errors}`);
