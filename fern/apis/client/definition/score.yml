@@ -21,6 +21,7 @@ types:
         docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
       observationId: optional<string>
       comment: optional<string>
+      metadata: optional<unknown>
       dataType:
         type: optional<ScoreDataType>
         docs: When set, must match the score value's type. If not set, will be inferred from the score value or config
@@ -76,6 +77,7 @@ types:
       updatedAt: datetime
       authorUserId: optional<string>
       comment: optional<string>
+      metadata: optional<unknown>
       configId:
         type: optional<string>
         docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range

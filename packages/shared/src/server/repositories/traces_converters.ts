@@ -3,6 +3,7 @@ import { TraceRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { parseJsonPrioritised } from "../../utils/json";
 import { TraceDomain } from "../../domain";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export const convertTraceDomainToClickhouse = (
   trace: TraceDomain,
@@ -50,14 +51,7 @@ export const convertClickhouseToDomain = (
     output: record.output
       ? (parseJsonPrioritised(record.output) ?? null)
       : null,
-    metadata: record.metadata
-      ? Object.fromEntries(
-          Object.entries(record.metadata).map(([key, val]) => [
-            key,
-            val === null ? null : parseJsonPrioritised(val),
-          ]),
-        )
-      : {},
+    metadata: parseMetadataCHRecordToDomain(record.metadata),
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
   };

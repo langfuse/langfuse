@@ -6,6 +6,7 @@ import {
   ObservationLevelType,
   ObservationType,
 } from "../../domain";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export const convertObservation = (
   record: ObservationRecordReadType,
@@ -25,14 +26,7 @@ export const convertObservation = (
       ? parseClickhouseUTCDateTimeFormat(record.end_time)
       : null,
     name: record.name ?? null,
-    metadata:
-      record.metadata &&
-      Object.fromEntries(
-        Object.entries(record.metadata ?? {}).map(([key, val]) => [
-          key,
-          val && parseJsonPrioritised(val),
-        ]),
-      ),
+    metadata: parseMetadataCHRecordToDomain(record.metadata),
     level: record.level as ObservationLevelType,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,
@@ -102,13 +96,13 @@ export const reduceUsageOrCostDetails = (
     input: Object.entries(details ?? {})
       .filter(([usageType]) => usageType.startsWith("input"))
       .reduce(
-        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        (acc, [, value]) => (acc ?? 0) + Number(value),
         null as number | null, // default to null if no input usage is found
       ),
     output: Object.entries(details ?? {})
       .filter(([usageType]) => usageType.startsWith("output"))
       .reduce(
-        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        (acc, [, value]) => (acc ?? 0) + Number(value),
         null as number | null, // default to null if no output usage is found
       ),
     total: Number(details?.total ?? 0),
