@@ -316,7 +316,8 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
 const BaseScoreBody = z.object({
   id: idSchema.nullish(),
   name: NonEmptyString,
-  traceId: z.string(),
+  traceId: z.string().nullish(),
+  sessionId: z.string().nullish(),
   environment: EnvironmentName,
   observationId: z.string().nullish(),
   comment: z.string().nullish(),

@@ -41,7 +41,7 @@ const BooleanData = z.object({
   dataType: z.literal("BOOLEAN"),
 });
 
-const ScoreBase = z.object({
+const ScoreBaseProps = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),
   projectId: z.string(),
@@ -50,7 +50,7 @@ const ScoreBase = z.object({
   source: z.enum(ScoreSource),
   authorUserId: z.string().nullish(),
   comment: z.string().nullish(),
-  traceId: z.string(),
+
   observationId: z.string().nullish(),
   configId: z.string().nullish(),
   createdAt: z.coerce.date(),
@@ -58,10 +58,20 @@ const ScoreBase = z.object({
   queueId: z.string().nullish(),
 });
 
+const ScoreBase = ScoreBaseProps.extend({
+  traceId: z.string().nullish(),
+  sessionId: z.string().nullish(),
+});
+
+const LegacyScoreBase = ScoreBaseProps.extend({
+  traceId: z.string(),
+});
+
 const BaseScoreBody = z.object({
   id: z.string().nullish(),
   name: NonEmptyString,
-  traceId: z.string(),
+  traceId: z.string().nullish(),
+  sessionId: z.string().nullish(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
   environment: z.string().default("default"),
@@ -70,6 +80,12 @@ const BaseScoreBody = z.object({
 /**
  * Objects
  */
+
+export const LegacyAPIScoreSchema = z.discriminatedUnion("dataType", [
+  LegacyScoreBase.merge(NumericData),
+  LegacyScoreBase.merge(CategoricalData),
+  LegacyScoreBase.merge(BooleanData),
+]);
 
 export const APIScoreSchema = z.discriminatedUnion("dataType", [
   ScoreBase.merge(NumericData),
@@ -256,7 +272,7 @@ export const GetScoresQuery = z.object({
 
 // LegacyGetScoreResponseDataV1 is only used for response of GET /scores list endpoint
 const LegacyGetScoreResponseDataV1 = z.intersection(
-  APIScoreSchema,
+  LegacyAPIScoreSchema,
   z.object({
     trace: z.object({
       userId: z.string().nullish(),
@@ -293,7 +309,7 @@ export const GetScoreQuery = z.object({
   scoreId: z.string(),
 });
 
-export const GetScoreResponse = APIScoreSchema;
+export const GetScoreResponse = LegacyAPIScoreSchema;
 
 // DELETE /scores/{scoreId}
 export const DeleteScoreQuery = z.object({

@@ -1,3 +1,4 @@
+import { ScoreAggregate } from "../../features/scores";
 import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { FilterState } from "../../types";

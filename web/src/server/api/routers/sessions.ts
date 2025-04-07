@@ -31,8 +31,10 @@ import {
   logger,
   getSessionsWithMetrics,
   hasAnySession,
+  getScoresForSessions,
 } from "@langfuse/shared/src/server";
 import { chunk } from "lodash";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -67,6 +69,18 @@ export const sessionRouter = createTRPCRouter({
           limit: input.limit,
         });
 
+        const scores = await getScoresForSessions({
+          projectId: ctx.session.projectId,
+          sessionIds: sessions.map((s) => s.session_id),
+          limit: 1000,
+          offset: 0,
+        });
+
+        const validatedScores = filterAndValidateDbScoreList(
+          scores,
+          traceException,
+        );
+
         const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
           where: {
             id: {
@@ -87,6 +101,11 @@ export const sessionRouter = createTRPCRouter({
             userIds: s.user_ids,
             countTraces: s.trace_count,
             traceTags: s.trace_tags,
+            scores: aggregateScores(
+              validatedScores.filter(
+                (score) => score.sessionId === s.session_id,
+              ),
+            ),
             createdAt: new Date(s.min_timestamp),
             bookmarked:
               prismaSessionInfo.find((p) => p.id === s.session_id)
@@ -346,6 +365,32 @@ export const sessionRouter = createTRPCRouter({
           message: "unable to get session",
         });
       }
+    }),
+  byIdWithScores: protectedGetSessionProcedure
+    .input(
+      z.object({
+        sessionId: z.string(), // used for security check
+        // timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input }) => {
+      const [scores] = await Promise.all([
+        getScoresForSessions({
+          projectId: input.projectId,
+          sessionIds: [input.sessionId],
+          // timestamp: input.timestamp ?? undefined,
+        }),
+      ]);
+
+      const validatedScores = filterAndValidateDbScoreList(
+        scores,
+        traceException,
+      );
+
+      return {
+        scores: validatedScores,
+      };
     }),
   bookmark: protectedProjectProcedure
     .input(

@@ -25,13 +25,26 @@ const BooleanData = z.object({
   dataType: z.literal("BOOLEAN"),
 });
 
+const ScoreTarget = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("trace"),
+    traceId: z.string(),
+    observationId: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("session"),
+    sessionId: z.string(),
+  }),
+]);
+
+export type ScoreTarget = z.infer<typeof ScoreTarget>;
+
 const CreateAnnotationScoreBase = z.object({
   name: z.string(),
   projectId: z.string(),
   environment: z.string().default("default"),
-  traceId: z.string(),
+  scoreTarget: ScoreTarget,
   configId: z.string().optional(),
-  observationId: z.string().optional(),
   comment: z.string().nullish(),
   queueId: z.string().nullish(),
 });

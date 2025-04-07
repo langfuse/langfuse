@@ -12,7 +12,6 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  CreateAnnotationScoreData,
   orderBy,
   paginationZod,
   singleFilter,
@@ -26,6 +25,7 @@ import {
   BatchActionQuerySchema,
   BatchActionType,
   BatchExportTableName,
+  CreateAnnotationScoreData,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -246,24 +246,42 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const clickhouseTrace = await getTraceById(
-        input.traceId,
-        input.projectId,
-      );
+      const inflatedParams = {
+        observationId:
+          input.scoreTarget.type === "trace"
+            ? (input.scoreTarget.observationId ?? null)
+            : null,
+        traceId:
+          input.scoreTarget.type === "trace" ? input.scoreTarget.traceId : null,
+        sessionId:
+          input.scoreTarget.type === "session"
+            ? input.scoreTarget.sessionId
+            : null,
+      };
 
-      if (!clickhouseTrace) {
-        logger.error(
-          `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
+      if (inflatedParams.traceId) {
+        const clickhouseTrace = await getTraceById(
+          inflatedParams.traceId,
+          input.projectId,
         );
-        throw new LangfuseNotFoundError(
-          `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
-        );
+
+        if (!clickhouseTrace) {
+          logger.error(
+            `No trace with id ${inflatedParams.traceId} in project ${input.projectId} in Clickhouse`,
+          );
+          throw new LangfuseNotFoundError(
+            `No trace with id ${inflatedParams.traceId} in project ${input.projectId} in Clickhouse`,
+          );
+        }
+      } else if (inflatedParams.sessionId) {
+        // do stuff
       }
 
       const clickhouseScore = await searchExistingAnnotationScore(
         input.projectId,
-        input.traceId,
-        input.observationId ?? null,
+        inflatedParams.observationId,
+        inflatedParams.traceId,
+        inflatedParams.sessionId,
         input.name,
         input.configId,
       );
@@ -282,8 +300,7 @@ export const scoresRouter = createTRPCRouter({
             id: v4(),
             projectId: input.projectId,
             environment: input.environment ?? "default",
-            traceId: input.traceId,
-            observationId: input.observationId ?? null,
+            ...inflatedParams,
             value: input.value ?? null,
             stringValue: input.stringValue ?? null,
             dataType: input.dataType ?? null,
@@ -303,8 +320,9 @@ export const scoresRouter = createTRPCRouter({
         timestamp: convertDateToClickhouseDateTime(new Date()),
         project_id: input.projectId,
         environment: input.environment ?? "default",
-        trace_id: input.traceId,
-        observation_id: input.observationId,
+        trace_id: inflatedParams.traceId,
+        observation_id: inflatedParams.observationId,
+        session_id: inflatedParams.sessionId,
         name: input.name,
         value: input.value !== null ? input.value : undefined,
         source: ScoreSource.ANNOTATION,
@@ -366,6 +384,7 @@ export const scoresRouter = createTRPCRouter({
           config_id: score.configId,
           trace_id: score.traceId,
           observation_id: score.observationId,
+          session_id: score.sessionId,
         });
 
         updatedScore = {

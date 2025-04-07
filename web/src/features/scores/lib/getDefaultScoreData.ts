@@ -1,28 +1,36 @@
+import { type ScoreTarget } from "@/src/features/scores/types";
 import { ScoreSource } from "@langfuse/shared";
 import { type APIScore, type ValidatedScoreConfig } from "@langfuse/shared";
+
+const filterTraceScores =
+  (traceId: string, observationId?: string) => (s: APIScore) =>
+    s.source === ScoreSource.ANNOTATION &&
+    s.traceId === traceId &&
+    (observationId !== undefined
+      ? s.observationId === observationId
+      : s.observationId === null);
+
+const filterSessionScores = (sessionId: string) => (s: APIScore) =>
+  s.source === ScoreSource.ANNOTATION && s.sessionId === sessionId;
 
 export const getDefaultScoreData = ({
   scores,
   emptySelectedConfigIds,
   configs,
-  traceId,
-  observationId,
+  scoreTarget,
 }: {
   scores: APIScore[];
   emptySelectedConfigIds: string[];
   configs: ValidatedScoreConfig[];
-  traceId: string;
-  observationId?: string;
+  scoreTarget: ScoreTarget;
 }) => {
+  const isValidScore =
+    scoreTarget.type === "trace"
+      ? filterTraceScores(scoreTarget.traceId, scoreTarget.observationId)
+      : filterSessionScores(scoreTarget.sessionId);
+
   const populatedScores = scores
-    .filter(
-      (s) =>
-        s.source === ScoreSource.ANNOTATION &&
-        s.traceId === traceId &&
-        (observationId !== undefined
-          ? s.observationId === observationId
-          : s.observationId === null),
-    )
+    .filter(isValidScore)
     .map(({ id, name, value, dataType, stringValue, configId, comment }) => ({
       scoreId: id,
       name,

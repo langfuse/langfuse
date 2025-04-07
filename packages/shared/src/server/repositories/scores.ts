@@ -30,14 +30,16 @@ import { env } from "../../env";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
-  traceId: string,
   observationId: string | null,
+  traceId: string | null,
+  sessionId: string | null,
   name: string | undefined,
   configId: string | undefined,
 ) => {
   if (!name && !configId) {
     throw new Error("Either name or configId (or both) must be provided.");
   }
+
   const query = `
     SELECT *
     FROM scores s
@@ -166,6 +168,47 @@ export type GetScoresForTracesProps = {
   timestamp?: Date;
   limit?: number;
   offset?: number;
+};
+
+type GetScoresForSessionsProps = {
+  projectId: string;
+  sessionIds: string[];
+  limit?: number;
+  offset?: number;
+};
+
+export const getScoresForSessions = async (
+  props: GetScoresForSessionsProps,
+) => {
+  const { projectId, sessionIds, limit, offset } = props;
+  const query = `
+      select 
+        *
+      from scores s
+      WHERE s.project_id = {projectId: String}
+      AND s.session_id IN ({sessionIds: Array(String)}) 
+      ORDER BY s.event_ts DESC
+      LIMIT 1 BY s.id, s.project_id
+      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+    `;
+
+  const rows = await queryClickhouse<ScoreRecordReadType>({
+    query: query,
+    params: {
+      projectId,
+      sessionIds,
+      limit,
+      offset,
+    },
+    tags: {
+      feature: "sessions",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
+  });
+
+  return rows.map(convertToScore);
 };
 
 export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
@@ -367,6 +410,7 @@ export const getScoresUiTable = async (props: {
   limit?: number;
   offset?: number;
 }): Promise<ScoreUiTableRow[]> => {
+  // TODO: validate type
   const rows = await getScoresUiGeneric<{
     id: string;
     project_id: string;
@@ -378,7 +422,8 @@ export const getScoresUiTable = async (props: {
     source: string;
     data_type: string;
     comment: string | null;
-    trace_id: string;
+    trace_id: string | null;
+    session_id: string | null;
     observation_id: string | null;
     author_user_id: string | null;
     user_id: string | null;
@@ -402,6 +447,7 @@ export const getScoresUiTable = async (props: {
     environment: row.environment,
     authorUserId: row.author_user_id,
     traceId: row.trace_id,
+    sessionId: row.session_id,
     observationId: row.observation_id,
     traceUserId: row.user_id,
     traceName: row.trace_name,

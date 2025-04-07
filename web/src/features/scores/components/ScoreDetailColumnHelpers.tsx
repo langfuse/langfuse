@@ -18,6 +18,7 @@ import {
   type ScoreData,
   type TableRowTypesWithIndividualScoreColumns,
 } from "@/src/features/scores/lib/types";
+import { type SessionTableRow } from "@/src/components/table/use-cases/sessions";
 
 const prefixScoreColKey = (
   key: string,
@@ -42,7 +43,8 @@ const parseScoreColumn = <
     | ObservationsTableRow
     | DatasetRunRowData
     | DatasetRunItemRowData
-    | PromptVersionTableRow,
+    | PromptVersionTableRow
+    | SessionTableRow,
 >(
   col: ScoreData,
   prefix?: "Trace" | "Generation",

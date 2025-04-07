@@ -129,7 +129,10 @@ export const TracePreview = ({
                   <AnnotateDrawer
                     key={"annotation-drawer" + trace.id}
                     projectId={trace.projectId}
-                    traceId={trace.id}
+                    scoreTarget={{
+                      type: "trace",
+                      traceId: trace.id,
+                    }}
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}

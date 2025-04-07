@@ -148,12 +148,14 @@ export const ObservationPreview = ({
                   <AnnotateDrawer
                     key={"annotation-drawer" + preloadedObservation.id}
                     projectId={projectId}
-                    traceId={traceId}
-                    observationId={preloadedObservation.id}
+                    scoreTarget={{
+                      type: "trace",
+                      traceId: traceId,
+                      observationId: preloadedObservation.id,
+                    }}
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    type="observation"
                     hasGroupedButton={hasEntitlement}
                   />
                   {hasEntitlement && (
