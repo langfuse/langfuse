@@ -4,6 +4,7 @@ import {
   deleteObservationsByProjectId,
   deleteScoresByProjectId,
   deleteTracesByProjectId,
+  getCurrentSpan,
   getEventLogByProjectId,
   logger,
   QueueName,
@@ -51,6 +52,20 @@ export const projectDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.ProjectDelete]>,
 ): Promise<void> => {
   const { orgId, projectId } = job.data.payload;
+
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute("messaging.bullmq.job.input.id", job.data.id);
+    span.setAttribute(
+      "messaging.bullmq.job.input.projectId",
+      job.data.payload.projectId,
+    );
+    span.setAttribute(
+      "messaging.bullmq.job.input.orgId",
+      job.data.payload.orgId,
+    );
+  }
+
   logger.info(`Deleting ${projectId} in org ${orgId}`);
 
   // Delete media data from S3 for project
