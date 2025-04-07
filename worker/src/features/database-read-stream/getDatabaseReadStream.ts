@@ -104,6 +104,10 @@ export const getDatabaseReadStream = async ({
     type: "datetime" as const,
   };
 
+  const clickhouseConfigs = {
+    request_timeout: 120_000,
+  };
+
   switch (tableName) {
     case "scores": {
       return new DatabaseReadStream<unknown>(
@@ -116,9 +120,7 @@ export const getDatabaseReadStream = async ({
             orderBy,
             limit: pageSize,
             offset,
-            clickhouseConfigs: {
-              request_timeout: 120_000,
-            },
+            clickhouseConfigs,
           });
 
           return scores.map((score: ScoreUiTableRow) => ({
@@ -160,9 +162,7 @@ export const getDatabaseReadStream = async ({
             orderBy: orderBy,
             limit: pageSize,
             page: Math.floor(offset / pageSize),
-            clickhouseConfigs: {
-              request_timeout: 120_000,
-            },
+            clickhouseConfigs,
           });
 
           const prismaSessionInfo = await prisma.traceSession.findMany({
@@ -216,9 +216,7 @@ export const getDatabaseReadStream = async ({
               ? [...filter, createdAtCutoffFilterCh]
               : [createdAtCutoffFilterCh],
             isTimestampFilter: isGenerationTimestampFilter,
-            clickhouseConfigs: {
-              request_timeout: 120_000,
-            },
+            clickhouseConfigs,
           });
 
           emptyScoreColumns = distinctScoreNames.reduce(
@@ -235,16 +233,12 @@ export const getDatabaseReadStream = async ({
               : [createdAtCutoffFilterCh],
             orderBy: orderBy,
             selectIOAndMetadata: true,
-            clickhouseConfigs: {
-              request_timeout: 120_000,
-            },
+            clickhouseConfigs,
           });
           const scores = await getScoresForObservations({
             projectId,
             observationIds: generations.map((gen) => gen.id),
-            clickhouseConfigs: {
-              request_timeout: 120_000,
-            },
+            clickhouseConfigs,
           });
 
           const chunk = generations.map((generation) => {
@@ -279,9 +273,7 @@ export const getDatabaseReadStream = async ({
               ? [...filter, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
             isTimestampFilter: isTraceTimestampFilter,
-            clickhouseConfigs: {
-              request_timeout: 120_000,
-            },
+            clickhouseConfigs,
           });
           emptyScoreColumns = distinctScoreNames.reduce(
             (acc, name) => ({ ...acc, [name]: null }),
@@ -296,9 +288,7 @@ export const getDatabaseReadStream = async ({
             orderBy,
             limit: pageSize,
             page: Math.floor(offset / pageSize),
-            clickhouseConfigs: {
-              request_timeout: 120_000,
-            },
+            clickhouseConfigs,
           });
 
           const [metrics, fullTraces] = await Promise.all([
@@ -313,9 +303,7 @@ export const getDatabaseReadStream = async ({
                   value: traces.map((t) => t.id),
                 },
               ],
-              clickhouseConfigs: {
-                request_timeout: 120_000,
-              },
+              clickhouseConfigs,
             }),
             getTracesByIds(
               traces.map((t) => t.id),
@@ -333,9 +321,7 @@ export const getDatabaseReadStream = async ({
           const scores = await getScoresForTraces({
             projectId,
             traceIds: traces.map((t) => t.id),
-            clickhouseConfigs: {
-              request_timeout: 120_000,
-            },
+            clickhouseConfigs,
           });
 
           const chunk = traces.map((t) => {
