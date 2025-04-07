@@ -375,6 +375,8 @@ async function main() {
 
     await createDatasets(project1, project2, observations);
 
+    await createDashboardsAndWidgets([project1, project2]);
+
     await prisma.llmSchema.createMany({
       data: [
         {
@@ -430,6 +432,98 @@ main()
     logger.info("Disconnected from postgres and redis");
     process.exit(1);
   });
+
+async function createDashboardsAndWidgets(projects: Project[]) {
+  logger.info("Creating dashboards and widgets");
+
+  // Process each project
+  for (const project of projects) {
+    // First create a widget
+    const widget = await prisma.dashboardWidget.upsert({
+      where: { id: "cabc" },
+      create: {
+        id: "cabc",
+        projectId: project.id,
+        name: "Trace Latencies",
+        description: "Trace Latencies by Name Over Time",
+        view: "TRACES",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "latency", agg: "p95" }],
+        filters: [{ field: "userId", operator: "contains", value: "user" }],
+        chartType: "LINE_TIME_SERIES",
+        chartConfig: { max_entries: 100 },
+      },
+      update: {},
+    });
+
+    // Create another widget
+    const widget2 = await prisma.dashboardWidget.upsert({
+      where: { id: "cdefghi" },
+      create: {
+        id: "cdefghi",
+        projectId: project.id,
+        name: "Model Usage",
+        description: "Model Usage by Category",
+        view: "OBSERVATIONS",
+        dimensions: [{ field: "model" }],
+        metrics: [{ measure: "count", agg: "sum" }],
+        filters: [{ field: "type", operator: "equals", value: "GENERATION" }],
+        chartType: "PIE",
+        chartConfig: { row_limit: 10 },
+      },
+      update: {},
+    });
+
+    // Create a dashboard that references the widget
+    await prisma.dashboard.upsert({
+      where: { id: "cabcfed" },
+      create: {
+        id: "cabcfed",
+        projectId: project.id,
+        name: "Prompt Metrics",
+        description: "Dashboard with prompt performance metrics",
+        definition: {
+          widgets: [
+            {
+              type: "widget",
+              id: widget2.id,
+              x: 0,
+              y: 0,
+              x_size: 4,
+              y_size: 2,
+            },
+          ],
+        },
+      },
+      update: {},
+    });
+
+    // Create another dashboard with multiple widgets
+    await prisma.dashboard.upsert({
+      where: { id: "dashboard2" },
+      create: {
+        id: "dashboard2",
+        projectId: project.id,
+        name: "Performance Overview",
+        description: "Dashboard with various performance metrics",
+        definition: {
+          widgets: [
+            { type: "widget", id: widget.id, x: 0, y: 0, x_size: 4, y_size: 2 },
+            {
+              type: "widget",
+              id: widget2.id,
+              x: 4,
+              y: 0,
+              x_size: 4,
+              y_size: 2,
+            },
+          ],
+        },
+      },
+      update: {},
+    });
+  }
+}
 
 export async function createDatasets(
   project1: {

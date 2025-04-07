@@ -14,6 +14,7 @@ import {
   Sparkle,
   FileJson,
   Search,
+  Home,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -64,8 +65,13 @@ export const ROUTES: Route[] = [
     icon: Grid2X2,
   },
   {
-    title: "Dashboard",
+    title: "Home",
     pathname: `/project/[projectId]`,
+    icon: Home,
+  },
+  {
+    title: "Dashboards",
+    pathname: `/project/[projectId]/dashboards`,
     icon: LayoutDashboard,
   },
   {

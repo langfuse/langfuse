@@ -45,6 +45,7 @@ const events = {
     "archive_form_submit",
   ],
   models: ["delete_button_click", "new_form_submit", "new_form_open"],
+  dashboards: ["new_widget_form_open"],
   prompts: [
     "new_form_submit",
     "new_form_open",

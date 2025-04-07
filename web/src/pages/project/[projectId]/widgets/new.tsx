@@ -1,4 +1,3 @@
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import {
@@ -39,9 +38,6 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
 export default function NewWidget() {
-  const session = useSession();
-  const isAdmin = session.data?.user?.admin === true;
-
   const router = useRouter();
   const { projectId } = router.query as { projectId: string };
 
@@ -270,7 +266,6 @@ export default function NewWidget() {
           skipBatch: true,
         },
       },
-      enabled: isAdmin, // Only run query if isAdmin is true
     },
   );
 
@@ -293,10 +288,6 @@ export default function NewWidget() {
       }) ?? [],
     [queryResult.data, selectedAggregation, selectedDimension, selectedMetric],
   );
-
-  if (!isAdmin) {
-    return null; // Blank page for non-admins
-  }
 
   return (
     <Page

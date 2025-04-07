@@ -35,6 +35,7 @@ import { backgroundMigrationsRouter } from "@/src/features/background-migrations
 import { auditLogsRouter } from "./routers/auditLogs";
 import { tableRouter } from "@/src/features/table/server/tableRouter";
 import { cloudStatusRouter } from "@/src/features/cloud-status-notification/server/cloud-status-router";
+import { dashboardWidgetRouter } from "./routers/dashboardWidgets";
 
 /**
  * This is the primary router for your server.
@@ -78,6 +79,7 @@ export const appRouter = createTRPCRouter({
   auditLogs: auditLogsRouter,
   table: tableRouter,
   cloudStatus: cloudStatusRouter,
+  dashboardsWidgets: dashboardWidgetRouter,
 });
 
 // export type definition of API
