@@ -125,7 +125,7 @@ const ParsedChatMessageListSchema = z.array(
             .transform((v) => v.text),
         )
         .transform((v) => v.join("")),
-      z.null().transform((_) => ""),
+      z.union([z.null(), z.undefined()]).transform((_) => ""),
       z.any().transform((v) => JSON.stringify(v, null, 2)),
     ]),
     tool_calls: z

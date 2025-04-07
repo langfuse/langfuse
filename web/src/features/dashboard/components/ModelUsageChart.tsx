@@ -226,8 +226,8 @@ export const ModelUsageChart = ({
             "time_dimension",
             [
               {
-                uniqueIdentifierColumns: [{ accessor: "provided_model_name" }],
-                valueColumn: "sum_total_tokens",
+                uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
+                valueColumn: "sum_totalTokens",
               },
             ],
           ),
@@ -243,8 +243,8 @@ export const ModelUsageChart = ({
             "time_dimension",
             [
               {
-                uniqueIdentifierColumns: [{ accessor: "provided_model_name" }],
-                valueColumn: "sum_total_cost",
+                uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
+                valueColumn: "sum_totalCost",
               },
             ],
           ),
@@ -255,16 +255,14 @@ export const ModelUsageChart = ({
   const totalCost = queryResult.data?.reduce(
     (acc, curr) =>
       acc +
-      (!isNaN(Number(curr.sum_total_cost)) ? Number(curr.sum_total_cost) : 0),
+      (!isNaN(Number(curr.sum_totalCost)) ? Number(curr.sum_totalCost) : 0),
     0,
   );
 
   const totalTokens = queryResult.data?.reduce(
     (acc, curr) =>
       acc +
-      (!isNaN(Number(curr.sum_total_tokens))
-        ? Number(curr.sum_total_tokens)
-        : 0),
+      (!isNaN(Number(curr.sum_totalTokens)) ? Number(curr.sum_totalTokens) : 0),
     0,
   );
 
