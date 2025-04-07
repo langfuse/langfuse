@@ -375,7 +375,6 @@ export const getScoresUiTable = async (props: {
   limit?: number;
   offset?: number;
 }): Promise<ScoreUiTableRow[]> => {
-  // TODO: validate type
   const rows = await getScoresUiGeneric<{
     id: string;
     project_id: string;

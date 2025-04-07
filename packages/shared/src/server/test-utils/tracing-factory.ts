@@ -97,7 +97,7 @@ export const createSessionScore = (score: Partial<ScoreRecordInsertType>) => {
   return {
     id: v4(),
     project_id: v4(),
-    session_Id: v4(),
+    session_id: v4(),
     environment: "default",
     name: "test-session-score" + v4(),
     timestamp: Date.now(),

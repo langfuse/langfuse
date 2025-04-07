@@ -135,7 +135,7 @@ export const SessionPage: React.FC<{
   const { setDetailPageList } = useDetailPageLists();
   const userSession = useSession();
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
-  const session = api.sessions.byId.useQuery(
+  const session = api.sessions.byIdWithScores.useQuery(
     {
       sessionId,
       projectId: projectId,
@@ -182,12 +182,6 @@ export const SessionPage: React.FC<{
       },
       { enabled: session.isSuccess && userSession.status === "authenticated" },
     );
-
-  // TODO: refactor and likely create byIdWithScores which also returns the session and then drop the query at the top
-  const sessionScores = api.sessions.byIdWithScores.useQuery({
-    projectId,
-    sessionId,
-  });
 
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
@@ -259,7 +253,7 @@ export const SessionPage: React.FC<{
                 type: "session",
                 sessionId,
               }}
-              scores={sessionScores.data?.scores ?? []}
+              scores={session.data?.scores ?? []}
               emptySelectedConfigIds={emptySelectedConfigIds}
               setEmptySelectedConfigIds={setEmptySelectedConfigIds}
             />
@@ -275,7 +269,7 @@ export const SessionPage: React.FC<{
             Total cost: {usdFormatter(session.data.totalCost, 2)}
           </Badge>
         )}
-        <SessionScores scores={sessionScores.data?.scores ?? []} />
+        <SessionScores scores={session.data?.scores ?? []} />
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
         {session.data?.traces.slice(0, visibleTraces).map((trace) => (

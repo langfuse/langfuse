@@ -11,6 +11,7 @@ import {
   type FilterState,
   orderBy,
   paginationZod,
+  type PrismaClient,
   singleFilter,
   timeFilter,
   tracesTableUiColumnDefinitions,
@@ -42,6 +43,80 @@ const SessionFilterOptions = z.object({
   orderBy: orderBy,
   ...paginationZod,
 });
+
+const handleGetSessionById = async (input: {
+  sessionId: string;
+  projectId: string;
+  ctx: {
+    prisma: PrismaClient;
+  };
+}) => {
+  const postgresSession = await input.ctx.prisma.traceSession.findFirst({
+    where: {
+      id: input.sessionId,
+      projectId: input.projectId,
+    },
+  });
+
+  if (!postgresSession) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Session not found in project",
+    });
+  }
+
+  const clickhouseTraces = await getTracesIdentifierForSession(
+    input.projectId,
+    input.sessionId,
+  );
+
+  const chunks = chunk(clickhouseTraces, 500);
+
+  // in the below queries, take the lowest timestamp as a filter condition
+  // to improve performance
+  const [scores, costs] = await Promise.all([
+    Promise.all(
+      chunks.map((chunk) =>
+        getScoresForTraces({
+          projectId: input.projectId,
+          traceIds: chunk.map((t) => t.id),
+          timestamp: new Date(
+            Math.min(...chunk.map((t) => t.timestamp.getTime())),
+          ),
+        }),
+      ),
+    ).then((results) => results.flat()),
+    Promise.all(
+      chunks.map((chunk) =>
+        getCostForTraces(
+          input.projectId,
+          new Date(Math.min(...chunk.map((t) => t.timestamp.getTime()))),
+          chunk.map((t) => t.id),
+        ),
+      ),
+    ).then((results) =>
+      results.reduce((sum, cost) => (sum ?? 0) + (cost ?? 0), 0),
+    ),
+  ]);
+
+  const costData = costs;
+
+  const validatedScores = filterAndValidateDbScoreList(scores, traceException);
+
+  return {
+    ...postgresSession,
+    traces: clickhouseTraces.map((t) => ({
+      ...t,
+      scores: validatedScores.filter((s) => s.traceId === t.id),
+    })),
+    totalCost: costData ?? 0,
+    users: [
+      ...new Set(
+        clickhouseTraces.map((t) => t.userId).filter((t) => t !== null),
+      ),
+    ],
+  };
+};
 
 export const sessionRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -290,74 +365,11 @@ export const sessionRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
-        const postgresSession = await ctx.prisma.traceSession.findFirst({
-          where: {
-            id: input.sessionId,
-            projectId: input.projectId,
-          },
+        return await handleGetSessionById({
+          sessionId: input.sessionId,
+          projectId: input.projectId,
+          ctx,
         });
-
-        if (!postgresSession) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Session not found in project",
-          });
-        }
-
-        const clickhouseTraces = await getTracesIdentifierForSession(
-          input.projectId,
-          input.sessionId,
-        );
-
-        const chunks = chunk(clickhouseTraces, 500);
-
-        // in the below queries, take the lowest timestamp as a filter condition
-        // to improve performance
-        const [scores, costs] = await Promise.all([
-          Promise.all(
-            chunks.map((chunk) =>
-              getScoresForTraces({
-                projectId: input.projectId,
-                traceIds: chunk.map((t) => t.id),
-                timestamp: new Date(
-                  Math.min(...chunk.map((t) => t.timestamp.getTime())),
-                ),
-              }),
-            ),
-          ).then((results) => results.flat()),
-          Promise.all(
-            chunks.map((chunk) =>
-              getCostForTraces(
-                input.projectId,
-                new Date(Math.min(...chunk.map((t) => t.timestamp.getTime()))),
-                chunk.map((t) => t.id),
-              ),
-            ),
-          ).then((results) =>
-            results.reduce((sum, cost) => (sum ?? 0) + (cost ?? 0), 0),
-          ),
-        ]);
-
-        const costData = costs;
-
-        const validatedScores = filterAndValidateDbScoreList(
-          scores,
-          traceException,
-        );
-
-        return {
-          ...postgresSession,
-          traces: clickhouseTraces.map((t) => ({
-            ...t,
-            scores: validatedScores.filter((s) => s.traceId === t.id),
-          })),
-          totalCost: costData ?? 0,
-          users: [
-            ...new Set(
-              clickhouseTraces.map((t) => t.userId).filter((t) => t !== null),
-            ),
-          ],
-        };
       } catch (e) {
         logger.error("Unable to get sessions.byId", e);
         throw new TRPCError({
@@ -373,11 +385,16 @@ export const sessionRouter = createTRPCRouter({
         projectId: z.string(), // used for security check
       }),
     )
-    .query(async ({ input }) => {
-      const [scores] = await Promise.all([
+    .query(async ({ input, ctx }) => {
+      const [scores, session] = await Promise.all([
         getScoresForSessions({
           projectId: input.projectId,
           sessionIds: [input.sessionId],
+        }),
+        await handleGetSessionById({
+          sessionId: input.sessionId,
+          projectId: input.projectId,
+          ctx,
         }),
       ]);
 
@@ -387,6 +404,7 @@ export const sessionRouter = createTRPCRouter({
       );
 
       return {
+        ...session,
         scores: validatedScores,
       };
     }),

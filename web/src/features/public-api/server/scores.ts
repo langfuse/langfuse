@@ -23,134 +23,6 @@ export type ScoreQueryType = {
   dataType?: string;
 };
 
-const secureScoreFilterOptions = [
-  {
-    id: "traceId",
-    clickhouseSelect: "trace_id",
-    clickhouseTable: "scores",
-    filterType: "StringFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "name",
-    clickhouseSelect: "name",
-    clickhouseTable: "scores",
-    filterType: "StringFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "source",
-    clickhouseSelect: "source",
-    clickhouseTable: "scores",
-    filterType: "StringFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "fromTimestamp",
-    clickhouseSelect: "timestamp",
-    operator: ">=" as const,
-    clickhouseTable: "scores",
-    filterType: "DateTimeFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "toTimestamp",
-    clickhouseSelect: "timestamp",
-    operator: "<" as const,
-    clickhouseTable: "scores",
-    filterType: "DateTimeFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "value",
-    clickhouseSelect: "value",
-    clickhouseTable: "scores",
-    filterType: "NumberFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "scoreIds",
-    clickhouseSelect: "id",
-    clickhouseTable: "scores",
-    filterType: "StringOptionsFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "configId",
-    clickhouseSelect: "config_id",
-    clickhouseTable: "scores",
-    filterType: "StringFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "queueId",
-    clickhouseSelect: "queue_id",
-    clickhouseTable: "scores",
-    filterType: "StringFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "environment",
-    clickhouseSelect: "environment",
-    clickhouseTable: "scores",
-    filterType: "StringOptionsFilter",
-    clickhousePrefix: "s",
-  },
-  {
-    id: "dataType",
-    clickhouseSelect: "data_type",
-    clickhouseTable: "scores",
-    filterType: "StringFilter",
-    clickhousePrefix: "s",
-  },
-];
-
-const secureTraceFilterOptions = [
-  {
-    id: "traceTags",
-    clickhouseSelect: "tags",
-    clickhouseTable: "traces",
-    filterType: "ArrayOptionsFilter",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "userId",
-    clickhouseSelect: "user_id",
-    clickhouseTable: "traces",
-    filterType: "StringFilter",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "traceEnvironment",
-    clickhouseSelect: "environment",
-    clickhouseTable: "traces",
-    filterType: "StringOptionsFilter",
-    clickhousePrefix: "t",
-  },
-];
-
-const generateScoreFilter = (filter: ScoreQueryType) => {
-  const scoresFilter = convertApiProvidedFilterToClickhouseFilter(
-    filter,
-    secureScoreFilterOptions,
-  );
-  scoresFilter.push(
-    new StringFilter({
-      clickhouseTable: "scores",
-      field: "project_id",
-      operator: "=",
-      value: filter.projectId,
-    }),
-  );
-
-  const tracesFilter = convertApiProvidedFilterToClickhouseFilter(
-    filter,
-    secureTraceFilterOptions,
-  );
-
-  return { scoresFilter, tracesFilter };
-};
-
 /**
  * @internal
  * Internal utility function for getting scores by ID.
@@ -300,4 +172,132 @@ export const _handleGetScoresCountForPublicApi = async ({
     },
   });
   return records.map((record) => Number(record.count)).shift();
+};
+
+const secureScoreFilterOptions = [
+  {
+    id: "traceId",
+    clickhouseSelect: "trace_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "name",
+    clickhouseSelect: "name",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "source",
+    clickhouseSelect: "source",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "fromTimestamp",
+    clickhouseSelect: "timestamp",
+    operator: ">=" as const,
+    clickhouseTable: "scores",
+    filterType: "DateTimeFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "toTimestamp",
+    clickhouseSelect: "timestamp",
+    operator: "<" as const,
+    clickhouseTable: "scores",
+    filterType: "DateTimeFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "value",
+    clickhouseSelect: "value",
+    clickhouseTable: "scores",
+    filterType: "NumberFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "scoreIds",
+    clickhouseSelect: "id",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "configId",
+    clickhouseSelect: "config_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "queueId",
+    clickhouseSelect: "queue_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "environment",
+    clickhouseSelect: "environment",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "dataType",
+    clickhouseSelect: "data_type",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+];
+
+const secureTraceFilterOptions = [
+  {
+    id: "traceTags",
+    clickhouseSelect: "tags",
+    clickhouseTable: "traces",
+    filterType: "ArrayOptionsFilter",
+    clickhousePrefix: "t",
+  },
+  {
+    id: "userId",
+    clickhouseSelect: "user_id",
+    clickhouseTable: "traces",
+    filterType: "StringFilter",
+    clickhousePrefix: "t",
+  },
+  {
+    id: "traceEnvironment",
+    clickhouseSelect: "environment",
+    clickhouseTable: "traces",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "t",
+  },
+];
+
+const generateScoreFilter = (filter: ScoreQueryType) => {
+  const scoresFilter = convertApiProvidedFilterToClickhouseFilter(
+    filter,
+    secureScoreFilterOptions,
+  );
+  scoresFilter.push(
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: filter.projectId,
+    }),
+  );
+
+  const tracesFilter = convertApiProvidedFilterToClickhouseFilter(
+    filter,
+    secureTraceFilterOptions,
+  );
+
+  return { scoresFilter, tracesFilter };
 };

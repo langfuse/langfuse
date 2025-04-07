@@ -157,26 +157,6 @@ export const scoreRecordInsertSchema = scoreRecordBaseSchema.extend({
 });
 export type ScoreRecordInsertType = z.infer<typeof scoreRecordInsertSchema>;
 
-export type ScoreQueryType = {
-  page: number;
-  limit: number;
-  projectId: string;
-  traceId?: string;
-  userId?: string;
-  name?: string;
-  source?: string;
-  fromTimestamp?: string;
-  toTimestamp?: string;
-  value?: number;
-  scoreId?: string;
-  configId?: string;
-  queueId?: string;
-  traceTags?: string | string[];
-  operator?: string;
-  scoreIds?: string[];
-  dataType?: string;
-};
-
 export const eventLogRecordBaseSchema = z.object({
   id: z.string(),
   project_id: z.string(),
