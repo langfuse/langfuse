@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getObservationsViewForTrace,
+  getObservationsForTrace,
   getScoresForTraces,
   getTraceById,
   traceException,
@@ -34,7 +34,7 @@ export default withMiddlewares({
       const { traceId } = query;
       const trace = await getTraceById(traceId, auth.scope.projectId);
       const [observations, scores] = await Promise.all([
-        getObservationsViewForTrace(
+        getObservationsForTrace(
           traceId,
           auth.scope.projectId,
           trace?.timestamp,
@@ -50,7 +50,7 @@ export default withMiddlewares({
       const uniqueModels: string[] = Array.from(
         new Set(
           observations
-            .map((r) => r.modelId)
+            .map((r) => r.internalModelId)
             .filter((r): r is string => Boolean(r)),
         ),
       );
@@ -71,7 +71,7 @@ export default withMiddlewares({
           : [];
 
       const observationsView = observations.map((o) => {
-        const model = models.find((m) => m.id === o.modelId);
+        const model = models.find((m) => m.id === o.internalModelId);
         const inputPrice =
           model?.Price.find((p) => p.usageType === "input")?.price ??
           new Decimal(0);
@@ -126,7 +126,7 @@ export default withMiddlewares({
         latency: latencyMs !== undefined ? latencyMs / 1000 : 0,
         observations: outObservations,
         htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
-        totalCost: observations
+        totalCost: outObservations
           .reduce(
             (acc, obs) => acc.add(obs.calculatedTotalCost ?? new Decimal(0)),
             new Decimal(0),

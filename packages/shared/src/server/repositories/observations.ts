@@ -26,10 +26,7 @@ import { TableCount } from "./types";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import {
-  convertObservationToView,
-  convertObservation,
-} from "./observations_converters";
+import { convertObservation } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -101,7 +98,7 @@ export const upsertObservation = async (
   });
 };
 
-export const getObservationsViewForTrace = async (
+export const getObservationsForTrace = async (
   traceId: string,
   projectId: string,
   timestamp?: Date,
@@ -161,7 +158,7 @@ export const getObservationsViewForTrace = async (
     },
   });
 
-  return records.map(convertObservationToView);
+  return records.map(convertObservation);
 };
 
 export const getObservationForTraceIdByName = async (
@@ -227,7 +224,7 @@ export const getObservationForTraceIdByName = async (
     },
   });
 
-  return records.map(convertObservationToView);
+  return records.map(convertObservation);
 };
 
 export const getObservationById = async (
@@ -304,33 +301,6 @@ export const getObservationsById = async (
     params: { ids, projectId },
   });
   return records.map(convertObservation);
-};
-
-export const getObservationViewById = async (
-  id: string,
-  projectId: string,
-  fetchWithInputOutput: boolean = false,
-) => {
-  const records = await getObservationByIdInternal(
-    id,
-    projectId,
-    fetchWithInputOutput,
-  );
-  const mapped = records.map(convertObservationToView);
-
-  if (mapped.length === 0) {
-    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
-  }
-
-  if (mapped.length > 1) {
-    logger.error(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-    throw new InternalServerError(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-  }
-  return mapped.shift();
 };
 
 const getObservationByIdInternal = async (
@@ -467,7 +437,7 @@ export const getObservationsTableWithModelData = async (
     const trace = traces.find((t) => t.id === o.trace_id);
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...convertObservationToView(o),
+      ...convertObservation(o),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000

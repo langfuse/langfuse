@@ -39,7 +39,9 @@ export default withMiddlewares({
       ]);
       const uniqueModels: string[] = Array.from(
         new Set(
-          items.map((r) => r.modelId).filter((r): r is string => Boolean(r)),
+          items
+            .map((r) => r.internalModelId)
+            .filter((r): r is string => Boolean(r)),
         ),
       );
 
@@ -62,7 +64,7 @@ export default withMiddlewares({
       return {
         data: items
           .map((i) => {
-            const model = models.find((m) => m.id === i.modelId);
+            const model = models.find((m) => m.id === i.internalModelId);
             return {
               ...i,
               modelId: model?.id ?? null,

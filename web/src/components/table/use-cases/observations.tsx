@@ -27,7 +27,6 @@ import { LevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { observationsTableColsWithOptions } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import type Decimal from "decimal.js";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
@@ -70,14 +69,14 @@ export type ObservationsTableRow = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
-  inputCost?: Decimal;
-  outputCost?: Decimal;
-  totalCost?: Decimal;
+  inputCost?: number;
+  outputCost?: number;
+  totalCost?: number;
   traceName?: string;
   usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+    inputUsage: number;
+    outputUsage: number;
+    totalUsage: number;
   };
   usageDetails: Record<string, number>;
   costDetails: Record<string, number>;
@@ -443,10 +442,10 @@ export default function ObservationsTable({
       header: "Input Cost",
       size: 120,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("inputCost");
+        const value: number | undefined = row.getValue("inputCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value.toNumber())}</span>
+          <span>{usdFormatter(value)}</span>
         ) : undefined;
       },
       enableHiding: true,
@@ -459,10 +458,10 @@ export default function ObservationsTable({
       header: "Output Cost",
       size: 120,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("outputCost");
+        const value: number | undefined = row.getValue("outputCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value.toNumber())}</span>
+          <span>{usdFormatter(value)}</span>
         ) : undefined;
       },
       enableHiding: true,
@@ -475,12 +474,12 @@ export default function ObservationsTable({
       id: "totalCost",
       size: 120,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("totalCost");
+        const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
           <BreakdownTooltip details={row.original.costDetails} isCost>
             <div className="flex items-center gap-1">
-              <span>{usdFormatter(value.toNumber())}</span>
+              <span>{usdFormatter(value)}</span>
               <InfoIcon className="h-3 w-3" />
             </div>
           </BreakdownTooltip>
@@ -642,17 +641,17 @@ export default function ObservationsTable({
       size: 150,
       cell: ({ row }) => {
         const value: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
+          inputUsage: number;
+          outputUsage: number;
+          totalUsage: number;
         } = row.getValue("usage");
         return (
           <BreakdownTooltip details={row.original.usageDetails}>
             <div className="flex items-center gap-1">
               <TokenUsageBadge
-                promptTokens={value.promptTokens}
-                completionTokens={value.completionTokens}
-                totalTokens={value.totalTokens}
+                inputUsage={value.inputUsage}
+                outputUsage={value.outputUsage}
+                totalUsage={value.totalUsage}
                 inline
               />
               <InfoIcon className="h-3 w-3" />
@@ -822,19 +821,19 @@ export default function ObservationsTable({
               generation.scores,
             ),
             latency: generation.latency ?? undefined,
-            totalCost: generation.calculatedTotalCost ?? undefined,
-            inputCost: generation.calculatedInputCost ?? undefined,
-            outputCost: generation.calculatedOutputCost ?? undefined,
+            totalCost: generation.totalCost ?? undefined,
+            inputCost: generation.inputCost ?? undefined,
+            outputCost: generation.outputCost ?? undefined,
             name: generation.name ?? undefined,
             version: generation.version ?? "",
             model: generation.model ?? "",
-            modelId: generation.modelId ?? undefined,
+            modelId: generation.internalModelId ?? undefined,
             level: generation.level,
             statusMessage: generation.statusMessage ?? undefined,
             usage: {
-              promptTokens: generation.promptTokens,
-              completionTokens: generation.completionTokens,
-              totalTokens: generation.totalTokens,
+              inputUsage: generation.inputUsage,
+              outputUsage: generation.outputUsage,
+              totalUsage: generation.totalUsage,
             },
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,

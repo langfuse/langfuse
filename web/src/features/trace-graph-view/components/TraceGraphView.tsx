@@ -15,8 +15,8 @@ import {
 type TraceGraphViewProps = {
   observations: ObservationReturnTypeWithMetadata[];
   trace: Omit<TraceDomain, "input" | "output"> & {
-    input: string | undefined;
-    output: string | undefined;
+    input: string | null;
+    output: string | null;
   };
   scores: APIScore[];
   projectId: string;

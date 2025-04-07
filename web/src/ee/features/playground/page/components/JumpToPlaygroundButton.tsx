@@ -40,8 +40,8 @@ type JumpToPlaygroundButtonProps = (
   | {
       source: "generation";
       generation: Omit<Observation, "input" | "output"> & {
-        input: string | undefined;
-        output: string | undefined;
+        input: string | null;
+        output: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
@@ -226,8 +226,8 @@ const parsePrompt = (prompt: Prompt): PlaygroundCache => {
 
 const parseGeneration = (
   generation: Omit<Observation, "input" | "output"> & {
-    input: string | undefined;
-    output: string | undefined;
+    input: string | null;
+    output: string | null;
   },
 ): PlaygroundCache => {
   if (generation.type !== "GENERATION") return null;
