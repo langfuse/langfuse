@@ -1,4 +1,4 @@
-import { ScoreAggregate } from "../../features/scores";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { FilterState } from "../../types";
@@ -86,6 +86,7 @@ export const getSessionsWithMetrics = async (props: {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 }) => {
   const rows = await getSessionsTableGeneric<SessionWithMetricsReturnType>({
     select: "metrics",
@@ -94,6 +95,7 @@ export const getSessionsWithMetrics = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
+    clickhouseConfigs: props.clickhouseConfigs,
     tags: { kind: "analytic" },
   });
 
@@ -113,10 +115,12 @@ export type FetchSessionsTableProps = {
   limit?: number;
   page?: number;
   tags?: Record<string, string>;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
 const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
-  const { select, projectId, filter, orderBy, limit, page } = props;
+  const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
+    props;
 
   let sqlSelect: string;
   switch (select) {
@@ -336,6 +340,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       type: "sessions-table",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return res;
