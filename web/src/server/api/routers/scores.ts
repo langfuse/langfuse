@@ -20,12 +20,12 @@ import {
   UpdateAnnotationScoreData,
   validateDbScore,
   ScoreSource,
-  type Score,
   LangfuseNotFoundError,
   InternalServerError,
   BatchActionQuerySchema,
   BatchActionType,
   BatchExportTableName,
+  type ScoreDomain,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -60,7 +60,7 @@ const ScoreFilterOptions = z.object({
 const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
 });
-type AllScoresReturnType = Omit<Score, "metadata"> & {
+type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
   traceName: string | null;
   traceUserId: string | null;
   traceTags: Array<string> | null;
@@ -360,7 +360,7 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      let updatedScore: Score | null | undefined = null;
+      let updatedScore: ScoreDomain | null | undefined = null;
 
       // Fetch the current score from Clickhouse
       const score = await getScoreById(

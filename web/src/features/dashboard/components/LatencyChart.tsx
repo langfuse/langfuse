@@ -108,7 +108,7 @@ export const GenerationLatencyChart = ({
             "time_dimension",
             [
               {
-                uniqueIdentifierColumns: [{ accessor: "provided_model_name" }],
+                uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
                 valueColumn: valueColumn,
               },
             ],

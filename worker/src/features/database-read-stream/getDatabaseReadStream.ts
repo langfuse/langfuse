@@ -3,6 +3,7 @@ import {
   FilterCondition,
   TimeFilter,
   BatchExportQueryType,
+  ScoreDomain,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -18,7 +19,6 @@ import {
   getTracesTableMetrics,
   getTracesByIds,
   getScoresForTraces,
-  Score,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -403,7 +403,7 @@ export const getDatabaseReadStream = async ({
 };
 
 export function prepareScoresForOutput(
-  filteredScores: Score[],
+  filteredScores: ScoreDomain[],
 ): Record<string, string[] | number[]> {
   return filteredScores.reduce(
     (acc, score) => {

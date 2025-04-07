@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { isPresent, stringDateTime } from "../../utils/typeChecks";
-import { Score } from "../../server";
 import {
   jsonSchema,
   NonEmptyString,
@@ -9,6 +8,7 @@ import {
   publicApiPaginationZod,
 } from "../../utils/zod";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
+import { ScoreDomain } from "../../domain";
 
 /**
  * Types to use across codebase
@@ -162,7 +162,7 @@ type ValidatedAPIScore<IncludeHasMetadata extends boolean> = APIScore & {
   hasMetadata: IncludeHasMetadata extends true ? boolean : never;
 };
 
-type InputScore = Score & { hasMetadata?: boolean };
+type InputScore = ScoreDomain & { hasMetadata?: boolean };
 
 /**
  * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
@@ -205,7 +205,7 @@ export const filterAndValidateDbScoreList = <
  * @returns validated score
  * @throws error if score fails validation
  */
-export const validateDbScore = (score: Score): APIScore =>
+export const validateDbScore = (score: ScoreDomain): APIScore =>
   APIScoreSchema.parse(score);
 
 /**

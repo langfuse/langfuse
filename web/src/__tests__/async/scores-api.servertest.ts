@@ -28,7 +28,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const scoreId = v4();
       const traceId = v4();
-      const score = {
+      const score = createScore({
         id: scoreId,
         environment: "default",
         project_id: projectId,
@@ -45,7 +45,7 @@ describe("/api/public/scores API Endpoint", () => {
         updated_at: Date.now(),
         event_ts: Date.now(),
         is_deleted: 0,
-      };
+      });
 
       await createScoresCh([score]);
 

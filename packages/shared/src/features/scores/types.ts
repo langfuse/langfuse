@@ -1,5 +1,5 @@
-import { Prisma, ScoreDataType } from "@prisma/client";
-import { ScoreSourceType } from "../../server";
+import { ScoreDataType } from "@prisma/client";
+import { ScoreSourceType, type MetadataDomain } from "../../domain";
 
 export type BaseAggregate = {
   comment?: string | null;
@@ -31,7 +31,7 @@ export type ScoreSimplified = {
   source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;
-  metadata?: Prisma.JsonValue | null;
+  metadata?: MetadataDomain | null;
   stringValue?: string | null;
 };
 

@@ -48,9 +48,9 @@ const extractAllModels = (
   data: Record<string, unknown>[],
 ): { model: string; count: number }[] => {
   return data
-    .filter((item) => item.provided_model_name !== null)
+    .filter((item) => item.providedModelName !== null)
     .map((item) => ({
-      model: item.provided_model_name as string,
+      model: item.providedModelName as string,
       count: item.count as number,
     }));
 };

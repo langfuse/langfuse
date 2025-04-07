@@ -17,8 +17,8 @@ import {
   singleFilter,
   timeFilter,
   tracesTableUiColumnDefinitions,
+  type Observation,
 } from "@langfuse/shared";
-import { type ObservationView } from "@langfuse/shared";
 import {
   traceException,
   getTracesTable,
@@ -27,7 +27,7 @@ import {
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
-  getObservationsViewForTrace,
+  getObservationsForTrace,
   getTraceById,
   logger,
   upsertTrace,
@@ -51,17 +51,17 @@ const TraceFilterOptions = z.object({
 });
 type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
 
-export type ObservationReturnType = Omit<
-  ObservationView,
-  "input" | "output" | "inputPrice" | "outputPrice" | "totalPrice" | "metadata"
+export type ObservationReturnTypeWithMetadata = Omit<
+  Observation,
+  "input" | "output"
 > & {
   traceId: string;
-  usageDetails: Record<string, number>;
-  costDetails: Record<string, number>;
 };
 
-export type ObservationReturnTypeWithMetadata = ObservationReturnType &
-  Pick<ObservationView, "metadata">;
+export type ObservationReturnType = Omit<
+  ObservationReturnTypeWithMetadata,
+  "metadata"
+>;
 
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -205,7 +205,7 @@ export const traceRouter = createTRPCRouter({
           input.projectId,
           input.timestamp ?? undefined,
         ),
-        getObservationsViewForTrace(
+        getObservationsForTrace(
           input.traceId,
           input.projectId,
           input.timestamp ?? undefined,
@@ -249,8 +249,8 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
-        input: trace.input ? JSON.stringify(trace.input) : undefined,
-        output: trace.output ? JSON.stringify(trace.output) : undefined,
+        input: trace.input ? JSON.stringify(trace.input) : null,
+        output: trace.output ? JSON.stringify(trace.output) : null,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({

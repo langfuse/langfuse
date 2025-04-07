@@ -2,10 +2,10 @@ import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import {
   type APIScore,
-  type Trace,
   ObservationLevel,
   type ObservationLevelType,
   type ObservationType,
+  type TraceDomain,
 } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment, useMemo, useRef, useEffect } from "react";
@@ -43,10 +43,10 @@ export const ObservationTree = ({
   toggleCollapsedObservation: (id: string) => void;
   collapseAll: () => void;
   expandAll: () => void;
-  trace: Omit<Trace, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output"> & {
     latency?: number;
-    input: string | undefined;
-    output: string | undefined;
+    input: string | null;
+    output: string | null;
   };
   scores: APIScore[];
   currentObservationId: string | undefined;
@@ -129,9 +129,9 @@ export const ObservationTree = ({
 };
 
 const ObservationTreeTraceNode = (props: {
-  trace: Omit<Trace, "input" | "output"> & {
-    input: string | undefined;
-    output: string | undefined;
+  trace: Omit<TraceDomain, "input" | "output"> & {
+    input: string | null;
+    output: string | null;
     latency?: number;
   };
   expandAll: () => void;
@@ -415,9 +415,9 @@ const ObservationTreeNodeCard = ({
           {/* Metrics on their own line */}
           {showMetrics && (
             <>
-              {(observation.promptTokens ||
-                observation.completionTokens ||
-                observation.totalTokens ||
+              {(observation.inputUsage ||
+                observation.outputUsage ||
+                observation.totalUsage ||
                 duration ||
                 totalCost) && (
                 <div className="flex w-full flex-wrap gap-2">
@@ -436,13 +436,12 @@ const ObservationTreeNodeCard = ({
                       {formatIntervalSeconds(duration / 1000)}
                     </span>
                   ) : null}
-                  {observation.promptTokens ||
-                  observation.completionTokens ||
-                  observation.totalTokens ? (
+                  {observation.inputUsage ||
+                  observation.outputUsage ||
+                  observation.totalUsage ? (
                     <span className="text-xs text-muted-foreground">
-                      {observation.promptTokens} →{" "}
-                      {observation.completionTokens} (∑{" "}
-                      {observation.totalTokens})
+                      {observation.inputUsage} → {observation.outputUsage} (∑{" "}
+                      {observation.totalUsage})
                     </span>
                   ) : null}
                   {totalCost ? (
