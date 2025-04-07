@@ -28,6 +28,7 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -170,6 +171,7 @@ export type GetScoresForTracesProps<
   timestamp?: Date;
   limit?: number;
   offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
 };
@@ -187,6 +189,7 @@ export const getScoresForTraces = async <
     timestamp,
     limit,
     offset,
+    clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
   } = props;
@@ -237,6 +240,7 @@ export const getScoresForTraces = async <
       kind: "list",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return rows.map((row) => {
@@ -261,6 +265,7 @@ export type GetScoresForObservationsProps<
   observationIds: string[];
   limit?: number;
   offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
 };
@@ -277,6 +282,7 @@ export const getScoresForObservations = async <
     observationIds,
     limit,
     offset,
+    clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
   } = props;
@@ -323,6 +329,7 @@ export const getScoresForObservations = async <
       kind: "list",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return rows.map((row) => ({
@@ -466,12 +473,14 @@ export async function getScoresUiTable<
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadataFlag?: IncludeHasMetadata;
 }) {
   const {
     excludeMetadata = false,
     includeHasMetadataFlag = false,
+    clickhouseConfigs,
     ...rest
   } = props;
 
@@ -507,6 +516,7 @@ export async function getScoresUiTable<
     tags: { kind: "analytic" },
     excludeMetadata,
     includeHasMetadataFlag,
+    clickhouseConfigs,
     ...rest,
   });
 
@@ -553,6 +563,7 @@ const getScoresUiGeneric = async <T>(props: {
   limit?: number;
   offset?: number;
   tags?: Record<string, string>;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
 }): Promise<T[]> => {
@@ -562,6 +573,7 @@ const getScoresUiGeneric = async <T>(props: {
     orderBy,
     limit,
     offset,
+    clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadataFlag = false,
   } = props;
@@ -636,6 +648,7 @@ const getScoresUiGeneric = async <T>(props: {
       type: "score",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return rows;
@@ -949,12 +962,20 @@ export const getScoreCountOfProjectsSinceCreationDate = async ({
   return Number(rows[0]?.count ?? 0);
 };
 
-export const getDistinctScoreNames = async (
-  projectId: string,
-  cutoffCreatedAt: Date,
-  filter: FilterState,
-  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter,
-) => {
+export const getDistinctScoreNames = async (p: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterState;
+  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter,
+    isTimestampFilter,
+    clickhouseConfigs,
+  } = p;
   const scoreTimestampFilter = filter?.find(isTimestampFilter);
 
   const query = `    SELECT DISTINCT
@@ -984,6 +1005,7 @@ export const getDistinctScoreNames = async (
       kind: "list",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return rows.map((row) => row.name);

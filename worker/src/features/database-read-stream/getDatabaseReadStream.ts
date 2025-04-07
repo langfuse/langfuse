@@ -103,6 +103,10 @@ export const getDatabaseReadStream = async ({
     type: "datetime" as const,
   };
 
+  const clickhouseConfigs = {
+    request_timeout: 120_000,
+  };
+
   switch (tableName) {
     case "scores": {
       return new DatabaseReadStream<unknown>(
@@ -115,6 +119,7 @@ export const getDatabaseReadStream = async ({
             orderBy,
             limit: pageSize,
             offset,
+            clickhouseConfigs,
           });
 
           return scores.map((score) => ({
@@ -157,6 +162,7 @@ export const getDatabaseReadStream = async ({
             orderBy: orderBy,
             limit: pageSize,
             page: Math.floor(offset / pageSize),
+            clickhouseConfigs,
           });
 
           const prismaSessionInfo = await prisma.traceSession.findMany({
@@ -203,14 +209,15 @@ export const getDatabaseReadStream = async ({
 
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const distinctScoreNames = await getDistinctScoreNames(
+          const distinctScoreNames = await getDistinctScoreNames({
             projectId,
             cutoffCreatedAt,
-            filter
+            filter: filter
               ? [...filter, createdAtCutoffFilterCh]
               : [createdAtCutoffFilterCh],
-            isGenerationTimestampFilter,
-          );
+            isTimestampFilter: isGenerationTimestampFilter,
+            clickhouseConfigs,
+          });
 
           emptyScoreColumns = distinctScoreNames.reduce(
             (acc, name) => ({ ...acc, [name]: null }),
@@ -226,10 +233,12 @@ export const getDatabaseReadStream = async ({
               : [createdAtCutoffFilterCh],
             orderBy: orderBy,
             selectIOAndMetadata: true,
+            clickhouseConfigs,
           });
           const scores = await getScoresForObservations({
             projectId,
             observationIds: generations.map((gen) => gen.id),
+            clickhouseConfigs,
           });
 
           const chunk = generations.map((generation) => {
@@ -257,29 +266,30 @@ export const getDatabaseReadStream = async ({
 
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const distinctScoreNames = await getDistinctScoreNames(
+          const distinctScoreNames = await getDistinctScoreNames({
             projectId,
             cutoffCreatedAt,
-            filter
+            filter: filter
               ? [...filter, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
-            isTraceTimestampFilter,
-          );
+            isTimestampFilter: isTraceTimestampFilter,
+            clickhouseConfigs,
+          });
           emptyScoreColumns = distinctScoreNames.reduce(
             (acc, name) => ({ ...acc, [name]: null }),
             {} as Record<string, null>,
           );
 
-          const traces = await getTracesTable(
+          const traces = await getTracesTable({
             projectId,
-            filter
+            filter: filter
               ? [...filter, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
-            undefined,
             orderBy,
-            pageSize,
-            Math.floor(offset / pageSize),
-          );
+            limit: pageSize,
+            page: Math.floor(offset / pageSize),
+            clickhouseConfigs,
+          });
 
           const [metrics, fullTraces] = await Promise.all([
             getTracesTableMetrics({
@@ -293,6 +303,7 @@ export const getDatabaseReadStream = async ({
                   value: traces.map((t) => t.id),
                 },
               ],
+              clickhouseConfigs,
             }),
             getTracesByIds(
               traces.map((t) => t.id),
@@ -301,12 +312,16 @@ export const getDatabaseReadStream = async ({
                 (min, t) => (!min || t.timestamp < min ? t.timestamp : min),
                 undefined as Date | undefined,
               ),
+              {
+                request_timeout: 120_000,
+              },
             ),
           ]);
 
           const scores = await getScoresForTraces({
             projectId,
             traceIds: traces.map((t) => t.id),
+            clickhouseConfigs,
           });
 
           const chunk = traces.map((t) => {
