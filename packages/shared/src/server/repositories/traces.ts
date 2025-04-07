@@ -26,6 +26,7 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
 import { env } from "../../env";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
 export const checkTraceExists = async (
   projectId: string,
@@ -137,6 +138,7 @@ export const getTracesByIds = async (
   traceIds: string[],
   projectId: string,
   timestamp?: Date,
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined,
 ) => {
   const query = `
       SELECT * 
@@ -159,6 +161,7 @@ export const getTracesByIds = async (
       kind: "byId",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return records.map(convertClickhouseToDomain);
