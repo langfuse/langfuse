@@ -1,6 +1,6 @@
 import { prisma } from "../../../db";
 import { type OrderByState } from "../../../";
-import { WidgetDomain, WidgetListResponse } from "./types";
+import { CreateWidgetInput, WidgetDomain, WidgetListResponse } from "./types";
 
 export class DashboardService {
   /**
@@ -55,6 +55,47 @@ export class DashboardService {
     return {
       widgets: domainWidgets,
       totalCount,
+    };
+  }
+
+  /**
+   * Creates a new dashboard widget.
+   */
+  public static async createWidget(
+    input: CreateWidgetInput,
+    userId?: string,
+  ): Promise<WidgetDomain> {
+    const newWidget = await prisma.dashboardWidget.create({
+      data: {
+        name: input.name,
+        description: input.description,
+        projectId: input.projectId,
+        view: input.view,
+        dimensions: input.dimensions,
+        metrics: input.metrics,
+        filters: input.filters,
+        chartType: input.chartType,
+        chartConfig: input.chartConfig,
+        createdBy: userId,
+        updatedBy: userId,
+      },
+    });
+
+    return {
+      id: newWidget.id,
+      createdAt: newWidget.createdAt,
+      updatedAt: newWidget.updatedAt,
+      createdBy: newWidget.createdBy,
+      updatedBy: newWidget.updatedBy,
+      projectId: newWidget.projectId,
+      name: newWidget.name,
+      description: newWidget.description,
+      view: newWidget.view,
+      dimensions: newWidget.dimensions as WidgetDomain["dimensions"],
+      metrics: newWidget.metrics as WidgetDomain["metrics"],
+      filters: newWidget.filters as WidgetDomain["filters"],
+      chartType: newWidget.chartType,
+      chartConfig: newWidget.chartConfig as WidgetDomain["chartConfig"],
     };
   }
 }

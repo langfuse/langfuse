@@ -6,6 +6,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
 import {
@@ -36,6 +37,9 @@ import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { Button } from "@/src/components/ui/button";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
 export default function NewWidget() {
   const router = useRouter();
@@ -154,34 +158,34 @@ export default function NewWidget() {
   type ChartType = {
     group: "time-series" | "total-value";
     name: string;
-    value: string;
+    value: DashboardWidgetChartType;
   };
 
   const chartTypes: ChartType[] = useMemo(
     () => [
-      { group: "time-series", name: "Line Chart", value: "line-time-series" },
+      { group: "time-series", name: "Line Chart", value: "LINE_TIME_SERIES" },
       {
         group: "time-series",
         name: "Vertical Bar Chart",
-        value: "bar-time-series",
+        value: "BAR_TIME_SERIES",
       },
       {
         group: "total-value",
         name: "Horizontal Bar Chart",
-        value: "bar-horizontal",
+        value: "HORIZONTAL_BAR",
       },
       {
         group: "total-value",
         name: "Vertical Bar Chart",
-        value: "bar-vertical",
+        value: "VERTICAL_BAR",
       },
-      { group: "total-value", name: "Pie Chart", value: "pie" },
+      { group: "total-value", name: "Pie Chart", value: "PIE" },
     ],
     [],
   );
 
   const [selectedChartType, setSelectedChartType] =
-    useState<string>("line-time-series");
+    useState<string>("LINE_TIME_SERIES");
   const [rowLimit, setRowLimit] = useState<number>(100);
 
   // Reset form fields when view changes
@@ -288,6 +292,39 @@ export default function NewWidget() {
       }) ?? [],
     [queryResult.data, selectedAggregation, selectedDimension, selectedMetric],
   );
+
+  // Save widget mutation
+  const createWidgetMutation = api.dashboardWidgets.create.useMutation({
+    onSuccess: () => {
+      // Silently redirect to widgets list page
+      void router.push(`/project/${projectId}/widgets`);
+    },
+    onError: (error) => {
+      showErrorToast("Failed to save widget", error.message);
+    },
+  });
+
+  // Handle save widget
+  const handleSaveWidget = () => {
+    if (!widgetName.trim()) {
+      showErrorToast("Error", "Widget name is required");
+      return;
+    }
+
+    // Prepare the widget data
+    createWidgetMutation.mutate({
+      projectId,
+      name: widgetName,
+      description: widgetDescription,
+      view: selectedView,
+      dimensions:
+        selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
+      metrics: [{ measure: selectedMetric, agg: selectedAggregation }],
+      filters: mapLegacyUiTableFilterToView(selectedView, userFilterState),
+      chartType: selectedChartType as DashboardWidgetChartType,
+      chartConfig: isTimeSeriesChart ? {} : { row_limit: rowLimit },
+    });
+  };
 
   return (
     <Page
@@ -510,6 +547,16 @@ export default function NewWidget() {
                 )}
               </div>
             </CardContent>
+            <CardFooter className="mt-auto">
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={handleSaveWidget}
+                disabled={createWidgetMutation.isLoading}
+              >
+                {createWidgetMutation.isLoading ? "Saving..." : "Save Widget"}
+              </Button>
+            </CardFooter>
           </Card>
         </div>
 
@@ -522,7 +569,7 @@ export default function NewWidget() {
             </CardHeader>
             {queryResult.data ? (
               <Chart
-                chartType={selectedChartType}
+                chartType={selectedChartType as DashboardWidgetChartType}
                 data={transformedData}
                 rowLimit={rowLimit}
               />

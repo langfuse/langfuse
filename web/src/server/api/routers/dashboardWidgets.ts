@@ -3,15 +3,30 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, orderBy } from "@langfuse/shared";
+import { paginationZod, orderBy, singleFilter } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { DashboardService } from "@langfuse/shared/src/server";
+import {
+  DashboardWidgetChartType,
+  DashboardWidgetViews,
+} from "@langfuse/shared/src/db";
+import {
+  DashboardService,
+  DimensionSchema,
+  MetricSchema,
+  ChartConfigSchema,
+} from "@langfuse/shared/src/server";
+import { views } from "@/src/features/query";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Widget name is required"),
-  type: z.string().min(1, "Widget type is required"),
-  config: z.record(z.any()).optional(),
+  description: z.string(),
+  view: views,
+  dimensions: z.array(DimensionSchema),
+  metrics: z.array(MetricSchema),
+  filters: z.array(singleFilter),
+  chartType: z.nativeEnum(DashboardWidgetChartType),
+  chartConfig: ChartConfigSchema,
 });
 
 // Define the widget list input schema
@@ -20,6 +35,13 @@ const ListDashboardWidgetsInput = z.object({
   ...paginationZod,
   orderBy: orderBy,
 });
+
+const viewMapping: Record<string, DashboardWidgetViews> = {
+  traces: DashboardWidgetViews.TRACES,
+  observations: DashboardWidgetViews.OBSERVATIONS,
+  "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
+  "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
+};
 
 export const dashboardWidgetRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -31,8 +53,15 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
+      // Create the widget using the DashboardService
+      const widget = await DashboardService.createWidget(
+        { ...input, view: viewMapping[input.view] },
+        ctx.session.user?.id,
+      );
+
       return {
         success: true,
+        widget,
       };
     }),
 

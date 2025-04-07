@@ -46,6 +46,19 @@ export const WidgetDomainSchema = z.object({
   chartConfig: ChartConfigSchema,
 });
 
+// Define create widget input schema
+export const CreateWidgetInputSchema = z.object({
+  projectId: z.string(),
+  name: z.string().min(1, "Widget name is required"),
+  description: z.string(),
+  view: z.nativeEnum(DashboardWidgetViews),
+  dimensions: z.array(DimensionSchema),
+  metrics: z.array(MetricSchema),
+  filters: z.array(singleFilter),
+  chartType: z.nativeEnum(DashboardWidgetChartType),
+  chartConfig: ChartConfigSchema,
+});
+
 // Define the widget list response
 export const WidgetListResponseSchema = z.object({
   widgets: z.array(WidgetDomainSchema),
@@ -54,4 +67,5 @@ export const WidgetListResponseSchema = z.object({
 
 // Export types derived from schemas
 export type WidgetDomain = z.infer<typeof WidgetDomainSchema>;
+export type CreateWidgetInput = z.infer<typeof CreateWidgetInputSchema>;
 export type WidgetListResponse = z.infer<typeof WidgetListResponseSchema>;
