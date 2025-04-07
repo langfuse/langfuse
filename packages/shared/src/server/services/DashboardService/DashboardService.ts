@@ -1,5 +1,5 @@
-import { prisma } from "@langfuse/shared/src/db";
-import { type OrderByState } from "@langfuse/shared";
+import { prisma } from "../../../db";
+import { type OrderByState } from "../../../";
 import { WidgetDomain, WidgetListResponse } from "./types";
 
 export class DashboardService {
