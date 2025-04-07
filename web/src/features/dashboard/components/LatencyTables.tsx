@@ -173,18 +173,18 @@ export const LatencyTables = ({
     <>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Trace latencies"
+        title="Trace latency percentiles"
         isLoading={isLoading || tracesLatencies.isLoading}
       >
         <DashboardTable
           headers={[
             "Trace Name",
-            <RightAlignedCell key="50th">50th</RightAlignedCell>,
-            <RightAlignedCell key="90th">90th</RightAlignedCell>,
-            <RightAlignedCell key="95th">
-              95th<span className="ml-1">▼</span>
+            <RightAlignedCell key="p50">p50</RightAlignedCell>,
+            <RightAlignedCell key="p90">p90</RightAlignedCell>,
+            <RightAlignedCell key="p95">
+              p95<span className="ml-1">▼</span>
             </RightAlignedCell>,
-            <RightAlignedCell key="99th">99th</RightAlignedCell>,
+            <RightAlignedCell key="p99">p99</RightAlignedCell>,
           ]}
           rows={generateLatencyData(tracesLatencies.data)}
           isLoading={isLoading || tracesLatencies.isLoading}
@@ -193,18 +193,18 @@ export const LatencyTables = ({
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Generation latencies"
+        title="Generation latency percentiles"
         isLoading={isLoading || generationsLatencies.isLoading}
       >
         <DashboardTable
           headers={[
             "Generation Name",
-            <RightAlignedCell key="50th">50th</RightAlignedCell>,
-            <RightAlignedCell key="90th">90th</RightAlignedCell>,
-            <RightAlignedCell key="95th">
-              95th<span className="ml-1">▼</span>
+            <RightAlignedCell key="p50">p50</RightAlignedCell>,
+            <RightAlignedCell key="p90">p90</RightAlignedCell>,
+            <RightAlignedCell key="p95">
+              p95<span className="ml-1">▼</span>
             </RightAlignedCell>,
-            <RightAlignedCell key="99th">99th</RightAlignedCell>,
+            <RightAlignedCell key="p99">p99</RightAlignedCell>,
           ]}
           rows={generateLatencyData(generationsLatencies.data)}
           isLoading={isLoading || generationsLatencies.isLoading}
@@ -213,18 +213,18 @@ export const LatencyTables = ({
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Span latencies"
+        title="Span latency percentiles"
         isLoading={isLoading || spansLatencies.isLoading}
       >
         <DashboardTable
           headers={[
             "Span Name",
-            <RightAlignedCell key="50th">50th</RightAlignedCell>,
-            <RightAlignedCell key="90th">90th</RightAlignedCell>,
-            <RightAlignedCell key="95th">
-              95th<span className="ml-1">▼</span>
+            <RightAlignedCell key="p50">p50</RightAlignedCell>,
+            <RightAlignedCell key="p90">p90</RightAlignedCell>,
+            <RightAlignedCell key="p95">
+              p95<span className="ml-1">▼</span>
             </RightAlignedCell>,
-            <RightAlignedCell key="99th">99th</RightAlignedCell>,
+            <RightAlignedCell key="p99">p99</RightAlignedCell>,
           ]}
           rows={generateLatencyData(spansLatencies.data)}
           isLoading={isLoading || spansLatencies.isLoading}
