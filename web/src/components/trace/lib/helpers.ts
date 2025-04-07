@@ -103,39 +103,34 @@ export function calculateDisplayTotalCost(p: {
     }
   }
 
-  const totalCost = observations.reduce(
+  const totalCost = observations.reduce<Decimal | undefined>(
     (prev: Decimal | undefined, curr: ObservationReturnType) => {
       // if we don't have any calculated costs, we can't do anything
-      if (
-        !curr.calculatedTotalCost &&
-        !curr.calculatedInputCost &&
-        !curr.calculatedOutputCost
-      )
-        return prev;
+      if (!curr.totalCost && !curr.inputCost && !curr.outputCost) return prev;
 
       // if we have either input or output cost, but not total cost, we can use that
-      if (
-        !curr.calculatedTotalCost &&
-        (curr.calculatedInputCost || curr.calculatedOutputCost)
-      ) {
+      if (!curr.totalCost && (curr.inputCost || curr.outputCost)) {
+        const inputCost =
+          curr.inputCost != null ? new Decimal(curr.inputCost) : new Decimal(0);
+
+        const outputCost =
+          curr.outputCost != null
+            ? new Decimal(curr.outputCost)
+            : new Decimal(0);
+
+        const combinedCost = inputCost.plus(outputCost);
+
         return prev
-          ? prev.plus(
-              curr.calculatedInputCost ??
-                new Decimal(0).plus(
-                  curr.calculatedOutputCost ?? new Decimal(0),
-                ),
-            )
-          : (curr.calculatedInputCost ??
-              curr.calculatedOutputCost ??
-              undefined);
+          ? prev.plus(combinedCost)
+          : combinedCost.isZero()
+            ? undefined
+            : combinedCost;
       }
 
-      if (!curr.calculatedTotalCost) return prev;
+      if (!curr.totalCost) return prev;
 
       // if we have total cost, we can use that
-      return prev
-        ? prev.plus(curr.calculatedTotalCost)
-        : curr.calculatedTotalCost;
+      return prev ? prev.plus(curr.totalCost) : new Decimal(curr.totalCost);
     },
     undefined,
   );
