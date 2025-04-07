@@ -459,6 +459,11 @@ export class IngestionService {
       immutableEntityKeys[TableName.Scores],
     );
 
+    // If metadata exists, it is an object due to previous parsing
+    mergedRecord.metadata = convertRecordValuesToString(
+      (mergedRecord.metadata as Record<string, unknown>) ?? {},
+    );
+
     return scoreRecordInsertSchema.parse(mergedRecord);
   }
 
