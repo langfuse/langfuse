@@ -2,6 +2,7 @@ import {
   createObservation,
   createTraceScore,
   createTrace,
+  createSessionScore,
   getScoresByIds,
 } from "@langfuse/shared/src/server";
 import {
@@ -13,8 +14,8 @@ import {
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
   DeleteScoreResponse,
-  GetScoreResponse,
-  GetScoresResponse,
+  GetScoreResponseV1,
+  GetScoresResponseV1,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
@@ -28,7 +29,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const scoreId = v4();
       const traceId = v4();
-      const score = createScore({
+      const score = createTraceScore({
         id: scoreId,
         project_id: projectId,
         trace_id: traceId,
@@ -48,7 +49,7 @@ describe("/api/public/scores API Endpoint", () => {
       await createScoresCh([score]);
 
       const getScore = await makeZodVerifiedAPICall(
-        GetScoreResponse,
+        GetScoresResponseV1,
         "GET",
         `/api/public/scores/${scoreId}`,
         undefined,
@@ -94,7 +95,7 @@ describe("/api/public/scores API Endpoint", () => {
       await createScoresCh([score]);
 
       const fetchedScore = await makeZodVerifiedAPICall(
-        GetScoreResponse,
+        GetScoresResponseV1,
         "GET",
         `/api/public/scores/${minimalScoreId}`,
         undefined,
@@ -165,7 +166,7 @@ describe("/api/public/scores API Endpoint", () => {
       await createScoresCh([score]);
 
       const fetchedScore = await makeZodVerifiedAPICall(
-        GetScoreResponse,
+        GetScoreResponseV1,
         "GET",
         `/api/public/scores/${scoreId}`,
         undefined,
@@ -196,11 +197,14 @@ describe("/api/public/scores API Endpoint", () => {
       const traceId_2 = v4();
       const traceId_3 = v4();
       const generationId = v4();
+      const sessionId = v4();
       const scoreId_1 = v4();
       const scoreId_2 = v4();
       const scoreId_3 = v4();
       const scoreId_4 = v4();
       const scoreId_5 = v4();
+      const scoreId_6 = v4();
+      const scoreId_7 = v4();
       let authentication: string;
       let newProjectId: string;
 
@@ -309,12 +313,38 @@ describe("/api/public/scores API Endpoint", () => {
           environment: "production",
         });
 
-        await createScoresCh([score1, score2, score3, score4, score5]);
+        const sessionScore1 = createSessionScore({
+          id: scoreId_6,
+          project_id: newProjectId,
+          session_id: sessionId,
+          name: scoreName,
+          value: 100.5,
+          data_type: "NUMERIC",
+        });
+
+        const sessionScore2 = createSessionScore({
+          id: scoreId_7,
+          project_id: newProjectId,
+          session_id: sessionId,
+          name: "session-score-name",
+          value: 100.5,
+          data_type: "NUMERIC",
+        });
+
+        await createScoresCh([
+          score1,
+          score2,
+          score3,
+          score4,
+          score5,
+          sessionScore1,
+          sessionScore2,
+        ]);
       });
 
-      it("get all scores", async () => {
+      it("get all trace scores", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV1,
           "GET",
           `/api/public/scores?${queryUserName}`,
           undefined,
@@ -337,7 +367,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("get all scores for config", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV1,
           "GET",
           `/api/public/scores?configId=${configId}`,
           undefined,
@@ -362,7 +392,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("get all scores for numeric data type", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV1,
           "GET",
           `/api/public/scores?dataType=NUMERIC`,
           undefined,
@@ -387,7 +417,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("get all scores for trace tag 'prod'", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV1,
           "GET",
           `/api/public/scores?traceTags=prod`,
           undefined,
@@ -411,7 +441,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("get all scores for environment 'production'", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV1,
           "GET",
           `/api/public/scores?environment=production`,
           undefined,
@@ -440,7 +470,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("get all scores for trace tags 'staging' and 'dev'", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV1,
           "GET",
           `/api/public/scores?traceTags=${["staging", "dev"]}`,
           undefined,
@@ -499,7 +529,7 @@ describe("/api/public/scores API Endpoint", () => {
 
           it("get all scores for queueId", async () => {
             const getAllScore = await makeZodVerifiedAPICall(
-              GetScoresResponse,
+              GetScoresResponseV1,
               "GET",
               `/api/public/scores?queueId=${queueId}`,
               undefined,
@@ -527,7 +557,7 @@ describe("/api/public/scores API Endpoint", () => {
       describe("should use score operators correctly", () => {
         it("test only operator", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV1,
             "GET",
             `/api/public/scores?${queryUserName}&operator=<`,
             undefined,
@@ -544,7 +574,7 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test only value", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV1,
             "GET",
             `/api/public/scores?${queryUserName}&value=0.8`,
             undefined,
@@ -561,7 +591,7 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator <", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV1,
             "GET",
             `/api/public/scores?${queryUserName}&operator=<&value=50`,
             undefined,
@@ -585,7 +615,7 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator >", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV1,
             "GET",
             `/api/public/scores?${queryUserName}&operator=>&value=100`,
             undefined,
@@ -609,7 +639,7 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator <=", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV1,
             "GET",
             `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
             undefined,
@@ -640,7 +670,7 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator >=", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV1,
             "GET",
             `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
             undefined,
@@ -671,7 +701,7 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator !=", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV1,
             "GET",
             `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
             undefined,
@@ -702,7 +732,7 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator =", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV1,
             "GET",
             `/api/public/scores?${queryUserName}&operator==&value=50.5`,
             undefined,
@@ -765,7 +795,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("should filter scores by score IDs", async () => {
         const getScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV1,
           "GET",
           `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`,
           undefined,

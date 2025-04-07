@@ -1,58 +1,18 @@
-import { v4 } from "uuid";
-
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  GetScoresQueryV1,
-  GetScoresResponseV1,
-  legacyFilterAndValidateV1GetScoreList,
-  PostScoresBody,
-  PostScoresResponse,
+  GetScoresQueryV2,
+  GetScoresResponseV2,
+  legacyFilterAndValidateV2GetScoreList,
 } from "@langfuse/shared";
-import {
-  eventTypes,
-  logger,
-  processEventBatch,
-} from "@langfuse/shared/src/server";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
-    name: "Create Score",
-    bodySchema: PostScoresBody,
-    responseSchema: PostScoresResponse,
-    fn: async ({ body, auth, res }) => {
-      const event = {
-        id: v4(),
-        type: eventTypes.SCORE_CREATE,
-        timestamp: new Date().toISOString(),
-        body,
-      };
-      if (!event.body.id) {
-        event.body.id = v4();
-      }
-      const result = await processEventBatch([event], auth);
-      if (result.errors.length > 0) {
-        const error = result.errors[0];
-        res
-          .status(error.status)
-          .json({ message: error.error ?? error.message });
-        return { id: "" }; // dummy return
-      }
-      if (result.successes.length !== 1) {
-        logger.error("Failed to create score", { result });
-        throw new Error("Failed to create score");
-      }
-      return { id: event.body.id };
-    },
-  }),
   GET: createAuthedAPIRoute({
     name: "/api/public/scores",
-    querySchema: GetScoresQueryV1,
-    responseSchema: GetScoresResponseV1,
+    querySchema: GetScoresQueryV2,
+    responseSchema: GetScoresResponseV2,
     fn: async ({ query, auth }) => {
-      const scoresApiService = new ScoresApiService("v1");
-
       const scoreParams = {
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
@@ -72,6 +32,7 @@ export default withMiddlewares({
         operator: query.operator ?? undefined,
         scoreIds: query.scoreIds ?? undefined,
       };
+      const scoresApiService = new ScoresApiService("v2");
       const [items, count] = await Promise.all([
         scoresApiService.generateScoresForPublicApi(scoreParams),
         scoresApiService.getScoresCountForPublicApi(scoreParams),
@@ -80,7 +41,7 @@ export default withMiddlewares({
       const finalCount = count ? count : 0;
 
       return {
-        data: legacyFilterAndValidateV1GetScoreList(items),
+        data: legacyFilterAndValidateV2GetScoreList(items),
         meta: {
           page: query.page,
           limit: query.limit,
@@ -90,4 +51,5 @@ export default withMiddlewares({
       };
     },
   }),
+  // Question: do I copy the POST route from v1?
 });

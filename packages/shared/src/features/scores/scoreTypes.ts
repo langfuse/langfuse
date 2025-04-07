@@ -12,7 +12,7 @@ import { ScoreDomain } from "../../domain";
 /**
  * Types to use across codebase
  */
-export type APIScore = z.infer<typeof APIScoreSchema>;
+export type APIScore = z.infer<typeof APIScoreSchemaV2>;
 
 /**
  * Helpers
@@ -50,7 +50,6 @@ const ScoreBaseProps = z.object({
   source: z.enum(ScoreSource),
   authorUserId: z.string().nullish(),
   comment: z.string().nullish(),
-
   observationId: z.string().nullish(),
   configId: z.string().nullish(),
   createdAt: z.coerce.date(),
@@ -58,12 +57,12 @@ const ScoreBaseProps = z.object({
   queueId: z.string().nullish(),
 });
 
-const ScoreBase = ScoreBaseProps.extend({
+const ScoreBaseV2 = ScoreBaseProps.extend({
   traceId: z.string().nullish(),
   sessionId: z.string().nullish(),
 });
 
-const LegacyScoreBase = ScoreBaseProps.extend({
+const ScoreBaseV1 = ScoreBaseProps.extend({
   traceId: z.string(),
 });
 
@@ -81,16 +80,16 @@ const BaseScoreBody = z.object({
  * Objects
  */
 
-export const LegacyAPIScoreSchema = z.discriminatedUnion("dataType", [
-  LegacyScoreBase.merge(NumericData),
-  LegacyScoreBase.merge(CategoricalData),
-  LegacyScoreBase.merge(BooleanData),
+export const APIScoreSchemaV1 = z.discriminatedUnion("dataType", [
+  ScoreBaseV1.merge(NumericData),
+  ScoreBaseV1.merge(CategoricalData),
+  ScoreBaseV1.merge(BooleanData),
 ]);
 
-export const APIScoreSchema = z.discriminatedUnion("dataType", [
-  ScoreBase.merge(NumericData),
-  ScoreBase.merge(CategoricalData),
-  ScoreBase.merge(BooleanData),
+export const APIScoreSchemaV2 = z.discriminatedUnion("dataType", [
+  ScoreBaseV2.merge(NumericData),
+  ScoreBaseV2.merge(CategoricalData),
+  ScoreBaseV2.merge(BooleanData),
 ]);
 
 /**
@@ -182,7 +181,7 @@ export const filterAndValidateDbScoreList = (
   onParseError?: (error: z.ZodError) => void,
 ): APIScore[] =>
   scores.reduce((acc, ts) => {
-    const result = APIScoreSchema.safeParse(ts);
+    const result = APIScoreSchemaV2.safeParse(ts);
     if (result.success) {
       acc.push(result.data);
     } else {
@@ -200,7 +199,7 @@ export const filterAndValidateDbScoreList = (
  * @throws error if score fails validation
  */
 export const validateDbScore = (score: ScoreDomain): APIScore =>
-  APIScoreSchema.parse(score);
+  APIScoreSchemaV2.parse(score);
 
 /**
  * Endpoints
@@ -247,7 +246,8 @@ export const PostScoresBody = z.discriminatedUnion("dataType", [
 export const PostScoresResponse = z.object({ id: z.string() });
 
 // GET /scores
-export const GetScoresQuery = z.object({
+
+export const GetScoresQueryV1 = z.object({
   ...publicApiPaginationZod,
   userId: z.string().nullish(),
   dataType: z.enum(ScoreDataType).nullish(),
@@ -270,9 +270,9 @@ export const GetScoresQuery = z.object({
     .nullish(),
 });
 
-// LegacyGetScoreResponseDataV1 is only used for response of GET /scores list endpoint
-const LegacyGetScoreResponseDataV1 = z.intersection(
-  LegacyAPIScoreSchema,
+// GetScoreResponseDataV1 is only used for response of GET /scores list endpoint
+const GetScoreResponseDataV1 = z.intersection(
+  APIScoreSchemaV1,
   z.object({
     trace: z.object({
       userId: z.string().nullish(),
@@ -281,18 +281,40 @@ const LegacyGetScoreResponseDataV1 = z.intersection(
     }),
   }),
 );
-export const GetScoresResponse = z.object({
-  data: z.array(LegacyGetScoreResponseDataV1),
+
+export const GetScoresResponseV1 = z.object({
+  data: z.array(GetScoreResponseDataV1),
+  meta: paginationMetaResponseZod,
+});
+
+// GET /scores v2
+
+export const GetScoresQueryV2 = GetScoresQueryV1;
+const GetScoreResponseDataV2 = z.intersection(
+  APIScoreSchemaV2,
+  z.object({
+    trace: z
+      .object({
+        userId: z.string().nullish(),
+        tags: z.array(z.string()).nullish(),
+        environment: z.string().nullish(),
+      })
+      .nullish(),
+  }),
+);
+
+export const GetScoresResponseV2 = z.object({
+  data: z.array(GetScoreResponseDataV2),
   meta: paginationMetaResponseZod,
 });
 
 export const legacyFilterAndValidateV1GetScoreList = (
   scores: unknown[],
   onParseError?: (error: z.ZodError) => void,
-): z.infer<typeof LegacyGetScoreResponseDataV1>[] =>
+): z.infer<typeof GetScoreResponseDataV1>[] =>
   scores.reduce(
-    (acc: z.infer<typeof LegacyGetScoreResponseDataV1>[], ts) => {
-      const result = LegacyGetScoreResponseDataV1.safeParse(ts);
+    (acc: z.infer<typeof GetScoreResponseDataV1>[], ts) => {
+      const result = GetScoreResponseDataV1.safeParse(ts);
       if (result.success) {
         acc.push(result.data);
       } else {
@@ -301,15 +323,37 @@ export const legacyFilterAndValidateV1GetScoreList = (
       }
       return acc;
     },
-    [] as z.infer<typeof LegacyGetScoreResponseDataV1>[],
+    [] as z.infer<typeof GetScoreResponseDataV1>[],
   );
 
+export const legacyFilterAndValidateV2GetScoreList = (
+  scores: unknown[],
+  onParseError?: (error: z.ZodError) => void,
+): z.infer<typeof GetScoreResponseDataV2>[] =>
+  scores.reduce(
+    (acc: z.infer<typeof GetScoreResponseDataV2>[], ts) => {
+      const result = GetScoreResponseDataV2.safeParse(ts);
+      if (result.success) {
+        acc.push(result.data);
+      } else {
+        console.error("Score parsing error: ", result.error);
+        onParseError?.(result.error);
+      }
+      return acc;
+    },
+    [] as z.infer<typeof GetScoreResponseDataV2>[],
+  );
 // GET /scores/{scoreId}
-export const GetScoreQuery = z.object({
+
+export const GetScoreQueryV1 = z.object({
   scoreId: z.string(),
 });
+export const GetScoreResponseV1 = APIScoreSchemaV1;
 
-export const GetScoreResponse = LegacyAPIScoreSchema;
+// GET /scores/{scoreId} v2
+
+export const GetScoreQueryV2 = GetScoreQueryV1;
+export const GetScoreResponseV2 = APIScoreSchemaV2;
 
 // DELETE /scores/{scoreId}
 export const DeleteScoreQuery = z.object({

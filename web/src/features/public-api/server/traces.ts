@@ -11,7 +11,7 @@ import {
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
 
-type QueryType = {
+export type TraceQueryType = {
   page: number;
   limit: number;
   projectId: string;
@@ -28,10 +28,20 @@ type QueryType = {
   toTimestamp?: string;
 };
 
-export const generateTracesForPublicApi = async (
-  props: QueryType,
-  orderBy: OrderByState,
-) => {
+/**
+ * @internal
+ * Internal utility function for getting traces count.
+ * Do not use directly - use TracesApiService or repository functions instead.
+ */
+export const _handleGenerateTracesForPublicApi = async ({
+  props,
+  orderBy,
+  traceScope,
+}: {
+  props: TraceQueryType;
+  orderBy: OrderByState;
+  traceScope: "traces_only" | "all";
+}) => {
   const filter = convertApiProvidedFilterToClickhouseFilter(
     props,
     filterParams,
@@ -120,6 +130,7 @@ export const generateTracesForPublicApi = async (
     LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id
     LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id
     WHERE t.project_id = {projectId: String}
+    ${traceScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
     ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
     ${chOrderBy}
     ${shouldUseSkipIndexes ? "LIMIT 1 by t.id, t.project_id" : ""}
@@ -162,7 +173,16 @@ export const generateTracesForPublicApi = async (
   }));
 };
 
-export const getTracesCountForPublicApi = async (props: QueryType) => {
+/**
+ * @internal
+ * Internal utility function for getting traces count.
+ * Do not use directly - use TracesApiService or repository functions instead.
+ */
+export const _handleGetTracesCountForPublicApi = async ({
+  props,
+}: {
+  props: TraceQueryType;
+}) => {
   const filter = convertApiProvidedFilterToClickhouseFilter(
     props,
     filterParams,

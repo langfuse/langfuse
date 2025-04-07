@@ -27,6 +27,7 @@ import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
+import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -76,37 +77,21 @@ export const searchExistingAnnotationScore = async (
   return rows.map(convertToScore).shift();
 };
 
-export const getScoreById = async (
-  projectId: string,
-  scoreId: string,
-  source?: ScoreSourceType,
-) => {
-  const query = `
-    SELECT *
-    FROM scores s
-    WHERE s.project_id = {projectId: String}
-    AND s.id = {scoreId: String}
-    ${source ? `AND s.source = {source: String}` : ""}
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id
-    LIMIT 1
-  `;
-
-  const rows = await queryClickhouse<ScoreRecordReadType>({
-    query,
-    params: {
-      projectId,
-      scoreId,
-      ...(source !== undefined ? { source } : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
-      projectId,
-    },
+export const getScoreById = async ({
+  projectId,
+  scoreId,
+  source,
+}: {
+  projectId: string;
+  scoreId: string;
+  source?: ScoreSourceType;
+}) => {
+  return _handleGetScoreById({
+    projectId,
+    scoreId,
+    source,
+    scoreScope: "all",
   });
-  return rows.map(convertToScore).shift();
 };
 
 export const getScoresByIds = async (
@@ -114,31 +99,11 @@ export const getScoresByIds = async (
   scoreId: string[],
   source?: ScoreSourceType,
 ) => {
-  const query = `
-    SELECT *
-    FROM scores s
-    WHERE s.project_id = {projectId: String}
-    AND s.id IN ({scoreId: Array(String)})
-    ${source ? `AND s.source = {source: String}` : ""}
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id
-  `;
-
-  const rows = await queryClickhouse<ScoreRecordReadType>({
-    query,
-    params: {
-      projectId,
-      scoreId,
-      ...(source !== undefined ? { source } : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
-      projectId,
-    },
+  return _handleGetScoresByIds({
+    projectId,
+    scoreId,
+    source,
   });
-  return rows.map(convertToScore);
 };
 
 /**

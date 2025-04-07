@@ -1,6 +1,6 @@
 import { APIObservation } from "@/src/features/public-api/types/observations";
 import {
-  APIScoreSchema,
+  APIScoreSchemaV1,
   paginationMetaResponseZod,
   orderBy,
   publicApiPaginationZod,
@@ -43,6 +43,14 @@ const APIExtendedTrace = APITrace.extend({
   htmlPath: z.string(),
 }).strict();
 
+const APIExtendedTraceV2 = APITrace.extend({
+  observations: z.array(z.string()),
+  scores: z.array(z.string()).nullish(),
+  totalCost: z.number(),
+  latency: z.number(),
+  htmlPath: z.string(),
+}).strict();
+
 /**
  * Endpoints
  */
@@ -76,6 +84,12 @@ export const GetTracesV1Response = z
   })
   .strict();
 
+export const GetTracesV2Query = GetTracesV1Query;
+export const GetTracesV2Response = z.object({
+  data: z.array(APIExtendedTraceV2),
+  meta: paginationMetaResponseZod,
+});
+
 // POST /api/public/traces
 export const PostTracesV1Body = TraceBody;
 export const PostTracesV1Response = z.object({ id: z.string() });
@@ -85,7 +99,7 @@ export const GetTraceV1Query = z.object({
   traceId: z.string(),
 });
 export const GetTraceV1Response = APIExtendedTrace.extend({
-  scores: z.array(APIScoreSchema),
+  scores: z.array(APIScoreSchemaV1),
   observations: z.array(APIObservation),
 }).strict();
 

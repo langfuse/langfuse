@@ -25,6 +25,7 @@ import {
   BatchActionType,
   BatchExportTableName,
   type ScoreDomain,
+  CreateAnnotationScoreData,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -48,6 +49,7 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
+import { prisma } from "@langfuse/shared/src/db";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -273,7 +275,23 @@ export const scoresRouter = createTRPCRouter({
           );
         }
       } else if (inflatedParams.sessionId) {
-        // do stuff
+        const traceSession = await prisma.traceSession.findUnique({
+          where: {
+            id_projectId: {
+              id: inflatedParams.sessionId,
+              projectId: input.projectId,
+            },
+          },
+        });
+
+        if (!traceSession) {
+          logger.error(
+            `No trace session with id ${inflatedParams.sessionId} in project ${input.projectId} in Prisma`,
+          );
+          throw new LangfuseNotFoundError(
+            `No trace session with id ${inflatedParams.sessionId} in project ${input.projectId} in Prisma`,
+          );
+        }
       }
 
       const clickhouseScore = await searchExistingAnnotationScore(
@@ -355,11 +373,11 @@ export const scoresRouter = createTRPCRouter({
       let updatedScore: ScoreDomain | null | undefined = null;
 
       // Fetch the current score from Clickhouse
-      const score = await getScoreById(
-        input.projectId,
-        input.id,
-        ScoreSource.ANNOTATION,
-      );
+      const score = await getScoreById({
+        projectId: input.projectId,
+        scoreId: input.id,
+        source: ScoreSource.ANNOTATION,
+      });
       if (!score) {
         logger.warn(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
@@ -424,11 +442,11 @@ export const scoresRouter = createTRPCRouter({
       });
 
       // Fetch the current score from Clickhouse
-      const clickhouseScore = await getScoreById(
-        input.projectId,
-        input.id,
-        ScoreSource.ANNOTATION,
-      );
+      const clickhouseScore = await getScoreById({
+        projectId: input.projectId,
+        scoreId: input.id,
+        source: ScoreSource.ANNOTATION,
+      });
       if (!clickhouseScore) {
         logger.warn(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,

@@ -92,3 +92,23 @@ export const createTraceScore = (score: Partial<ScoreRecordInsertType>) => {
     ...score,
   };
 };
+
+export const createSessionScore = (score: Partial<ScoreRecordInsertType>) => {
+  return {
+    id: v4(),
+    project_id: v4(),
+    session_Id: v4(),
+    environment: "default",
+    name: "test-session-score" + v4(),
+    timestamp: Date.now(),
+    value: 100.5,
+    source: "API",
+    comment: "comment",
+    data_type: "NUMERIC" as const,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    event_ts: Date.now(),
+    is_deleted: 0,
+    ...score,
+  };
+};

@@ -3,13 +3,12 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import {
   DeleteScoreQuery,
   DeleteScoreResponse,
-  GetScoreQuery,
-  GetScoreResponse,
+  GetScoreQueryV1,
+  GetScoreResponseV1,
   InternalServerError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import {
-  getScoreById,
   logger,
   traceException,
   ScoreDeleteQueue,
@@ -17,20 +16,25 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { QueueJobs } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
     name: "Get Score",
-    querySchema: GetScoreQuery,
-    responseSchema: GetScoreResponse,
+    querySchema: GetScoreQueryV1,
+    responseSchema: GetScoreResponseV1,
     fn: async ({ query, auth }) => {
-      const score = await getScoreById(auth.scope.projectId, query.scoreId);
+      const scoresApiService = new ScoresApiService("v1");
+      const score = await scoresApiService.getScoreById({
+        projectId: auth.scope.projectId,
+        scoreId: query.scoreId,
+      });
 
       if (!score) {
         throw new LangfuseNotFoundError("Score not found");
       }
 
-      const parsedScore = GetScoreResponse.safeParse(score);
+      const parsedScore = GetScoreResponseV1.safeParse(score);
 
       if (!parsedScore.success) {
         traceException(parsedScore.error);
