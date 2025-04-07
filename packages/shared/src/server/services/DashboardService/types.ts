@@ -1,9 +1,6 @@
 import { z } from "zod";
-import {
-  DashboardWidgetChartType,
-  DashboardWidgetViews,
-} from "@langfuse/shared/src/db";
-import { singleFilter } from "@langfuse/shared";
+import { DashboardWidgetChartType, DashboardWidgetViews } from "../../../db";
+import { singleFilter } from "../../../";
 
 export const BaseTimeSeriesChartConfig = z.object({});
 export const BaseTotalValueChartConfig = z.object({
