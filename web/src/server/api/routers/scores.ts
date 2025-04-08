@@ -142,9 +142,10 @@ export const scoresRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const score = await getScoreById(input.projectId, input.scoreId);
       if (!score) {
-        throw new LangfuseNotFoundError(
-          `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
-        );
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
+        });
       }
       return score;
     }),

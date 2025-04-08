@@ -140,7 +140,7 @@ export const getDatabaseReadStream = async ({
             environment: score.environment,
           }));
         },
-        1000,
+        env.BATCH_EXPORT_PAGE_SIZE,
         exportLimit,
       );
     }
@@ -201,7 +201,7 @@ export const getDatabaseReadStream = async ({
             return row;
           });
         },
-        1000,
+        env.BATCH_EXPORT_PAGE_SIZE,
         exportLimit,
       );
     case "observations": {
@@ -257,7 +257,7 @@ export const getDatabaseReadStream = async ({
 
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
-        1000,
+        env.BATCH_EXPORT_PAGE_SIZE,
         exportLimit,
       );
     }
@@ -364,7 +364,7 @@ export const getDatabaseReadStream = async ({
 
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
-        1000,
+        env.BATCH_EXPORT_PAGE_SIZE,
         exportLimit,
       );
     }
@@ -408,7 +408,7 @@ export const getDatabaseReadStream = async ({
             datasetName: item.dataset_name,
           }));
         },
-        1000,
+        env.BATCH_EXPORT_PAGE_SIZE,
         exportLimit,
       );
     }
