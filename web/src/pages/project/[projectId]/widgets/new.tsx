@@ -9,7 +9,7 @@ import {
   type views,
   type metricAggregations,
 } from "@/src/features/query/types";
-import { z } from "zod";
+import { type z } from "zod";
 
 export default function NewWidget() {
   const router = useRouter();

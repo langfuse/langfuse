@@ -14,7 +14,6 @@ import {
   DimensionSchema,
   MetricSchema,
   ChartConfigSchema,
-  logger,
 } from "@langfuse/shared/src/server";
 import { views } from "@/src/features/query";
 import { TRPCError } from "@trpc/server";

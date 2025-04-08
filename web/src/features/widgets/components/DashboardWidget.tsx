@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import {
-  views,
-  metricAggregations,
+  type views,
+  type metricAggregations,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
-import { z } from "zod";
+import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState } from "@langfuse/shared";
 
@@ -23,13 +23,11 @@ const getGridClasses = (widget: WidgetPlacement) => {
 };
 
 export function DashboardWidget({
-  key,
   projectId,
   placement,
   dateRange,
   filterState,
 }: {
-  key: string;
   projectId: string;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;

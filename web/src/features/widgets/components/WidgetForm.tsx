@@ -30,7 +30,6 @@ import { Input } from "@/src/components/ui/input";
 import { startCase } from "lodash";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";

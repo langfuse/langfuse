@@ -5,8 +5,8 @@ import { WidgetForm } from "@/src/features/widgets/components/WidgetForm";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { views, metricAggregations } from "@/src/features/query";
-import { z } from "zod";
+import { type views, type metricAggregations } from "@/src/features/query";
+import { type z } from "zod";
 
 export default function EditWidget() {
   const router = useRouter();
