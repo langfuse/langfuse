@@ -247,13 +247,14 @@ describe("/api/public/traces API Endpoint", () => {
   });
 
   it("should fetch traces with trace scores only", async () => {
+    const environment = randomUUID();
     const traceId = randomUUID();
     const createdTrace = createTrace({
       id: traceId,
       name: "trace-name",
       project_id: projectId,
       metadata: { key: "value" },
-      environment: "staging",
+      environment,
     });
 
     await createTracesCh([createdTrace]);
@@ -261,34 +262,40 @@ describe("/api/public/traces API Endpoint", () => {
     await createObservationsCh([
       createObservation({
         trace_id: traceId,
+        environment,
         project_id: projectId,
-        environment: "staging",
       }),
+      // Create one that does not belong to the same environment
       createObservation({
         trace_id: traceId,
-        project_id: projectId,
         environment: "default",
+        project_id: projectId,
       }),
     ]);
 
     await createScoresCh([
       createTraceScore({
         trace_id: traceId,
+        environment,
         project_id: projectId,
-        environment: "staging",
       }),
-      // Create session score
+      // Create one that does not belong to the same environment
+      createTraceScore({
+        trace_id: traceId,
+        environment: "default",
+        project_id: projectId,
+      }),
       createSessionScore({
         session_id: randomUUID(),
+        environment,
         project_id: projectId,
-        environment: "staging",
       }),
     ]);
 
     const traces = await makeZodVerifiedAPICall(
       GetTracesV1Response,
       "GET",
-      `/api/public/traces?environment=staging`,
+      `/api/public/traces?environment=${environment}`,
     );
 
     expect(traces.body.meta.totalItems).toBe(1);
@@ -296,7 +303,7 @@ describe("/api/public/traces API Endpoint", () => {
     const trace = traces.body.data[0];
     expect(trace.projectId).toBe(projectId);
     expect(trace.observations.length).toBe(1);
-    // Session score is not included in the response
+    // Despite having the correct environment, the session score is not included in the response
     expect(trace.scores.length).toBe(1);
   });
 
