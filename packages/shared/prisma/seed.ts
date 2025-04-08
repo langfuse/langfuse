@@ -438,97 +438,57 @@ async function createDashboardsAndWidgets(projects: Project[]) {
 
   // Process each project
   for (const project of projects) {
-    // First create a widget
     const widget = await prisma.dashboardWidget.upsert({
       where: { id: "cabc" },
       create: {
         id: "cabc",
         projectId: project.id,
-        name: "Trace Latencies",
-        description: "Trace Latencies by Name Over Time",
+        name: "Trace Counts",
+        description: "Trace Counts by Name Over Time",
         view: "TRACES",
         dimensions: [{ field: "name" }],
-        metrics: [{ measure: "latency", agg: "p95" }],
-        filters: [
-          {
-            type: "stringOptions",
-            value: ["default"],
-            column: "environment",
-            operator: "any of",
-          },
-        ],
-        chartType: "LINE_TIME_SERIES",
-        chartConfig: { max_entries: 100 },
+        metrics: [{ measure: "count", agg: "count" }],
+        filters: [],
+        chartType: "BAR_TIME_SERIES",
+        chartConfig: {},
       },
       update: {},
     });
 
-    // Create another widget
     const widget2 = await prisma.dashboardWidget.upsert({
-      where: { id: "cdefghi" },
+      where: { id: "cdef" },
       create: {
-        id: "cdefghi",
+        id: "cdef",
         projectId: project.id,
-        name: "Model Usage",
-        description: "Model Usage by Category",
+        name: "Observation Latencies by Model",
+        description: "p95 Observation Latencies by Model Name",
         view: "OBSERVATIONS",
-        dimensions: [{ field: "model" }],
+        dimensions: [{ field: "providedModelName" }],
         metrics: [{ measure: "count", agg: "sum" }],
-        filters: [
-          {
-            type: "stringOptions",
-            value: ["name_31"],
-            column: "traceName",
-            operator: "any of",
-          },
-        ],
-        chartType: "PIE",
-        chartConfig: { row_limit: 10 },
+        filters: [],
+        chartType: "LINE_TIME_SERIES",
+        chartConfig: {},
       },
       update: {},
     });
 
-    // Create a dashboard that references the widget
+    // Create a dashboard with multiple widgets
     await prisma.dashboard.upsert({
-      where: { id: "cabcfed" },
+      where: { id: "seed-dashboard" },
       create: {
-        id: "cabcfed",
-        projectId: project.id,
-        name: "Prompt Metrics",
-        description: "Dashboard with prompt performance metrics",
-        definition: {
-          widgets: [
-            {
-              type: "widget",
-              id: widget2.id,
-              x: 0,
-              y: 0,
-              x_size: 4,
-              y_size: 2,
-            },
-          ],
-        },
-      },
-      update: {},
-    });
-
-    // Create another dashboard with multiple widgets
-    await prisma.dashboard.upsert({
-      where: { id: "dashboard2" },
-      create: {
-        id: "dashboard2",
+        id: "seed-dashboard",
         projectId: project.id,
         name: "Performance Overview",
         description: "Dashboard with various performance metrics",
         definition: {
           widgets: [
-            { type: "widget", id: widget.id, x: 0, y: 0, x_size: 4, y_size: 2 },
+            { type: "widget", id: widget.id, x: 0, y: 0, x_size: 6, y_size: 2 },
             {
               type: "widget",
               id: widget2.id,
-              x: 4,
+              x: 6,
               y: 0,
-              x_size: 4,
+              x_size: 6,
               y_size: 2,
             },
           ],
