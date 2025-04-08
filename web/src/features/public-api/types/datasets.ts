@@ -141,9 +141,9 @@ export const GetDatasetRunV1Response = APIDatasetRun.extend({
 // POST /dataset-items
 export const PostDatasetItemsV1Body = z.object({
   datasetName: z.string(),
-  input: jsonSchema.nullish(),
-  expectedOutput: jsonSchema.nullish(),
-  metadata: jsonSchema.nullish(),
+  input: z.any().nullish(),
+  expectedOutput: z.any().nullish(),
+  metadata: z.any().nullish(),
   id: z.string().nullish(),
   sourceTraceId: z.string().nullish(),
   sourceObservationId: z.string().nullish(),

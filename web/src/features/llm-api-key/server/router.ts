@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import {
+  ChatMessageType,
   fetchLLMCompletion,
   LLMAdapter,
   logger,
@@ -170,8 +171,16 @@ export const llmApiKeyRouter = createTRPCRouter({
         }
 
         const testMessages: ChatMessage[] = [
-          { role: ChatMessageRole.System, content: "You are a bot" },
-          { role: ChatMessageRole.User, content: "How are you?" },
+          {
+            role: ChatMessageRole.System,
+            content: "You are a bot",
+            type: ChatMessageType.System,
+          },
+          {
+            role: ChatMessageRole.User,
+            content: "How are you?",
+            type: ChatMessageType.User,
+          },
         ];
 
         await fetchLLMCompletion({

@@ -21,7 +21,7 @@ import {
 } from "use-query-params";
 import type Decimal from "decimal.js";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { DeleteButton } from "@/src/components/deleteButton";
+import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
   LevelColors,
@@ -74,14 +74,15 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { Trace } from "@/src/components/trace";
-import router from "next/router";
 import TableId from "@/src/components/table/table-id";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { useTraceFilterOptions } from "@/src/features/filters/hooks/useTraceFilterOptions";
+import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
+import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -110,9 +111,9 @@ export type TracesTableRow = {
   metadata?: unknown;
   tags: string[];
   usage: {
-    promptTokens?: bigint;
-    completionTokens?: bigint;
-    totalTokens?: bigint;
+    inputUsage?: bigint;
+    outputUsage?: bigint;
+    totalUsage?: bigint;
   };
   usageDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
@@ -134,16 +135,11 @@ export default function TracesTable({
   omittedFilter = [],
 }: TracesTableProps) {
   const utils = api.useUtils();
-  const [peekViewId] = useQueryParam("peek", withDefault(StringParam, null));
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
-  );
-  const [selectedTab, setSelectedTab] = useQueryParam(
-    "display",
-    withDefault(StringParam, "details"),
   );
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange(projectId);
@@ -538,7 +534,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.promptTokens, 0)}</span>;
+        return <span>{numberFormatter(value.inputUsage, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -552,7 +548,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.completionTokens, 0)}</span>;
+        return <span>{numberFormatter(value.outputUsage, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -566,7 +562,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.totalTokens, 0)}</span>;
+        return <span>{numberFormatter(value.totalUsage, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -584,9 +580,9 @@ export default function TracesTable({
           <BreakdownTooltip details={row.original.usageDetails ?? []}>
             <div className="flex items-center gap-1">
               <TokenUsageBadge
-                promptTokens={value.promptTokens ?? 0}
-                completionTokens={value.completionTokens ?? 0}
-                totalTokens={value.totalTokens ?? 0}
+                inputUsage={Number(value.inputUsage ?? 0)}
+                outputUsage={Number(value.outputUsage ?? 0)}
+                totalUsage={Number(value.totalUsage ?? 0)}
                 inline
               />
               <InfoIcon className="h-3 w-3" />
@@ -863,29 +859,27 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        return traceId &&
-          typeof traceId === "string" &&
-          hasTraceDeletionEntitlement ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem asChild>
-                <DeleteButton
-                  itemId={traceId}
-                  projectId={projectId}
-                  scope="traces:delete"
-                  invalidateFunc={() => void utils.traces.all.invalidate()}
-                  type="trace"
-                  isTableAction={true}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : undefined;
+        return (
+          traceId &&
+          typeof traceId === "string" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem asChild>
+                  <DeleteTraceButton
+                    itemId={traceId}
+                    projectId={projectId}
+                    isTableAction
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        );
       },
     },
   ];
@@ -900,6 +894,13 @@ export default function TracesTable({
     "tracesColumnOrder",
     columns,
   );
+
+  const urlPathname = userId
+    ? `/project/${projectId}/users/${userId}`
+    : `/project/${projectId}/traces`;
+
+  const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
+  const { setPeekView } = useTracePeekState(urlPathname);
 
   const rows = useMemo(() => {
     return traces.isSuccess
@@ -919,9 +920,9 @@ export default function TracesTable({
             latency: trace.latency === null ? undefined : trace.latency,
             tags: trace.tags,
             usage: {
-              promptTokens: trace.promptTokens,
-              completionTokens: trace.completionTokens,
-              totalTokens: trace.totalTokens,
+              inputUsage: trace.promptTokens,
+              outputUsage: trace.completionTokens,
+              totalUsage: trace.totalTokens,
             },
             levelCounts: {
               errorCount: trace.errorCount,
@@ -1032,92 +1033,15 @@ export default function TracesTable({
         pinFirstColumn
         peekView={{
           itemType: "TRACE",
-          onOpenChange: (open: boolean, row?: TracesTableRow) => {
-            const url = new URL(window.location.href);
-            const params = new URLSearchParams(url.search);
-
-            if (!open || !row) {
-              // Remove peek and timestamp params while keeping others
-              params.delete("peek");
-              params.delete("timestamp");
-              params.delete("observation");
-              params.delete("display");
-            } else if (open && row.id && peekViewId !== row.id) {
-              // Update or add peek and timestamp params
-              params.set("peek", row.id);
-              params.set("timestamp", row.timestamp.toISOString());
-              params.delete("observation");
-            } else {
-              return;
-            }
-
-            router.replace(
-              {
-                pathname: `/project/${projectId}/traces`,
-                query: params.toString(),
-              },
-              undefined,
-              { shallow: true },
-            );
+          listKey: "traces",
+          urlPathname,
+          peekEventOptions: {
+            ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
           },
-          onExpand: (openInNewTab: boolean) => {
-            if (peekViewId) {
-              const url = new URL(window.location.href);
-              const params = new URLSearchParams(url.search);
-              const timestamp = params.get("timestamp");
-              const display = params.get("display") ?? "details";
-
-              if (openInNewTab) {
-                window.open(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}&display=${display}`,
-                  "_blank",
-                );
-              } else {
-                router.replace(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}&display=${display}`,
-                );
-              }
-            }
-          },
-          render: () => {
-            const { peek, timestamp } = router.query;
-
-            const trace = api.traces.byIdWithObservationsAndScores.useQuery(
-              {
-                traceId: peek as string,
-                timestamp:
-                  typeof timestamp === "string"
-                    ? new Date(timestamp)
-                    : undefined,
-                projectId,
-              },
-              {
-                enabled: !!peek && !!timestamp,
-                retry(failureCount, error) {
-                  if (
-                    error.data?.code === "UNAUTHORIZED" ||
-                    error.data?.code === "NOT_FOUND"
-                  )
-                    return false;
-                  return failureCount < 3;
-                },
-              },
-            );
-
-            return !trace.data ? (
-              <Skeleton className="h-full w-full" />
-            ) : (
-              <Trace
-                key={trace.data.id}
-                trace={trace.data}
-                scores={trace.data.scores}
-                projectId={trace.data.projectId}
-                observations={trace.data.observations}
-                selectedTab={selectedTab}
-                setSelectedTab={setSelectedTab}
-              />
-            );
-          },
+          onOpenChange: setPeekView,
+          onExpand: expandPeek,
+          getNavigationPath,
+          children: <PeekViewTraceDetail projectId={projectId} />,
         }}
       />
     </>

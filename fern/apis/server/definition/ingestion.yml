@@ -271,6 +271,7 @@ types:
         docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
       observationId: optional<string>
       comment: optional<string>
+      metadata: optional<unknown>
       dataType:
         type: optional<commons.ScoreDataType>
         docs: When set, must match the score value's type. If not set, will be inferred from the score value or config
@@ -400,8 +401,8 @@ types:
       prompt_tokens: integer
       completion_tokens: integer
       total_tokens: integer
-      prompt_tokens_details: optional<map<string, integer>>
-      completion_tokens_details: optional<map<string, integer>>
+      prompt_tokens_details: optional<map<string, optional<integer>>>
+      completion_tokens_details: optional<map<string, optional<integer>>>
 
   OpenAIResponseUsageSchema:
     docs: OpenAI Usage schema from Response API
@@ -409,8 +410,8 @@ types:
       input_tokens: integer
       output_tokens: integer
       total_tokens: integer
-      input_tokens_details: optional<map<string, integer>>
-      output_tokens_details: optional<map<string, integer>>
+      input_tokens_details: optional<map<string, optional<integer>>>
+      output_tokens_details: optional<map<string, optional<integer>>>
 
   UsageDetails:
     discriminated: false

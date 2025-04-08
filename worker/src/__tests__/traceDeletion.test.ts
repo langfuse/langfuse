@@ -9,7 +9,7 @@ import {
   createTrace,
   createTracesCh,
   getEventLogByProjectId,
-  getObservationsViewForTrace,
+  getObservationsForTrace,
   getScoresForTraces,
   getTracesByIds,
   StorageService,
@@ -37,7 +37,7 @@ describe("trace deletion", () => {
     mediaStorageService = StorageServiceFactory.getInstance({
       accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
-      bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+      bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
@@ -50,8 +50,8 @@ describe("trace deletion", () => {
 
     const traceId = randomUUID();
     await createTracesCh([createTrace({ id: traceId })]);
-    await createObservationsCh([createObservation({ traceId })]);
-    await createScoresCh([createScore({ traceId })]);
+    await createObservationsCh([createObservation({ trace_id: traceId })]);
+    await createScoresCh([createScore({ trace_id: traceId })]);
 
     // When
     await processClickhouseTraceDelete("projectId", [traceId]);
@@ -60,7 +60,7 @@ describe("trace deletion", () => {
     const traces = await getTracesByIds([traceId], projectId);
     expect(traces).toHaveLength(0);
 
-    const observations = await getObservationsViewForTrace(traceId, projectId);
+    const observations = await getObservationsForTrace(traceId, projectId);
     expect(observations).toHaveLength(0);
 
     const scores = await getScoresForTraces({
@@ -112,7 +112,7 @@ describe("trace deletion", () => {
         projectId,
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 days in the past
         bucketPath: `${projectId}/trace-${traceId}.txt`,
-        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
       },
@@ -135,7 +135,7 @@ describe("trace deletion", () => {
         projectId,
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 days in the past
         bucketPath: `${projectId}/observation-${observationId}.txt`,
-        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
       },
@@ -198,7 +198,7 @@ describe("trace deletion", () => {
         projectId,
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 days in the past
         bucketPath: `${projectId}/trace-${traceId1}.txt`,
-        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
       },

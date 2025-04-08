@@ -8,7 +8,7 @@ export const getCookieOptions = () => ({
   domain: env.NEXTAUTH_COOKIE_DOMAIN ?? undefined,
   httpOnly: true,
   sameSite: "lax" as const,
-  path: "/",
+  path: env.NEXT_PUBLIC_BASE_PATH || "/",
   secure: shouldSecureCookies(),
 });
 

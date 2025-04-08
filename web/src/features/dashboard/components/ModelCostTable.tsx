@@ -8,45 +8,53 @@ import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
-import { env } from "@/src/env.mjs";
 import { truncate } from "@/src/utils/string";
+import {
+  type QueryType,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
 
 export const ModelCostTable = ({
   className,
   projectId,
   globalFilterState,
+  fromTimestamp,
+  toTimestamp,
   isLoading = false,
 }: {
   className: string;
   projectId: string;
   globalFilterState: FilterState;
+  fromTimestamp: Date;
+  toTimestamp: Date;
   isLoading?: boolean;
 }) => {
-  const metrics = api.dashboard.chart.useQuery(
+  const modelCostQuery: QueryType = {
+    view: "observations",
+    dimensions: [{ field: "providedModelName" }],
+    metrics: [
+      { measure: "totalCost", aggregation: "sum" },
+      { measure: "totalTokens", aggregation: "sum" },
+    ],
+    filters: [
+      ...mapLegacyUiTableFilterToView("observations", globalFilterState),
+      {
+        column: "type",
+        operator: "=",
+        value: "GENERATION",
+        type: "string",
+      },
+    ],
+    timeDimension: null,
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const metrics = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
-        ? "traces_observations"
-        : "traces_observationsview",
-      select: [
-        { column: "calculatedTotalCost", agg: "SUM" },
-        { column: "totalTokens", agg: "SUM" },
-        { column: "model" },
-      ],
-      filter: [
-        ...globalFilterState,
-        {
-          type: "string",
-          column: "type",
-          operator: "=",
-          value: "GENERATION",
-        },
-      ],
-      groupBy: [{ type: "string", column: "model" }],
-      orderBy: [
-        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
-      ],
-      queryName: "observations-model-cost",
+      query: modelCostQuery,
     },
     {
       trpc: {
@@ -60,30 +68,28 @@ export const ModelCostTable = ({
 
   const totalTokenCost = metrics.data?.reduce(
     (acc, curr) =>
-      acc +
-      (curr.sumCalculatedTotalCost
-        ? (curr.sumCalculatedTotalCost as number)
-        : 0),
+      acc + (curr.sum_totalCost ? (curr.sum_totalCost as number) : 0),
     0,
   );
 
   const metricsData = metrics.data
     ? metrics.data
-        .filter((item) => item.model !== null)
+        .filter((item) => item.providedModelName !== null)
         .map((item, i) => [
-          <LeftAlignedCell key={`${i}-model`} title={item.model as string}>
-            {truncate(item.model as string, 30)}
+          <LeftAlignedCell
+            key={`${i}-model`}
+            title={item.providedModelName as string}
+          >
+            {truncate(item.providedModelName as string, 30)}
           </LeftAlignedCell>,
           <RightAlignedCell key={`${i}-tokens`}>
-            {item.sumTotalTokens
-              ? compactNumberFormatter(item.sumTotalTokens as number)
+            {item.sum_totalTokens
+              ? compactNumberFormatter(item.sum_totalTokens as number)
               : "0"}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-cost`}>
-            {item.sumCalculatedTotalCost
-              ? totalCostDashboardFormatted(
-                  item.sumCalculatedTotalCost as number,
-                )
+            {item.sum_totalCost
+              ? totalCostDashboardFormatted(item.sum_totalCost as number)
               : "$0"}
           </RightAlignedCell>,
         ])

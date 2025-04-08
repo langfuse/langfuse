@@ -26,16 +26,14 @@ import { TableCount } from "./types";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import {
-  convertObservationToView,
-  convertObservation,
-} from "./observations_converters";
+import { convertObservation } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
 import { env } from "../../env";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
 export const checkObservationExists = async (
   projectId: string,
@@ -101,7 +99,7 @@ export const upsertObservation = async (
   });
 };
 
-export const getObservationsViewForTrace = async (
+export const getObservationsForTrace = async (
   traceId: string,
   projectId: string,
   timestamp?: Date,
@@ -161,7 +159,7 @@ export const getObservationsViewForTrace = async (
     },
   });
 
-  return records.map(convertObservationToView);
+  return records.map(convertObservation);
 };
 
 export const getObservationForTraceIdByName = async (
@@ -227,7 +225,7 @@ export const getObservationForTraceIdByName = async (
     },
   });
 
-  return records.map(convertObservationToView);
+  return records.map(convertObservation);
 };
 
 export const getObservationById = async (
@@ -306,33 +304,6 @@ export const getObservationsById = async (
   return records.map(convertObservation);
 };
 
-export const getObservationViewById = async (
-  id: string,
-  projectId: string,
-  fetchWithInputOutput: boolean = false,
-) => {
-  const records = await getObservationByIdInternal(
-    id,
-    projectId,
-    fetchWithInputOutput,
-  );
-  const mapped = records.map(convertObservationToView);
-
-  if (mapped.length === 0) {
-    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
-  }
-
-  if (mapped.length > 1) {
-    logger.error(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-    throw new InternalServerError(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-  }
-  return mapped.shift();
-};
-
 const getObservationByIdInternal = async (
   id: string,
   projectId: string,
@@ -402,6 +373,7 @@ export type ObservationTableQuery = {
   limit?: number;
   offset?: number;
   selectIOAndMetadata?: boolean;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
 export type ObservationsTableQueryResult = ObservationRecordReadType & {
@@ -467,7 +439,7 @@ export const getObservationsTableWithModelData = async (
     const trace = traces.find((t) => t.id === o.trace_id);
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...convertObservationToView(o),
+      ...convertObservation(o),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
@@ -525,8 +497,15 @@ const getObservationsTableInternal = async <T>(
         if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
         if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token"`;
 
-  const { projectId, filter, selectIOAndMetadata, limit, offset, orderBy } =
-    opts;
+  const {
+    projectId,
+    filter,
+    selectIOAndMetadata,
+    limit,
+    offset,
+    orderBy,
+    clickhouseConfigs,
+  } = opts;
 
   const selectString = selectIOAndMetadata
     ? `
@@ -689,6 +668,7 @@ const getObservationsTableInternal = async <T>(
       type: "observation",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return res;
@@ -1324,6 +1304,59 @@ export const getTraceIdsForObservations = async (
   }));
 };
 
+export const getObservationsForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT
+      id,
+      trace_id,
+      project_id,
+      environment,
+      type,
+      parent_observation_id,
+      start_time,
+      end_time,
+      name,
+      metadata,
+      level,
+      status_message,
+      version,
+      input,
+      output,
+      provided_model_name,
+      model_parameters,
+      usage_details,
+      cost_details,
+      completion_start_time,
+      prompt_name,
+      prompt_version
+    FROM observations FINAL
+    WHERE project_id = {projectId: String}
+    AND start_time >= {minTimestamp: DateTime64(3)}
+    AND start_time <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "blobstorage",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return records;
+};
+
 export const getGenerationsForPostHog = async function* (
   projectId: string,
   minTimestamp: Date,
@@ -1374,6 +1407,13 @@ export const getGenerationsForPostHog = async function* (
       type: "observation",
       kind: "analytic",
       projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 300_000, // 5 minutes
+      clickhouse_settings: {
+        join_algorithm: "grace_hash",
+        grace_hash_join_initial_buckets: "32",
+      },
     },
   });
 

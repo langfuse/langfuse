@@ -62,8 +62,12 @@ const PageHeader = ({
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
-                  <h2 className="inline text-lg font-semibold leading-7">
-                    <span className="break-words">
+                  <h2 className="line-clamp-1 text-lg font-semibold leading-7">
+                    <span
+                      className="break-words"
+                      title={title}
+                      data-testid="page-header-title"
+                    >
                       {title}
                       {help && (
                         <span className="whitespace-nowrap">

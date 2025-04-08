@@ -3807,6 +3807,8 @@ components:
         comment:
           type: string
           nullable: true
+        metadata:
+          nullable: true
         configId:
           type: string
           nullable: true
@@ -4799,6 +4801,8 @@ components:
         comment:
           type: string
           nullable: true
+        metadata:
+          nullable: true
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
           nullable: true
@@ -4995,11 +4999,13 @@ components:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
         completion_tokens_details:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
       required:
         - prompt_tokens
@@ -5020,11 +5026,13 @@ components:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
         output_tokens_details:
           type: object
           additionalProperties:
             type: integer
+            nullable: true
           nullable: true
       required:
         - input_tokens
@@ -5665,6 +5673,8 @@ components:
           nullable: true
         comment:
           type: string
+          nullable: true
+        metadata:
           nullable: true
         environment:
           type: string

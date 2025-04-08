@@ -1,7 +1,7 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
   type APIScore,
-  type Trace,
+  type TraceDomain,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
@@ -35,6 +35,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useRouter } from "next/router";
 
 export const TracePreview = ({
   trace,
@@ -43,10 +44,10 @@ export const TracePreview = ({
   commentCounts,
   viewType = "detailed",
 }: {
-  trace: Omit<Trace, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output"> & {
     latency?: number;
-    input: string | undefined;
-    output: string | undefined;
+    input: string | null;
+    output: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
   scores: APIScore[];
@@ -67,6 +68,9 @@ export const TracePreview = ({
     trace.projectId,
   );
   const capture = usePostHogClientCapture();
+  const router = useRouter();
+  const { peek } = router.query;
+  const showScoresTab = isAuthenticatedAndProjectMember && peek === undefined;
 
   const traceMedia = api.media.getByTraceOrObservationId.useQuery(
     {
@@ -106,7 +110,7 @@ export const TracePreview = ({
             <div className="mt-1.5">
               <ItemBadge type="TRACE" isSmall />
             </div>
-            <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
+            <span className="mb-0 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
               {trace.name}
             </span>
           </div>
@@ -231,7 +235,7 @@ export const TracePreview = ({
           {viewType === "detailed" && (
             <TabsBarList>
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-              {isAuthenticatedAndProjectMember && (
+              {showScoresTab && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
               {selectedTab.includes("preview") && isPrettyViewAvailable && (
@@ -283,7 +287,7 @@ export const TracePreview = ({
               </div>
             </div>
           </TabsBarContent>
-          {isAuthenticatedAndProjectMember && (
+          {showScoresTab && (
             <TabsBarContent
               value="scores"
               className="mb-2 mr-4 mt-0 flex h-full min-h-0 w-full overflow-hidden md:flex-1"

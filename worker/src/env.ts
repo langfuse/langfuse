@@ -11,7 +11,7 @@ const EnvSchema = z.object({
   PORT: z.coerce
     .number({
       description:
-        ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+        ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
     })
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
@@ -41,6 +41,7 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
+  BATCH_EXPORT_PAGE_SIZE: z.coerce.number().positive().default(500),
   BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(1_500_000),
   BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS: z.coerce
     .number()
@@ -78,7 +79,7 @@ const EnvSchema = z.object({
   REDIS_PORT: z.coerce
     .number({
       description:
-        ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+        ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
     })
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
@@ -137,6 +138,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
+  LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(30),
+
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
@@ -175,6 +179,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z

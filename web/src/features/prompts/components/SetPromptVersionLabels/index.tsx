@@ -87,19 +87,23 @@ export function SetPromptVersionLabels({
   });
 
   const handleSubmitLabels = async () => {
-    if (!projectId) {
-      alert("Project ID is missing");
-      return;
+    try {
+      if (!projectId) {
+        alert("Project ID is missing");
+        return;
+      }
+
+      await mutatePromptVersionLabels.mutateAsync({
+        projectId: projectId as string,
+        promptId: prompt.id,
+        labels: selectedLabels,
+      });
+
+      capture("prompt_detail:apply_labels", { labels: selectedLabels });
+      setIsOpen(false);
+    } catch (err) {
+      console.error(err);
     }
-
-    await mutatePromptVersionLabels.mutateAsync({
-      projectId: projectId as string,
-      promptId: prompt.id,
-      labels: selectedLabels,
-    });
-
-    capture("prompt_detail:apply_labels", { labels: selectedLabels });
-    setIsOpen(false);
   };
 
   const handleOnOpenChange = (open: boolean) => {

@@ -28,8 +28,9 @@ describe("/api/public/scores API Endpoint", () => {
 
       const scoreId = v4();
       const traceId = v4();
-      const score = {
+      const score = createScore({
         id: scoreId,
+        environment: "default",
         project_id: projectId,
         trace_id: traceId,
         name: "Test Score",
@@ -38,12 +39,13 @@ describe("/api/public/scores API Endpoint", () => {
         value: 100.5,
         source: "API",
         comment: "comment",
+        metadata: { "test-key": "test-value" },
         data_type: "NUMERIC" as const,
         created_at: Date.now(),
         updated_at: Date.now(),
         event_ts: Date.now(),
         is_deleted: 0,
-      };
+      });
 
       await createScoresCh([score]);
 
@@ -61,6 +63,7 @@ describe("/api/public/scores API Endpoint", () => {
         name: "Test Score",
         value: 100.5,
         comment: "comment",
+        metadata: { "test-key": "test-value" },
         source: "API",
         traceId,
         observationId: score.observation_id,
@@ -159,6 +162,7 @@ describe("/api/public/scores API Endpoint", () => {
         value: 100.5,
         source: "API",
         comment: "comment",
+        metadata: { "test-key": "test-value" },
         observation_id: null,
         environment: "production",
       });
@@ -181,6 +185,63 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.source).toBe("API");
       expect(fetchedScore.body?.projectId).toBe(projectId);
       expect(fetchedScore.body?.environment).toBe("production");
+      expect(fetchedScore.body?.metadata).toEqual({ "test-key": "test-value" });
+    });
+
+    it("should update score for a trace", async () => {
+      const traceId = v4();
+
+      const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
+
+      const trace = createTrace({
+        id: traceId,
+        project_id: projectId,
+      });
+      await createTracesCh([trace]);
+
+      const scoreId = v4();
+
+      const score = createScore({
+        id: scoreId,
+        project_id: projectId,
+        trace_id: traceId,
+        name: "score-name",
+        value: 100.5,
+        source: "API",
+        comment: "comment",
+        metadata: { "test-key": "test-value" },
+        observation_id: null,
+        environment: "production",
+      });
+      await createScoresCh([score]);
+
+      const updatedScore = {
+        ...score,
+        value: 200.5,
+        metadata: { "test-key": "test-value-updated" },
+      };
+      await createScoresCh([updatedScore]);
+
+      const fetchedScore = await makeZodVerifiedAPICall(
+        GetScoreResponse,
+        "GET",
+        `/api/public/scores/${scoreId}`,
+        undefined,
+        auth,
+      );
+
+      expect(fetchedScore.body?.id).toBe(scoreId);
+      expect(fetchedScore.body?.traceId).toBe(traceId);
+      expect(fetchedScore.body?.name).toBe("score-name");
+      expect(fetchedScore.body?.value).toBe(200.5);
+      expect(fetchedScore.body?.observationId).toBeNull();
+      expect(fetchedScore.body?.comment).toBe("comment");
+      expect(fetchedScore.body?.source).toBe("API");
+      expect(fetchedScore.body?.projectId).toBe(projectId);
+      expect(fetchedScore.body?.environment).toBe("production");
+      expect(fetchedScore.body?.metadata).toEqual({
+        "test-key": "test-value-updated",
+      });
     });
   });
 

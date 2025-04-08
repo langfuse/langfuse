@@ -1,13 +1,14 @@
 import { z } from "zod";
 
 import { isPresent, stringDateTime } from "../../utils/typeChecks";
-import { Score } from "../../server";
 import {
+  jsonSchema,
   NonEmptyString,
   paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "../../utils/zod";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
+import { ScoreDomain } from "../../domain";
 
 /**
  * Types to use across codebase
@@ -50,6 +51,7 @@ const ScoreBase = z.object({
   source: z.enum(ScoreSource),
   authorUserId: z.string().nullish(),
   comment: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
   traceId: z.string(),
   observationId: z.string().nullish(),
   configId: z.string().nullish(),
@@ -64,6 +66,7 @@ const BaseScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
   environment: z.string().default("default"),
 });
 
@@ -155,26 +158,45 @@ export const ScorePropsAgainstConfig = z.union([
  * Transformations
  */
 
+type ValidatedAPIScore<IncludeHasMetadata extends boolean> = APIScore & {
+  hasMetadata: IncludeHasMetadata extends true ? boolean : never;
+};
+
+type InputScore = ScoreDomain & { hasMetadata?: boolean };
+
 /**
  * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
  * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.
  * @param scores
  * @returns list of validated scores
  */
-export const filterAndValidateDbScoreList = (
-  scores: Score[],
-  onParseError?: (error: z.ZodError) => void,
-): APIScore[] =>
-  scores.reduce((acc, ts) => {
+export const filterAndValidateDbScoreList = <
+  IncludeHasMetadata extends boolean,
+>({
+  scores,
+  includeHasMetadata = false as IncludeHasMetadata,
+  onParseError,
+}: {
+  scores: InputScore[];
+  includeHasMetadata?: IncludeHasMetadata;
+  // eslint-disable-next-line no-unused-vars
+  onParseError?: (error: z.ZodError) => void;
+}): ValidatedAPIScore<IncludeHasMetadata>[] => {
+  return scores.reduce((acc, ts) => {
     const result = APIScoreSchema.safeParse(ts);
     if (result.success) {
-      acc.push(result.data);
+      const score = { ...result.data };
+      if (includeHasMetadata) {
+        Object.assign(score, { hasMetadata: ts.hasMetadata ?? false });
+      }
+      acc.push(score as ValidatedAPIScore<IncludeHasMetadata>);
     } else {
       console.error("Score parsing error: ", result.error);
       onParseError?.(result.error);
     }
     return acc;
-  }, [] as APIScore[]);
+  }, [] as ValidatedAPIScore<IncludeHasMetadata>[]);
+};
 
 /**
  * Use this function when pulling a single score from the database before using in the application to ensure type safety.
@@ -183,7 +205,7 @@ export const filterAndValidateDbScoreList = (
  * @returns validated score
  * @throws error if score fails validation
  */
-export const validateDbScore = (score: Score): APIScore =>
+export const validateDbScore = (score: ScoreDomain): APIScore =>
   APIScoreSchema.parse(score);
 
 /**
@@ -272,6 +294,7 @@ export const GetScoresResponse = z.object({
 
 export const legacyFilterAndValidateV1GetScoreList = (
   scores: unknown[],
+  // eslint-disable-next-line no-unused-vars
   onParseError?: (error: z.ZodError) => void,
 ): z.infer<typeof LegacyGetScoreResponseDataV1>[] =>
   scores.reduce(

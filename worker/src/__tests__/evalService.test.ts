@@ -842,7 +842,7 @@ describe("eval service tests", () => {
       expect(jobs.length).toBe(1);
     }, 10_000);
 
-    test("creates eval for trace with timestamp in the future", async () => {
+    test("create eval for trace with timestamp in the near future", async () => {
       const traceId = randomUUID();
 
       await prisma.jobConfiguration.create({
@@ -863,9 +863,7 @@ describe("eval service tests", () => {
       const trace = createTrace({
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         id: traceId,
-        timestamp: new Date(
-          Date.now() + 1000 * 60 * 60 * 24 * 365 * 1,
-        ).getTime(),
+        timestamp: new Date(Date.now() + 1000 * 60 * 60 * 24).getTime(),
       });
 
       await createTracesCh([trace]);

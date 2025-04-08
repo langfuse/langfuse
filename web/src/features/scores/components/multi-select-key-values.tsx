@@ -52,7 +52,7 @@ type MultiSelectKeyValuesProps<
   hideClearButton?: boolean;
   iconLeft?: React.ReactNode;
   iconRight?: React.ReactNode;
-  variant?: "outline" | "secondary";
+  variant?: "outline" | "secondary" | "ghost";
 };
 
 export function MultiSelectKeyValues<

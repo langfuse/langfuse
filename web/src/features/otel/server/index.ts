@@ -203,6 +203,13 @@ const extractInputAndOutput = (
     return { input, output };
   }
 
+  // Pydantic uses input and output
+  input = attributes["input"];
+  output = attributes["output"];
+  if (input || output) {
+    return { input, output };
+  }
+
   // TraceLoop uses attributes property
   const inputAttributes = Object.keys(attributes).filter((key) =>
     key.startsWith("gen_ai.prompt"),
@@ -263,6 +270,41 @@ const extractName = (
   return spanName;
 };
 
+const extractMetadata = (
+  attributes: Record<string, unknown>,
+): Record<string, unknown> => {
+  // Extract top-level metadata object if available
+  let metadata: Record<string, unknown> = {};
+  if (attributes["langfuse.metadata"]) {
+    try {
+      // If it's a string (JSON), parse it
+      if (typeof attributes["langfuse.metadata"] === "string") {
+        metadata = JSON.parse(attributes["langfuse.metadata"] as string);
+      }
+      // If it's already an object, use it
+      else if (typeof attributes["langfuse.metadata"] === "object") {
+        metadata = attributes["langfuse.metadata"] as Record<string, unknown>;
+      }
+    } catch (e) {
+      // If parsing fails, continue with nested metadata extraction
+    }
+  }
+
+  // Extract metadata from langfuse.metadata.* keys
+  const metadataAttributes = Object.keys(attributes).filter((key) =>
+    key.startsWith("langfuse.metadata."),
+  );
+
+  return {
+    ...metadata,
+    ...metadataAttributes.reduce((acc: Record<string, unknown>, key) => {
+      const metadataKey = key.replace("langfuse.metadata.", "");
+      acc[metadataKey] = attributes[key];
+      return acc;
+    }, {}),
+  };
+};
+
 const extractUserId = (
   attributes: Record<string, unknown>,
 ): string | undefined => {
@@ -296,6 +338,14 @@ const extractModelParameters = (
   if (attributes["llm.invocation_parameters"]) {
     try {
       return JSON.parse(attributes["llm.invocation_parameters"] as string);
+    } catch (e) {
+      // fallthrough
+    }
+  }
+
+  if (attributes["model_config"]) {
+    try {
+      return JSON.parse(attributes["model_config"] as string);
     } catch (e) {
       // fallthrough
     }
@@ -370,6 +420,47 @@ const extractCostDetails = (
   return {};
 };
 
+const extractTags = (
+  attributes: Record<string, unknown>,
+): string[] => {
+  const tagsValue = attributes["langfuse.tags"];
+
+  // If no tags, return empty array
+  if (tagsValue === undefined || tagsValue === null) {
+    return [];
+  }
+
+  // If already an array (converted by convertValueToPlainJavascript)
+  if (Array.isArray(tagsValue)) {
+    return tagsValue.map(tag => String(tag));
+  }
+
+  // If JSON string array
+  if (typeof tagsValue === "string" && tagsValue.trim().startsWith("[")) {
+    try {
+      const parsedTags = JSON.parse(tagsValue);
+      if (Array.isArray(parsedTags)) {
+        return parsedTags.map(tag => String(tag));
+      }
+    } catch (e) {
+      // If parsing fails, continue with other methods
+    }
+  }
+
+  // If CSV string
+  if (typeof tagsValue === "string" && tagsValue.includes(",")) {
+    return tagsValue.split(",").map(tag => tag.trim());
+  }
+
+  // If single string value
+  if (typeof tagsValue === "string") {
+    return [tagsValue];
+  }
+
+  // Fallback to empty array
+  return [];
+};
+
 /**
  * Accepts an OpenTelemetry resourceSpan from a ExportTraceServiceRequest and
  * returns a list of Langfuse events.
@@ -401,6 +492,8 @@ export const convertOtelSpanToIngestionEvent = (
           )
         : null;
 
+      const spanAttributeMetadata = extractMetadata(attributes);
+      const resourceAttributeMetadata = extractMetadata(resourceAttributes);
       if (!parentObservationId) {
         // Create a trace for any root span
         const trace = {
@@ -408,6 +501,8 @@ export const convertOtelSpanToIngestionEvent = (
           timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
           name: extractName(span.name, attributes),
           metadata: {
+            ...resourceAttributeMetadata,
+            ...spanAttributeMetadata,
             attributes,
             resourceAttributes,
             scope: scopeSpan?.scope,
@@ -422,7 +517,7 @@ export const convertOtelSpanToIngestionEvent = (
           public:
             attributes?.["langfuse.public"] === true ||
             attributes?.["langfuse.public"] === "true",
-          tags: attributes?.["langfuse.tags"] ?? [],
+          tags: extractTags(attributes),
 
           environment: extractEnvironment(attributes, resourceAttributes),
 
@@ -452,6 +547,8 @@ export const convertOtelSpanToIngestionEvent = (
 
         // Additional fields
         metadata: {
+          ...resourceAttributeMetadata,
+          ...spanAttributeMetadata,
           attributes,
           resourceAttributes,
           scope: scopeSpan?.scope,

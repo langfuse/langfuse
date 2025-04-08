@@ -17,8 +17,8 @@ import {
   singleFilter,
   timeFilter,
   tracesTableUiColumnDefinitions,
+  type Observation,
 } from "@langfuse/shared";
-import { type ObservationView } from "@langfuse/shared";
 import {
   traceException,
   getTracesTable,
@@ -27,7 +27,7 @@ import {
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
-  getObservationsViewForTrace,
+  getObservationsForTrace,
   getTraceById,
   logger,
   upsertTrace,
@@ -51,17 +51,17 @@ const TraceFilterOptions = z.object({
 });
 type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
 
-export type ObservationReturnType = Omit<
-  ObservationView,
-  "input" | "output" | "inputPrice" | "outputPrice" | "totalPrice" | "metadata"
+export type ObservationReturnTypeWithMetadata = Omit<
+  Observation,
+  "input" | "output"
 > & {
   traceId: string;
-  usageDetails: Record<string, number>;
-  costDetails: Record<string, number>;
 };
 
-export type ObservationReturnTypeWithMetadata = ObservationReturnType &
-  Pick<ObservationView, "metadata">;
+export type ObservationReturnType = Omit<
+  ObservationReturnTypeWithMetadata,
+  "metadata"
+>;
 
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -76,14 +76,14 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const traces = await getTracesTable(
-        ctx.session.projectId,
-        input.filter ?? [],
-        input.searchQuery ?? undefined,
-        input.orderBy,
-        input.limit,
-        input.page,
-      );
+      const traces = await getTracesTable({
+        projectId: ctx.session.projectId,
+        filter: input.filter ?? [],
+        searchQuery: input.searchQuery ?? undefined,
+        orderBy: input.orderBy,
+        limit: input.limit,
+        page: input.page,
+      });
       return { traces };
     }),
   countAll: protectedProjectProcedure
@@ -126,12 +126,15 @@ export const traceRouter = createTRPCRouter({
         traceIds: res.map((r) => r.id),
         limit: 1000,
         offset: 0,
+        excludeMetadata: true,
+        includeHasMetadata: true,
       });
 
-      const validatedScores = filterAndValidateDbScoreList(
+      const validatedScores = filterAndValidateDbScoreList({
         scores,
-        traceException,
-      );
+        includeHasMetadata: true,
+        onParseError: traceException,
+      });
 
       return res.map((row) => ({
         ...row,
@@ -202,7 +205,7 @@ export const traceRouter = createTRPCRouter({
           input.projectId,
           input.timestamp ?? undefined,
         ),
-        getObservationsViewForTrace(
+        getObservationsForTrace(
           input.traceId,
           input.projectId,
           input.timestamp ?? undefined,
@@ -221,10 +224,10 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const validatedScores = filterAndValidateDbScoreList(
+      const validatedScores = filterAndValidateDbScoreList({
         scores,
-        traceException,
-      );
+        onParseError: traceException,
+      });
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -246,8 +249,8 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
-        input: trace.input ? JSON.stringify(trace.input) : undefined,
-        output: trace.output ? JSON.stringify(trace.output) : undefined,
+        input: trace.input ? JSON.stringify(trace.input) : null,
+        output: trace.output ? JSON.stringify(trace.output) : null,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({

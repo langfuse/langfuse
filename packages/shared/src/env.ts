@@ -2,6 +2,7 @@ import { z } from "zod";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -10,7 +11,7 @@ const EnvSchema = z.object({
   REDIS_PORT: z.coerce
     .number({
       description:
-        ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+        ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
     })
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
@@ -50,10 +51,7 @@ const EnvSchema = z.object({
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_CONCURRENT_WRITES: z.coerce
-    .number()
-    .positive()
-    .default(50),
+  LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
     required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
   }),
@@ -66,6 +64,8 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_USE_GOOGLE_CLOUD_STORAGE: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
 
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -75,9 +75,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
-  LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default('email'),
-  LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default('name'),
-  LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default('sub'),
+  LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default("email"),
+  LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default("name"),
+  LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

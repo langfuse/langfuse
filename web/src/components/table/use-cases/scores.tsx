@@ -59,6 +59,7 @@ export type ScoresTableRow = {
     name?: string;
   };
   comment?: string;
+  metadata?: unknown;
   observationId?: string;
   traceName?: string;
   userId?: string;
@@ -249,6 +250,16 @@ export default function ScoresTable({
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
     selectActionColumn,
     {
+      accessorKey: "id",
+      id: "id",
+      enableColumnFilter: false,
+      header: "Score ID",
+      size: 100,
+      enableSorting: false,
+      defaultHidden: true,
+      enableHiding: true,
+    },
+    {
       accessorKey: "traceId",
       id: "traceId",
       enableColumnFilter: true,
@@ -390,6 +401,28 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       size: 100,
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      id: "metadata",
+      size: 400,
+      headerTooltip: {
+        description: "Add metadata to scores to track additional information.",
+        // TODO: docs for metadata on scores
+        href: "https://langfuse.com/docs/tracing-features/metadata",
+      },
+      cell: ({ row }) => {
+        const scoreId: ScoresTableRow["id"] = row.getValue("id");
+        return (
+          <ScoresMetadataCell
+            scoreId={scoreId}
+            projectId={projectId}
+            singleLine={rowHeight === "s"}
+          />
+        );
+      },
+      enableHiding: true,
     },
     {
       accessorKey: "comment",
@@ -631,3 +664,33 @@ export default function ScoresTable({
     </>
   );
 }
+
+const ScoresMetadataCell = ({
+  scoreId,
+  projectId,
+  singleLine = false,
+}: {
+  scoreId: string;
+  projectId: string;
+  singleLine?: boolean;
+}) => {
+  const score = api.scores.byId.useQuery(
+    { scoreId, projectId },
+    {
+      enabled: typeof scoreId === "string",
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+  return (
+    <IOTableCell
+      isLoading={score.isLoading}
+      data={score.data?.metadata}
+      singleLine={singleLine}
+    />
+  );
+};

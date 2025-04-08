@@ -13,12 +13,14 @@ import {
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
-import {
-  type DashboardDateRangeAggregationOption,
-  dashboardDateRangeAggregationSettings,
-} from "@/src/utils/date-range-utils";
+import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import {
+  type QueryType,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -27,54 +29,49 @@ export function NumericScoreTimeSeriesChart(props: {
   name: string;
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
+  fromTimestamp: Date;
+  toTimestamp: Date;
 }) {
-  const scores = api.dashboard.chart.useQuery(
+  const scoresQuery: QueryType = {
+    view: "scores-numeric",
+    dimensions: [{ field: "name" }],
+    metrics: [{ measure: "value", aggregation: "avg" }],
+    filters: [
+      ...mapLegacyUiTableFilterToView(
+        "scores-numeric",
+        createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
+      ),
+      {
+        column: "name",
+        operator: "=",
+        value: props.name,
+        type: "string",
+      },
+      {
+        column: "source",
+        operator: "=",
+        value: props.source as string,
+        type: "string",
+      },
+      {
+        column: "dataType",
+        operator: "=",
+        value: props.dataType as string,
+        type: "string",
+      },
+    ],
+    timeDimension: {
+      granularity: "auto",
+    },
+    fromTimestamp: props.fromTimestamp.toISOString(),
+    toTimestamp: props.toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const scores = api.dashboard.executeQuery.useQuery(
     {
       projectId: props.projectId,
-      from: "traces_scores",
-      select: [{ column: "scoreName" }, { column: "value", agg: "AVG" }],
-      filter: [
-        ...createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
-        {
-          type: "string",
-          column: "scoreName",
-          value: props.name,
-          operator: "=",
-        },
-        {
-          type: "string",
-          column: "scoreSource",
-          value: props.source as string,
-          operator: "=",
-        },
-        {
-          type: "string",
-          column: "scoreDataType",
-          value: props.dataType as string,
-          operator: "=",
-        },
-      ],
-      groupBy: [
-        {
-          type: "datetime",
-          column: "scoreTimestamp",
-          temporalUnit:
-            dashboardDateRangeAggregationSettings[props.agg].date_trunc,
-        },
-        {
-          type: "string",
-          column: "scoreName",
-        },
-        {
-          type: "string",
-          column: "scoreSource",
-        },
-        {
-          type: "string",
-          column: "scoreDataType",
-        },
-      ],
-      queryName: "numeric-score-time-series",
+      query: scoresQuery,
     },
     {
       trpc: {
@@ -88,12 +85,16 @@ export function NumericScoreTimeSeriesChart(props: {
   const extractedScores = useMemo(() => {
     return scores.data
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(scores.data, "scoreTimestamp", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "scoreName" }],
-              valueColumn: "avgValue",
-            },
-          ]),
+          extractTimeSeriesData(
+            scores.data as DatabaseRow[],
+            "time_dimension",
+            [
+              {
+                uniqueIdentifierColumns: [{ accessor: "name" }],
+                valueColumn: "avg_value",
+              },
+            ],
+          ),
         )
       : [];
   }, [scores.data]);
