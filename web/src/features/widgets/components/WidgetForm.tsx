@@ -68,8 +68,6 @@ export function WidgetForm({
     chartConfig: { row_limit?: number };
   }) => void;
 }) {
-  console.log(`initialValues: ${JSON.stringify(initialValues)}}`);
-
   // State for form fields
   const [widgetName, setWidgetName] = useState<string>(initialValues.name);
   const [widgetDescription, setWidgetDescription] = useState<string>(
@@ -98,10 +96,8 @@ export function WidgetForm({
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useDashboardDateRange();
-  const [userFilterState, setUserFilterState] = useQueryFilterState(
+  const [userFilterState, setUserFilterState] = useState<FilterState>(
     initialValues.filters ?? [],
-    "widgets",
-    projectId,
   );
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
@@ -221,15 +217,6 @@ export function WidgetForm({
     ],
     [],
   );
-
-  // Reset form fields when view changes
-  useEffect(() => {
-    if (selectedView) {
-      setSelectedMeasure("count");
-      setSelectedAggregation("count");
-      setSelectedDimension("none");
-    }
-  }, [selectedView]);
 
   // Set aggregation to "count" when metric is "count"
   useEffect(() => {
@@ -389,9 +376,14 @@ export function WidgetForm({
                 <Label htmlFor="view-select">View</Label>
                 <Select
                   value={selectedView}
-                  onValueChange={(value) =>
-                    setSelectedView(value as z.infer<typeof views>)
-                  }
+                  onValueChange={(value) => {
+                    if (value !== selectedView) {
+                      setSelectedMeasure("count");
+                      setSelectedAggregation("count");
+                      setSelectedDimension("none");
+                    }
+                    setSelectedView(value as z.infer<typeof views>);
+                  }}
                 >
                   <SelectTrigger id="view-select">
                     <SelectValue placeholder="Select a view" />

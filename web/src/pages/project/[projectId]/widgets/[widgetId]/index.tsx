@@ -72,8 +72,6 @@ export default function EditWidget() {
     });
   };
 
-  console.log(`widgetData: ${JSON.stringify(widgetData)}}`);
-
   return (
     <Page
       withPadding
@@ -92,10 +90,10 @@ export default function EditWidget() {
             name: widgetData.name,
             description: widgetData.description,
             view: widgetData.view as z.infer<typeof views>,
-            dimension: widgetData.dimensions.shift()?.field ?? "none",
-            measure: widgetData.metrics.shift()?.measure ?? "count",
+            dimension: widgetData.dimensions.slice().shift()?.field ?? "none",
+            measure: widgetData.metrics.slice().shift()?.measure ?? "count",
             aggregation:
-              (widgetData.metrics.shift()?.agg as z.infer<
+              (widgetData.metrics.slice().shift()?.agg as z.infer<
                 typeof metricAggregations
               >) ?? "count",
             filters: widgetData.filters,

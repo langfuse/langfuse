@@ -136,10 +136,6 @@ export const dashboardWidgetRouter = createTRPCRouter({
         });
       }
 
-      console.log({
-        ...widget,
-        view: reverseViewMapping[widget.view],
-      });
       return {
         ...widget,
         view: reverseViewMapping[widget.view],

@@ -449,7 +449,14 @@ async function createDashboardsAndWidgets(projects: Project[]) {
         view: "TRACES",
         dimensions: [{ field: "name" }],
         metrics: [{ measure: "latency", agg: "p95" }],
-        filters: [{ field: "userId", operator: "contains", value: "user" }],
+        filters: [
+          {
+            type: "stringOptions",
+            value: ["default"],
+            column: "environment",
+            operator: "any of",
+          },
+        ],
         chartType: "LINE_TIME_SERIES",
         chartConfig: { max_entries: 100 },
       },
@@ -467,7 +474,14 @@ async function createDashboardsAndWidgets(projects: Project[]) {
         view: "OBSERVATIONS",
         dimensions: [{ field: "model" }],
         metrics: [{ measure: "count", agg: "sum" }],
-        filters: [{ field: "type", operator: "equals", value: "GENERATION" }],
+        filters: [
+          {
+            type: "stringOptions",
+            value: ["name_31"],
+            column: "traceName",
+            operator: "any of",
+          },
+        ],
         chartType: "PIE",
         chartConfig: { row_limit: 10 },
       },
