@@ -864,6 +864,7 @@ function createObjects(
               source: "API",
               projectId,
               dataType: ScoreDataType.NUMERIC,
+              metadata: {},
             },
           ]
         : []),
@@ -879,6 +880,7 @@ function createObjects(
               dataType: ScoreDataType.CATEGORICAL,
               stringValue:
                 Math.floor(Math.random() * 2) === 1 ? "Fully" : "Partially",
+              metadata: {},
             },
           ]
         : []),

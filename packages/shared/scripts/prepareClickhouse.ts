@@ -159,6 +159,7 @@ export const prepareClickhouse = async (
       randUniform(0, 100) as value,
       'API' as source,
       'comment' as comment,
+      map('key', 'value') AS metadata,
       toString(rand() % 100) as author_user_id,
       toString(rand() % 100) as config_id,
       if (rand() < 0.33, 'NUMERIC', if (rand() < 0.5, 'CATEGORICAL', 'BOOLEAN')) as data_type,

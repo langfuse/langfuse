@@ -91,8 +91,10 @@ describe("scores trpc", () => {
         scoreIds: [createdScore.id],
       });
 
+      expect(scoreDeleteQueue).not.toBeNull();
+
       // Then
-      expect(scoreDeleteQueue.add).toHaveBeenCalledWith(
+      expect(scoreDeleteQueue!.add).toHaveBeenCalledWith(
         QueueJobs.ScoreDelete,
         expect.objectContaining({
           payload: expect.objectContaining({
@@ -131,8 +133,10 @@ describe("scores trpc", () => {
         },
       });
 
+      expect(batchActionQueue).not.toBeNull();
+
       // Then
-      expect(batchActionQueue.add).toHaveBeenCalledWith(
+      expect(batchActionQueue!.add).toHaveBeenCalledWith(
         QueueJobs.BatchActionProcessingJob,
         expect.objectContaining({
           payload: expect.objectContaining({
