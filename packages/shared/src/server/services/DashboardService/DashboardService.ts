@@ -1,8 +1,91 @@
 import { prisma } from "../../../db";
 import { type OrderByState } from "../../../";
-import { CreateWidgetInput, WidgetDomain, WidgetListResponse } from "./types";
+import {
+  CreateWidgetInput,
+  WidgetDomain,
+  WidgetListResponse,
+  DashboardDomain,
+  DashboardListResponse,
+} from "./types";
 
 export class DashboardService {
+  /**
+   * Retrieves a list of dashboards for a given project.
+   */
+  public static async listDashboards(props: {
+    projectId: string;
+    limit?: number;
+    page?: number;
+    orderBy?: OrderByState;
+  }): Promise<DashboardListResponse> {
+    const { projectId, limit, page, orderBy } = props;
+
+    const skip = page && limit ? (page - 1) * limit : undefined;
+    const take = limit;
+
+    const [dashboards, totalCount] = await Promise.all([
+      prisma.dashboard.findMany({
+        where: {
+          projectId,
+        },
+        orderBy: orderBy
+          ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
+          : [{ updatedAt: "desc" }],
+        skip,
+        take,
+      }),
+      prisma.dashboard.count({
+        where: {
+          projectId,
+        },
+      }),
+    ]);
+
+    const domainDashboards = dashboards.map((dashboard) => ({
+      id: dashboard.id,
+      createdAt: dashboard.createdAt,
+      updatedAt: dashboard.updatedAt,
+      projectId: dashboard.projectId,
+      name: dashboard.name,
+      description: dashboard.description,
+      definition: dashboard.definition as DashboardDomain["definition"],
+    }));
+
+    return {
+      dashboards: domainDashboards,
+      totalCount,
+    };
+  }
+
+  /**
+   * Gets a dashboard by ID.
+   */
+  public static async getDashboard(
+    dashboardId: string,
+    projectId: string,
+  ): Promise<DashboardDomain | null> {
+    const dashboard = await prisma.dashboard.findFirst({
+      where: {
+        id: dashboardId,
+        projectId,
+      },
+    });
+
+    if (!dashboard) {
+      return null;
+    }
+
+    return {
+      id: dashboard.id,
+      createdAt: dashboard.createdAt,
+      updatedAt: dashboard.updatedAt,
+      projectId: dashboard.projectId,
+      name: dashboard.name,
+      description: dashboard.description,
+      definition: dashboard.definition as DashboardDomain["definition"],
+    };
+  }
+
   /**
    * Retrieves a list of dashboard widgets for a given project.
    */

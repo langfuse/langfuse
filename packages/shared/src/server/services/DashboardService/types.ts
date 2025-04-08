@@ -28,6 +28,23 @@ export const MetricSchema = z.object({
 // Define chart config schema based on chart type
 export const ChartConfigSchema = z.record(z.any());
 
+// Define the dashboard domain object
+export const DashboardDomainSchema = z.object({
+  id: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  projectId: z.string().nullable(),
+  name: z.string(),
+  description: z.string(),
+  definition: z.record(z.unknown()), // TODO: We should strongly type this.
+});
+
+// Define the dashboard list response
+export const DashboardListResponseSchema = z.object({
+  dashboards: z.array(DashboardDomainSchema),
+  totalCount: z.number(),
+});
+
 // Define the widget domain object
 export const WidgetDomainSchema = z.object({
   id: z.string(),
@@ -65,6 +82,8 @@ export const WidgetListResponseSchema = z.object({
 });
 
 // Export types derived from schemas
+export type DashboardDomain = z.infer<typeof DashboardDomainSchema>;
+export type DashboardListResponse = z.infer<typeof DashboardListResponseSchema>;
 export type WidgetDomain = z.infer<typeof WidgetDomainSchema>;
 export type CreateWidgetInput = z.infer<typeof CreateWidgetInputSchema>;
 export type WidgetListResponse = z.infer<typeof WidgetListResponseSchema>;

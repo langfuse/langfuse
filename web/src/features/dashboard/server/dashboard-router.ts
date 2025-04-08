@@ -17,6 +17,7 @@ import {
   getObservationCostByTypeByTime,
   getObservationUsageByTypeByTime,
   queryClickhouse,
+  DashboardService,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
@@ -24,6 +25,21 @@ import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
+import { paginationZod, orderBy } from "@langfuse/shared";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+
+// Define the dashboard list input schema
+const ListDashboardsInput = z.object({
+  projectId: z.string(),
+  ...paginationZod,
+  orderBy: orderBy,
+});
+
+// Get dashboard by ID input schema
+const GetDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+});
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
@@ -108,6 +124,49 @@ export const dashboardRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       return executeQuery(input.projectId, input.query as QueryType);
+    }),
+
+  allDashboards: protectedProjectProcedure
+    .input(ListDashboardsInput)
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+
+      const result = await DashboardService.listDashboards({
+        projectId: input.projectId,
+        limit: input.limit,
+        page: input.page,
+        orderBy: input.orderBy,
+      });
+
+      return result;
+    }),
+
+  getDashboard: protectedProjectProcedure
+    .input(GetDashboardInput)
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+
+      const dashboard = await DashboardService.getDashboard(
+        input.dashboardId,
+        input.projectId,
+      );
+
+      if (!dashboard) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dashboard not found",
+        });
+      }
+
+      return dashboard;
     }),
 });
 
