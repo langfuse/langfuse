@@ -188,6 +188,9 @@ export class IngestionService {
             data_type: validatedScore.dataType,
             observation_id: validatedScore.observationId,
             comment: validatedScore.comment,
+            metadata: scoreEvent.body.metadata
+              ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
+              : {},
             string_value: validatedScore.stringValue,
             created_at: Date.now(),
             updated_at: Date.now(),
@@ -455,6 +458,11 @@ export class IngestionService {
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
       immutableEntityKeys[TableName.Scores],
+    );
+
+    // If metadata exists, it is an object due to previous parsing
+    mergedRecord.metadata = convertRecordValuesToString(
+      (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
 
     return scoreRecordInsertSchema.parse(mergedRecord);

@@ -1,5 +1,6 @@
 import { ScoreDataType } from "@prisma/client";
 import z from "zod";
+import { MetadataDomain } from "./traces";
 
 export const ScoreSource = {
   ANNOTATION: "ANNOTATION",
@@ -22,6 +23,7 @@ export const ScoreSchema = z.object({
   comment: z.string().nullable(),
   traceId: z.string().nullable(),
   sessionId: z.string().nullable(),
+  metadata: MetadataDomain,
   observationId: z.string().nullable(),
   configId: z.string().nullable(),
   stringValue: z.string().nullable(),

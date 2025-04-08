@@ -4,8 +4,9 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { MessageCircleMoreIcon } from "lucide-react";
 import { type APIScoreV2, type LastUserScore } from "@langfuse/shared";
+import { BracesIcon, MessageCircleMoreIcon } from "lucide-react";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 const partitionScores = <T extends APIScoreV2 | LastUserScore>(
   scores: Record<string, T[]>,
@@ -51,6 +52,16 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
                 </HoverCardTrigger>
                 <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
                   <p>{s.comment}</p>
+                </HoverCardContent>
+              </HoverCard>
+            )}
+            {s.metadata && Object.keys(s.metadata).length > 0 && (
+              <HoverCard>
+                <HoverCardTrigger className="inline-block">
+                  <BracesIcon className="mb-[0.0625rem] !size-3" />
+                </HoverCardTrigger>
+                <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0">
+                  <JSONView codeClassName="!rounded-md" json={s.metadata} />
                 </HoverCardContent>
               </HoverCard>
             )}

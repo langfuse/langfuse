@@ -101,7 +101,10 @@ const handleGetSessionById = async (input: {
 
   const costData = costs;
 
-  const validatedScores = filterAndValidateDbScoreList(scores, traceException);
+  const validatedScores = filterAndValidateDbScoreList({
+    scores,
+    onParseError: traceException,
+  });
 
   return {
     ...postgresSession,
@@ -151,10 +154,10 @@ export const sessionRouter = createTRPCRouter({
           offset: 0,
         });
 
-        const validatedScores = filterAndValidateDbScoreList(
+        const validatedScores = filterAndValidateDbScoreList({
           scores,
           traceException,
-        );
+        });
 
         const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
           where: {
@@ -398,10 +401,10 @@ export const sessionRouter = createTRPCRouter({
         }),
       ]);
 
-      const validatedScores = filterAndValidateDbScoreList(
+      const validatedScores = filterAndValidateDbScoreList({
         scores,
         traceException,
-      );
+      });
 
       return {
         ...session,

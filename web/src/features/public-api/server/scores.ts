@@ -56,6 +56,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.updated_at as updated_at,
           s.source as source,
           s.comment as comment,
+          s.metadata as metadata,
           s.data_type as data_type,
           s.config_id as config_id,
           s.queue_id as queue_id,
