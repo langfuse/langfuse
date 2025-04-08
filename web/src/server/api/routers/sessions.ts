@@ -156,7 +156,7 @@ export const sessionRouter = createTRPCRouter({
 
         const validatedScores = filterAndValidateDbScoreList({
           scores,
-          traceException,
+          onParseError: traceException,
         });
 
         const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
@@ -403,7 +403,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
-        traceException,
+        onParseError: traceException,
       });
 
       return {

@@ -132,8 +132,6 @@ describe("/api/public/scores API Endpoint", () => {
         202,
       );
 
-      console.log(deleteResponse.body);
-
       // Then
       expect(deleteResponse.status).toBe(202);
       await waitForExpect(async () => {
