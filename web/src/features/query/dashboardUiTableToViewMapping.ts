@@ -41,6 +41,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "traceName",
     },
     {
+      uiTableName: "User",
+      viewName: "userId",
+    },
+    {
       uiTableName: "Type",
       viewName: "type",
     },
@@ -78,6 +82,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       uiTableName: "Environment",
       viewName: "environment",
     },
+    {
+      uiTableName: "User",
+      viewName: "userId",
+    },
   ],
   "scores-categorical": [
     {
@@ -99,6 +107,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     {
       uiTableName: "Environment",
       viewName: "environment",
+    },
+    {
+      uiTableName: "User",
+      viewName: "userId",
     },
   ],
 };
