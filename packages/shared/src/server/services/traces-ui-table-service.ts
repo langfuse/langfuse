@@ -23,6 +23,7 @@ import {
   reduceUsageOrCostDetails,
 } from "../repositories";
 import { ObservationLevelType, TraceDomain } from "../../domain";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -162,6 +163,7 @@ export type FetchTracesTableProps = {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
   tags?: Record<string, string>;
 };
 
@@ -193,6 +195,7 @@ export const getTracesTableMetrics = async (props: {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 }): Promise<Array<Omit<TracesMetricsUiReturnType, "scores">>> => {
   const countRows =
     await getTracesTableGeneric<TracesTableMetricsClickhouseReturnType>({
@@ -204,14 +207,24 @@ export const getTracesTableMetrics = async (props: {
   return countRows.map(convertToUITableMetrics);
 };
 
-export const getTracesTable = async (
-  projectId: string,
-  filter: FilterState,
-  searchQuery?: string,
-  orderBy?: OrderByState,
-  limit?: number,
-  page?: number,
-) => {
+export const getTracesTable = async (p: {
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const {
+    projectId,
+    filter,
+    searchQuery,
+    orderBy,
+    limit,
+    page,
+    clickhouseConfigs,
+  } = p;
   const rows = await getTracesTableGeneric<TracesTableReturnType>({
     select: "rows",
     tags: { kind: "list" },
@@ -221,14 +234,23 @@ export const getTracesTable = async (
     orderBy,
     limit,
     page,
+    clickhouseConfigs,
   });
 
   return rows.map(convertToUiTableRows);
 };
 
 const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, page, searchQuery } =
-    props;
+  const {
+    select,
+    projectId,
+    filter,
+    orderBy,
+    limit,
+    page,
+    searchQuery,
+    clickhouseConfigs,
+  } = props;
 
   let sqlSelect: string;
   switch (select) {
@@ -456,6 +478,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       type: "traces-table",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return res;

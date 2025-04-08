@@ -8,6 +8,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { type Prisma } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
@@ -16,6 +17,7 @@ export type JobExecutionRow = {
   scoreName?: string;
   scoreValue?: number;
   scoreComment?: string;
+  scoreMetadata?: Prisma.JsonValue;
   startTime?: string;
   endTime?: string;
   traceId?: string;
@@ -169,6 +171,7 @@ export default function EvalLogTable({
       scoreName: jobConfig.score?.name ?? undefined,
       scoreValue: jobConfig.score?.value ?? undefined,
       scoreComment: jobConfig.score?.comment ?? undefined,
+      scoreMetadata: jobConfig.score?.metadata ?? undefined,
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,

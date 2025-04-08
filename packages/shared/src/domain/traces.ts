@@ -6,6 +6,8 @@ export const MetadataDomain = z.record(
   jsonSchemaNullable.or(z.undefined()),
 );
 
+export type MetadataDomain = z.infer<typeof MetadataDomain>;
+
 // to be used across the application in frontend and backend.
 export const TraceDomain = z.object({
   id: z.string(),

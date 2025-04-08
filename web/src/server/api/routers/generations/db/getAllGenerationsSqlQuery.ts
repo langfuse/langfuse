@@ -23,12 +23,19 @@ export async function getAllGenerations({
     offset: input.page * input.limit,
     limit: input.limit,
   });
-  const scores = await getScoresForObservations(
-    input.projectId,
-    generations.map((gen) => gen.id),
-  );
 
-  const validatedScores = filterAndValidateDbScoreList(scores, traceException);
+  const scores = await getScoresForObservations({
+    projectId: input.projectId,
+    observationIds: generations.map((gen) => gen.id),
+    excludeMetadata: true,
+    includeHasMetadata: true,
+  });
+
+  const validatedScores = filterAndValidateDbScoreList({
+    scores,
+    includeHasMetadata: true,
+    onParseError: traceException,
+  });
 
   const fullGenerations = generations.map((generation) => {
     const filteredScores = aggregateScores(
