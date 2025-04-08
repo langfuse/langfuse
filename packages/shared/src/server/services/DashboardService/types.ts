@@ -26,7 +26,30 @@ export const MetricSchema = z.object({
 });
 
 // Define chart config schema based on chart type
-export const ChartConfigSchema = z.record(z.any());
+export const ChartConfigSchema = z.union([
+  LineChartTimeSeriesConfig,
+  BarChartTimeSeriesConfig,
+  HorizontalBarChartConfig,
+  VerticalBarChartConfig,
+  PieChartConfig,
+]);
+
+export const DashboardDefinitionWidgetWidgetSchema = z.object({
+  type: z.literal("widget"),
+  id: z.string(),
+  x: z.number().int().positive(),
+  y: z.number().int().positive(),
+  x_size: z.number().int().positive(),
+  y_size: z.number().int().positive(),
+});
+
+export const DashboardDefinitionWidgetSchema = z.discriminatedUnion("type", [
+  DashboardDefinitionWidgetWidgetSchema,
+]);
+
+export const DashboardDefinitionSchema = z.object({
+  widgets: z.array(DashboardDefinitionWidgetSchema),
+});
 
 // Define the dashboard domain object
 export const DashboardDomainSchema = z.object({
@@ -36,7 +59,7 @@ export const DashboardDomainSchema = z.object({
   projectId: z.string().nullable(),
   name: z.string(),
   description: z.string(),
-  definition: z.record(z.unknown()), // TODO: We should strongly type this.
+  definition: DashboardDefinitionSchema,
 });
 
 // Define the dashboard list response

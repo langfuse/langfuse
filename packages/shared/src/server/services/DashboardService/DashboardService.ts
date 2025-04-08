@@ -6,6 +6,8 @@ import {
   WidgetListResponse,
   DashboardDomain,
   DashboardListResponse,
+  DashboardDomainSchema,
+  WidgetDomainSchema,
 } from "./types";
 
 export class DashboardService {
@@ -41,15 +43,9 @@ export class DashboardService {
       }),
     ]);
 
-    const domainDashboards = dashboards.map((dashboard) => ({
-      id: dashboard.id,
-      createdAt: dashboard.createdAt,
-      updatedAt: dashboard.updatedAt,
-      projectId: dashboard.projectId,
-      name: dashboard.name,
-      description: dashboard.description,
-      definition: dashboard.definition as DashboardDomain["definition"],
-    }));
+    const domainDashboards = dashboards.map((dashboard) =>
+      DashboardDomainSchema.parse(dashboard),
+    );
 
     return {
       dashboards: domainDashboards,
@@ -75,15 +71,7 @@ export class DashboardService {
       return null;
     }
 
-    return {
-      id: dashboard.id,
-      createdAt: dashboard.createdAt,
-      updatedAt: dashboard.updatedAt,
-      projectId: dashboard.projectId,
-      name: dashboard.name,
-      description: dashboard.description,
-      definition: dashboard.definition as DashboardDomain["definition"],
-    };
+    return DashboardDomainSchema.parse(dashboard);
   }
 
   /**
@@ -118,22 +106,9 @@ export class DashboardService {
       }),
     ]);
 
-    const domainWidgets = widgets.map((widget) => ({
-      id: widget.id,
-      createdAt: widget.createdAt,
-      updatedAt: widget.updatedAt,
-      createdBy: widget.createdBy,
-      updatedBy: widget.updatedBy,
-      projectId: widget.projectId,
-      name: widget.name,
-      description: widget.description,
-      view: widget.view,
-      dimensions: widget.dimensions as unknown as WidgetDomain["dimensions"],
-      metrics: widget.metrics as unknown as WidgetDomain["metrics"],
-      filters: widget.filters as unknown as WidgetDomain["filters"],
-      chartType: widget.chartType,
-      chartConfig: widget.chartConfig as unknown as WidgetDomain["chartConfig"],
-    }));
+    const domainWidgets = widgets.map((widget) =>
+      WidgetDomainSchema.parse(widget),
+    );
 
     return {
       widgets: domainWidgets,
@@ -165,22 +140,7 @@ export class DashboardService {
       },
     });
 
-    return {
-      id: newWidget.id,
-      createdAt: newWidget.createdAt,
-      updatedAt: newWidget.updatedAt,
-      createdBy: newWidget.createdBy,
-      updatedBy: newWidget.updatedBy,
-      projectId: newWidget.projectId,
-      name: newWidget.name,
-      description: newWidget.description,
-      view: newWidget.view,
-      dimensions: newWidget.dimensions as WidgetDomain["dimensions"],
-      metrics: newWidget.metrics as WidgetDomain["metrics"],
-      filters: newWidget.filters as WidgetDomain["filters"],
-      chartType: newWidget.chartType,
-      chartConfig: newWidget.chartConfig as WidgetDomain["chartConfig"],
-    };
+    return WidgetDomainSchema.parse(newWidget);
   }
 
   /**
@@ -201,22 +161,7 @@ export class DashboardService {
       return null;
     }
 
-    return {
-      id: widget.id,
-      createdAt: widget.createdAt,
-      updatedAt: widget.updatedAt,
-      createdBy: widget.createdBy,
-      updatedBy: widget.updatedBy,
-      projectId: widget.projectId,
-      name: widget.name,
-      description: widget.description,
-      view: widget.view,
-      dimensions: widget.dimensions as WidgetDomain["dimensions"],
-      metrics: widget.metrics as WidgetDomain["metrics"],
-      filters: widget.filters as WidgetDomain["filters"],
-      chartType: widget.chartType,
-      chartConfig: widget.chartConfig as WidgetDomain["chartConfig"],
-    };
+    return WidgetDomainSchema.parse(widget);
   }
 
   /**
@@ -246,7 +191,7 @@ export class DashboardService {
       },
     });
 
-    return {
+    return WidgetDomainSchema.parse({
       id: widgetId,
       projectId,
       createdAt: updatedWidget.createdAt,
@@ -261,6 +206,6 @@ export class DashboardService {
       filters: updatedWidget.filters as WidgetDomain["filters"],
       chartType: updatedWidget.chartType,
       chartConfig: updatedWidget.chartConfig as WidgetDomain["chartConfig"],
-    };
+    });
   }
 }
