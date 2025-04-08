@@ -1,5 +1,5 @@
+import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
-import { DashboardWidgetChartType, DashboardWidgetViews } from "../../../db";
 import { singleFilter } from "../../../";
 
 export const BaseTimeSeriesChartConfig = z.object({});
@@ -37,8 +37,8 @@ export const ChartConfigSchema = z.union([
 export const DashboardDefinitionWidgetWidgetSchema = z.object({
   type: z.literal("widget"),
   id: z.string(),
-  x: z.number().int().positive(),
-  y: z.number().int().positive(),
+  x: z.number().int().gte(0),
+  y: z.number().int().gte(0),
   x_size: z.number().int().positive(),
   y_size: z.number().int().positive(),
 });
