@@ -126,12 +126,15 @@ export const traceRouter = createTRPCRouter({
         traceIds: res.map((r) => r.id),
         limit: 1000,
         offset: 0,
+        excludeMetadata: true,
+        includeHasMetadata: true,
       });
 
-      const validatedScores = filterAndValidateDbScoreList(
+      const validatedScores = filterAndValidateDbScoreList({
         scores,
-        traceException,
-      );
+        includeHasMetadata: true,
+        onParseError: traceException,
+      });
 
       return res.map((row) => ({
         ...row,
@@ -221,10 +224,10 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const validatedScores = filterAndValidateDbScoreList(
+      const validatedScores = filterAndValidateDbScoreList({
         scores,
-        traceException,
-      );
+        onParseError: traceException,
+      });
 
       const obsStartTimes = observations
         .map((o) => o.startTime)

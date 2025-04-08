@@ -321,10 +321,10 @@ export const sessionRouter = createTRPCRouter({
 
         const costData = costs;
 
-        const validatedScores = filterAndValidateDbScoreList(
+        const validatedScores = filterAndValidateDbScoreList({
           scores,
-          traceException,
-        );
+          onParseError: traceException,
+        });
 
         return {
           ...postgresSession,

@@ -580,6 +580,47 @@ describe("/api/public/ingestion API Endpoint", () => {
     },
   );
 
+  it.each([
+    ["string", { testId: "this is a string metadata" }],
+    ["big-number", { testId: "1983516295378495150" }],
+    ["small-number", { testId: 5 }],
+    ["float-number", { testId: 5.5 }],
+  ])(
+    "#6123: should treat %s metadata for scores as such",
+    async (_type, metadataValue) => {
+      const scoreId = randomUUID();
+      const traceId = randomUUID();
+
+      const entity = {
+        id: randomUUID(),
+        type: "score-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: scoreId,
+          name: "score-name",
+          traceId: traceId,
+          value: 100.5,
+          metadata: metadataValue,
+        },
+      };
+
+      const response = await makeAPICall("POST", "/api/public/ingestion", {
+        batch: [entity],
+      });
+
+      expect(response.status).toBe(207);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById(projectId, scoreId);
+        expect(score).toBeDefined();
+        expect(score!.id).toBe(scoreId);
+        expect(JSON.stringify(score!.metadata)).toBe(
+          JSON.stringify(metadataValue),
+        );
+      });
+    },
+  );
+
   it("#4900: should clear score comment on update with `null`", async () => {
     const scoreId = randomUUID();
     const score1 = {
