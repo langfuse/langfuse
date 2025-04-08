@@ -48,7 +48,6 @@ export const WidgetDomainSchema = z.object({
 
 // Define create widget input schema
 export const CreateWidgetInputSchema = z.object({
-  projectId: z.string(),
   name: z.string().min(1, "Widget name is required"),
   description: z.string(),
   view: z.nativeEnum(DashboardWidgetViews),

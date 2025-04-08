@@ -14,11 +14,27 @@ import {
   DimensionSchema,
   MetricSchema,
   ChartConfigSchema,
+  logger,
 } from "@langfuse/shared/src/server";
 import { views } from "@/src/features/query";
+import { TRPCError } from "@trpc/server";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
+  name: z.string().min(1, "Widget name is required"),
+  description: z.string(),
+  view: views,
+  dimensions: z.array(DimensionSchema),
+  metrics: z.array(MetricSchema),
+  filters: z.array(singleFilter),
+  chartType: z.nativeEnum(DashboardWidgetChartType),
+  chartConfig: ChartConfigSchema,
+});
+
+// Define update widget input schema (without projectId)
+const UpdateDashboardWidgetInput = z.object({
+  projectId: z.string(),
+  widgetId: z.string(),
   name: z.string().min(1, "Widget name is required"),
   description: z.string(),
   view: views,
@@ -36,11 +52,25 @@ const ListDashboardWidgetsInput = z.object({
   orderBy: orderBy,
 });
 
+// Get widget by ID input schema
+const GetDashboardWidgetInput = z.object({
+  projectId: z.string(),
+  widgetId: z.string(),
+});
+
 const viewMapping: Record<string, DashboardWidgetViews> = {
   traces: DashboardWidgetViews.TRACES,
   observations: DashboardWidgetViews.OBSERVATIONS,
   "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
   "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
+};
+
+// Reverse mapping for client-side use
+const reverseViewMapping: Record<DashboardWidgetViews, string> = {
+  [DashboardWidgetViews.TRACES]: "traces",
+  [DashboardWidgetViews.OBSERVATIONS]: "observations",
+  [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
+  [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
 };
 
 export const dashboardWidgetRouter = createTRPCRouter({
@@ -55,6 +85,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
 
       // Create the widget using the DashboardService
       const widget = await DashboardService.createWidget(
+        input.projectId,
         { ...input, view: viewMapping[input.view] },
         ctx.session.user?.id,
       );
@@ -82,5 +113,68 @@ export const dashboardWidgetRouter = createTRPCRouter({
       });
 
       return result;
+    }),
+
+  get: protectedProjectProcedure
+    .input(GetDashboardWidgetInput)
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+
+      const widget = await DashboardService.getWidget(
+        input.widgetId,
+        input.projectId,
+      );
+
+      if (!widget) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Widget not found",
+        });
+      }
+
+      console.log({
+        ...widget,
+        view: reverseViewMapping[widget.view],
+      });
+      return {
+        ...widget,
+        view: reverseViewMapping[widget.view],
+      };
+    }),
+
+  update: protectedProjectProcedure
+    .input(UpdateDashboardWidgetInput)
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      // Update the widget using the DashboardService
+      const widget = await DashboardService.updateWidget(
+        input.projectId,
+        input.widgetId,
+        {
+          name: input.name,
+          description: input.description,
+          view: viewMapping[input.view],
+          dimensions: input.dimensions,
+          metrics: input.metrics,
+          filters: input.filters,
+          chartType: input.chartType,
+          chartConfig: input.chartConfig,
+        },
+        ctx.session.user?.id,
+      );
+
+      return {
+        success: true,
+        widget,
+      };
     }),
 });
