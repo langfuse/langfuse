@@ -328,9 +328,15 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const scoresOld = await getScoreById(projectId, `${baseId}-score-old`);
+    const scoresOld = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score-old`,
+    });
     expect(scoresOld).toBeUndefined();
-    const scoresNew = await getScoreById(projectId, `${baseId}-score-new`);
+    const scoresNew = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score-new`,
+    });
     expect(scoresNew).toBeDefined();
   });
 });

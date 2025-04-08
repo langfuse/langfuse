@@ -202,7 +202,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const scoreId = v4();
 
-      const score = createScore({
+      const score = createTraceScore({
         id: scoreId,
         project_id: projectId,
         trace_id: traceId,
@@ -224,7 +224,7 @@ describe("/api/public/scores API Endpoint", () => {
       await createScoresCh([updatedScore]);
 
       const fetchedScore = await makeZodVerifiedAPICall(
-        GetScoreResponse,
+        GetScoreResponseV1,
         "GET",
         `/api/public/scores/${scoreId}`,
         undefined,

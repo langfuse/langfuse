@@ -98,7 +98,9 @@ export const createTraceScore = (
   };
 };
 
-export const createSessionScore = (score: Partial<ScoreRecordInsertType>) => {
+export const createSessionScore = (
+  score: Partial<ScoreRecordInsertType>,
+): ScoreRecordInsertType => {
   return {
     id: v4(),
     project_id: v4(),
@@ -109,6 +111,7 @@ export const createSessionScore = (score: Partial<ScoreRecordInsertType>) => {
     value: 100.5,
     source: "API",
     comment: "comment",
+    metadata: { "test-key": "test-value" },
     data_type: "NUMERIC" as const,
     created_at: Date.now(),
     updated_at: Date.now(),
