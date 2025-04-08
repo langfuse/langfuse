@@ -27,7 +27,7 @@ export function useTraceFilterOptions({ projectId }: { projectId: string }) {
 
   const traceFilterOptions = useMemo(() => {
     return {
-      ...traceFilterOptionsResponse.data,
+      ...(traceFilterOptionsResponse.data ?? {}),
       environment: environmentFilterOptionsResponse.data?.map((e) => ({
         value: e.environment,
       })),
