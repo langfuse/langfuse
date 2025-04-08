@@ -1,3 +1,4 @@
+import React from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
@@ -38,18 +39,18 @@ type ModelPerformanceMetrics = {
 export const ModelPerformanceComparisonChart = ({
   className,
   projectId,
+  globalFilterState,
   agg,
   fromTimestamp,
   toTimestamp,
-  userAndEnvFilterState,
   isLoading = false,
 }: {
   className?: string;
   projectId: string;
+  globalFilterState: FilterState;
   agg: DashboardDateRangeAggregationOption;
   fromTimestamp: Date;
   toTimestamp: Date;
-  userAndEnvFilterState: FilterState;
   isLoading?: boolean;
 }) => {
   const {
@@ -61,7 +62,7 @@ export const ModelPerformanceComparisonChart = ({
     handleSelectAll,
   } = useModelSelection(
     projectId,
-    userAndEnvFilterState,
+    globalFilterState,
     fromTimestamp,
     toTimestamp,
   );
@@ -76,7 +77,7 @@ export const ModelPerformanceComparisonChart = ({
       { measure: "totalTokens", aggregation: "sum" },
     ],
     filters: [
-      ...mapLegacyUiTableFilterToView("observations", userAndEnvFilterState),
+      ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
         operator: "=",
@@ -105,7 +106,7 @@ export const ModelPerformanceComparisonChart = ({
       { measure: "latency", aggregation: "p95" },
     ],
     filters: [
-      ...mapLegacyUiTableFilterToView("observations", userAndEnvFilterState),
+      ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
         operator: "=",
@@ -131,7 +132,7 @@ export const ModelPerformanceComparisonChart = ({
     dimensions: [{ field: "providedModelName" }],
     metrics: [{ measure: "totalCost", aggregation: "sum" }],
     filters: [
-      ...mapLegacyUiTableFilterToView("observations", userAndEnvFilterState),
+      ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
         operator: "=",
@@ -159,7 +160,7 @@ export const ModelPerformanceComparisonChart = ({
     dimensions: [{ field: "providedModelName" }],
     metrics: [{ measure: "latency", aggregation: "p50" }],
     filters: [
-      ...mapLegacyUiTableFilterToView("observations", userAndEnvFilterState),
+      ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
         operator: "=",
@@ -188,7 +189,7 @@ export const ModelPerformanceComparisonChart = ({
       query: modelCostQuery,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0,
+      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -203,7 +204,7 @@ export const ModelPerformanceComparisonChart = ({
       query: modelLatencyQuery,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0,
+      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -218,7 +219,7 @@ export const ModelPerformanceComparisonChart = ({
       query: costOverTimeQuery,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0,
+      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -233,7 +234,7 @@ export const ModelPerformanceComparisonChart = ({
       query: latencyOverTimeQuery,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0,
+      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
       trpc: {
         context: {
           skipBatch: true,

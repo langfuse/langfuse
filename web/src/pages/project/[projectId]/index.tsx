@@ -307,10 +307,9 @@ export default function Dashboard() {
         <ModelPerformanceComparisonChart
           className="col-span-1 flex-auto justify-between lg:col-span-full"
           projectId={projectId}
-          globalFilterState={mergedFilterState}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
-          userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
           agg={agg}
           isLoading={environmentFilterOptions.isLoading}
         />
