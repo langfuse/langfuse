@@ -5,3 +5,4 @@ export { Chart } from "./chart-library/Chart";
 // Export components
 export { WidgetForm } from "./components/WidgetForm";
 export { DashboardWidgetTable } from "./components/WidgetTable";
+export { DashboardWidget } from "./components/DashboardWidget";
