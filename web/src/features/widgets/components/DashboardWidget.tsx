@@ -8,6 +8,7 @@ import {
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState } from "@langfuse/shared";
+import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 
 interface WidgetPlacement {
   id: string;
@@ -66,7 +67,11 @@ export function DashboardWidget({
             filterState,
           ),
         ],
-        timeDimension: { granularity: "auto" },
+        timeDimension: isTimeSeriesChart(
+          widget.data?.chartType ?? "LINE_TIME_SERIES",
+        )
+          ? { granularity: "auto" }
+          : null,
         fromTimestamp: fromTimestamp.toISOString(),
         toTimestamp: toTimestamp.toISOString(),
         orderBy: null,
@@ -139,7 +144,11 @@ export function DashboardWidget({
         <Chart
           chartType={widget.data.chartType}
           data={transformedData}
-          rowLimit={widget.data.chartConfig?.row_limit}
+          rowLimit={
+            "row_limit" in widget.data.chartConfig
+              ? (widget.data.chartConfig.row_limit ?? 100)
+              : 100
+          }
         />
       </div>
     </div>
