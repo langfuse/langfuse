@@ -46,7 +46,6 @@ export const ModelPerformanceComparisonChart = ({
 }: {
   className?: string;
   projectId: string;
-  globalFilterState: FilterState;
   agg: DashboardDateRangeAggregationOption;
   fromTimestamp: Date;
   toTimestamp: Date;
