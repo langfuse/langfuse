@@ -268,11 +268,11 @@ export default function TracesTable({
   // traces.all should load first together with everything else.
   // This here happens in the background.
 
-  const traceFilterOptions = useTraceFilterOptions({ projectId });
+  const traceFilterOptions = useTraceFilterOptions({
+    projectId,
+  });
 
-  const transformFilterOptions = (
-    traceFilterOptions: TraceOptions | undefined,
-  ) => {
+  const transformFilterOptions = (traceFilterOptions?: TraceOptions) => {
     return tracesTableColsWithOptions(traceFilterOptions).filter(
       (c) => !omittedFilter?.includes(c.name),
     );

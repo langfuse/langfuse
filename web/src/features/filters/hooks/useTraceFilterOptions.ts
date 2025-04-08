@@ -12,6 +12,7 @@ export function useTraceFilterOptions({ projectId }: { projectId: string }) {
       staleTime: Infinity,
     },
   );
+
   const environmentFilterOptionsResponse =
     api.projects.environmentFilterOptions.useQuery(
       { projectId },
@@ -25,12 +26,6 @@ export function useTraceFilterOptions({ projectId }: { projectId: string }) {
     );
 
   const traceFilterOptions = useMemo(() => {
-    if (
-      !traceFilterOptionsResponse.data ||
-      !environmentFilterOptionsResponse.data
-    )
-      return undefined;
-
     return {
       ...traceFilterOptionsResponse.data,
       environment: environmentFilterOptionsResponse.data?.map((e) => ({

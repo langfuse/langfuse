@@ -186,10 +186,10 @@ export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
 export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 export type TraceOptions = {
-  scores_avg: Array<string>;
-  name: Array<OptionsDefinition>;
-  tags: Array<OptionsDefinition>;
-  environment: Array<OptionsDefinition>;
+  scores_avg?: Array<string>;
+  name?: Array<OptionsDefinition>;
+  tags?: Array<OptionsDefinition>;
+  environment?: Array<OptionsDefinition>;
 };
 export type DatasetOptions = {
   datasetId: Array<OptionsDefinition>;
