@@ -9,20 +9,21 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { processEventBatch } from "@langfuse/shared/src/server";
-
 import {
   eventTypes,
   logger,
   QueueJobs,
   TraceDeleteQueue,
 } from "@langfuse/shared/src/server";
-
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { TracesApiService } from "@/src/features/public-api/server/traces-api-service";
+import {
+  generateTracesForPublicApi,
+  getTracesCountForPublicApi,
+} from "@/src/features/public-api/server/traces";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -77,14 +78,12 @@ export default withMiddlewares({
         toTimestamp: query.toTimestamp ?? undefined,
       };
 
-      const tracesApiService = new TracesApiService("v1");
-
       const [items, count] = await Promise.all([
-        tracesApiService.generateTracesForPublicApi(
-          filterProps,
-          query.orderBy ?? null,
-        ),
-        tracesApiService.getTracesCountForPublicApi(filterProps),
+        generateTracesForPublicApi({
+          props: filterProps,
+          orderBy: query.orderBy ?? null,
+        }),
+        getTracesCountForPublicApi({ props: filterProps }),
       ]);
 
       const finalCount = count || 0;

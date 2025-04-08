@@ -28,19 +28,12 @@ export type TraceQueryType = {
   toTimestamp?: string;
 };
 
-/**
- * @internal
- * Internal utility function for getting traces count.
- * Do not use directly - use TracesApiService or repository functions instead.
- */
-export const _handleGenerateTracesForPublicApi = async ({
+export const generateTracesForPublicApi = async ({
   props,
   orderBy,
-  traceScope,
 }: {
   props: TraceQueryType;
   orderBy: OrderByState;
-  traceScope: "traces_only" | "all";
 }) => {
   const filter = convertApiProvidedFilterToClickhouseFilter(
     props,
@@ -98,6 +91,7 @@ export const _handleGenerateTracesForPublicApi = async ({
         groupUniqArray(id) as score_ids
       FROM scores
       WHERE project_id = {projectId: String}
+      AND session_id IS NULL
       ${timeFilter ? `AND timestamp >= {cteTimeFilter: DateTime64(3)}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
@@ -130,7 +124,6 @@ export const _handleGenerateTracesForPublicApi = async ({
     LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id
     LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id
     WHERE t.project_id = {projectId: String}
-    ${traceScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
     ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
     ${chOrderBy}
     ${shouldUseSkipIndexes ? "LIMIT 1 by t.id, t.project_id" : ""}
@@ -173,12 +166,7 @@ export const _handleGenerateTracesForPublicApi = async ({
   }));
 };
 
-/**
- * @internal
- * Internal utility function for getting traces count.
- * Do not use directly - use TracesApiService or repository functions instead.
- */
-export const _handleGetTracesCountForPublicApi = async ({
+export const getTracesCountForPublicApi = async ({
   props,
 }: {
   props: TraceQueryType;

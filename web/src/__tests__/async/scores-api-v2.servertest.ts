@@ -16,8 +16,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
 
-describe("/api/public/scores API Endpoint", () => {
-  describe("GET /api/public/scores/:scoreId", () => {
+describe("/api/public/v2/scores API Endpoint", () => {
+  describe("GET /api/public/v2/scores/:scoreId", () => {
     it("should GET a trace score", async () => {
       const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
 
@@ -45,7 +45,7 @@ describe("/api/public/scores API Endpoint", () => {
       const getScore = await makeZodVerifiedAPICall(
         GetScoreResponseV2,
         "GET",
-        `/api/public/scores/${scoreId}`,
+        `/api/public/v2/scores/${scoreId}`,
         undefined,
         auth,
       );
@@ -91,7 +91,7 @@ describe("/api/public/scores API Endpoint", () => {
       const fetchedScore = await makeZodVerifiedAPICall(
         GetScoreResponseV2,
         "GET",
-        `/api/public/scores/${minimalScoreId}`,
+        `/api/public/v2/scores/${minimalScoreId}`,
         undefined,
         auth,
       );
@@ -110,7 +110,6 @@ describe("/api/public/scores API Endpoint", () => {
         session_id: sessionId,
         name: "Test Score",
         timestamp: Date.now(),
-        observation_id: v4(),
         value: 100.5,
         source: "API",
         comment: "comment",
@@ -126,7 +125,7 @@ describe("/api/public/scores API Endpoint", () => {
       const getScore = await makeZodVerifiedAPICall(
         GetScoreResponseV2,
         "GET",
-        `/api/public/scores/${scoreId}`,
+        `/api/public/v2/scores/${scoreId}`,
         undefined,
         auth,
       );
@@ -307,7 +306,7 @@ describe("/api/public/scores API Endpoint", () => {
         const getAllScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
           "GET",
-          `/api/public/scores?${queryUserName}`,
+          `/api/public/v2/scores`,
           undefined,
           authentication,
         );
@@ -315,14 +314,13 @@ describe("/api/public/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 4,
+          totalItems: 7,
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
           if (val.traceId) {
             expect(val).toMatchObject({
-              traceId: traceId,
-              observationId: generationId,
+              sessionId: null,
             });
           } else {
             expect(val).toMatchObject({
@@ -337,7 +335,7 @@ describe("/api/public/scores API Endpoint", () => {
         const getAllScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
           "GET",
-          `/api/public/scores?configId=${configId}`,
+          `/api/public/v2/scores?configId=${configId}`,
           undefined,
           authentication,
         );
@@ -362,7 +360,7 @@ describe("/api/public/scores API Endpoint", () => {
         const getAllScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
           "GET",
-          `/api/public/scores?dataType=NUMERIC`,
+          `/api/public/v2/scores?dataType=NUMERIC`,
           undefined,
           authentication,
         );
@@ -385,7 +383,7 @@ describe("/api/public/scores API Endpoint", () => {
         const getAllScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
           "GET",
-          `/api/public/scores?traceTags=prod`,
+          `/api/public/v2/scores?traceTags=prod`,
           undefined,
           authentication,
         );
@@ -409,7 +407,7 @@ describe("/api/public/scores API Endpoint", () => {
         const getAllScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
           "GET",
-          `/api/public/scores?environment=production`,
+          `/api/public/v2/scores?environment=production`,
           undefined,
           authentication,
         );
@@ -438,7 +436,7 @@ describe("/api/public/scores API Endpoint", () => {
         const getAllScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
           "GET",
-          `/api/public/scores?traceTags=${["staging", "dev"]}`,
+          `/api/public/v2/scores?traceTags=${["staging", "dev"]}`,
           undefined,
           authentication,
         );
@@ -497,7 +495,7 @@ describe("/api/public/scores API Endpoint", () => {
             const getAllScore = await makeZodVerifiedAPICall(
               GetScoresResponseV2,
               "GET",
-              `/api/public/scores?queueId=${queueId}`,
+              `/api/public/v2/scores?queueId=${queueId}`,
               undefined,
               authentication,
             );
@@ -525,7 +523,7 @@ describe("/api/public/scores API Endpoint", () => {
           const getScore = await makeZodVerifiedAPICall(
             GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=<`,
+            `/api/public/v2/scores?${queryUserName}&operator=<`,
             undefined,
             authentication,
           );
@@ -542,7 +540,7 @@ describe("/api/public/scores API Endpoint", () => {
           const getScore = await makeZodVerifiedAPICall(
             GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&value=0.8`,
+            `/api/public/v2/scores?${queryUserName}&value=0.8`,
             undefined,
             authentication,
           );
@@ -559,7 +557,7 @@ describe("/api/public/scores API Endpoint", () => {
           const getScore = await makeZodVerifiedAPICall(
             GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=<&value=50`,
+            `/api/public/v2/scores?${queryUserName}&operator=<&value=50`,
             undefined,
             authentication,
           );
@@ -583,7 +581,7 @@ describe("/api/public/scores API Endpoint", () => {
           const getScore = await makeZodVerifiedAPICall(
             GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=>&value=100`,
+            `/api/public/v2/scores?${queryUserName}&operator=>&value=100`,
             undefined,
             authentication,
           );
@@ -607,7 +605,7 @@ describe("/api/public/scores API Endpoint", () => {
           const getScore = await makeZodVerifiedAPICall(
             GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
+            `/api/public/v2/scores?${queryUserName}&operator=<=&value=50.5`,
             undefined,
             authentication,
           );
@@ -638,7 +636,7 @@ describe("/api/public/scores API Endpoint", () => {
           const getScore = await makeZodVerifiedAPICall(
             GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
+            `/api/public/v2/scores?${queryUserName}&operator=>=&value=50.5`,
             undefined,
             authentication,
           );
@@ -669,7 +667,7 @@ describe("/api/public/scores API Endpoint", () => {
           const getScore = await makeZodVerifiedAPICall(
             GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
+            `/api/public/v2/scores?${queryUserName}&operator=!=&value=50.5`,
             undefined,
             authentication,
           );
@@ -700,7 +698,7 @@ describe("/api/public/scores API Endpoint", () => {
           const getScore = await makeZodVerifiedAPICall(
             GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator==&value=50.5`,
+            `/api/public/v2/scores?${queryUserName}&operator==&value=50.5`,
             undefined,
             authentication,
           );
@@ -728,7 +726,7 @@ describe("/api/public/scores API Endpoint", () => {
                 error: z.array(z.object({})),
               }),
               "GET",
-              `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
+              `/api/public/v2/scores?${queryUserName}&operator=op&value=50.5`,
               undefined,
               authentication,
             );
@@ -747,7 +745,7 @@ describe("/api/public/scores API Endpoint", () => {
                 error: z.array(z.object({})),
               }),
               "GET",
-              `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
+              `/api/public/v2/scores?${queryUserName}&operator=<&value=myvalue`,
               undefined,
               authentication,
             );
@@ -763,7 +761,7 @@ describe("/api/public/scores API Endpoint", () => {
         const getScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
           "GET",
-          `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`,
+          `/api/public/v2/scores?scoreIds=${scoreId_1},${scoreId_2}`,
           undefined,
           authentication,
         );

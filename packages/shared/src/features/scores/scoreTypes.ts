@@ -185,7 +185,8 @@ type ValidatedAPIScore<IncludeHasMetadata extends boolean> = APIScoreV2 & {
 type InputScore = ScoreDomain & { hasMetadata?: boolean };
 
 /**
- * @deprecated Use `filterAndValidateDbScoreList` instead.
+ * @deprecated
+ * Use `filterAndValidateDbScoreList` instead. Only use this version if you need to filter for only trace scores.
  * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
  * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.
  * @param scores

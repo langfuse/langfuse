@@ -43,14 +43,6 @@ const APIExtendedTrace = APITrace.extend({
   htmlPath: z.string(),
 }).strict();
 
-const APIExtendedTraceV2 = APITrace.extend({
-  observations: z.array(z.string()),
-  scores: z.array(z.string()).nullish(),
-  totalCost: z.number(),
-  latency: z.number(),
-  htmlPath: z.string(),
-}).strict();
-
 /**
  * Endpoints
  */
@@ -83,12 +75,6 @@ export const GetTracesV1Response = z
     meta: paginationMetaResponseZod,
   })
   .strict();
-
-export const GetTracesV2Query = GetTracesV1Query;
-export const GetTracesV2Response = z.object({
-  data: z.array(APIExtendedTraceV2),
-  meta: paginationMetaResponseZod,
-});
 
 // POST /api/public/traces
 export const PostTracesV1Body = TraceBody;

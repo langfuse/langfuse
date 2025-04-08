@@ -1,6 +1,7 @@
 import {
   createObservation,
   createTraceScore,
+  createSessionScore,
   createScoresCh,
   createTrace,
   getTraceById,
@@ -245,6 +246,60 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.scores.length).toBe(1);
   });
 
+  it("should fetch traces with trace scores only", async () => {
+    const traceId = randomUUID();
+    const createdTrace = createTrace({
+      id: traceId,
+      name: "trace-name",
+      project_id: projectId,
+      metadata: { key: "value" },
+      environment: "staging",
+    });
+
+    await createTracesCh([createdTrace]);
+
+    await createObservationsCh([
+      createObservation({
+        trace_id: traceId,
+        project_id: projectId,
+        environment: "staging",
+      }),
+      createObservation({
+        trace_id: traceId,
+        project_id: projectId,
+        environment: "default",
+      }),
+    ]);
+
+    await createScoresCh([
+      createTraceScore({
+        trace_id: traceId,
+        project_id: projectId,
+        environment: "staging",
+      }),
+      // Create session score
+      createSessionScore({
+        session_id: randomUUID(),
+        project_id: projectId,
+        environment: "staging",
+      }),
+    ]);
+
+    const traces = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
+      "GET",
+      `/api/public/traces?environment=staging`,
+    );
+
+    expect(traces.body.meta.totalItems).toBe(1);
+    expect(traces.body.data.length).toBe(1);
+    const trace = traces.body.data[0];
+    expect(trace.projectId).toBe(projectId);
+    expect(trace.observations.length).toBe(1);
+    // Session score is not included in the response
+    expect(trace.scores.length).toBe(1);
+  });
+
   it("should fetch all traces filtered by a tag", async () => {
     const tag = randomUUID();
     const createdTrace = createTrace({
@@ -333,6 +388,16 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace1.name).toBe("trace-name2");
     const trace2 = traces.body.data[1];
     expect(trace2.name).toBe("trace-name1");
+  });
+
+  it("should return 400 error when page=0", async () => {
+    const response = await makeZodVerifiedAPICallSilent(
+      GetTracesV1Response,
+      "GET",
+      "/api/public/traces?page=0&limit=10",
+    );
+
+    expect(response.status).toBe(400);
   });
 
   it("should return 400 error when page=0", async () => {

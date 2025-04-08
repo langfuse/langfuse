@@ -95,6 +95,7 @@ export const createTraceScore = (
     event_ts: Date.now(),
     is_deleted: 0,
     ...score,
+    session_id: null,
   };
 };
 
@@ -118,5 +119,7 @@ export const createSessionScore = (
     event_ts: Date.now(),
     is_deleted: 0,
     ...score,
+    observation_id: null,
+    trace_id: null,
   };
 };

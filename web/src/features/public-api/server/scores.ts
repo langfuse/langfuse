@@ -61,23 +61,31 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.config_id as config_id,
           s.queue_id as queue_id,
           s.trace_id as trace_id,
-          s.observation_id as observation_id
+          s.observation_id as observation_id,
+          s.session_id as session_id
       FROM
-          traces t
-          JOIN scores s ON s.trace_id = t.id
+          scores s 
+          LEFT JOIN traces t ON s.trace_id = t.id
           AND s.project_id = t.project_id
       WHERE
-          t.project_id = {projectId: String}
-          AND s.project_id = {projectId: String}
-          AND (t.id, t.project_id) IN (
+          s.project_id = {projectId: String}
+          AND (
+            ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
+            (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
               SELECT
-                  trace_id,
-                  project_id
+                trace_id,
+                project_id
               FROM
-                  scores s
+                scores s
               WHERE
-                  s.project_id = {projectId: String}
-                  ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+                s.project_id = {projectId: String}
+                ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+                ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
+              ORDER BY
+                s.timestamp desc
+              LIMIT
+                1 BY s.id, s.project_id
+                ))
           )
           ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
           ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
@@ -110,11 +118,14 @@ export const _handleGenerateScoresForPublicApi = async ({
 
   return records.map((record) => ({
     ...convertToScore(record),
-    trace: {
-      userId: record.user_id,
-      tags: record.tags,
-      environment: record.trace_environment,
-    },
+    trace:
+      record.trace_id !== null
+        ? {
+            userId: record.user_id,
+            tags: record.tags,
+            environment: record.trace_environment,
+          }
+        : null,
   }));
 };
 
@@ -139,13 +150,14 @@ export const _handleGetScoresCountForPublicApi = async ({
       SELECT
         count() as count
       FROM
-        traces t
-          JOIN scores s ON s.trace_id = t.id
+        scores s 
+          LEFT JOIN traces t ON s.trace_id = t.id
           AND s.project_id = t.project_id
       WHERE
-        t.project_id = {projectId: String}
-        AND s.project_id = {projectId: String}
-        AND (t.id, t.project_id) IN (
+        s.project_id = {projectId: String}
+      AND (
+        ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
+        (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
           SELECT
             trace_id,
             project_id
@@ -159,9 +171,10 @@ export const _handleGetScoresCountForPublicApi = async ({
             s.timestamp desc
           LIMIT
             1 BY s.id, s.project_id
-        )
-        ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-        ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+        ))
+      )
+      ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+      ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       `;
 
   const records = await queryClickhouse<{ count: string }>({
