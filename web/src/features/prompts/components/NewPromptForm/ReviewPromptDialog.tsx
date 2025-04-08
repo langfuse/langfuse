@@ -47,7 +47,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
       : JSON.stringify(
           newPromptValue?.chatPrompt.map((m) =>
             Object.fromEntries(
-              Object.entries(m).filter(([k, _]) => k !== "id"),
+              Object.entries(m).filter(([k, _]) => k !== "id" && k !== "type"),
             ),
           ) ?? "{}",
           null,
