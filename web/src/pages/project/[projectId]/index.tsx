@@ -31,6 +31,7 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/use-environment-filter";
+import { ModelPerformanceComparisonChart } from "@/src/features/dashboard/components/ModelPerformanceComparisonChart";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -301,6 +302,16 @@ export default function Dashboard() {
           globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
+          isLoading={environmentFilterOptions.isLoading}
+        />
+        <ModelPerformanceComparisonChart
+          className="col-span-1 flex-auto justify-between lg:col-span-full"
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
+          userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
+          agg={agg}
           isLoading={environmentFilterOptions.isLoading}
         />
         <ScoreAnalytics
