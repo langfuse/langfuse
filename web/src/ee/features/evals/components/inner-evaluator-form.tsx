@@ -53,6 +53,7 @@ import {
   TimeScopeDescription,
   VariableMappingDescription,
 } from "@/src/ee/features/evals/components/eval-form-descriptions";
+import { useTraceFilterOptions } from "@/src/features/filters/hooks/useTraceFilterOptions";
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -109,22 +110,9 @@ export const InnerEvaluatorForm = (props: {
     },
   });
 
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId: props.projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
+  const traceFilterOptions = useTraceFilterOptions({
+    projectId: props.projectId,
+  });
 
   const datasets = api.datasets.allDatasetMeta.useQuery(
     {
@@ -450,7 +438,7 @@ export const InnerEvaluatorForm = (props: {
                       <FormControl>
                         <InlineFilterBuilder
                           columns={tracesTableColsWithOptions(
-                            traceFilterOptions.data,
+                            traceFilterOptions,
                             evalTraceTableCols,
                           )}
                           filterState={field.value ?? []}
