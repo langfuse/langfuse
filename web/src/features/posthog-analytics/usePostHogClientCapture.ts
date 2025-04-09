@@ -92,6 +92,8 @@ const events = {
     "date_range_changed",
     "new_widget_form_open",
     "new_dashboard_form_open",
+    "delete_widget_form_open",
+    "delete_dashboard_form_open",
   ],
   datasets: [
     "delete_form_open",

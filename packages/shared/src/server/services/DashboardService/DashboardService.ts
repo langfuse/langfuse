@@ -1,5 +1,5 @@
 import { prisma } from "../../../db";
-import { type OrderByState } from "../../../";
+import { LangfuseConflictError, type OrderByState } from "../../../";
 import {
   CreateWidgetInput,
   WidgetDomain,
@@ -128,6 +128,21 @@ export class DashboardService {
     }
 
     return DashboardDomainSchema.parse(dashboard);
+  }
+
+  /**
+   * Deletes a dashboard.
+   */
+  public static async deleteDashboard(
+    dashboardId: string,
+    projectId: string,
+  ): Promise<void> {
+    await prisma.dashboard.delete({
+      where: {
+        id: dashboardId,
+        projectId,
+      },
+    });
   }
 
   /**
@@ -262,6 +277,48 @@ export class DashboardService {
       filters: updatedWidget.filters as WidgetDomain["filters"],
       chartType: updatedWidget.chartType,
       chartConfig: updatedWidget.chartConfig as WidgetDomain["chartConfig"],
+    });
+  }
+
+  /**
+   * Deletes a dashboard widget.
+   * Throws an error if the widget is still referenced in any dashboard.
+   */
+  public static async deleteWidget(
+    widgetId: string,
+    projectId: string,
+  ): Promise<void> {
+    // First check if this widget is referenced in any dashboard definitions
+    const referencingDashboards = await prisma.dashboard.findMany({
+      where: {
+        projectId,
+        definition: {
+          path: ["widgets"],
+          array_contains: [{ widgetId }],
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (referencingDashboards.length > 0) {
+      const dashboardNames = referencingDashboards
+        .map((d) => `"${d.name}"`)
+        .join(", ");
+
+      throw new LangfuseConflictError(
+        `Cannot delete widget because it is still used in the following dashboards: ${dashboardNames}. Please remove the widget from these dashboards first.`,
+      );
+    }
+
+    // Delete the widget if it's not referenced
+    await prisma.dashboardWidget.delete({
+      where: {
+        id: widgetId,
+        projectId,
+      },
     });
   }
 }

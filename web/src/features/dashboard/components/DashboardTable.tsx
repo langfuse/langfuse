@@ -9,6 +9,17 @@ import { createColumnHelper } from "@tanstack/react-table";
 import TableLink from "@/src/components/table/table-link";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { Button } from "@/src/components/ui/button";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Trash } from "lucide-react";
+import { useState } from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 type DashboardTableRow = {
   id: string;
@@ -17,6 +28,61 @@ type DashboardTableRow = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+function DeleteDashboard({ dashboardId }: { dashboardId: string }) {
+  const projectId = useProjectIdFromURL();
+  const utils = api.useUtils();
+  const [isOpen, setIsOpen] = useState(false);
+  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+  const capture = usePostHogClientCapture();
+
+  const mutDeleteDashboard = api.dashboard.delete.useMutation({
+    onSuccess: () => {
+      void utils.dashboard.invalidate();
+      capture("dashboard:delete_dashboard_form_open");
+    },
+    onError: (e) => {
+      showErrorToast("Failed to delete dashboard", e.message);
+    },
+  });
+
+  return (
+    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="xs" disabled={!hasAccess}>
+          <Trash className="h-4 w-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent>
+        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <p className="mb-3 text-sm">
+          This action permanently deletes this dashboard and cannot be undone.
+        </p>
+        <div className="flex justify-end space-x-4">
+          <Button
+            type="button"
+            variant="destructive"
+            loading={mutDeleteDashboard.isLoading}
+            onClick={() => {
+              if (!projectId) {
+                console.error("Project ID is missing");
+                return;
+              }
+
+              void mutDeleteDashboard.mutateAsync({
+                projectId,
+                dashboardId,
+              });
+              setIsOpen(false);
+            }}
+          >
+            Delete Dashboard
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export function DashboardTable() {
   const projectId = useProjectIdFromURL();
@@ -101,6 +167,15 @@ export function DashboardTable() {
       cell: (row) => {
         const updatedAt = row.getValue();
         return <LocalIsoDate date={updatedAt} />;
+      },
+    }),
+    columnHelper.display({
+      id: "actions",
+      header: "Actions",
+      size: 70,
+      cell: (row) => {
+        const id = row.row.original.id;
+        return <DeleteDashboard dashboardId={id} />;
       },
     }),
   ] as LangfuseColumnDef<DashboardTableRow>[];

@@ -219,6 +219,29 @@ export const dashboardRouter = createTRPCRouter({
 
       return dashboard;
     }),
+    
+  // Delete dashboard input schema
+  delete: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        dashboardId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      await DashboardService.deleteDashboard(
+        input.dashboardId,
+        input.projectId,
+      );
+
+      return { success: true };
+    }),
 });
 
 /**

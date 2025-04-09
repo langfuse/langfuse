@@ -17,6 +17,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { views } from "@/src/features/query";
 import { TRPCError } from "@trpc/server";
+import { LangfuseConflictError } from "@langfuse/shared";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
@@ -171,5 +172,42 @@ export const dashboardWidgetRouter = createTRPCRouter({
         success: true,
         widget,
       };
+    }),
+
+  // Define delete widget input schema
+  delete: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        widgetId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      try {
+        // Delete the widget using the DashboardService
+        await DashboardService.deleteWidget(input.widgetId, input.projectId);
+
+        return {
+          success: true,
+        };
+      } catch (error) {
+        // If the widget is still referenced in dashboards, throw a CONFLICT error
+        if (error instanceof LangfuseConflictError) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: error.message,
+          });
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: (error as Error)?.message,
+        });
+      }
     }),
 });
