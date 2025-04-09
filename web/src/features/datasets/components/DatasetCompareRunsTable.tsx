@@ -141,7 +141,6 @@ export function DatasetCompareRunsTable(props: {
         })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
 
   // 1. First, separate the run definitions
@@ -379,7 +378,8 @@ export function DatasetCompareRunsTable(props: {
   const urlPathname = `/project/${props.projectId}/datasets/${props.datasetId}/compare`;
 
   const { setPeekView } = useDatasetComparePeekState(urlPathname);
-  const { getNavigationPath } = useDatasetComparePeekNavigation(urlPathname);
+  const { getNavigationPath, shouldUpdateRowOnDetailPageNavigation } =
+    useDatasetComparePeekNavigation(urlPathname);
 
   return (
     <>
@@ -460,8 +460,8 @@ export function DatasetCompareRunsTable(props: {
           urlPathname,
           onOpenChange: setPeekView,
           getNavigationPath,
+          shouldUpdateRowOnDetailPageNavigation,
           listKey: "dataset-compare-runs",
-          shouldUpdateRowOnDetailPageNavigation: true,
           children: (row?: DatasetCompareRunRowData) => (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
