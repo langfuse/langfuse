@@ -78,7 +78,6 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
-import { useTraceFilterOptions } from "@/src/features/filters/hooks/useTraceFilterOptions";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
@@ -267,9 +266,18 @@ export default function TracesTable({
   // traces.all should load first together with everything else.
   // This here happens in the background.
 
-  const traceFilterOptions = useTraceFilterOptions({
-    projectId,
-  });
+  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
+    { projectId },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const traceFilterOptions = traceFilterOptionsResponse.data;
 
   const transformedFilterOptions = useMemo(() => {
     return tracesTableColsWithOptions(traceFilterOptions).filter(

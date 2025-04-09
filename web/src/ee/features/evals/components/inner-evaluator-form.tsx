@@ -53,7 +53,6 @@ import {
   TimeScopeDescription,
   VariableMappingDescription,
 } from "@/src/ee/features/evals/components/eval-form-descriptions";
-import { useTraceFilterOptions } from "@/src/features/filters/hooks/useTraceFilterOptions";
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -110,9 +109,37 @@ export const InnerEvaluatorForm = (props: {
     },
   });
 
-  const traceFilterOptions = useTraceFilterOptions({
-    projectId: props.projectId,
-  });
+  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
+    { projectId: props.projectId },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const environmentFilterOptionsResponse =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId: props.projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const traceFilterOptions = useMemo(() => {
+    return {
+      ...(traceFilterOptionsResponse.data ?? {}),
+      environment: environmentFilterOptionsResponse.data?.map((e) => ({
+        value: e.environment,
+      })),
+    };
+  }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
 
   const datasets = api.datasets.allDatasetMeta.useQuery(
     {
