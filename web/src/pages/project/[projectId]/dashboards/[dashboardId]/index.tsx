@@ -236,7 +236,6 @@ export default function DashboardDetail() {
 
   // Handle saving the dashboard
   const handleSaveDashboard = () => {
-    debugger;
     if (localDashboardDefinition && hasUnsavedChanges) {
       updateDashboardDefinition.mutate({
         projectId,
@@ -312,11 +311,15 @@ export default function DashboardDetail() {
             <div
               className="grid auto-rows-[minmax(200px,auto)] grid-cols-12 gap-4"
               style={{
-                gridTemplateRows: `repeat(${Math.max(
-                  ...localDashboardDefinition.widgets.map(
-                    (w) => w.y + w.y_size,
-                  ),
-                )}, minmax(200px, auto))`,
+                gridTemplateRows: `repeat(${
+                  localDashboardDefinition.widgets.length > 0
+                    ? Math.max(
+                        ...localDashboardDefinition.widgets.map(
+                          (w) => w.y + w.y_size,
+                        ),
+                      )
+                    : 1
+                }, minmax(200px, auto))`,
               }}
             >
               {localDashboardDefinition.widgets.map((widgetPlacement) => (

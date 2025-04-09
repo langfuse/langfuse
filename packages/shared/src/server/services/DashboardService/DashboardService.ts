@@ -56,6 +56,29 @@ export class DashboardService {
   }
 
   /**
+   * Creates a new dashboard.
+   */
+  public static async createDashboard(
+    projectId: string,
+    name: string,
+    description: string,
+    initialDefinition: z.infer<typeof DashboardDefinitionSchema> = {
+      widgets: [],
+    },
+  ): Promise<DashboardDomain> {
+    const newDashboard = await prisma.dashboard.create({
+      data: {
+        name,
+        description,
+        projectId,
+        definition: initialDefinition,
+      },
+    });
+
+    return DashboardDomainSchema.parse(newDashboard);
+  }
+
+  /**
    * Updates a dashboard's definition.
    */
   public static async updateDashboardDefinition(

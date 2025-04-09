@@ -7,10 +7,20 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import Link from "next/link";
+import { ActionButton } from "@/src/components/ActionButton";
+import { PlusIcon } from "lucide-react";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export default function Dashboards() {
   const router = useRouter();
   const { projectId } = router.query as { projectId: string };
+  const capture = usePostHogClientCapture();
+  const hasCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+
   return (
     <Page
       headerProps={{
@@ -28,6 +38,19 @@ export default function Dashboards() {
               </TabsBarTrigger>
             </TabsBarList>
           </TabsBar>
+        ),
+        actionButtonsRight: (
+          <ActionButton
+            icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+            hasAccess={hasCUDAccess}
+            href={`/project/${projectId}/dashboards/new`}
+            variant="default"
+            onClick={() => {
+              capture("dashboard:new_dashboard_form_open");
+            }}
+          >
+            New dashboard
+          </ActionButton>
         ),
       }}
     >

@@ -48,7 +48,7 @@ export default function Widgets() {
             href={`/project/${projectId}/widgets/new`}
             variant="default"
             onClick={() => {
-              capture("dashboards:new_widget_form_open");
+              capture("dashboard:new_widget_form_open");
             }}
           >
             New widget
