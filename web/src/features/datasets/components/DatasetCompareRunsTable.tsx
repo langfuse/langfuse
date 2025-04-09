@@ -141,6 +141,7 @@ export function DatasetCompareRunsTable(props: {
         })),
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
 
   // 1. First, separate the run definitions
