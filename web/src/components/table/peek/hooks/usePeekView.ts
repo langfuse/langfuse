@@ -23,7 +23,6 @@ function getInitialRow<TData>(
 type UsePeekViewProps<TData> = {
   getRow: (id: string) => TData | undefined;
   peekView?: PeekViewProps<TData>;
-  shouldUpdateRowOnDetailPageNavigation?: boolean;
 };
 
 /**
@@ -31,7 +30,6 @@ type UsePeekViewProps<TData> = {
  *
  * @param getRow - The React Table's getRow function
  * @param peekView - Optional configuration for the peek view
- * @param shouldUpdateRowOnDetailPageNavigation - Whether to update the row when the peekViewId changes on detail page navigation. If you do not require the row data to be updated, set this to false. Be mindful of this setting as it adds one extra re-render to the table when the detail page is navigated to.
  *
  * @returns An object containing:
  * - handleOnRowClickPeek: Function to handle row clicks for peek view
@@ -45,7 +43,6 @@ type UsePeekViewProps<TData> = {
 export const usePeekView = <TData extends object>({
   getRow,
   peekView,
-  shouldUpdateRowOnDetailPageNavigation = false,
 }: UsePeekViewProps<TData>) => {
   const router = useRouter();
 
@@ -100,7 +97,7 @@ export const usePeekView = <TData extends object>({
 
   // Update the row state when the peekViewId changes on detail page navigation
   useEffect(() => {
-    if (!shouldUpdateRowOnDetailPageNavigation || !peekView) return;
+    if (!peekView || !peekView.shouldUpdateRowOnDetailPageNavigation) return;
 
     const rowId =
       row && "id" in row && typeof row.id === "string" ? row.id : undefined;
