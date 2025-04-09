@@ -309,20 +309,7 @@ export default function DashboardDetail() {
                 />
               </div>
             </div>
-            <div
-              className="grid auto-rows-[minmax(200px,auto)] grid-cols-12 gap-4"
-              style={{
-                gridTemplateRows: `repeat(${
-                  localDashboardDefinition.widgets.length > 0
-                    ? Math.max(
-                        ...localDashboardDefinition.widgets.map(
-                          (w) => w.y + w.y_size,
-                        ),
-                      )
-                    : 1
-                }, minmax(200px, auto))`,
-              }}
-            >
+            <div className="grid grid-cols-12 gap-4">
               {localDashboardDefinition.widgets.map((widgetPlacement) => (
                 <DashboardWidget
                   key={widgetPlacement.id}
