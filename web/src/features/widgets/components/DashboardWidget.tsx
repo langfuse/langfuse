@@ -151,21 +151,21 @@ export function DashboardWidget({
   };
 
   const handleDelete = () => {
-    if (onDeleteWidget) {
+    if (onDeleteWidget && confirm("Please confirm deletion")) {
       onDeleteWidget(placement.id);
     }
   };
 
   return (
     <div
-      className={`${getGridClasses(placement)} flex flex-col overflow-hidden rounded-lg border bg-background p-4`}
+      className={`${getGridClasses(placement)} group flex flex-col overflow-hidden rounded-lg border bg-background p-4`}
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">{widget.data.name}</span>
         <div className="flex space-x-2">
           <button
             onClick={handleEdit}
-            className="text-muted-foreground hover:text-foreground"
+            className="hidden text-muted-foreground hover:text-foreground group-hover:block"
             aria-label="Edit widget"
             disabled={!hasCUDAccess}
           >
@@ -173,7 +173,7 @@ export function DashboardWidget({
           </button>
           <button
             onClick={handleDelete}
-            className="text-muted-foreground hover:text-destructive"
+            className="hidden text-muted-foreground hover:text-destructive group-hover:block"
             aria-label="Delete widget"
             disabled={!hasCUDAccess}
           >
