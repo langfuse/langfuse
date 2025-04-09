@@ -18,6 +18,7 @@ const entitlements = [
   "audit-logs",
   "data-retention",
   "prompt-protected-labels",
+  "custom-dashboards",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -29,6 +30,7 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "annotation-queues",
   "prompt-experiments",
   "trace-deletion",
+  "custom-dashboards",
 ];
 
 const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion"];
