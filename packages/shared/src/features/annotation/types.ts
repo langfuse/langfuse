@@ -25,18 +25,25 @@ const BooleanData = z.object({
   dataType: z.literal("BOOLEAN"),
 });
 
+const ScoreTargetTrace = z.object({
+  type: z.literal("trace"),
+  traceId: z.string(),
+  observationId: z.string().optional(),
+});
+
+const ScoreTargetSession = z.object({
+  type: z.literal("session"),
+  sessionId: z.string(),
+});
+
+// Your existing ScoreTarget remains the same, but can now use these components
 const ScoreTarget = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("trace"),
-    traceId: z.string(),
-    observationId: z.string().optional(),
-  }),
-  z.object({
-    type: z.literal("session"),
-    sessionId: z.string(),
-  }),
+  ScoreTargetTrace,
+  ScoreTargetSession,
 ]);
 
+export type ScoreTargetTrace = z.infer<typeof ScoreTargetTrace>;
+export type ScoreTargetSession = z.infer<typeof ScoreTargetSession>;
 export type ScoreTarget = z.infer<typeof ScoreTarget>;
 
 const CreateAnnotationScoreBase = z.object({

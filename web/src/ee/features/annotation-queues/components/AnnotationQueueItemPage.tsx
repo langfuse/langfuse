@@ -165,32 +165,18 @@ const AnnotateIOView = ({
             <div className="w-full overflow-auto">
               <AnnotateDrawerContent
                 key={"annotation-drawer-content" + item.objectId}
-                scoreTarget={
-                  item.objectType === AnnotationQueueObjectType.TRACE ||
-                  item.objectType === AnnotationQueueObjectType.OBSERVATION
-                    ? {
-                        type: "trace",
-                        traceId: traceId,
-                        observationId: item.parentTraceId
-                          ? item.objectId
-                          : undefined,
-                      }
-                    : {
-                        type: "session",
-                        sessionId: item.objectId,
-                      }
-                }
+                scoreTarget={{
+                  type: "trace",
+                  traceId: traceId,
+                  observationId: item.parentTraceId ? item.objectId : undefined,
+                }}
                 scores={trace.data?.scores ?? []}
                 configs={configs}
                 emptySelectedConfigIds={emptySelectedConfigIds}
                 setEmptySelectedConfigIds={() => {}}
                 projectId={item.projectId}
                 analyticsData={{
-                  type:
-                    item.objectType === AnnotationQueueObjectType.TRACE ||
-                    item.objectType === AnnotationQueueObjectType.OBSERVATION
-                      ? "trace"
-                      : "session",
+                  type: "trace",
                   source: "AnnotationQueue",
                 }}
                 isSelectHidden

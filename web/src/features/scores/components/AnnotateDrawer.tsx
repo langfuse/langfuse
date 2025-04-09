@@ -32,6 +32,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
     source: "TraceDetail",
   },
   variant = "button",
+  buttonVariant = "secondary",
   hasGroupedButton = false,
 }: AnnotateDrawerProps<Target>) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -93,7 +94,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
       <DrawerTrigger asChild>
         {variant === "button" ? (
           <Button
-            variant="outline"
+            variant={buttonVariant}
             disabled={!hasAccess || showSaving}
             className={hasGroupedButton ? "rounded-r-none" : ""}
             onClick={() => {

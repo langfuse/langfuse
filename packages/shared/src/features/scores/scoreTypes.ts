@@ -8,6 +8,7 @@ import {
 } from "../../utils/zod";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
 import { ScoreDomain } from "../../domain";
+import { applyScoreValidation } from "../../utils/scores";
 
 /**
  * Types to use across codebase
@@ -67,27 +68,6 @@ const ScoreBaseV2 = ScoreBaseProps.extend({
 const ScoreBaseV1 = ScoreBaseProps.extend({
   traceId: z.string(),
 });
-
-const applyScoreValidation = <T extends z.ZodType<any, any, any>>(
-  schema: T,
-) => {
-  return schema.refine(
-    (data) => {
-      const hasTraceId = !!data.traceId;
-      const hasSessionId = !!data.sessionId;
-
-      return (
-        (hasTraceId && !hasSessionId) ||
-        (hasSessionId && !hasTraceId && !data.observationId)
-      );
-    },
-    {
-      message:
-        "Either provide traceId (with optional observationId) or sessionId, but not both. ObservationId requires traceId.",
-      path: ["traceId", "sessionId", "observationId"],
-    },
-  );
-};
 
 const BaseScoreBody = z.object({
   id: z.string().nullish(),

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType } from "../../domain";
+import { applyScoreValidation } from "../../utils/scores";
 
 export const idSchema = z
   .string()
@@ -326,30 +327,6 @@ const BaseScoreBody = z.object({
     .enum(["API", "EVAL", "ANNOTATION"])
     .default("API" as ScoreSourceType),
 });
-
-/**
- * applyScoreValidation exactly mirrors `applyScoreValidation` in the public API. Please refer there for source of truth.
- */
-const applyScoreValidation = <T extends z.ZodType<any, any, any>>(
-  schema: T,
-) => {
-  return schema.refine(
-    (data) => {
-      const hasTraceId = !!data.traceId;
-      const hasSessionId = !!data.sessionId;
-
-      return (
-        (hasTraceId && !hasSessionId) ||
-        (hasSessionId && !hasTraceId && !data.observationId)
-      );
-    },
-    {
-      message:
-        "Either provide traceId (with optional observationId) or sessionId, but not both. ObservationId requires traceId.",
-      path: ["traceId", "sessionId", "observationId"],
-    },
-  );
-};
 
 /**
  * ScoreBody exactly mirrors `PostScoresBody` in the public API. Please refer there for source of truth.

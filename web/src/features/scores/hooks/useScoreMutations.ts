@@ -7,6 +7,7 @@ import {
   type FieldArrayWithId,
   type useFieldArray,
 } from "react-hook-form";
+import { isTraceScore } from "@/src/features/scores/lib/helpers";
 
 const onTraceScoreSettledUpsert =
   ({
@@ -61,7 +62,7 @@ const onTraceScoreSettledUpsert =
     if (!isDrawerOpen) setShowSaving(false);
   };
 
-const onTraceScoreSettledDelete =
+const onScoreSettledDelete =
   ({
     utils,
     fields,
@@ -161,45 +162,33 @@ export function useScoreMutations(
 ) {
   const utils = api.useUtils();
 
-  const onSettledUpsert =
-    scoreTarget.type === "trace"
-      ? onTraceScoreSettledUpsert({
-          projectId,
-          traceId: scoreTarget.traceId,
-          utils,
-          fields,
-          update,
-          isDrawerOpen,
-          setShowSaving,
-        })
-      : onSessionScoreSettledUpsert({
-          utils,
-          fields,
-          update,
-          isDrawerOpen,
-          setShowSaving,
-        });
+  const onSettledUpsert = isTraceScore(scoreTarget)
+    ? onTraceScoreSettledUpsert({
+        projectId,
+        traceId: scoreTarget.traceId,
+        utils,
+        fields,
+        update,
+        isDrawerOpen,
+        setShowSaving,
+      })
+    : onSessionScoreSettledUpsert({
+        utils,
+        fields,
+        update,
+        isDrawerOpen,
+        setShowSaving,
+      });
 
-  const onSettledDelete =
-    scoreTarget.type === "trace"
-      ? onTraceScoreSettledDelete({
-          utils,
-          fields,
-          update,
-          remove,
-          configs,
-          isDrawerOpen,
-          setShowSaving,
-        })
-      : onTraceScoreSettledDelete({
-          utils,
-          fields,
-          update,
-          remove,
-          configs,
-          isDrawerOpen,
-          setShowSaving,
-        });
+  const onSettledDelete = onScoreSettledDelete({
+    utils,
+    fields,
+    update,
+    remove,
+    configs,
+    isDrawerOpen,
+    setShowSaving,
+  });
 
   // Create mutations with shared invalidation logic
   const createMutation = api.scores.createAnnotationScore.useMutation({

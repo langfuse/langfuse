@@ -51,6 +51,7 @@ import { createBatchActionJob } from "@/src/features/table/server/createBatchAct
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
+import { isTraceScore } from "@/src/features/scores/lib/helpers";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -273,18 +274,17 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const inflatedParams = {
-        observationId:
-          input.scoreTarget.type === "trace"
-            ? (input.scoreTarget.observationId ?? null)
-            : null,
-        traceId:
-          input.scoreTarget.type === "trace" ? input.scoreTarget.traceId : null,
-        sessionId:
-          input.scoreTarget.type === "session"
-            ? input.scoreTarget.sessionId
-            : null,
-      };
+      const inflatedParams = isTraceScore(input.scoreTarget)
+        ? {
+            observationId: input.scoreTarget.observationId ?? null,
+            traceId: input.scoreTarget.traceId,
+            sessionId: null,
+          }
+        : {
+            observationId: null,
+            traceId: null,
+            sessionId: input.scoreTarget.sessionId,
+          };
 
       if (inflatedParams.traceId) {
         const clickhouseTrace = await getTraceById(

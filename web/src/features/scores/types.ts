@@ -53,10 +53,11 @@ export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   emptySelectedConfigIds: string[];
   setEmptySelectedConfigIds: (ids: string[]) => void;
   analyticsData?: {
-    type: "trace" | "session"; // regression! observation is not used anymore
+    type: "trace" | "session";
     source: "TraceDetail" | "SessionDetail" | "AnnotationQueue";
   };
   variant?: "button" | "badge";
+  buttonVariant?: "secondary" | "outline";
   hasGroupedButton?: boolean;
 };
 

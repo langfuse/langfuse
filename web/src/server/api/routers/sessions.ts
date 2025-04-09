@@ -367,19 +367,11 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      try {
-        return await handleGetSessionById({
-          sessionId: input.sessionId,
-          projectId: input.projectId,
-          ctx,
-        });
-      } catch (e) {
-        logger.error("Unable to get sessions.byId", e);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "unable to get session",
-        });
-      }
+      return await handleGetSessionById({
+        sessionId: input.sessionId,
+        projectId: input.projectId,
+        ctx,
+      });
     }),
   byIdWithScores: protectedGetSessionProcedure
     .input(

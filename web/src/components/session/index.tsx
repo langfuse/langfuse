@@ -256,6 +256,7 @@ export const SessionPage: React.FC<{
               scores={session.data?.scores ?? []}
               emptySelectedConfigIds={emptySelectedConfigIds}
               setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+              buttonVariant="outline"
             />
           </>
         ),
