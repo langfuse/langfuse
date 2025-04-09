@@ -32,7 +32,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
-  type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevelType,
   BatchExportTableName,
@@ -272,11 +271,14 @@ export default function TracesTable({
     projectId,
   });
 
-  const transformFilterOptions = (traceFilterOptions?: TraceOptions) => {
+  const transformedFilterOptions = useMemo(() => {
     return tracesTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name),
+      (c) =>
+        c.id !== "environment" &&
+        !omittedFilter?.includes(c.name) &&
+        !omittedFilter?.includes(c.id),
     );
-  };
+  }, [traceFilterOptions, omittedFilter]);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
@@ -949,7 +951,7 @@ export default function TracesTable({
     <>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={transformFilterOptions(traceFilterOptions)}
+        filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
           placeholder: "Search (by id, name, trace name, user id)",
           updateQuery: setSearchQuery,
