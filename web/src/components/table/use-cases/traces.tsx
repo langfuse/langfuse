@@ -32,7 +32,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
-  type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevelType,
   BatchExportTableName,
@@ -266,20 +265,11 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
+
+  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
+    { projectId },
     {
-      projectId,
-      timestampFilter:
-        dateRangeFilter[0]?.type === "datetime"
-          ? dateRangeFilter[0]
-          : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
@@ -287,13 +277,16 @@ export default function TracesTable({
     },
   );
 
-  const transformFilterOptions = (
-    traceFilterOptions: TraceOptions | undefined,
-  ) => {
+  const traceFilterOptions = traceFilterOptionsResponse.data;
+
+  const transformedFilterOptions = useMemo(() => {
     return tracesTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name),
+      (c) =>
+        c.id !== "environment" &&
+        !omittedFilter?.includes(c.name) &&
+        !omittedFilter?.includes(c.id),
     );
-  };
+  }, [traceFilterOptions, omittedFilter]);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
@@ -854,7 +847,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const tags: TracesTableRow["tags"] = row.getValue("tags");
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        const filterOptionTags = traceFilterOptions.data?.tags ?? [];
+        const filterOptionTags = traceFilterOptions?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
         return (
           <TagTracePopover
@@ -966,7 +959,7 @@ export default function TracesTable({
     <>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
+        filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
           placeholder: "Search (by id, name, trace name, user id)",
           updateQuery: setSearchQuery,
