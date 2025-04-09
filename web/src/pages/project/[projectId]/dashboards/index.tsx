@@ -27,7 +27,7 @@ export default function Dashboards() {
         title: "Dashboards",
         help: {
           description: "Manage and create dashboards for your project.",
-          href: "TODO: Create documentation page", // TODO
+          href: "https://langfuse.com/docs/analytics/custom-dashboards",
         },
         tabsComponent: (
           <TabsBar value="dashboards">

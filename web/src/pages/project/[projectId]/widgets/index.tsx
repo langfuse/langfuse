@@ -27,7 +27,7 @@ export default function Widgets() {
         title: "Widgets",
         help: {
           description: "Manage and create widgets for your dashboard.",
-          href: "TODO: Create documentation page", // TODO
+          href: "https://langfuse.com/docs/analytics/custom-dashboards",
         },
         tabsComponent: (
           <TabsBar value="widgets">
