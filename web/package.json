@@ -37,7 +37,7 @@
     "@hookform/resolvers": "^3.3.4",
     "@langchain/anthropic": "^0.3.8",
     "@langchain/core": "^0.3.18",
-    "@langchain/openai": "^0.3.14",
+    "@langchain/openai": "^0.5.5",
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@marsidev/react-turnstile": "^0.5.4",
