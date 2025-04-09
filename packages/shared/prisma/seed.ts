@@ -451,7 +451,9 @@ async function createDashboardsAndWidgets(projects: Project[]) {
         metrics: [{ measure: "count", agg: "count" }],
         filters: [],
         chartType: "BAR_TIME_SERIES",
-        chartConfig: {},
+        chartConfig: {
+          type: "BAR_TIME_SERIES",
+        },
       },
       update: {},
     });
@@ -468,7 +470,9 @@ async function createDashboardsAndWidgets(projects: Project[]) {
         metrics: [{ measure: "count", agg: "sum" }],
         filters: [],
         chartType: "LINE_TIME_SERIES",
-        chartConfig: {},
+        chartConfig: {
+          type: "LINE_TIME_SERIES",
+        },
       },
       update: {},
     });

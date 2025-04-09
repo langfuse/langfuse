@@ -188,9 +188,9 @@ export function DashboardWidget({
           chartType={widget.data.chartType}
           data={transformedData}
           rowLimit={
-            "row_limit" in widget.data.chartConfig
-              ? (widget.data.chartConfig.row_limit ?? 100)
-              : 100
+            widget.data.chartConfig.type === "LINE_TIME_SERIES" || widget.data.chartConfig.type === "BAR_TIME_SERIES"
+              ? 100
+              : (widget.data.chartConfig.row_limit ?? 100)
           }
         />
       </div>

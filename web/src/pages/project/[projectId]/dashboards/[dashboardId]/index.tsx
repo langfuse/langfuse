@@ -256,6 +256,7 @@ export default function DashboardDetail() {
 
       <Page
         withPadding
+        scrollable
         headerProps={{
           title: dashboard.data?.name || "Dashboard",
           help: {

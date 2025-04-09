@@ -7,12 +7,22 @@ export const BaseTotalValueChartConfig = z.object({
   row_limit: z.number().int().positive().lte(1000).optional(),
 });
 
-export const LineChartTimeSeriesConfig = BaseTimeSeriesChartConfig;
-export const BarChartTimeSeriesConfig = BaseTimeSeriesChartConfig;
+export const LineChartTimeSeriesConfig = BaseTimeSeriesChartConfig.extend({
+  type: z.literal("LINE_TIME_SERIES"),
+});
+export const BarChartTimeSeriesConfig = BaseTimeSeriesChartConfig.extend({
+  type: z.literal("BAR_TIME_SERIES"),
+});
 
-export const HorizontalBarChartConfig = BaseTotalValueChartConfig;
-export const VerticalBarChartConfig = BaseTotalValueChartConfig;
-export const PieChartConfig = BaseTotalValueChartConfig;
+export const HorizontalBarChartConfig = BaseTotalValueChartConfig.extend({
+  type: z.literal("HORIZONTAL_BAR"),
+});
+export const VerticalBarChartConfig = BaseTotalValueChartConfig.extend({
+  type: z.literal("VERTICAL_BAR"),
+});
+export const PieChartConfig = BaseTotalValueChartConfig.extend({
+  type: z.literal("PIE"),
+});
 
 // Define dimension schema
 export const DimensionSchema = z.object({
@@ -26,7 +36,7 @@ export const MetricSchema = z.object({
 });
 
 // Define chart config schema based on chart type
-export const ChartConfigSchema = z.union([
+export const ChartConfigSchema = z.discriminatedUnion("type", [
   LineChartTimeSeriesConfig,
   BarChartTimeSeriesConfig,
   HorizontalBarChartConfig,

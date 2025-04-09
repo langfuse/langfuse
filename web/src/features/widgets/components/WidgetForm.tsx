@@ -53,7 +53,7 @@ export function WidgetForm({
     dimension: string;
     filters?: FilterState;
     chartType: DashboardWidgetChartType;
-    chartConfig?: { row_limit?: number };
+    chartConfig?: { type: DashboardWidgetChartType; row_limit?: number };
   };
   projectId: string;
   onSave: (widgetData: {
@@ -64,7 +64,7 @@ export function WidgetForm({
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { row_limit?: number };
+    chartConfig: { type: DashboardWidgetChartType; row_limit?: number };
   }) => void;
 }) {
   // State for form fields
@@ -328,7 +328,12 @@ export function WidgetForm({
       metrics: [{ measure: selectedMeasure, agg: selectedAggregation }],
       filters: mapLegacyUiTableFilterToView(selectedView, userFilterState),
       chartType: selectedChartType as DashboardWidgetChartType,
-      chartConfig: isTimeSeriesChart ? {} : { row_limit: rowLimit },
+      chartConfig: isTimeSeriesChart
+        ? { type: selectedChartType as DashboardWidgetChartType }
+        : {
+            type: selectedChartType as DashboardWidgetChartType,
+            row_limit: rowLimit,
+          },
     });
   };
 
