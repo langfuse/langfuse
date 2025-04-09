@@ -84,6 +84,8 @@ model User {
   annotatedCompletedItem  AnnotationQueueItem[]    @relation("AnnotatorUser")
   dashboardWidgetsCreated DashboardWidget[]        @relation("CreatedByUser")
   dashboardWidgetsUpdated DashboardWidget[]        @relation("UpdatedByUser")
+  dashboardCreated        Dashboard[]              @relation("CreatedByUser")
+  dashboardUpdated        Dashboard[]              @relation("UpdatedByUser")
 
   @@map("users")
 }
@@ -1076,6 +1078,11 @@ model Dashboard {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  createdBy     String? @map("created_by")
+  createdByUser User?   @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy     String? @map("updated_by")
+  updatedByUser User?   @relation("UpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   // Optional to account for Langfuse-managed dashboards
   projectId String?  @map("project_id")

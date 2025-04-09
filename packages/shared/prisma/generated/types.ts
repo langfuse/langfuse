@@ -253,6 +253,8 @@ export type Dashboard = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
+    created_by: string | null;
+    updated_by: string | null;
     project_id: string | null;
     name: string;
     description: string;

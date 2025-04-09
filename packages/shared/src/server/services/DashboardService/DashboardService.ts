@@ -62,6 +62,7 @@ export class DashboardService {
     projectId: string,
     name: string,
     description: string,
+    userId?: string,
     initialDefinition: z.infer<typeof DashboardDefinitionSchema> = {
       widgets: [],
     },
@@ -71,6 +72,8 @@ export class DashboardService {
         name,
         description,
         projectId,
+        createdBy: userId,
+        updatedBy: userId,
         definition: initialDefinition,
       },
     });
@@ -85,6 +88,7 @@ export class DashboardService {
     dashboardId: string,
     projectId: string,
     definition: z.infer<typeof DashboardDefinitionSchema>,
+    userId?: string,
   ): Promise<DashboardDomain> {
     const updatedDashboard = await prisma.dashboard.update({
       where: {
@@ -92,6 +96,7 @@ export class DashboardService {
         projectId,
       },
       data: {
+        updatedBy: userId,
         definition: {
           widgets: definition.widgets.map((widget) => ({
             type: "widget",

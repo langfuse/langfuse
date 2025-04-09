@@ -197,6 +197,7 @@ export const dashboardRouter = createTRPCRouter({
         input.projectId,
         input.name,
         input.description,
+        ctx.session.user.id,
       );
 
       return dashboard;
@@ -215,18 +216,19 @@ export const dashboardRouter = createTRPCRouter({
         input.dashboardId,
         input.projectId,
         input.definition,
+        ctx.session.user.id,
       );
 
       return dashboard;
     }),
-    
+
   // Delete dashboard input schema
   delete: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         dashboardId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       throwIfNoProjectAccess({
