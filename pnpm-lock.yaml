@@ -163,8 +163,8 @@ importers:
         specifier: ^0.3.18
         version: 0.3.18(openai@4.72.0(zod@3.23.8))
       '@langchain/openai':
-        specifier: ^0.3.14
-        version: 0.3.14(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))
+        specifier: ^0.5.5
+        version: 0.5.5(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))
       '@opentelemetry/api':
         specifier: '>=1.0.0 <1.10.0'
         version: 1.9.0
