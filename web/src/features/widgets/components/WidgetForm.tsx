@@ -560,7 +560,7 @@ export function WidgetForm({
               ) && (
                 <div className="space-y-2">
                   <Label htmlFor="row-limit">
-                    Breakdown Row Limit (1-1000)
+                    Breakdown Row Limit (0-1000)
                   </Label>
                   <Input
                     id="row-limit"
