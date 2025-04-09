@@ -439,8 +439,8 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            ghcr.io/langfuse/langfuse # GitHub
-            langfuse/langfuse # Docker Hub
+            ghcr.io/Mostafa-Goher/langfuse # GitHub
+            mostafagoher/langfuse # Docker Hub
           flavor: |
             latest=false
           tags: |
@@ -467,8 +467,8 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            ghcr.io/langfuse/langfuse-worker # GitHub
-            langfuse/langfuse-worker # Docker Hub
+            ghcr.io/Mostafa-Goher/langfuse-worker # GitHub
+            mostafagoher/langfuse-worker # Docker Hub
           tags: |
             type=ref,event=branch
             type=ref,event=pr
