@@ -78,7 +78,7 @@ export function CategoricalScoreChart(props: {
     const adapter = new DashboardCategoricalScoreAdapter(
       scores.data.map((row) => ({
         ...row,
-        scoreValue: row.string_value,
+        scoreValue: row.stringValue,
         count: row.count_count,
       })) as DatabaseRow[],
       "time_dimension",
