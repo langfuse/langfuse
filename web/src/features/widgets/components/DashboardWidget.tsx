@@ -9,9 +9,12 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import { PencilIcon, TrashIcon } from "lucide-react";
+import { useRouter } from "next/router";
 
 interface WidgetPlacement {
   id: string;
+  widgetId: string;
   x: number;
   y: number;
   x_size: number;
@@ -28,15 +31,18 @@ export function DashboardWidget({
   placement,
   dateRange,
   filterState,
+  onDeleteWidget,
 }: {
   projectId: string;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
+  onDeleteWidget: (tileId: string) => void;
 }) {
+  const router = useRouter();
   const widget = api.dashboardWidgets.get.useQuery(
     {
-      widgetId: placement.id,
+      widgetId: placement.widgetId,
       projectId,
     },
     {
@@ -132,11 +138,40 @@ export function DashboardWidget({
     );
   }
 
+  const handleEdit = () => {
+    const { projectId, dashboardId } = router.query;
+    router.push(`/project/${projectId}/widgets/${placement.widgetId}`);
+  };
+
+  const handleDelete = () => {
+    if (onDeleteWidget) {
+      onDeleteWidget(placement.id);
+    }
+  };
+
   return (
     <div
       className={`${getGridClasses(placement)} flex flex-col overflow-hidden rounded-lg border bg-background p-4`}
     >
-      <div className="mb-2 font-medium">{widget.data.name}</div>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="font-medium">{widget.data.name}</span>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleEdit}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Edit widget"
+          >
+            <PencilIcon size={16} />
+          </button>
+          <button
+            onClick={handleDelete}
+            className="text-muted-foreground hover:text-destructive"
+            aria-label="Delete widget"
+          >
+            <TrashIcon size={16} />
+          </button>
+        </div>
+      </div>
       <div className="mb-4 text-sm text-muted-foreground">
         {widget.data.description}
       </div>

@@ -14,6 +14,7 @@ import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { encrypt } from "../src/encryption";
 import { redis } from "../src/server/redis/redis";
+import { randomUUID } from "crypto";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -482,10 +483,19 @@ async function createDashboardsAndWidgets(projects: Project[]) {
         description: "Dashboard with various performance metrics",
         definition: {
           widgets: [
-            { type: "widget", id: widget.id, x: 0, y: 0, x_size: 6, y_size: 2 },
             {
               type: "widget",
-              id: widget2.id,
+              id: randomUUID(),
+              widgetId: widget.id,
+              x: 0,
+              y: 0,
+              x_size: 6,
+              y_size: 2,
+            },
+            {
+              type: "widget",
+              id: randomUUID(),
+              widgetId: widget2.id,
               x: 6,
               y: 0,
               x_size: 6,

@@ -8,7 +8,9 @@ import {
   DashboardListResponse,
   DashboardDomainSchema,
   WidgetDomainSchema,
+  DashboardDefinitionSchema,
 } from "./types";
+import { z } from "zod";
 
 export class DashboardService {
   /**
@@ -51,6 +53,37 @@ export class DashboardService {
       dashboards: domainDashboards,
       totalCount,
     };
+  }
+
+  /**
+   * Updates a dashboard's definition.
+   */
+  public static async updateDashboardDefinition(
+    dashboardId: string,
+    projectId: string,
+    definition: z.infer<typeof DashboardDefinitionSchema>,
+  ): Promise<DashboardDomain> {
+    const updatedDashboard = await prisma.dashboard.update({
+      where: {
+        id: dashboardId,
+        projectId,
+      },
+      data: {
+        definition: {
+          widgets: definition.widgets.map((widget) => ({
+            type: "widget",
+            id: widget.id,
+            widgetId: widget.id,
+            x: widget.x,
+            y: widget.y,
+            x_size: widget.x_size,
+            y_size: widget.y_size,
+          })),
+        },
+      },
+    });
+
+    return DashboardDomainSchema.parse(updatedDashboard);
   }
 
   /**

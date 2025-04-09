@@ -37,6 +37,7 @@ export const ChartConfigSchema = z.union([
 export const DashboardDefinitionWidgetWidgetSchema = z.object({
   type: z.literal("widget"),
   id: z.string(),
+  widgetId: z.string(),
   x: z.number().int().gte(0),
   y: z.number().int().gte(0),
   x_size: z.number().int().positive(),

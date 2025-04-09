@@ -6,11 +6,16 @@ import { DashboardWidget } from "@/src/features/widgets";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
+import { Button } from "@/src/components/ui/button";
+import { PlusIcon } from "lucide-react";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 interface WidgetPlacement {
   id: string;
+  widgetId: string;
   x: number;
   y: number;
   x_size: number;
@@ -28,6 +33,29 @@ export default function DashboardDetail() {
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useDashboardDateRange();
   const [userFilterState, setUserFilterState] = useState<FilterState>([]);
+
+  // State for handling widget deletion
+  const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
+    widgets: WidgetPlacement[];
+  } | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Mutation for updating dashboard definition
+  const updateDashboardDefinition =
+    api.dashboard.updateDashboardDefinition.useMutation({
+      onSuccess: () => {
+        showSuccessToast({
+          title: "Dashboard updated",
+          description: "Your changes have been saved successfully",
+        });
+        setHasUnsavedChanges(false);
+        // Invalidate the dashboard query to refetch the data
+        dashboard.refetch();
+      },
+      onError: (error) => {
+        showErrorToast("Error updating dashboard", error.message);
+      },
+    });
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
@@ -125,6 +153,47 @@ export default function DashboardDetail() {
     },
   );
 
+  useEffect(() => {
+    if (dashboard.data && !localDashboardDefinition) {
+      setLocalDashboardDefinition(dashboard.data.definition);
+    }
+  }, [dashboard.data]);
+
+  // Handle deleting a widget
+  const handleDeleteWidget = (tileId: string) => {
+    if (localDashboardDefinition) {
+      const updatedWidgets = localDashboardDefinition.widgets.filter(
+        (widget) => widget.id !== tileId,
+      );
+
+      setLocalDashboardDefinition({
+        ...localDashboardDefinition,
+        widgets: updatedWidgets,
+      });
+
+      setHasUnsavedChanges(true);
+    }
+  };
+
+  // Handle adding a widget
+  const handleAddWidget = () => {
+    showSuccessToast({
+      title: "Add Widget",
+      description: "Add widget button clicked",
+    });
+  };
+
+  // Handle saving the dashboard
+  const handleSaveDashboard = () => {
+    if (localDashboardDefinition && hasUnsavedChanges) {
+      updateDashboardDefinition.mutate({
+        projectId,
+        dashboardId,
+        definition: localDashboardDefinition,
+      });
+    }
+  };
+
   return (
     <Page
       withPadding
@@ -134,9 +203,26 @@ export default function DashboardDetail() {
           description:
             dashboard.data?.description || "No description available",
         },
+        actionButtonsRight: (
+          <>
+            <Button onClick={handleAddWidget}>
+              <PlusIcon size={16} />
+              Add Widget
+            </Button>
+            <Button
+              onClick={handleSaveDashboard}
+              disabled={
+                !hasUnsavedChanges || updateDashboardDefinition.isLoading
+              }
+              loading={updateDashboardDefinition.isLoading}
+            >
+              Save
+            </Button>
+          </>
+        ),
       }}
     >
-      {dashboard.isLoading || !dashboard.data ? (
+      {dashboard.isLoading || !localDashboardDefinition ? (
         <NoDataOrLoading isLoading={true} />
       ) : dashboard.isError ? (
         <div className="flex h-64 items-center justify-center">
@@ -165,23 +251,20 @@ export default function DashboardDetail() {
             className="grid auto-rows-[minmax(200px,auto)] grid-cols-12 gap-4"
             style={{
               gridTemplateRows: `repeat(${Math.max(
-                ...(dashboard.data.definition.widgets as WidgetPlacement[]).map(
-                  (w) => w.y + w.y_size,
-                ),
+                ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
               )}, minmax(200px, auto))`,
             }}
           >
-            {(dashboard.data.definition.widgets as WidgetPlacement[]).map(
-              (widgetPlacement) => (
-                <DashboardWidget
-                  key={widgetPlacement.id}
-                  projectId={projectId}
-                  placement={widgetPlacement}
-                  dateRange={dateRange}
-                  filterState={userFilterState}
-                />
-              ),
-            )}
+            {localDashboardDefinition.widgets.map((widgetPlacement) => (
+              <DashboardWidget
+                key={widgetPlacement.id}
+                projectId={projectId}
+                placement={widgetPlacement}
+                dateRange={dateRange}
+                filterState={userFilterState}
+                onDeleteWidget={handleDeleteWidget}
+              />
+            ))}
           </div>
         </div>
       )}

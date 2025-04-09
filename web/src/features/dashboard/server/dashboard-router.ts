@@ -41,6 +41,23 @@ const GetDashboardInput = z.object({
   dashboardId: z.string(),
 });
 
+// Update dashboard definition input schema
+const UpdateDashboardDefinitionInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+  definition: z.object({
+    widgets: z.array(
+      z.object({
+        id: z.string(),
+        x: z.number().int().gte(0),
+        y: z.number().int().gte(0),
+        x_size: z.number().int().positive(),
+        y_size: z.number().int().positive(),
+      }),
+    ),
+  }),
+});
+
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
     .input(
@@ -165,6 +182,24 @@ export const dashboardRouter = createTRPCRouter({
           message: "Dashboard not found",
         });
       }
+
+      return dashboard;
+    }),
+
+  updateDashboardDefinition: protectedProjectProcedure
+    .input(UpdateDashboardDefinitionInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.updateDashboardDefinition(
+        input.dashboardId,
+        input.projectId,
+        input.definition,
+      );
 
       return dashboard;
     }),
