@@ -135,7 +135,7 @@ export function DatasetCompareRunsTable(props: {
   useEffect(() => {
     if (baseDatasetItems.isSuccess) {
       setDetailPageList(
-        "dataset-compare-runs",
+        "datasetCompareRuns",
         baseDatasetItems.data.datasetItems.map((item) => ({
           id: item.id,
         })),
@@ -461,7 +461,7 @@ export function DatasetCompareRunsTable(props: {
           onOpenChange: setPeekView,
           getNavigationPath,
           shouldUpdateRowOnDetailPageNavigation,
-          listKey: "dataset-compare-runs",
+          listKey: "datasetCompareRuns",
           children: (row?: DatasetCompareRunRowData) => (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
