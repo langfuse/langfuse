@@ -74,6 +74,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/dashboards`,
     icon: LayoutDashboard,
     label: "Beta",
+    entitlements: ["custom-dashboards"],
   },
   {
     title: "Tracing",
