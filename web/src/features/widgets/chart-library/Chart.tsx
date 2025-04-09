@@ -6,13 +6,14 @@ import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/Ver
 import HorizontalBarChart from "@/src/features/widgets/chart-library/HorizontalBarChart";
 import VerticalBarChart from "@/src/features/widgets/chart-library/VerticalBarChart";
 import PieChart from "@/src/features/widgets/chart-library/PieChart";
+import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
 export const Chart = ({
   chartType,
   data,
   rowLimit,
 }: {
-  chartType: string;
+  chartType: DashboardWidgetChartType;
   data: DataPoint[];
   rowLimit: number;
 }) => {
@@ -20,15 +21,15 @@ export const Chart = ({
     <CardContent>
       {(() => {
         switch (chartType) {
-          case "line-time-series":
+          case "LINE_TIME_SERIES":
             return <LineChartTimeSeries data={data} />;
-          case "bar-time-series":
+          case "BAR_TIME_SERIES":
             return <VerticalBarChartTimeSeries data={data} />;
-          case "bar-horizontal":
+          case "HORIZONTAL_BAR":
             return <HorizontalBarChart data={data.slice(0, rowLimit)} />;
-          case "bar-vertical":
+          case "VERTICAL_BAR":
             return <VerticalBarChart data={data.slice(0, rowLimit)} />;
-          case "pie":
+          case "PIE":
             return <PieChart data={data.slice(0, rowLimit)} />;
           default:
             return <HorizontalBarChart data={data.slice(0, rowLimit)} />;
