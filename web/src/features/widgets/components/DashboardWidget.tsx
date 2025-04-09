@@ -11,6 +11,7 @@ import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { PencilIcon, TrashIcon } from "lucide-react";
 import { useRouter } from "next/router";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface WidgetPlacement {
   id: string;
@@ -19,6 +20,7 @@ interface WidgetPlacement {
   y: number;
   x_size: number;
   y_size: number;
+  type: "widget";
 }
 
 // Generate grid classes for each widget based on position and size
@@ -49,6 +51,11 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
+
+  const hasCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
 
   const fromTimestamp = dateRange
     ? dateRange.from
@@ -139,7 +146,6 @@ export function DashboardWidget({
   }
 
   const handleEdit = () => {
-    const { projectId, dashboardId } = router.query;
     router.push(`/project/${projectId}/widgets/${placement.widgetId}`);
   };
 
@@ -160,6 +166,7 @@ export function DashboardWidget({
             onClick={handleEdit}
             className="text-muted-foreground hover:text-foreground"
             aria-label="Edit widget"
+            disabled={!hasCUDAccess}
           >
             <PencilIcon size={16} />
           </button>
@@ -167,6 +174,7 @@ export function DashboardWidget({
             onClick={handleDelete}
             className="text-muted-foreground hover:text-destructive"
             aria-label="Delete widget"
+            disabled={!hasCUDAccess}
           >
             <TrashIcon size={16} />
           </button>

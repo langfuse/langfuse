@@ -12,6 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface WidgetPlacement {
   id: string;
@@ -20,6 +21,7 @@ interface WidgetPlacement {
   y: number;
   x_size: number;
   y_size: number;
+  type: "widget";
 }
 
 export default function DashboardDetail() {
@@ -28,6 +30,11 @@ export default function DashboardDetail() {
     projectId: string;
     dashboardId: string;
   };
+
+  const hasCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
@@ -157,7 +164,7 @@ export default function DashboardDetail() {
     if (dashboard.data && !localDashboardDefinition) {
       setLocalDashboardDefinition(dashboard.data.definition);
     }
-  }, [dashboard.data]);
+  }, [dashboard.data, localDashboardDefinition]);
 
   // Handle deleting a widget
   const handleDeleteWidget = (tileId: string) => {
@@ -205,14 +212,16 @@ export default function DashboardDetail() {
         },
         actionButtonsRight: (
           <>
-            <Button onClick={handleAddWidget}>
+            <Button onClick={handleAddWidget} disabled={!hasCUDAccess}>
               <PlusIcon size={16} />
               Add Widget
             </Button>
             <Button
               onClick={handleSaveDashboard}
               disabled={
-                !hasUnsavedChanges || updateDashboardDefinition.isLoading
+                !hasUnsavedChanges ||
+                updateDashboardDefinition.isLoading ||
+                !hasCUDAccess
               }
               loading={updateDashboardDefinition.isLoading}
             >

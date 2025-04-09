@@ -18,6 +18,7 @@ import {
   getObservationUsageByTypeByTime,
   queryClickhouse,
   DashboardService,
+  DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
@@ -45,17 +46,7 @@ const GetDashboardInput = z.object({
 const UpdateDashboardDefinitionInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
-  definition: z.object({
-    widgets: z.array(
-      z.object({
-        id: z.string(),
-        x: z.number().int().gte(0),
-        y: z.number().int().gte(0),
-        x_size: z.number().int().positive(),
-        y_size: z.number().int().positive(),
-      }),
-    ),
-  }),
+  definition: DashboardDefinitionSchema,
 });
 
 export const dashboardRouter = createTRPCRouter({
