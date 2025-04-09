@@ -94,7 +94,7 @@ test.describe("Create project", () => {
     expect(page.url()).not.toContain("/setup");
 
     const headings = await page.locator("h2").allTextContents();
-    expect(headings).toContain("Dashboard");
+    expect(headings).toContain("Home");
 
     // Check for console errors
     expect(errors).toHaveLength(0);
