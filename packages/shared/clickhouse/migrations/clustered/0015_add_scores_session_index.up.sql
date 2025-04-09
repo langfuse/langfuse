@@ -1,2 +1,2 @@
-ALTER TABLE scores ON CLUSTER default ADD INDEX IF NOT EXISTS idx_project_session (project_id, session_id) TYPE bloom_filter(0.001) GRANULARITY 1
--- ALTER TABLE scores ON CLUSTER default MATERIALIZE INDEX IF EXISTS idx_project_session;
+ALTER TABLE scores ON CLUSTER default ADD INDEX IF NOT EXISTS idx_project_session (project_id, session_id) TYPE bloom_filter(0.001) GRANULARITY 1;
+ALTER TABLE scores ON CLUSTER default MATERIALIZE INDEX IF EXISTS idx_project_session;
