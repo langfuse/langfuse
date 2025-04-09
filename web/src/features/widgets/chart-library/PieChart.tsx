@@ -43,8 +43,8 @@ export const PieChart: React.FC<ChartProps> = ({
     <ChartContainer config={config}>
       <PieChartComponent accessibilityLayer={accessibilityLayer}>
         <ChartTooltip
-          cursor={false}
-          content={<ChartTooltipContent hideLabel />}
+          content={<ChartTooltipContent />}
+          cursor={{ opacity: 0.8 }}
         />
         <Pie
           data={chartData}

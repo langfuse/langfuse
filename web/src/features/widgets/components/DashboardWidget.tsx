@@ -12,6 +12,7 @@ import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { PencilIcon, TrashIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { startCase } from "lodash";
 
 interface WidgetPlacement {
   id: string;
@@ -118,7 +119,7 @@ export function DashboardWidget({
       return {
         dimension: item[dimensionField]
           ? (item[dimensionField] as string)
-          : "n/a",
+          : startCase(metricField === "count_count" ? "Count" : metricField),
         metric: Number(item[metricField] || 0),
         time_dimension: item["time_dimension"],
       };
@@ -188,7 +189,8 @@ export function DashboardWidget({
           chartType={widget.data.chartType}
           data={transformedData}
           rowLimit={
-            widget.data.chartConfig.type === "LINE_TIME_SERIES" || widget.data.chartConfig.type === "BAR_TIME_SERIES"
+            widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
+            widget.data.chartConfig.type === "BAR_TIME_SERIES"
               ? 100
               : (widget.data.chartConfig.row_limit ?? 100)
           }

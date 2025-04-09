@@ -12,7 +12,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -38,6 +38,13 @@ import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type FilterState } from "@langfuse/shared";
+import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  BarChart,
+  PieChart,
+  LineChart,
+  BarChartHorizontal,
+} from "lucide-react";
 
 export function WidgetForm({
   initialValues,
@@ -192,27 +199,36 @@ export function WidgetForm({
     group: "time-series" | "total-value";
     name: string;
     value: DashboardWidgetChartType;
+    icon: React.ElementType;
   };
 
   const chartTypes: ChartType[] = useMemo(
     () => [
-      { group: "time-series", name: "Line Chart", value: "LINE_TIME_SERIES" },
+      {
+        group: "time-series",
+        name: "Line Chart",
+        value: "LINE_TIME_SERIES",
+        icon: LineChart,
+      },
       {
         group: "time-series",
         name: "Vertical Bar Chart",
         value: "BAR_TIME_SERIES",
+        icon: BarChart,
       },
       {
         group: "total-value",
         name: "Horizontal Bar Chart",
         value: "HORIZONTAL_BAR",
+        icon: BarChartHorizontal,
       },
       {
         group: "total-value",
         name: "Vertical Bar Chart",
         value: "VERTICAL_BAR",
+        icon: BarChart,
       },
-      { group: "total-value", name: "Pie Chart", value: "PIE" },
+      { group: "total-value", name: "Pie Chart", value: "PIE", icon: PieChart },
     ],
     [],
   );
@@ -242,14 +258,6 @@ export function WidgetForm({
     }));
   }, [selectedView]);
 
-  // Check if the selected chart type is a time series chart
-  const isTimeSeriesChart = useMemo(() => {
-    return (
-      chartTypes.find((chart) => chart.value === selectedChartType)?.group ===
-      "time-series"
-    );
-  }, [selectedChartType, chartTypes]);
-
   // Create a dynamic query based on the selected view
   const query = useMemo<QueryType>(() => {
     // Calculate fromTimestamp and toTimestamp from dateRange
@@ -264,7 +272,11 @@ export function WidgetForm({
         selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
       metrics: [{ measure: selectedMeasure, aggregation: selectedAggregation }],
       filters: [...mapLegacyUiTableFilterToView(selectedView, userFilterState)],
-      timeDimension: isTimeSeriesChart ? { granularity: "auto" } : null,
+      timeDimension: isTimeSeriesChart(
+        selectedChartType as DashboardWidgetChartType,
+      )
+        ? { granularity: "auto" }
+        : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
       orderBy: null,
@@ -276,7 +288,7 @@ export function WidgetForm({
     selectedMeasure,
     userFilterState,
     dateRange,
-    isTimeSeriesChart,
+    selectedChartType,
   ]);
 
   const queryResult = api.dashboard.executeQuery.useQuery(
@@ -305,7 +317,7 @@ export function WidgetForm({
         return {
           dimension: item[dimensionField]
             ? (item[dimensionField] as string)
-            : "n/a",
+            : startCase(metricField === "count_count" ? "Count" : metricField),
           metric: Number(item[metricField] || 0),
           time_dimension: item["time_dimension"],
         };
@@ -328,7 +340,9 @@ export function WidgetForm({
       metrics: [{ measure: selectedMeasure, agg: selectedAggregation }],
       filters: mapLegacyUiTableFilterToView(selectedView, userFilterState),
       chartType: selectedChartType as DashboardWidgetChartType,
-      chartConfig: isTimeSeriesChart
+      chartConfig: isTimeSeriesChart(
+        selectedChartType as DashboardWidgetChartType,
+      )
         ? { type: selectedChartType as DashboardWidgetChartType }
         : {
             type: selectedChartType as DashboardWidgetChartType,
@@ -340,7 +354,7 @@ export function WidgetForm({
   return (
     <div className="flex h-full gap-4">
       {/* Left column - Form */}
-      <div className="h-full w-1/3">
+      <div className="h-full w-1/3 min-w-[430px]">
         <Card className="flex h-full flex-col">
           <CardHeader>
             <CardTitle>Widget Configuration</CardTitle>
@@ -349,30 +363,8 @@ export function WidgetForm({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
-            {/* Widget Name */}
-            <div className="space-y-2">
-              <Label htmlFor="widget-name">Name</Label>
-              <Input
-                id="widget-name"
-                value={widgetName}
-                onChange={(e) => setWidgetName(e.target.value)}
-                placeholder="Enter widget name"
-              />
-            </div>
-
-            {/* Widget Description */}
-            <div className="space-y-2">
-              <Label htmlFor="widget-description">Description</Label>
-              <Input
-                id="widget-description"
-                value={widgetDescription}
-                onChange={(e) => setWidgetDescription(e.target.value)}
-                placeholder="Enter widget description"
-              />
-            </div>
-
             {/* Data Selection Section */}
-            <div className="mt-6 space-y-4">
+            <div className="space-y-4">
               <h3 className="text-lg font-bold">Data Selection</h3>
 
               {/* View Selection */}
@@ -483,6 +475,28 @@ export function WidgetForm({
             <div className="mt-6 space-y-4">
               <h3 className="text-lg font-bold">Visualization</h3>
 
+              {/* Widget Name */}
+              <div className="space-y-2">
+                <Label htmlFor="widget-name">Name</Label>
+                <Input
+                  id="widget-name"
+                  value={widgetName}
+                  onChange={(e) => setWidgetName(e.target.value)}
+                  placeholder="Enter widget name"
+                />
+              </div>
+
+              {/* Widget Description */}
+              <div className="space-y-2">
+                <Label htmlFor="widget-description">Description</Label>
+                <Input
+                  id="widget-description"
+                  value={widgetDescription}
+                  onChange={(e) => setWidgetDescription(e.target.value)}
+                  placeholder="Enter widget description"
+                />
+              </div>
+
               {/* Chart Type Selection */}
               <div className="space-y-2">
                 <Label htmlFor="chart-type-select">Chart Type</Label>
@@ -500,7 +514,13 @@ export function WidgetForm({
                         .filter((item) => item.group === "time-series")
                         .map((chart) => (
                           <SelectItem key={chart.value} value={chart.value}>
-                            {chart.name}
+                            <div className="flex items-center">
+                              {" "}
+                              {React.createElement(chart.icon, {
+                                className: "mr-2 w-4",
+                              })}
+                              <span>{chart.name}</span>
+                            </div>
                           </SelectItem>
                         ))}
                     </SelectGroup>
@@ -510,7 +530,13 @@ export function WidgetForm({
                         .filter((item) => item.group === "total-value")
                         .map((chart) => (
                           <SelectItem key={chart.value} value={chart.value}>
-                            {chart.name}
+                            <div className="flex items-center">
+                              {" "}
+                              {React.createElement(chart.icon, {
+                                className: "mr-2 w-4",
+                              })}
+                              <span>{chart.name}</span>
+                            </div>
                           </SelectItem>
                         ))}
                     </SelectGroup>
@@ -529,22 +555,26 @@ export function WidgetForm({
               </div>
 
               {/* Row Limit Selection - Only shown for non-time series charts */}
-              {!isTimeSeriesChart && (
+              {!isTimeSeriesChart(
+                selectedChartType as DashboardWidgetChartType,
+              ) && (
                 <div className="space-y-2">
-                  <Label htmlFor="row-limit">Row Limit (1-1000)</Label>
+                  <Label htmlFor="row-limit">
+                    Breakdown Row Limit (1-1000)
+                  </Label>
                   <Input
                     id="row-limit"
                     type="number"
-                    min={1}
+                    min={0}
                     max={1000}
                     value={rowLimit}
                     onChange={(e) => {
                       const value = parseInt(e.target.value);
-                      if (!isNaN(value) && value >= 1 && value <= 1000) {
+                      if (!isNaN(value) && value >= 0 && value <= 1000) {
                         setRowLimit(value);
                       }
                     }}
-                    placeholder="Enter row limit (1-1000)"
+                    placeholder="Enter breakdown row limit (0-1000)"
                   />
                 </div>
               )}
