@@ -124,15 +124,15 @@ export function SelectWidgetDialog({
                       {(() => {
                         switch (widget.chartType) {
                           case "LINE_TIME_SERIES":
-                            return "Line Chart";
+                            return "Line Chart (Time Series)";
                           case "BAR_TIME_SERIES":
-                            return "Bar Chart";
+                            return "Bar Chart (Time Series)";
                           case "HORIZONTAL_BAR":
-                            return "Horizontal Bar";
+                            return "Horizontal Bar Chart (Total Value)";
                           case "VERTICAL_BAR":
-                            return "Vertical Bar";
+                            return "Vertical Bar Chart (Total Value)";
                           case "PIE":
-                            return "Pie Chart";
+                            return "Pie Chart (Total Value)";
                           default:
                             return widget.chartType;
                         }
