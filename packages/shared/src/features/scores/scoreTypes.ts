@@ -68,6 +68,27 @@ const ScoreBaseV1 = ScoreBaseProps.extend({
   traceId: z.string(),
 });
 
+const applyScoreValidation = <T extends z.ZodType<any, any, any>>(
+  schema: T,
+) => {
+  return schema.refine(
+    (data) => {
+      const hasTraceId = !!data.traceId;
+      const hasSessionId = !!data.sessionId;
+
+      return (
+        (hasTraceId && !hasSessionId) ||
+        (hasSessionId && !hasTraceId && !data.observationId)
+      );
+    },
+    {
+      message:
+        "Either provide traceId (with optional observationId) or sessionId, but not both. ObservationId requires traceId.",
+      path: ["traceId", "sessionId", "observationId"],
+    },
+  );
+};
+
 const BaseScoreBody = z.object({
   id: z.string().nullish(),
   name: NonEmptyString,
@@ -98,28 +119,30 @@ export const APIScoreSchemaV2 = z.discriminatedUnion("dataType", [
 /**
  * Validation objects
  */
-export const ScoreBodyWithoutConfig = z.discriminatedUnion("dataType", [
-  BaseScoreBody.merge(
-    z.object({
-      value: z.number(),
-      dataType: z.literal("NUMERIC"),
-    }),
-  ),
-  BaseScoreBody.merge(
-    z.object({
-      value: z.string(),
-      dataType: z.literal("CATEGORICAL"),
-    }),
-  ),
-  BaseScoreBody.merge(
-    z.object({
-      value: z.number().refine((val) => val === 0 || val === 1, {
-        message: "Value must be either 0 or 1",
+export const ScoreBodyWithoutConfig = applyScoreValidation(
+  z.discriminatedUnion("dataType", [
+    BaseScoreBody.merge(
+      z.object({
+        value: z.number(),
+        dataType: z.literal("NUMERIC"),
       }),
-      dataType: z.literal("BOOLEAN"),
-    }),
-  ),
-]);
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.string(),
+        dataType: z.literal("CATEGORICAL"),
+      }),
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.number().refine((val) => val === 0 || val === 1, {
+          message: "Value must be either 0 or 1",
+        }),
+        dataType: z.literal("BOOLEAN"),
+      }),
+    ),
+  ]),
+);
 
 const ScorePropsAgainstConfigNumeric = z
   .object({
@@ -272,39 +295,41 @@ export const validateDbScore = (score: ScoreDomain): APIScoreV2 =>
 /**
  * PostScoresBody is copied for the ingestion API as `ScoreBody`. Please copy any changes here in `packages/shared/src/features/ingestion/types.ts`
  */
-export const PostScoresBody = z.discriminatedUnion("dataType", [
-  BaseScoreBody.merge(
-    z.object({
-      value: z.number(),
-      dataType: z.literal("NUMERIC"),
-      configId: z.string().nullish(),
-    }),
-  ),
-  BaseScoreBody.merge(
-    z.object({
-      value: z.string(),
-      dataType: z.literal("CATEGORICAL"),
-      configId: z.string().nullish(),
-    }),
-  ),
-  BaseScoreBody.merge(
-    z.object({
-      value: z.number().refine((value) => value === 0 || value === 1, {
-        message:
-          "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
+export const PostScoresBody = applyScoreValidation(
+  z.discriminatedUnion("dataType", [
+    BaseScoreBody.merge(
+      z.object({
+        value: z.number(),
+        dataType: z.literal("NUMERIC"),
+        configId: z.string().nullish(),
       }),
-      dataType: z.literal("BOOLEAN"),
-      configId: z.string().nullish(),
-    }),
-  ),
-  BaseScoreBody.merge(
-    z.object({
-      value: z.union([z.string(), z.number()]),
-      dataType: z.undefined(),
-      configId: z.string().nullish(),
-    }),
-  ),
-]);
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.string(),
+        dataType: z.literal("CATEGORICAL"),
+        configId: z.string().nullish(),
+      }),
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.number().refine((value) => value === 0 || value === 1, {
+          message:
+            "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
+        }),
+        dataType: z.literal("BOOLEAN"),
+        configId: z.string().nullish(),
+      }),
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.union([z.string(), z.number()]),
+        dataType: z.undefined(),
+        configId: z.string().nullish(),
+      }),
+    ),
+  ]),
+);
 
 export const PostScoresResponse = z.object({ id: z.string() });
 
@@ -392,6 +417,7 @@ export const legacyFilterAndValidateV1GetScoreList = (
 
 export const legacyFilterAndValidateV2GetScoreList = (
   scores: unknown[],
+  // eslint-disable-next-line no-unused-vars
   onParseError?: (error: z.ZodError) => void,
 ): z.infer<typeof GetScoreResponseDataV2>[] =>
   scores.reduce(
