@@ -87,14 +87,14 @@ test.describe("Create project", () => {
     const projectUrl = new URL(page.url());
     const projectId = projectUrl.pathname.split("/")[2];
 
-    // check that the project exists by navigating to its dashboard
+    // check that the project exists by navigating to its home screen
     await page.goto("/project/" + projectId);
     await page.waitForTimeout(2000);
     expect(page.url()).toContain("/project/" + projectId);
     expect(page.url()).not.toContain("/setup");
 
     const headings = await page.locator("h2").allTextContents();
-    expect(headings).toContain("Dashboard");
+    expect(headings).toContain("Home");
 
     // Check for console errors
     expect(errors).toHaveLength(0);
