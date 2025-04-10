@@ -165,6 +165,16 @@ export const observationsView: ViewDeclarationType = {
       type: "string",
       relationTable: "traces",
     },
+    traceRelease: {
+      sql: "release",
+      type: "string",
+      relationTable: "traces",
+    },
+    traceVersion: {
+      sql: "version",
+      type: "string",
+      relationTable: "traces",
+    },
   },
   measures: {
     count: {
@@ -265,6 +275,16 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   sessionId: {
     sql: "session_id",
     alias: "sessionId",
+    type: "string",
+    relationTable: "traces",
+  },
+  traceRelease: {
+    sql: "release",
+    type: "string",
+    relationTable: "traces",
+  },
+  traceVersion: {
+    sql: "version",
     type: "string",
     relationTable: "traces",
   },
