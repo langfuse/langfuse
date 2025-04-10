@@ -11,15 +11,15 @@ export class AdminApiAuthService {
   /**
    * Verifies if the request is authorized to access admin APIs
    * @param req The Next.js API request
-   * @param checkCloudRegion Whether to check if the NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is set (default: true)
+   * @param enforceLangfuseCloudOnly Whether to check if the NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is set (default: true)
    * @returns An object with isAuthorized flag and optional error message
    */
-  verifyAdminAuth(
+  private static verifyAdminAuth(
     req: NextApiRequest,
-    checkCloudRegion = true,
+    enforceLangfuseCloudOnly = true,
   ): AdminAuthResult {
     // Check if we're in Langfuse cloud environment (optional)
-    if (checkCloudRegion && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    if (enforceLangfuseCloudOnly && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       return {
         isAuthorized: false,
         error: "Only accessible on Langfuse Cloud",
@@ -61,23 +61,24 @@ export class AdminApiAuthService {
    * Middleware function to handle admin authentication in Next.js API routes
    * @param req The Next.js API request
    * @param res The Next.js API response
-   * @param checkCloudRegion Whether to check if the NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is set (default: true)
+   * @param enforceLangfuseCloudOnly Whether to check if the NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is set (default: true)
    * @returns true if authorized, false otherwise (and sets appropriate response)
    */
-  handleAdminAuth(
+  public static handleAdminAuth(
     req: NextApiRequest,
     res: NextApiResponse,
-    checkCloudRegion = true,
+    enforceLangfuseCloudOnly = true,
   ): boolean {
-    const authResult = this.verifyAdminAuth(req, checkCloudRegion);
+    const authResult = AdminApiAuthService.verifyAdminAuth(
+      req,
+      enforceLangfuseCloudOnly,
+    );
 
     if (!authResult.isAuthorized) {
       if (authResult.error?.startsWith("Unauthorized")) {
         res.status(401).json({ error: authResult.error });
-      } else if (authResult.error === "Only accessible on Langfuse cloud") {
-        res.status(403).json({ error: authResult.error });
       } else {
-        res.status(500).json({ error: authResult.error });
+        res.status(403).json({ error: authResult.error });
       }
       return false;
     }

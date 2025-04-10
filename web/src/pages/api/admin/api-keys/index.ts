@@ -36,8 +36,7 @@ export default async function handler(
       return;
     }
 
-    const adminAuth = new AdminApiAuthService();
-    if (!adminAuth.handleAdminAuth(req, res)) {
+    if (!AdminApiAuthService.handleAdminAuth(req, res)) {
       return;
     }
 
