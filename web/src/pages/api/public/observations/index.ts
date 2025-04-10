@@ -32,6 +32,7 @@ export default withMiddlewares({
         fromStartTime: query.fromStartTime ?? undefined,
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
+        traceTags: query.traceTags ?? undefined,
       };
       const [items, count] = await Promise.all([
         generateObservationsForPublicApi(filterProps),

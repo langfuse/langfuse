@@ -18,6 +18,7 @@ type QueryType = {
   fromStartTime?: string;
   toStartTime?: string;
   version?: string;
+  traceTags?: string | string[];
 };
 
 export const generateObservationsForPublicApi = async (props: QueryType) => {
@@ -177,6 +178,13 @@ const filterParams = [
     filterType: "StringFilter",
     clickhouseTable: "observations",
     clickhousePrefix: "o",
+  },
+  {
+    id: "traceTags",
+    clickhouseSelect: "tags",
+    clickhouseTable: "traces",
+    filterType: "ArrayOptionsFilter",
+    clickhousePrefix: "t",
   },
 ];
 
