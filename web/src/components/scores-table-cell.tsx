@@ -96,7 +96,12 @@ export const ScoresTableCell = ({
       {aggregate.valueCounts.length > COLLAPSE_CATEGORICAL_SCORES_AFTER ? (
         <HoverCard>
           <HoverCardTrigger>
-            <div className="flex cursor-pointer flex-col group-hover:text-accent-dark-blue/55">
+            <div
+              className={cn(
+                "flex cursor-pointer group-hover:text-accent-dark-blue/55",
+                wrap ? "flex-col" : "flex-row",
+              )}
+            >
               <ScoreValueCounts
                 valueCounts={aggregate.valueCounts.slice(
                   0,
