@@ -168,7 +168,7 @@ export default function Dashboard() {
       withPadding
       scrollable
       headerProps={{
-        title: "Dashboard",
+        title: "Home",
         actionButtonsRight: <SetupTracingButton />,
       }}
     >

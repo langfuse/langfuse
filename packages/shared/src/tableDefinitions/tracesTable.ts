@@ -1,5 +1,4 @@
-import { ObservationLevelType } from "../server";
-import { ColumnDefinition, OptionsDefinition } from "..";
+import { ColumnDefinition, ObservationLevelType, OptionsDefinition } from "..";
 
 export const tracesOnlyCols: ColumnDefinition[] = [
   {
@@ -16,6 +15,13 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     internal: 't."name"',
     options: [], // to be filled in at runtime
     nullable: true,
+  },
+  {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: 't."environment"',
+    options: [], // to be filled in at runtime
   },
   {
     name: "Timestamp",
@@ -180,9 +186,10 @@ export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
 export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 export type TraceOptions = {
-  scores_avg: Array<string>;
-  name: Array<OptionsDefinition>;
-  tags: Array<OptionsDefinition>;
+  scores_avg?: Array<string>;
+  name?: Array<OptionsDefinition>;
+  tags?: Array<OptionsDefinition>;
+  environment?: Array<OptionsDefinition>;
 };
 export type DatasetOptions = {
   datasetId: Array<OptionsDefinition>;
@@ -214,6 +221,9 @@ export function tracesTableColsWithOptions(
     }
     if (col.id === "tags") {
       return { ...col, options: options?.tags ?? [] };
+    }
+    if (col.id === "environment") {
+      return { ...col, options: options?.environment ?? [] };
     }
     return col;
   });

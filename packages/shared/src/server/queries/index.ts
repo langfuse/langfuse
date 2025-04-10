@@ -2,7 +2,6 @@ export { createSessionsAllQuery } from "./createSessionsAllQuery";
 export {
   type FullObservations,
   type FullObservationsWithScores,
-  type IOAndMetadataOmittedObservations,
 } from "./createGenerationsQuery";
 export {
   FilterList,

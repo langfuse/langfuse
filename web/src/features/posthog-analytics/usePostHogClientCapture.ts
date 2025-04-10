@@ -87,7 +87,14 @@ const events = {
     "save_to_new_prompt_button_click",
     "save_to_prompt_version_button_click",
   ],
-  dashboard: ["chart_tab_switch", "date_range_changed"],
+  dashboard: [
+    "chart_tab_switch",
+    "date_range_changed",
+    "new_widget_form_open",
+    "new_dashboard_form_open",
+    "delete_widget_form_open",
+    "delete_dashboard_form_open",
+  ],
   datasets: [
     "delete_form_open",
     "delete_dataset_button_click",

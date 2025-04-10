@@ -34,7 +34,6 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type TracingSearchType,
   type FilterState,
-  type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevelType,
   BatchExportTableName,
@@ -112,9 +111,9 @@ export type TracesTableRow = {
   metadata?: unknown;
   tags: string[];
   usage: {
-    promptTokens?: bigint;
-    completionTokens?: bigint;
-    totalTokens?: bigint;
+    inputUsage?: bigint;
+    outputUsage?: bigint;
+    totalUsage?: bigint;
   };
   usageDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
@@ -284,20 +283,11 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
+
+  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
+    { projectId },
     {
-      projectId,
-      timestampFilter:
-        dateRangeFilter[0]?.type === "datetime"
-          ? dateRangeFilter[0]
-          : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
@@ -305,13 +295,16 @@ export default function TracesTable({
     },
   );
 
-  const transformFilterOptions = (
-    traceFilterOptions: TraceOptions | undefined,
-  ) => {
+  const traceFilterOptions = traceFilterOptionsResponse.data;
+
+  const transformedFilterOptions = useMemo(() => {
     return tracesTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name),
+      (c) =>
+        c.id !== "environment" &&
+        !omittedFilter?.includes(c.name) &&
+        !omittedFilter?.includes(c.id),
     );
-  };
+  }, [traceFilterOptions, omittedFilter]);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
@@ -569,7 +562,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.promptTokens, 0)}</span>;
+        return <span>{numberFormatter(value.inputUsage, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -583,7 +576,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.completionTokens, 0)}</span>;
+        return <span>{numberFormatter(value.outputUsage, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -597,7 +590,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.totalTokens, 0)}</span>;
+        return <span>{numberFormatter(value.totalUsage, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -615,9 +608,9 @@ export default function TracesTable({
           <BreakdownTooltip details={row.original.usageDetails ?? []}>
             <div className="flex items-center gap-1">
               <TokenUsageBadge
-                promptTokens={value.promptTokens ?? 0}
-                completionTokens={value.completionTokens ?? 0}
-                totalTokens={value.totalTokens ?? 0}
+                inputUsage={Number(value.inputUsage ?? 0)}
+                outputUsage={Number(value.outputUsage ?? 0)}
+                totalUsage={Number(value.totalUsage ?? 0)}
                 inline
               />
               <InfoIcon className="h-3 w-3" />
@@ -872,7 +865,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const tags: TracesTableRow["tags"] = row.getValue("tags");
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        const filterOptionTags = traceFilterOptions.data?.tags ?? [];
+        const filterOptionTags = traceFilterOptions?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
         return (
           <TagTracePopover
@@ -955,9 +948,9 @@ export default function TracesTable({
             latency: trace.latency === null ? undefined : trace.latency,
             tags: trace.tags,
             usage: {
-              promptTokens: trace.promptTokens,
-              completionTokens: trace.completionTokens,
-              totalTokens: trace.totalTokens,
+              inputUsage: trace.promptTokens,
+              outputUsage: trace.completionTokens,
+              totalUsage: trace.totalTokens,
             },
             levelCounts: {
               errorCount: trace.errorCount,
@@ -984,7 +977,7 @@ export default function TracesTable({
     <>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
+        filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
           placeholder: "Search (by id, name, trace name, user id)",
           updateQuery: setSearchQuery,

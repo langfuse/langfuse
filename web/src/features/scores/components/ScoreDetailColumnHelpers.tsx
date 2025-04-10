@@ -130,6 +130,7 @@ export const constructIndividualScoreColumns = <
           <ScoresTableCell
             aggregate={value}
             showSingleValue={!showAggregateViewOnly}
+            hasMetadata={value.hasMetadata ?? false}
           />
         );
       },

@@ -5,7 +5,9 @@ import {
   ScoreRecordInsertType,
 } from "../repositories/definitions";
 
-export const createTrace = (trace: Partial<TraceRecordInsertType>) => {
+export const createTrace = (
+  trace: Partial<TraceRecordInsertType>,
+): TraceRecordInsertType => {
   return {
     id: v4(),
     project_id: v4(),
@@ -33,7 +35,7 @@ export const createTrace = (trace: Partial<TraceRecordInsertType>) => {
 
 export const createObservation = (
   observation: Partial<ObservationRecordInsertType>,
-) => {
+): ObservationRecordInsertType => {
   return {
     id: v4(),
     trace_id: v4(),
@@ -72,7 +74,9 @@ export const createObservation = (
   };
 };
 
-export const createScore = (score: Partial<ScoreRecordInsertType>) => {
+export const createScore = (
+  score: Partial<ScoreRecordInsertType>,
+): ScoreRecordInsertType => {
   return {
     id: v4(),
     project_id: v4(),
@@ -84,6 +88,7 @@ export const createScore = (score: Partial<ScoreRecordInsertType>) => {
     value: 100.5,
     source: "API",
     comment: "comment",
+    metadata: { "test-key": "test-value" },
     data_type: "NUMERIC" as const,
     created_at: Date.now(),
     updated_at: Date.now(),

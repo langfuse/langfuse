@@ -46,8 +46,14 @@ export * from "@prisma/client";
 export { type DB } from "../prisma/generated/types";
 export * from "./server/repositories/types";
 
+// metadata conversion
+export * from "./server/utils/metadata_conversion";
+
 // errors
 export * from "./errors/index";
 
 export * from "./utils/environment";
 export * from "./interfaces/search";
+
+// domain
+export * from "./domain";

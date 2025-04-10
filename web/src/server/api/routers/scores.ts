@@ -20,12 +20,12 @@ import {
   UpdateAnnotationScoreData,
   validateDbScore,
   ScoreSource,
-  type Score,
   LangfuseNotFoundError,
   InternalServerError,
   BatchActionQuerySchema,
   BatchActionType,
   BatchExportTableName,
+  type ScoreDomain,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -42,6 +42,7 @@ import {
   hasAnyScore,
   ScoreDeleteQueue,
   QueueJobs,
+  getScoreMetadataById,
   deleteScores,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
@@ -59,16 +60,20 @@ const ScoreFilterOptions = z.object({
 const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
 });
-type AllScoresReturnType = Score & {
+type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
   traceName: string | null;
   traceUserId: string | null;
   traceTags: Array<string> | null;
   jobConfigurationId: string | null;
   authorUserImage: string | null;
   authorUserName: string | null;
+  hasMetadata: boolean;
 };
 
 export const scoresRouter = createTRPCRouter({
+  /**
+   * Get all scores for a project, meant for internal use and *excludes metadata of scores*
+   */
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
@@ -78,6 +83,8 @@ export const scoresRouter = createTRPCRouter({
         orderBy: input.orderBy,
         limit: input.limit,
         offset: input.page * input.limit,
+        excludeMetadata: true,
+        includeHasMetadataFlag: true,
       });
 
       const [jobExecutions, users] = await Promise.all([
@@ -124,6 +131,23 @@ export const scoresRouter = createTRPCRouter({
           };
         }),
       };
+    }),
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        scoreId: z.string(), // used for matching
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input }) => {
+      const score = await getScoreById(input.projectId, input.scoreId);
+      if (!score) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
+        });
+      }
+      return score;
     }),
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)
@@ -274,6 +298,7 @@ export const scoresRouter = createTRPCRouter({
             value: input.value ?? null,
             stringValue: input.stringValue ?? null,
             comment: input.comment ?? null,
+            metadata: {},
             authorUserId: ctx.session.user.id,
             queueId: input.queueId ?? null,
             timestamp: new Date(),
@@ -290,6 +315,7 @@ export const scoresRouter = createTRPCRouter({
             configId: input.configId ?? null,
             name: input.name,
             comment: input.comment ?? null,
+            metadata: {},
             authorUserId: ctx.session.user.id,
             source: ScoreSource.ANNOTATION,
             queueId: input.queueId ?? null,
@@ -335,7 +361,7 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      let updatedScore: Score | null | undefined = null;
+      let updatedScore: ScoreDomain | null | undefined = null;
 
       // Fetch the current score from Clickhouse
       const score = await getScoreById(
@@ -457,5 +483,10 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       return await hasAnyScore(input.projectId);
+    }),
+  getScoreMetadataById: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), id: z.string() }))
+    .query(async ({ input }) => {
+      return (await getScoreMetadataById(input.projectId, input.id)) ?? null;
     }),
 });

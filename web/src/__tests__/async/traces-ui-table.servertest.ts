@@ -6,7 +6,7 @@ import {
 import { createObservation, createTrace } from "@langfuse/shared/src/server";
 import {
   getTracesTable,
-  type TracesAllUiReturnType,
+  type TracesTableUiReturnType,
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
@@ -20,15 +20,14 @@ describe("Traces table API test", () => {
     const trace = createTrace({ id: trace_id, project_id });
     await createTracesCh([trace]);
 
-    const tableRows = await getTracesTable(
-      project_id,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      1,
-      0,
-    );
+    const tableRows = await getTracesTable({
+      projectId: project_id,
+      filter: [],
+      searchQuery: undefined,
+      orderBy: undefined,
+      limit: 1,
+      page: 0,
+    });
 
     expect(tableRows).toHaveLength(1);
     expect(tableRows[0].id).toEqual(trace_id);
@@ -62,15 +61,14 @@ describe("Traces table API test", () => {
     });
     await createTracesCh([trace1, trace2]);
 
-    const tableRows = await getTracesTable(
-      project_id,
-      [],
-      undefined,
-      undefined,
-      { column: "timestamp", order: "DESC" },
-      2,
-      0,
-    );
+    const tableRows = await getTracesTable({
+      projectId: project_id,
+      filter: [],
+      searchQuery: undefined,
+      orderBy: { column: "timestamp", order: "DESC" },
+      limit: 2,
+      page: 0,
+    });
 
     expect(tableRows).toHaveLength(2);
     expect(tableRows[0].id).toEqual(`${trace_id}-1`);
@@ -88,15 +86,14 @@ describe("Traces table API test", () => {
     const obs2 = createObservation({ trace_id, project_id });
     await createObservationsCh([obs1, obs2]);
 
-    const tableRows = await getTracesTable(
-      project_id,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      1,
-      0,
-    );
+    const tableRows = await getTracesTable({
+      projectId: project_id,
+      filter: [],
+      searchQuery: undefined,
+      orderBy: undefined,
+      limit: 1,
+      page: 0,
+    });
 
     expect(tableRows).toHaveLength(1);
     expect(tableRows[0].id).toEqual(trace_id);
@@ -115,7 +112,7 @@ describe("Traces table API test", () => {
     traceInput: Partial<TraceRecordInsertType>;
     observationInput: Partial<ObservationRecordInsertType>[];
     filterstate: FilterState;
-    expected: Partial<TracesAllUiReturnType>[];
+    expected: Partial<TracesTableUiReturnType>[];
   };
 
   [
@@ -207,15 +204,14 @@ describe("Traces table API test", () => {
       });
       await createObservationsCh([obs1, obs2]);
 
-      const tableRows = await getTracesTable(
-        project_id,
-        testConfig.filterstate,
-        undefined,
-        undefined,
-        undefined,
-        1,
-        0,
-      );
+      const tableRows = await getTracesTable({
+        projectId: project_id,
+        filter: testConfig.filterstate,
+        searchQuery: undefined,
+        orderBy: undefined,
+        limit: 1,
+        page: 0,
+      });
 
       expect(tableRows).toHaveLength(testConfig.expected.length);
       testConfig.expected.forEach((expectedTrace, index) => {

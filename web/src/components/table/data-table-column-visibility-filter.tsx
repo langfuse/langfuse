@@ -351,82 +351,85 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                 (col) => col.accessorKey === columnId,
               );
               if (column) {
-                if (!!column.columns && Boolean(column.columns.length)) {
-                  const groupTotalCount = column.columns.length;
-                  const groupVisibleCount = column.columns.filter(
-                    (col) => columnVisibility[col.accessorKey],
-                  ).length;
-                  return (
-                    <DropdownMenuSub key={index}>
-                      {isColumnOrderingEnabled ? (
-                        <GroupVisibilityDropdownHeader
-                          column={column}
-                          groupTotalCount={groupTotalCount}
-                          groupVisibleCount={groupVisibleCount}
-                        />
-                      ) : (
-                        <DropdownMenuSubTrigger hasCustomIcon>
-                          <Component className="mr-2 h-4 w-4 opacity-50" />
-                          <span>
-                            {column.header && typeof column.header === "string"
-                              ? column.header
-                              : column.accessorKey}
-                          </span>
-                        </DropdownMenuSubTrigger>
-                      )}
-                      <DropdownMenuPortal>
-                        <DropdownMenuSubContent className="max-h-[40dvh] overflow-y-auto">
-                          <DropdownMenuCheckboxItem
-                            checked={
-                              groupVisibleCount === groupTotalCount
-                                ? true
-                                : groupVisibleCount === 0
-                                  ? false
-                                  : "indeterminate"
-                            }
-                            onCheckedChange={() => {
-                              if (
-                                column.header &&
-                                typeof column.header === "string"
-                              ) {
-                                toggleAllColumns(
-                                  groupVisibleCount,
-                                  groupTotalCount,
-                                  column.header,
-                                );
-                              }
-                            }}
-                          >
+                if (!column.isPinned) {
+                  if (!!column.columns && Boolean(column.columns.length)) {
+                    const groupTotalCount = column.columns.length;
+                    const groupVisibleCount = column.columns.filter(
+                      (col) => columnVisibility[col.accessorKey],
+                    ).length;
+                    return (
+                      <DropdownMenuSub key={index}>
+                        {isColumnOrderingEnabled ? (
+                          <GroupVisibilityDropdownHeader
+                            column={column}
+                            groupTotalCount={groupTotalCount}
+                            groupVisibleCount={groupVisibleCount}
+                          />
+                        ) : (
+                          <DropdownMenuSubTrigger hasCustomIcon>
+                            <Component className="mr-2 h-4 w-4 opacity-50" />
                             <span>
-                              {groupTotalCount === groupVisibleCount
-                                ? "Deselect All"
-                                : "Select All"}
+                              {column.header &&
+                              typeof column.header === "string"
+                                ? column.header
+                                : column.accessorKey}
                             </span>
-                          </DropdownMenuCheckboxItem>
-                          <DropdownMenuSeparator />
-                          {column.columns.map((col) => (
-                            <ColumnVisibilityDropdownItem
-                              key={col.accessorKey}
-                              column={col}
-                              columnVisibility={columnVisibility}
-                              toggleColumn={toggleColumn}
-                              isOrderable={false} // grouped columns are not orderable, group may only be ordered as a whole
-                            />
-                          ))}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuPortal>
-                    </DropdownMenuSub>
-                  );
-                } else if (!column.isPinned)
-                  return (
-                    <ColumnVisibilityDropdownItem
-                      key={column.accessorKey}
-                      column={column}
-                      columnVisibility={columnVisibility}
-                      toggleColumn={toggleColumn}
-                      isOrderable={isColumnOrderingEnabled}
-                    />
-                  );
+                          </DropdownMenuSubTrigger>
+                        )}
+                        <DropdownMenuPortal>
+                          <DropdownMenuSubContent className="max-h-[40dvh] overflow-y-auto">
+                            <DropdownMenuCheckboxItem
+                              checked={
+                                groupVisibleCount === groupTotalCount
+                                  ? true
+                                  : groupVisibleCount === 0
+                                    ? false
+                                    : "indeterminate"
+                              }
+                              onCheckedChange={() => {
+                                if (
+                                  column.header &&
+                                  typeof column.header === "string"
+                                ) {
+                                  toggleAllColumns(
+                                    groupVisibleCount,
+                                    groupTotalCount,
+                                    column.header,
+                                  );
+                                }
+                              }}
+                            >
+                              <span>
+                                {groupTotalCount === groupVisibleCount
+                                  ? "Deselect All"
+                                  : "Select All"}
+                              </span>
+                            </DropdownMenuCheckboxItem>
+                            <DropdownMenuSeparator />
+                            {column.columns.map((col) => (
+                              <ColumnVisibilityDropdownItem
+                                key={col.accessorKey}
+                                column={col}
+                                columnVisibility={columnVisibility}
+                                toggleColumn={toggleColumn}
+                                isOrderable={false} // grouped columns are not orderable, group may only be ordered as a whole
+                              />
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuPortal>
+                      </DropdownMenuSub>
+                    );
+                  } else
+                    return (
+                      <ColumnVisibilityDropdownItem
+                        key={column.accessorKey}
+                        column={column}
+                        columnVisibility={columnVisibility}
+                        toggleColumn={toggleColumn}
+                        isOrderable={isColumnOrderingEnabled}
+                      />
+                    );
+                }
               }
               return null;
             })}

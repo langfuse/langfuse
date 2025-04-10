@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { type ScoreSourceType } from "../repositories";
+import { ScoreSourceType } from "../../domain";
 
 export const idSchema = z
   .string()
@@ -320,6 +320,7 @@ const BaseScoreBody = z.object({
   environment: EnvironmentName,
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
   source: z
     .enum(["API", "EVAL", "ANNOTATION"])
     .default("API" as ScoreSourceType),

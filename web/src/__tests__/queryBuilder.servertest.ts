@@ -515,12 +515,12 @@ describe("queryBuilder", () => {
         const manyObsTrace = result.data.find(
           (row: any) => row.name === "trace-with-many-obs",
         );
-        expect(manyObsTrace.sum_observations_count).toBe("5");
+        expect(manyObsTrace.sum_observationsCount).toBe("5");
 
         const fewObsTrace = result.data.find(
           (row: any) => row.name === "trace-with-few-obs",
         );
-        expect(fewObsTrace.sum_observations_count).toBe("2");
+        expect(fewObsTrace.sum_observationsCount).toBe("2");
       });
 
       it("should use tags as dimension", async () => {
@@ -877,14 +877,14 @@ describe("queryBuilder", () => {
           (row: any) => row.environment === "production",
         );
         expect(prodEnv.count_count).toBe("2"); // 2 traces
-        expect(prodEnv.sum_observations_count).toBe("7"); // 3+4 observations
+        expect(prodEnv.sum_observationsCount).toBe("7"); // 3+4 observations
 
         // Verify development environment data
         const devEnv = result.data.find(
           (row: any) => row.environment === "development",
         );
         expect(devEnv.count_count).toBe("2"); // 2 traces
-        expect(devEnv.sum_observations_count).toBe("3"); // 2+1 observations
+        expect(devEnv.sum_observationsCount).toBe("3"); // 2+1 observations
       });
 
       it("should handle multiple dimensions (name and environment) correctly", async () => {
@@ -1015,10 +1015,10 @@ describe("queryBuilder", () => {
         const row = result.data[0];
         expect(row.name).toBe("multi-metric-test");
         expect(row.count_count).toBe("2"); // 2 traces
-        expect(row.sum_observations_count).toBe("30"); // 10+20 observations
-        expect(row.avg_observations_count).toBe(15); // (10+20)/2 average
-        expect(row.max_observations_count).toBe("20"); // max is 20
-        expect(row.min_observations_count).toBe("10"); // min is 10
+        expect(row.sum_observationsCount).toBe("30"); // 10+20 observations
+        expect(row.avg_observationsCount).toBe(15); // (10+20)/2 average
+        expect(row.max_observationsCount).toBe("20"); // max is 20
+        expect(row.min_observationsCount).toBe("10"); // min is 10
       });
 
       it("should order by a dimension field correctly", async () => {
@@ -1096,7 +1096,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
-          orderBy: [{ field: "sum_observations_count", direction: "desc" }],
+          orderBy: [{ field: "sum_observationsCount", direction: "desc" }],
         };
 
         // Execute query
@@ -1107,7 +1107,7 @@ describe("queryBuilder", () => {
         );
 
         // Verify ORDER BY clause is present in the query
-        expect(compiledQuery).toContain("ORDER BY sum_observations_count desc");
+        expect(compiledQuery).toContain("ORDER BY sum_observationsCount desc");
 
         const result = await (
           await clickhouseClient().query({
@@ -1150,7 +1150,7 @@ describe("queryBuilder", () => {
           ).toISOString(),
           orderBy: [
             { field: "environment", direction: "asc" },
-            { field: "sum_observations_count", direction: "desc" },
+            { field: "sum_observationsCount", direction: "desc" },
           ],
         };
 
@@ -1163,7 +1163,7 @@ describe("queryBuilder", () => {
 
         // Verify ORDER BY clause is present in the query with both fields
         expect(compiledQuery).toContain(
-          "ORDER BY environment asc, sum_observations_count desc",
+          "ORDER BY environment asc, sum_observationsCount desc",
         );
 
         const result = await (
@@ -1298,7 +1298,7 @@ describe("queryBuilder", () => {
         );
 
         // Verify ORDER BY clause includes default metric ordering (descending)
-        expect(compiledQuery).toContain("ORDER BY sum_observations_count desc");
+        expect(compiledQuery).toContain("ORDER BY sum_observationsCount desc");
 
         const result = await (
           await clickhouseClient().query({
@@ -2226,8 +2226,8 @@ describe("queryBuilder", () => {
         // Check qa trace with gpt-4
         const qaTraceRow = result.data.find(
           (row: any) =>
-            row.trace_name === "qa-trace" &&
-            row.observation_model_name === "gpt-4",
+            row.traceName === "qa-trace" &&
+            row.observationModelName === "gpt-4",
         );
         expect(qaTraceRow.count_count).toBe("2"); // 2 scores (accuracy + relevance)
         expect(parseFloat(qaTraceRow.avg_value)).toBeCloseTo(0.875, 2); // (0.90 + 0.85) / 2
@@ -2235,8 +2235,8 @@ describe("queryBuilder", () => {
         // Check summarization trace with claude-3
         const summaryTraceRow = result.data.find(
           (row: any) =>
-            row.trace_name === "summarization-trace" &&
-            row.observation_model_name === "claude-3",
+            row.traceName === "summarization-trace" &&
+            row.observationModelName === "claude-3",
         );
         expect(summaryTraceRow.count_count).toBe("1"); // 1 score (accuracy)
         expect(parseFloat(summaryTraceRow.avg_value)).toBeCloseTo(0.95, 2);
@@ -2501,25 +2501,24 @@ describe("queryBuilder", () => {
         // Check each combination
         const evaluationExcellent = result.data.find(
           (row: any) =>
-            row.name === "evaluation" && row.string_value === "excellent",
+            row.name === "evaluation" && row.stringValue === "excellent",
         );
         expect(evaluationExcellent.count_count).toBe("1");
 
         const evaluationGood = result.data.find(
-          (row: any) =>
-            row.name === "evaluation" && row.string_value === "good",
+          (row: any) => row.name === "evaluation" && row.stringValue === "good",
         );
         expect(evaluationGood.count_count).toBe("2");
 
         const categoryQuestion = result.data.find(
           (row: any) =>
-            row.name === "category" && row.string_value === "question",
+            row.name === "category" && row.stringValue === "question",
         );
         expect(categoryQuestion.count_count).toBe("1");
 
         const categoryFactual = result.data.find(
           (row: any) =>
-            row.name === "category" && row.string_value === "factual",
+            row.name === "category" && row.stringValue === "factual",
         );
         expect(categoryFactual.count_count).toBe("1");
       });
@@ -2619,7 +2618,7 @@ describe("queryBuilder", () => {
 
         // Check specific values
         const stringValues = result.data
-          .map((row: any) => row.string_value)
+          .map((row: any) => row.stringValue)
           .sort();
         expect(stringValues).toEqual(["command", "statement"]);
       });
@@ -2778,39 +2777,39 @@ describe("queryBuilder", () => {
 
         // Get results for each trace
         const gpt4Result = result.data.find(
-          (row: any) => row.trace_name === "gpt-4-completion",
+          (row: any) => row.traceName === "gpt-4-completion",
         );
         const gpt35Result = result.data.find(
-          (row: any) => row.trace_name === "gpt-3.5-completion",
+          (row: any) => row.traceName === "gpt-3.5-completion",
         );
         const claudeResult = result.data.find(
-          (row: any) => row.trace_name === "claude-completion",
+          (row: any) => row.traceName === "claude-completion",
         );
 
         // The p95 should be close to the 95th percentile value we generated
         // For GPT-4: the 95th percentile of values from 500-1400 would be around 1350ms
         expect(
-          parseInt(gpt4Result.p95_time_to_first_token),
+          parseInt(gpt4Result.p95_timeToFirstToken),
         ).toBeGreaterThanOrEqual(1300);
-        expect(
-          parseInt(gpt4Result.p95_time_to_first_token),
-        ).toBeLessThanOrEqual(1400);
+        expect(parseInt(gpt4Result.p95_timeToFirstToken)).toBeLessThanOrEqual(
+          1400,
+        );
 
         // For GPT-3.5: the 95th percentile of values from 200-650 would be around 625ms
         expect(
-          parseInt(gpt35Result.p95_time_to_first_token),
+          parseInt(gpt35Result.p95_timeToFirstToken),
         ).toBeGreaterThanOrEqual(600);
-        expect(
-          parseInt(gpt35Result.p95_time_to_first_token),
-        ).toBeLessThanOrEqual(650);
+        expect(parseInt(gpt35Result.p95_timeToFirstToken)).toBeLessThanOrEqual(
+          650,
+        );
 
         // For Claude: the 95th percentile of values from 300-1200 would be around 1150ms
         expect(
-          parseInt(claudeResult.p95_time_to_first_token),
+          parseInt(claudeResult.p95_timeToFirstToken),
         ).toBeGreaterThanOrEqual(1100);
-        expect(
-          parseInt(claudeResult.p95_time_to_first_token),
-        ).toBeLessThanOrEqual(1200);
+        expect(parseInt(claudeResult.p95_timeToFirstToken)).toBeLessThanOrEqual(
+          1200,
+        );
       });
     });
   });
