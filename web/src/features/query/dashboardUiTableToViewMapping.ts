@@ -162,9 +162,16 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
 const isLegacyUiTableFilter = (
   filter: z.infer<typeof singleFilter>,
 ): boolean => {
-  return dashboardColumnDefinitions.some(
-    (columnDef) => columnDef.uiTableName === filter.column,
-  );
+  return dashboardColumnDefinitions
+    .concat([
+      {
+        uiTableName: "Session",
+        uiTableId: "sessionId",
+        clickhouseTableName: "traces",
+        clickhouseSelect: 't."sessionId"',
+      },
+    ])
+    .some((columnDef) => columnDef.uiTableName === filter.column);
 };
 
 export const mapLegacyUiTableFilterToView = (
