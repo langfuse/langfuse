@@ -186,7 +186,7 @@ export const createTempTableInClickhouse = async (
           trace_id String,
           observation_id Nullable(String)
       )  
-      ENGINE = ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ReplicatedMergeTree()" : "MergeTree()"} 
+      ENGINE = "MergeTree()" 
       PRIMARY KEY (project_id, dataset_id, run_id, trace_id)
   `;
   await commandClickhouse({
@@ -251,22 +251,25 @@ const getScoresFromTempTable = async (
   tableName: string,
   clickhouseSession: string,
 ) => {
-  // adds a setting to read data once it is replicated from the writer node.
-  // Only then, we can guarantee that the created mergetree before was replicated.
+  // Read data from the temp table from all replicas to ensure we get the full data
+  const table =
+    env.CLICKHOUSE_CLUSTER_ENABLED === "true"
+      ? `clusterAllReplicas('${env.CLICKHOUSE_CLUSTER_NAME}', ${tableName})`
+      : tableName;
+
   const query = `
       SELECT 
         s.* EXCEPT (metadata),
         length(mapKeys(s.metadata)) > 0 AS has_metadata,
         tmp.run_id
-      FROM ${tableName} tmp JOIN scores s 
+      FROM ${table} tmp JOIN scores s 
         ON tmp.project_id = s.project_id 
         AND tmp.trace_id = s.trace_id
       WHERE s.project_id = {projectId: String}
       AND tmp.project_id = {projectId: String}
       AND tmp.dataset_id = {datasetId: String}
       ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id, tmp.run_id
-      SETTINGS select_sequential_consistency = 1;
+      LIMIT 1 BY s.id, s.project_id, tmp.run_id;
   `;
 
   const rows = await queryClickhouse<
