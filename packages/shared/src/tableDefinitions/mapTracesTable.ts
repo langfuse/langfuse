@@ -137,6 +137,12 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "s.scores_avg",
   },
   {
+    uiTableName: "Scores Categorical",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.score_categories",
+  },
+  {
     uiTableName: "Latency (s)",
     uiTableId: "latency",
     clickhouseTableName: "observations",

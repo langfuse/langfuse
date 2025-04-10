@@ -272,6 +272,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         os.debug_count as debug_count,
         os.observation_count as observation_count,
         s.scores_avg as scores_avg,
+        s.score_categories as score_categories,
         t.public as public`;
       break;
     case "rows":
@@ -357,6 +358,9 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const scoresFilterRes = scoresFilter.apply();
   const observationFilterRes = observationsFilter.apply();
 
+  console.log("tracesFilterRes", tracesFilterRes);
+  console.log("scoresFilterRes", scoresFilterRes);
+
   const search = clickhouseSearchCondition(searchQuery);
 
   const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
@@ -429,19 +433,35 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       SELECT
         project_id,
         trace_id,
-        groupArray(tuple(name, avg_value)) AS "scores_avg"
+        -- For numeric scores, use tuples of (name, avg_value)
+        groupArrayIf(
+          tuple(name, avg_value),
+          data_type = 'NUMERIC'
+        ) AS scores_avg,
+        -- For categorical scores, use name:value format for improved query performance
+        groupArrayIf(
+          concat(name, ':', string_value),
+          data_type IN ('CATEGORICAL', 'BOOLEAN') AND notEmpty(string_value)
+        ) AS score_categories
       FROM (
-        SELECT project_id,
-                trace_id,
-                name,
-                avg(value) avg_value
+        SELECT 
+          project_id,
+          trace_id,
+          name,
+          data_type,
+          string_value,
+          avg(value) as avg_value
         FROM scores s FINAL 
-        WHERE project_id = {projectId: String}
-        ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
-        ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
-        GROUP BY project_id,
-                  trace_id,
-                  name
+        WHERE 
+          project_id = {projectId: String}
+          ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+          ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
+        GROUP BY 
+          project_id,
+          trace_id,
+          name,
+          data_type,
+          string_value
       ) tmp
       GROUP BY project_id, trace_id
     )

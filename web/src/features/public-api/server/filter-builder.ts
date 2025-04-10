@@ -4,6 +4,7 @@ import {
   DateTimeFilter,
   ArrayOptionsFilter,
   StringOptionsFilter,
+  CategoryOptionsFilter,
   StringFilter,
   NumberFilter,
   type ClickhouseOperator,
@@ -24,6 +25,20 @@ type BaseQueryType = {
   limit: number;
   projectId: string;
 } & Record<string, unknown>;
+
+function isStringArrayRecord(
+  value: unknown,
+): value is Record<string, string[]> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every(
+      (arr) =>
+        Array.isArray(arr) && arr.every((item) => typeof item === "string"),
+    )
+  );
+}
 
 export function convertApiProvidedFilterToClickhouseFilter(
   filter: BaseQueryType,
@@ -83,6 +98,18 @@ export function convertApiProvidedFilterToClickhouseFilter(
             });
           }
           break;
+        case "CategoryOptionsFilter":
+          if (isStringArrayRecord(value)) {
+            filterInstance = new CategoryOptionsFilter({
+              clickhouseTable: columnMapping.clickhouseTable,
+              field: columnMapping.clickhouseSelect,
+              operator: "any of",
+              values: value,
+              tablePrefix: columnMapping.clickhousePrefix,
+            });
+          }
+          break;
+
         case "StringFilter":
           if (typeof value === "string") {
             filterInstance = new StringFilter({

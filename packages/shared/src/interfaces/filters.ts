@@ -4,6 +4,7 @@ export const filterOperators = {
   datetime: [">", "<", ">=", "<="],
   string: ["=", "contains", "does not contain", "starts with", "ends with"],
   stringOptions: ["any of", "none of"],
+  categoryOptions: ["any of", "none of"],
   arrayOptions: ["any of", "none of", "all of"],
   number: ["=", ">", "<", ">=", "<="],
   stringObject: [
@@ -75,11 +76,19 @@ export const nullFilter = z.object({
   operator: z.enum(filterOperators.null),
   value: z.literal(""),
 });
+export const categoryOptionsFilter = z.object({
+  type: z.literal("categoryOptions"),
+  column: z.string(),
+  operator: z.enum(filterOperators.categoryOptions),
+  // A map of parent values to arrays of child values
+  value: z.record(z.string(), z.array(z.string())),
+});
 export const singleFilter = z.discriminatedUnion("type", [
   timeFilter,
   stringFilter,
   numberFilter,
   stringOptionsFilter,
+  categoryOptionsFilter,
   arrayOptionsFilter,
   stringObjectFilter,
   numberObjectFilter,
