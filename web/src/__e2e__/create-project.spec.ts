@@ -1,29 +1,29 @@
 import { test, expect, type Page } from "@playwright/test";
 import { prisma } from "@langfuse/shared/src/db";
 
-const checkConsoleErrors = async (page: Page) => {
-  const errors: string[] = [];
-  page.on("pageerror", (err) => {
-    errors.push(err.message);
-  });
-  page.on("console", (msg) => {
-    if (msg.type() === "error") {
-      errors.push(msg.text());
-    }
-  });
-
-  page.on("response", async (response) => {
-    if (response.status() === 500) {
-      console.error(
-        "Network request error: ",
-        response.url,
-        await response.text(),
-      );
-    }
-  });
-
-  return errors;
-};
+// const checkConsoleErrors = async (page: Page) => {
+//   const errors: string[] = [];
+//   page.on("pageerror", (err) => {
+//     errors.push(err.message);
+//   });
+//   page.on("console", (msg) => {
+//     if (msg.type() === "error") {
+//       errors.push(msg.text());
+//     }
+//   });
+//
+//   page.on("response", async (response) => {
+//     if (response.status() === 500) {
+//       console.error(
+//         "Network request error: ",
+//         response.url,
+//         await response.text(),
+//       );
+//     }
+//   });
+//
+//   return errors;
+// };
 
 const cleanUpConsoleEventListeners = (page: Page) => {
   page.removeAllListeners("pageerror");
