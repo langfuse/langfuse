@@ -78,7 +78,7 @@ describe("Admin Organizations API", () => {
         "POST",
         "/api/admin/organizations",
         {
-          name: "A".repeat(31), // More than 30 characters
+          name: "A", // Short name
         },
         `Bearer ${ADMIN_API_KEY}`,
       );
