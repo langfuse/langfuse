@@ -60,7 +60,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
           />
         ))}
-        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+        <ChartTooltip
+          content={<ChartTooltipContent />}
+          cursor={{ opacity: 0.8 }}
+        />
       </LineChart>
     </ChartContainer>
   );

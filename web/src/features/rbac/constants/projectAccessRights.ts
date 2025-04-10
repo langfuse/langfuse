@@ -33,6 +33,9 @@ const projectScopes = [
   "prompts:read",
   "promptProtectedLabels:CUD",
 
+  "dashboards:read",
+  "dashboards:CUD",
+
   "models:CUD",
 
   "batchExports:create",
@@ -109,6 +112,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "auditLogs:read",
+    "dashboards:read",
+    "dashboards:CUD",
   ],
   ADMIN: [
     "project:read",
@@ -151,6 +156,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "auditLogs:read",
+    "dashboards:read",
+    "dashboards:CUD",
   ],
   MEMBER: [
     "project:read",
@@ -181,6 +188,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueues:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
+    "dashboards:read",
+    "dashboards:CUD",
   ],
   VIEWER: [
     "project:read",
@@ -195,6 +204,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "comments:read",
     "annotationQueues:read",
     "promptExperiments:read",
+    "dashboards:read",
   ],
   NONE: [],
 };
