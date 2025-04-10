@@ -14,9 +14,6 @@ export default withMiddlewares({
     querySchema: z.any(),
     responseSchema: z.any(),
     rateLimitResource: "ingestion",
-    fn: async ({ res }) => {
-      // Just return a 200 status code without processing the request body
-      return res.status(200).json({ status: "ok" });
-    },
+    fn: async () => {},
   }),
 });
