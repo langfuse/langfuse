@@ -22,7 +22,6 @@ import {
   observationsTableTraceUiColumnDefinitions,
   observationsTableUiColumnDefinitions,
 } from "../../tableDefinitions";
-import { TableCount } from "./types";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -33,6 +32,7 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
 import { env } from "../../env";
+import { TracingSearchType } from "../../interfaces/search";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
 export const checkObservationExists = async (
@@ -370,6 +370,7 @@ export type ObservationTableQuery = {
   filter: FilterState;
   orderBy?: OrderByState;
   searchQuery?: string;
+  searchType?: TracingSearchType[];
   limit?: number;
   offset?: number;
   selectIOAndMetadata?: boolean;
@@ -384,12 +385,19 @@ export type ObservationsTableQueryResult = ObservationRecordReadType & {
   trace_user_id?: string;
 };
 
-export const getObservationsTableCount = async (opts: ObservationTableQuery) =>
-  getObservationsTableInternal<TableCount>({
+export const getObservationsTableCount = async (
+  opts: ObservationTableQuery,
+) => {
+  const count = await getObservationsTableInternal<{
+    count: string;
+  }>({
     ...opts,
     select: "count",
     tags: { kind: "count" },
   });
+
+  return Number(count[0].count);
+};
 
 export const getObservationsTableWithModelData = async (
   opts: ObservationTableQuery,
@@ -583,7 +591,7 @@ const getObservationsTableInternal = async <T>(
   const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(opts.searchQuery);
+  const search = clickhouseSearchCondition(opts.searchQuery, opts.searchType);
 
   const scoresCte = `WITH scores_avg AS (
     SELECT

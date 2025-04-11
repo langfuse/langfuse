@@ -19,6 +19,7 @@ export async function getAllGenerations({
     filter: input.filter,
     orderBy: input.orderBy,
     searchQuery: input.searchQuery ?? undefined,
+    searchType: input.searchType,
     selectIOAndMetadata: selectIOAndMetadata,
     offset: input.page * input.limit,
     limit: input.limit,
