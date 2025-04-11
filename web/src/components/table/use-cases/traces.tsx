@@ -97,12 +97,7 @@ export type TracesTableRow = {
     defaultCount?: bigint;
   };
   latency?: number;
-  tokens: {
-    inputUsage?: bigint;
-    outputUsage?: bigint;
-    totalUsage?: bigint;
-  };
-  tokenDetails?: Record<string, number>;
+  usageDetails?: Record<string, number>;
   totalCost?: Decimal;
   costDetails?: Record<string, number>;
   environment?: string;
@@ -479,7 +474,6 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
-      defaultHidden: true,
     },
     {
       accessorKey: "output",
@@ -501,7 +495,6 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
-      defaultHidden: true,
     },
     {
       accessorKey: "levelCounts",
@@ -525,7 +518,6 @@ export default function TracesTable({
       },
       enableHiding: true,
     },
-
     {
       accessorKey: "latency",
       id: "latency",
@@ -549,13 +541,13 @@ export default function TracesTable({
       id: "tokens",
       size: 180,
       cell: ({ row }) => {
-        const value: TracesTableRow["tokens"] = row.getValue("tokens");
+        const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
           return null;
         }
         return (
-          <BreakdownTooltip details={row.original.tokenDetails ?? []}>
+          <BreakdownTooltip details={row.original.usageDetails ?? []}>
             <div className="flex items-center gap-1">
               <TokenUsageBadge
                 inputUsage={Number(value.inputUsage ?? 0)}
@@ -664,7 +656,6 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
-      defaultHidden: true,
     },
     {
       ...getScoreGroupColumnProps(isColumnLoading || !traceMetrics.data),

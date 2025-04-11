@@ -507,9 +507,3 @@ const ObservationTreeNodeCard = ({
     </CommandItem>
   );
 };
-
-export const ColorCodedObservationType = (props: {
-  observationType: ObservationType;
-}) => {
-  return <ItemBadge type={props.observationType} showLabel />;
-};
