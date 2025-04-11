@@ -83,13 +83,11 @@ export const auditLogsRouter = createTRPCRouter({
             image: true,
           },
         }),
-        // TODO: Do we also need to join organization keys here or indicate the scope on the result?
         ctx.prisma.apiKey.findMany({
           where: {
             id: {
               in: apiKeyIds,
             },
-            scope: "PROJECT",
             projectId: input.projectId,
           },
           select: {
