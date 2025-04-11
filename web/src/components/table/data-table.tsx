@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
+  type CustomHeights,
   type RowHeight,
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
@@ -54,6 +55,7 @@ interface DataTableProps<TData, TValue> {
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
   rowHeight?: RowHeight;
+  customRowHeights?: CustomHeights;
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
@@ -107,6 +109,7 @@ export function DataTable<TData extends object, TValue>({
   orderBy,
   setOrderBy,
   rowHeight,
+  customRowHeights,
   className,
   shouldRenderGroupHeaders = false,
   onRowClick,
@@ -114,7 +117,7 @@ export function DataTable<TData extends object, TValue>({
   pinFirstColumn = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const rowheighttw = getRowHeightTailwindClass(rowHeight);
+  const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
   const capture = usePostHogClientCapture();
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();

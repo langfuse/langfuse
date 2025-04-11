@@ -18,15 +18,27 @@ import {
 } from "react-icons/md";
 
 const heightOptions = [
-  { id: "s", label: "Small", value: "h-6", icon: <MdDensitySmall /> },
-  { id: "m", label: "Medium", value: "h-24", icon: <MdDensityMedium /> },
-  { id: "l", label: "Large", value: "h-64", icon: <MdDensityLarge /> },
+  { id: "s", label: "Small", icon: <MdDensitySmall /> },
+  { id: "m", label: "Medium", icon: <MdDensityMedium /> },
+  { id: "l", label: "Large", icon: <MdDensityLarge /> },
 ] as const;
 
-export type RowHeight = (typeof heightOptions)[number]["id"];
+const defaultHeights: Record<RowHeight, string> = {
+  s: "h-6",
+  m: "h-24",
+  l: "h-64",
+};
 
-export const getRowHeightTailwindClass = (rowHeight: RowHeight | undefined) =>
-  heightOptions.find((h) => h.id === rowHeight)?.value;
+export type RowHeight = (typeof heightOptions)[number]["id"];
+export type CustomHeights = Record<RowHeight, string>;
+
+export const getRowHeightTailwindClass = (
+  rowHeight?: RowHeight,
+  customHeights?: CustomHeights,
+) => {
+  if (!rowHeight) return undefined;
+  return customHeights?.[rowHeight] || defaultHeights[rowHeight];
+};
 
 export function useRowHeightLocalStorage(
   tableName: string,
