@@ -74,7 +74,7 @@ export const createObservation = (
   };
 };
 
-export const createScore = (
+export const createTraceScore = (
   score: Partial<ScoreRecordInsertType>,
 ): ScoreRecordInsertType => {
   return {
@@ -95,5 +95,31 @@ export const createScore = (
     event_ts: Date.now(),
     is_deleted: 0,
     ...score,
+    session_id: null,
+  };
+};
+
+export const createSessionScore = (
+  score: Partial<ScoreRecordInsertType>,
+): ScoreRecordInsertType => {
+  return {
+    id: v4(),
+    project_id: v4(),
+    session_id: v4(),
+    environment: "default",
+    name: "test-session-score" + v4(),
+    timestamp: Date.now(),
+    value: 100.5,
+    source: "API",
+    comment: "comment",
+    metadata: { "test-key": "test-value" },
+    data_type: "NUMERIC" as const,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    event_ts: Date.now(),
+    is_deleted: 0,
+    ...score,
+    observation_id: null,
+    trace_id: null,
   };
 };

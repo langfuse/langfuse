@@ -4,6 +4,7 @@ import { z } from "zod";
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType } from "../../domain";
+import { applyScoreValidation } from "../../utils/scores";
 
 export const idSchema = z
   .string()
@@ -316,7 +317,8 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
 const BaseScoreBody = z.object({
   id: idSchema.nullish(),
   name: NonEmptyString,
-  traceId: z.string(),
+  traceId: z.string().nullish(),
+  sessionId: z.string().nullish(),
   environment: EnvironmentName,
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
@@ -329,39 +331,41 @@ const BaseScoreBody = z.object({
 /**
  * ScoreBody exactly mirrors `PostScoresBody` in the public API. Please refer there for source of truth.
  */
-export const ScoreBody = z.discriminatedUnion("dataType", [
-  BaseScoreBody.merge(
-    z.object({
-      value: z.number(),
-      dataType: z.literal("NUMERIC"),
-      configId: z.string().nullish(),
-    }),
-  ),
-  BaseScoreBody.merge(
-    z.object({
-      value: z.string(),
-      dataType: z.literal("CATEGORICAL"),
-      configId: z.string().nullish(),
-    }),
-  ),
-  BaseScoreBody.merge(
-    z.object({
-      value: z.number().refine((value) => value === 0 || value === 1, {
-        message:
-          "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
+export const ScoreBody = applyScoreValidation(
+  z.discriminatedUnion("dataType", [
+    BaseScoreBody.merge(
+      z.object({
+        value: z.number(),
+        dataType: z.literal("NUMERIC"),
+        configId: z.string().nullish(),
       }),
-      dataType: z.literal("BOOLEAN"),
-      configId: z.string().nullish(),
-    }),
-  ),
-  BaseScoreBody.merge(
-    z.object({
-      value: z.union([z.string(), z.number()]),
-      dataType: z.undefined(),
-      configId: z.string().nullish(),
-    }),
-  ),
-]);
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.string(),
+        dataType: z.literal("CATEGORICAL"),
+        configId: z.string().nullish(),
+      }),
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.number().refine((value) => value === 0 || value === 1, {
+          message:
+            "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
+        }),
+        dataType: z.literal("BOOLEAN"),
+        configId: z.string().nullish(),
+      }),
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.union([z.string(), z.number()]),
+        dataType: z.undefined(),
+        configId: z.string().nullish(),
+      }),
+    ),
+  ]),
+);
 
 // LEGACY, only required for backwards compatibility
 export const LegacySpanPostSchema = z.object({

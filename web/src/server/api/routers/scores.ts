@@ -12,7 +12,6 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  CreateAnnotationScoreData,
   orderBy,
   paginationZod,
   singleFilter,
@@ -26,6 +25,7 @@ import {
   BatchActionType,
   BatchExportTableName,
   type ScoreDomain,
+  CreateAnnotationScoreData,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -50,6 +50,8 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
+import { prisma } from "@langfuse/shared/src/db";
+import { isTraceScore } from "@/src/features/scores/lib/helpers";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -140,7 +142,10 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const score = await getScoreById(input.projectId, input.scoreId);
+      const score = await getScoreById({
+        projectId: input.projectId,
+        scoreId: input.scoreId,
+      });
       if (!score) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -270,24 +275,57 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const clickhouseTrace = await getTraceById(
-        input.traceId,
-        input.projectId,
-      );
+      const inflatedParams = isTraceScore(input.scoreTarget)
+        ? {
+            observationId: input.scoreTarget.observationId ?? null,
+            traceId: input.scoreTarget.traceId,
+            sessionId: null,
+          }
+        : {
+            observationId: null,
+            traceId: null,
+            sessionId: input.scoreTarget.sessionId,
+          };
 
-      if (!clickhouseTrace) {
-        logger.error(
-          `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
+      if (inflatedParams.traceId) {
+        const clickhouseTrace = await getTraceById(
+          inflatedParams.traceId,
+          input.projectId,
         );
-        throw new LangfuseNotFoundError(
-          `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
-        );
+
+        if (!clickhouseTrace) {
+          logger.error(
+            `No trace with id ${inflatedParams.traceId} in project ${input.projectId} in Clickhouse`,
+          );
+          throw new LangfuseNotFoundError(
+            `No trace with id ${inflatedParams.traceId} in project ${input.projectId} in Clickhouse`,
+          );
+        }
+      } else if (inflatedParams.sessionId) {
+        const traceSession = await prisma.traceSession.findUnique({
+          where: {
+            id_projectId: {
+              id: inflatedParams.sessionId,
+              projectId: input.projectId,
+            },
+          },
+        });
+
+        if (!traceSession) {
+          logger.error(
+            `No trace session with id ${inflatedParams.sessionId} in project ${input.projectId} in Prisma`,
+          );
+          throw new LangfuseNotFoundError(
+            `No trace session with id ${inflatedParams.sessionId} in project ${input.projectId} in Prisma`,
+          );
+        }
       }
 
       const clickhouseScore = await searchExistingAnnotationScore(
         input.projectId,
-        input.traceId,
-        input.observationId ?? null,
+        inflatedParams.observationId,
+        inflatedParams.traceId,
+        inflatedParams.sessionId,
         input.name,
         input.configId,
       );
@@ -307,8 +345,7 @@ export const scoresRouter = createTRPCRouter({
             id: v4(),
             projectId: input.projectId,
             environment: input.environment ?? "default",
-            traceId: input.traceId,
-            observationId: input.observationId ?? null,
+            ...inflatedParams,
             value: input.value ?? null,
             stringValue: input.stringValue ?? null,
             dataType: input.dataType ?? null,
@@ -329,8 +366,9 @@ export const scoresRouter = createTRPCRouter({
         timestamp: convertDateToClickhouseDateTime(new Date()),
         project_id: input.projectId,
         environment: input.environment ?? "default",
-        trace_id: input.traceId,
-        observation_id: input.observationId,
+        trace_id: inflatedParams.traceId,
+        observation_id: inflatedParams.observationId,
+        session_id: inflatedParams.sessionId,
         name: input.name,
         value: input.value !== null ? input.value : undefined,
         source: ScoreSource.ANNOTATION,
@@ -364,11 +402,11 @@ export const scoresRouter = createTRPCRouter({
       let updatedScore: ScoreDomain | null | undefined = null;
 
       // Fetch the current score from Clickhouse
-      const score = await getScoreById(
-        input.projectId,
-        input.id,
-        ScoreSource.ANNOTATION,
-      );
+      const score = await getScoreById({
+        projectId: input.projectId,
+        scoreId: input.id,
+        source: ScoreSource.ANNOTATION,
+      });
       if (!score) {
         logger.warn(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
@@ -392,6 +430,7 @@ export const scoresRouter = createTRPCRouter({
           config_id: score.configId,
           trace_id: score.traceId,
           observation_id: score.observationId,
+          session_id: score.sessionId,
         });
 
         updatedScore = {
@@ -432,11 +471,11 @@ export const scoresRouter = createTRPCRouter({
       });
 
       // Fetch the current score from Clickhouse
-      const clickhouseScore = await getScoreById(
-        input.projectId,
-        input.id,
-        ScoreSource.ANNOTATION,
-      );
+      const clickhouseScore = await getScoreById({
+        projectId: input.projectId,
+        scoreId: input.id,
+        source: ScoreSource.ANNOTATION,
+      });
       if (!clickhouseScore) {
         logger.warn(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,

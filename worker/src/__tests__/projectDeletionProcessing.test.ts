@@ -5,7 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   createObservation,
   createObservationsCh,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -121,7 +121,7 @@ describe("ProjectDeletionProcessingJob", () => {
         }),
       ]),
       createScoresCh([
-        createScore({
+        createTraceScore({
           id: `${baseId}-score`,
           trace_id: `${baseId}-trace`,
           project_id: projectId,
@@ -140,7 +140,7 @@ describe("ProjectDeletionProcessingJob", () => {
     expect(() =>
       getObservationById(`${baseId}-observation`, projectId),
     ).rejects.toThrowError("not found");
-    const score = await getScoreById(projectId, `${baseId}-score`);
+    const score = await getScoreById({ projectId, scoreId: `${baseId}-score` });
     expect(score).toBeUndefined();
   });
 

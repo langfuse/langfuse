@@ -3,8 +3,8 @@ import { v4 } from "uuid";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  GetScoresQuery,
-  GetScoresResponse,
+  GetScoresQueryV1,
+  GetScoresResponseV1,
   legacyFilterAndValidateV1GetScoreList,
   PostScoresBody,
   PostScoresResponse,
@@ -14,10 +14,7 @@ import {
   logger,
   processEventBatch,
 } from "@langfuse/shared/src/server";
-import {
-  generateScoresForPublicApi,
-  getScoresCountForPublicApi,
-} from "@/src/features/public-api/server/scores";
+import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -51,9 +48,11 @@ export default withMiddlewares({
   }),
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
-    querySchema: GetScoresQuery,
-    responseSchema: GetScoresResponse,
+    querySchema: GetScoresQueryV1,
+    responseSchema: GetScoresResponseV1,
     fn: async ({ query, auth }) => {
+      const scoresApiService = new ScoresApiService("v1");
+
       const scoreParams = {
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
@@ -74,8 +73,8 @@ export default withMiddlewares({
         scoreIds: query.scoreIds ?? undefined,
       };
       const [items, count] = await Promise.all([
-        generateScoresForPublicApi(scoreParams),
-        getScoresCountForPublicApi(scoreParams),
+        scoresApiService.generateScoresForPublicApi(scoreParams),
+        scoresApiService.getScoresCountForPublicApi(scoreParams),
       ]);
 
       const finalCount = count ? count : 0;
