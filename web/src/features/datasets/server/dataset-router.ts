@@ -35,6 +35,24 @@ const formatDatasetItemData = (data: string | null | undefined) => {
   }
 };
 
+/**
+ * Adds a case-insensitive search condition to a Kysely query
+ * @param query The Kysely query to modify
+ * @param searchQuery The search term (optional)
+ * @param columnName The column to search in (defaults to "datasets.name")
+ * @returns The modified query
+ */
+const addSearchCondition = <T extends Record<string, any>>(
+  query: T,
+  searchQuery?: string | null,
+  columnName: string = "datasets.name",
+): T => {
+  if (!searchQuery || searchQuery.trim() === "") return query;
+
+  // Add case-insensitive search condition
+  return query.where(columnName, "ilike", `%${searchQuery}%`) as T;
+};
+
 export const datasetRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
     .input(
@@ -70,6 +88,7 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        searchQuery: z.string().nullable(),
         ...paginationZod,
       }),
     )
@@ -109,7 +128,8 @@ export const datasetRouter = createTRPCRouter({
         .limit(input.limit)
         .offset(input.page * input.limit);
 
-      const compiledQuery = query.compile();
+      const querySubjectToSearch = addSearchCondition(query, input.searchQuery);
+      const compiledQuery = querySubjectToSearch.compile();
 
       const datasets = await ctx.prisma.$queryRawUnsafe<
         Array<
