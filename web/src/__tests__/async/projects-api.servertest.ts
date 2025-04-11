@@ -20,7 +20,7 @@ const ProjectResponseSchema = z.object({
 describe("Public Projects API", () => {
   // Test variables
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-  const projectName = "llm-app";
+  const projectName = "Seed Project";
   const projectApiKey = "pk-lf-1234567890";
   const projectSecretKey = "sk-lf-1234567890";
   const invalidApiKey = "pk-lf-invalid";
