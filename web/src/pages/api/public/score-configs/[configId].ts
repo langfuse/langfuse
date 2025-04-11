@@ -1,4 +1,4 @@
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   GetScoreConfigQuery,
@@ -10,7 +10,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { traceException } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get a Score Config",
     querySchema: GetScoreConfigQuery,
     responseSchema: GetScoreConfigResponse,
