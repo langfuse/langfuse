@@ -11,7 +11,7 @@ export default async function handler(
 ) {
   try {
     // Allow only POST requests
-    if (req.method !== "POST") {
+    if (req.method !== "POST" && req.method !== "GET") {
       res.status(405).json({ error: "Method Not Allowed" });
       return;
     }
@@ -19,6 +19,18 @@ export default async function handler(
     // Verify admin API authentication, but allow non-langfuse cloud use-cases
     if (!AdminApiAuthService.handleAdminAuth(req, res, false)) {
       return;
+    }
+
+    // For GET requests, return all organizations
+    if (req.method === "GET") {
+      const organizations = await prisma.organization.findMany({
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+        },
+      });
+      return res.status(200).json(organizations);
     }
 
     // For POST requests, create a new organization
