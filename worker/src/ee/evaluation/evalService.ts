@@ -517,7 +517,6 @@ export const evaluate = async ({
             validKey: true,
             scope: {
               projectId: event.projectId,
-              accessLevel: "scores",
             },
           },
         },

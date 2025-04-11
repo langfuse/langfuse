@@ -414,7 +414,7 @@ describe("create experiment job calls with langfuse server side tracing", async 
           validKey: true,
           scope: expect.objectContaining({
             projectId: mockEvent.projectId,
-            accessLevel: "all",
+            accessLevel: "project",
           }),
         }),
       }),

@@ -242,12 +242,12 @@ const TracingSetup = ({
   hasAnyTrace?: boolean;
 }) => {
   const [apiKeys, setApiKeys] = useState<
-    RouterOutput["apiKeys"]["create"] | null
+    RouterOutput["projectApiKeys"]["create"] | null
   >(null);
   const utils = api.useUtils();
-  const mutCreateApiKey = api.apiKeys.create.useMutation({
+  const mutCreateApiKey = api.projectApiKeys.create.useMutation({
     onSuccess: (data) => {
-      utils.apiKeys.invalidate();
+      utils.projectApiKeys.invalidate();
       setApiKeys(data);
       showChat();
     },

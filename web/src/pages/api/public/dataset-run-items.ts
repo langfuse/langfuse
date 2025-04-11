@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
@@ -11,7 +11,7 @@ import { addDatasetRunItemsToEvalQueue } from "@/src/ee/features/evals/server/ad
 import { getObservationById } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Dataset Run Item",
     bodySchema: PostDatasetRunItemsV1Body,
     responseSchema: PostDatasetRunItemsV1Response,

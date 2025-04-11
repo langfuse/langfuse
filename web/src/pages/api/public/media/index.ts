@@ -9,7 +9,7 @@ import {
   GetMediaUploadUrlResponseSchema,
   type MediaContentType,
 } from "@/src/features/media/validation";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   ForbiddenError,
@@ -20,14 +20,14 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, instrumentAsync } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Get Media Upload URL",
     bodySchema: GetMediaUploadUrlQuerySchema,
     responseSchema: GetMediaUploadUrlResponseSchema,
     successStatusCode: 201,
     rateLimitResource: "ingestion",
     fn: async ({ body, auth }) => {
-      if (auth.scope.accessLevel !== "all") throw new ForbiddenError();
+      if (auth.scope.accessLevel !== "project") throw new ForbiddenError();
 
       const { projectId } = auth.scope;
       const {
