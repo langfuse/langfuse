@@ -432,7 +432,6 @@ describe("Authenticate API calls", () => {
         projectId: expect.any(String),
         orgId: "seed-org-id",
         plan: "cloud:hobby",
-        rateLimitOverrides: expect.any(Object),
         scope: "PROJECT",
       });
     });
@@ -525,7 +524,6 @@ describe("Authenticate API calls", () => {
         orgId: "seed-org-id",
         plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
-        rateLimitOverrides: expect.any(Object),
         scope: "PROJECT",
       });
 
