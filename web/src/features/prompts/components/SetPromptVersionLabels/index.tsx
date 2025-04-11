@@ -143,12 +143,7 @@ export function SetPromptVersionLabels({
         </div>
       </PopoverTrigger>
       <PopoverContent
-        className="fixed max-h-[50vh] overflow-y-auto"
-        style={{
-          top: "var(--popover-top)",
-          left: "var(--popover-left)",
-          transform: "none",
-        }}
+        className="max-h-[50vh] overflow-y-auto"
       >
         <div
           onClick={(event) => event.stopPropagation()}
