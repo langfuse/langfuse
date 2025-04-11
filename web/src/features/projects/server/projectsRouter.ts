@@ -175,6 +175,7 @@ export const projectsRouter = createTRPCRouter({
       await ctx.prisma.apiKey.deleteMany({
         where: {
           projectId: input.projectId,
+          scope: "PROJECT",
         },
       });
 

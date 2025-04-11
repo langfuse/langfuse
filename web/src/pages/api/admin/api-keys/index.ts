@@ -58,6 +58,7 @@ export default async function handler(
           projectId: {
             in: body.data.projectIds,
           },
+          scope: "PROJECT",
         },
       });
 
@@ -66,6 +67,7 @@ export default async function handler(
           projectId: {
             in: body.data.projectIds,
           },
+          scope: "PROJECT",
         },
       });
 
@@ -87,6 +89,7 @@ export default async function handler(
           projectId: {
             in: body.data.projectIds,
           },
+          scope: "PROJECT",
         },
       });
 

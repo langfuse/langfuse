@@ -34,7 +34,7 @@ export function ApiKeyList(props: { projectId: string }) {
     scope: "apiKeys:read",
   });
 
-  const apiKeys = api.apiKeys.byProjectId.useQuery(
+  const apiKeys = api.projectApiKeys.byProjectId.useQuery(
     {
       projectId: props.projectId,
     },
@@ -131,8 +131,8 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   });
 
   const utils = api.useUtils();
-  const mutDeleteApiKey = api.apiKeys.delete.useMutation({
-    onSuccess: () => utils.apiKeys.invalidate(),
+  const mutDeleteApiKey = api.projectApiKeys.delete.useMutation({
+    onSuccess: () => utils.projectApiKeys.invalidate(),
   });
   const [open, setOpen] = useState(false);
 
@@ -191,9 +191,9 @@ function ApiKeyNote({
   projectId: string;
 }) {
   const utils = api.useUtils();
-  const updateNote = api.apiKeys.updateNote.useMutation({
+  const updateNote = api.projectApiKeys.updateNote.useMutation({
     onSuccess: () => {
-      utils.apiKeys.invalidate();
+      utils.projectApiKeys.invalidate();
     },
   });
   const hasEditAccess = useHasProjectAccess({
