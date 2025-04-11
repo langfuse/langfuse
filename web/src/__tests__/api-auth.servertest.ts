@@ -432,6 +432,8 @@ describe("Authenticate API calls", () => {
         projectId: expect.any(String),
         orgId: "seed-org-id",
         plan: "cloud:hobby",
+        rateLimitOverrides: expect.any(Object),
+        scope: "PROJECT",
       });
     });
 
@@ -523,11 +525,14 @@ describe("Authenticate API calls", () => {
         orgId: "seed-org-id",
         plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
+        rateLimitOverrides: expect.any(Object),
+        scope: "PROJECT",
       });
 
       await new ApiAuthService(prisma, redis).deleteApiKey(
         apiKey?.id!,
         apiKey?.projectId!,
+        "PROJECT",
       );
 
       const deletedApiKey = await prisma.apiKey.findUnique({

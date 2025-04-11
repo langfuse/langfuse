@@ -63,7 +63,7 @@ export class ApiAuthService {
               orgId: orgId,
             },
           },
-          { organizationId: orgId },
+          { orgId },
         ],
       },
     });
