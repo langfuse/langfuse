@@ -10,7 +10,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
-import { Row, type RowSelectionState } from "@tanstack/react-table";
+import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import {
   NumberParam,
@@ -792,8 +792,9 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return null;
-        // return isLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+        return traceMetrics.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
       columns: [
         {
@@ -849,8 +850,9 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return null;
-        // return isLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+        return traceMetrics.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
       columns: [
         {

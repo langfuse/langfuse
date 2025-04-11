@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   NumberParam,
@@ -51,6 +51,11 @@ import { Badge } from "@/src/components/ui/badge";
 import { type Row } from "@tanstack/react-table";
 import TableId from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { useObservationPeekState } from "@/src/components/table/peek/hooks/useObservationPeekState";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/useObservationPeekNavigation";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -84,6 +89,7 @@ export type ObservationsTableRow = {
   id: string;
   traceName?: string;
   traceId?: string;
+  timestamp?: Date;
   promptId?: string;
   promptVersion?: string;
   completionStartTime?: Date;
@@ -112,6 +118,7 @@ export default function ObservationsTable({
     "search",
     withDefault(StringParam, null),
   );
+  const { setDetailPageList } = useDetailPageLists();
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -122,9 +129,6 @@ export default function ObservationsTable({
     "generations",
     "s",
   );
-
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [
@@ -143,6 +147,9 @@ export default function ObservationsTable({
     column: "startTime",
     order: "DESC",
   });
+
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange(projectId);
 
   const promptNameFilter: FilterState = promptName
     ? [
@@ -259,6 +266,21 @@ export default function ObservationsTable({
       staleTime: Infinity,
     },
   );
+
+  useEffect(() => {
+    if (generations.isSuccess) {
+      setDetailPageList(
+        "observations",
+        generations.data.generations.map((g) => ({
+          id: g.id,
+          params: g.traceTimestamp
+            ? { timestamp: g.traceTimestamp.toISOString() }
+            : undefined,
+        })),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generations.isSuccess, generations.data]);
 
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<ObservationsTableRow>({
@@ -681,8 +703,9 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return null;
-        // return isLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+        return generations.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
       columns: [
         {
@@ -770,8 +793,9 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return null;
-        // return isLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+        return generations.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
       columns: [
         {
@@ -821,6 +845,12 @@ export default function ObservationsTable({
     columns,
   );
 
+  const urlPathname = `/project/${projectId}/observations`;
+
+  const { getNavigationPath, expandPeek } =
+    useObservationPeekNavigation(urlPathname);
+  const { setPeekView } = useObservationPeekState(urlPathname);
+
   const rows: ObservationsTableRow[] = useMemo(() => {
     return generations.isSuccess
       ? generations.data.generations.map((generation) => {
@@ -857,6 +887,7 @@ export default function ObservationsTable({
             promptName: generation.promptName ?? undefined,
             promptVersion: generation.promptVersion?.toString() ?? undefined,
             traceTags: generation.traceTags ?? undefined,
+            timestamp: generation.traceTimestamp ?? undefined,
             usageDetails: generation.usageDetails ?? {},
             costDetails: generation.costDetails ?? {},
             environment: generation.environment ?? undefined,
@@ -901,6 +932,19 @@ export default function ObservationsTable({
       />
       <DataTable
         columns={columns}
+        peekView={{
+          itemType: "TRACE",
+          customTitlePrefix: "Observation ID:",
+          listKey: "observations",
+          urlPathname,
+          onOpenChange: setPeekView,
+          onExpand: expandPeek,
+          shouldUpdateRowOnDetailPageNavigation: true,
+          getNavigationPath,
+          children: (row) => (
+            <PeekViewObservationDetail projectId={projectId} row={row} />
+          ),
+        }}
         data={
           generations.isLoading
             ? { isLoading: true, isError: false }
