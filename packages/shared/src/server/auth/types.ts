@@ -1,7 +1,7 @@
 import z from "zod";
 import { Plan, plans } from "../../features/entitlements/plans";
 import { CloudConfigRateLimit } from "../../interfaces/rate-limits";
-import { ApiKeyScope } from "@langfuse/shared";
+import { ApiKeyScope } from "../../";
 
 const ApiKeyBaseSchema = z.object({
   id: z.string(),
