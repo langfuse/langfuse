@@ -223,6 +223,7 @@ export const getTracesTable = async (p: {
     projectId,
     filter,
     searchQuery,
+    searchType,
     orderBy,
     limit,
     page,

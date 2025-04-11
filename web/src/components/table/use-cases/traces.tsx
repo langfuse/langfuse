@@ -979,7 +979,7 @@ export default function TracesTable({
         columns={columns}
         filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
-          placeholder: "Search (by id, name, trace name, user id)",
+          placeholder: "Search...",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
           searchType: typedSearchType,

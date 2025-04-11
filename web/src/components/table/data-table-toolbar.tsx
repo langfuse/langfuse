@@ -122,7 +122,7 @@ export function DataTableToolbar<TData, TValue>({
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
-          <div className="flex max-w-md items-center rounded-md border">
+          <div className="flex w-full max-w-xl items-center rounded-md border">
             <Button
               variant="ghost"
               size="icon"
@@ -151,7 +151,7 @@ export function DataTableToolbar<TData, TValue>({
               searchConfig.setSearchType && (
                 <div className="flex items-center border-l px-2">
                   <div className="flex items-center space-x-1">
-                    <Checkbox
+                    {/* <Checkbox
                       id="fullTextSearch"
                       checked={searchType.includes("content")}
                       disabled={fullTextSearchDisabled}
@@ -163,17 +163,23 @@ export function DataTableToolbar<TData, TValue>({
                         setSearchType(newSearchType);
                         searchConfig.setSearchType?.(newSearchType);
                       }}
-                    />
-                    <Label htmlFor="fullTextSearch" className="text-xs">
-                      Full Text Search
-                    </Label>
-                    {fullTextSearchDisabled && (
+                    /> */}
+                    <div className="ml-auto flex items-center gap-1">
+                      {fullTextSearchDisabled ? (
+                        <Label htmlFor="fullTextSearch" className="text-xs">
+                          Metadata
+                        </Label>
+                      ) : (
+                        <Label htmlFor="fullTextSearch" className="text-xs">
+                          Metadata + Full Text
+                        </Label>
+                      )}
                       <DocPopup
                         description={`Full text search can only be executed on max. ${compactNumberFormatter(
                           env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS,
                         )} records. Please apply more filters.`}
                       />
-                    )}
+                    </div>
                   </div>
                 </div>
               )}
