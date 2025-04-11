@@ -106,17 +106,6 @@ describe("Admin Organizations API", () => {
       expect(result.status).toBe(400);
       expect(result.body.error).toContain("Invalid request body");
     });
-
-    it("should return 405 for non-POST methods", async () => {
-      const result = await makeAPICall(
-        "GET",
-        "/api/admin/organizations",
-        undefined,
-        `Bearer ${ADMIN_API_KEY}`,
-      );
-      expect(result.status).toBe(405);
-      expect(result.body.error).toContain("Method Not Allowed");
-    });
   });
 
   describe("GET /api/admin/organizations", () => {
@@ -133,9 +122,13 @@ describe("Admin Organizations API", () => {
 
     afterAll(async () => {
       // Clean up test organization
-      await prisma.organization.delete({
-        where: { id: testOrgId },
-      }).catch(() => { /* ignore if already deleted */ });
+      await prisma.organization
+        .delete({
+          where: { id: testOrgId },
+        })
+        .catch(() => {
+          /* ignore if already deleted */
+        });
     });
 
     it("should get all organizations with valid admin authentication", async () => {
@@ -152,14 +145,44 @@ describe("Admin Organizations API", () => {
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBeGreaterThan(0);
       // Verify the test organization is in the list
-      expect(response.body.some((org: any) => org.id === testOrgId)).toBe(true);
+      expect(response.body.some((org) => org.id === testOrgId)).toBe(true);
+    });
+
+    it("should return 401 when no authorization header is provided", async () => {
+      const result = await makeAPICall("GET", "/api/admin/organizations");
+      expect(result.status).toBe(401);
+      expect(result.body.error).toContain("Unauthorized");
+    });
+  });
+
+  describe("GET /api/admin/organizations/[organizationId]", () => {
+    let testOrgId: string;
+
+    beforeAll(async () => {
+      // Create a test organization to retrieve
+      const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
+      const org = await prisma.organization.create({
+        data: { name: uniqueOrgName },
+      });
+      testOrgId = org.id;
+    });
+
+    afterAll(async () => {
+      // Clean up test organization
+      await prisma.organization
+        .delete({
+          where: { id: testOrgId },
+        })
+        .catch(() => {
+          /* ignore if already deleted */
+        });
     });
 
     it("should get a specific organization by ID", async () => {
       const response = await makeZodVerifiedAPICall(
         OrganizationResponseSchema,
         "GET",
-        `/api/admin/organizations?id=${testOrgId}`,
+        `/api/admin/organizations/${testOrgId}`,
         undefined,
         `Bearer ${ADMIN_API_KEY}`,
         200,
@@ -173,7 +196,7 @@ describe("Admin Organizations API", () => {
       const nonExistentId = randomUUID();
       const result = await makeAPICall(
         "GET",
-        `/api/admin/organizations?id=${nonExistentId}`,
+        `/api/admin/organizations/${nonExistentId}`,
         undefined,
         `Bearer ${ADMIN_API_KEY}`,
       );
@@ -181,15 +204,9 @@ describe("Admin Organizations API", () => {
       expect(result.status).toBe(404);
       expect(result.body.error).toContain("Organization not found");
     });
-
-    it("should return 401 when no authorization header is provided", async () => {
-      const result = await makeAPICall("GET", "/api/admin/organizations");
-      expect(result.status).toBe(401);
-      expect(result.body.error).toContain("Unauthorized");
-    });
   });
 
-  describe("PUT /api/admin/organizations", () => {
+  describe("PUT /api/admin/organizations/[organizationId]", () => {
     let testOrgId: string;
 
     beforeEach(async () => {
@@ -203,9 +220,13 @@ describe("Admin Organizations API", () => {
 
     afterEach(async () => {
       // Clean up test organization
-      await prisma.organization.delete({
-        where: { id: testOrgId },
-      }).catch(() => { /* ignore if already deleted */ });
+      await prisma.organization
+        .delete({
+          where: { id: testOrgId },
+        })
+        .catch(() => {
+          /* ignore if already deleted */
+        });
     });
 
     it("should update an organization with valid admin authentication", async () => {
@@ -214,7 +235,7 @@ describe("Admin Organizations API", () => {
       const response = await makeZodVerifiedAPICall(
         OrganizationResponseSchema,
         "PUT",
-        `/api/admin/organizations?id=${testOrgId}`,
+        `/api/admin/organizations/${testOrgId}`,
         {
           name: newName,
         },
@@ -240,7 +261,7 @@ describe("Admin Organizations API", () => {
       const nonExistentId = randomUUID();
       const result = await makeAPICall(
         "PUT",
-        `/api/admin/organizations?id=${nonExistentId}`,
+        `/api/admin/organizations/${nonExistentId}`,
         {
           name: "New Name",
         },
@@ -254,7 +275,7 @@ describe("Admin Organizations API", () => {
     it("should return 400 when updating with invalid name", async () => {
       const result = await makeAPICall(
         "PUT",
-        `/api/admin/organizations?id=${testOrgId}`,
+        `/api/admin/organizations/${testOrgId}`,
         {
           name: "A", // Short name
         },
@@ -268,7 +289,7 @@ describe("Admin Organizations API", () => {
     it("should return 401 when no authorization header is provided", async () => {
       const result = await makeAPICall(
         "PUT",
-        `/api/admin/organizations?id=${testOrgId}`,
+        `/api/admin/organizations/${testOrgId}`,
         {
           name: "New Name",
         },
@@ -279,7 +300,7 @@ describe("Admin Organizations API", () => {
     });
   });
 
-  describe("DELETE /api/admin/organizations", () => {
+  describe("DELETE /api/admin/organizations/[organizationId]", () => {
     let testOrgId: string;
 
     beforeEach(async () => {
@@ -293,16 +314,28 @@ describe("Admin Organizations API", () => {
 
     afterEach(async () => {
       // Clean up test organization if not deleted by test
-      await prisma.organization.delete({
-        where: { id: testOrgId },
-      }).catch(() => { /* ignore if already deleted */ });
+      await prisma.organization
+        .delete({
+          where: { id: testOrgId },
+        })
+        .catch(() => {
+          /* ignore if already deleted */
+        });
     });
 
     it("should delete an organization with valid admin authentication", async () => {
+      // Create a test organization to delete
+      const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
+      const orgId = (
+        await prisma.organization.create({
+          data: { name: uniqueOrgName },
+        })
+      ).id;
+
       const response = await makeZodVerifiedAPICall(
         DeleteResponseSchema,
         "DELETE",
-        `/api/admin/organizations?id=${testOrgId}`,
+        `/api/admin/organizations/${orgId}`,
         undefined,
         `Bearer ${ADMIN_API_KEY}`,
         200,
@@ -315,7 +348,7 @@ describe("Admin Organizations API", () => {
 
       // Verify the organization was actually deleted from the database
       const org = await prisma.organization.findUnique({
-        where: { id: testOrgId },
+        where: { id: orgId },
       });
       expect(org).toBeNull();
     });
@@ -324,7 +357,7 @@ describe("Admin Organizations API", () => {
       const nonExistentId = randomUUID();
       const result = await makeAPICall(
         "DELETE",
-        `/api/admin/organizations?id=${nonExistentId}`,
+        `/api/admin/organizations/${nonExistentId}`,
         undefined,
         `Bearer ${ADMIN_API_KEY}`,
       );
@@ -344,13 +377,15 @@ describe("Admin Organizations API", () => {
 
       const result = await makeAPICall(
         "DELETE",
-        `/api/admin/organizations?id=${testOrgId}`,
+        `/api/admin/organizations/${testOrgId}`,
         undefined,
         `Bearer ${ADMIN_API_KEY}`,
       );
 
       expect(result.status).toBe(400);
-      expect(result.body.error).toContain("Cannot delete organization with existing projects");
+      expect(result.body.error).toContain(
+        "Cannot delete organization with existing projects",
+      );
 
       // Clean up the project
       await prisma.project.deleteMany({
@@ -361,7 +396,7 @@ describe("Admin Organizations API", () => {
     it("should return 401 when no authorization header is provided", async () => {
       const result = await makeAPICall(
         "DELETE",
-        `/api/admin/organizations?id=${testOrgId}`,
+        `/api/admin/organizations/${testOrgId}`,
       );
 
       expect(result.status).toBe(401);

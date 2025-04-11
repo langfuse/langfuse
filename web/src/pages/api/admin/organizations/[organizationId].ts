@@ -6,6 +6,17 @@ import { organizationNameSchema } from "@/src/features/organizations/utils/organ
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
 
+const validateQueryAndExtractId = (query: unknown): string | null => {
+  const inputQuerySchema = z.object({
+    organizationId: z.string(),
+  });
+  const validation = inputQuerySchema.safeParse(query);
+  if (!validation.success) {
+    return null;
+  }
+  return validation.data.organizationId;
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -35,9 +46,8 @@ export default async function handler(
 }
 
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
-  const { organizationId } = req.query;
-
-  if (!organizationId || typeof organizationId !== "string") {
+  const organizationId = validateQueryAndExtractId(req.query);
+  if (!organizationId) {
     return res.status(400).json({ error: "Invalid organization ID" });
   }
 
@@ -58,18 +68,10 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
 }
 
 async function handlePut(req: NextApiRequest, res: NextApiResponse) {
-  // Validate the request body and ID
-  const idSchema = z.object({ id: z.string() });
-  const idValidation = idSchema.safeParse(req.query);
-
-  if (!idValidation.success) {
-    return res.status(400).json({
-      error: "Invalid organization ID",
-      details: idValidation.error.format(),
-    });
+  const organizationId = validateQueryAndExtractId(req.query);
+  if (!organizationId) {
+    return res.status(400).json({ error: "Invalid organization ID" });
   }
-
-  const { id } = idValidation.data;
 
   const validationResult = organizationNameSchema.safeParse(req.body);
 
@@ -84,7 +86,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse) {
 
   // Check if organization exists
   const existingOrg = await prisma.organization.findUnique({
-    where: { id },
+    where: { id: organizationId },
   });
 
   if (!existingOrg) {
@@ -93,23 +95,23 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse) {
 
   // Update the organization
   const updatedOrganization = await prisma.organization.update({
-    where: { id },
+    where: { id: organizationId },
     data: { name },
   });
 
   // Log the update
   await auditLog({
     resourceType: "organization",
-    resourceId: id,
+    resourceId: organizationId,
     action: "update",
-    orgId: id,
+    orgId: organizationId,
     orgRole: "ADMIN",
     before: existingOrg,
     after: updatedOrganization,
     apiKeyId: "ADMIN_KEY",
   });
 
-  logger.info(`Updated organization ${id} via admin API`);
+  logger.info(`Updated organization ${organizationId} via admin API`);
 
   return res.status(200).json({
     id: updatedOrganization.id,
@@ -119,22 +121,14 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse) {
 }
 
 async function handleDelete(req: NextApiRequest, res: NextApiResponse) {
-  // Validate the ID
-  const idSchema = z.object({ id: z.string() });
-  const idValidation = idSchema.safeParse(req.query);
-
-  if (!idValidation.success) {
-    return res.status(400).json({
-      error: "Invalid organization ID",
-      details: idValidation.error.format(),
-    });
+  const organizationId = validateQueryAndExtractId(req.query);
+  if (!organizationId) {
+    return res.status(400).json({ error: "Invalid organization ID" });
   }
-
-  const { id } = idValidation.data;
 
   // Check if organization exists
   const existingOrg = await prisma.organization.findUnique({
-    where: { id },
+    where: { id: organizationId },
   });
 
   if (!existingOrg) {
@@ -143,7 +137,7 @@ async function handleDelete(req: NextApiRequest, res: NextApiResponse) {
 
   // Check if organization has any projects
   const projectCount = await prisma.project.count({
-    where: { orgId: id },
+    where: { orgId: organizationId },
   });
 
   if (projectCount > 0) {
@@ -156,21 +150,21 @@ async function handleDelete(req: NextApiRequest, res: NextApiResponse) {
 
   // Delete the organization
   const deletedOrganization = await prisma.organization.delete({
-    where: { id },
+    where: { id: organizationId },
   });
 
   // Log the deletion
   await auditLog({
     resourceType: "organization",
-    resourceId: id,
+    resourceId: organizationId,
     action: "delete",
-    orgId: id,
+    orgId: organizationId,
     orgRole: "ADMIN",
     before: deletedOrganization,
     apiKeyId: "ADMIN_KEY",
   });
 
-  logger.info(`Deleted organization ${id} via admin API`);
+  logger.info(`Deleted organization ${organizationId} via admin API`);
 
   return res.status(200).json({ success: true });
 }
