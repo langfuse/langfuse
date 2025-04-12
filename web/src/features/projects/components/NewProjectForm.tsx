@@ -14,7 +14,6 @@ import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { chatRunTrigger } from "@/src/features/support-chat/chat";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -57,7 +56,6 @@ export const NewProjectForm = ({
       .catch((error) => {
         console.error(error);
       });
-    chatRunTrigger("after-project-creation");
   }
   return (
     <Form {...form}>

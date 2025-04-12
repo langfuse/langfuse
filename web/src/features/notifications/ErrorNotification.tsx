@@ -1,9 +1,5 @@
-import { Button } from "@/src/components/ui/button";
+// import { Button } from "@/src/components/ui/button";
 import { AlertTriangle, X } from "lucide-react";
-import {
-  chatAvailable,
-  sendUserChatMessage,
-} from "@/src/features/support-chat/chat";
 
 interface ErrorNotificationProps {
   error: string;
@@ -27,14 +23,14 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
     ? "text-destructive-foreground"
     : "text-dark-yellow";
 
-  const handleReportIssueClick = () => {
-    if (chatAvailable) {
-      const currentUrl = window.location.href;
-      const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${path ? `Path: ${path}\n` : ""}URL: ${currentUrl}`;
-      sendUserChatMessage(message);
-      dismissToast(toast);
-    }
-  };
+  // const handleReportIssueClick = () => {
+  //   if (chatAvailable) {
+  //     const currentUrl = window.location.href;
+  //     const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${path ? `Path: ${path}\n` : ""}URL: ${currentUrl}`;
+  //     sendUserChatMessage(message);
+  //     dismissToast(toast);
+  //   }
+  // };
 
   return (
     <div className="flex justify-between">
@@ -58,7 +54,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
           </div>
         )}
 
-        {isError && chatAvailable && (
+        {/* {isError && chatAvailable && (
           <Button
             variant="errorNotification"
             size={"sm"}
@@ -68,7 +64,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
           >
             Report issue to Langfuse team
           </Button>
-        )}
+        )} */}
       </div>
       <button
         className={`flex h-6 w-6 cursor-pointer items-start justify-end border-none bg-transparent p-0 ${textColor} transition-colors duration-200`}
