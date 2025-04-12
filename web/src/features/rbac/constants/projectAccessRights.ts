@@ -64,6 +64,9 @@ const projectScopes = [
   "promptExperiments:read",
 
   "auditLogs:read",
+
+  "savedViews:CUD",
+  "savedViews:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -114,6 +117,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "auditLogs:read",
     "dashboards:read",
     "dashboards:CUD",
+    "savedViews:CUD",
+    "savedViews:read",
   ],
   ADMIN: [
     "project:read",
@@ -158,6 +163,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "auditLogs:read",
     "dashboards:read",
     "dashboards:CUD",
+    "savedViews:CUD",
+    "savedViews:read",
   ],
   MEMBER: [
     "project:read",
@@ -190,6 +197,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:read",
     "dashboards:read",
     "dashboards:CUD",
+    "savedViews:CUD",
+    "savedViews:read",
   ],
   VIEWER: [
     "project:read",
@@ -205,6 +214,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueues:read",
     "promptExperiments:read",
     "dashboards:read",
+    "savedViews:read",
   ],
   NONE: [],
 };
