@@ -30,7 +30,7 @@ import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 import { toast } from "sonner";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useState } from "react";
-import { chatAvailable, showChat } from "@/src/features/support-chat/PlainChat";
+import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -198,7 +198,7 @@ const BillingPortalOrPricingPageButton = () => {
             // sendUserChatMessage(
             //   `I'd like to change my current plan, region ${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}, organization id ${organization.id}`,
             // )
-            showChat()
+            openChat()
           }
         >
           Change plan

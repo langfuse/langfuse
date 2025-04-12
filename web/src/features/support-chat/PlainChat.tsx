@@ -18,6 +18,11 @@ const PlainChat = () => {
       return;
     }
 
+    // Check if URL contains supportChat parameter
+    const shouldShowChat =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("supportChat") === "1";
+
     // Load the script only once
     if (!scriptRef.current) {
       const script = document.createElement("script");
@@ -26,7 +31,7 @@ const PlainChat = () => {
       script.onload = () => {
         window.Plain.init({
           appId: env.NEXT_PUBLIC_PLAIN_APP_ID,
-          hideLauncher: true,
+          hideLauncher: !shouldShowChat,
           hideBranding: true,
           logo: {
             url: "/icon256.png",
@@ -46,6 +51,11 @@ const PlainChat = () => {
             },
           ],
         });
+
+        // If URL parameter is present, open the chat immediately
+        if (shouldShowChat) {
+          window.Plain.open();
+        }
       };
 
       document.head.appendChild(script);
@@ -67,14 +77,31 @@ export default PlainChat;
 
 export const chatAvailable = !!env.NEXT_PUBLIC_PLAIN_APP_ID;
 
-export const hideChat = (): void => {
+export const showChatLauncher = (): void => {
+  if (chatAvailable) {
+    window.Plain.update({
+      hideLauncher: false,
+    });
+  }
+};
+
+export const hideChatLauncher = (): void => {
+  if (chatAvailable) {
+    window.Plain.update({
+      hideLauncher: true,
+    });
+  }
+};
+
+export const closeChat = (): void => {
   if (chatAvailable) {
     window.Plain.close();
   }
 };
 
-export const showChat = (): void => {
+export const openChat = (): void => {
   if (chatAvailable) {
+    showChatLauncher();
     window.Plain.open();
   }
 };

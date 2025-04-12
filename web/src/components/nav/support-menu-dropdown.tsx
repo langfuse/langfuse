@@ -26,7 +26,7 @@ import {
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { SiDiscord } from "react-icons/si";
 import { env } from "@/src/env.mjs";
-import { chatAvailable, showChat } from "@/src/features/support-chat/PlainChat";
+import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 
 type SupportMenuItem = {
   title: string;
@@ -60,7 +60,7 @@ export const SupportMenuDropdown = () => {
           title: "Chat",
           pathname: "#",
           menuNode: (
-            <div className="flex items-center gap-2" onClick={() => showChat()}>
+            <div className="flex items-center gap-2" onClick={() => openChat()}>
               <MessageCircle className="h-4 w-4" />
               <span>Open Chat</span>
             </div>
