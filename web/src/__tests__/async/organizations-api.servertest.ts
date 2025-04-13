@@ -16,7 +16,9 @@ const OrganizationResponseSchema = z.object({
 });
 
 // Schema for multiple organizations response
-const OrganizationsListSchema = z.array(OrganizationResponseSchema);
+const OrganizationsListSchema = z.object({
+  organizations: z.array(OrganizationResponseSchema),
+});
 
 // Schema for delete response
 const DeleteResponseSchema = z.object({
