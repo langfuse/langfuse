@@ -25,6 +25,31 @@ const DeleteResponseSchema = z.object({
   success: z.boolean(),
 });
 
+// Schema for API key response
+const ApiKeyResponseSchema = z.object({
+  id: z.string(),
+  createdAt: z.string().datetime(),
+  publicKey: z.string(),
+  secretKey: z.string(),
+  displaySecretKey: z.string(),
+  note: z.string().optional().nullable(),
+});
+
+// Schema for API key list response
+const ApiKeyListSchema = z.object({
+  apiKeys: z.array(
+    z.object({
+      id: z.string(),
+      createdAt: z.string().datetime(),
+      expiresAt: z.string().datetime().nullable(),
+      lastUsedAt: z.string().datetime().nullable(),
+      note: z.string().nullable(),
+      publicKey: z.string(),
+      displaySecretKey: z.string(),
+    }),
+  ),
+});
+
 describe("Admin Organizations API", () => {
   const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
 
@@ -401,6 +426,264 @@ describe("Admin Organizations API", () => {
       const result = await makeAPICall(
         "DELETE",
         `/api/admin/organizations/${testOrgId}`,
+      );
+
+      expect(result.status).toBe(401);
+      expect(result.body.error).toContain("Unauthorized");
+    });
+  });
+
+  describe("GET /api/admin/organizations/[organizationId]/apiKeys", () => {
+    let testOrgId: string;
+
+    beforeAll(async () => {
+      // Create a test organization
+      const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
+      const org = await prisma.organization.create({
+        data: { name: uniqueOrgName },
+      });
+      testOrgId = org.id;
+
+      // Create a test API key for the organization
+      await prisma.apiKey.create({
+        data: {
+          orgId: testOrgId,
+          publicKey: `pk-lf-test-${randomUUID()}`,
+          hashedSecretKey: "hashed-secret",
+          displaySecretKey: "sk-lf-test...1234",
+          note: "Test API Key",
+          scope: "ORGANIZATION",
+        },
+      });
+    });
+
+    afterAll(async () => {
+      // Clean up test organization and its API keys
+      await prisma.apiKey.deleteMany({
+        where: { orgId: testOrgId },
+      });
+      await prisma.organization
+        .delete({
+          where: { id: testOrgId },
+        })
+        .catch(() => {
+          /* ignore if already deleted */
+        });
+    });
+
+    it("should get all API keys for an organization with valid admin authentication", async () => {
+      const response = await makeZodVerifiedAPICall(
+        ApiKeyListSchema,
+        "GET",
+        `/api/admin/organizations/${testOrgId}/apiKeys`,
+        undefined,
+        `Bearer ${ADMIN_API_KEY}`,
+        200,
+      );
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body.apiKeys)).toBe(true);
+      expect(response.body.apiKeys.length).toBeGreaterThan(0);
+      expect(response.body.apiKeys[0].note).toBe("Test API Key");
+    });
+
+    it("should return 404 when getting API keys for a non-existent organization", async () => {
+      const nonExistentId = randomUUID();
+      const result = await makeAPICall(
+        "GET",
+        `/api/admin/organizations/${nonExistentId}/apiKeys`,
+        undefined,
+        `Bearer ${ADMIN_API_KEY}`,
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.error).toContain("Organization not found");
+    });
+
+    it("should return 401 when no authorization header is provided", async () => {
+      const result = await makeAPICall(
+        "GET",
+        `/api/admin/organizations/${testOrgId}/apiKeys`,
+      );
+
+      expect(result.status).toBe(401);
+      expect(result.body.error).toContain("Unauthorized");
+    });
+  });
+
+  describe("POST /api/admin/organizations/[organizationId]/apiKeys", () => {
+    let testOrgId: string;
+
+    beforeEach(async () => {
+      // Create a test organization
+      const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
+      const org = await prisma.organization.create({
+        data: { name: uniqueOrgName },
+      });
+      testOrgId = org.id;
+    });
+
+    afterEach(async () => {
+      // Clean up test API keys and organization
+      await prisma.apiKey.deleteMany({
+        where: { orgId: testOrgId },
+      });
+      await prisma.organization
+        .delete({
+          where: { id: testOrgId },
+        })
+        .catch(() => {
+          /* ignore if already deleted */
+        });
+    });
+
+    it("should create a new API key for an organization with valid admin authentication", async () => {
+      const response = await makeZodVerifiedAPICall(
+        ApiKeyResponseSchema,
+        "POST",
+        `/api/admin/organizations/${testOrgId}/apiKeys`,
+        {
+          note: "Test API Key",
+        },
+        `Bearer ${ADMIN_API_KEY}`,
+        201,
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body.publicKey).toMatch(/^pk-lf-/);
+      expect(response.body.secretKey).toMatch(/^sk-lf-/);
+      expect(response.body.note).toBe("Test API Key");
+
+      // Verify the API key was actually created in the database
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { id: response.body.id },
+      });
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.orgId).toBe(testOrgId);
+      expect(apiKey?.scope).toBe("ORGANIZATION");
+    });
+
+    it("should return 404 when creating an API key for a non-existent organization", async () => {
+      const nonExistentId = randomUUID();
+      const result = await makeAPICall(
+        "POST",
+        `/api/admin/organizations/${nonExistentId}/apiKeys`,
+        {
+          note: "Test API Key",
+        },
+        `Bearer ${ADMIN_API_KEY}`,
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.error).toContain("Organization not found");
+    });
+
+    it("should return 401 when no authorization header is provided", async () => {
+      const result = await makeAPICall(
+        "POST",
+        `/api/admin/organizations/${testOrgId}/apiKeys`,
+        {
+          note: "Test API Key",
+        },
+      );
+
+      expect(result.status).toBe(401);
+      expect(result.body.error).toContain("Unauthorized");
+    });
+  });
+
+  describe("DELETE /api/admin/organizations/[organizationId]/apiKeys/[apiKeyId]", () => {
+    let testOrgId: string;
+    let testApiKeyId: string;
+
+    beforeEach(async () => {
+      // Create a test organization
+      const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
+      const org = await prisma.organization.create({
+        data: { name: uniqueOrgName },
+      });
+      testOrgId = org.id;
+
+      // Create a test API key for the organization
+      const apiKey = await prisma.apiKey.create({
+        data: {
+          orgId: testOrgId,
+          publicKey: `pk-lf-test-${randomUUID()}`,
+          hashedSecretKey: "hashed-secret",
+          displaySecretKey: "sk-lf-test...1234",
+          note: "Test API Key",
+          scope: "ORGANIZATION",
+        },
+      });
+      testApiKeyId = apiKey.id;
+    });
+
+    afterEach(async () => {
+      // Clean up test organization and its API keys
+      await prisma.apiKey.deleteMany({
+        where: { orgId: testOrgId },
+      });
+      await prisma.organization
+        .delete({
+          where: { id: testOrgId },
+        })
+        .catch(() => {
+          /* ignore if already deleted */
+        });
+    });
+
+    it("should delete an API key with valid admin authentication", async () => {
+      const response = await makeZodVerifiedAPICall(
+        DeleteResponseSchema,
+        "DELETE",
+        `/api/admin/organizations/${testOrgId}/apiKeys/${testApiKeyId}`,
+        undefined,
+        `Bearer ${ADMIN_API_KEY}`,
+        200,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        success: true,
+      });
+
+      // Verify the API key was actually deleted from the database
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { id: testApiKeyId },
+      });
+      expect(apiKey).toBeNull();
+    });
+
+    it("should return 404 when deleting a non-existent API key", async () => {
+      const nonExistentId = randomUUID();
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/admin/organizations/${testOrgId}/apiKeys/${nonExistentId}`,
+        undefined,
+        `Bearer ${ADMIN_API_KEY}`,
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.error).toContain("API key not found");
+    });
+
+    it("should return 404 when deleting an API key for a non-existent organization", async () => {
+      const nonExistentId = randomUUID();
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/admin/organizations/${nonExistentId}/apiKeys/${testApiKeyId}`,
+        undefined,
+        `Bearer ${ADMIN_API_KEY}`,
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.error).toContain("Organization not found");
+    });
+
+    it("should return 401 when no authorization header is provided", async () => {
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/admin/organizations/${testOrgId}/apiKeys/${testApiKeyId}`,
       );
 
       expect(result.status).toBe(401);

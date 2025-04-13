@@ -251,6 +251,153 @@ paths:
               schema:
                 type: string
       security: *ref_0
+  /api/admin/organizations/{organizationId}/apiKeys:
+    get:
+      description: Get all API keys for an organization
+      operationId: organizations_getApiKeys
+      tags:
+        - Organizations
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+    post:
+      description: Create a new API key for an organization
+      operationId: organizations_createApiKey
+      tags:
+        - Organizations
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  nullable: true
+                  description: Optional note for the API key
+  /api/admin/organizations/{organizationId}/apiKeys/{apiKeyId}:
+    delete:
+      description: Delete an API key for an organization
+      operationId: organizations_deleteApiKey
+      tags:
+        - Organizations
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: apiKeyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteOrganizationResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
 components:
   schemas:
     Organizations:
@@ -289,6 +436,72 @@ components:
           type: boolean
       required:
         - success
+    ApiKeyList:
+      title: ApiKeyList
+      type: object
+      description: List of API keys for an organization
+      properties:
+        apiKeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeySummary'
+      required:
+        - apiKeys
+    ApiKeySummary:
+      title: ApiKeySummary
+      type: object
+      description: Summary of an API key
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        publicKey:
+          type: string
+        displaySecretKey:
+          type: string
+      required:
+        - id
+        - createdAt
+        - publicKey
+        - displaySecretKey
+    ApiKeyResponse:
+      title: ApiKeyResponse
+      type: object
+      description: Response for API key creation
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        publicKey:
+          type: string
+        secretKey:
+          type: string
+        displaySecretKey:
+          type: string
+        note:
+          type: string
+          nullable: true
+      required:
+        - id
+        - createdAt
+        - publicKey
+        - secretKey
+        - displaySecretKey
   securitySchemes:
     BearerAuth:
       type: http

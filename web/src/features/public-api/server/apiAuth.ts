@@ -82,12 +82,20 @@ export class ApiAuthService {
     await this.invalidate(apiKeys, `project ${projectId}`);
   }
 
-  async deleteApiKey(id: string, projectId: string, scope: ApiKeyScope) {
+  /**
+   * Deletes an API key from the database and invalidates it in Redis if available.
+   * @param id - The ID of the API key to delete.
+   * @param entityId - The ID of the entity (project or organization) to which the API key belongs.
+   * @param scope - The scope of the API key (either "PROJECT" or "ORGANIZATION").
+   */
+  async deleteApiKey(id: string, entityId: string, scope: ApiKeyScope) {
+    const entity =
+      scope === "PROJECT" ? { projectId: entityId } : { orgId: entityId };
     // Make sure the API key exists and belongs to the project the user has access to
     const apiKey = await this.prisma.apiKey.findFirstOrThrow({
       where: {
+        ...entity,
         id: id,
-        projectId: projectId,
         scope,
       },
     });

@@ -58,7 +58,7 @@ export const projectApiKeysRouter = createTRPCRouter({
 
       const apiKeyMeta = await createAndAddApiKeysToDb({
         prisma: ctx.prisma,
-        projectId: input.projectId,
+        entityId: input.projectId,
         note: input.note,
         scope: "PROJECT",
       });
