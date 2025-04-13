@@ -5,7 +5,12 @@ import {
   makeAPICall,
 } from "@/src/__tests__/test-utils";
 import { z } from "zod";
-import { createBasicAuthHeader } from "@langfuse/shared/src/server";
+import {
+  createAndAddApiKeysToDb,
+  createBasicAuthHeader,
+} from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import { randomUUID } from "crypto";
 
 // Schema for project response
 const ProjectResponseSchema = z.object({
@@ -17,6 +22,12 @@ const ProjectResponseSchema = z.object({
   ),
 });
 
+// Schema for project creation response
+const ProjectCreationResponseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
 describe("Public Projects API", () => {
   // Test variables
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -25,6 +36,20 @@ describe("Public Projects API", () => {
   const projectSecretKey = "sk-lf-1234567890";
   const invalidApiKey = "pk-lf-invalid";
   const invalidSecretKey = "sk-lf-invalid";
+  const orgApiKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
+  const orgSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
+
+  beforeAll(async () => {
+    await createAndAddApiKeysToDb({
+      prisma,
+      entityId: "seed-org-id",
+      scope: "ORGANIZATION",
+      predefinedKeys: {
+        publicKey: orgApiKey,
+        secretKey: orgSecretKey,
+      },
+    });
+  });
 
   describe("GET /api/public/projects", () => {
     it("should return project data with valid project API key authentication", async () => {
@@ -58,7 +83,7 @@ describe("Public Projects API", () => {
 
     it("should return 405 for non-GET methods", async () => {
       const result = await makeAPICall(
-        "POST",
+        "PUT", // Changed from POST to PUT since we now support POST
         "/api/public/projects",
         {},
         createBasicAuthHeader(projectApiKey, projectSecretKey),
@@ -85,6 +110,132 @@ describe("Public Projects API", () => {
         projectSecretKey,
       );
       expect(secretKeyResult.status).toBe(401);
+    });
+  });
+
+  describe("POST /api/public/projects", () => {
+    // Clean up test projects after each test
+    afterEach(async () => {
+      // Delete any test projects created during tests
+      await prisma.project.deleteMany({
+        where: {
+          name: {
+            startsWith: "Test Project",
+          },
+        },
+      });
+    });
+
+    it("should create a new project with valid organization API key", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+
+      const response = await makeZodVerifiedAPICall(
+        ProjectCreationResponseSchema,
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        201, // Expected status code is 201 Created
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body).toMatchObject({
+        name: uniqueProjectName,
+      });
+      expect(response.body.id).toBeDefined();
+
+      // Verify the project was actually created in the database
+      const project = await prisma.project.findUnique({
+        where: { id: response.body.id },
+      });
+      expect(project).not.toBeNull();
+      expect(project?.name).toBe(uniqueProjectName);
+    });
+
+    it("should return 403 when using project API key instead of organization API key", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+
+      const result = await makeAPICall(
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+        },
+        createBasicAuthHeader(projectApiKey, projectSecretKey),
+      );
+      expect(result.status).toBe(403);
+      expect(result.body.message).toContain(
+        "Organization-scoped API key required",
+      );
+    });
+
+    it("should return 401 when invalid API keys are provided", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+
+      const result = await makeAPICall(
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+        },
+        createBasicAuthHeader(invalidApiKey, invalidSecretKey),
+      );
+      expect(result.status).toBe(401);
+      expect(result.body.message).toContain("Invalid credentials");
+    });
+
+    it("should return 400 when project name is invalid", async () => {
+      // Test with a name that's too short
+      const shortNameResult = await makeAPICall(
+        "POST",
+        "/api/public/projects",
+        {
+          name: "AB", // Too short
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(shortNameResult.status).toBe(400);
+      expect(shortNameResult.body.message).toContain("Invalid project name");
+
+      // Test with a name that's too long
+      const longNameResult = await makeAPICall(
+        "POST",
+        "/api/public/projects",
+        {
+          name: "A".repeat(61), // Too long (more than 60 characters)
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(longNameResult.status).toBe(400);
+      expect(longNameResult.body.message).toContain("Invalid project name");
+    });
+
+    it("should return 409 when project name already exists in the organization", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+
+      // First create a project
+      await makeAPICall(
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      // Try to create another project with the same name
+      const duplicateResult = await makeAPICall(
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(duplicateResult.status).toBe(409);
+      expect(duplicateResult.body.message).toContain("already exists");
     });
   });
 });
