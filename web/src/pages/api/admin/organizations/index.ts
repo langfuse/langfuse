@@ -30,7 +30,7 @@ export default async function handler(
           createdAt: true,
         },
       });
-      return res.status(200).json(organizations);
+      return res.status(200).json({ organizations });
     }
 
     // For POST requests, create a new organization

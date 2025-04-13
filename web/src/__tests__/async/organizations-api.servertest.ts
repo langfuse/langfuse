@@ -142,10 +142,12 @@ describe("Admin Organizations API", () => {
       );
 
       expect(response.status).toBe(200);
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body.length).toBeGreaterThan(0);
+      expect(Array.isArray(response.body.organizations)).toBe(true);
+      expect(response.body.organizations.length).toBeGreaterThan(0);
       // Verify the test organization is in the list
-      expect(response.body.some((org) => org.id === testOrgId)).toBe(true);
+      expect(
+        response.body.organizations.some((org) => org.id === testOrgId),
+      ).toBe(true);
     });
 
     it("should return 401 when no authorization header is provided", async () => {
