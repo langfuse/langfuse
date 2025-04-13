@@ -28,6 +28,12 @@ const ProjectCreationResponseSchema = z.object({
   name: z.string(),
 });
 
+// Schema for project deletion response
+const ProjectDeletionResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+});
+
 describe("Public Projects API", () => {
   // Test variables
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -236,6 +242,100 @@ describe("Public Projects API", () => {
       );
       expect(duplicateResult.status).toBe(409);
       expect(duplicateResult.body.message).toContain("already exists");
+    });
+  });
+
+  describe("DELETE /api/public/projects/[projectId]", () => {
+    let testProjectId: string;
+
+    beforeEach(async () => {
+      // Create a test project to delete
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+      const project = await prisma.project.create({
+        data: {
+          name: uniqueProjectName,
+          orgId: "seed-org-id", // Same org ID used for the API key
+        },
+      });
+      testProjectId = project.id;
+    });
+
+    afterEach(async () => {
+      // Clean up any remaining test projects
+      await prisma.project.deleteMany({
+        where: {
+          id: testProjectId,
+        },
+      });
+    });
+
+    it("should delete a project with valid organization API key", async () => {
+      const response = await makeZodVerifiedAPICall(
+        ProjectDeletionResponseSchema,
+        "DELETE",
+        `/api/public/projects/${testProjectId}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200, // Expected status code is 200 OK
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.message).toContain("deleted successfully");
+
+      // Verify the project was marked as deleted in the database
+      const project = await prisma.project.findUnique({
+        where: { id: testProjectId },
+      });
+      expect(project).not.toBeNull();
+      expect(project?.deletedAt).not.toBeNull();
+    });
+
+    it("should return 403 when using project API key instead of organization API key", async () => {
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/public/projects/${testProjectId}`,
+        undefined,
+        createBasicAuthHeader(projectApiKey, projectSecretKey),
+      );
+      expect(result.status).toBe(403);
+      expect(result.body.message).toContain(
+        "Organization-scoped API key required",
+      );
+    });
+
+    it("should return 401 when invalid API keys are provided", async () => {
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/public/projects/${testProjectId}`,
+        undefined,
+        createBasicAuthHeader(invalidApiKey, invalidSecretKey),
+      );
+      expect(result.status).toBe(401);
+      expect(result.body.message).toBeDefined();
+    });
+
+    it("should return 404 when project does not exist", async () => {
+      const nonExistentProjectId = randomUUID();
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/public/projects/${nonExistentProjectId}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(404);
+      expect(result.body.message).toContain("Project not found");
+    });
+
+    it("should return 405 for non-DELETE methods", async () => {
+      const result = await makeAPICall(
+        "GET",
+        `/api/public/projects/${testProjectId}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(405);
+      expect(result.body.message).toContain("Method not allowed");
     });
   });
 });
