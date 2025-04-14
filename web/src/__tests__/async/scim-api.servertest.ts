@@ -639,7 +639,7 @@ describe("SCIM API", () => {
 
       it("should delete a user with valid organization API key", async () => {
         try {
-          const response = await makeAPICall(
+          await makeAPICall(
             "DELETE",
             `/api/public/scim/Users/${testUserId}`,
             undefined,
