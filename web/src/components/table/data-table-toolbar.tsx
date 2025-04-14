@@ -25,6 +25,7 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
+import { SavedViewsDrawer } from "@/src/components/table/data-table-saved-views-drawer";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -153,6 +154,16 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
+          <SavedViewsDrawer
+            onSelectView={(viewId: string) => {
+              console.log("Selected view:", viewId);
+              // Your logic to load the saved view
+            }}
+            onCreateView={() => {
+              console.log("Creating new view");
+              // Your logic to create a new view
+            }}
+          />
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}
