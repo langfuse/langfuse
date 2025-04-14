@@ -66,8 +66,81 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
-// this function is used to determine which eval jobs to create for a given trace
-// there might be multiple eval jobs to create for a single trace
+/**
+ * Determines which eval jobs to create for a given event (traces or dataset run items).
+ * There might be multiple eval jobs to create for a single trace.
+ * Supports:
+ * - TraceQueue: Live trace data
+ * - DatasetRunItemUpsert: Live dataset run items
+ * - CreateEvalQueue: Historical batch data (traces or dataset run items)
+ *
+ * @param {Object} params - Function parameters
+ * @param {TraceQueueEventType|DatasetRunItemUpsertEventType|CreateEvalQueueEventType} params.event - Event that triggered job creation
+ * @param {Date} params.jobTimestamp - When the job was created
+ * @param {JobTimeScope} [params.enforcedJobTimeScope] - Optional filter for job configurations ("NEW"|"EXISTING")
+ *
+ * Data Flow Architecture for Evaluation Jobs
+ *
+ * ┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
+ * │                         │    │                         │    │                         │
+ * │  TraceQueue             │    │  DatasetRunItemUpsert   │    │  CreateEvalQueue        │
+ * │  - Live trace data      │    │  - Live dataset run item│    │  - Historical batch     │
+ * │  - No timestamp in body │    │  - No timestamp in body │    │  - Has timestamp in body│
+ * │  - enforcedTimeScope=NEW│    │  - enforcedTimeScope=NEW│    │  - No enforcedTimeScope │
+ * │  - Always linked to     │    │  - Always linked to     │    │  - Always linked to     │
+ * │    traces only          │    │    traces & sometimes   │    │    traces & sometimes   │
+ * │                         │    │    to observations      │    │    to observations      │
+ * └──────────────┬──────────┘    └──────────────┬──────────┘    └──────────────┬──────────┘
+ *                │                              │                              │
+ *                │                              │                              │
+ *                └──────────────────┬───────────┴──────────────────────────────┘
+ *                                   │
+ *                                   ▼
+ *                     ┌────────────────────────────┐
+ *                     │                            │
+ *                     │  createEvalJobs            │
+ *                     │  - Fetches job configs     │
+ *                     │  - Filters by time scope   │
+ *                     │  - Creates evaluation jobs │
+ *                     │                            │
+ *                     └───────────────┬────────────┘
+ *                                     │
+ *                                     ▼
+ *                     ┌────────────────────────────┐
+ *                     │                            │
+ *                     │  Validation Checks         │
+ *                     │                            │
+ *                     ├────────────────────────────┤
+ *                     │  ┌────────────────────┐    │
+ *                     │  │ traceExists        │◄───┼── Always run for all events
+ *                     │  └────────────────────┘    │
+ *                     │                            │
+ *                     │  ┌────────────────────┐    │
+ *                     │  │ observationExists  │◄───┼── Only run for DatasetRunItemUpsert
+ *                     │  └────────────────────┘    │    and CreateEvalQueue if observationId is set
+ *                     │                            │
+ *                     └───────────────┬────────────┘
+ *                                     │
+ *                                     ▼
+ *                     ┌────────────────────────────┐
+ *                     │                            │
+ *                     │  EvaluationExecution Queue │
+ *                     │  - Jobs queued with delay  │
+ *                     │  - Includes job parameters │
+ *                     │                            │
+ *                     └───────────────┬────────────┘
+ *                                     │
+ *                                     ▼
+ *                     ┌────────────────────────────┐
+ *                     │                            │
+ *                     │  Worker Process            │
+ *                     │  - Processes eval jobs     │
+ *                     │  - Executes LLM completion │
+ *                     │                            │
+ *                     └────────────────────────────┘
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────── │
+ */
 export const createEvalJobs = async ({
   event,
   jobTimestamp,
