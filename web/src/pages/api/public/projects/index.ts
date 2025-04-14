@@ -1,7 +1,6 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { isPrismaException } from "@/src/utils/exceptions";
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -64,11 +63,6 @@ export default async function handler(
       });
     } catch (error) {
       logger.error(error);
-      if (isPrismaException(error)) {
-        return res.status(500).json({
-          error: "Internal Server Error",
-        });
-      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -93,7 +87,8 @@ export default async function handler(
         projectNameSchema.parse({ name });
       } catch (error) {
         return res.status(400).json({
-          message: "Invalid project name length.",
+          message:
+            "Invalid project name length. Should be between 3 and 30 characters.",
         });
       }
 

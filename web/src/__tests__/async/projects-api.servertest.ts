@@ -276,12 +276,12 @@ describe("Public Projects API", () => {
         `/api/public/projects/${testProjectId}`,
         undefined,
         createBasicAuthHeader(orgApiKey, orgSecretKey),
-        200, // Expected status code is 200 OK
+        202, // Expected status code is 202 Accepted
       );
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(202);
       expect(response.body.success).toBe(true);
-      expect(response.body.message).toContain("deleted successfully");
+      expect(response.body.message).toContain("being processed asynchronously");
 
       // Verify the project was marked as deleted in the database
       const project = await prisma.project.findUnique({
