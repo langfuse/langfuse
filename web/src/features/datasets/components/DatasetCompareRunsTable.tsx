@@ -27,8 +27,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import _ from "lodash";
 import { useDatasetComparePeekState } from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
 import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
-import { useDatasetComparePeekNavigation } from "@/src/components/table/peek/hooks/useDatasetComparePeekNavigation";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDatasetComparePeekNavigation } from "@/src/components/table/peek/hooks/useDatasetComparePeekNavigation";
 
 export type RunMetrics = {
   id: string;
@@ -117,8 +118,10 @@ export function DatasetCompareRunsTable(props: {
   >({});
   const queryClient = useQueryClient();
   const { setDetailPageList } = useDetailPageLists();
-
-  const rowHeight = "l";
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "datasetCompareRuns",
+    "m",
+  );
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -389,6 +392,7 @@ export function DatasetCompareRunsTable(props: {
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
         actionButtons={
           <DropdownMenu open={isMetricsDropdownOpen}>
             <DropdownMenuTrigger asChild>
@@ -456,6 +460,11 @@ export function DatasetCompareRunsTable(props: {
           state: paginationState,
         }}
         rowHeight={rowHeight}
+        customRowHeights={{
+          s: "h-48",
+          m: "h-64",
+          l: "h-96",
+        }}
         peekView={{
           itemType: "DATASET_ITEM",
           urlPathname,
