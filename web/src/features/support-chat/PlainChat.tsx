@@ -77,7 +77,7 @@ export default PlainChat;
 
 export const chatAvailable = !!env.NEXT_PUBLIC_PLAIN_APP_ID;
 
-export const showChatLauncher = (): void => {
+export const showChat = (): void => {
   if (chatAvailable) {
     window.Plain.update({
       hideLauncher: false,
@@ -85,7 +85,7 @@ export const showChatLauncher = (): void => {
   }
 };
 
-export const hideChatLauncher = (): void => {
+export const hideChat = (): void => {
   if (chatAvailable) {
     window.Plain.update({
       hideLauncher: true,
@@ -101,7 +101,7 @@ export const closeChat = (): void => {
 
 export const openChat = (): void => {
   if (chatAvailable) {
-    showChatLauncher();
+    showChat();
     window.Plain.open();
   }
 };

@@ -1,4 +1,5 @@
-// import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/ui/button";
+import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 import { AlertTriangle, X } from "lucide-react";
 
 interface ErrorNotificationProps {
@@ -54,17 +55,17 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
           </div>
         )}
 
-        {/* {isError && chatAvailable && (
+        {isError && chatAvailable && (
           <Button
             variant="errorNotification"
             size={"sm"}
             onClick={() => {
-              handleReportIssueClick();
+              openChat();
             }}
           >
             Report issue to Langfuse team
           </Button>
-        )} */}
+        )}
       </div>
       <button
         className={`flex h-6 w-6 cursor-pointer items-start justify-end border-none bg-transparent p-0 ${textColor} transition-colors duration-200`}
