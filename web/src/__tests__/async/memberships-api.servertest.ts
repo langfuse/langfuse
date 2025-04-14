@@ -38,7 +38,7 @@ describe("Memberships APIs", () => {
     // Create a test organization
     const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
     const org = await prisma.organization.create({
-      data: { name: uniqueOrgName },
+      data: { name: uniqueOrgName, cloudConfig: { plan: "Team" } },
     });
     testOrgId = org.id;
 
