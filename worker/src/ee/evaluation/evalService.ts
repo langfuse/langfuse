@@ -70,12 +70,14 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 // there might be multiple eval jobs to create for a single trace
 export const createEvalJobs = async ({
   event,
+  jobTimestamp,
   enforcedJobTimeScope,
 }: {
   event:
     | TraceQueueEventType
     | DatasetRunItemUpsertEventType
     | CreateEvalQueueEventType;
+  jobTimestamp: Date;
   enforcedJobTimeScope?: JobTimeScope;
 }) => {
   // Fetch all configs for a given project. Those may be dataset or trace configs.
@@ -124,7 +126,8 @@ export const createEvalJobs = async ({
     const traceExists = await checkTraceExists(
       event.projectId,
       event.traceId,
-      "timestamp" in event ? new Date(event.timestamp) : new Date(),
+      // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
+      "timestamp" in event ? new Date(event.timestamp) : new Date(jobTimestamp),
       config.target_object === "trace" ? validatedFilter : [],
     );
 
@@ -177,7 +180,10 @@ export const createEvalJobs = async ({
       const observationExists = await checkObservationExists(
         event.projectId,
         observationId,
-        "timestamp" in event ? new Date(event.timestamp) : new Date(),
+        // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
+        "timestamp" in event
+          ? new Date(event.timestamp)
+          : new Date(jobTimestamp),
       );
       if (!observationExists) {
         logger.warn(
