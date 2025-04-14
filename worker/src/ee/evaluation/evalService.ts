@@ -96,48 +96,46 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
  *                └──────────────────┬───────────┴──────────────────────────────┘
  *                                   │
  *                                   ▼
- *                     ┌────────────────────────────┐
- *                     │                            │
- *                     │  createEvalJobs            │
- *                     │  - Fetches job configs     │
- *                     │  - Filters by time scope   │
- *                     │  - Creates evaluation jobs │
- *                     │                            │
- *                     └───────────────┬────────────┘
- *                                     │
- *                                     ▼
- *                     ┌────────────────────────────┐
- *                     │                            │
- *                     │  Validation Checks         │
- *                     │                            │
- *                     ├────────────────────────────┤
- *                     │  ┌────────────────────┐    │
- *                     │  │ traceExists        │◄───┼── Always run for all events
- *                     │  └────────────────────┘    │
- *                     │                            │
- *                     │  ┌────────────────────┐    │
- *                     │  │ observationExists  │◄───┼── Only run for DatasetRunItemUpsert
- *                     │  └────────────────────┘    │    and CreateEvalQueue if observationId is set
- *                     │                            │
- *                     └───────────────┬────────────┘
- *                                     │
- *                                     ▼
- *                     ┌────────────────────────────┐
- *                     │                            │
- *                     │  EvaluationExecution Queue │
- *                     │  - Jobs queued with delay  │
- *                     │  - Includes job parameters │
- *                     │                            │
- *                     └───────────────┬────────────┘
- *                                     │
- *                                     ▼
- *                     ┌────────────────────────────┐
- *                     │                            │
- *                     │  Worker Process            │
- *                     │  - Processes eval jobs     │
- *                     │  - Executes LLM completion │
- *                     │                            │
- *                     └────────────────────────────┘
+ * ┌───────────────────────────────────────────────────────────────────────────────────────┐
+ * │                                                                                       │
+ * │  createEvalJobs function                                                              │
+ * │  ───────────────────────                                                              │
+ * │                                                                                       │
+ * │                     ┌────────────────────────────┐                                    │
+ * │                     │                            │                                    │
+ * │                     │  1. Fetch & Filter         │                                    │
+ * │                     │  - Fetches job configs     │                                    │
+ * │                     │  - Filters by time scope   │                                    │
+ * │                     │  - Creates evaluation jobs │                                    │
+ * │                     │                            │                                    │
+ * │                     └───────────────┬────────────┘                                    │
+ * │                                     │                                                 │
+ * │                                     ▼                                                 │
+ * │                     ┌────────────────────────────┐                                    │
+ * │                     │                            │                                    │
+ * │                     │  2. Validation Checks      │                                    │
+ * │                     │                            │                                    │
+ * │                     ├────────────────────────────┤                                    │
+ * │                     │  ┌────────────────────┐    │                                    │
+ * │                     │  │ traceExists        │◄───┼── Always run for all events        │
+ * │                     │  └────────────────────┘    │                                    │
+ * │                     │                            │                                    │
+ * │                     │  ┌────────────────────┐    │                                    │
+ * │                     │  │ observationExists  │◄───┼── Only run for DatasetRunItemUpsert│
+ * │                     │  └────────────────────┘    │    and CreateEvalQueue if          │
+ * │                     │                            │    observationId is set            │
+ * │                     └───────────────┬────────────┘                                    │
+ * │                                     │                                                 │
+ * │                                     ▼                                                 │
+ * │                     ┌────────────────────────────┐                                    │
+ * │                     │                            │                                    │
+ * │                     │  3. EvaluationExecution    │                                    │
+ * │                     │  - Jobs queued with delay  │                                    │
+ * │                     │  - Includes job parameters │                                    │
+ * │                     │                            │                                    │
+ * │                     └────────────────────────────┘                                    │
+ * │                                                                                       │
+ * └───────────────────────────────────────────────────────────────────────────────────────┘
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────── │
  */
