@@ -1,7 +1,6 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { isPrismaException } from "@/src/utils/exceptions";
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -58,12 +57,7 @@ export default async function handler(
       const parsedStartIndex = parseInt(startIndex as string, 10) || 1;
       const parsedCount = parseInt(count as string, 10) || 100;
 
-      // Handle filtering by userName if provided
-      let whereClause: Record<string, unknown> = {
-        orgId: authCheck.scope.orgId,
-        deletedAt: null,
-      };
-
+      let whereClause = {};
       if (filter && typeof filter === "string") {
         // Parse filter for userName eq "value"
         const match = filter.match(/userName eq "([^"]+)"/i);
@@ -76,43 +70,48 @@ export default async function handler(
       }
 
       // Get total count for pagination
-      const totalCount = await prisma.user.count({
-        where: whereClause,
+      const totalCount = await prisma.organizationMembership.count({
+        where: {
+          user: whereClause,
+          orgId: authCheck.scope.orgId,
+        },
       });
 
       // Get users with pagination
-      const users = await prisma.user.findMany({
-        where: whereClause,
+      const userMapping = await prisma.organizationMembership.findMany({
+        where: {
+          user: whereClause,
+          orgId: authCheck.scope.orgId,
+        },
         skip: parsedStartIndex - 1, // SCIM uses 1-based indexing
         take: parsedCount,
         select: {
           id: true,
-          email: true,
-          name: true,
+          user: true,
         },
       });
 
       // Transform to SCIM format
-      const scimUsers = users.map((user) => ({
-        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        id: user.id,
-        userName: user.email,
-        name: {
-          givenName: user.name?.split(" ")[0] || "",
-          familyName: user.name?.split(" ").slice(1).join(" ") || "",
-        },
-        active: true, // Users are always active and will be deleted if inactivated.
-        emails: [
-          {
-            primary: true,
-            value: user.email,
-            type: "work",
+      const scimUsers = userMapping
+        .map((userMap) => userMap.user)
+        .map((user) => ({
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          id: user.id,
+          userName: user.email,
+          name: {
+            formatted: user.name,
           },
-        ],
-        meta: {
-          resourceType: "User",
-        },
-      }));
+          emails: [
+            {
+              primary: true,
+              value: user.email,
+              type: "work",
+            },
+          ],
+          meta: {
+            resourceType: "User",
+          },
+        }));
 
       return res.status(200).json({
         schemas: ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
@@ -133,7 +132,7 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      const { userName, name, emails, active = true } = req.body;
+      const { userName, name } = req.body;
 
       if (!userName) {
         return res.status(400).json({
@@ -153,7 +152,7 @@ export default async function handler(
         },
       });
 
-      if (existingUser) {
+      if (existingUser.length > 0) {
         return res.status(409).json({
           schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
           detail: "User with this userName already exists",
@@ -161,23 +160,16 @@ export default async function handler(
         });
       }
 
-      // Construct full name from given and family names
-      const fullName = name
-        ? `${name.givenName || ""} ${name.familyName || ""}`.trim()
-        : "";
-
-      // Get primary email or use userName as email
-      const email =
-        emails && emails.length > 0
-          ? emails.find((e: any) => e.primary)?.value || emails[0].value
-          : userName;
-
       // Create the user
-      const user = await prisma.user.create({
-        data: {
-          email: email,
-          name: fullName,
+      const user = await prisma.user.upsert({
+        where: {
+          email: userName,
         },
+        create: {
+          email: userName,
+          name: name.formatted,
+        },
+        update: {},
       });
       await prisma.organizationMembership.create({
         data: {
@@ -193,10 +185,8 @@ export default async function handler(
         id: user.id,
         userName: user.email,
         name: {
-          givenName: user.name?.split(" ")[0] || "",
-          familyName: user.name?.split(" ").slice(1).join(" ") || "",
+          formatted: user.name,
         },
-        active: true,
         emails: [
           {
             primary: true,

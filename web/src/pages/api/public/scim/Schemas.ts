@@ -18,7 +18,7 @@ export default async function handler(
     return res.status(405).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
       detail: "Method not allowed",
-      status: 405
+      status: 405,
     });
   }
 
@@ -31,7 +31,7 @@ export default async function handler(
     return res.status(401).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
       detail: authCheck.error,
-      status: 401
+      status: 401,
     });
   }
   // END CHECK AUTH
@@ -43,8 +43,9 @@ export default async function handler(
   ) {
     return res.status(403).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "Invalid API key. Organization-scoped API key required for this operation.",
-      status: 403
+      detail:
+        "Invalid API key. Organization-scoped API key required for this operation.",
+      status: 403,
     });
   }
 
@@ -68,18 +69,19 @@ export default async function handler(
             caseExact: true,
             mutability: "readOnly",
             returned: "always",
-            uniqueness: "server"
+            uniqueness: "server",
           },
           {
             name: "userName",
             type: "string",
             multiValued: false,
-            description: "Unique identifier for the User, typically the email address",
+            description:
+              "Unique identifier for the User, typically the email address",
             required: true,
             caseExact: false,
             mutability: "readWrite",
             returned: "always",
-            uniqueness: "server"
+            uniqueness: "server",
           },
           {
             name: "name",
@@ -89,31 +91,20 @@ export default async function handler(
             required: false,
             subAttributes: [
               {
-                name: "givenName",
+                name: "formatted",
                 type: "string",
                 multiValued: false,
-                description: "The user's first name",
+                description: "The user's full name",
                 required: false,
                 caseExact: false,
                 mutability: "readWrite",
                 returned: "default",
-                uniqueness: "none"
+                uniqueness: "none",
               },
-              {
-                name: "familyName",
-                type: "string",
-                multiValued: false,
-                description: "The user's last name",
-                required: false,
-                caseExact: false,
-                mutability: "readWrite",
-                returned: "default",
-                uniqueness: "none"
-              }
             ],
             mutability: "readWrite",
             returned: "default",
-            uniqueness: "none"
+            uniqueness: "none",
           },
           {
             name: "emails",
@@ -131,7 +122,7 @@ export default async function handler(
                 caseExact: false,
                 mutability: "readWrite",
                 returned: "default",
-                uniqueness: "none"
+                uniqueness: "none",
               },
               {
                 name: "primary",
@@ -141,7 +132,7 @@ export default async function handler(
                 required: false,
                 mutability: "readWrite",
                 returned: "default",
-                uniqueness: "none"
+                uniqueness: "none",
               },
               {
                 name: "type",
@@ -152,21 +143,12 @@ export default async function handler(
                 caseExact: false,
                 mutability: "readWrite",
                 returned: "default",
-                uniqueness: "none"
-              }
+                uniqueness: "none",
+              },
             ],
             mutability: "readWrite",
             returned: "default",
-            uniqueness: "none"
-          },
-          {
-            name: "active",
-            type: "boolean",
-            multiValued: false,
-            description: "A Boolean value indicating if the User is active",
-            required: false,
-            mutability: "readWrite",
-            returned: "default"
+            uniqueness: "none",
           },
           {
             name: "meta",
@@ -184,7 +166,7 @@ export default async function handler(
                 caseExact: true,
                 mutability: "readOnly",
                 returned: "default",
-                uniqueness: "none"
+                uniqueness: "none",
               },
               {
                 name: "created",
@@ -194,7 +176,7 @@ export default async function handler(
                 required: false,
                 mutability: "readOnly",
                 returned: "default",
-                uniqueness: "none"
+                uniqueness: "none",
               },
               {
                 name: "lastModified",
@@ -204,53 +186,20 @@ export default async function handler(
                 required: false,
                 mutability: "readOnly",
                 returned: "default",
-                uniqueness: "none"
-              }
+                uniqueness: "none",
+              },
             ],
             mutability: "readOnly",
             returned: "default",
-            uniqueness: "none"
-          }
-        ],
-        meta: {
-          resourceType: "Schema",
-          location: "/api/public/scim/Schemas/urn:ietf:params:scim:schemas:core:2.0:User"
-        }
-      },
-      // Enterprise User Schema
-      {
-        id: "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
-        name: "EnterpriseUser",
-        description: "Enterprise User",
-        attributes: [
-          {
-            name: "organization",
-            type: "string",
-            multiValued: false,
-            description: "Organization name",
-            required: false,
-            caseExact: false,
-            mutability: "readWrite",
-            returned: "default",
-            uniqueness: "none"
+            uniqueness: "none",
           },
-          {
-            name: "department",
-            type: "string",
-            multiValued: false,
-            description: "Department name",
-            required: false,
-            caseExact: false,
-            mutability: "readWrite",
-            returned: "default",
-            uniqueness: "none"
-          }
         ],
         meta: {
           resourceType: "Schema",
-          location: "/api/public/scim/Schemas/urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
-        }
-      }
-    ]
+          location:
+            "/api/public/scim/Schemas/urn:ietf:params:scim:schemas:core:2.0:User",
+        },
+      },
+    ],
   });
 }

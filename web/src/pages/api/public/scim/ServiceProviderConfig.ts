@@ -18,7 +18,7 @@ export default async function handler(
     return res.status(405).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
       detail: "Method not allowed",
-      status: 405
+      status: 405,
     });
   }
 
@@ -31,7 +31,7 @@ export default async function handler(
     return res.status(401).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
       detail: authCheck.error,
-      status: 401
+      status: 401,
     });
   }
   // END CHECK AUTH
@@ -43,8 +43,9 @@ export default async function handler(
   ) {
     return res.status(403).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "Invalid API key. Organization-scoped API key required for this operation.",
-      status: 403
+      detail:
+        "Invalid API key. Organization-scoped API key required for this operation.",
+      status: 403,
     });
   }
 
@@ -53,25 +54,25 @@ export default async function handler(
     schemas: ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
     documentationUri: "https://docs.langfuse.com/scim",
     patch: {
-      supported: true
+      supported: false,
     },
     bulk: {
       supported: false,
       maxOperations: 0,
-      maxPayloadSize: 0
+      maxPayloadSize: 0,
     },
     filter: {
       supported: true,
-      maxResults: 100
+      maxResults: 100,
     },
     changePassword: {
-      supported: false
+      supported: false,
     },
     sort: {
-      supported: false
+      supported: false,
     },
     etag: {
-      supported: false
+      supported: false,
     },
     authenticationSchemes: [
       {
@@ -79,12 +80,12 @@ export default async function handler(
         description: "Authentication via HTTP Basic Auth",
         specUri: "https://tools.ietf.org/html/rfc2617",
         type: "httpbasic",
-        primary: true
-      }
+        primary: true,
+      },
     ],
     meta: {
       resourceType: "ServiceProviderConfig",
-      location: "/api/public/scim/ServiceProviderConfig"
-    }
+      location: "/api/public/scim/ServiceProviderConfig",
+    },
   });
 }
