@@ -32,7 +32,7 @@ import { Shield, Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { openChat } from "@/src/features/support-chat/chat";
+import { openChat } from "@/src/features/support-chat/PlainChat";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -532,7 +532,7 @@ export default function SignIn({
             on a solution.{" "}
             <span
               className="cursor-pointer whitespace-nowrap text-xs font-medium text-primary-accent hover:text-hover-primary-accent"
-              onClick={openChat}
+              onClick={() => openChat()}
             >
               (contact us)
             </span>
