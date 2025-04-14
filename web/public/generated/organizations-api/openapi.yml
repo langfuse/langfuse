@@ -20,6 +20,13 @@ info:
     $ADMIN_API_KEY` where
 
     `$ADMIN_API_KEY` is the API key set via the container environment.
+
+
+    ## Exports
+
+
+    - OpenAPI spec:
+    https://cloud.langfuse.com/generated/organizations-api/openapi.yml
 paths:
   /api/admin/organizations:
     get:

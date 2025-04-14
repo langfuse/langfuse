@@ -9,6 +9,11 @@ docs: |
 
   Authenticate with the API by setting the Authorization header to `Bearer $ADMIN_API_KEY` where
   `$ADMIN_API_KEY` is the API key set via the container environment.
+  
+  ## Exports
+
+  - OpenAPI spec: https://cloud.langfuse.com/generated/organizations-api/openapi.yml
+
 error-discrimination:
   strategy: status-code
 auth: bearer

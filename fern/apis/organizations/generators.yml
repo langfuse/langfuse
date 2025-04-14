@@ -6,7 +6,7 @@ groups:
         version: 0.1.7
         output:
           location: local-file-system
-          path: ../../../web/public/generated/admin-api
+          path: ../../../web/public/generated/organizations-api
         config:
           namespaceExport: Langfuse
           allowCustomFetcher: true
