@@ -105,9 +105,9 @@ export default async function handler(
       name: QueueJobs.ProjectDelete,
     });
 
-    return res.status(200).json({
+    return res.status(202).json({
       success: true,
-      message: "Project deleted successfully",
+      message: "Project deletion has been initiated and is being processed asynchronously",
     });
   } catch (error) {
     logger.error("Failed to delete project", error);
