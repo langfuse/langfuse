@@ -157,6 +157,7 @@ const test = baseTest.extend<{
           traceId: traceId1,
           ...event1,
         },
+        jobTimestamp: new Date(),
       });
       await createEvalJobs({
         event: {
@@ -164,6 +165,7 @@ const test = baseTest.extend<{
           traceId: traceId2,
           ...event2,
         },
+        jobTimestamp: new Date(),
       });
     });
   },
