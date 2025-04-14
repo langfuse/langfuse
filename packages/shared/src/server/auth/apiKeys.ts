@@ -38,7 +38,7 @@ export function createShaHash(privateKey: string, salt: string): string {
 
 export async function createAndAddApiKeysToDb(p: {
   prisma: PrismaClient;
-  projectId: string;
+  entityId: string;
   scope: ApiKeyScope;
   note?: string;
   predefinedKeys?: {
@@ -60,9 +60,12 @@ export async function createAndAddApiKeysToDb(p: {
 
   const hashFromProvidedKey = createShaHash(sk, salt);
 
+  const entity =
+    p.scope === "PROJECT" ? { projectId: p.entityId } : { orgId: p.entityId };
+
   const apiKey = await p.prisma.apiKey.create({
     data: {
-      projectId: p.projectId,
+      ...entity,
       publicKey: pk,
       hashedSecretKey: hashedSk,
       displaySecretKey: displaySk,
