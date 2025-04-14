@@ -4,6 +4,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { z } from "zod";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -55,6 +56,18 @@ export default async function handler(
     return res.status(403).json({
       error:
         "Invalid API key. Organization-scoped API key required for this operation.",
+    });
+  }
+
+  // Check if organization has the rbac-project-roles entitlement
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: authCheck.scope.plan,
+      entitlement: "rbac-project-roles",
+    })
+  ) {
+    return res.status(403).json({
+      error: "Your plan does not include project role management.",
     });
   }
 
