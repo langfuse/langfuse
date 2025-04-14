@@ -114,8 +114,10 @@ function ColumnVisibilityListItem<TData, TValue>({
         "group transition-colors hover:bg-muted/50",
       )}
       style={{
-        transform: transform ? CSS.Translate.toString(transform) : "none",
-        transition: "transform 0.2s ease-in-out",
+        transform: transform
+          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+          : undefined,
+        transition: isDragging ? "none" : "transform 0.15s ease-in-out",
         zIndex: isDragging ? 1 : undefined,
       }}
     >
@@ -199,8 +201,10 @@ function GroupVisibilityHeader<TData, TValue>({
             "group cursor-pointer hover:bg-muted",
           )}
           style={{
-            transform: transform ? CSS.Translate.toString(transform) : "none",
-            transition: "transform 0.2s ease-in-out",
+            transform: transform
+              ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+              : undefined,
+            transition: isDragging ? "none" : "transform 0.15s ease-in-out",
             zIndex: isDragging ? 1 : undefined,
           }}
         >

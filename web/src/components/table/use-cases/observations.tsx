@@ -381,7 +381,7 @@ export default function ObservationsTable({
       size: 100,
       headerTooltip: {
         description:
-          "Use You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
+          "You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
         href: "https://langfuse.com/docs/tracing-features/log-levels",
       },
       enableHiding: true,
@@ -412,6 +412,7 @@ export default function ObservationsTable({
         href: "https://langfuse.com/docs/tracing-features/log-levels",
       },
       enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "latency",
@@ -422,6 +423,26 @@ export default function ObservationsTable({
         const latency: number | undefined = row.getValue("latency");
         return latency !== undefined ? (
           <span>{formatIntervalSeconds(latency)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "totalCost",
+      header: "Total Cost",
+      id: "totalCost",
+      size: 120,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("totalCost");
+
+        return value !== undefined ? (
+          <BreakdownTooltip details={row.original.costDetails} isCost>
+            <div className="flex items-center gap-1">
+              <span>{usdFormatter(value)}</span>
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
         ) : undefined;
       },
       enableHiding: true,
@@ -469,26 +490,6 @@ export default function ObservationsTable({
             </div>
           </BreakdownTooltip>
         );
-      },
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "totalCost",
-      header: "Total Cost",
-      id: "totalCost",
-      size: 120,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
-
-        return value !== undefined ? (
-          <BreakdownTooltip details={row.original.costDetails} isCost>
-            <div className="flex items-center gap-1">
-              <span>{usdFormatter(value)}</span>
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        ) : undefined;
       },
       enableHiding: true,
       enableSorting: true,
