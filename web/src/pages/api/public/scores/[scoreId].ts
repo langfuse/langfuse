@@ -1,4 +1,4 @@
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   DeleteScoreQuery,
@@ -19,7 +19,7 @@ import { QueueJobs } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Score",
     querySchema: GetScoreQuery,
     responseSchema: GetScoreResponse,
@@ -41,7 +41,7 @@ export default withMiddlewares({
       return parsedScore.data;
     },
   }),
-  DELETE: createAuthedAPIRoute({
+  DELETE: createAuthedProjectAPIRoute({
     name: "Delete Score",
     querySchema: DeleteScoreQuery,
     responseSchema: DeleteScoreResponse,

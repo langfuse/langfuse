@@ -213,6 +213,7 @@ jobs:
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
+          echo "ADMIN_API_KEY=admin-api-key" >> .env
       - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d

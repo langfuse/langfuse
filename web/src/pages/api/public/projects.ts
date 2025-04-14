@@ -17,10 +17,16 @@ export default async function handler(
     prisma,
     redis,
   ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey)
+  if (!authCheck.validKey) {
     return res.status(401).json({
       message: authCheck.error,
     });
+  }
+  if (authCheck.scope.accessLevel !== "project" || !authCheck.scope.projectId) {
+    return res
+      .status(403)
+      .json({ message: "Invalid API key. Are you using an organization key?" });
+  }
   // END CHECK AUTH
 
   if (req.method === "GET") {

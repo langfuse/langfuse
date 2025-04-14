@@ -73,7 +73,7 @@ const main = async () => {
               validKey: true as const,
               scope: {
                 projectId: projectId,
-                accessLevel: "all" as const,
+                accessLevel: "project" as const,
               },
             },
           },

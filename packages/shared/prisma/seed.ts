@@ -181,6 +181,7 @@ async function main() {
         publicKey: seedApiKey.public,
         hashedSecretKey: await hashSecretKey(seedApiKey.secret),
         displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
+        scope: "PROJECT",
         project: {
           connect: {
             id: project1.id,
@@ -242,6 +243,7 @@ async function main() {
           publicKey: secondKey.public,
           hashedSecretKey: await hashSecretKey(secondKey.secret),
           displaySecretKey: getDisplaySecretKey(secondKey.secret),
+          scope: "PROJECT",
           project: {
             connect: {
               id: project2.id,

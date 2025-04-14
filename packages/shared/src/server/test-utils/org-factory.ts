@@ -47,6 +47,7 @@ export const createOrgProjectAndApiKey = async (
       publicKey: publicKey,
       hashedSecretKey: await hashSecretKey(secretKey),
       displaySecretKey: getDisplaySecretKey(secretKey),
+      scope: "PROJECT",
     },
   });
 
