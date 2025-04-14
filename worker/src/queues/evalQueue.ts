@@ -19,6 +19,7 @@ export const evalJobTraceCreatorQueueProcessor = async (
   try {
     await createEvalJobs({
       event: job.data.payload,
+      jobTimestamp: job.data.timestamp,
       enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
     });
     return true;
@@ -38,6 +39,7 @@ export const evalJobDatasetCreatorQueueProcessor = async (
   try {
     await createEvalJobs({
       event: job.data.payload,
+      jobTimestamp: job.data.timestamp,
       enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
     });
     return true;
@@ -57,6 +59,7 @@ export const evalJobCreatorQueueProcessor = async (
   try {
     await createEvalJobs({
       event: job.data.payload,
+      jobTimestamp: job.data.timestamp,
     });
     return true;
   } catch (e) {
