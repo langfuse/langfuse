@@ -398,10 +398,10 @@ export function DatasetCompareRunsTable(props: {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                size="icon"
                 onClick={() => setIsMetricsDropdownOpen(!isMetricsDropdownOpen)}
               >
-                <Cog className="h-4 w-4" />
+                <Cog className="mr-2 h-4 w-4" />
+                <span>Run metrics</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
