@@ -30,7 +30,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
-import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/src/utils/tailwind";
 import { isString } from "@/src/utils/types";
 import {
