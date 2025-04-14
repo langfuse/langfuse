@@ -151,6 +151,17 @@ export default async function handler(
             uniqueness: "none",
           },
           {
+            name: "password",
+            type: "string",
+            multiValued: false,
+            description: "The user's password",
+            required: false,
+            caseExact: false,
+            mutability: "writeOnly",
+            returned: "never",
+            uniqueness: "none",
+          },
+          {
             name: "meta",
             type: "complex",
             multiValued: false,

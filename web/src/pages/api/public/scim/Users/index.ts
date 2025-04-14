@@ -4,6 +4,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 
 export default async function handler(
   req: NextApiRequest,
@@ -64,7 +65,7 @@ export default async function handler(
         if (match && match[1]) {
           whereClause = {
             ...whereClause,
-            email: match[1],
+            email: match[1].toLowerCase(),
           };
         }
       }
@@ -132,7 +133,7 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      const { userName, name } = req.body;
+      const { userName, name, password } = req.body;
 
       if (!userName) {
         return res.status(400).json({
@@ -163,11 +164,12 @@ export default async function handler(
       // Create the user
       const user = await prisma.user.upsert({
         where: {
-          email: userName,
+          email: userName.toLowerCase(),
         },
         create: {
-          email: userName,
+          email: userName.toLowerCase(),
           name: name.formatted,
+          password: password ? await hashPassword(password) : undefined,
         },
         update: {},
       });

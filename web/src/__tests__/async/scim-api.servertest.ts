@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
+import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 
 // Schema for SCIM User response
 const ScimUserSchema = z.object({
@@ -468,6 +469,53 @@ describe("SCIM API", () => {
         expect(user).not.toBeNull();
         expect(user?.email).toBe(uniqueEmail);
         expect(user?.name).toBe("Test User");
+      });
+
+      it("should create a new user with password", async () => {
+        const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
+        const password = `password-${randomUUID().substring(0, 8)}`;
+        const response = await makeZodVerifiedAPICall(
+          ScimUserSchema,
+          "POST",
+          "/api/public/scim/Users",
+          {
+            userName: uniqueEmail,
+            name: {
+              formatted: "Test User With Password",
+            },
+            emails: [
+              {
+                primary: true,
+                value: uniqueEmail,
+                type: "work",
+              },
+            ],
+            active: true,
+            password: password,
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          201,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.userName).toBe(uniqueEmail);
+        expect(response.body.name.formatted).toBe("Test User With Password");
+        expect(response.body.emails[0].value).toBe(uniqueEmail);
+        // Password should not be returned in the response
+        expect(response.body.password).toBeUndefined();
+
+        testUserId = response.body.id;
+
+        // Verify the user was actually created in the database
+        const user = await prisma.user.findUnique({
+          where: { id: testUserId },
+        });
+        expect(user).not.toBeNull();
+        expect(user?.email).toBe(uniqueEmail);
+        expect(user?.name).toBe("Test User With Password");
+        // Verify password was created
+        expect(user?.password).not.toBeNull();
+        expect(await verifyPassword(password, user?.password ?? "")).toBe(true);
       });
 
       it("should return 400 when userName is missing", async () => {
