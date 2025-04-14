@@ -11,6 +11,27 @@ service:
       method: GET
       path: /projects
       response: Projects
+    
+    create:
+      docs: Create a new project (requires organization-scoped API key)
+      method: POST
+      path: /projects
+      request:
+        name: CreateProjectRequest
+        body:
+          properties:
+            name: string
+      response: Project
+    
+    delete:
+      docs: Delete a project by ID (requires organization-scoped API key). Project deletion is processed asynchronously.
+      method: DELETE
+      path: /projects/{projectId}
+      path-parameters:
+        projectId: string
+      response:
+        status-code: 202
+        type: ProjectDeletionResponse
 
 types:
   Projects:
@@ -21,3 +42,8 @@ types:
     properties:
       id: string
       name: string
+  
+  ProjectDeletionResponse:
+    properties:
+      success: boolean
+      message: string
