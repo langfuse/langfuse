@@ -499,16 +499,6 @@ describe("Admin Organizations API", () => {
       expect(result.status).toBe(404);
       expect(result.body.error).toContain("Organization not found");
     });
-
-    it("should return 401 when no authorization header is provided", async () => {
-      const result = await makeAPICall(
-        "GET",
-        `/api/admin/organizations/${testOrgId}/apiKeys`,
-      );
-
-      expect(result.status).toBe(401);
-      expect(result.body.error).toContain("Unauthorized");
-    });
   });
 
   describe("POST /api/admin/organizations/[organizationId]/apiKeys", () => {

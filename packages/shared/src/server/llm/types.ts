@@ -32,6 +32,7 @@ export const JSONSchemaFormSchema = z
         required: z.array(z.string()).optional(),
         additionalProperties: z.boolean().optional(),
       })
+      .passthrough()
       .transform((data) => JSON.stringify(data, null, 2)),
   );
 

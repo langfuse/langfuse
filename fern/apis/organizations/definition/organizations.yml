@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+
+service:
+  auth: true
+  base-path: /api/admin
+  endpoints:
+    getAll:
+      docs: Get all organizations
+      method: GET
+      path: /organizations
+      response: Organizations
+      errors:
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+    
+    create:
+      docs: Create a new organization
+      method: POST
+      path: /organizations
+      request:
+        name: CreateOrganizationRequest
+        body:
+          properties:
+            name: string
+      response: Organization
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+    
+    getById:
+      docs: Get organization by ID
+      method: GET
+      path: /organizations/{organizationId}
+      path-parameters:
+        organizationId: string
+      response: Organization
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+    
+    update:
+      docs: Update an organization
+      method: PUT
+      path: /organizations/{organizationId}
+      path-parameters:
+        organizationId: string
+      request:
+        name: UpdateOrganizationRequest
+        body:
+          properties:
+            name: string
+      response: Organization
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+    
+    delete:
+      docs: Delete an organization
+      method: DELETE
+      path: /organizations/{organizationId}
+      path-parameters:
+        organizationId: string
+      response: DeleteOrganizationResponse
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+
+types:
+  Organizations:
+    docs: List of organizations
+    properties:
+      organizations: list<Organization>
+
+  Organization:
+    docs: Organization object
+    properties:
+      id: string
+      name: string
+      createdAt: datetime
+  
+  DeleteOrganizationResponse:
+    docs: Response for successful organization deletion
+    properties:
+      success: boolean

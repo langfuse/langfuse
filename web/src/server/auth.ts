@@ -52,6 +52,7 @@ import {
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
+import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -503,6 +504,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     id: dbUser.id,
                     name: dbUser.name,
                     email: dbUser.email,
+                    emailSupportHash: dbUser.email
+                      ? createSupportEmailHash(dbUser.email)
+                      : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
                     canCreateOrganizations: canCreateOrganizations(
