@@ -22,7 +22,7 @@ export default async function handler(
       message: authCheck.error,
     });
   }
-  if (authCheck.scope.accessLevel === "project" || !authCheck.scope.projectId) {
+  if (authCheck.scope.accessLevel !== "project" || !authCheck.scope.projectId) {
     return res
       .status(403)
       .json({ message: "Invalid API key. Are you using an organization key?" });
