@@ -38,7 +38,7 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 /**
  * Checks if observation exists in clickhouse.
  *
- * @param {Object} projectId - Project ID for the observation
+ * @param {string} projectId - Project ID for the observation
  * @param {string} id - ID of the observation
  * @param {Date} startTime - Timestamp for time-based filtering, uses event payload or job timestamp
  * @returns {Promise<boolean>} - True if observation exists

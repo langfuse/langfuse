@@ -31,9 +31,10 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 /**
  * Checks if trace exists in clickhouse.
  *
- * @param {Object} projectId - Project ID for the trace
+ * @param {string} projectId - Project ID for the trace
  * @param {string} traceId - ID of the trace to check
  * @param {Date} timestamp - Timestamp for time-based filtering, uses event payload or job timestamp
+ * @param {FilterState} filter - Filter for the trace
  * @returns {Promise<boolean>} - True if trace exists
  *
  * Notes:
