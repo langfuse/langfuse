@@ -11,7 +11,6 @@ import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { type Plan, planLabels } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { env } from "@/src/env.mjs";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
@@ -201,7 +200,7 @@ const BillingPortalOrPricingPageButton = () => {
             openChat()
           }
         >
-          Change plan
+          Change plan (via support)
         </Button>
       );
     else return null;
