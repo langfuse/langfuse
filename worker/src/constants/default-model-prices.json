@@ -1510,6 +1510,26 @@
     }
   },
   {
+    "id": "cm7nusn643377tvmzh27m33kl",
+    "model_name": "gpt-4.1",
+    "match_pattern": "(?i)^(gpt-4.1)$",
+    "created_at": "2025-04-15T10:26:54.132Z",
+    "updated_at": "2025-04-15T10:26:54.132Z",
+    "prices": {
+      "input": 2e-6,
+      "input_cached_tokens": 0.5e-6,
+      "input_cached_text_tokens": 0.5e-6,
+      "input_cache_read": 0.5e-6,
+      "output": 8e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
     "id": "cm7qahw732891bpmzy45r3x70",
     "model_name": "gpt-4.1-2025-04-14",
     "match_pattern": "(?i)^(gpt-4.1-2025-04-14)$",
