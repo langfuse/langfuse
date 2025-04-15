@@ -1,8 +1,12 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { isPrismaException } from "@/src/utils/exceptions";
-import { logger, redis, QueueJobs, ProjectDeleteQueue } from "@langfuse/shared/src/server";
+import {
+  logger,
+  redis,
+  QueueJobs,
+  ProjectDeleteQueue,
+} from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -105,17 +109,13 @@ export default async function handler(
       name: QueueJobs.ProjectDelete,
     });
 
-    return res.status(200).json({
+    return res.status(202).json({
       success: true,
-      message: "Project deleted successfully",
+      message:
+        "Project deletion has been initiated and is being processed asynchronously",
     });
   } catch (error) {
     logger.error("Failed to delete project", error);
-    if (isPrismaException(error)) {
-      return res.status(500).json({
-        error: "Internal Server Error",
-      });
-    }
     return res.status(500).json({ message: "Internal server error" });
   }
 }
