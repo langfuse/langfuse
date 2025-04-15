@@ -28,11 +28,13 @@ type RouteConfig<
     body: z.infer<TBody>;
     req: NextApiRequest;
     res: NextApiResponse;
-    auth: AuthHeaderValidVerificationResult;
+    auth: AuthHeaderValidVerificationResult & {
+      scope: { projectId: string; accessLevel: "project" };
+    };
   }) => Promise<z.infer<TResponse>>;
 };
 
-export const createAuthedAPIRoute = <
+export const createAuthedProjectAPIRoute = <
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
   TResponse extends ZodType<any>,
@@ -48,9 +50,16 @@ export const createAuthedAPIRoute = <
       res.status(401).json({ message: auth.error });
       return;
     }
-    if (auth.scope.accessLevel !== "all") {
+    if (auth.scope.accessLevel !== "project") {
       res.status(401).json({
         message: "Access denied - need to use basic auth with secret key",
+      });
+      return;
+    }
+    if (!auth.scope.projectId) {
+      res.status(401).json({
+        message:
+          "Project ID not found for API token. Are you using an organization key?",
       });
       return;
     }
@@ -85,7 +94,9 @@ export const createAuthedAPIRoute = <
       body,
       req,
       res,
-      auth,
+      auth: auth as AuthHeaderValidVerificationResult & {
+        scope: { projectId: string; accessLevel: "project" };
+      },
     });
 
     if (env.NODE_ENV === "development" && routeConfig.responseSchema) {

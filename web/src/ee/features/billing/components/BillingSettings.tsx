@@ -11,11 +11,6 @@ import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { type Plan, planLabels } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import {
-  chatAvailable,
-  sendUserChatMessage,
-} from "@/src/features/support-chat/chat";
-import { env } from "@/src/env.mjs";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
@@ -34,6 +29,7 @@ import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 import { toast } from "sonner";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useState } from "react";
+import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -198,12 +194,13 @@ const BillingPortalOrPricingPageButton = () => {
         <Button
           variant="secondary"
           onClick={() =>
-            sendUserChatMessage(
-              `I'd like to change my current plan, region ${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}, organization id ${organization.id}`,
-            )
+            // sendUserChatMessage(
+            //   `I'd like to change my current plan, region ${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}, organization id ${organization.id}`,
+            // )
+            openChat()
           }
         >
-          Change plan
+          Change plan (via support)
         </Button>
       );
     else return null;

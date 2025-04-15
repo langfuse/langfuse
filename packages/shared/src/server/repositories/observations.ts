@@ -35,6 +35,18 @@ import {
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
+/**
+ * Checks if observation exists in clickhouse.
+ *
+ * @param {string} projectId - Project ID for the observation
+ * @param {string} id - ID of the observation
+ * @param {Date} startTime - Timestamp for time-based filtering, uses event payload or job timestamp
+ * @returns {Promise<boolean>} - True if observation exists
+ *
+ * Notes:
+ * • Filters with two days lookback window subject to startTime
+ * • Used for validating observation references before eval job creation
+ */
 export const checkObservationExists = async (
   projectId: string,
   id: string,
@@ -446,6 +458,7 @@ export const getObservationsTableWithModelData = async (
         : null,
       traceName: trace?.name ?? null,
       traceTags: trace?.tags ?? [],
+      traceTimestamp: trace?.timestamp ?? null,
       userId: trace?.userId ?? null,
       modelId: model?.id ?? null,
       inputPrice:

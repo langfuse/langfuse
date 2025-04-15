@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetDatasetItemV1Query,
   GetDatasetItemV1Response,
@@ -12,7 +12,7 @@ import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Dataset Item",
     querySchema: GetDatasetItemV1Query,
     responseSchema: GetDatasetItemV1Response,
@@ -46,7 +46,7 @@ export default withMiddlewares({
       });
     },
   }),
-  DELETE: createAuthedAPIRoute({
+  DELETE: createAuthedProjectAPIRoute({
     name: "Delete Dataset Item",
     querySchema: DeleteDatasetItemV1Query,
     responseSchema: DeleteDatasetItemV1Response,

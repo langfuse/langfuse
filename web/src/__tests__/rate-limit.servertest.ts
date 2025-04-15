@@ -44,7 +44,7 @@ describe("RateLimitService", () => {
         orgId: orgId,
         plan: "cloud:hobby" as const,
         projectId: "test-project-id",
-        accessLevel: "all" as const,
+        accessLevel: "project" as const,
         rateLimitOverrides: [],
       },
       consumedPoints: 1,
@@ -66,7 +66,7 @@ describe("RateLimitService", () => {
       orgId: orgId,
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      accessLevel: "all" as const,
+      accessLevel: "project" as const,
       rateLimitOverrides: [],
     };
 
@@ -99,7 +99,7 @@ describe("RateLimitService", () => {
       orgId: orgId,
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      accessLevel: "all" as const,
+      accessLevel: "project" as const,
       rateLimitOverrides: [],
     };
 
@@ -125,7 +125,7 @@ describe("RateLimitService", () => {
       orgId: orgId,
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      accessLevel: "all" as const,
+      accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "public-api" as const, points: 100, durationInSec: 2 },
       ],
@@ -175,7 +175,7 @@ describe("RateLimitService", () => {
       orgId: orgId,
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      accessLevel: "all" as const,
+      accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 60 },
       ],
@@ -206,7 +206,7 @@ describe("RateLimitService", () => {
       orgId: orgId,
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      accessLevel: "all" as const,
+      accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 10 },
       ],
@@ -232,7 +232,7 @@ describe("RateLimitService", () => {
       orgId: orgId,
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      accessLevel: "all" as const,
+      accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 10 },
       ],
@@ -251,7 +251,7 @@ describe("RateLimitService", () => {
       orgId: orgId,
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      accessLevel: "all" as const,
+      accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "ingestion" as const, points: null, durationInSec: null },
       ],
@@ -270,7 +270,7 @@ describe("RateLimitService", () => {
   //     orgId: orgId,
   //     plan: "cloud:hobby" as const,
   //     projectId: "test-project-id",
-  //     accessLevel: "all" as const,
+  //     accessLevel: "project" as const,
   //     rateLimitOverrides: [
   //       { resource: "public-api" as const, points: 5, durationInSec: 10 },
   //     ],
@@ -289,7 +289,7 @@ describe("RateLimitService", () => {
       orgId: orgId,
       plan: "oss" as const,
       projectId: "test-project-id",
-      accessLevel: "all" as const,
+      accessLevel: "project" as const,
       rateLimitOverrides: [],
     };
 

@@ -1198,6 +1198,147 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Memberships",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get Organization Memberships",
+          "request": {
+            "description": "Get all memberships for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Organization Membership",
+          "request": {
+            "description": "Create or update a membership for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Project Memberships",
+          "request": {
+            "description": "Get all memberships for a specific project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Project Membership",
+          "request": {
+            "description": "Create or update a membership for a specific project (requires organization-scoped API key). The user must already be a member of the organization.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Metrics",
       "item": [
         {
@@ -1558,6 +1699,224 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a new project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"example\",\n    \"retention\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update a project by ID (requires organization-scoped API key).",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"example\",\n    \"retention\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a project by ID (requires organization-scoped API key). Project deletion is processed asynchronously.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Api Keys",
+          "request": {
+            "description": "Get all API keys for a project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/apiKeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "apiKeys"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create Api Key",
+          "request": {
+            "description": "Create a new API key for a project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/apiKeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "apiKeys"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"note\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Api Key",
+          "request": {
+            "description": "Delete an API key for a project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/apiKeys/:apiKeyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "apiKeys",
+                ":apiKeyId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "apiKeyId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
@@ -1758,6 +2117,233 @@
                 }
               }
             }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Scim",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get Service Provider Config",
+          "request": {
+            "description": "Get SCIM Service Provider Configuration (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scim/ServiceProviderConfig",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "ServiceProviderConfig"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Resource Types",
+          "request": {
+            "description": "Get SCIM Resource Types (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scim/ResourceTypes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "ResourceTypes"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Schemas",
+          "request": {
+            "description": "Get SCIM Schemas (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scim/Schemas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Schemas"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List Users",
+          "request": {
+            "description": "List users in the organization (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scim/Users?filter=&startIndex=&count=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Users"
+              ],
+              "query": [
+                {
+                  "key": "filter",
+                  "value": "",
+                  "description": "Filter expression (e.g. userName eq \"value\")"
+                },
+                {
+                  "key": "startIndex",
+                  "value": "",
+                  "description": "1-based index of the first result to return (default 1)"
+                },
+                {
+                  "key": "count",
+                  "value": "",
+                  "description": "Maximum number of results to return (default 100)"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create User",
+          "request": {
+            "description": "Create a new user in the organization (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scim/Users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Users"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userName\": \"example\",\n    \"name\": {\n        \"formatted\": \"example\"\n    },\n    \"emails\": [\n        {\n            \"primary\": true,\n            \"value\": \"example\",\n            \"type\": \"example\"\n        }\n    ],\n    \"active\": true,\n    \"password\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get User",
+          "request": {
+            "description": "Get a specific user by ID (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scim/Users/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Users",
+                ":userId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete User",
+          "request": {
+            "description": "Remove a user from the organization (requires organization-scoped API key). Note that this only removes the user from the organization but does not delete the user entity itself.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scim/Users/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Users",
+                ":userId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
           },
           "response": []
         }

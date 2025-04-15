@@ -327,6 +327,124 @@ describe("Authenticate API calls", () => {
       });
     });
 
+    it("should handle non-scoped key format gracefully and fallback to prisma", async () => {
+      await createAPIKey();
+
+      // update the organization with a cloud config
+      await prisma.organization.update({
+        where: { id: "seed-org-id" },
+        data: {
+          cloudConfig: {
+            rateLimitOverrides: [
+              {
+                resource: "public-api",
+                points: 1000,
+                durationInSec: 60,
+              },
+              {
+                resource: "ingestion",
+              },
+            ],
+          },
+        },
+      });
+
+      // first auth will generate the fast hashed api key
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
+      // Manually add a non-scoped key to Redis (missing the scope property)
+      const nonScopedKey = {
+        id: "seed-api-key",
+        note: "seeded key",
+        publicKey: "pk-lf-1234567890",
+        displaySecretKey: "sk-lf-...7890",
+        createdAt: new Date().toISOString(),
+        lastUsedAt: null,
+        expiresAt: null,
+        fastHashedSecretKey: apiKey?.fastHashedSecretKey,
+        hashedSecretKey: apiKey?.hashedSecretKey,
+        orgId: "seed-org-id",
+        plan: "cloud:team",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        // scope property is intentionally missing
+      };
+
+      // Add the non-scoped key to Redis
+      await redis.set(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+        JSON.stringify(nonScopedKey),
+        "EX",
+        3600, // 1 hour TTL
+      );
+
+      // Verify the key is in Redis
+      const cachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(cachedKey).not.toBeNull();
+
+      // Parse should fail because the scope is missing
+      expect(() => {
+        OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
+      }).toThrow("invalid_union_discriminator");
+
+      // Auth should still succeed by falling back to Postgres
+      const verification = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      expect(verification.validKey).toBe(true);
+
+      // The invalid key should be removed from Redis
+      const cachedKeyAfterAuth = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+
+      // A new valid key should be added to Redis after fallback to Postgres
+      expect(cachedKeyAfterAuth).not.toBeNull();
+
+      // The new key should be properly formatted with a scope
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKeyAfterAuth!));
+
+      expect(parsed).toEqual({
+        ...apiKey,
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
+        scope: "PROJECT", // Now the scope is present
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        rateLimitOverrides: [
+          {
+            resource: "public-api",
+            points: 1000,
+            durationInSec: 60,
+          },
+          {
+            resource: "ingestion",
+          },
+        ],
+        createdAt: apiKey?.createdAt.toISOString(),
+      });
+
+      await prisma.organization.update({
+        where: { id: "seed-org-id" },
+        data: {
+          cloudConfig: Prisma.JsonNull,
+        },
+      });
+    });
+
     it("searching for non-existing key stores flag in redis and fails auth", async () => {
       // key does not exist in database
 
@@ -432,6 +550,7 @@ describe("Authenticate API calls", () => {
         projectId: expect.any(String),
         orgId: "seed-org-id",
         plan: "cloud:hobby",
+        scope: "PROJECT",
       });
     });
 
@@ -523,11 +642,13 @@ describe("Authenticate API calls", () => {
         orgId: "seed-org-id",
         plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
+        scope: "PROJECT",
       });
 
       await new ApiAuthService(prisma, redis).deleteApiKey(
         apiKey?.id!,
         apiKey?.projectId!,
+        "PROJECT",
       );
 
       const deletedApiKey = await prisma.apiKey.findUnique({

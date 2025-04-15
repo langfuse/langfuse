@@ -1499,6 +1499,199 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GetMediaUploadUrlRequest'
+  /api/public/organizations/memberships:
+    get:
+      description: >-
+        Get all memberships for the organization associated with the API key
+        (requires organization-scoped API key)
+      operationId: memberships_getOrganizationMemberships
+      tags:
+        - Memberships
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: >-
+        Create or update a membership for the organization associated with the
+        API key (requires organization-scoped API key)
+      operationId: memberships_updateOrganizationMembership
+      tags:
+        - Memberships
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipRequest'
+  /api/public/projects/{projectId}/memberships:
+    get:
+      description: >-
+        Get all memberships for a specific project (requires organization-scoped
+        API key)
+      operationId: memberships_getProjectMemberships
+      tags:
+        - Memberships
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: >-
+        Create or update a membership for a specific project (requires
+        organization-scoped API key). The user must already be a member of the
+        organization.
+      operationId: memberships_updateProjectMembership
+      tags:
+        - Memberships
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipRequest'
   /api/public/metrics/daily:
     get:
       description: Get daily metrics of the Langfuse project
@@ -2014,6 +2207,330 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    post:
+      description: Create a new project (requires organization-scoped API key)
+      operationId: projects_create
+      tags:
+        - Projects
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                retention:
+                  type: integer
+                  description: >-
+                    Number of days to retain data. Must be 0 or at least 7 days.
+                    Requires data-retention entitlement for non-zero values.
+                    Optional.
+              required:
+                - name
+                - retention
+  /api/public/projects/{projectId}:
+    put:
+      description: Update a project by ID (requires organization-scoped API key).
+      operationId: projects_update
+      tags:
+        - Projects
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                retention:
+                  type: integer
+                  description: >-
+                    Number of days to retain data. Must be 0 or at least 7 days.
+                    Requires data-retention entitlement for non-zero values.
+                    Optional.
+              required:
+                - name
+                - retention
+    delete:
+      description: >-
+        Delete a project by ID (requires organization-scoped API key). Project
+        deletion is processed asynchronously.
+      operationId: projects_delete
+      tags:
+        - Projects
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDeletionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/projects/{projectId}/apiKeys:
+    get:
+      description: Get all API keys for a project (requires organization-scoped API key)
+      operationId: projects_getApiKeys
+      tags:
+        - Projects
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    post:
+      description: >-
+        Create a new API key for a project (requires organization-scoped API
+        key)
+      operationId: projects_createApiKey
+      tags:
+        - Projects
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  nullable: true
+                  description: Optional note for the API key
+  /api/public/projects/{projectId}/apiKeys/{apiKeyId}:
+    delete:
+      description: Delete an API key for a project (requires organization-scoped API key)
+      operationId: projects_deleteApiKey
+      tags:
+        - Projects
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: apiKeyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyDeletionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/v2/prompts/{name}/versions/{version}:
     patch:
       description: Update labels for a specific prompt version
@@ -2286,6 +2803,359 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreatePromptRequest'
+  /api/public/scim/ServiceProviderConfig:
+    get:
+      description: >-
+        Get SCIM Service Provider Configuration (requires organization-scoped
+        API key)
+      operationId: scim_getServiceProviderConfig
+      tags:
+        - Scim
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceProviderConfig'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/scim/ResourceTypes:
+    get:
+      description: Get SCIM Resource Types (requires organization-scoped API key)
+      operationId: scim_getResourceTypes
+      tags:
+        - Scim
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceTypesResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/scim/Schemas:
+    get:
+      description: Get SCIM Schemas (requires organization-scoped API key)
+      operationId: scim_getSchemas
+      tags:
+        - Scim
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemasResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/scim/Users:
+    get:
+      description: List users in the organization (requires organization-scoped API key)
+      operationId: scim_listUsers
+      tags:
+        - Scim
+      parameters:
+        - name: filter
+          in: query
+          description: Filter expression (e.g. userName eq "value")
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: startIndex
+          in: query
+          description: 1-based index of the first result to return (default 1)
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: count
+          in: query
+          description: Maximum number of results to return (default 100)
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimUsersListResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    post:
+      description: >-
+        Create a new user in the organization (requires organization-scoped API
+        key)
+      operationId: scim_createUser
+      tags:
+        - Scim
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimUser'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userName:
+                  type: string
+                  description: User's email address (required)
+                name:
+                  $ref: '#/components/schemas/ScimName'
+                  description: User's name information
+                emails:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ScimEmail'
+                  nullable: true
+                  description: User's email addresses
+                active:
+                  type: boolean
+                  nullable: true
+                  description: Whether the user is active
+                password:
+                  type: string
+                  nullable: true
+                  description: Initial password for the user
+              required:
+                - userName
+                - name
+  /api/public/scim/Users/{userId}:
+    get:
+      description: Get a specific user by ID (requires organization-scoped API key)
+      operationId: scim_getUser
+      tags:
+        - Scim
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimUser'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    delete:
+      description: >-
+        Remove a user from the organization (requires organization-scoped API
+        key). Note that this only removes the user from the organization but
+        does not delete the user entity itself.
+      operationId: scim_deleteUser
+      tags:
+        - Scim
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/score-configs:
     post:
       description: >-
@@ -5179,6 +6049,52 @@ components:
         - application/xml
         - application/octet-stream
       description: The MIME type of the media record
+    MembershipRole:
+      title: MembershipRole
+      type: string
+      enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        - VIEWER
+    MembershipRequest:
+      title: MembershipRequest
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+      required:
+        - userId
+        - role
+    MembershipResponse:
+      title: MembershipResponse
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+        email:
+          type: string
+        name:
+          type: string
+      required:
+        - userId
+        - role
+        - email
+        - name
+    MembershipsResponse:
+      title: MembershipsResponse
+      type: object
+      properties:
+        memberships:
+          type: array
+          items:
+            $ref: '#/components/schemas/MembershipResponse'
+      required:
+        - memberships
     DailyMetrics:
       title: DailyMetrics
       type: object
@@ -5366,9 +6282,101 @@ components:
           type: string
         name:
           type: string
+        retentionDays:
+          type: integer
+          description: >-
+            Number of days to retain data. Null or 0 means no retention. Omitted
+            if no retention is configured.
       required:
         - id
         - name
+        - retentionDays
+    ProjectDeletionResponse:
+      title: ProjectDeletionResponse
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
+    ApiKeyList:
+      title: ApiKeyList
+      type: object
+      description: List of API keys for a project
+      properties:
+        apiKeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeySummary'
+      required:
+        - apiKeys
+    ApiKeySummary:
+      title: ApiKeySummary
+      type: object
+      description: Summary of an API key
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        publicKey:
+          type: string
+        displaySecretKey:
+          type: string
+      required:
+        - id
+        - createdAt
+        - publicKey
+        - displaySecretKey
+    ApiKeyResponse:
+      title: ApiKeyResponse
+      type: object
+      description: Response for API key creation
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        publicKey:
+          type: string
+        secretKey:
+          type: string
+        displaySecretKey:
+          type: string
+        note:
+          type: string
+          nullable: true
+      required:
+        - id
+        - createdAt
+        - publicKey
+        - secretKey
+        - displaySecretKey
+    ApiKeyDeletionResponse:
+      title: ApiKeyDeletionResponse
+      type: object
+      description: Response for API key deletion
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
     PromptMetaListResponse:
       title: PromptMetaListResponse
       type: object
@@ -5595,6 +6603,301 @@ components:
         - prompt
       allOf:
         - $ref: '#/components/schemas/BasePrompt'
+    ServiceProviderConfig:
+      title: ServiceProviderConfig
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        documentationUri:
+          type: string
+        patch:
+          $ref: '#/components/schemas/ScimFeatureSupport'
+        bulk:
+          $ref: '#/components/schemas/BulkConfig'
+        filter:
+          $ref: '#/components/schemas/FilterConfig'
+        changePassword:
+          $ref: '#/components/schemas/ScimFeatureSupport'
+        sort:
+          $ref: '#/components/schemas/ScimFeatureSupport'
+        etag:
+          $ref: '#/components/schemas/ScimFeatureSupport'
+        authenticationSchemes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthenticationScheme'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+      required:
+        - schemas
+        - documentationUri
+        - patch
+        - bulk
+        - filter
+        - changePassword
+        - sort
+        - etag
+        - authenticationSchemes
+        - meta
+    ScimFeatureSupport:
+      title: ScimFeatureSupport
+      type: object
+      properties:
+        supported:
+          type: boolean
+      required:
+        - supported
+    BulkConfig:
+      title: BulkConfig
+      type: object
+      properties:
+        supported:
+          type: boolean
+        maxOperations:
+          type: integer
+        maxPayloadSize:
+          type: integer
+      required:
+        - supported
+        - maxOperations
+        - maxPayloadSize
+    FilterConfig:
+      title: FilterConfig
+      type: object
+      properties:
+        supported:
+          type: boolean
+        maxResults:
+          type: integer
+      required:
+        - supported
+        - maxResults
+    ResourceMeta:
+      title: ResourceMeta
+      type: object
+      properties:
+        resourceType:
+          type: string
+        location:
+          type: string
+      required:
+        - resourceType
+        - location
+    AuthenticationScheme:
+      title: AuthenticationScheme
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        specUri:
+          type: string
+        type:
+          type: string
+        primary:
+          type: boolean
+      required:
+        - name
+        - description
+        - specUri
+        - type
+        - primary
+    ResourceTypesResponse:
+      title: ResourceTypesResponse
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        totalResults:
+          type: integer
+        Resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceType'
+      required:
+        - schemas
+        - totalResults
+        - Resources
+    ResourceType:
+      title: ResourceType
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+          nullable: true
+        id:
+          type: string
+        name:
+          type: string
+        endpoint:
+          type: string
+        description:
+          type: string
+        schema:
+          type: string
+        schemaExtensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SchemaExtension'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+      required:
+        - id
+        - name
+        - endpoint
+        - description
+        - schema
+        - schemaExtensions
+        - meta
+    SchemaExtension:
+      title: SchemaExtension
+      type: object
+      properties:
+        schema:
+          type: string
+        required:
+          type: boolean
+      required:
+        - schema
+        - required
+    SchemasResponse:
+      title: SchemasResponse
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        totalResults:
+          type: integer
+        Resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/SchemaResource'
+      required:
+        - schemas
+        - totalResults
+        - Resources
+    SchemaResource:
+      title: SchemaResource
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        attributes:
+          type: array
+          items: {}
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+      required:
+        - id
+        - name
+        - description
+        - attributes
+        - meta
+    ScimUsersListResponse:
+      title: ScimUsersListResponse
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        totalResults:
+          type: integer
+        startIndex:
+          type: integer
+        itemsPerPage:
+          type: integer
+        Resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScimUser'
+      required:
+        - schemas
+        - totalResults
+        - startIndex
+        - itemsPerPage
+        - Resources
+    ScimUser:
+      title: ScimUser
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        id:
+          type: string
+        userName:
+          type: string
+        name:
+          $ref: '#/components/schemas/ScimName'
+        emails:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScimEmail'
+        meta:
+          $ref: '#/components/schemas/UserMeta'
+      required:
+        - schemas
+        - id
+        - userName
+        - name
+        - emails
+        - meta
+    UserMeta:
+      title: UserMeta
+      type: object
+      properties:
+        resourceType:
+          type: string
+        created:
+          type: string
+          nullable: true
+        lastModified:
+          type: string
+          nullable: true
+      required:
+        - resourceType
+    ScimName:
+      title: ScimName
+      type: object
+      properties:
+        formatted:
+          type: string
+          nullable: true
+    ScimEmail:
+      title: ScimEmail
+      type: object
+      properties:
+        primary:
+          type: boolean
+        value:
+          type: string
+        type:
+          type: string
+      required:
+        - primary
+        - value
+        - type
+    EmptyResponse:
+      title: EmptyResponse
+      type: object
+      description: Empty response for 204 No Content responses
+      properties: {}
     ScoreConfigs:
       title: ScoreConfigs
       type: object

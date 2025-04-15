@@ -98,13 +98,20 @@ export const processEventBatch = async (
   recordDistribution("langfuse.ingestion.event_distribution", input.length);
 
   currentSpan?.setAttribute("langfuse.ingestion.batch_size", input.length);
-  currentSpan?.setAttribute("langfuse.project.id", authCheck.scope.projectId);
+  currentSpan?.setAttribute(
+    "langfuse.project.id",
+    authCheck.scope.projectId ?? "",
+  );
   currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
   currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
 
   /**************
    * VALIDATION *
    **************/
+  if (!authCheck.scope.projectId) {
+    throw new UnauthorizedError("Missing project ID");
+  }
+
   const validationErrors: { id: string; error: unknown }[] = [];
   const authenticationErrors: { id: string; error: unknown }[] = [];
 
@@ -245,7 +252,13 @@ export const processEventBatch = async (
                   eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
                   fileKey: sortedBatchByEventBodyId[id].key,
                 },
-                authCheck,
+                authCheck: authCheck as {
+                  validKey: true;
+                  scope: {
+                    projectId: string;
+                    accessLevel: "project" | "scores";
+                  };
+                },
               },
             },
             { delay: getDelay(delay) },
@@ -272,11 +285,11 @@ const isAuthorized = (
   if (event.type === eventTypes.SCORE_CREATE) {
     return (
       authScope.scope.accessLevel === "scores" ||
-      authScope.scope.accessLevel === "all"
+      authScope.scope.accessLevel === "project"
     );
   }
 
-  return authScope.scope.accessLevel === "all";
+  return authScope.scope.accessLevel === "project";
 };
 
 /**
