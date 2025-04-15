@@ -1,8 +1,8 @@
 {
   "info": {
-    "name": "Langfuse",
+    "name": "Langfuse Organizations",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "## General Notes\n\nThis admin API is only available on self-hosted instances, not on Langfuse Cloud.\nAn administrator must set the `ADMIN_API_KEY` environment variable to use this API.\n\n## Authentication\n\nAuthenticate with the API by setting the Authorization header to `Bearer $ADMIN_API_KEY` where\n`$ADMIN_API_KEY` is the API key set via the container environment.\n\n## Exports\n\n- OpenAPI spec: https://cloud.langfuse.com/generated/organizations-api/openapi.yml\n- Postman collection: https://cloud.langfuse.com/generated/organizations-postman/collection.json"
+    "description": "## General Notes\n\nThis admin API is only available on self-hosted instances, not on Langfuse Cloud.\nAn administrator must set the `ADMIN_API_KEY` environment variable to use this API.\n\n## Authentication\n\nAuthenticate with the API by setting the Authorization header to `Bearer $ADMIN_API_KEY` where\n`$ADMIN_API_KEY` is the API key set via the container environment.\n\n## Exports\n\n- OpenAPI spec: https://cloud.langfuse.com/generated/organizations-api/openapi.yml\n- Postman collection: https://cloud.langfuse.com/generated/organizations-postman/collection.json\n\n## Looking for the Langfuse API?\n\nAre you looking for the full Langfuse API?\nCheck out our [API reference](https://api.reference.langfuse.com/#overview)."
   },
   "variable": [
     {

@@ -1,6 +1,6 @@
 openapi: 3.0.1
 info:
-  title: langfuse
+  title: langfuse-organizations
   version: ''
   description: >-
     ## General Notes
@@ -30,6 +30,14 @@ info:
 
     - Postman collection:
     https://cloud.langfuse.com/generated/organizations-postman/collection.json
+
+
+    ## Looking for the Langfuse API?
+
+
+    Are you looking for the full Langfuse API?
+
+    Check out our [API reference](https://api.reference.langfuse.com/#overview).
 paths:
   /api/admin/organizations:
     get:

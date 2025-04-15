@@ -1,4 +1,4 @@
-name: langfuse
+name: langfuse-organizations
 docs: |
   ## General Notes
   
@@ -14,6 +14,11 @@ docs: |
 
   - OpenAPI spec: https://cloud.langfuse.com/generated/organizations-api/openapi.yml
   - Postman collection: https://cloud.langfuse.com/generated/organizations-postman/collection.json
+  
+  ## Looking for the Langfuse API?
+  
+  Are you looking for the full Langfuse API?
+  Check out our [API reference](https://api.reference.langfuse.com/#overview).
 
 error-discrimination:
   strategy: status-code
