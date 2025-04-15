@@ -1,8 +1,7 @@
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   NumberParam,
@@ -43,48 +42,61 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
-import { ColorCodedObservationType } from "@/src/components/trace/ObservationTree";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
+import { type Row } from "@tanstack/react-table";
+import TableId from "@/src/components/table/table-id";
+import { ItemBadge } from "@/src/components/ItemBadge";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { useObservationPeekState } from "@/src/components/table/peek/hooks/useObservationPeekState";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/useObservationPeekNavigation";
 
 export type ObservationsTableRow = {
-  id: string;
-  traceId?: string;
+  // Shown by default
   startTime: Date;
-  level?: ObservationLevelType;
-  statusMessage?: string;
-  endTime?: Date;
-  completionStartTime?: Date;
-  latency?: number;
-  timeToFirstToken?: number;
-  // scores holds grouped column with individual scores
-  scores: ScoreAggregate;
+  type: ObservationType;
   name?: string;
-  model?: string;
   // i/o and metadata not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
-  metadata?: unknown;
-  inputCost?: number;
-  outputCost?: number;
-  totalCost?: number;
-  traceName?: string;
+  level?: ObservationLevelType;
+  statusMessage?: string;
+  latency?: number;
+  timeToFirstToken?: number;
   usage: {
     inputUsage: number;
     outputUsage: number;
     totalUsage: number;
   };
   usageDetails: Record<string, number>;
+  totalCost?: number;
   costDetails: Record<string, number>;
-  promptId?: string;
+  model?: string;
   promptName?: string;
-  promptVersion?: string;
-  traceTags?: string[];
   environment?: string;
+  traceTags?: string[];
+  metadata?: unknown;
+  // scores holds grouped column with individual scores
+  scores: ScoreAggregate;
+  // Hidden by default
+  endTime?: Date;
+  id: string;
+  traceName?: string;
+  traceId?: string;
+  timestamp?: Date;
+  promptId?: string;
+  promptVersion?: string;
+  completionStartTime?: Date;
+  cost: {
+    inputCost?: number;
+    outputCost?: number;
+  };
 };
 
 export type ObservationsTableProps = {
@@ -106,6 +118,7 @@ export default function ObservationsTable({
     "search",
     withDefault(StringParam, null),
   );
+  const { setDetailPageList } = useDetailPageLists();
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -116,9 +129,6 @@ export default function ObservationsTable({
     "generations",
     "s",
   );
-
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [
@@ -137,6 +147,9 @@ export default function ObservationsTable({
     column: "startTime",
     order: "DESC",
   });
+
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange(projectId);
 
   const promptNameFilter: FilterState = promptName
     ? [
@@ -254,6 +267,21 @@ export default function ObservationsTable({
     },
   );
 
+  useEffect(() => {
+    if (generations.isSuccess) {
+      setDetailPageList(
+        "observations",
+        generations.data.generations.map((g) => ({
+          id: g.id,
+          params: g.traceTimestamp
+            ? { timestamp: g.traceTimestamp.toISOString() }
+            : undefined,
+        })),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generations.isSuccess, generations.data]);
+
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<ObservationsTableRow>({
       projectId,
@@ -271,90 +299,6 @@ export default function ObservationsTable({
 
   const columns: LangfuseColumnDef<ObservationsTableRow>[] = [
     {
-      accessorKey: "id",
-      id: "id",
-      header: "ID",
-      size: 100,
-      isPinned: true,
-      cell: ({ row }) => {
-        const observationId = row.getValue("id");
-        const traceId = row.getValue("traceId");
-        return typeof observationId === "string" &&
-          typeof traceId === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
-            value={observationId}
-          />
-        ) : null;
-      },
-      enableSorting: true,
-    },
-    {
-      accessorKey: "name",
-      id: "name",
-      header: "Name",
-      size: 150,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "type",
-      id: "type",
-      header: "Type",
-      size: 120,
-      enableSorting: true,
-      cell: ({ row }) => {
-        const value: ObservationType = row.getValue("type");
-        return value ? (
-          <div className="flex items-center gap-1">
-            <ColorCodedObservationType observationType={value} />
-          </div>
-        ) : undefined;
-      },
-    },
-    {
-      accessorKey: "environment",
-      header: "Environment",
-      id: "environment",
-      size: 150,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: ObservationsTableRow["environment"] =
-          row.getValue("environment");
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
-    {
-      accessorKey: "traceId",
-      id: "traceId",
-      header: "Trace ID",
-      size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("traceId");
-        return typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${value}`}
-            value={value}
-          />
-        ) : undefined;
-      },
-      enableSorting: true,
-    },
-    {
-      accessorKey: "traceName",
-      id: "traceName",
-      header: "Trace Name",
-      size: 150,
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
       accessorKey: "startTime",
       id: "startTime",
       header: "Start Time",
@@ -367,126 +311,68 @@ export default function ObservationsTable({
       },
     },
     {
-      accessorKey: "endTime",
-      id: "endTime",
-      header: "End Time",
-      size: 150,
-      enableHiding: true,
+      accessorKey: "type",
+      id: "type",
+      header: "Type",
+      size: 50,
       enableSorting: true,
       cell: ({ row }) => {
-        const value: Date | undefined = row.getValue("endTime");
-        return value ? <LocalIsoDate date={value} /> : undefined;
+        const value: ObservationType = row.getValue("type");
+        return value ? (
+          <div className="flex items-center gap-1">
+            <ItemBadge type={value} />
+          </div>
+        ) : undefined;
       },
     },
     {
-      accessorKey: "timeToFirstToken",
-      id: "timeToFirstToken",
-      header: "Time to First Token",
+      accessorKey: "name",
+      id: "name",
+      header: "Name",
       size: 150,
-      enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "input",
+      header: "Input",
+      id: "input",
+      size: 300,
       cell: ({ row }) => {
-        const timeToFirstToken: number | undefined =
-          row.getValue("timeToFirstToken");
-
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
         return (
-          <span>
-            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
-          </span>
+          <GenerationsDynamicCell
+            observationId={observationId}
+            traceId={traceId}
+            projectId={projectId}
+            startTime={row.getValue("startTime")}
+            col="input"
+            singleLine={rowHeight === "s"}
+          />
         );
       },
-    },
-    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
-    {
-      accessorKey: "latency",
-      id: "latency",
-      header: "Latency",
-      size: 100,
-      cell: ({ row }) => {
-        const latency: number | undefined = row.getValue("latency");
-        return latency !== undefined ? (
-          <span>{formatIntervalSeconds(latency)}</span>
-        ) : undefined;
-      },
       enableHiding: true,
-      enableSorting: true,
     },
     {
-      accessorKey: "tokensPerSecond",
-      id: "tokensPerSecond",
-      header: "Tokens per second",
-      size: 200,
+      accessorKey: "output",
+      id: "output",
+      header: "Output",
+      size: 300,
       cell: ({ row }) => {
-        const latency: number | undefined = row.getValue("latency");
-        const usage: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
-        } = row.getValue("usage");
-        return latency !== undefined &&
-          (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
-          <span>
-            {usage.completionTokens && latency
-              ? Number((usage.completionTokens / latency).toFixed(1))
-              : undefined}
-          </span>
-        ) : undefined;
-      },
-      defaultHidden: true,
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "inputCost",
-      id: "inputCost",
-      header: "Input Cost",
-      size: 120,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("inputCost");
-
-        return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
-        ) : undefined;
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <GenerationsDynamicCell
+            observationId={observationId}
+            traceId={traceId}
+            projectId={projectId}
+            startTime={row.getValue("startTime")}
+            col="output"
+            singleLine={rowHeight === "s"}
+          />
+        );
       },
       enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "outputCost",
-      id: "outputCost",
-      header: "Output Cost",
-      size: 120,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("outputCost");
-
-        return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
-        ) : undefined;
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "totalCost",
-      header: "Total Cost",
-      id: "totalCost",
-      size: 120,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
-
-        return value !== undefined ? (
-          <BreakdownTooltip details={row.original.costDetails} isCost>
-            <div className="flex items-center gap-1">
-              <span>{usdFormatter(value)}</span>
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        ) : undefined;
-      },
-      enableHiding: true,
-      enableSorting: true,
     },
     {
       accessorKey: "level",
@@ -495,7 +381,7 @@ export default function ObservationsTable({
       size: 100,
       headerTooltip: {
         description:
-          "Use You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
+          "You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
         href: "https://langfuse.com/docs/tracing-features/log-levels",
       },
       enableHiding: true,
@@ -529,6 +415,86 @@ export default function ObservationsTable({
       defaultHidden: true,
     },
     {
+      accessorKey: "latency",
+      id: "latency",
+      header: "Latency",
+      size: 100,
+      cell: ({ row }) => {
+        const latency: number | undefined = row.getValue("latency");
+        return latency !== undefined ? (
+          <span>{formatIntervalSeconds(latency)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "totalCost",
+      header: "Total Cost",
+      id: "totalCost",
+      size: 120,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("totalCost");
+
+        return value !== undefined ? (
+          <BreakdownTooltip details={row.original.costDetails} isCost>
+            <div className="flex items-center gap-1">
+              <span>{usdFormatter(value)}</span>
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "timeToFirstToken",
+      id: "timeToFirstToken",
+      header: "Time to First Token",
+      size: 150,
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const timeToFirstToken: number | undefined =
+          row.getValue("timeToFirstToken");
+
+        return (
+          <span>
+            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "tokens",
+      header: "Tokens",
+      id: "tokens",
+      size: 150,
+      cell: ({ row }) => {
+        const value: {
+          inputUsage: number;
+          outputUsage: number;
+          totalUsage: number;
+        } = row.getValue("usage");
+        return (
+          <BreakdownTooltip details={row.original.usageDetails}>
+            <div className="flex items-center gap-1">
+              <TokenUsageBadge
+                inputUsage={value.inputUsage}
+                outputUsage={value.outputUsage}
+                totalUsage={value.totalUsage}
+                inline
+              />
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
+        );
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
       accessorKey: "model",
       id: "model",
       header: "Model",
@@ -542,10 +508,7 @@ export default function ObservationsTable({
         if (!model) return null;
 
         return modelId ? (
-          <TableLink
-            path={`/project/${projectId}/settings/models/${modelId}`}
-            value={model}
-          />
+          <TableId value={modelId} />
         ) : (
           <UpsertModelFormDrawer
             action="create"
@@ -576,135 +539,63 @@ export default function ObservationsTable({
       },
     },
     {
-      accessorKey: "modelId",
-      id: "modelId",
-      header: "Model ID",
-      size: 100,
+      accessorKey: "promptName",
+      id: "promptName",
+      header: "Prompt",
+      headerTooltip: {
+        description: "Link to prompt version in Langfuse prompt management.",
+        href: "https://langfuse.com/docs/prompts",
+      },
+      size: 200,
       enableHiding: true,
-      defaultHidden: true,
-    },
-    {
-      accessorKey: "inputTokens",
-      id: "inputTokens",
-      header: "Input Tokens",
-      size: 100,
-      enableHiding: true,
-      defaultHidden: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
-        } = row.getValue("usage");
-        return <span>{numberFormatter(value.promptTokens, 0)}</span>;
+        const promptName = row.original.promptName;
+        const promptVersion = row.original.promptVersion;
+        const value = `${promptName} (v${promptVersion})`;
+        return promptName && promptVersion && <TableId value={value} />;
       },
     },
     {
-      accessorKey: "outputTokens",
-      id: "outputTokens",
-      header: "Output Tokens",
-      size: 100,
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-      cell: ({ row }) => {
-        const value: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
-        } = row.getValue("usage");
-        return <span>{numberFormatter(value.completionTokens, 0)}</span>;
-      },
-    },
-    {
-      accessorKey: "totalTokens",
-      id: "totalTokens",
-      header: "Total Tokens",
-      size: 100,
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-      cell: ({ row }) => {
-        const value: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
-        } = row.getValue("usage");
-        return <span>{numberFormatter(value.totalTokens, 0)}</span>;
-      },
-    },
-    {
-      accessorKey: "usage",
-      header: "Usage",
-      id: "usage",
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
       size: 150,
+      enableHiding: true,
       cell: ({ row }) => {
-        const value: {
-          inputUsage: number;
-          outputUsage: number;
-          totalUsage: number;
-        } = row.getValue("usage");
+        const value: ObservationsTableRow["environment"] =
+          row.getValue("environment");
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+          >
+            {value}
+          </Badge>
+        ) : null;
+      },
+    },
+    {
+      accessorKey: "traceTags",
+      id: "traceTags",
+      header: "Trace Tags",
+      size: 250,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
-          <BreakdownTooltip details={row.original.usageDetails}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={value.inputUsage}
-                outputUsage={value.outputUsage}
-                totalUsage={value.totalUsage}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
+          traceTags && (
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
+              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
             </div>
-          </BreakdownTooltip>
+          )
         );
       },
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "input",
-      header: "Input",
-      id: "input",
-      size: 300,
-      cell: ({ row }) => {
-        const observationId: string = row.getValue("id");
-        const traceId: string = row.getValue("traceId");
-        return (
-          <GenerationsDynamicCell
-            observationId={observationId}
-            traceId={traceId}
-            projectId={projectId}
-            startTime={row.getValue("startTime")}
-            col="input"
-            singleLine={rowHeight === "s"}
-          />
-        );
-      },
-      enableHiding: true,
-      defaultHidden: true,
-    },
-    {
-      accessorKey: "output",
-      id: "output",
-      header: "Output",
-      size: 300,
-      cell: ({ row }) => {
-        const observationId: string = row.getValue("id");
-        const traceId: string = row.getValue("traceId");
-        return (
-          <GenerationsDynamicCell
-            observationId={observationId}
-            traceId={traceId}
-            projectId={projectId}
-            startTime={row.getValue("startTime")}
-            col="output"
-            singleLine={rowHeight === "s"}
-          />
-        );
-      },
-      enableHiding: true,
-      defaultHidden: true,
     },
     {
       accessorKey: "metadata",
@@ -729,6 +620,68 @@ export default function ObservationsTable({
         );
       },
       enableHiding: true,
+    },
+    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
+    {
+      accessorKey: "endTime",
+      id: "endTime",
+      header: "End Time",
+      size: 150,
+      enableHiding: true,
+      enableSorting: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: Date | undefined = row.getValue("endTime");
+        return value ? <LocalIsoDate date={value} /> : undefined;
+      },
+    },
+    {
+      accessorKey: "id",
+      id: "id",
+      header: "ObservationID",
+      size: 100,
+      defaultHidden: true,
+      enableSorting: true,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const observationId = row.getValue("id");
+        const traceId = row.getValue("traceId");
+        return typeof observationId === "string" &&
+          typeof traceId === "string" ? (
+          <TableId value={observationId} />
+        ) : null;
+      },
+    },
+    {
+      accessorKey: "traceName",
+      id: "traceName",
+      header: "Trace Name",
+      size: 150,
+      enableHiding: true,
+      enableSorting: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "traceId",
+      id: "traceId",
+      header: "Trace ID",
+      size: 100,
+      cell: ({ row }) => {
+        const value = row.getValue("traceId");
+        return typeof value === "string" ? (
+          <TableId value={value} />
+        ) : undefined;
+      },
+      enableSorting: true,
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "modelId",
+      id: "modelId",
+      header: "Model ID",
+      size: 100,
+      enableHiding: true,
       defaultHidden: true,
     },
     {
@@ -742,68 +695,162 @@ export default function ObservationsTable({
       },
       enableHiding: true,
       enableSorting: true,
+      defaultHidden: true,
     },
     {
-      accessorKey: "promptName",
-      id: "promptName",
-      header: "Prompt",
-      headerTooltip: {
-        description: "Link to prompt version in Langfuse prompt management.",
-        href: "https://langfuse.com/docs/prompts",
-      },
-      size: 200,
-      enableHiding: true,
-      enableSorting: true,
-      cell: ({ row }) => {
-        const promptName = row.original.promptName;
-        const promptVersion = row.original.promptVersion;
-        const value = `${promptName} (v${promptVersion})`;
-        return (
-          promptName &&
-          promptVersion && (
-            <TableLink
-              path={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}?version=${promptVersion}`}
-              value={value}
-            />
-          )
-        );
-      },
-    },
-    {
-      accessorKey: "traceTags",
-      id: "traceTags",
-      header: "Trace Tags",
-      size: 250,
+      accessorKey: "usage",
+      header: "Usage",
+      id: "usage",
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const traceTags: string[] | undefined = row.getValue("traceTags");
-        return (
-          traceTags && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
-            </div>
-          )
-        );
+      cell: () => {
+        return generations.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
+      columns: [
+        {
+          accessorKey: "tokensPerSecond",
+          id: "tokensPerSecond",
+          header: "Tokens per second",
+          size: 200,
+          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+            const latency: number | undefined = row.getValue("latency");
+            const usage: {
+              promptTokens: number;
+              completionTokens: number;
+              totalTokens: number;
+            } = row.getValue("usage");
+            return latency !== undefined &&
+              (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
+              <span>
+                {usage.completionTokens && latency
+                  ? Number((usage.completionTokens / latency).toFixed(1))
+                  : undefined}
+              </span>
+            ) : undefined;
+          },
+          defaultHidden: true,
+          enableHiding: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "inputTokens",
+          id: "inputTokens",
+          header: "Input Tokens",
+          size: 100,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+            const value: {
+              promptTokens: number;
+              completionTokens: number;
+              totalTokens: number;
+            } = row.getValue("usage");
+            return <span>{numberFormatter(value.promptTokens, 0)}</span>;
+          },
+        },
+        {
+          accessorKey: "outputTokens",
+          id: "outputTokens",
+          header: "Output Tokens",
+          size: 100,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+            const value: {
+              promptTokens: number;
+              completionTokens: number;
+              totalTokens: number;
+            } = row.getValue("usage");
+            return <span>{numberFormatter(value.completionTokens, 0)}</span>;
+          },
+        },
+        {
+          accessorKey: "totalTokens",
+          id: "totalTokens",
+          header: "Total Tokens",
+          size: 100,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+            const value: {
+              promptTokens: number;
+              completionTokens: number;
+              totalTokens: number;
+            } = row.getValue("usage");
+            return <span>{numberFormatter(value.totalTokens, 0)}</span>;
+          },
+        },
+      ],
+    },
+    {
+      accessorKey: "cost",
+      header: "Cost",
+      id: "cost",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return generations.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: [
+        {
+          accessorKey: "inputCost",
+          id: "inputCost",
+          header: "Input Cost",
+          size: 120,
+          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+            const value: number | undefined = row.getValue("inputCost");
+
+            return value !== undefined ? (
+              <span>{usdFormatter(value)}</span>
+            ) : undefined;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "outputCost",
+          id: "outputCost",
+          header: "Output Cost",
+          size: 120,
+          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+            const value: number | undefined = row.getValue("outputCost");
+
+            return value !== undefined ? (
+              <span>{usdFormatter(value)}</span>
+            ) : undefined;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+      ],
     },
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ObservationsTableRow>(
-      `generationsColumnVisibility-${projectId}`,
+      `observationColumnVisibility-${projectId}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<ObservationsTableRow>(
-    "generationsColumnOrder",
+    `observationsColumnOrder-${projectId}`,
     columns,
   );
+
+  const urlPathname = `/project/${projectId}/observations`;
+
+  const { getNavigationPath, expandPeek } =
+    useObservationPeekNavigation(urlPathname);
+  const { setPeekView } = useObservationPeekState(urlPathname);
 
   const rows: ObservationsTableRow[] = useMemo(() => {
     return generations.isSuccess
@@ -822,8 +869,10 @@ export default function ObservationsTable({
             ),
             latency: generation.latency ?? undefined,
             totalCost: generation.totalCost ?? undefined,
-            inputCost: generation.inputCost ?? undefined,
-            outputCost: generation.outputCost ?? undefined,
+            cost: {
+              inputCost: generation.inputCost ?? undefined,
+              outputCost: generation.outputCost ?? undefined,
+            },
             name: generation.name ?? undefined,
             version: generation.version ?? "",
             model: generation.model ?? "",
@@ -839,6 +888,7 @@ export default function ObservationsTable({
             promptName: generation.promptName ?? undefined,
             promptVersion: generation.promptVersion?.toString() ?? undefined,
             traceTags: generation.traceTags ?? undefined,
+            timestamp: generation.traceTimestamp ?? undefined,
             usageDetails: generation.usageDetails ?? {},
             costDetails: generation.costDetails ?? {},
             environment: generation.environment ?? undefined,
@@ -883,6 +933,19 @@ export default function ObservationsTable({
       />
       <DataTable
         columns={columns}
+        peekView={{
+          itemType: "TRACE",
+          customTitlePrefix: "Observation ID:",
+          listKey: "observations",
+          urlPathname,
+          onOpenChange: setPeekView,
+          onExpand: expandPeek,
+          shouldUpdateRowOnDetailPageNavigation: true,
+          getNavigationPath,
+          children: (row) => (
+            <PeekViewObservationDetail projectId={projectId} row={row} />
+          ),
+        }}
         data={
           generations.isLoading
             ? { isLoading: true, isError: false }

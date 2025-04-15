@@ -458,6 +458,7 @@ export const getObservationsTableWithModelData = async (
         : null,
       traceName: trace?.name ?? null,
       traceTags: trace?.tags ?? [],
+      traceTimestamp: trace?.timestamp ?? null,
       userId: trace?.userId ?? null,
       modelId: model?.id ?? null,
       inputPrice:
