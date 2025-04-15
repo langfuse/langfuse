@@ -21,6 +21,25 @@ service:
         body:
           properties:
             name: string
+            retention:
+              type: integer
+              docs: Number of days to retain data. Must be 0 or at least 7 days. Requires data-retention entitlement for non-zero values. Optional.
+      response: Project
+    
+    update:
+      docs: Update a project by ID (requires organization-scoped API key).
+      method: PUT
+      path: /projects/{projectId}
+      path-parameters:
+        projectId: string
+      request:
+        name: UpdateProjectRequest
+        body:
+          properties:
+            name: string
+            retention:
+              type: integer
+              docs: Number of days to retain data. Must be 0 or at least 7 days. Requires data-retention entitlement for non-zero values. Optional.
       response: Project
     
     delete:
@@ -75,7 +94,10 @@ types:
     properties:
       id: string
       name: string
-  
+      retentionDays:
+        type: integer
+        docs: Number of days to retain data. Null or 0 means no retention. Omitted if no retention is configured.
+
   ProjectDeletionResponse:
     properties:
       success: boolean

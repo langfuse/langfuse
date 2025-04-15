@@ -18,6 +18,7 @@ const ProjectResponseSchema = z.object({
     z.object({
       id: z.string(),
       name: z.string(),
+      retentionDays: z.number().nullable().optional(),
     }),
   ),
 });
@@ -26,6 +27,14 @@ const ProjectResponseSchema = z.object({
 const ProjectCreationResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
+  retentionDays: z.number().nullable().optional(),
+});
+
+// Schema for project update response
+const ProjectUpdateResponseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  retentionDays: z.number().nullable().optional(),
 });
 
 // Schema for project deletion response
@@ -191,6 +200,51 @@ describe("Projects API", () => {
       expect(project?.name).toBe(uniqueProjectName);
     });
 
+    it("should create a new project with retention days", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+
+      const response = await makeZodVerifiedAPICall(
+        ProjectCreationResponseSchema,
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+          retention: 0, // Setting retention to 0 (no retention)
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        201, // Expected status code is 201 Created
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body).toMatchObject({
+        name: uniqueProjectName,
+      });
+
+      // Verify the project was created with the correct retention days
+      const project = await prisma.project.findUnique({
+        where: { id: response.body.id },
+      });
+      expect(project).not.toBeNull();
+      expect(project?.retentionDays).toBe(0);
+    });
+
+    it("should validate retention days", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+
+      // Test with invalid retention days (less than 7 and not 0)
+      const invalidResult = await makeAPICall(
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+          retention: 5, // Invalid: less than 7 and not 0
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(invalidResult.status).toBe(400);
+      expect(invalidResult.body.message).toContain("Invalid retention value");
+    });
+
     it("should return 403 when using project API key instead of organization API key", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
@@ -276,6 +330,119 @@ describe("Projects API", () => {
     });
   });
 
+  describe("PUT /api/public/projects/[projectId]", () => {
+    let testProjectId: string;
+
+    beforeEach(async () => {
+      // Create a test project to update
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+      const project = await prisma.project.create({
+        data: {
+          name: uniqueProjectName,
+          orgId: "seed-org-id", // Same org ID used for the API key
+        },
+      });
+      testProjectId = project.id;
+    });
+
+    afterEach(async () => {
+      // Clean up test projects
+      await prisma.project.deleteMany({
+        where: {
+          id: testProjectId,
+        },
+      });
+    });
+
+    it("should update project retention days with valid organization API key", async () => {
+      const response = await makeZodVerifiedAPICall(
+        ProjectUpdateResponseSchema,
+        "PUT",
+        `/api/public/projects/${testProjectId}`,
+        {
+          name: "Updated Project Name",
+          retention: 7, // Valid retention value
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200, // Expected status code is 200 OK
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.name).toBe("Updated Project Name");
+      expect(response.body.retentionDays).toBe(7);
+
+      // Verify the project was updated in the database
+      const project = await prisma.project.findUnique({
+        where: { id: testProjectId },
+      });
+      expect(project).not.toBeNull();
+      expect(project?.name).toBe("Updated Project Name");
+      expect(project?.retentionDays).toBe(7);
+    });
+
+    it("should validate retention days on update", async () => {
+      // Test with invalid retention days (less than 7 and not 0)
+      const invalidResult = await makeAPICall(
+        "PUT",
+        `/api/public/projects/${testProjectId}`,
+        {
+          name: "Updated Project Name",
+          retention: 5, // Invalid: less than 7 and not 0
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(invalidResult.status).toBe(400);
+      expect(invalidResult.body.message).toContain("Invalid retention value");
+    });
+
+    it("should allow setting retention to 0", async () => {
+      const response = await makeZodVerifiedAPICall(
+        ProjectUpdateResponseSchema,
+        "PUT",
+        `/api/public/projects/${testProjectId}`,
+        {
+          name: "Updated Project Name",
+          retention: 0, // Valid: 0 means no retention
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200, // Expected status code is 200 OK
+      );
+
+      expect(response.status).toBe(200);
+      // Retentions with value 0 are not returned.
+      expect(response.body.retentionDays).toBeUndefined();
+    });
+
+    it("should return 403 when using project API key instead of organization API key", async () => {
+      const result = await makeAPICall(
+        "PUT",
+        `/api/public/projects/${testProjectId}`,
+        {
+          retention: 7,
+        },
+        createBasicAuthHeader(projectApiKey, projectSecretKey),
+      );
+      expect(result.status).toBe(403);
+      expect(result.body.message).toContain(
+        "Organization-scoped API key required",
+      );
+    });
+
+    it("should return 404 when project does not exist", async () => {
+      const nonExistentProjectId = randomUUID();
+      const result = await makeAPICall(
+        "PUT",
+        `/api/public/projects/${nonExistentProjectId}`,
+        {
+          retention: 7,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(404);
+      expect(result.body.message).toContain("Project not found");
+    });
+  });
+
   describe("DELETE /api/public/projects/[projectId]", () => {
     let testProjectId: string;
 
@@ -356,17 +523,6 @@ describe("Projects API", () => {
       );
       expect(result.status).toBe(404);
       expect(result.body.message).toContain("Project not found");
-    });
-
-    it("should return 405 for non-DELETE methods", async () => {
-      const result = await makeAPICall(
-        "GET",
-        `/api/public/projects/${testProjectId}`,
-        undefined,
-        createBasicAuthHeader(orgApiKey, orgSecretKey),
-      );
-      expect(result.status).toBe(405);
-      expect(result.body.message).toContain("Method not allowed");
     });
   });
 
@@ -626,16 +782,16 @@ describe("Projects API", () => {
       expect(result.status).toBe(404);
       expect(result.body.message).toContain("Project not found");
     });
+  });
 
-    it("should return 405 for non-DELETE methods", async () => {
-      const result = await makeAPICall(
-        "GET",
-        `/api/public/projects/${projectId}/apiKeys/${deleteTestApiKeyId}`,
-        undefined,
-        createBasicAuthHeader(orgApiKey, orgSecretKey),
-      );
-      expect(result.status).toBe(405);
-      expect(result.body.message).toContain("Method Not Allowed");
-    });
+  it("should return 405 for unallowed methods", async () => {
+    const result = await makeAPICall(
+      "PATCH",
+      `/api/public/projects/${projectId}`,
+      undefined,
+      createBasicAuthHeader(orgApiKey, orgSecretKey),
+    );
+    expect(result.status).toBe(405);
+    expect(result.body.message).toContain("Method not allowed");
   });
 });
