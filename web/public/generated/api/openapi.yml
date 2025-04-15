@@ -1499,6 +1499,199 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GetMediaUploadUrlRequest'
+  /api/public/organizations/memberships:
+    get:
+      description: >-
+        Get all memberships for the organization associated with the API key
+        (requires organization-scoped API key)
+      operationId: memberships_getOrganizationMemberships
+      tags:
+        - Memberships
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: >-
+        Create or update a membership for the organization associated with the
+        API key (requires organization-scoped API key)
+      operationId: memberships_updateOrganizationMembership
+      tags:
+        - Memberships
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipRequest'
+  /api/public/projects/{projectId}/memberships:
+    get:
+      description: >-
+        Get all memberships for a specific project (requires organization-scoped
+        API key)
+      operationId: memberships_getProjectMemberships
+      tags:
+        - Memberships
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: >-
+        Create or update a membership for a specific project (requires
+        organization-scoped API key). The user must already be a member of the
+        organization.
+      operationId: memberships_updateProjectMembership
+      tags:
+        - Memberships
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipRequest'
   /api/public/metrics/daily:
     get:
       description: Get daily metrics of the Langfuse project
@@ -5631,6 +5824,52 @@ components:
         - application/xml
         - application/octet-stream
       description: The MIME type of the media record
+    MembershipRole:
+      title: MembershipRole
+      type: string
+      enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        - VIEWER
+    MembershipRequest:
+      title: MembershipRequest
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+      required:
+        - userId
+        - role
+    MembershipResponse:
+      title: MembershipResponse
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+        email:
+          type: string
+        name:
+          type: string
+      required:
+        - userId
+        - role
+        - email
+        - name
+    MembershipsResponse:
+      title: MembershipsResponse
+      type: object
+      properties:
+        memberships:
+          type: array
+          items:
+            $ref: '#/components/schemas/MembershipResponse'
+      required:
+        - memberships
     DailyMetrics:
       title: DailyMetrics
       type: object
