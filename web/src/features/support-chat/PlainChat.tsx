@@ -75,7 +75,8 @@ const PlainChat = () => {
 
 export default PlainChat;
 
-export const chatAvailable = !!env.NEXT_PUBLIC_PLAIN_APP_ID;
+export const chatAvailable =
+  !!env.NEXT_PUBLIC_PLAIN_APP_ID && window.Plain !== undefined;
 
 export const showChat = (): void => {
   if (chatAvailable) {
