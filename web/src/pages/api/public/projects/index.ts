@@ -88,7 +88,7 @@ export default async function handler(
       } catch (error) {
         return res.status(400).json({
           message:
-            "Invalid project name length. Should be between 3 and 30 characters.",
+            "Invalid project name length. Should be between 3 and 60 characters.",
         });
       }
 
