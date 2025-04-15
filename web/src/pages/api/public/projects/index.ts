@@ -5,6 +5,8 @@ import { logger, redis } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 export default async function handler(
   req: NextApiRequest,
@@ -48,6 +50,7 @@ export default async function handler(
         select: {
           id: true,
           name: true,
+          retentionDays: true,
         },
         where: {
           id: authCheck.scope.projectId,
@@ -59,6 +62,9 @@ export default async function handler(
         data: projects.map((project) => ({
           id: project.id,
           name: project.name,
+          ...(project.retentionDays // Do not add if null or 0
+            ? { retentionDays: project.retentionDays }
+            : {}),
         })),
       });
     } catch (error) {
@@ -80,7 +86,7 @@ export default async function handler(
     }
 
     try {
-      const { name } = req.body;
+      const { name, retention } = req.body;
 
       // Validate project name
       try {
@@ -88,8 +94,34 @@ export default async function handler(
       } catch (error) {
         return res.status(400).json({
           message:
-            "Invalid project name length. Should be between 3 and 60 characters.",
+            "Invalid project name. Should be between 3 and 60 characters.",
         });
+      }
+
+      // Validate retention days if provided
+      if (retention !== undefined) {
+        try {
+          projectRetentionSchema.parse({ retention });
+        } catch (error) {
+          return res.status(400).json({
+            message: "Invalid retention value. Must be 0 or at least 7 days.",
+          });
+        }
+
+        // If retention is non-zero, check for data-retention entitlement
+        if (retention > 0) {
+          const hasDataRetentionEntitlement = hasEntitlementBasedOnPlan({
+            entitlement: "data-retention",
+            plan: authCheck.scope.plan,
+          });
+
+          if (!hasDataRetentionEntitlement) {
+            return res.status(403).json({
+              message:
+                "The data-retention entitlement is required to set a non-zero retention period.",
+            });
+          }
+        }
       }
 
       // Check if project with this name already exists in the organization
@@ -112,12 +144,16 @@ export default async function handler(
         data: {
           name,
           orgId: authCheck.scope.orgId,
+          retentionDays: retention,
         },
       });
 
       return res.status(201).json({
         id: project.id,
         name: project.name,
+        ...(project.retentionDays // Do not add if null or 0
+          ? { retentionDays: project.retentionDays }
+          : {}),
       });
     } catch (error) {
       logger.error("Failed to create project", error);
