@@ -52,7 +52,7 @@ const ScoreGroupBadge = <T extends APIScore | LastUserScore>({
                   <MessageCircleMoreIcon className="mb-[0.0625rem] !size-3" />
                 </HoverCardTrigger>
                 <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
-                  <p>{s.comment}</p>
+                  <p className="whitespace-pre-wrap">{s.comment}</p>
                 </HoverCardContent>
               </HoverCard>
             )}
