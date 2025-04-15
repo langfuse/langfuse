@@ -2,10 +2,9 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
+import { handleCreateProject } from "@/src/ee/features/admin-api/public/projects/createProject";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 export default async function handler(
@@ -85,79 +84,17 @@ export default async function handler(
       });
     }
 
-    try {
-      const { name, retention } = req.body;
-
-      // Validate project name
-      try {
-        projectNameSchema.parse({ name });
-      } catch (error) {
-        return res.status(400).json({
-          message:
-            "Invalid project name. Should be between 3 and 60 characters.",
-        });
-      }
-
-      // Validate retention days if provided
-      if (retention !== undefined) {
-        try {
-          projectRetentionSchema.parse({ retention });
-        } catch (error) {
-          return res.status(400).json({
-            message: "Invalid retention value. Must be 0 or at least 7 days.",
-          });
-        }
-
-        // If retention is non-zero, check for data-retention entitlement
-        if (retention > 0) {
-          const hasDataRetentionEntitlement = hasEntitlementBasedOnPlan({
-            entitlement: "data-retention",
-            plan: authCheck.scope.plan,
-          });
-
-          if (!hasDataRetentionEntitlement) {
-            return res.status(403).json({
-              message:
-                "The data-retention entitlement is required to set a non-zero retention period.",
-            });
-          }
-        }
-      }
-
-      // Check if project with this name already exists in the organization
-      const existingProject = await prisma.project.findFirst({
-        where: {
-          name,
-          orgId: authCheck.scope.orgId,
-        },
+    if (
+      !hasEntitlementBasedOnPlan({
+        plan: authCheck.scope.plan,
+        entitlement: "admin-api",
+      })
+    ) {
+      return res.status(403).json({
+        error: "This feature is not available on your current plan.",
       });
-
-      if (existingProject) {
-        return res.status(409).json({
-          message:
-            "A project with this name already exists in your organization",
-        });
-      }
-
-      // Create the project
-      const project = await prisma.project.create({
-        data: {
-          name,
-          orgId: authCheck.scope.orgId,
-          retentionDays: retention,
-        },
-      });
-
-      return res.status(201).json({
-        id: project.id,
-        name: project.name,
-        ...(project.retentionDays // Do not add if null or 0
-          ? { retentionDays: project.retentionDays }
-          : {}),
-      });
-    } catch (error) {
-      logger.error("Failed to create project", error);
-      return res.status(500).json({ message: "Internal server error" });
     }
+
+    return handleCreateProject(req, res, authCheck.scope);
   }
 }

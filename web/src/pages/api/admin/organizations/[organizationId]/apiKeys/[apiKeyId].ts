@@ -1,24 +1,13 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/features/admin-api/server/adminApiAuth";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { z } from "zod";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-
-const validateQueryParams = (
-  query: unknown,
-): { organizationId: string; apiKeyId: string } | null => {
-  const inputQuerySchema = z.object({
-    organizationId: z.string(),
-    apiKeyId: z.string(),
-  });
-  const validation = inputQuerySchema.safeParse(query);
-  if (!validation.success) {
-    return null;
-  }
-  return validation.data;
-};
+import {
+  validateQueryParams,
+  handleDeleteApiKey,
+} from "@/src/ee/features/admin-api/organizations/apiKeys/apiKeyById";
+import { prisma } from "@langfuse/shared/src/db";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,6 +22,17 @@ export default async function handler(
     // Verify admin API authentication, but allow non-langfuse cloud use-cases
     if (!AdminApiAuthService.handleAdminAuth(req, res, false)) {
       return;
+    }
+
+    if (
+      !hasEntitlementBasedOnPlan({
+        plan: getSelfHostedInstancePlanServerSide(),
+        entitlement: "admin-api",
+      })
+    ) {
+      return res.status(403).json({
+        error: "This feature is not available on your current plan.",
+      });
     }
 
     const params = validateQueryParams(req.query);
@@ -54,7 +54,7 @@ export default async function handler(
     // Handle different HTTP methods
     switch (req.method) {
       case "DELETE":
-        return await handleDelete(req, res, organizationId, apiKeyId);
+        return await handleDeleteApiKey(req, res, organizationId, apiKeyId);
       default:
         res.status(405).json({ error: "Method Not Allowed" });
         return;
@@ -63,51 +63,4 @@ export default async function handler(
     logger.error("Failed to process organization API key request", e);
     res.status(500).json({ error: "Internal server error" });
   }
-}
-
-async function handleDelete(
-  req: NextApiRequest,
-  res: NextApiResponse,
-  organizationId: string,
-  apiKeyId: string,
-) {
-  // Check if API key exists and belongs to the organization
-  const apiKey = await prisma.apiKey.findFirst({
-    where: {
-      id: apiKeyId,
-      orgId: organizationId,
-      scope: "ORGANIZATION",
-    },
-  });
-
-  if (!apiKey) {
-    return res.status(404).json({ error: "API key not found" });
-  }
-
-  // Delete the API key
-  const deleted = await new ApiAuthService(prisma, redis).deleteApiKey(
-    apiKeyId,
-    organizationId,
-    "ORGANIZATION",
-  );
-
-  if (!deleted) {
-    return res.status(500).json({ error: "Failed to delete API key" });
-  }
-
-  // Log the API key deletion
-  await auditLog({
-    resourceType: "apiKey",
-    resourceId: apiKeyId,
-    action: "delete",
-    orgId: organizationId,
-    orgRole: "ADMIN",
-    apiKeyId: "ADMIN_KEY",
-  });
-
-  logger.info(
-    `Deleted API key ${apiKeyId} for organization ${organizationId} via admin API`,
-  );
-
-  return res.status(200).json({ success: true });
 }
