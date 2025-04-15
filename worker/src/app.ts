@@ -51,6 +51,7 @@ import {
 } from "./queues/dataRetentionQueue";
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
+import { workflowActivityQueueProcessor } from "./queues/workflowActivityQueue";
 
 const app = express();
 
@@ -300,6 +301,16 @@ if (env.QUEUE_CONSUMER_DATA_RETENTION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.DataRetentionProcessingQueue,
     dataRetentionProcessingProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_WORKFLOW_ACTIVITY_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.WorkflowActivityQueue,
+    workflowActivityQueueProcessor,
     {
       concurrency: 1,
     },

@@ -107,6 +107,38 @@ export const DashboardWidgetChartType = {
     PIE: "PIE"
 } as const;
 export type DashboardWidgetChartType = (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
+export const WorkflowStatus = {
+    ACTIVE: "ACTIVE",
+    INACTIVE: "INACTIVE"
+} as const;
+export type WorkflowStatus = (typeof WorkflowStatus)[keyof typeof WorkflowStatus];
+export const ActivityStatus = {
+    PENDING: "PENDING",
+    RUNNING: "RUNNING",
+    COMPLETED: "COMPLETED",
+    FAILED: "FAILED",
+    CANCELLED: "CANCELLED"
+} as const;
+export type ActivityStatus = (typeof ActivityStatus)[keyof typeof ActivityStatus];
+export const WorkflowEventType = {
+    CREATED: "CREATED",
+    STARTED: "STARTED",
+    COMPLETED: "COMPLETED",
+    FAILED: "FAILED",
+    CANCELLED: "CANCELLED",
+    TIMEOUT: "TIMEOUT",
+    RETRY: "RETRY",
+    STATUS_CHANGE: "STATUS_CHANGE",
+    ERROR: "ERROR",
+    CUSTOM: "CUSTOM"
+} as const;
+export type WorkflowEventType = (typeof WorkflowEventType)[keyof typeof WorkflowEventType];
+export const WorkflowObjectType = {
+    WORKFLOW: "WORKFLOW",
+    WORKFLOW_EXECUTION: "WORKFLOW_EXECUTION",
+    ACTIVITY: "ACTIVITY"
+} as const;
+export type WorkflowObjectType = (typeof WorkflowObjectType)[keyof typeof WorkflowObjectType];
 export type Account = {
     id: string;
     user_id: string;
@@ -124,6 +156,20 @@ export type Account = {
     session_state: string | null;
     refresh_token_expires_in: number | null;
     created_at: number | null;
+};
+export type Activity = {
+    id: string;
+    predecessor_activity_ids: Generated<string[]>;
+    workflow_execution_id: string;
+    project_id: string;
+    task_id: string;
+    task_type_id: string;
+    parameters: unknown | null;
+    name: string;
+    output: unknown | null;
+    status: Generated<ActivityStatus>;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
 };
 export type AnnotationQueue = {
     id: string;
@@ -625,6 +671,30 @@ export type SsoConfig = {
     auth_provider: string;
     auth_config: unknown | null;
 };
+export type Task = {
+    id: string;
+    task_type_id: string;
+    name: string;
+    workflow_id: string;
+    predecessor_task_ids: Generated<string[]>;
+    status: Generated<WorkflowStatus>;
+    mappings: unknown | null;
+    timeout_duration: number | null;
+    version: string | null;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
+export type TaskType = {
+    id: string;
+    project_id: string;
+    name: string;
+    input_schema: unknown | null;
+    output_schema: unknown | null;
+    version: string | null;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type TraceMedia = {
     id: string;
     project_id: string;
@@ -660,8 +730,43 @@ export type VerificationToken = {
     token: string;
     expires: Timestamp;
 };
+export type Workflow = {
+    id: string;
+    name: string;
+    project_id: string;
+    timeout_duration: number | null;
+    source_event_type: string;
+    source_event_filter: unknown | null;
+    delay: number | null;
+    status: Generated<WorkflowStatus>;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
+export type WorkflowEvent = {
+    id: string;
+    project_id: string;
+    eventType: WorkflowEventType;
+    objectType: WorkflowObjectType;
+    object_id: string;
+    workflow_execution_id: string | null;
+    activity_id: string | null;
+    metadata: unknown | null;
+    timestamp: Generated<Timestamp>;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
+export type WorkflowExecution = {
+    id: string;
+    execution_id: string;
+    parameters: unknown | null;
+    project_id: string;
+    workflow_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type DB = {
     Account: Account;
+    activities: Activity;
     annotation_queue_items: AnnotationQueueItem;
     annotation_queues: AnnotationQueue;
     api_keys: ApiKey;
@@ -702,9 +807,14 @@ export type DB = {
     scores: LegacyPrismaScore;
     Session: Session;
     sso_configs: SsoConfig;
+    task_types: TaskType;
+    tasks: Task;
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: LegacyPrismaTrace;
     users: User;
     verification_tokens: VerificationToken;
+    workflow_events: WorkflowEvent;
+    workflow_executions: WorkflowExecution;
+    workflows: Workflow;
 };

@@ -59,6 +59,10 @@ export const PostHogIntegrationProcessingEventSchema = z.object({
 export const BlobStorageIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
+export const WorkflowActivityEventSchema = z.object({
+  projectId: z.string(),
+  activityId: z.string(),
+});
 export const ExperimentCreateEventSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
@@ -152,6 +156,9 @@ export type BatchActionProcessingEventType = z.infer<
 export type BlobStorageIntegrationProcessingEventType = z.infer<
   typeof BlobStorageIntegrationProcessingEventSchema
 >;
+export type WorkflowActivityEventType = z.infer<
+  typeof WorkflowActivityEventSchema
+>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -175,6 +182,7 @@ export enum QueueName {
   BatchActionQueue = "batch-action-queue",
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
+  WorkflowActivityQueue = "workflow-activity-queue",
 }
 
 export enum QueueJobs {
@@ -199,6 +207,7 @@ export enum QueueJobs {
   BatchActionProcessingJob = "batch-action-processing-job",
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
+  WorkflowActivityJob = "workflow-activity-job",
 }
 
 export type TQueueJobTypes = {
@@ -291,5 +300,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: BlobStorageIntegrationProcessingEventType;
     name: QueueJobs.BlobStorageIntegrationProcessingJob;
+  };
+  [QueueName.WorkflowActivityQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: WorkflowActivityEventType;
+    name: QueueJobs.WorkflowActivityJob;
   };
 };
