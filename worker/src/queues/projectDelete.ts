@@ -94,6 +94,7 @@ export const projectDeleteProcessor: Processor = async (
   logger.info(`Deleting S3 event logs for ${projectId} in org ${orgId}`);
 
   // Remove event files from S3
+  let batch = 0;
   const eventLogStream = getEventLogByProjectId(projectId);
   let eventLogPaths: string[] = [];
   const eventStorageClient = getS3EventStorageClient(
@@ -105,6 +106,10 @@ export const projectDeleteProcessor: Processor = async (
       // Delete the current batch and reset the list
       await eventStorageClient.deleteFiles(eventLogPaths);
       eventLogPaths = [];
+      batch++;
+      logger.info(
+        `Deleted ${batch * 500} event logs for ${projectId} in org ${orgId}`,
+      );
     }
   }
   // Delete any remaining files
@@ -144,6 +149,9 @@ export const projectDeleteProcessor: Processor = async (
       },
     });
   } catch (e) {
+    logger.error(`Error deleting project ${projectId} in org ${orgId}: ${e}`, {
+      stack: e instanceof Error ? e.stack : undefined,
+    });
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025" || e.code === "P2016") {
         logger.warn(
