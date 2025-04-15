@@ -2306,6 +2306,161 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/projects/{projectId}/apiKeys:
+    get:
+      description: Get all API keys for a project (requires organization-scoped API key)
+      operationId: projects_getApiKeys
+      tags:
+        - Projects
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    post:
+      description: >-
+        Create a new API key for a project (requires organization-scoped API
+        key)
+      operationId: projects_createApiKey
+      tags:
+        - Projects
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  nullable: true
+                  description: Optional note for the API key
+  /api/public/projects/{projectId}/apiKeys/{apiKeyId}:
+    delete:
+      description: Delete an API key for a project (requires organization-scoped API key)
+      operationId: projects_deleteApiKey
+      tags:
+        - Projects
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: apiKeyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyDeletionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/v2/prompts/{name}/versions/{version}:
     patch:
       description: Update labels for a specific prompt version
@@ -6071,6 +6226,81 @@ components:
       required:
         - success
         - message
+    ApiKeyList:
+      title: ApiKeyList
+      type: object
+      description: List of API keys for a project
+      properties:
+        apiKeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeySummary'
+      required:
+        - apiKeys
+    ApiKeySummary:
+      title: ApiKeySummary
+      type: object
+      description: Summary of an API key
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        publicKey:
+          type: string
+        displaySecretKey:
+          type: string
+      required:
+        - id
+        - createdAt
+        - publicKey
+        - displaySecretKey
+    ApiKeyResponse:
+      title: ApiKeyResponse
+      type: object
+      description: Response for API key creation
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        publicKey:
+          type: string
+        secretKey:
+          type: string
+        displaySecretKey:
+          type: string
+        note:
+          type: string
+          nullable: true
+      required:
+        - id
+        - createdAt
+        - publicKey
+        - secretKey
+        - displaySecretKey
+    ApiKeyDeletionResponse:
+      title: ApiKeyDeletionResponse
+      type: object
+      description: Response for API key deletion
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
     PromptMetaListResponse:
       title: PromptMetaListResponse
       type: object
