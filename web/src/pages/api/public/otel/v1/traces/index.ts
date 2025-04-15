@@ -1,5 +1,5 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   type IngestionEventType,
   logger,
@@ -17,7 +17,7 @@ export const config = {
 };
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "OTel Traces",
     querySchema: z.any(),
     responseSchema: z.any(),

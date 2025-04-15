@@ -2,8 +2,8 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { AdminApiAuthService } from "@/src/features/admin-api/server/adminApiAuth";
 
 /* 
 This API route is used by Langfuse Cloud to delete API keys for a project. It will return 403 for self-hosters.
@@ -36,29 +36,7 @@ export default async function handler(
       return;
     }
 
-    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-      res.status(403).json({ error: "Only accessible on Langfuse cloud" });
-      return;
-    }
-
-    // check if ADMIN_API_KEY is set
-    if (!env.ADMIN_API_KEY) {
-      logger.error("ADMIN_API_KEY is not set");
-      res.status(500).json({ error: "ADMIN_API_KEY is not set" });
-      return;
-    }
-
-    // check bearer token
-    const { authorization } = req.headers;
-    if (!authorization) {
-      res
-        .status(401)
-        .json({ error: "Unauthorized: No authorization header provided" });
-      return;
-    }
-    const [scheme, token] = authorization.split(" ");
-    if (scheme !== "Bearer" || !token || token !== env.ADMIN_API_KEY) {
-      res.status(401).json({ error: "Unauthorized: Invalid token" });
+    if (!AdminApiAuthService.handleAdminAuth(req, res)) {
       return;
     }
 
@@ -80,6 +58,7 @@ export default async function handler(
           projectId: {
             in: body.data.projectIds,
           },
+          scope: "PROJECT",
         },
       });
 
@@ -88,6 +67,7 @@ export default async function handler(
           projectId: {
             in: body.data.projectIds,
           },
+          scope: "PROJECT",
         },
       });
 
@@ -109,6 +89,7 @@ export default async function handler(
           projectId: {
             in: body.data.projectIds,
           },
+          scope: "PROJECT",
         },
       });
 

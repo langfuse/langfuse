@@ -78,6 +78,11 @@ export default async function handler(
     if (!authCheck.validKey) {
       throw new UnauthorizedError(authCheck.error);
     }
+    if (!authCheck.scope.projectId) {
+      throw new UnauthorizedError(
+        "Missing projectId in scope. Are you using an organization key?",
+      );
+    }
 
     try {
       const rateLimitCheck =

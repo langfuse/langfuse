@@ -45,6 +45,7 @@ const openAIServer = new OpenAIServer({
   hasActiveKey,
   useDefaultResponse: false,
 });
+const jobTimestamp = new Date();
 
 beforeAll(openAIServer.setup);
 beforeEach(async () => {
@@ -97,7 +98,7 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload });
+      await createEvalJobs({ event: payload, jobTimestamp });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -177,7 +178,7 @@ describe("eval service tests", () => {
         observationId: observationId,
       };
 
-      await createEvalJobs({ event: payload });
+      await createEvalJobs({ event: payload, jobTimestamp });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -260,7 +261,7 @@ describe("eval service tests", () => {
       };
 
       // This should exit early without an error as there is no trace yet.
-      await createEvalJobs({ event: payloadDataset });
+      await createEvalJobs({ event: payloadDataset, jobTimestamp });
 
       const jobsAfterDataset = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -285,7 +286,7 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payloadTrace });
+      await createEvalJobs({ event: payloadTrace, jobTimestamp });
 
       const jobsAfterTrace = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -346,7 +347,7 @@ describe("eval service tests", () => {
       };
 
       // This should exit early without an error as there is no trace yet.
-      await createEvalJobs({ event: payloadTrace });
+      await createEvalJobs({ event: payloadTrace, jobTimestamp });
 
       const jobsAfterDataset = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -374,7 +375,7 @@ describe("eval service tests", () => {
         datasetItemId,
       };
 
-      await createEvalJobs({ event: payloadDataset });
+      await createEvalJobs({ event: payloadDataset, jobTimestamp });
 
       const jobsAfterTrace = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -415,7 +416,7 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload });
+      await createEvalJobs({ event: payload, jobTimestamp });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -469,8 +470,8 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload });
-      await createEvalJobs({ event: payload }); // calling it twice to check it is only generated once
+      await createEvalJobs({ event: payload, jobTimestamp });
+      await createEvalJobs({ event: payload, jobTimestamp }); // calling it twice to check it is only generated once
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -509,7 +510,7 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload });
+      await createEvalJobs({ event: payload, jobTimestamp });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -555,7 +556,7 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload });
+      await createEvalJobs({ event: payload, jobTimestamp });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -637,7 +638,7 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload });
+      await createEvalJobs({ event: payload, jobTimestamp });
 
       // Wait for .5s
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -653,6 +654,7 @@ describe("eval service tests", () => {
 
       await createEvalJobs({
         event: payload,
+        jobTimestamp,
       }); // calling it twice to check it is only generated once
 
       const jobs = await kyselyPrisma.$kysely
@@ -718,6 +720,7 @@ describe("eval service tests", () => {
 
       await createEvalJobs({
         event: payload,
+        jobTimestamp,
         enforcedJobTimeScope: "NEW", // the config must contain NEW
       });
 
@@ -771,6 +774,7 @@ describe("eval service tests", () => {
 
       await createEvalJobs({
         event: payload,
+        jobTimestamp,
         enforcedJobTimeScope: "NEW", // the config must contain NEW
       });
 
@@ -829,6 +833,7 @@ describe("eval service tests", () => {
 
       await createEvalJobs({
         event: payload,
+        jobTimestamp,
         enforcedJobTimeScope: "EXISTING", // the config must contain NEW
       });
 
@@ -873,6 +878,7 @@ describe("eval service tests", () => {
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           traceId: traceId,
         },
+        jobTimestamp,
       });
 
       const jobs = await kyselyPrisma.$kysely

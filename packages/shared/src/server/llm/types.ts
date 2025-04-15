@@ -32,6 +32,7 @@ export const JSONSchemaFormSchema = z
         required: z.array(z.string()).optional(),
         additionalProperties: z.boolean().optional(),
       })
+      .passthrough()
       .transform((data) => JSON.stringify(data, null, 2)),
   );
 
@@ -253,6 +254,10 @@ export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
 
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
 export const openAIModels = [
+  "gpt-4.1",
+  "gpt-4.1-2025-04-14",
+  "gpt-4.1-mini-2025-04-14",
+  "gpt-4.1-nano-2025-04-14",
   "gpt-4o",
   "gpt-4o-2024-08-06",
   "gpt-4o-2024-05-13",

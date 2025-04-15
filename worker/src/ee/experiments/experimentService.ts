@@ -283,7 +283,7 @@ export const createExperimentJob = async ({
         validKey: true as const,
         scope: {
           projectId: event.projectId,
-          accessLevel: "all",
+          accessLevel: "project",
         } as any,
       },
     };

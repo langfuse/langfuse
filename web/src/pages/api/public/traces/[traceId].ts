@@ -1,4 +1,4 @@
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
 import {
@@ -26,7 +26,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Single Trace",
     querySchema: GetTraceV1Query,
     responseSchema: GetTraceV1Response,
@@ -136,7 +136,7 @@ export default withMiddlewares({
     },
   }),
 
-  DELETE: createAuthedAPIRoute({
+  DELETE: createAuthedProjectAPIRoute({
     name: "Delete Single Trace",
     querySchema: DeleteTraceV1Query,
     responseSchema: DeleteTraceV1Response,

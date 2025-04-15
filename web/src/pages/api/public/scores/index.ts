@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
 
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   GetScoresQuery,
@@ -20,7 +20,7 @@ import {
 } from "@/src/features/public-api/server/scores";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Score",
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
@@ -49,7 +49,7 @@ export default withMiddlewares({
       return { id: event.body.id };
     },
   }),
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
     querySchema: GetScoresQuery,
     responseSchema: GetScoresResponse,
