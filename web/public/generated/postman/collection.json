@@ -1804,6 +1804,119 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Api Keys",
+          "request": {
+            "description": "Get all API keys for a project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/apiKeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "apiKeys"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create Api Key",
+          "request": {
+            "description": "Create a new API key for a project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/apiKeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "apiKeys"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"note\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Api Key",
+          "request": {
+            "description": "Delete an API key for a project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/apiKeys/:apiKeyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "apiKeys",
+                ":apiKeyId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "apiKeyId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
