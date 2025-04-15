@@ -17,7 +17,6 @@ export const IngestionEvent = z.object({
     validKey: z.literal(true),
     scope: z.object({
       projectId: z.string(),
-      accessLevel: z.enum(["all", "scores"]),
     }),
   }),
 });

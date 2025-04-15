@@ -52,6 +52,7 @@ export * from "./repositories";
 export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
 export * from "./services/datasets-ui-table-service";
+export * from "./services/DashboardService";
 
 // test utils
 export * from "./test-utils";

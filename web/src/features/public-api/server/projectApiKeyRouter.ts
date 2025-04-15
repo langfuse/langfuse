@@ -9,7 +9,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 
-export const apiKeysRouter = createTRPCRouter({
+export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
     .input(
       z.object({
@@ -26,6 +26,7 @@ export const apiKeysRouter = createTRPCRouter({
       return ctx.prisma.apiKey.findMany({
         where: {
           projectId: input.projectId,
+          scope: "PROJECT",
         },
         select: {
           id: true,
@@ -57,8 +58,9 @@ export const apiKeysRouter = createTRPCRouter({
 
       const apiKeyMeta = await createAndAddApiKeysToDb({
         prisma: ctx.prisma,
-        projectId: input.projectId,
+        entityId: input.projectId,
         note: input.note,
+        scope: "PROJECT",
       });
 
       await auditLog({
@@ -128,6 +130,7 @@ export const apiKeysRouter = createTRPCRouter({
       return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
         input.id,
         input.projectId,
+        "PROJECT",
       );
     }),
 });

@@ -1,4 +1,5 @@
 import { type DataPoint } from "./chart-props";
+import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
 /**
  * Groups data by dimension to prepare it for time series breakdowns
@@ -36,4 +37,20 @@ export const getUniqueDimensions = (data: DataPoint[]) => {
     }
   });
   return Array.from(uniqueDimensions);
+};
+
+export const isTimeSeriesChart = (
+  chartType: DashboardWidgetChartType,
+): boolean => {
+  switch (chartType) {
+    case "LINE_TIME_SERIES":
+    case "BAR_TIME_SERIES":
+      return true;
+    case "HORIZONTAL_BAR":
+    case "VERTICAL_BAR":
+    case "PIE":
+      return false;
+    default:
+      return false;
+  }
 };

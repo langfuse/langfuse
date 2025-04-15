@@ -1,0 +1,199 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+
+service:
+  auth: true
+  base-path: /api/public/scim
+  endpoints:
+    getServiceProviderConfig:
+      docs: Get SCIM Service Provider Configuration (requires organization-scoped API key)
+      method: GET
+      path: /ServiceProviderConfig
+      response: ServiceProviderConfig
+
+    getResourceTypes:
+      docs: Get SCIM Resource Types (requires organization-scoped API key)
+      method: GET
+      path: /ResourceTypes
+      response: ResourceTypesResponse
+
+    getSchemas:
+      docs: Get SCIM Schemas (requires organization-scoped API key)
+      method: GET
+      path: /Schemas
+      response: SchemasResponse
+
+    listUsers:
+      docs: List users in the organization (requires organization-scoped API key)
+      method: GET
+      path: /Users
+      request:
+        name: ListUsersRequest
+        query-parameters:
+          filter:
+            docs: Filter expression (e.g. userName eq "value")
+            type: optional<string>
+          startIndex:
+            docs: 1-based index of the first result to return (default 1)
+            type: optional<integer>
+          count:
+            docs: Maximum number of results to return (default 100)
+            type: optional<integer>
+      response: ScimUsersListResponse
+
+    createUser:
+      docs: Create a new user in the organization (requires organization-scoped API key)
+      method: POST
+      path: /Users
+      request:
+        name: CreateUserRequest
+        body:
+          properties:
+            userName:
+              docs: User's email address (required)
+              type: string
+            name:
+              docs: User's name information
+              type: ScimName
+            emails:
+              docs: User's email addresses
+              type: optional<list<ScimEmail>>
+            active:
+              docs: Whether the user is active
+              type: optional<boolean>
+            password:
+              docs: Initial password for the user
+              type: optional<string>
+      response: ScimUser
+
+    getUser:
+      docs: Get a specific user by ID (requires organization-scoped API key)
+      method: GET
+      path: /Users/{userId}
+      path-parameters:
+        userId: string
+      response: ScimUser
+
+    deleteUser:
+      docs: Remove a user from the organization (requires organization-scoped API key). Note that this only removes the user from the organization but does not delete the user entity itself.
+      method: DELETE
+      path: /Users/{userId}
+      path-parameters:
+        userId: string
+      response: EmptyResponse
+
+types:
+  ServiceProviderConfig:
+    properties:
+      schemas: list<string>
+      documentationUri: string
+      patch: ScimFeatureSupport
+      bulk: BulkConfig
+      filter: FilterConfig
+      changePassword: ScimFeatureSupport
+      sort: ScimFeatureSupport
+      etag: ScimFeatureSupport
+      authenticationSchemes: list<AuthenticationScheme>
+      meta: ResourceMeta
+
+  ScimFeatureSupport:
+    properties:
+      supported: boolean
+
+  BulkConfig:
+    properties:
+      supported: boolean
+      maxOperations: integer
+      maxPayloadSize: integer
+
+  FilterConfig:
+    properties:
+      supported: boolean
+      maxResults: integer
+
+  ResourceMeta:
+    properties:
+      resourceType: string
+      location: string
+
+  AuthenticationScheme:
+    properties:
+      name: string
+      description: string
+      specUri: string
+      type: string
+      primary: boolean
+
+  ResourceTypesResponse:
+    properties:
+      schemas: list<string>
+      totalResults: integer
+      Resources: list<ResourceType>
+
+  ResourceType:
+    properties:
+      schemas: optional<list<string>>
+      id: string
+      name: string
+      endpoint: string
+      description: string
+      schema: string
+      schemaExtensions: list<SchemaExtension>
+      meta: ResourceMeta
+
+  SchemaExtension:
+    properties:
+      schema: string
+      required: boolean
+
+  SchemasResponse:
+    properties:
+      schemas: list<string>
+      totalResults: integer
+      Resources: list<SchemaResource>
+
+  SchemaResource:
+    properties:
+      id: string
+      name: string
+      description: string
+      attributes: list<unknown>
+      meta: ResourceMeta
+
+  ScimUsersListResponse:
+    properties:
+      schemas: list<string>
+      totalResults: integer
+      startIndex: integer
+      itemsPerPage: integer
+      Resources: list<ScimUser>
+
+  ScimUser:
+    properties:
+      schemas: list<string>
+      id: string
+      userName: string
+      name: ScimName
+      emails: list<ScimEmail>
+      meta: UserMeta
+
+  UserMeta:
+    properties:
+      resourceType: string
+      created: optional<string>
+      lastModified: optional<string>
+
+  ScimName:
+    properties:
+      formatted: optional<string>
+
+  ScimEmail:
+    properties:
+      primary: boolean
+      value: string
+      type: string
+
+  EmptyResponse:
+    docs: Empty response for 204 No Content responses
+    properties: {}

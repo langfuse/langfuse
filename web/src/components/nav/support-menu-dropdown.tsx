@@ -24,15 +24,9 @@ import {
   useUiCustomization,
 } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
-import {
-  chatAvailable,
-  chatIsVisible,
-  showChat,
-  hideChat,
-} from "@/src/features/support-chat/chat";
-import { Switch } from "@/src/components/ui/switch";
 import { SiDiscord } from "react-icons/si";
 import { env } from "@/src/env.mjs";
+import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 
 type SupportMenuItem = {
   title: string;
@@ -54,7 +48,6 @@ export const SupportMenuDropdown = () => {
       },
     ];
 
-    const chatVisible = chatIsVisible();
     if (uiCustomization?.supportHref) {
       items.push({
         title: "Support",
@@ -67,21 +60,9 @@ export const SupportMenuDropdown = () => {
           title: "Chat",
           pathname: "#",
           menuNode: (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" onClick={() => openChat()}>
               <MessageCircle className="h-4 w-4" />
-              <span>Chat</span>
-              <Switch
-                defaultChecked={chatVisible}
-                onClick={(e) => e.stopPropagation()}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    showChat();
-                  } else {
-                    hideChat();
-                  }
-                }}
-                className="ml-auto"
-              />
+              <span>Open Chat</span>
             </div>
           ),
           icon: MessageCircle,

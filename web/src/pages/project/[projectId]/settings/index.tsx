@@ -283,7 +283,7 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <span className="font-semibold">Blob Storage (Beta)</span>
+          <span className="font-semibold">Blob Storage</span>
           <p className="mb-4 text-sm text-primary">
             Configure scheduled exports of your trace data to S3 compatible
             storages or Azure Blob Storage. Set up a scheduled export to your

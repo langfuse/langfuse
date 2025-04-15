@@ -109,22 +109,37 @@ export const InnerEvaluatorForm = (props: {
     },
   });
 
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
+  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
+    { projectId: props.projectId },
     {
-      projectId: props.projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
     },
   );
+
+  const environmentFilterOptionsResponse =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId: props.projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const traceFilterOptions = useMemo(() => {
+    return {
+      ...(traceFilterOptionsResponse.data ?? {}),
+      environment: environmentFilterOptionsResponse.data?.map((e) => ({
+        value: e.environment,
+      })),
+    };
+  }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
 
   const datasets = api.datasets.allDatasetMeta.useQuery(
     {
@@ -450,7 +465,7 @@ export const InnerEvaluatorForm = (props: {
                       <FormControl>
                         <InlineFilterBuilder
                           columns={tracesTableColsWithOptions(
-                            traceFilterOptions.data,
+                            traceFilterOptions,
                             evalTraceTableCols,
                           )}
                           filterState={field.value ?? []}

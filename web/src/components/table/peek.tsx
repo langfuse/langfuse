@@ -32,6 +32,8 @@ export type DataTablePeekViewProps<TData> = {
   itemType: PeekViewItemType;
   /** Key used for detail page navigation */
   listKey?: string;
+  /** Custom prefix for the peek view title */
+  customTitlePrefix?: string;
 
   // Data
   /** The currently selected row ID */
@@ -44,12 +46,14 @@ export type DataTablePeekViewProps<TData> = {
   urlPathname: string;
   /** Function to get navigation path for a list entry */
   getNavigationPath?: (entry: ListEntry) => string;
+  /** Whether to update the row when the peekViewId changes on detail page navigation. Defaults to false. */
+  shouldUpdateRowOnDetailPageNavigation?: boolean;
 
   // Event handlers
   /** Called when the peek view is opened or closed */
   onOpenChange: (open: boolean, id?: string, timestamp?: string) => void;
   /** Called when the peek view is expanded to full view */
-  onExpand?: (openInNewTab: boolean) => void;
+  onExpand?: (openInNewTab: boolean, row?: TData) => void;
   /** Additional peek event options */
   peekEventOptions?: PeekEventControlOptions;
 
@@ -90,6 +94,7 @@ export function TablePeekView<TData>({
   listKey,
   peekEventOptions,
   row,
+  customTitlePrefix,
 }: DataTablePeekViewProps<TData>) {
   const eventHandler = createPeekEventHandler(peekEventOptions);
 
@@ -99,7 +104,11 @@ export function TablePeekView<TData>({
     if (!open && eventHandler()) {
       return;
     }
-    onOpenChange(open, selectedRowId);
+    if (!!row && typeof row === "object" && "timestamp" in row) {
+      onOpenChange(open, selectedRowId, (row as any).timestamp.toISOString());
+    } else {
+      onOpenChange(open, selectedRowId);
+    }
   };
 
   const canExpand = typeof onExpand === "function";
@@ -121,7 +130,9 @@ export function TablePeekView<TData>({
               className="text-sm font-medium focus:outline-none"
               tabIndex={0}
             >
-              {selectedRowId}
+              {customTitlePrefix
+                ? `${customTitlePrefix} ${selectedRowId}`
+                : selectedRowId}
             </span>
           </SheetTitle>
           <div
@@ -144,7 +155,7 @@ export function TablePeekView<TData>({
                   size="icon-xs"
                   title="Open in current tab"
                   className="ml-2"
-                  onClick={() => onExpand(false)}
+                  onClick={() => onExpand?.(false, row)}
                 >
                   <Expand className="h-4 w-4" />
                 </Button>
@@ -152,7 +163,7 @@ export function TablePeekView<TData>({
                   variant="ghost"
                   size="icon-xs"
                   title="Open in new tab"
-                  onClick={() => onExpand(true)}
+                  onClick={() => onExpand?.(true, row)}
                 >
                   <ExternalLink className="h-4 w-4" />
                 </Button>

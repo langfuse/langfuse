@@ -45,6 +45,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "userId",
     },
     {
+      uiTableName: "Session",
+      viewName: "sessionId",
+    },
+    {
       uiTableName: "Type",
       viewName: "type",
     },
@@ -59,6 +63,14 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     {
       uiTableName: "Environment",
       viewName: "environment",
+    },
+    {
+      uiTableName: "Release",
+      viewName: "traceRelease",
+    },
+    {
+      uiTableName: "Version",
+      viewName: "traceVersion",
     },
   ],
   "scores-numeric": [
@@ -86,6 +98,22 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       uiTableName: "User",
       viewName: "userId",
     },
+    {
+      uiTableName: "Session",
+      viewName: "sessionId",
+    },
+    {
+      uiTableName: "Trace Name",
+      viewName: "traceName",
+    },
+    {
+      uiTableName: "Release",
+      viewName: "traceRelease",
+    },
+    {
+      uiTableName: "Version",
+      viewName: "traceVersion",
+    },
   ],
   "scores-categorical": [
     {
@@ -112,15 +140,38 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       uiTableName: "User",
       viewName: "userId",
     },
+    {
+      uiTableName: "Session",
+      viewName: "sessionId",
+    },
+    {
+      uiTableName: "Trace Name",
+      viewName: "traceName",
+    },
+    {
+      uiTableName: "Release",
+      viewName: "traceRelease",
+    },
+    {
+      uiTableName: "Version",
+      viewName: "traceVersion",
+    },
   ],
 };
 
 const isLegacyUiTableFilter = (
   filter: z.infer<typeof singleFilter>,
 ): boolean => {
-  return dashboardColumnDefinitions.some(
-    (columnDef) => columnDef.uiTableName === filter.column,
-  );
+  return dashboardColumnDefinitions
+    .concat([
+      {
+        uiTableName: "Session",
+        uiTableId: "sessionId",
+        clickhouseTableName: "traces",
+        clickhouseSelect: 't."sessionId"',
+      },
+    ])
+    .some((columnDef) => columnDef.uiTableName === filter.column);
 };
 
 export const mapLegacyUiTableFilterToView = (

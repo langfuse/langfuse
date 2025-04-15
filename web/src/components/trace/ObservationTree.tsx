@@ -4,7 +4,6 @@ import {
   type APIScore,
   ObservationLevel,
   type ObservationLevelType,
-  type ObservationType,
   type TraceDomain,
 } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
@@ -506,10 +505,4 @@ const ObservationTreeNodeCard = ({
       </div>
     </CommandItem>
   );
-};
-
-export const ColorCodedObservationType = (props: {
-  observationType: ObservationType;
-}) => {
-  return <ItemBadge type={props.observationType} showLabel />;
 };

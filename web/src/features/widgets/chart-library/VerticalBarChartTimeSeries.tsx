@@ -59,7 +59,10 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />
         ))}
-        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+        <ChartTooltip
+          content={<ChartTooltipContent />}
+          cursor={{ opacity: 0.8 }}
+        />
       </BarChart>
     </ChartContainer>
   );
