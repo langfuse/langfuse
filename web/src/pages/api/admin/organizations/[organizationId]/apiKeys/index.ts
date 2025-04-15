@@ -113,7 +113,7 @@ async function handlePost(
   // Create the API key
   const apiKeyMeta = await createAndAddApiKeysToDb({
     prisma,
-    entityId: organizationId, // Using organizationId as projectId for organization scoped keys
+    entityId: organizationId,
     note,
     scope: "ORGANIZATION",
   });

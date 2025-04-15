@@ -34,7 +34,38 @@ const ProjectDeletionResponseSchema = z.object({
   message: z.string(),
 });
 
-describe("Public Projects API", () => {
+// Schema for API keys response
+const ApiKeysResponseSchema = z.object({
+  apiKeys: z.array(
+    z.object({
+      id: z.string(),
+      createdAt: z.string().or(z.date()),
+      expiresAt: z.string().or(z.date()).nullable(),
+      lastUsedAt: z.string().or(z.date()).nullable(),
+      note: z.string().nullable(),
+      publicKey: z.string(),
+      displaySecretKey: z.string().nullable(),
+    }),
+  ),
+});
+
+// Schema for API key creation response
+const ApiKeyCreationResponseSchema = z.object({
+  id: z.string(),
+  publicKey: z.string(),
+  secretKey: z.string(),
+  displaySecretKey: z.string(),
+  note: z.string().nullable(),
+  createdAt: z.string().or(z.date()),
+  expiresAt: z.string().or(z.date()).optional(),
+});
+
+// Schema for API key deletion response
+const ApiKeyDeletionResponseSchema = z.object({
+  success: z.boolean(),
+});
+
+describe("Projects API", () => {
   // Test variables
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
   const projectName = "Seed Project";
@@ -336,6 +367,275 @@ describe("Public Projects API", () => {
       );
       expect(result.status).toBe(405);
       expect(result.body.message).toContain("Method not allowed");
+    });
+  });
+
+  describe("GET /api/public/projects/[projectId]/apiKeys", () => {
+    it("should return API keys with valid organization API key authentication", async () => {
+      const response = await makeZodVerifiedAPICall(
+        ApiKeysResponseSchema,
+        "GET",
+        `/api/public/projects/${projectId}/apiKeys`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200, // Expected status code is 200 OK
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.apiKeys.length).toBeGreaterThanOrEqual(1);
+      expect(response.body.apiKeys[0]).toHaveProperty("id");
+      expect(response.body.apiKeys[0]).toHaveProperty("publicKey");
+    });
+
+    it("should return 401 when invalid API keys are provided", async () => {
+      const result = await makeAPICall(
+        "GET",
+        `/api/public/projects/${projectId}/apiKeys`,
+        undefined,
+        createBasicAuthHeader(invalidApiKey, invalidSecretKey),
+      );
+      expect(result.status).toBe(401);
+      expect(result.body.message).toBeDefined();
+    });
+
+    it("should return 403 when using project API key instead of organization API key", async () => {
+      const result = await makeAPICall(
+        "GET",
+        `/api/public/projects/${projectId}/apiKeys`,
+        undefined,
+        createBasicAuthHeader(projectApiKey, projectSecretKey),
+      );
+      expect(result.status).toBe(403);
+      expect(result.body.message).toContain(
+        "Organization-scoped API key required",
+      );
+    });
+
+    it("should return 404 when project does not exist", async () => {
+      const nonExistentProjectId = randomUUID();
+      const result = await makeAPICall(
+        "GET",
+        `/api/public/projects/${nonExistentProjectId}/apiKeys`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(404);
+      expect(result.body.message).toContain("Project not found");
+    });
+
+    it("should return 405 for non-GET/POST methods", async () => {
+      const result = await makeAPICall(
+        "PUT",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {},
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(405);
+      expect(result.body.message).toContain("Method Not Allowed");
+    });
+  });
+
+  describe("POST /api/public/projects/[projectId]/apiKeys", () => {
+    let createdApiKeyId: string;
+
+    afterEach(async () => {
+      // Clean up any API keys created during tests
+      if (createdApiKeyId) {
+        await prisma.apiKey.deleteMany({
+          where: {
+            id: createdApiKeyId,
+          },
+        });
+        createdApiKeyId = "";
+      }
+    });
+
+    it("should create a new API key with valid organization API key", async () => {
+      const note = `Test API Key ${randomUUID().substring(0, 8)}`;
+
+      const response = await makeZodVerifiedAPICall(
+        ApiKeyCreationResponseSchema,
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        201, // Expected status code is 201 Created
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty("id");
+      expect(response.body).toHaveProperty("publicKey");
+      expect(response.body).toHaveProperty("secretKey");
+      expect(response.body.note).toBe(note);
+
+      // Store the created API key ID for cleanup
+      createdApiKeyId = response.body.id;
+
+      // Verify the API key was actually created in the database
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { id: response.body.id },
+      });
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.note).toBe(note);
+      expect(apiKey?.projectId).toBe(projectId);
+      expect(apiKey?.scope).toBe("PROJECT");
+    });
+
+    it("should return 403 when using project API key instead of organization API key", async () => {
+      const note = `Test API Key ${randomUUID().substring(0, 8)}`;
+
+      const result = await makeAPICall(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note,
+        },
+        createBasicAuthHeader(projectApiKey, projectSecretKey),
+      );
+      expect(result.status).toBe(403);
+      expect(result.body.message).toContain(
+        "Organization-scoped API key required",
+      );
+    });
+
+    it("should return 401 when invalid API keys are provided", async () => {
+      const note = `Test API Key ${randomUUID().substring(0, 8)}`;
+
+      const result = await makeAPICall(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note,
+        },
+        createBasicAuthHeader(invalidApiKey, invalidSecretKey),
+      );
+      expect(result.status).toBe(401);
+      expect(result.body.message).toBeDefined();
+    });
+
+    it("should return 404 when project does not exist", async () => {
+      const nonExistentProjectId = randomUUID();
+      const note = `Test API Key ${randomUUID().substring(0, 8)}`;
+
+      const result = await makeAPICall(
+        "POST",
+        `/api/public/projects/${nonExistentProjectId}/apiKeys`,
+        {
+          note,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(404);
+      expect(result.body.message).toContain("Project not found");
+    });
+  });
+
+  describe("DELETE /api/public/projects/[projectId]/apiKeys/[apiKeyId]", () => {
+    let deleteTestApiKeyId: string;
+
+    beforeEach(async () => {
+      // Create a test API key to delete
+      const apiKeyMeta = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: projectId,
+        scope: "PROJECT",
+        note: `Delete Test API Key ${randomUUID().substring(0, 8)}`,
+      });
+      deleteTestApiKeyId = apiKeyMeta.id;
+    });
+
+    afterEach(async () => {
+      // Clean up any remaining test API keys
+      try {
+        await prisma.apiKey.deleteMany({
+          where: {
+            id: deleteTestApiKeyId,
+          },
+        });
+      } catch (error) {
+        // Ignore errors if the API key was already deleted by the test
+      }
+    });
+
+    it("should delete an API key with valid organization API key", async () => {
+      const response = await makeZodVerifiedAPICall(
+        ApiKeyDeletionResponseSchema,
+        "DELETE",
+        `/api/public/projects/${projectId}/apiKeys/${deleteTestApiKeyId}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200, // Expected status code is 200 OK
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+
+      // Verify the API key was actually deleted from the database
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { id: deleteTestApiKeyId },
+      });
+      expect(apiKey).toBeNull();
+    });
+
+    it("should return 403 when using project API key instead of organization API key", async () => {
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/public/projects/${projectId}/apiKeys/${deleteTestApiKeyId}`,
+        undefined,
+        createBasicAuthHeader(projectApiKey, projectSecretKey),
+      );
+      expect(result.status).toBe(403);
+      expect(result.body.message).toContain(
+        "Organization-scoped API key required",
+      );
+    });
+
+    it("should return 401 when invalid API keys are provided", async () => {
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/public/projects/${projectId}/apiKeys/${deleteTestApiKeyId}`,
+        undefined,
+        createBasicAuthHeader(invalidApiKey, invalidSecretKey),
+      );
+      expect(result.status).toBe(401);
+      expect(result.body.message).toBeDefined();
+    });
+
+    it("should return 404 when API key does not exist", async () => {
+      const nonExistentApiKeyId = randomUUID();
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/public/projects/${projectId}/apiKeys/${nonExistentApiKeyId}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(404);
+      expect(result.body.message).toContain("API key not found");
+    });
+
+    it("should return 404 when project does not exist", async () => {
+      const nonExistentProjectId = randomUUID();
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/public/projects/${nonExistentProjectId}/apiKeys/${deleteTestApiKeyId}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(404);
+      expect(result.body.message).toContain("Project not found");
+    });
+
+    it("should return 405 for non-DELETE methods", async () => {
+      const result = await makeAPICall(
+        "GET",
+        `/api/public/projects/${projectId}/apiKeys/${deleteTestApiKeyId}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(405);
+      expect(result.body.message).toContain("Method Not Allowed");
     });
   });
 });
