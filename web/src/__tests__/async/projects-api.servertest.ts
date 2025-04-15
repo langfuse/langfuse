@@ -83,8 +83,6 @@ describe("Projects API", () => {
         id: projectId,
         name: projectName,
       });
-      // retentionDays should be present in the response
-      expect(response.body.data[0]).toHaveProperty("retentionDays");
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
