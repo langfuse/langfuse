@@ -1,9 +1,12 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/features/admin-api/server/adminApiAuth";
-import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  handleGetOrganizations,
+  handleCreateOrganization,
+} from "@/src/ee/features/admin-api/organizations";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,58 +23,25 @@ export default async function handler(
       return;
     }
 
+    if (
+      !hasEntitlementBasedOnPlan({
+        plan: getSelfHostedInstancePlanServerSide(),
+        entitlement: "admin-api",
+      })
+    ) {
+      return res.status(403).json({
+        error: "This feature is not available on your current plan.",
+      });
+    }
+
     // For GET requests, return all organizations
     if (req.method === "GET") {
-      const organizations = await prisma.organization.findMany({
-        select: {
-          id: true,
-          name: true,
-          createdAt: true,
-        },
-      });
-      return res.status(200).json({ organizations });
+      return await handleGetOrganizations(req, res);
     }
 
     // For POST requests, create a new organization
     if (req.method === "POST") {
-      // Validate the request body using the organizationNameSchema
-      const validationResult = organizationNameSchema.safeParse(req.body);
-
-      if (!validationResult.success) {
-        res.status(400).json({
-          error: "Invalid request body",
-          details: validationResult.error.format(),
-        });
-        return;
-      }
-
-      const { name } = validationResult.data;
-
-      // Create the organization in the database
-      const organization = await prisma.organization.create({
-        data: {
-          name,
-        },
-      });
-
-      // Log the organization creation
-      await auditLog({
-        resourceType: "organization",
-        resourceId: organization.id,
-        action: "create",
-        orgId: organization.id,
-        orgRole: "ADMIN",
-        after: organization,
-        apiKeyId: "ADMIN_KEY",
-      });
-
-      logger.info(`Created organization ${organization.id} via admin API`);
-
-      return res.status(201).json({
-        id: organization.id,
-        name: organization.name,
-        createdAt: organization.createdAt,
-      });
+      return await handleCreateOrganization(req, res);
     }
   } catch (e) {
     logger.error("Failed to process organization request", e);

@@ -2,17 +2,13 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
-import { Role } from "@langfuse/shared";
-import { z } from "zod";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  handleGetMemberships,
+  handleUpdateMembership
+} from "@/src/ee/features/admin-api/public/projects/projectById/memberships";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-
-// Schema for request body validation
-const MembershipSchema = z.object({
-  userId: z.string(),
-  role: z.nativeEnum(Role),
-});
 
 export default async function handler(
   req: NextApiRequest,
@@ -71,6 +67,18 @@ export default async function handler(
     });
   }
 
+  // Check for admin-api entitlement
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: authCheck.scope.plan,
+      entitlement: "admin-api",
+    })
+  ) {
+    return res.status(403).json({
+      error: "This feature is not available on your current plan.",
+    });
+  }
+
   // Verify the project belongs to the organization
   const project = await prisma.project.findFirst({
     where: {
@@ -90,9 +98,9 @@ export default async function handler(
   try {
     switch (req.method) {
       case "GET":
-        return handleGet(req, res, projectId, authCheck.scope.orgId);
+        return handleGetMemberships(req, res, projectId, authCheck.scope.orgId);
       case "PUT":
-        return handlePut(req, res, projectId, authCheck.scope.orgId);
+        return handleUpdateMembership(req, res, projectId, authCheck.scope.orgId);
       default:
         // This should never happen due to the check at the beginning
         return res.status(405).json({
@@ -108,105 +116,4 @@ export default async function handler(
       error: "Internal server error",
     });
   }
-}
-
-// GET - Retrieve all project memberships
-async function handleGet(
-  req: NextApiRequest,
-  res: NextApiResponse,
-  projectId: string,
-  orgId: string,
-) {
-  const memberships = await prisma.projectMembership.findMany({
-    where: {
-      projectId,
-      organizationMembership: {
-        orgId,
-      },
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-        },
-      },
-    },
-  });
-
-  return res.status(200).json({
-    memberships: memberships.map((membership) => ({
-      userId: membership.userId,
-      role: membership.role,
-      email: membership.user.email,
-      name: membership.user.name,
-    })),
-  });
-}
-
-// PUT - Update or create a project membership
-async function handlePut(
-  req: NextApiRequest,
-  res: NextApiResponse,
-  projectId: string,
-  orgId: string,
-) {
-  const validatedBody = MembershipSchema.safeParse(req.body);
-  if (!validatedBody.success) {
-    return res.status(400).json({
-      error: "Invalid request body",
-      details: validatedBody.error.errors,
-    });
-  }
-
-  // Check if user exists and is a member of the organization
-  const orgMembership = await prisma.organizationMembership.findUnique({
-    where: {
-      orgId_userId: {
-        userId: validatedBody.data.userId,
-        orgId: orgId,
-      },
-    },
-    include: {
-      user: {
-        select: {
-          email: true,
-          name: true,
-        },
-      },
-    },
-  });
-
-  if (!orgMembership) {
-    return res.status(404).json({
-      error: "User is not a member of this organization",
-    });
-  }
-
-  // Upsert the project membership
-  const membership = await prisma.projectMembership.upsert({
-    where: {
-      projectId_userId: {
-        userId: validatedBody.data.userId,
-        projectId: projectId,
-      },
-    },
-    update: {
-      role: validatedBody.data.role,
-    },
-    create: {
-      userId: validatedBody.data.userId,
-      projectId: projectId,
-      role: validatedBody.data.role,
-      orgMembershipId: orgMembership.id,
-    },
-  });
-
-  return res.status(200).json({
-    userId: membership.userId,
-    role: membership.role,
-    email: orgMembership.user.email,
-    name: orgMembership.user.name,
-  });
 }
