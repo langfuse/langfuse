@@ -1521,7 +1521,13 @@
       "input_cached_text_tokens": 0.5e-6,
       "input_cache_read": 0.5e-6,
       "output": 8e-6
-    }
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
   },
   {
     "id": "cm7sglt825463kxnza72p6v81",
@@ -1535,7 +1541,13 @@
       "input_cached_text_tokens": 0.1e-6,
       "input_cache_read": 0.1e-6,
       "output": 1.6e-6
-    }
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
   },
   {
     "id": "cm7vxpz967124dhjtb95w8f92",
@@ -1549,6 +1561,12 @@
       "input_cached_text_tokens": 0.025e-6,
       "input_cache_read": 0.025e-6,
       "output": 0.4e-6
-    }
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
   }
 ]
