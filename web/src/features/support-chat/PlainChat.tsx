@@ -75,11 +75,16 @@ const PlainChat = () => {
 
 export default PlainChat;
 
-export const chatAvailable =
-  !!env.NEXT_PUBLIC_PLAIN_APP_ID && window.Plain !== undefined;
+export const chatAvailable = () => {
+  return (
+    !!env.NEXT_PUBLIC_PLAIN_APP_ID &&
+    typeof window !== "undefined" &&
+    window.Plain !== undefined
+  );
+};
 
 export const showChat = (): void => {
-  if (chatAvailable) {
+  if (chatAvailable()) {
     window.Plain.update({
       hideLauncher: false,
     });
@@ -87,7 +92,7 @@ export const showChat = (): void => {
 };
 
 export const hideChat = (): void => {
-  if (chatAvailable) {
+  if (chatAvailable()) {
     window.Plain.update({
       hideLauncher: true,
     });
@@ -95,20 +100,20 @@ export const hideChat = (): void => {
 };
 
 export const closeChat = (): void => {
-  if (chatAvailable) {
+  if (chatAvailable()) {
     window.Plain.close();
   }
 };
 
 export const openChat = (): void => {
-  if (chatAvailable) {
+  if (chatAvailable()) {
     showChat();
     window.Plain.open();
   }
 };
 
 export const getUnreadMessageCount = (): number | null => {
-  if (chatAvailable) {
+  if (chatAvailable()) {
     return window.Plain.getUnreadMessageCount();
   }
   return null;
@@ -120,7 +125,7 @@ export const chatSetCustomer = (customer: {
   emailHash?: string;
   chatAvatarUrl?: string;
 }) => {
-  if (chatAvailable) {
+  if (chatAvailable()) {
     window.Plain.update({
       customerDetails: customer,
     });
@@ -128,7 +133,7 @@ export const chatSetCustomer = (customer: {
 };
 
 export const chatSetThreadDetails = (p: { orgId?: string; plan?: Plan }) => {
-  if (chatAvailable) {
+  if (chatAvailable()) {
     window.Plain.update({
       threadDetails: {
         ...(p.orgId && {
