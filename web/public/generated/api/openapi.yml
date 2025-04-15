@@ -2261,14 +2261,13 @@ paths:
                   description: >-
                     Number of days to retain data. Must be 0 or at least 7 days.
                     Requires data-retention entitlement for non-zero values.
+                    Optional.
               required:
                 - name
                 - retention
   /api/public/projects/{projectId}:
     put:
-      description: >-
-        Update a project by ID (requires organization-scoped API key). Currently
-        supports updating retention days.
+      description: Update a project by ID (requires organization-scoped API key).
       operationId: projects_update
       tags:
         - Projects
@@ -2326,6 +2325,7 @@ paths:
                   description: >-
                     Number of days to retain data. Must be 0 or at least 7 days.
                     Requires data-retention entitlement for non-zero values.
+                    Optional.
               required:
                 - name
                 - retention

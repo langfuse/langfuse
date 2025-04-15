@@ -1737,7 +1737,7 @@
           "_type": "endpoint",
           "name": "Update",
           "request": {
-            "description": "Update a project by ID (requires organization-scoped API key). Currently supports updating retention days.",
+            "description": "Update a project by ID (requires organization-scoped API key).",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects/:projectId",
               "host": [
