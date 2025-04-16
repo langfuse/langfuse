@@ -75,6 +75,43 @@ export const datasetRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const query = DB.selectFrom("datasets")
+        .select(({}) => [
+          "datasets.id",
+          "datasets.name",
+          "datasets.description",
+          "datasets.created_at as createdAt",
+          "datasets.updated_at as updatedAt",
+          "datasets.metadata",
+        ])
+        .where("datasets.project_id", "=", input.projectId)
+        .orderBy("datasets.created_at", "desc")
+        .limit(input.limit)
+        .offset(input.page * input.limit);
+
+      const compiledQuery = query.compile();
+
+      const datasets = await ctx.prisma.$queryRawUnsafe<Array<Dataset>>(
+        compiledQuery.sql,
+        ...compiledQuery.parameters,
+      );
+
+      const totalDatasets = await ctx.prisma.dataset.count({
+        where: {
+          projectId: input.projectId,
+        },
+      });
+
+      return {
+        totalDatasets,
+        datasets,
+      };
+    }),
+  allDatasetsMetrics: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetIds: z.array(z.string()) }))
+    .query(async ({ input, ctx }) => {
+      if (input.datasetIds.length === 0) return { metrics: [] };
+
+      const query = DB.selectFrom("datasets")
         .leftJoin("dataset_items", (join) =>
           join
             .onRef("datasets.id", "=", "dataset_items.dataset_id")
@@ -87,50 +124,26 @@ export const datasetRouter = createTRPCRouter({
         )
         .select(({ eb }) => [
           "datasets.id",
-          "datasets.name",
-          "datasets.description",
-          "datasets.metadata",
-          "datasets.created_at as createdAt",
-          "datasets.updated_at as updatedAt",
           eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
           eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
           eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
         ])
         .where("datasets.project_id", "=", input.projectId)
-        .groupBy([
-          "datasets.id",
-          "datasets.name",
-          "datasets.description",
-          "datasets.metadata",
-          "datasets.created_at",
-          "datasets.updated_at",
-        ])
-        .orderBy("datasets.created_at", "desc")
-        .limit(input.limit)
-        .offset(input.page * input.limit);
+        .where("datasets.id", "in", input.datasetIds)
+        .groupBy("datasets.id");
 
       const compiledQuery = query.compile();
 
-      const datasets = await ctx.prisma.$queryRawUnsafe<
-        Array<
-          Dataset & {
-            countDatasetItems: number;
-            countDatasetRuns: number;
-            lastRunAt: Date | null;
-          }
-        >
+      const metrics = await ctx.prisma.$queryRawUnsafe<
+        Array<{
+          id: string;
+          countDatasetItems: number;
+          countDatasetRuns: number;
+          lastRunAt: Date | null;
+        }>
       >(compiledQuery.sql, ...compiledQuery.parameters);
 
-      const totalDatasets = await ctx.prisma.dataset.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
-
-      return {
-        totalDatasets,
-        datasets,
-      };
+      return { metrics };
     }),
   // counts all dataset run items that match the filter
   countAllDatasetItems: protectedProjectProcedure
