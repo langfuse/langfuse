@@ -66,6 +66,7 @@ export const createFilterFromFilterState = (
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
+          key: frontEndFilter.key,
           values: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });

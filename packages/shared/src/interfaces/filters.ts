@@ -79,9 +79,9 @@ export const nullFilter = z.object({
 export const categoryOptionsFilter = z.object({
   type: z.literal("categoryOptions"),
   column: z.string(),
+  key: z.string(),
   operator: z.enum(filterOperators.categoryOptions),
-  // A map of parent values to arrays of child values
-  value: z.record(z.string(), z.array(z.string())),
+  value: z.array(z.string()),
 });
 export const singleFilter = z.discriminatedUnion("type", [
   timeFilter,

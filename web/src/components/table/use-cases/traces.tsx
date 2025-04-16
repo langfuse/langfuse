@@ -216,12 +216,12 @@ export default function TracesTable({
     //   },
     // },
     // edge case 1: PASS
-    {
-      column: "Scores Categorical",
-      type: "categoryOptions",
-      operator: "any of",
-      value: { category_has_delimiter: ["one:delimiter"] },
-    },
+    // {
+    //   column: "Scores Categorical",
+    //   type: "categoryOptions",
+    //   operator: "any of",
+    //   value: { category_has_delimiter: ["one:delimiter"] },
+    // },
     // edge case 2: PASS
     // {
     //   column: "Scores Categorical",

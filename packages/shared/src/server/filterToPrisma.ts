@@ -106,6 +106,9 @@ export function tableColumnsToSqlFilter(
           ", ",
         )}] `;
         break;
+      case "categoryOptions":
+        // TODO: fix
+        throw new Error("Category options not supported");
       case "boolean":
         valuePrisma = Prisma.sql`${filter.value}`;
         break;

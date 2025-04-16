@@ -358,9 +358,6 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const scoresFilterRes = scoresFilter.apply();
   const observationFilterRes = observationsFilter.apply();
 
-  console.log("tracesFilterRes", tracesFilterRes);
-  console.log("scoresFilterRes", scoresFilterRes);
-
   const search = clickhouseSearchCondition(searchQuery);
 
   const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
@@ -436,12 +433,12 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         -- For numeric scores, use tuples of (name, avg_value)
         groupArrayIf(
           tuple(name, avg_value),
-          data_type = 'NUMERIC'
+          data_type IN ('NUMERIC', 'BOOLEAN')
         ) AS scores_avg,
         -- For categorical scores, use name:value format for improved query performance
         groupArrayIf(
           concat(name, ':', string_value),
-          data_type IN ('CATEGORICAL', 'BOOLEAN') AND notEmpty(string_value)
+          data_type = 'CATEGORICAL' AND notEmpty(string_value)
         ) AS score_categories
       FROM (
         SELECT 

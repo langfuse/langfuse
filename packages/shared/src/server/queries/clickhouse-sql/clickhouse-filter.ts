@@ -171,7 +171,8 @@ export class StringOptionsFilter implements Filter {
 export class CategoryOptionsFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
-  public values: Record<string, string[]>;
+  public key: string;
+  public values: string[];
   public operator: (typeof filterOperators.categoryOptions)[number];
   protected tablePrefix?: string;
 
@@ -179,11 +180,13 @@ export class CategoryOptionsFilter implements Filter {
     clickhouseTable: string;
     field: string;
     operator: (typeof filterOperators.stringOptions)[number];
-    values: Record<string, string[]>;
+    key: string;
+    values: string[];
     tablePrefix?: string;
   }) {
     this.clickhouseTable = opts.clickhouseTable;
     this.field = opts.field;
+    this.key = opts.key;
     this.values = opts.values;
     this.operator = opts.operator;
     this.tablePrefix = opts.tablePrefix;
@@ -195,10 +198,8 @@ export class CategoryOptionsFilter implements Filter {
 
     // Flatten the hierarchical structure into array of "parent:child" strings for improved query performance
     const flattenedValues: string[] = [];
-    Object.entries(this.values).forEach(([parent, children]) => {
-      children.forEach((child) => {
-        flattenedValues.push(`${parent}:${child}`);
-      });
+    this.values.forEach((child) => {
+      flattenedValues.push(`${this.key}:${child}`);
     });
 
     const fieldRef = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;

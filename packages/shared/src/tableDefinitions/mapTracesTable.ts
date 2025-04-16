@@ -131,13 +131,13 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
-    uiTableName: "Scores",
+    uiTableName: "Scores (numeric)",
     uiTableId: "scores",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
   },
   {
-    uiTableName: "Scores Categorical",
+    uiTableName: "Scores (categorical)",
     uiTableId: "scores",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.score_categories",

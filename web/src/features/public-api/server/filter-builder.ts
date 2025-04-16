@@ -99,14 +99,27 @@ export function convertApiProvidedFilterToClickhouseFilter(
           }
           break;
         case "CategoryOptionsFilter":
-          if (isStringArrayRecord(value)) {
-            filterInstance = new CategoryOptionsFilter({
-              clickhouseTable: columnMapping.clickhouseTable,
-              field: columnMapping.clickhouseSelect,
-              operator: "any of",
-              values: value,
-              tablePrefix: columnMapping.clickhousePrefix,
-            });
+          if (Array.isArray(value)) {
+            const availableOperatorsCategory = z.enum(
+              filterOperators.categoryOptions,
+            );
+            const parsedOperatorCategory = availableOperatorsCategory.safeParse(
+              filter.operator,
+            );
+
+            if (
+              parsedOperatorCategory.success &&
+              typeof filter.key === "string"
+            ) {
+              filterInstance = new CategoryOptionsFilter({
+                clickhouseTable: columnMapping.clickhouseTable,
+                field: columnMapping.clickhouseSelect,
+                key: filter.key,
+                operator: parsedOperatorCategory.data,
+                values: value,
+                tablePrefix: columnMapping.clickhousePrefix,
+              });
+            }
           }
           break;
 
