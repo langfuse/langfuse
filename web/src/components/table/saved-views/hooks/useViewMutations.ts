@@ -3,11 +3,25 @@ import { api } from "@/src/utils/api";
 type UseViewMutationsProps = {};
 
 export const useViewMutations = () => {
-  const createMutation = api.savedViews.create.useMutation({});
+  const utils = api.useUtils();
 
-  const updateMutation = api.savedViews.update.useMutation({});
+  const createMutation = api.savedViews.create.useMutation({
+    onSuccess: () => {
+      utils.savedViews.getByTableName.invalidate();
+    },
+  });
 
-  const deleteMutation = api.savedViews.delete.useMutation({});
+  const updateMutation = api.savedViews.update.useMutation({
+    onSuccess: () => {
+      utils.savedViews.getByTableName.invalidate();
+    },
+  });
+
+  const deleteMutation = api.savedViews.delete.useMutation({
+    onSuccess: () => {
+      utils.savedViews.getByTableName.invalidate();
+    },
+  });
 
   return {
     createMutation,

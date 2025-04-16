@@ -9,7 +9,7 @@ export const CreateSavedViewInput = z.object({
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),
   searchQuery: z.string().optional(),
-  orderBy: z.array(orderBy),
+  orderBy: orderBy,
 });
 
 export const UpdateSavedViewInput = CreateSavedViewInput.extend({
@@ -31,7 +31,7 @@ export const SavedViewDomainSchema = z.object({
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),
   searchQuery: z.string().optional(),
-  orderBy: z.array(orderBy),
+  orderBy: orderBy,
 });
 
 export type SavedViewDomain = z.infer<typeof SavedViewDomainSchema>;

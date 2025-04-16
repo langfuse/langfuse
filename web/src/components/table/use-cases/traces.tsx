@@ -1002,6 +1002,8 @@ export default function TracesTable({
   return (
     <>
       <DataTableToolbar
+        tableName={BatchExportTableName.Traces}
+        projectId={projectId}
         columns={columns}
         filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
@@ -1029,6 +1031,8 @@ export default function TracesTable({
             key="batchExport"
           />,
         ]}
+        orderByState={orderByState}
+        setOrderBy={setOrderByState}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}

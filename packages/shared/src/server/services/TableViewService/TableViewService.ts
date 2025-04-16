@@ -77,4 +77,44 @@ export class TableViewService {
       },
     });
   }
+
+  /**
+   * Gets all saved views for a table
+   */
+  public static async getSavedViewsByTableName(
+    tableName: string,
+    projectId: string,
+  ): Promise<SavedViewDomain[]> {
+    const savedViews = await prisma.savedView.findMany({
+      where: {
+        tableName,
+        projectId,
+      },
+    });
+
+    return savedViews;
+  }
+
+  /**
+   * Gets a saved view by id
+   */
+  public static async getSavedViewById(
+    id: string,
+    projectId: string,
+  ): Promise<SavedViewDomain> {
+    const savedView = await prisma.savedView.findUnique({
+      where: {
+        id,
+        projectId,
+      },
+    });
+
+    if (!savedView) {
+      throw new LangfuseNotFoundError(
+        `Saved view not found for id ${id} in project ${projectId}`,
+      );
+    }
+
+    return SavedViewDomainSchema.parse(savedView);
+  }
 }

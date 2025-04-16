@@ -75,7 +75,37 @@ export const savedViewsRouter = createTRPCRouter({
       };
     }),
 
-  // getByTableName: protectedProjectProcedure
+  getByTableName: protectedProjectProcedure
+    .input(
+      z.object({
+        tableName: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "savedViews:read",
+      });
+
+      return await TableViewService.getSavedViewsByTableName(
+        input.tableName,
+        input.projectId,
+      );
+    }),
+
+  getById: protectedProjectProcedure
+    .input(z.object({ id: z.string(), projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "savedViews:read",
+      });
+
+      return await TableViewService.getSavedViewById(input.id, input.projectId);
+    }),
 
   // generatePermalink: protectedProjectProcedure
 

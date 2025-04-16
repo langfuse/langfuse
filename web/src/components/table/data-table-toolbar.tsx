@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
-import { type FilterState } from "@langfuse/shared";
+import { OrderByState, type FilterState } from "@langfuse/shared";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@langfuse/shared";
 import {
@@ -71,6 +71,10 @@ interface DataTableToolbarProps<TData, TValue> {
     options: { value: string }[];
   };
   className?: string;
+  tableName: string;
+  projectId: string;
+  orderByState?: OrderByState;
+  setOrderBy?: (s: OrderByState) => void;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -92,6 +96,10 @@ export function DataTableToolbar<TData, TValue>({
   multiSelect,
   environmentFilter,
   className,
+  tableName,
+  projectId,
+  orderByState,
+  setOrderBy,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -154,16 +162,24 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
-          <SavedViewsDrawer
-            onSelectView={(viewId: string) => {
-              console.log("Selected view:", viewId);
-              // Your logic to load the saved view
-            }}
-            onCreateView={() => {
-              console.log("Creating new view");
-              // Your logic to create a new view
-            }}
-          />
+          {!!columnVisibility && !!columnOrder && !!filterState && (
+            <SavedViewsDrawer
+              tableName={tableName}
+              projectId={projectId}
+              currentState={{
+                orderBy: orderByState ?? null,
+                filters: filterState,
+                columnOrder,
+                columnVisibility,
+                searchQuery: searchConfig?.currentQuery ?? "",
+              }}
+              setOrderBy={setOrderBy}
+              setFilters={setFilterState}
+              setColumnOrder={setColumnOrder}
+              setColumnVisibility={setColumnVisibility}
+              setSearchQuery={searchConfig?.updateQuery}
+            />
+          )}
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}
