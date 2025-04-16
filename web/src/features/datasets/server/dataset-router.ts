@@ -89,7 +89,6 @@ export const datasetRouter = createTRPCRouter({
           "datasets.id",
           "datasets.name",
           "datasets.description",
-          "datasets.metadata",
           "datasets.created_at as createdAt",
           "datasets.updated_at as updatedAt",
           eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
@@ -101,7 +100,6 @@ export const datasetRouter = createTRPCRouter({
           "datasets.id",
           "datasets.name",
           "datasets.description",
-          "datasets.metadata",
           "datasets.created_at",
           "datasets.updated_at",
         ])
@@ -113,7 +111,7 @@ export const datasetRouter = createTRPCRouter({
 
       const datasets = await ctx.prisma.$queryRawUnsafe<
         Array<
-          Dataset & {
+          Omit<Dataset, "metadata"> & {
             countDatasetItems: number;
             countDatasetRuns: number;
             lastRunAt: Date | null;

@@ -194,7 +194,7 @@ export function DatasetsTable(props: { projectId: string }) {
       lastRunAt: item.lastRunAt ?? undefined,
       countItems: item.countDatasetItems,
       countRuns: item.countDatasetRuns,
-      metadata: item.metadata,
+      metadata: "",
     };
   };
 
