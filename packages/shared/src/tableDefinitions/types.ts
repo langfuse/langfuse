@@ -58,7 +58,7 @@ export type ColumnDefinition =
       name: string;
       id: string;
       type: "categoryOptions";
-      options: Array<MultiValueOption>; // needs differnet type later
+      options: Array<MultiValueOption>;
       internal: string;
       nullable?: boolean;
     };

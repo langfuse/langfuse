@@ -204,34 +204,7 @@ export default function TracesTable({
     dateRangeFilter,
     environmentFilter,
   );
-  // based on local test data, easy to create via score configs and annotate a trace
-  const mockCategoryOptionsFilter: FilterState = [
-    // simple case: PASS
-    // {
-    //   column: "Scores Categorical",
-    //   type: "categoryOptions",
-    //   operator: "any of",
-    //   value: {
-    //     Accuracy: ["Incorrect", "Correct"],
-    //   },
-    // },
-    // edge case 1: PASS
-    // {
-    //   column: "Scores Categorical",
-    //   type: "categoryOptions",
-    //   operator: "any of",
-    //   value: { category_has_delimiter: ["one:delimiter"] },
-    // },
-    // edge case 2: PASS
-    // {
-    //   column: "Scores Categorical",
-    //   type: "categoryOptions",
-    //   operator: "any of",
-    //   value: { "cat:score:with:delimiter": ["one"] },
-    // },
-  ];
 
-  const mockFilterState = filterState.concat(mockCategoryOptionsFilter);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -240,7 +213,7 @@ export default function TracesTable({
 
   const tracesAllCountFilter = {
     projectId,
-    filter: mockFilterState,
+    filter: filterState,
     searchQuery,
     // "empty" values as they do not matter for total count
     page: 0,
