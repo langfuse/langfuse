@@ -113,6 +113,9 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
           select: {
             id: true,
           },
+          where: {
+            deletedAt: null,
+          },
         },
       },
     })
