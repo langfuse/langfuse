@@ -552,8 +552,8 @@ const getObservationsTableInternal = async <T>(
         .includes(f.column),
   );
 
-  const hasScoresFilter = filter.some(
-    (f) => f.column === "Scores" || f.column === "scores",
+  const hasScoresFilter = filter.some((f) =>
+    f.column.toLowerCase().includes("scores"),
   );
 
   const orderByTraces = opts.orderBy
@@ -598,17 +598,28 @@ const getObservationsTableInternal = async <T>(
 
   const search = clickhouseSearchCondition(opts.searchQuery);
 
-  const scoresCte = `WITH scores_avg AS (
+  const scoresCte = `WITH scores_agg AS (
     SELECT
       trace_id,
       observation_id,
-       groupArray(tuple(name, avg_value)) AS "scores_avg"
+      -- For numeric scores, use tuples of (name, avg_value)
+      groupArrayIf(
+        tuple(name, avg_value),
+        data_type IN ('NUMERIC', 'BOOLEAN')
+      ) AS scores_avg,
+      -- For categorical scores, use name:value format for improved query performance
+      groupArrayIf(
+        concat(name, ':', string_value),
+        data_type = 'CATEGORICAL' AND notEmpty(string_value)
+      ) AS score_categories
     FROM (
       SELECT
         trace_id,
         observation_id,
         name,
         avg(value) avg_value,
+        string_value,
+        data_type,
         comment
       FROM
         scores final
@@ -617,6 +628,8 @@ const getObservationsTableInternal = async <T>(
         trace_id,
         observation_id,
         name,
+        string_value,
+        data_type,
         comment
       ORDER BY
         trace_id
@@ -652,7 +665,7 @@ const getObservationsTableInternal = async <T>(
        ${selectString}
       FROM observations o 
         ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
-        ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
+        ${hasScoresFilter ? `LEFT JOIN scores_agg AS s ON s.trace_id = o.trace_id and s.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
         
         ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}

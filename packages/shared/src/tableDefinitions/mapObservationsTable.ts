@@ -190,10 +190,16 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'o."metadata"',
   },
   {
-    uiTableName: "Scores",
+    uiTableName: "Scores (numeric)",
     uiTableId: "scores",
     clickhouseTableName: "observations",
-    clickhouseSelect: "s_avg.scores_avg",
+    clickhouseSelect: "s.scores_avg",
+  },
+  {
+    uiTableName: "Scores (categorical)",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.score_categories",
   },
   {
     uiTableName: "Version",

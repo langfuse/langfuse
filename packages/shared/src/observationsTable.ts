@@ -2,6 +2,7 @@ import { ObservationLevelType } from "./domain";
 import {
   type SingleValueOption,
   type ColumnDefinition,
+  MultiValueOption,
 } from "./tableDefinitions";
 import { formatColumnOptions } from "./tableDefinitions/typeHelpers";
 
@@ -167,10 +168,18 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: 'o."metadata"',
   },
   {
-    name: "Scores",
+    name: "Scores (numeric)",
     id: "scores_avg",
     type: "numberObject",
     internal: "scores_avg",
+  },
+  {
+    name: "Scores (categorical)",
+    id: "score_categories",
+    type: "categoryOptions",
+    internal: "score_categories",
+    options: [], // to be added at runtime
+    nullable: true,
   },
   {
     name: "Version",
@@ -211,6 +220,7 @@ export type ObservationOptions = {
   name: Array<SingleValueOption>;
   traceName: Array<SingleValueOption>;
   scores_avg: Array<string>;
+  score_categories: Array<MultiValueOption>;
   promptName: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;
   type: Array<SingleValueOption>;
@@ -234,6 +244,9 @@ export function observationsTableColsWithOptions(
     }
     if (col.id === "scores_avg") {
       return formatColumnOptions(col, options?.scores_avg ?? []);
+    }
+    if (col.id === "score_categories") {
+      return formatColumnOptions(col, options?.score_categories ?? []);
     }
     if (col.id === "promptName") {
       return formatColumnOptions(col, options?.promptName ?? []);
