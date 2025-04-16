@@ -253,7 +253,9 @@ export function DatasetsTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: datasetsRowData.rows?.map((t) => convertToTableRow(t)),
+                  data: (datasetsRowData.rows ?? []).map((t) =>
+                    convertToTableRow(t),
+                  ),
                 }
         }
         pagination={{
