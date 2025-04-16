@@ -254,6 +254,10 @@ export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
 
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
 export const openAIModels = [
+  "o3",
+  "o3-2025-04-16",
+  "o4-mini",
+  "o4-mini-2025-04-16",
   "gpt-4.1",
   "gpt-4.1-2025-04-14",
   "gpt-4.1-mini-2025-04-14",
