@@ -2,7 +2,7 @@ import { type IngestionEventType } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { ObservationLevel } from "@langfuse/shared";
 
-const convertNanoTimestampToISO = (
+export const convertNanoTimestampToISO = (
   timestamp:
     | number
     | string
@@ -12,14 +12,22 @@ const convertNanoTimestampToISO = (
       },
 ) => {
   if (typeof timestamp === "string") {
-    return new Date(parseInt(timestamp, 10) / 1e6).toISOString();
+    return new Date(Number(BigInt(timestamp) / BigInt(1e6))).toISOString();
   }
   if (typeof timestamp === "number") {
     return new Date(timestamp / 1e6).toISOString();
   }
-  return new Date(
-    (timestamp.high * Math.pow(2, 32) + timestamp.low) / 1e6,
-  ).toISOString();
+
+  // Convert high and low to BigInt
+  const highBits = BigInt(timestamp.high) << BigInt(32);
+  const lowBits = BigInt(timestamp.low >>> 0);
+
+  // Combine high and low bits
+  const nanosBigInt = highBits | lowBits;
+
+  // Convert nanoseconds to milliseconds for JavaScript Date
+  const millisBigInt = nanosBigInt / BigInt(1000000);
+  return new Date(Number(millisBigInt)).toISOString();
 };
 
 const convertValueToPlainJavascript = (value: Record<string, any>): any => {
@@ -420,9 +428,7 @@ const extractCostDetails = (
   return {};
 };
 
-const extractTags = (
-  attributes: Record<string, unknown>,
-): string[] => {
+const extractTags = (attributes: Record<string, unknown>): string[] => {
   const tagsValue = attributes["langfuse.tags"];
 
   // If no tags, return empty array
@@ -432,7 +438,7 @@ const extractTags = (
 
   // If already an array (converted by convertValueToPlainJavascript)
   if (Array.isArray(tagsValue)) {
-    return tagsValue.map(tag => String(tag));
+    return tagsValue.map((tag) => String(tag));
   }
 
   // If JSON string array
@@ -440,7 +446,7 @@ const extractTags = (
     try {
       const parsedTags = JSON.parse(tagsValue);
       if (Array.isArray(parsedTags)) {
-        return parsedTags.map(tag => String(tag));
+        return parsedTags.map((tag) => String(tag));
       }
     } catch (e) {
       // If parsing fails, continue with other methods
@@ -449,7 +455,7 @@ const extractTags = (
 
   // If CSV string
   if (typeof tagsValue === "string" && tagsValue.includes(",")) {
-    return tagsValue.split(",").map(tag => tag.trim());
+    return tagsValue.split(",").map((tag) => tag.trim());
   }
 
   // If single string value
