@@ -69,10 +69,10 @@ export default withMiddlewares({
         },
         orderBy: [
           {
-            createdAt: "desc",
+            id: "desc",
           },
           {
-            id: "desc",
+            createdAt: "desc",
           },
         ],
         take: query.limit,
