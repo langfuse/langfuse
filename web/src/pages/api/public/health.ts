@@ -48,6 +48,10 @@ export default async function handler(
           params: {
             now: convertDateToClickhouseDateTime(now),
           },
+          tags: {
+            feature: "health-check",
+            type: "trace",
+          },
         });
         const observations = await queryClickhouse({
           query: `
@@ -59,6 +63,10 @@ export default async function handler(
           `,
           params: {
             now: convertDateToClickhouseDateTime(now),
+          },
+          tags: {
+            feature: "health-check",
+            type: "trace",
           },
         });
         if (traces.length === 0 || observations.length === 0) {
