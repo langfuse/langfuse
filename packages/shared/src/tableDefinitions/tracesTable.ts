@@ -131,8 +131,8 @@ export const tracesTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Usage",
-    id: "usage",
+    name: "Tokens",
+    id: "tokens",
     type: "number",
     internal: 'generation_metrics."totalTokens"',
     nullable: true,

@@ -154,8 +154,8 @@ export const observationsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Usage",
-    id: "usage",
+    name: "Tokens",
+    id: "tokens",
     type: "number",
     internal: 'o."total_tokens"',
   },
