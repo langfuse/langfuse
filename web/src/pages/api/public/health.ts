@@ -66,7 +66,7 @@ export default async function handler(
           },
           tags: {
             feature: "health-check",
-            type: "trace",
+            type: "observation",
           },
         });
         if (traces.length === 0 || observations.length === 0) {
