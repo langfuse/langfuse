@@ -543,12 +543,16 @@ class S3StorageService implements StorageService {
           const errors = result.Errors.map((e) => e.Key).join(", ");
           logger.error(`Failed to delete files from S3: ${errors} `, {
             errors: result.Errors,
+            files: chunk,
           });
           throw new Error(`Failed to delete files from S3: ${errors}`);
         }
       }
     } catch (err) {
-      logger.error(`Failed to delete files from S3`, err);
+      logger.error(`Failed to delete files from S3`, {
+        error: err,
+        files: paths,
+      });
       throw new Error("Failed to delete files from S3");
     }
   }

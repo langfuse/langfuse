@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, ApiKeyScope } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
@@ -38,7 +38,8 @@ export function createShaHash(privateKey: string, salt: string): string {
 
 export async function createAndAddApiKeysToDb(p: {
   prisma: PrismaClient;
-  projectId: string;
+  entityId: string;
+  scope: ApiKeyScope;
   note?: string;
   predefinedKeys?: {
     secretKey: string;
@@ -59,14 +60,18 @@ export async function createAndAddApiKeysToDb(p: {
 
   const hashFromProvidedKey = createShaHash(sk, salt);
 
+  const entity =
+    p.scope === "PROJECT" ? { projectId: p.entityId } : { orgId: p.entityId };
+
   const apiKey = await p.prisma.apiKey.create({
     data: {
-      projectId: p.projectId,
+      ...entity,
       publicKey: pk,
       hashedSecretKey: hashedSk,
       displaySecretKey: displaySk,
       fastHashedSecretKey: hashFromProvidedKey,
       note: p.note,
+      scope: p.scope,
     },
   });
 

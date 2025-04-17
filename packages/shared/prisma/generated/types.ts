@@ -4,6 +4,11 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export const ApiKeyScope = {
+    ORGANIZATION: "ORGANIZATION",
+    PROJECT: "PROJECT"
+} as const;
+export type ApiKeyScope = (typeof ApiKeyScope)[keyof typeof ApiKeyScope];
 export const Role = {
     OWNER: "OWNER",
     ADMIN: "ADMIN",
@@ -158,7 +163,9 @@ export type ApiKey = {
     display_secret_key: string;
     last_used_at: Timestamp | null;
     expires_at: Timestamp | null;
-    project_id: string;
+    project_id: string | null;
+    organization_id: string | null;
+    scope: Generated<ApiKeyScope>;
 };
 export type AuditLog = {
     id: string;

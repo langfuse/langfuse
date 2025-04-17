@@ -3,7 +3,7 @@ import {
   PostEventsV1Response,
 } from "@/src/features/public-api/types/events";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   eventTypes,
   logger,
@@ -12,7 +12,7 @@ import {
 import { v4 } from "uuid";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Event",
     bodySchema: PostEventsV1Body,
     responseSchema: PostEventsV1Response,
