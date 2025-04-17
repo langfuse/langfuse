@@ -20,9 +20,7 @@ export const useUniqueNameValidation = ({
       return;
     }
 
-    const isNewName = !allNames
-      ?.map((name) => name.value)
-      .includes(currentName);
+    const isNewName = !allNames.map((name) => name.value).includes(currentName);
 
     if (!isNewName) {
       form.setError("name", {

@@ -122,14 +122,14 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
     { projectId },
-    { enabled: hasAccess },
+    { enabled: hasAccess && !queueId },
   );
 
   const allQueueNames = useMemo(() => {
-    return (
-      allQueueNamesAndIds.data?.map((queue) => ({ value: queue.name })) ?? []
-    );
-  }, [allQueueNamesAndIds.data]);
+    return !queueId && allQueueNamesAndIds.data
+      ? allQueueNamesAndIds.data.map((queue) => ({ value: queue.name }))
+      : [];
+  }, [allQueueNamesAndIds.data, queueId]);
 
   useUniqueNameValidation({
     currentName: form.watch("name"),
@@ -299,7 +299,11 @@ export const CreateOrEditAnnotationQueueButton = ({
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="text-xs">
+              <Button
+                type="submit"
+                className="text-xs"
+                disabled={!!form.formState.errors.name}
+              >
                 {queueId ? "Save" : "Create"} queue
               </Button>
             </form>

@@ -266,6 +266,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
           <Button
             type="submit"
             variant={props.mode === "delete" ? "destructive" : "default"}
+            disabled={!!form.formState.errors.name}
             loading={
               (props.mode === "create" && createMutation.isLoading) ||
               (props.mode === "delete" && deleteMutation.isLoading)
