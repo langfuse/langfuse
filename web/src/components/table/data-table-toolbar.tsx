@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
-import { type FilterState } from "@langfuse/shared";
+import { type TracingSearchType, type FilterState } from "@langfuse/shared";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@langfuse/shared";
 import {
@@ -25,6 +25,11 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { Label } from "@/src/components/ui/label";
+import DocPopup from "@/src/components/layouts/doc-popup";
+import { env } from "@/src/env.mjs";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -40,6 +45,9 @@ interface SearchConfig {
   placeholder: string;
   updateQuery(event: string): void;
   currentQuery?: string;
+  countOfFilteredRecordsInDatabase?: number;
+  searchType?: TracingSearchType[];
+  setSearchType?: (searchType: TracingSearchType[]) => void;
 }
 
 interface DataTableToolbarProps<TData, TValue> {
@@ -95,13 +103,26 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+  const [searchType, setSearchType] = useState<TracingSearchType[]>(
+    searchConfig?.searchType ?? ["id"],
+  );
+
+  const shouldShowFullTextSearchOption =
+    searchConfig?.searchType && searchConfig?.setSearchType;
+
   const capture = usePostHogClientCapture();
+
+  const fullTextSearchDisabled: boolean =
+    searchConfig?.countOfFilteredRecordsInDatabase === undefined ||
+    (typeof searchConfig?.countOfFilteredRecordsInDatabase === "number" &&
+      searchConfig.countOfFilteredRecordsInDatabase >
+        env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS);
 
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
-          <div className="flex max-w-md items-center rounded-md border">
+          <div className="flex w-full max-w-xl items-center rounded-md border">
             <Button
               variant="ghost"
               size="icon"
@@ -125,6 +146,43 @@ export function DataTableToolbar<TData, TValue>({
               }}
               className="min-w-0 max-w-fit border-none px-0"
             />
+            {shouldShowFullTextSearchOption &&
+              searchConfig.searchType &&
+              searchConfig.setSearchType && (
+                <div className="flex items-center border-l px-2">
+                  <div className="flex items-center space-x-1">
+                    {/* <Checkbox
+                      id="fullTextSearch"
+                      checked={searchType.includes("content")}
+                      disabled={fullTextSearchDisabled}
+                      onCheckedChange={(checked) => {
+                        const newSearchType: TracingSearchType[] = ["id"];
+                        if (checked) {
+                          newSearchType.push("content" as const);
+                        }
+                        setSearchType(newSearchType);
+                        searchConfig.setSearchType?.(newSearchType);
+                      }}
+                    /> */}
+                    <div className="ml-auto flex items-center gap-1">
+                      {fullTextSearchDisabled ? (
+                        <Label htmlFor="fullTextSearch" className="text-xs">
+                          Metadata
+                        </Label>
+                      ) : (
+                        <Label htmlFor="fullTextSearch" className="text-xs">
+                          Metadata + Full Text
+                        </Label>
+                      )}
+                      <DocPopup
+                        description={`Full text search can only be executed on max. ${compactNumberFormatter(
+                          env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS,
+                        )} records. Please apply more filters.`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
           </div>
         )}
         {selectedOption && setDateRangeAndOption && (

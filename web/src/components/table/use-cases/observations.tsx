@@ -4,6 +4,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useEffect, useMemo } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
+  ArrayParam,
   NumberParam,
   StringParam,
   useQueryParam,
@@ -20,6 +21,7 @@ import {
   type ObservationOptions,
   BatchExportTableName,
   type ObservationType,
+  type TracingSearchType,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -119,6 +121,17 @@ export default function ObservationsTable({
     withDefault(StringParam, null),
   );
   const { setDetailPageList } = useDetailPageLists();
+
+  const [searchType, setSearchType] = useQueryParam(
+    "searchType",
+    withDefault(ArrayParam, ["id"]),
+  );
+
+  const setTypedSearchType = (searchType: TracingSearchType[]) => {
+    setSearchType(searchType);
+  };
+
+  const typedSearchType = (searchType ?? ["id"]) as TracingSearchType[];
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -230,6 +243,7 @@ export default function ObservationsTable({
     projectId,
     filter: filterState,
     searchQuery,
+    searchType: typedSearchType,
     page: 0,
     limit: 0,
     orderBy: null,
@@ -908,6 +922,9 @@ export default function ObservationsTable({
           placeholder: "Search (by id, name, trace name, model)",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+          searchType: typedSearchType,
+          countOfFilteredRecordsInDatabase: totalCountQuery.data?.totalCount,
+          setSearchType: setTypedSearchType,
         }}
         columnsWithCustomSelect={["model", "name", "traceName", "promptName"]}
         columnVisibility={columnVisibility}

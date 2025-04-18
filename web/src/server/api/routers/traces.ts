@@ -18,6 +18,7 @@ import {
   timeFilter,
   tracesTableUiColumnDefinitions,
   type Observation,
+  TracingSearchType,
 } from "@langfuse/shared";
 import {
   traceException,
@@ -45,6 +46,7 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   searchQuery: z.string().nullable(),
+  searchType: z.array(TracingSearchType),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
   ...paginationZod,
@@ -80,6 +82,7 @@ export const traceRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         filter: input.filter ?? [],
         searchQuery: input.searchQuery ?? undefined,
+        searchType: input.searchType ?? ["id"],
         orderBy: input.orderBy,
         limit: input.limit,
         page: input.page,
