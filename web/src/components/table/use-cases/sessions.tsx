@@ -35,6 +35,12 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
+import { type ScoreAggregate } from "@langfuse/shared";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
+import {
+  getScoreGroupColumnProps,
+  verifyAndPrefixScoreDataAgainstKeys,
+} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 
 export type SessionTableRow = {
   id: string;
@@ -51,6 +57,7 @@ export type SessionTableRow = {
   totalTokens: number | undefined;
   traceTags: string[] | undefined;
   environment?: string;
+  scores?: ScoreAggregate;
 };
 
 export type SessionTableProps = {
@@ -155,6 +162,14 @@ export default function SessionsTable({
   const sessions = api.sessions.all.useQuery(payloadGetAll);
   const sessionCountQuery = api.sessions.countAll.useQuery(payloadCount);
 
+  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
+    useIndividualScoreColumns<SessionTableRow>({
+      projectId,
+      scoreColumnKey: "scores",
+      selectedFilterOption: selectedOption,
+      cellsLoading: !sessions.data,
+    });
+
   const sessionMetrics = api.sessions.metrics.useQuery(
     {
       projectId,
@@ -229,6 +244,7 @@ export default function SessionsTable({
       },
       enableSorting: false,
     },
+
     {
       accessorKey: "id",
       id: "id",
@@ -294,6 +310,10 @@ export default function SessionsTable({
           </Badge>
         ) : null;
       },
+    },
+    {
+      ...getScoreGroupColumnProps(isColumnLoading || !sessions.data),
+      columns: scoreColumns,
     },
     {
       accessorKey: "userIds",
@@ -561,8 +581,8 @@ export default function SessionsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: sessionRowData.rows?.map<SessionTableRow>(
-                    (session) => ({
+                  data: sessionRowData.rows?.map<SessionTableRow>((session) => {
+                    return {
                       id: session.id,
                       bookmarked: session.bookmarked,
                       createdAt: session.createdAt,
@@ -577,8 +597,14 @@ export default function SessionsTable({
                       totalTokens: session.totalTokens,
                       traceTags: session.traceTags,
                       environment: session.environment,
-                    }),
-                  ),
+                      scores: session.scores
+                        ? verifyAndPrefixScoreDataAgainstKeys(
+                            scoreKeysAndProps,
+                            session.scores,
+                          )
+                        : undefined,
+                    };
+                  }),
                 }
         }
         pagination={{

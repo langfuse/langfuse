@@ -5,7 +5,7 @@ import {
   createObservation,
   createObservationsCh,
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -122,7 +122,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         }),
       ]),
       createScoresCh([
-        createScore({
+        createTraceScore({
           id: scoreId,
           trace_id: traceId,
           project_id: projectId,
@@ -334,7 +334,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         }),
       ]),
       createScoresCh([
-        createScore({
+        createTraceScore({
           id: scoreId,
           trace_id: traceId,
           project_id: projectId,
