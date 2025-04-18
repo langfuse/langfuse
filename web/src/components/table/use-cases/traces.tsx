@@ -204,6 +204,7 @@ export default function TracesTable({
     dateRangeFilter,
     environmentFilter,
   );
+
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),

@@ -8,6 +8,7 @@ export {
   StringFilter,
   DateTimeFilter,
   StringOptionsFilter,
+  CategoryOptionsFilter,
   NumberFilter,
   ArrayOptionsFilter,
   BooleanFilter,

@@ -4,6 +4,7 @@ import {
   DateTimeFilter,
   ArrayOptionsFilter,
   StringOptionsFilter,
+  CategoryOptionsFilter,
   StringFilter,
   NumberFilter,
   type ClickhouseOperator,
@@ -83,6 +84,31 @@ export function convertApiProvidedFilterToClickhouseFilter(
             });
           }
           break;
+        case "CategoryOptionsFilter":
+          if (Array.isArray(value)) {
+            const availableOperatorsCategory = z.enum(
+              filterOperators.categoryOptions,
+            );
+            const parsedOperatorCategory = availableOperatorsCategory.safeParse(
+              filter.operator,
+            );
+
+            if (
+              parsedOperatorCategory.success &&
+              typeof filter.key === "string"
+            ) {
+              filterInstance = new CategoryOptionsFilter({
+                clickhouseTable: columnMapping.clickhouseTable,
+                field: columnMapping.clickhouseSelect,
+                key: filter.key,
+                operator: parsedOperatorCategory.data,
+                values: value,
+                tablePrefix: columnMapping.clickhousePrefix,
+              });
+            }
+          }
+          break;
+
         case "StringFilter":
           if (typeof value === "string") {
             filterInstance = new StringFilter({
