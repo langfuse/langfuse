@@ -6,14 +6,14 @@ import {
 import { EventLogRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
-export const getEventLogByProjectAndEntityId = async (
+export const getBlobStorageByProjectAndEntityId = async (
   projectId: string,
   entityType: string,
   entityId: string,
 ): Promise<EventLogRecordReadType[]> => {
   const query = `
     select *
-    from event_log
+    from blob_storage_file_log
     where project_id = {projectId: String}
     and entity_type = {entityType: String}
     and entity_id = {entityId: String}
@@ -34,12 +34,12 @@ export const getEventLogByProjectAndEntityId = async (
   });
 };
 
-export const getEventLogByProjectId = (
+export const getBlobStorageByProjectId = (
   projectId: string,
 ): AsyncGenerator<EventLogRecordReadType> => {
   const query = `
     select *
-    from event_log
+    from blob_storage_file_log
     where project_id = {projectId: String}
   `;
 
@@ -56,13 +56,13 @@ export const getEventLogByProjectId = (
   });
 };
 
-export const getEventLogByProjectIdBeforeDate = (
+export const getBlobStorageByProjectIdBeforeDate = (
   projectId: string,
   beforeDate: Date,
 ): AsyncGenerator<EventLogRecordReadType> => {
   const query = `
         select *
-        from event_log
+        from blob_storage_file_log
         where project_id = {projectId: String}
         and created_at <= {beforeDate: DateTime64(3)}
     `;
@@ -81,14 +81,14 @@ export const getEventLogByProjectIdBeforeDate = (
   });
 };
 
-export const getEventLogByProjectIdAndEntityIds = (
+export const getBlobStorageByProjectIdAndEntityIds = (
   projectId: string,
   entityType: "observation" | "trace" | "score",
   entityIds: string[],
 ): AsyncGenerator<EventLogRecordReadType> => {
   const query = `
     select *
-    from event_log
+    from blob_storage_file_log
     where project_id = {projectId: String}
       and entity_type = {entityType: String}
       and entity_id in ({entityIds: Array(String)})
@@ -112,7 +112,7 @@ export const getEventLogByProjectIdAndEntityIds = (
   });
 };
 
-export const getEventLogByProjectIdAndTraceIds = (
+export const getBlobStorageByProjectIdAndTraceIds = (
   projectId: string,
   traceIds: string[],
 ): AsyncGenerator<EventLogRecordReadType> => {
@@ -155,7 +155,7 @@ export const getEventLogByProjectIdAndTraceIds = (
     -- We use a semi join because we only use the 'filtered_events' as a filter.
     -- There is no need to build the cartesian product (i.e. the combination) between the event log and the events.
     select el.*
-    from event_log el
+    from blob_storage_file_log el
     left semi join filtered_events fe
     on el.project_id = fe.project_id and el.entity_id = fe.entity_id and el.entity_type = fe.entity_type
     where el.project_id = {projectId: String}
@@ -183,12 +183,12 @@ export const getEventLogByProjectIdAndTraceIds = (
  * @param projectId - Project ID
  * @param ids - ID record of the event log table to be deleted
  */
-export const deleteEventLogByProjectIdAndIds = async (
+export const deleteBlobStorageByProjectIdAndIds = async (
   projectId: string,
   ids: string[],
 ): Promise<void> => {
   const query = `  
-    delete from event_log
+    delete from blob_storage_file_log
     where project_id = {projectId: String}
     and id in ({ids: Array(String)});
   `;
@@ -210,11 +210,11 @@ export const deleteEventLogByProjectIdAndIds = async (
   });
 };
 
-export const deleteEventLogByProjectId = async (
+export const deleteBlobStorageByProjectId = async (
   projectId: string,
 ): Promise<void> => {
   const query = `
-    DELETE FROM event_log
+    DELETE FROM blob_storage_file_log
     WHERE project_id = {projectId: String};
   `;
   await commandClickhouse({
@@ -233,12 +233,12 @@ export const deleteEventLogByProjectId = async (
   });
 };
 
-export const deleteEventLogByProjectIdBeforeDate = async (
+export const deleteBlobStorageByProjectIdBeforeDate = async (
   projectId: string,
   beforeDate: Date,
 ): Promise<void> => {
   const query = `
-    DELETE FROM event_log
+    DELETE FROM blob_storage_file_log
     WHERE project_id = {projectId: String}
     AND created_at <= {beforeDate: DateTime64(3)};
   `;
@@ -255,6 +255,31 @@ export const deleteEventLogByProjectIdBeforeDate = async (
       feature: "eventLog",
       kind: "delete",
       projectId,
+    },
+  });
+};
+
+export const getEventLogOrderedByTime = async (
+  largerThanEqual: Date,
+  limit: number,
+): Promise<EventLogRecordReadType[]> => {
+  const query = `
+    SELECT *
+    FROM event_log
+    WHERE created_at >= {largerThanEqual: DateTime64(3)}
+    ORDER BY created_at ASC
+    LIMIT {limit: Int32}
+  `;
+
+  return queryClickhouse<EventLogRecordReadType>({
+    query,
+    params: {
+      largerThanEqual: convertDateToClickhouseDateTime(largerThanEqual),
+      limit,
+    },
+    tags: {
+      feature: "backgroundMigration",
+      kind: "list",
     },
   });
 };

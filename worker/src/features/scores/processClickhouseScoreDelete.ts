@@ -1,11 +1,11 @@
 import {
   deleteScores,
-  deleteEventLogByProjectIdAndIds,
   logger,
   StorageService,
   StorageServiceFactory,
   traceException,
-  getEventLogByProjectIdAndEntityIds,
+  getBlobStorageByProjectIdAndEntityIds,
+  deleteBlobStorageByProjectIdAndIds,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 
@@ -33,7 +33,7 @@ export const processClickhouseScoreDelete = async (
     `Deleting scores ${JSON.stringify(scoreIds)} in project ${projectId} from Clickhouse`,
   );
 
-  const eventLogStream = getEventLogByProjectIdAndEntityIds(
+  const eventLogStream = getBlobStorageByProjectIdAndEntityIds(
     projectId,
     "score",
     scoreIds,
@@ -47,7 +47,7 @@ export const processClickhouseScoreDelete = async (
     if (eventLogRecords.length > 500) {
       // Delete the current batch and reset the list
       await eventStorageClient.deleteFiles(eventLogRecords.map((r) => r.path));
-      await deleteEventLogByProjectIdAndIds(
+      await deleteBlobStorageByProjectIdAndIds(
         projectId,
         eventLogRecords.map((r) => r.id),
       );
@@ -56,7 +56,7 @@ export const processClickhouseScoreDelete = async (
   }
   // Delete any remaining files
   await eventStorageClient.deleteFiles(eventLogRecords.map((r) => r.path));
-  await deleteEventLogByProjectIdAndIds(
+  await deleteBlobStorageByProjectIdAndIds(
     projectId,
     eventLogRecords.map((r) => r.id),
   );

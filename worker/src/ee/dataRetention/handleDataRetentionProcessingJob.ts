@@ -1,9 +1,9 @@
 import {
-  deleteEventLogByProjectIdBeforeDate,
+  deleteBlobStorageByProjectIdBeforeDate,
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteTracesOlderThanDays,
-  getEventLogByProjectIdBeforeDate,
+  getBlobStorageByProjectIdBeforeDate,
   logger,
   StorageService,
   StorageServiceFactory,
@@ -91,7 +91,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   }
 
   // Remove event files from S3
-  const eventLogStream = getEventLogByProjectIdBeforeDate(
+  const eventLogStream = getBlobStorageByProjectIdBeforeDate(
     projectId,
     cutoffDate,
   );
@@ -118,7 +118,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     deleteTracesOlderThanDays(projectId, retention),
     deleteObservationsOlderThanDays(projectId, retention),
     deleteScoresOlderThanDays(projectId, retention),
-    deleteEventLogByProjectIdBeforeDate(projectId, cutoffDate),
+    deleteBlobStorageByProjectIdBeforeDate(projectId, cutoffDate),
   ]);
   logger.info(
     `[Data Retention] Deleted ClickHouse data older than ${retention} days for project ${projectId}`,
