@@ -1,0 +1,1 @@
+DROP TABLE observation_costs ON CLUSTER default;
