@@ -35,7 +35,6 @@ export async function handleUpdateProject(
       try {
         JSON.parse(metadata);
       } catch (error) {
-        debugger;
         return res.status(400).json({
           message: `Invalid metadata. Should be a valid JSON object: ${error}`,
         });
