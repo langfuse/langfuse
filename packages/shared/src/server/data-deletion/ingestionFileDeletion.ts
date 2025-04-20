@@ -49,6 +49,8 @@ export async function removeIngestionEventsFromS3AndDeleteClikhouseRefs(p: {
         values: blobStorageRefs.map((e) => ({
           ...e,
           is_deleted: 1,
+          event_ts: new Date().getTime(),
+          updated_at: new Date().getTime(),
         })),
         format: "JSONEachRow",
       });

@@ -4,14 +4,13 @@ import {
   getClickhouseEntityType,
   getCurrentSpan,
   getQueue,
+  getS3EventStorageClient,
   IngestionEventType,
   logger,
   QueueName,
   recordDistribution,
   recordIncrement,
   redis,
-  StorageService,
-  StorageServiceFactory,
   TQueueJobTypes,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -22,22 +21,6 @@ import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
-
-let s3StorageServiceClient: StorageService;
-
-const getS3StorageServiceClient = (bucketName: string): StorageService => {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3StorageServiceClient;
-};
 
 export const ingestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
@@ -84,6 +67,7 @@ export const ingestionQueueProcessorBuilder = (
         bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
         created_at: new Date().getTime(),
         updated_at: new Date().getTime(),
+        event_ts: new Date().getTime(),
         is_deleted: 0,
       });
 
@@ -129,7 +113,7 @@ export const ingestionQueueProcessorBuilder = (
         }
       }
 
-      const s3Client = getS3StorageServiceClient(
+      const s3Client = getS3EventStorageClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
 
