@@ -1,5 +1,6 @@
 import {
   commandClickhouse,
+  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
 } from "./clickhouse";
@@ -262,7 +263,8 @@ export const deleteBlobStorageByProjectIdBeforeDate = async (
 export const getEventLogOrderedByTime = async (
   largerThanEqual: Date,
   limit: number,
-): Promise<EventLogRecordReadType[]> => {
+) => {
+  console.log(`execute query with ${largerThanEqual} and ${limit}`);
   const query = `
     SELECT *
     FROM event_log
@@ -271,7 +273,7 @@ export const getEventLogOrderedByTime = async (
     LIMIT {limit: Int32}
   `;
 
-  return queryClickhouse<EventLogRecordReadType>({
+  const rows = await queryClickhouse<EventLogRecordReadType>({
     query,
     params: {
       largerThanEqual: convertDateToClickhouseDateTime(largerThanEqual),
@@ -282,4 +284,10 @@ export const getEventLogOrderedByTime = async (
       kind: "list",
     },
   });
+
+  return rows.map((r) => ({
+    ...r,
+    created_at: parseClickhouseUTCDateTimeFormat(r.created_at),
+    updated_at: parseClickhouseUTCDateTimeFormat(r.updated_at),
+  }));
 };

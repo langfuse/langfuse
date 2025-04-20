@@ -1,6 +1,7 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
   clickhouseClient,
+  convertDateToClickhouseDateTime,
   convertPostgresTraceToInsert,
   getEventLogOrderedByTime,
   logger,
@@ -127,6 +128,8 @@ export default class MigrateEventLogToBlobStorageRefTable
         values: eventLogs.map((e) => ({
           ...e,
           is_deleted: 0,
+          created_at: convertDateToClickhouseDateTime(e.created_at),
+          updated_at: convertDateToClickhouseDateTime(e.updated_at),
         })),
         format: "JSONEachRow",
       });
