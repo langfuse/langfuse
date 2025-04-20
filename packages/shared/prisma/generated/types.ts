@@ -531,6 +531,7 @@ export type Organization = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     cloud_config: unknown | null;
+    metadata: unknown | null;
 };
 export type OrganizationMembership = {
     id: string;
@@ -564,6 +565,7 @@ export type Project = {
     deleted_at: Timestamp | null;
     name: string;
     retention_days: number | null;
+    metadata: unknown | null;
 };
 export type ProjectMembership = {
     org_membership_id: string;

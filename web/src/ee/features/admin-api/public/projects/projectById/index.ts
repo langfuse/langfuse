@@ -20,7 +20,7 @@ export async function handleUpdateProject(
   scope: ApiAccessScope,
 ) {
   try {
-    const { name, retention } = req.body;
+    const { name, retention, metadata } = req.body;
 
     // Validate project name
     try {
@@ -29,6 +29,17 @@ export async function handleUpdateProject(
       return res.status(400).json({
         message: "Invalid project name. Should be between 3 and 60 characters.",
       });
+    }
+
+    if (metadata !== undefined && typeof metadata !== "object") {
+      try {
+        JSON.parse(metadata);
+      } catch (error) {
+        debugger;
+        return res.status(400).json({
+          message: `Invalid metadata. Should be a valid JSON object: ${error}`,
+        });
+      }
     }
 
     // Validate retention days using the schema
@@ -64,17 +75,20 @@ export async function handleUpdateProject(
       data: {
         name,
         retentionDays: retention,
+        metadata,
       },
       select: {
         id: true,
         name: true,
         retentionDays: true,
+        metadata: true,
       },
     });
 
     return res.status(200).json({
       id: updatedProject.id,
       name: updatedProject.name,
+      metadata: updatedProject.metadata ?? {},
       ...(updatedProject.retentionDays // Do not add if null or 0
         ? { retentionDays: updatedProject.retentionDays }
         : {}),
