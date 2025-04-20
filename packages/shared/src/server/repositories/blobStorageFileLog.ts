@@ -39,8 +39,8 @@ export const getBlobStorageByProjectId = (
   projectId: string,
 ): AsyncGenerator<EventLogRecordReadType> => {
   const query = `
-    select *
-    from blob_storage_file_log
+    select * 
+    from blob_storage_file_log FINAL
     where project_id = {projectId: String}
   `;
 

@@ -5,6 +5,7 @@ import {
   deleteTraces,
   getBlobStorageByProjectIdAndTraceIds,
   logger,
+  removeIngestionEventsFromS3AndDeleteClikhouseRefs,
   StorageService,
   StorageServiceFactory,
   traceException,
@@ -158,32 +159,14 @@ export const processClickhouseTraceDelete = async (
 
   await deleteMediaItemsForTraces(projectId, traceIds);
 
-  const eventLogStream = getBlobStorageByProjectIdAndTraceIds(
+  await removeIngestionEventsFromS3AndDeleteClikhouseRefs({
     projectId,
-    traceIds,
-  );
-  let eventLogRecords: { id: string; path: string }[] = [];
-  const eventStorageClient = getS3EventStorageClient(
-    env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-  );
-  for await (const eventLog of eventLogStream) {
-    eventLogRecords.push({ id: eventLog.id, path: eventLog.bucket_path });
-    if (eventLogRecords.length > 500) {
-      // Delete the current batch and reset the list
-      await eventStorageClient.deleteFiles(eventLogRecords.map((r) => r.path));
-      await deleteBlobStorageByProjectIdAndIds(
-        projectId,
-        eventLogRecords.map((r) => r.id),
-      );
-      eventLogRecords = [];
-    }
-  }
-  // Delete any remaining files
-  await eventStorageClient.deleteFiles(eventLogRecords.map((r) => r.path));
-  await deleteBlobStorageByProjectIdAndIds(
-    projectId,
-    eventLogRecords.map((r) => r.id),
-  );
+    cutoffDate: undefined,
+    entityIdProps: {
+      type: "trace",
+      ids: traceIds,
+    },
+  });
 
   try {
     await Promise.all([
