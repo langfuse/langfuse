@@ -212,8 +212,6 @@ export default function DashboardDetail() {
             )
           : 0;
 
-      debugger;
-
       // Create a new widget placement
       const newWidgetPlacement: WidgetPlacement = {
         id: uuidv4(),
