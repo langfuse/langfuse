@@ -129,6 +129,7 @@ export default class MigrateEventLogToBlobStorageRefTable
           is_deleted: 0,
           created_at: convertDateToClickhouseDateTime(e.created_at),
           updated_at: convertDateToClickhouseDateTime(e.updated_at),
+          event_ts: convertDateToClickhouseDateTime(e.created_at),
         })),
         format: "JSONEachRow",
       });
