@@ -79,6 +79,7 @@ export const projectDeleteProcessor: Processor = async (
   // Remove event files from S3
   await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject({
     projectId,
+    cutOffDate: undefined,
   });
 
   logger.info(`Deleting ClickHouse data for ${projectId} in org ${orgId}`);
