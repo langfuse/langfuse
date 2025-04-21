@@ -25,7 +25,7 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Badge } from "@/src/components/ui/badge";
 import { Label } from "@/src/components/ui/label";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { env } from "@/src/env.mjs";
@@ -122,65 +122,46 @@ export function DataTableToolbar<TData, TValue>({
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
-          <div className="flex w-full max-w-xl items-center rounded-md border">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                capture("table:search_submit");
-                searchConfig.updateQuery(searchString);
-              }}
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-            <Input
-              autoFocus
-              placeholder={searchConfig.placeholder}
-              value={searchString}
-              onChange={(event) => setSearchString(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
+          <div className="flex w-full max-w-xl items-center justify-between rounded-md border">
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
                   capture("table:search_submit");
                   searchConfig.updateQuery(searchString);
-                }
-              }}
-              className="min-w-0 max-w-fit border-none px-0"
-            />
+                }}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+              <Input
+                autoFocus
+                placeholder={searchConfig.placeholder}
+                value={searchString}
+                onChange={(event) => setSearchString(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    capture("table:search_submit");
+                    searchConfig.updateQuery(searchString);
+                  }
+                }}
+                className="min-w-0 max-w-fit border-none px-0"
+              />
+            </div>
             {shouldShowFullTextSearchOption &&
               searchConfig.searchType &&
               searchConfig.setSearchType && (
-                <div className="flex items-center border-l px-2">
-                  <div className="flex items-center space-x-1">
-                    {/* <Checkbox
-                      id="fullTextSearch"
-                      checked={searchType.includes("content")}
-                      disabled={fullTextSearchDisabled}
-                      onCheckedChange={(checked) => {
-                        const newSearchType: TracingSearchType[] = ["id"];
-                        if (checked) {
-                          newSearchType.push("content" as const);
-                        }
-                        setSearchType(newSearchType);
-                        searchConfig.setSearchType?.(newSearchType);
-                      }}
-                    /> */}
-                    <div className="ml-auto flex items-center gap-1">
-                      {fullTextSearchDisabled ? (
-                        <Label htmlFor="fullTextSearch" className="text-xs">
-                          Metadata
-                        </Label>
-                      ) : (
-                        <Label htmlFor="fullTextSearch" className="text-xs">
-                          Metadata + Full Text
-                        </Label>
-                      )}
-                      <DocPopup
-                        description={`Full text search can only be executed on max. ${compactNumberFormatter(
-                          env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS,
-                        )} records. Please apply more filters.`}
-                      />
-                    </div>
-                  </div>
+                <div className="border-l px-2">
+                  <Badge variant="tertiary">
+                    {fullTextSearchDisabled
+                      ? "Metadata"
+                      : "Metadata + Full Text"}
+                    <DocPopup
+                      description={`Full text search can only be executed on max. ${compactNumberFormatter(
+                        env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS,
+                      )} records. Current filters result in ${searchConfig.countOfFilteredRecordsInDatabase} records.`}
+                    />
+                  </Badge>
                 </div>
               )}
           </div>

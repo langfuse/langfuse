@@ -173,6 +173,7 @@ export const getTracesTableCount = async (props: {
   projectId: string;
   filter: FilterState;
   searchQuery?: string;
+  searchType: TracingSearchType[];
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
