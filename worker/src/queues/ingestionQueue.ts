@@ -84,6 +84,7 @@ export const ingestionQueueProcessorBuilder = (
         bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
         created_at: new Date().getTime(),
         updated_at: new Date().getTime(),
+        event_ts: new Date().getTime(),
         is_deleted: 0,
       });
 

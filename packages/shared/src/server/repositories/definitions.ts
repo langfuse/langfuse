@@ -173,12 +173,14 @@ export const eventLogRecordReadSchema =
   blobStorageFileLogRecordBaseSchema.extend({
     created_at: clickhouseStringDateSchema,
     updated_at: clickhouseStringDateSchema,
+    event_ts: clickhouseStringDateSchema,
   });
 export type EventLogRecordReadType = z.infer<typeof eventLogRecordReadSchema>;
 export const blobStorageFileLogRecordInsertSchema =
   blobStorageFileLogRecordBaseSchema.extend({
     created_at: z.number(),
     updated_at: z.number(),
+    event_ts: z.number(),
   });
 export type BlobStorageFileLogInsertType = z.infer<
   typeof blobStorageFileLogRecordInsertSchema
