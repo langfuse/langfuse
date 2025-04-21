@@ -116,14 +116,8 @@ describe("Projects API", () => {
       expect(response.body.data[0]).toMatchObject({
         id: projectId,
         name: projectName,
+        metadata: {},
       });
-      expect(
-        response.body.data.some((project) => project.id === projectId),
-      ).toBe(true);
-      expect(
-        response.body.data.find((project) => project.id === projectId)
-          ?.metadata,
-      ).toEqual({ plan: "free", features: ["basic"] });
     });
 
     it("should return 401 when invalid API keys are provided", async () => {

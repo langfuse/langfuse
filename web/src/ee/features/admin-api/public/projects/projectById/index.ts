@@ -41,27 +41,29 @@ export async function handleUpdateProject(
       }
     }
 
-    // Validate retention days using the schema
-    try {
-      projectRetentionSchema.parse({ retention });
-    } catch (error) {
-      return res.status(400).json({
-        message: "Invalid retention value. Must be 0 or at least 7 days.",
-      });
-    }
-
-    // If retention is non-zero, check for data-retention entitlement
-    if (retention > 0) {
-      const hasDataRetentionEntitlement = hasEntitlementBasedOnPlan({
-        entitlement: "data-retention",
-        plan: scope.plan,
-      });
-
-      if (!hasDataRetentionEntitlement) {
-        return res.status(403).json({
-          message:
-            "The data-retention entitlement is required to set a non-zero retention period.",
+    // Validate retention days if provided
+    if (retention !== undefined) {
+      try {
+        projectRetentionSchema.parse({ retention });
+      } catch (error) {
+        return res.status(400).json({
+          message: "Invalid retention value. Must be 0 or at least 7 days.",
         });
+      }
+
+      // If retention is non-zero, check for data-retention entitlement
+      if (retention > 0) {
+        const hasDataRetentionEntitlement = hasEntitlementBasedOnPlan({
+          entitlement: "data-retention",
+          plan: scope.plan,
+        });
+
+        if (!hasDataRetentionEntitlement) {
+          return res.status(403).json({
+            message:
+              "The data-retention entitlement is required to set a non-zero retention period.",
+          });
+        }
       }
     }
 
@@ -73,7 +75,7 @@ export async function handleUpdateProject(
       },
       data: {
         name,
-        retentionDays: retention,
+        ...(retention !== undefined ? { retentionDays: retention } : {}),
         metadata,
       },
       select: {
