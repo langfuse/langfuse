@@ -113,7 +113,7 @@ export default class MigrateEventLogToBlobStorageRefTable
       );
 
       if (eventLogs.length === 0) {
-        logger.info("No more trace_logs to migrate. Exiting...");
+        logger.info("No more event logs to migrate. Exiting...");
         break;
       }
 
