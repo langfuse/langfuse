@@ -50,7 +50,7 @@ describe("DataRetentionProcessingJob", () => {
     });
 
     await clickhouseClient().insert({
-      table: "event_log",
+      table: "blob_storage_file_log",
       format: "JSONEachRow",
       values: [
         {
@@ -99,7 +99,7 @@ describe("DataRetentionProcessingJob", () => {
     });
 
     await clickhouseClient().insert({
-      table: "event_log",
+      table: "blob_storage_file_log",
       format: "JSONEachRow",
       values: [
         {
