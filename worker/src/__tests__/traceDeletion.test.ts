@@ -8,7 +8,7 @@ import {
   createScoresCh,
   createTrace,
   createTracesCh,
-  getEventLogByProjectId,
+  getBlobStorageByProjectId,
   getObservationsForTrace,
   getScoresForTraces,
   getTracesByIds,
@@ -333,7 +333,7 @@ describe("trace deletion", () => {
     await processClickhouseTraceDelete(projectId, [traceId]);
 
     // Then
-    const eventLog = getEventLogByProjectId(projectId);
+    const eventLog = getBlobStorageByProjectId(projectId);
     for await (const _ of eventLog) {
       // Should never happen as the expect event log to be empty
       expect(true).toBe(false);
