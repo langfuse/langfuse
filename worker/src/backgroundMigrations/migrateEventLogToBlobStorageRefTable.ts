@@ -97,7 +97,6 @@ export default class MigrateEventLogToBlobStorageRefTable
       where: { id: backgroundMigrationId },
       data: { state: initalState },
     });
-
     let processedRows = 0;
     while (
       !this.isAborted &&
