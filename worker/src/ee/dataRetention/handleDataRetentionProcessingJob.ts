@@ -4,7 +4,7 @@ import {
   deleteTracesOlderThanDays,
   logger,
   getS3MediaStorageClient,
-  removeIngestionEventsFromS3AndDeleteClickhouseRefsoForProject as removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";

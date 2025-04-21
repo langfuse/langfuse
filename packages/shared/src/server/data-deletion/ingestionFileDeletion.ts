@@ -8,7 +8,7 @@ import { env } from "../../env";
 import { clickhouseClient } from "../clickhouse/client";
 import { getS3EventStorageClient } from "../s3";
 
-export const removeIngestionEventsFromS3AndDeleteClickhouseRefsoForTraces =
+export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
   async (p: { projectId: string; traceIds: string[] }) => {
     const stream = getBlobStorageByProjectIdAndTraceIds(
       p.projectId,

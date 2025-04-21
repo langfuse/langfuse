@@ -3,7 +3,7 @@ import {
   deleteScoresByTraceIds,
   deleteTraces,
   logger,
-  removeIngestionEventsFromS3AndDeleteClickhouseRefsoForTraces,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces,
   StorageService,
   StorageServiceFactory,
   traceException,
@@ -141,7 +141,7 @@ export const processClickhouseTraceDelete = async (
 
   await deleteMediaItemsForTraces(projectId, traceIds);
 
-  await removeIngestionEventsFromS3AndDeleteClickhouseRefsoForTraces({
+  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces({
     projectId,
     traceIds,
   });

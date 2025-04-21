@@ -6,7 +6,7 @@ import {
   getCurrentSpan,
   logger,
   QueueName,
-  removeIngestionEventsFromS3AndDeleteClickhouseRefsoForProject,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   StorageService,
   StorageServiceFactory,
   TQueueJobTypes,
@@ -77,7 +77,7 @@ export const projectDeleteProcessor: Processor = async (
   logger.info(`Deleting S3 event logs for ${projectId} in org ${orgId}`);
 
   // Remove event files from S3
-  await removeIngestionEventsFromS3AndDeleteClickhouseRefsoForProject({
+  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject({
     projectId,
   });
 
