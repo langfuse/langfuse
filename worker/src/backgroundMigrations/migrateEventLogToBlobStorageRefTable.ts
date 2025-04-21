@@ -53,7 +53,7 @@ export default class MigrateEventLogToBlobStorageRefTable
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
         logger.info(
-          `ClickHouse event_log tables do not exist. Retrying in 10s...`,
+          `ClickHouse event_log or blob_storage_file_log tables do not exist. Retrying in 10s...`,
         );
         return new Promise((resolve) => {
           setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
@@ -63,7 +63,8 @@ export default class MigrateEventLogToBlobStorageRefTable
       // If all retries are exhausted, return as invalid
       return {
         valid: false,
-        invalidReason: "ClickHouse event_log tables do not exist",
+        invalidReason:
+          "ClickHouse event_log or blob_storage_file_log tables do not exist",
       };
     }
 
@@ -87,7 +88,7 @@ export default class MigrateEventLogToBlobStorageRefTable
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
     const batchSize = Number(args.batchSize ?? 200_000);
 
-    const initalState = initialMigrationState.state.offset
+    const initialState = initialMigrationState.state.offset
       ? initialMigrationState.state
       : {
           offset: Number(args.offset ?? 0),
@@ -95,7 +96,7 @@ export default class MigrateEventLogToBlobStorageRefTable
 
     await prisma.backgroundMigration.update({
       where: { id: backgroundMigrationId },
-      data: { state: initalState },
+      data: { state: initialState },
     });
     let processedRows = 0;
     while (
