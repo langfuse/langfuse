@@ -1,12 +1,29 @@
 import {
   EventLogRecordReadType,
   getBlobStorageByProjectId,
+  getBlobStorageByProjectIdAndEntityIds,
   getBlobStorageByProjectIdAndTraceIds,
   logger,
 } from "..";
 import { env } from "../../env";
 import { clickhouseClient } from "../clickhouse/client";
 import { getS3EventStorageClient } from "../s3";
+
+export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
+  projectId: string;
+  scoreIds: string[];
+}) => {
+  const eventLogStream = getBlobStorageByProjectIdAndEntityIds(
+    p.projectId,
+    "score",
+    p.scoreIds,
+  );
+
+  return removeIngestionEventsFromS3AndDeleteClikhouseRefs({
+    projectId: p.projectId,
+    stream: eventLogStream,
+  });
+};
 
 export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
   async (p: { projectId: string; traceIds: string[] }) => {

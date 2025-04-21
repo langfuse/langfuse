@@ -2,7 +2,7 @@ import {
   deleteScores,
   logger,
   traceException,
-  removeIngestionEventsFromS3AndDeleteClikhouseRefs,
+  deleteIngestionEventsFromS3AndClickhouseForScores,
 } from "@langfuse/shared/src/server";
 
 export const processClickhouseScoreDelete = async (
@@ -13,10 +13,9 @@ export const processClickhouseScoreDelete = async (
     `Deleting scores ${JSON.stringify(scoreIds)} in project ${projectId} from Clickhouse`,
   );
 
-  await removeIngestionEventsFromS3AndDeleteClikhouseRefs({
+  await deleteIngestionEventsFromS3AndClickhouseForScores({
     projectId,
-    entityIdProps: { type: "score" as const, ids: scoreIds },
-    cutoffDate: undefined,
+    scoreIds,
   });
 
   try {
