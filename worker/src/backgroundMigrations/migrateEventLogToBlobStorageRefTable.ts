@@ -85,9 +85,9 @@ export default class MigrateEventLogToBlobStorageRefTable
     });
 
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
-    const batchSize = Number(args.batchSize ?? 1_000_000);
+    const batchSize = Number(args.batchSize ?? 200_000);
 
-    const initalState = initialMigrationState.state
+    const initalState = initialMigrationState.state.offset
       ? initialMigrationState.state
       : {
           offset: Number(args.offset ?? 0),
@@ -119,6 +119,10 @@ export default class MigrateEventLogToBlobStorageRefTable
         migrationState.state.offset,
       );
 
+      logger.info(
+        `Inserted up to ${batchSize} records into blob_storage_file_log in ${Date.now() - fetchStart}ms`,
+      );
+
       const lastEventLogPrimaryKey = await getLastEventLogPrimaryKey();
 
       if (!lastEventLogPrimaryKey) {
@@ -128,14 +132,10 @@ export default class MigrateEventLogToBlobStorageRefTable
 
       const s3Refs = await findS3RefsByPrimaryKey(lastEventLogPrimaryKey);
 
-      if (s3Refs.length === 0) {
+      if (s3Refs.length > 0) {
         logger.info("No more event logs to migrate. Exiting...");
         this.isFinished = true;
       }
-
-      logger.info(
-        `Inserted up to ${batchSize} records into blob_storage_file_log in ${Date.now() - fetchStart}ms`,
-      );
 
       await prisma.backgroundMigration.update({
         where: { id: backgroundMigrationId },
@@ -145,11 +145,6 @@ export default class MigrateEventLogToBlobStorageRefTable
           },
         },
       });
-
-      if (s3Refs.length > 0) {
-        logger.info("No more event logs to migrate. Exiting...");
-        this.isFinished = true;
-      }
     }
 
     if (this.isAborted) {

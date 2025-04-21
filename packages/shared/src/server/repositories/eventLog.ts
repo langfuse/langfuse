@@ -280,7 +280,7 @@ export const insertIntoS3RefsTableFromEventLog = async (
       created_at AS event_ts,
       0 AS is_deleted
     FROM event_log
-    ORDER BY project_id, event_type, entity_id DESC
+    ORDER BY (project_id, entity_type, entity_id, bucket_path) DESC
     LIMIT {limit: Int32}
     OFFSET {offset: Int32}
   `;
@@ -300,15 +300,16 @@ export const insertIntoS3RefsTableFromEventLog = async (
 
 export const getLastEventLogPrimaryKey = async () => {
   const query = `
-    SELECT project_id, entity_type, entity_id 
+    SELECT project_id, entity_type, entity_id, bucket_path
     FROM event_log
-    ORDER BY project_id, entity_type, entity_id ASC
+    ORDER BY (project_id, entity_type, entity_id, bucket_path) ASC
     LIMIT 1
   `;
   const result = await queryClickhouse<{
     project_id: string;
     entity_type: string;
     entity_id: string;
+    bucket_path: string;
   }>({ query });
   return result.shift();
 };
@@ -317,6 +318,7 @@ export const findS3RefsByPrimaryKey = async (primaryKey: {
   project_id: string;
   entity_type: string;
   entity_id: string;
+  bucket_path: string;
 }) => {
   const query = `
     SELECT * 
@@ -324,6 +326,7 @@ export const findS3RefsByPrimaryKey = async (primaryKey: {
     WHERE project_id = {project_id: String} 
       AND entity_type = {entity_type: String} 
       AND entity_id = {entity_id: String}
+      AND bucket_path = {bucket_path: String}
   `;
   return queryClickhouse<EventLogRecordReadType>({ query, params: primaryKey });
 };
