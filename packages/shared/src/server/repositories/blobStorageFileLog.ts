@@ -179,38 +179,6 @@ export const getBlobStorageByProjectIdAndTraceIds = (
   });
 };
 
-/**
- * Deletes event log records by projectId and the _eventLog_.id
- * @param projectId - Project ID
- * @param ids - ID record of the event log table to be deleted
- */
-export const deleteBlobStorageByProjectIdAndIds = async (
-  projectId: string,
-  ids: string[],
-): Promise<void> => {
-  const query = `  
-    delete from blob_storage_file_log
-    where project_id = {projectId: String}
-    and id in ({ids: Array(String)});
-  `;
-
-  await commandClickhouse({
-    query,
-    params: {
-      projectId,
-      ids,
-    },
-    clickhouseConfigs: {
-      request_timeout: 300_000, // 5 minutes
-    },
-    tags: {
-      feature: "eventLog",
-      kind: "delete",
-      projectId,
-    },
-  });
-};
-
 export const deleteBlobStorageByProjectId = async (
   projectId: string,
 ): Promise<void> => {

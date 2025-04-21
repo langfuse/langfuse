@@ -3,6 +3,7 @@ import {
   getBlobStorageByProjectId,
   getBlobStorageByProjectIdAndEntityIds,
   getBlobStorageByProjectIdAndTraceIds,
+  getBlobStorageByProjectIdBeforeDate,
   logger,
 } from "..";
 import { env } from "../../env";
@@ -19,7 +20,7 @@ export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
     p.scoreIds,
   );
 
-  return removeIngestionEventsFromS3AndDeleteClikhouseRefs({
+  return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
     projectId: p.projectId,
     stream: eventLogStream,
   });
@@ -32,7 +33,7 @@ export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
       p.traceIds,
     );
 
-    return removeIngestionEventsFromS3AndDeleteClikhouseRefs({
+    return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
       projectId: p.projectId,
       stream: stream,
     });
@@ -42,14 +43,17 @@ export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject = (
   projectId: string,
   cutOffDate: Date | undefined,
 ) => {
-  const stream = getBlobStorageByProjectId(projectId);
-  return removeIngestionEventsFromS3AndDeleteClikhouseRefs({
+  const stream = cutOffDate
+    ? getBlobStorageByProjectIdBeforeDate(projectId, cutOffDate)
+    : getBlobStorageByProjectId(projectId);
+
+  return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
     projectId: projectId,
     stream: stream,
   });
 };
 
-async function removeIngestionEventsFromS3AndDeleteClikhouseRefs(p: {
+async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
   projectId: string;
   stream: AsyncGenerator<EventLogRecordReadType>;
 }) {
@@ -70,24 +74,35 @@ async function removeIngestionEventsFromS3AndDeleteClikhouseRefs(p: {
       );
 
       // soft delete the blob storage references in clickhouse
-      await clickhouseClient().insert({
-        table: "blob_storage_file_log",
-        values: blobStorageRefs.map((e) => ({
-          ...e,
-          is_deleted: 1,
-          event_ts: new Date().getTime(),
-          updated_at: new Date().getTime(),
-        })),
-        format: "JSONEachRow",
-      });
-
-      blobStorageRefs = [];
+      await softDeleteInClickhouse(blobStorageRefs);
       batch++;
-      logger.info(`Deleted ${batch * 500} event logs for ${projectId}`);
+      logger.info(
+        `Deleted batch ${batch} of size ${blobStorageRefs.length} for ${projectId} of deleting s3 refs`,
+      );
+      blobStorageRefs = [];
     }
   }
   // Delete any remaining files
   await eventStorageClient.deleteFiles(
     blobStorageRefs.map((r) => r.bucket_path),
   );
+  await softDeleteInClickhouse(blobStorageRefs);
+  logger.info(
+    `Deleted batch ${batch} of size ${blobStorageRefs.length} for ${projectId} of deleting s3 refs`,
+  );
+}
+
+async function softDeleteInClickhouse(blobStorageRefs: any[]) {
+  await clickhouseClient().insert({
+    table: "blob_storage_file_log",
+    values: blobStorageRefs.map((e) => ({
+      ...e,
+      is_deleted: "1",
+      event_ts: new Date().getTime(),
+      updated_at: new Date().getTime(),
+    })),
+    format: "JSONEachRow",
+  });
+
+  blobStorageRefs = [];
 }
