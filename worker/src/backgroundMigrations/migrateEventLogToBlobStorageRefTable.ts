@@ -1,8 +1,9 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
   clickhouseClient,
-  convertDateToClickhouseDateTime,
-  getEventLogOrderedByTime,
+  findS3RefsByPrimaryKey,
+  getLastEventLogPrimaryKey,
+  insertIntoS3RefsTableFromEventLog,
   logger,
 } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
@@ -12,9 +13,7 @@ import { env } from "../env";
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 
 type MigrationState = {
-  project_id: string | undefined;
-  entity_type: string | undefined;
-  entity_id: string | undefined;
+  offset: number;
 };
 
 const backgroundMigrationId = "c19b91d9-f9a2-468b-8209-95578f970c5b";
@@ -91,9 +90,7 @@ export default class MigrateEventLogToBlobStorageRefTable
     const initalState = initialMigrationState.state
       ? initialMigrationState.state
       : {
-          project_id: args.projectId as string | undefined,
-          entity_type: args.entity_type as string | undefined,
-          entity_id: args.entity_id as string | undefined,
+          offset: Number(args.offset ?? 0),
         };
 
     await prisma.backgroundMigration.update({
@@ -117,40 +114,42 @@ export default class MigrateEventLogToBlobStorageRefTable
         });
 
       // ordered by time ascending.
-      const eventLogs = await getEventLogOrderedByTime(
+      await insertIntoS3RefsTableFromEventLog(
         batchSize,
-        migrationState.state.entity_id &&
-          migrationState.state.project_id &&
-          migrationState.state.entity_type
-          ? migrationState.state
-          : undefined,
+        migrationState.state.offset,
       );
 
-      if (eventLogs.length === 0) {
-        logger.info("No more event logs to migrate. Exiting...");
+      const lastEventLogPrimaryKey = await getLastEventLogPrimaryKey();
+
+      if (!lastEventLogPrimaryKey) {
+        logger.info("Event log table is empty. Exiting...");
         break;
       }
 
+      const s3Refs = await findS3RefsByPrimaryKey(lastEventLogPrimaryKey);
+
+      if (s3Refs.length === 0) {
+        logger.info("No more event logs to migrate. Exiting...");
+        this.isFinished = true;
+      }
+
       logger.info(
-        `Got ${eventLogs.length} records from CH event_log in ${Date.now() - fetchStart}ms`,
+        `Inserted up to ${batchSize} records into blob_storage_file_log in ${Date.now() - fetchStart}ms`,
       );
 
       await prisma.backgroundMigration.update({
         where: { id: backgroundMigrationId },
         data: {
-          state: {},
+          state: {
+            offset: migrationState.state.offset + batchSize,
+          },
         },
       });
 
-      if (eventLogs.length < batchSize) {
+      if (s3Refs.length > 0) {
         logger.info("No more event logs to migrate. Exiting...");
         this.isFinished = true;
       }
-
-      processedRows += eventLogs.length;
-      logger.info(
-        `Processed batch in ${Date.now() - fetchStart}ms. Oldest record in batch: ${new Date(eventLogs[eventLogs.length - 1].created_at).toISOString()}`,
-      );
     }
 
     if (this.isAborted) {

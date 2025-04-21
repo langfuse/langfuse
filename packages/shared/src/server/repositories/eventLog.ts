@@ -260,15 +260,10 @@ export const deleteBlobStorageByProjectIdBeforeDate = async (
   });
 };
 
+// this function is only used for the background migration from event_log to blob_storage_file_log
 export const insertIntoS3RefsTableFromEventLog = async (
   limit: number,
-  cutOff:
-    | {
-        project_id: string;
-        entity_type: string;
-        entity_id: string;
-      }
-    | undefined,
+  offset: number,
 ) => {
   const query = `
     INSERT INTO blob_storage_file_log
@@ -285,27 +280,50 @@ export const insertIntoS3RefsTableFromEventLog = async (
       created_at AS event_ts,
       0 AS is_deleted
     FROM event_log
-    ${cutOff ? `WHERE project_id = {project_id: String} AND entity_type = {entity_type: String} AND entity_id = {entity_id: String}` : ""}
-    ORDER BY created_at ASC
+    ORDER BY project_id, event_type, entity_id DESC
     LIMIT {limit: Int32}
-    RETURN LAST ROW
+    OFFSET {offset: Int32}
   `;
 
-  const rows = await queryClickhouse<EventLogRecordReadType>({
+  await commandClickhouse({
     query,
     params: {
-      cutOff,
       limit,
+      offset,
     },
     tags: {
       feature: "backgroundMigration",
       kind: "list",
     },
   });
+};
 
-  return rows.map((r) => ({
-    ...r,
-    created_at: parseClickhouseUTCDateTimeFormat(r.created_at),
-    updated_at: parseClickhouseUTCDateTimeFormat(r.updated_at),
-  }));
+export const getLastEventLogPrimaryKey = async () => {
+  const query = `
+    SELECT project_id, entity_type, entity_id 
+    FROM event_log
+    ORDER BY project_id, entity_type, entity_id ASC
+    LIMIT 1
+  `;
+  const result = await queryClickhouse<{
+    project_id: string;
+    entity_type: string;
+    entity_id: string;
+  }>({ query });
+  return result.shift();
+};
+
+export const findS3RefsByPrimaryKey = async (primaryKey: {
+  project_id: string;
+  entity_type: string;
+  entity_id: string;
+}) => {
+  const query = `
+    SELECT * 
+    FROM blob_storage_file_log 
+    WHERE project_id = {project_id: String} 
+      AND entity_type = {entity_type: String} 
+      AND entity_id = {entity_id: String}
+  `;
+  return queryClickhouse<EventLogRecordReadType>({ query, params: primaryKey });
 };
