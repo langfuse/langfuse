@@ -61,7 +61,7 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
 
   let batch = 0;
 
-  let blobStorageRefs = [];
+  let blobStorageRefs: EventLogRecordReadType[] = [];
   const eventStorageClient = getS3EventStorageClient(
     env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
   );
@@ -92,7 +92,9 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
   );
 }
 
-async function softDeleteInClickhouse(blobStorageRefs: any[]) {
+async function softDeleteInClickhouse(
+  blobStorageRefs: EventLogRecordReadType[],
+) {
   await clickhouseClient().insert({
     table: "blob_storage_file_log",
     values: blobStorageRefs.map((e) => ({
@@ -103,6 +105,4 @@ async function softDeleteInClickhouse(blobStorageRefs: any[]) {
     })),
     format: "JSONEachRow",
   });
-
-  blobStorageRefs = [];
 }
