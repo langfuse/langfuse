@@ -11,6 +11,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "name",
     },
     {
+      uiTableName: "Observation Name",
+      viewName: "observationName",
+    },
+    {
       uiTableName: "Tags",
       viewName: "tags",
     },
@@ -39,6 +43,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     {
       uiTableName: "Trace Name",
       viewName: "traceName",
+    },
+    {
+      uiTableName: "Observation Name",
+      viewName: "name",
     },
     {
       uiTableName: "User",
@@ -107,6 +115,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "traceName",
     },
     {
+      uiTableName: "Observation Name",
+      viewName: "observationName",
+    },
+    {
       uiTableName: "Release",
       viewName: "traceRelease",
     },
@@ -149,6 +161,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "traceName",
     },
     {
+      uiTableName: "Observation Name",
+      viewName: "observationName",
+    },
+    {
       uiTableName: "Release",
       viewName: "traceRelease",
     },
@@ -169,6 +185,12 @@ const isLegacyUiTableFilter = (
         uiTableId: "sessionId",
         clickhouseTableName: "traces",
         clickhouseSelect: 't."sessionId"',
+      },
+      {
+        uiTableName: "Observation Name",
+        uiTableId: "observationName",
+        clickhouseTableName: "observations",
+        clickhouseSelect: 'o."name"',
       },
     ])
     .some((columnDef) => columnDef.uiTableName === filter.column);

@@ -2,12 +2,11 @@ import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
-  convertPostgresTraceToInsert,
   getEventLogOrderedByTime,
   logger,
 } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
@@ -114,7 +113,7 @@ export default class MigrateEventLogToBlobStorageRefTable
       );
 
       if (eventLogs.length === 0) {
-        logger.info("No more trace_logs to migrate. Exiting...");
+        logger.info("No more event logs to migrate. Exiting...");
         break;
       }
 

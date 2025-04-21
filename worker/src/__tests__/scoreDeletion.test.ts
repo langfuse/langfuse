@@ -4,7 +4,7 @@ import {
   createOrgProjectAndApiKey,
   createScore,
   createScoresCh,
-  getEventLogByProjectId,
+  getBlobStorageByProjectId,
   getScoresByIds,
   StorageService,
   StorageServiceFactory,
@@ -62,7 +62,7 @@ describe("score deletion", () => {
     ]);
 
     await clickhouseClient().insert({
-      table: "event_log",
+      table: "blob_storage_file_log",
       format: "JSONEachRow",
       values: [
         {
@@ -83,7 +83,7 @@ describe("score deletion", () => {
     await processClickhouseScoreDelete(projectId, [scoreId]);
 
     // Then
-    const eventLog = getEventLogByProjectId(projectId);
+    const eventLog = getBlobStorageByProjectId(projectId);
     for await (const _ of eventLog) {
       // Should never happen as the expect event log to be empty
       expect(true).toBe(false);
