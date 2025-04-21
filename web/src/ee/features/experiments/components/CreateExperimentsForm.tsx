@@ -79,7 +79,7 @@ import Link from "next/link";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useExperimentNameValidation } from "@/src/ee/features/experiments/hooks/useExperimentNameValidation";
+import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 
 const CreateExperimentData = z.object({
   name: z
@@ -332,10 +332,11 @@ export const CreateExperimentsForm = ({
     });
   }, [modelParams, form]);
 
-  useExperimentNameValidation({
+  useUniqueNameValidation({
     currentName: form.watch("name"),
-    allExperimentNames,
+    allNames: allExperimentNames ?? [],
     form,
+    errorMessage: "Experiment name already exists for this dataset.",
   });
 
   const onSubmit = async (data: CreateExperiment) => {
