@@ -10,6 +10,13 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
+
+type MigrationState = {
+  project_id: string | undefined;
+  entity_type: string | undefined;
+  entity_id: string | undefined;
+};
+
 const backgroundMigrationId = "c19b91d9-f9a2-468b-8209-95578f970c5b";
 
 export default class MigrateEventLogToBlobStorageRefTable
@@ -71,24 +78,27 @@ export default class MigrateEventLogToBlobStorageRefTable
     );
 
     // @ts-ignore
-    const initialMigrationState: { state: { maxDate: string | undefined } } =
-      await prisma.backgroundMigration.findUniqueOrThrow({
-        where: { id: backgroundMigrationId },
-        select: { state: true },
-      });
+    const initialMigrationState: {
+      state: MigrationState;
+    } = await prisma.backgroundMigration.findUniqueOrThrow({
+      where: { id: backgroundMigrationId },
+      select: { state: true },
+    });
 
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
-    const batchSize = Number(args.batchSize ?? 1000);
+    const batchSize = Number(args.batchSize ?? 1_000_000);
 
-    const maxDate = initialMigrationState.state?.maxDate
-      ? new Date(initialMigrationState.state.maxDate)
-      : new Date(
-          (args.maxDate as string) ?? new Date("1970-01-01T00:00:00.000Z"),
-        );
+    const initalState = initialMigrationState.state
+      ? initialMigrationState.state
+      : {
+          project_id: args.projectId as string | undefined,
+          entity_type: args.entity_type as string | undefined,
+          entity_id: args.entity_id as string | undefined,
+        };
 
     await prisma.backgroundMigration.update({
       where: { id: backgroundMigrationId },
-      data: { state: { maxDate } },
+      data: { state: initalState },
     });
 
     let processedRows = 0;
@@ -100,7 +110,7 @@ export default class MigrateEventLogToBlobStorageRefTable
       const fetchStart = Date.now();
 
       // @ts-ignore
-      const migrationState: { state: { maxDate: string } } =
+      const migrationState: { state: MigrationState } =
         await prisma.backgroundMigration.findUniqueOrThrow({
           where: { id: backgroundMigrationId },
           select: { state: true },
@@ -108,8 +118,12 @@ export default class MigrateEventLogToBlobStorageRefTable
 
       // ordered by time ascending.
       const eventLogs = await getEventLogOrderedByTime(
-        new Date(migrationState.state.maxDate),
         batchSize,
+        migrationState.state.entity_id &&
+          migrationState.state.project_id &&
+          migrationState.state.entity_type
+          ? migrationState.state
+          : undefined,
       );
 
       if (eventLogs.length === 0) {
@@ -121,29 +135,10 @@ export default class MigrateEventLogToBlobStorageRefTable
         `Got ${eventLogs.length} records from CH event_log in ${Date.now() - fetchStart}ms`,
       );
 
-      const insertStart = Date.now();
-      await clickhouseClient().insert({
-        table: "blob_storage_file_log",
-        values: eventLogs.map((e) => ({
-          ...e,
-          is_deleted: 0,
-          created_at: convertDateToClickhouseDateTime(e.created_at),
-          updated_at: convertDateToClickhouseDateTime(e.updated_at),
-          event_ts: convertDateToClickhouseDateTime(e.created_at),
-        })),
-        format: "JSONEachRow",
-      });
-
-      logger.info(
-        `Inserted ${eventLogs.length} traces into Clickhouse in ${Date.now() - insertStart}ms`,
-      );
-
       await prisma.backgroundMigration.update({
         where: { id: backgroundMigrationId },
         data: {
-          state: {
-            maxDate: new Date(eventLogs[eventLogs.length - 1].created_at),
-          },
+          state: {},
         },
       });
 

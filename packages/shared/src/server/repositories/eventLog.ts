@@ -260,23 +260,41 @@ export const deleteBlobStorageByProjectIdBeforeDate = async (
   });
 };
 
-export const getEventLogOrderedByTime = async (
-  largerThanEqual: Date,
+export const insertIntoS3RefsTableFromEventLog = async (
   limit: number,
+  cutOff:
+    | {
+        project_id: string;
+        entity_type: string;
+        entity_id: string;
+      }
+    | undefined,
 ) => {
-  console.log(`execute query with ${largerThanEqual} and ${limit}`);
   const query = `
-    SELECT *
+    INSERT INTO blob_storage_file_log
+    SELECT 
+      id,
+      project_id,
+      entity_type,
+      entity_id,
+      event_id,
+      bucket_name,
+      bucket_path,
+      created_at,
+      updated_at,
+      created_at AS event_ts,
+      0 AS is_deleted
     FROM event_log
-    WHERE created_at >= {largerThanEqual: DateTime64(3)}
+    ${cutOff ? `WHERE project_id = {project_id: String} AND entity_type = {entity_type: String} AND entity_id = {entity_id: String}` : ""}
     ORDER BY created_at ASC
     LIMIT {limit: Int32}
+    RETURN LAST ROW
   `;
 
   const rows = await queryClickhouse<EventLogRecordReadType>({
     query,
     params: {
-      largerThanEqual: convertDateToClickhouseDateTime(largerThanEqual),
+      cutOff,
       limit,
     },
     tags: {
