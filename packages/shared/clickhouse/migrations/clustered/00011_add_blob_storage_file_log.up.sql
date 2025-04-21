@@ -1,5 +1,4 @@
-CREATE TABLE blob_storage_file_log
-(
+CREATE TABLE blob_storage_file_log ON CLUSTER default (
     `id`          String,
     `project_id`  String,
     `entity_type` String,
