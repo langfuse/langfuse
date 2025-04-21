@@ -12,7 +12,7 @@ CREATE TABLE blob_storage_file_log
     `created_at`  DateTime64(3) DEFAULT now(),
     `updated_at`  DateTime64(3) DEFAULT now(),
     event_ts DateTime64(3),
-    is_deleted UIent8,
+    is_deleted UInt8,
 ) ENGINE = ReplicatedReplacingMergeTree(event_ts, is_deleted)
       ORDER BY (
                 project_id,
