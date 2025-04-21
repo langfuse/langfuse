@@ -11,13 +11,14 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
 import { useRouter } from "next/router";
+import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
@@ -101,6 +102,24 @@ export const DatasetForm = (props: DatasetFormProps) => {
   const createMutation = api.datasets.createDataset.useMutation();
   const renameMutation = api.datasets.updateDataset.useMutation();
   const deleteMutation = api.datasets.deleteDataset.useMutation();
+
+  const allDatasets = api.datasets.allDatasetMeta.useQuery(
+    { projectId: props.projectId },
+    {
+      enabled: props.mode === "create" || props.mode === "update",
+    },
+  );
+
+  const allDatasetNames = useMemo(() => {
+    return allDatasets.data?.map((dataset) => ({ value: dataset.name })) ?? [];
+  }, [allDatasets.data]);
+
+  useUniqueNameValidation({
+    currentName: form.watch("name"),
+    allNames: allDatasetNames,
+    form,
+    errorMessage: "Dataset name already exists.",
+  });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const trimmedValues = {
@@ -247,6 +266,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
           <Button
             type="submit"
             variant={props.mode === "delete" ? "destructive" : "default"}
+            disabled={!!form.formState.errors.name}
             loading={
               (props.mode === "create" && createMutation.isLoading) ||
               (props.mode === "delete" && deleteMutation.isLoading)

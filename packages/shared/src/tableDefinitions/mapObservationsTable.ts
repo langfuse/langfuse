@@ -176,8 +176,8 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
-    uiTableName: "Usage",
-    uiTableId: "usage",
+    uiTableName: "Tokens",
+    uiTableId: "tokens",
     clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
