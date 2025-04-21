@@ -68,7 +68,7 @@ const main = async () => {
             data: {
               type: eventType,
               eventBodyId: eventBodyId,
-              eventId: eventId,
+              fileKey: eventId,
             },
             authCheck: {
               validKey: true as const,
