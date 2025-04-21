@@ -9,7 +9,6 @@ import {
 } from "../../utils/zod";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
 import { ScoreDomain } from "../../domain";
-import { logger } from "../../server";
 
 /**
  * Types to use across codebase
@@ -304,7 +303,7 @@ export const legacyFilterAndValidateV1GetScoreList = (
       if (result.success) {
         acc.push(result.data);
       } else {
-        logger.error(`Score parsing error`, result.error);
+        console.error(`Score parsing error ${JSON.stringify(result.error)}`);
         onParseError?.(result.error);
       }
       return acc;
