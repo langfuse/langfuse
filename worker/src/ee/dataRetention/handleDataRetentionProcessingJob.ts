@@ -3,8 +3,8 @@ import {
   deleteScoresOlderThanDays,
   deleteTracesOlderThanDays,
   logger,
-  removeIngestionEventsFromS3AndDeleteClikhouseRefs,
   getS3MediaStorageClient,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsoForProject as removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
@@ -56,11 +56,10 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     );
   }
 
-  await removeIngestionEventsFromS3AndDeleteClikhouseRefs({
+  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
     projectId,
     cutoffDate,
-    entityIdProps: undefined,
-  });
+  );
 
   // Delete ClickHouse (TTL / Delete Queries)
   logger.info(

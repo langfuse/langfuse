@@ -1,41 +1,50 @@
-import { logger } from "..";
+import {
+  EventLogRecordReadType,
+  getBlobStorageByProjectId,
+  getBlobStorageByProjectIdAndTraceIds,
+  logger,
+} from "..";
 import { env } from "../../env";
 import { clickhouseClient } from "../clickhouse/client";
-import {
-  getBlobStorageByProjectIdBeforeDate,
-  getBlobStorageByProjectId,
-  getBlobStorageByProjectIdAndEntityIds,
-} from "../repositories";
 import { getS3EventStorageClient } from "../s3";
 
-export async function removeIngestionEventsFromS3AndDeleteClikhouseRefs(p: {
+export const removeIngestionEventsFromS3AndDeleteClickhouseRefsoForTraces =
+  async (p: { projectId: string; traceIds: string[] }) => {
+    const stream = getBlobStorageByProjectIdAndTraceIds(
+      p.projectId,
+      p.traceIds,
+    );
+
+    return removeIngestionEventsFromS3AndDeleteClikhouseRefs({
+      projectId: p.projectId,
+      stream: stream,
+    });
+  };
+
+export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject = (
+  projectId: string,
+  cutOffDate: Date | undefined,
+) => {
+  const stream = getBlobStorageByProjectId(projectId);
+  return removeIngestionEventsFromS3AndDeleteClikhouseRefs({
+    projectId: projectId,
+    stream: stream,
+  });
+};
+
+async function removeIngestionEventsFromS3AndDeleteClikhouseRefs(p: {
   projectId: string;
-  cutoffDate: Date | undefined;
-  entityIdProps:
-    | {
-        ids: string[];
-        type: "observation" | "trace" | "score";
-      }
-    | undefined;
+  stream: AsyncGenerator<EventLogRecordReadType>;
 }) {
-  const { projectId, cutoffDate, entityIdProps } = p;
+  const { projectId, stream } = p;
 
   let batch = 0;
-  const eventLogStream = cutoffDate
-    ? getBlobStorageByProjectIdBeforeDate(projectId, cutoffDate)
-    : entityIdProps
-      ? getBlobStorageByProjectIdAndEntityIds(
-          projectId,
-          entityIdProps.type,
-          entityIdProps.ids,
-        )
-      : getBlobStorageByProjectId(projectId);
 
   let blobStorageRefs = [];
   const eventStorageClient = getS3EventStorageClient(
     env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
   );
-  for await (const eventLog of eventLogStream) {
+  for await (const eventLog of stream) {
     blobStorageRefs.push(eventLog);
     if (blobStorageRefs.length > 500) {
       // Delete the current batch and reset the list

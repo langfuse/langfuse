@@ -1,11 +1,9 @@
 import {
-  deleteBlobStorageByProjectIdAndIds,
   deleteObservationsByTraceIds,
   deleteScoresByTraceIds,
   deleteTraces,
-  getBlobStorageByProjectIdAndTraceIds,
   logger,
-  removeIngestionEventsFromS3AndDeleteClikhouseRefs,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsoForTraces,
   StorageService,
   StorageServiceFactory,
   traceException,
@@ -27,22 +25,6 @@ const getS3MediaStorageClient = (bucketName: string): StorageService => {
     });
   }
   return s3MediaStorageClient;
-};
-
-let s3EventStorageClient: StorageService;
-
-const getS3EventStorageClient = (bucketName: string): StorageService => {
-  if (!s3EventStorageClient) {
-    s3EventStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3EventStorageClient;
 };
 
 const deleteMediaItemsForTraces = async (
@@ -159,13 +141,9 @@ export const processClickhouseTraceDelete = async (
 
   await deleteMediaItemsForTraces(projectId, traceIds);
 
-  await removeIngestionEventsFromS3AndDeleteClikhouseRefs({
+  await removeIngestionEventsFromS3AndDeleteClickhouseRefsoForTraces({
     projectId,
-    cutoffDate: undefined,
-    entityIdProps: {
-      type: "trace",
-      ids: traceIds,
-    },
+    traceIds,
   });
 
   try {
