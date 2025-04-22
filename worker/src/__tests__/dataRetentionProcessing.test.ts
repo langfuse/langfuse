@@ -270,9 +270,9 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const traceOld = await getTraceById(`${baseId}-trace-old`, projectId);
+    const traceOld = await getTraceById({ traceId: `${baseId}-trace-old`, projectId });
     expect(traceOld).toBeUndefined();
-    const traceNew = await getTraceById(`${baseId}-trace-new`, projectId);
+    const traceNew = await getTraceById({ traceId: `${baseId}-trace-new`, projectId });
     expect(traceNew).toBeDefined();
   });
 
