@@ -60,7 +60,7 @@ export async function upsertClickhouse<
         await clickhouseClient({
           tags: opts.tags,
         }).insert({
-          table: "event_log",
+          table: "blob_storage_file_log",
           values: [
             {
               id: randomUUID(),
@@ -70,6 +70,8 @@ export async function upsertClickhouse<
               event_id: eventId,
               bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
               bucket_path: bucketPath,
+              event_ts: convertDateToClickhouseDateTime(new Date()),
+              is_deleted: 0,
             },
           ],
           format: "JSONEachRow",

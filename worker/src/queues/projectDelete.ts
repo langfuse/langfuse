@@ -1,11 +1,11 @@
 import { Job, Processor } from "bullmq";
 import {
-  deleteEventLogByProjectId,
+  deleteBlobStorageByProjectId,
   deleteObservationsByProjectId,
   deleteScoresByProjectId,
   deleteTracesByProjectId,
   getCurrentSpan,
-  getEventLogByProjectId,
+  getBlobStorageByProjectId,
   logger,
   QueueName,
   StorageService,
@@ -95,7 +95,7 @@ export const projectDeleteProcessor: Processor = async (
 
   // Remove event files from S3
   let batch = 0;
-  const eventLogStream = getEventLogByProjectId(projectId);
+  const eventLogStream = getBlobStorageByProjectId(projectId);
   let eventLogPaths: string[] = [];
   const eventStorageClient = getS3EventStorageClient(
     env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
@@ -122,7 +122,7 @@ export const projectDeleteProcessor: Processor = async (
     deleteTracesByProjectId(projectId),
     deleteObservationsByProjectId(projectId),
     deleteScoresByProjectId(projectId),
-    deleteEventLogByProjectId(projectId),
+    deleteBlobStorageByProjectId(projectId),
   ]);
 
   logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);

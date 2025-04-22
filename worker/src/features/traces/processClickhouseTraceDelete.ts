@@ -1,9 +1,9 @@
 import {
-  deleteEventLogByProjectIdAndIds,
+  deleteBlobStorageByProjectIdAndIds,
   deleteObservationsByTraceIds,
   deleteScoresByTraceIds,
   deleteTraces,
-  getEventLogByProjectIdAndTraceIds,
+  getBlobStorageByProjectIdAndTraceIds,
   logger,
   StorageService,
   StorageServiceFactory,
@@ -158,7 +158,10 @@ export const processClickhouseTraceDelete = async (
 
   await deleteMediaItemsForTraces(projectId, traceIds);
 
-  const eventLogStream = getEventLogByProjectIdAndTraceIds(projectId, traceIds);
+  const eventLogStream = getBlobStorageByProjectIdAndTraceIds(
+    projectId,
+    traceIds,
+  );
   let eventLogRecords: { id: string; path: string }[] = [];
   const eventStorageClient = getS3EventStorageClient(
     env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
@@ -168,7 +171,7 @@ export const processClickhouseTraceDelete = async (
     if (eventLogRecords.length > 500) {
       // Delete the current batch and reset the list
       await eventStorageClient.deleteFiles(eventLogRecords.map((r) => r.path));
-      await deleteEventLogByProjectIdAndIds(
+      await deleteBlobStorageByProjectIdAndIds(
         projectId,
         eventLogRecords.map((r) => r.id),
       );
@@ -177,7 +180,7 @@ export const processClickhouseTraceDelete = async (
   }
   // Delete any remaining files
   await eventStorageClient.deleteFiles(eventLogRecords.map((r) => r.path));
-  await deleteEventLogByProjectIdAndIds(
+  await deleteBlobStorageByProjectIdAndIds(
     projectId,
     eventLogRecords.map((r) => r.id),
   );
