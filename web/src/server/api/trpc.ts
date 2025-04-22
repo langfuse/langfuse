@@ -335,6 +335,7 @@ const inputTraceSchema = z.object({
   traceId: z.string(),
   projectId: z.string(),
   timestamp: z.date().nullish(),
+  fromTimestamp: z.date().nullish(),
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
@@ -351,11 +352,13 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const traceId = result.data.traceId;
   const projectId = result.data.projectId;
   const timestamp = result.data.timestamp;
+  const fromTimestamp = result.data.fromTimestamp;
 
   const trace = await getTraceById({
     traceId,
     projectId,
     timestamp: timestamp ?? undefined,
+    fromTimestamp: fromTimestamp ?? undefined,
   });
 
   if (!trace) {
