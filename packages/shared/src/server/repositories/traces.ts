@@ -515,7 +515,8 @@ export const getTracesIdentifierForSession = async (
       user_id,
       name,
       timestamp,
-      project_id
+      project_id,
+      environment
     FROM traces
     WHERE (project_id = {projectId: String})
     AND (session_id = {sessionId: String})
@@ -528,6 +529,7 @@ export const getTracesIdentifierForSession = async (
     user_id: string;
     name: string;
     timestamp: string;
+    environment: string;
   }>({
     query: query,
     params: {
@@ -547,6 +549,7 @@ export const getTracesIdentifierForSession = async (
     userId: row.user_id,
     name: row.name,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    environment: row.environment,
   }));
 };
 
