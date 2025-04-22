@@ -115,7 +115,7 @@ describe("traces trpc", () => {
             name: trace.name,
             timestamp: new Date(trace.timestamp),
             scores: [],
-            enviornment: "default",
+            environment: "default",
           }),
           expect.objectContaining({
             id: trace2.id,
@@ -123,7 +123,7 @@ describe("traces trpc", () => {
             name: trace2.name,
             timestamp: new Date(trace2.timestamp),
             scores: [],
-            enviornment: "default",
+            environment: "default",
           }),
         ]),
         totalCost: expect.any(Number),
