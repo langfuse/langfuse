@@ -1,19 +1,20 @@
 import {
   commandClickhouse,
+  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
 } from "./clickhouse";
 import { EventLogRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
-export const getEventLogByProjectAndEntityId = async (
+export const getBlobStorageByProjectAndEntityId = async (
   projectId: string,
   entityType: string,
   entityId: string,
 ): Promise<EventLogRecordReadType[]> => {
   const query = `
     select *
-    from event_log
+    from blob_storage_file_log
     where project_id = {projectId: String}
     and entity_type = {entityType: String}
     and entity_id = {entityId: String}
@@ -34,12 +35,12 @@ export const getEventLogByProjectAndEntityId = async (
   });
 };
 
-export const getEventLogByProjectId = (
+export const getBlobStorageByProjectId = (
   projectId: string,
 ): AsyncGenerator<EventLogRecordReadType> => {
   const query = `
     select *
-    from event_log
+    from blob_storage_file_log
     where project_id = {projectId: String}
   `;
 
@@ -56,13 +57,13 @@ export const getEventLogByProjectId = (
   });
 };
 
-export const getEventLogByProjectIdBeforeDate = (
+export const getBlobStorageByProjectIdBeforeDate = (
   projectId: string,
   beforeDate: Date,
 ): AsyncGenerator<EventLogRecordReadType> => {
   const query = `
         select *
-        from event_log
+        from blob_storage_file_log
         where project_id = {projectId: String}
         and created_at <= {beforeDate: DateTime64(3)}
     `;
@@ -81,14 +82,14 @@ export const getEventLogByProjectIdBeforeDate = (
   });
 };
 
-export const getEventLogByProjectIdAndEntityIds = (
+export const getBlobStorageByProjectIdAndEntityIds = (
   projectId: string,
   entityType: "observation" | "trace" | "score",
   entityIds: string[],
 ): AsyncGenerator<EventLogRecordReadType> => {
   const query = `
     select *
-    from event_log
+    from blob_storage_file_log
     where project_id = {projectId: String}
       and entity_type = {entityType: String}
       and entity_id in ({entityIds: Array(String)})
@@ -112,7 +113,7 @@ export const getEventLogByProjectIdAndEntityIds = (
   });
 };
 
-export const getEventLogByProjectIdAndTraceIds = (
+export const getBlobStorageByProjectIdAndTraceIds = (
   projectId: string,
   traceIds: string[],
 ): AsyncGenerator<EventLogRecordReadType> => {
@@ -155,7 +156,7 @@ export const getEventLogByProjectIdAndTraceIds = (
     -- We use a semi join because we only use the 'filtered_events' as a filter.
     -- There is no need to build the cartesian product (i.e. the combination) between the event log and the events.
     select el.*
-    from event_log el
+    from blob_storage_file_log el
     left semi join filtered_events fe
     on el.project_id = fe.project_id and el.entity_id = fe.entity_id and el.entity_type = fe.entity_type
     where el.project_id = {projectId: String}
@@ -183,12 +184,12 @@ export const getEventLogByProjectIdAndTraceIds = (
  * @param projectId - Project ID
  * @param ids - ID record of the event log table to be deleted
  */
-export const deleteEventLogByProjectIdAndIds = async (
+export const deleteBlobStorageByProjectIdAndIds = async (
   projectId: string,
   ids: string[],
 ): Promise<void> => {
   const query = `  
-    delete from event_log
+    delete from blob_storage_file_log
     where project_id = {projectId: String}
     and id in ({ids: Array(String)});
   `;
@@ -210,11 +211,11 @@ export const deleteEventLogByProjectIdAndIds = async (
   });
 };
 
-export const deleteEventLogByProjectId = async (
+export const deleteBlobStorageByProjectId = async (
   projectId: string,
 ): Promise<void> => {
   const query = `
-    DELETE FROM event_log
+    DELETE FROM blob_storage_file_log
     WHERE project_id = {projectId: String};
   `;
   await commandClickhouse({
@@ -233,12 +234,12 @@ export const deleteEventLogByProjectId = async (
   });
 };
 
-export const deleteEventLogByProjectIdBeforeDate = async (
+export const deleteBlobStorageByProjectIdBeforeDate = async (
   projectId: string,
   beforeDate: Date,
 ): Promise<void> => {
   const query = `
-    DELETE FROM event_log
+    DELETE FROM blob_storage_file_log
     WHERE project_id = {projectId: String}
     AND created_at <= {beforeDate: DateTime64(3)};
   `;
@@ -257,4 +258,75 @@ export const deleteEventLogByProjectIdBeforeDate = async (
       projectId,
     },
   });
+};
+
+// this function is only used for the background migration from event_log to blob_storage_file_log
+export const insertIntoS3RefsTableFromEventLog = async (
+  limit: number,
+  offset: number,
+) => {
+  const query = `
+    INSERT INTO blob_storage_file_log
+    SELECT 
+      id,
+      project_id,
+      entity_type,
+      entity_id,
+      event_id,
+      bucket_name,
+      bucket_path,
+      created_at,
+      updated_at,
+      created_at AS event_ts,
+      0 AS is_deleted
+    FROM event_log
+    ORDER BY (project_id, entity_type, entity_id, bucket_path) DESC
+    LIMIT {limit: Int32}
+    OFFSET {offset: Int32}
+  `;
+
+  await commandClickhouse({
+    query,
+    params: {
+      limit,
+      offset,
+    },
+    tags: {
+      feature: "backgroundMigration",
+      kind: "list",
+    },
+  });
+};
+
+export const getLastEventLogPrimaryKey = async () => {
+  const query = `
+    SELECT project_id, entity_type, entity_id, bucket_path
+    FROM event_log
+    ORDER BY (project_id, entity_type, entity_id, bucket_path) ASC
+    LIMIT 1
+  `;
+  const result = await queryClickhouse<{
+    project_id: string;
+    entity_type: string;
+    entity_id: string;
+    bucket_path: string;
+  }>({ query });
+  return result.shift();
+};
+
+export const findS3RefsByPrimaryKey = async (primaryKey: {
+  project_id: string;
+  entity_type: string;
+  entity_id: string;
+  bucket_path: string;
+}) => {
+  const query = `
+    SELECT * 
+    FROM blob_storage_file_log 
+    WHERE project_id = {project_id: String} 
+      AND entity_type = {entity_type: String} 
+      AND entity_id = {entity_id: String}
+      AND bucket_path = {bucket_path: String}
+  `;
+  return queryClickhouse<EventLogRecordReadType>({ query, params: primaryKey });
 };
