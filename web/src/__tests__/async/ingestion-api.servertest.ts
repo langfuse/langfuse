@@ -94,7 +94,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const trace = await getTraceById(entity.body.id, projectId);
+        const trace = await getTraceById({ traceId: entity.body.id, projectId });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(entity.body.id);
         expect(trace!.projectId).toBe(projectId);
@@ -128,7 +128,7 @@ describe("/api/public/ingestion API Endpoint", () => {
   //
   //   expect(response.status).toBe(207);
   //   await waitForExpect(async () => {
-  //     const trace = await getTraceById(entity.body.id, projectId);
+  //     const trace = await getTraceById({ traceId: entity.body.id, projectId });
   //     expect(trace).toBeDefined();
   //     expect(trace!.id).toBe(entity.body.id);
   //     expect(trace!.projectId).toBe(projectId);
@@ -330,7 +330,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.status).toBe(207);
 
     await waitForExpect(async () => {
-      const trace = await getTraceById(`${traceId}-${char}-test`, projectId);
+      const trace = await getTraceById({ traceId: `${traceId}-${char}-test`, projectId });
       expect(trace).toBeDefined();
       expect(trace!.id).toBe(`${traceId}-${char}-test`);
       expect(trace!.projectId).toBe(projectId);
@@ -526,7 +526,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const trace = await getTraceById(traceId, projectId);
+        const trace = await getTraceById({ traceId, projectId });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(traceId);
         expect(JSON.stringify(trace!.metadata)).toBe(

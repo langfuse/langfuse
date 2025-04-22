@@ -270,10 +270,10 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const clickhouseTrace = await getTraceById(
-        input.traceId,
-        input.projectId,
-      );
+      const clickhouseTrace = await getTraceById({
+        traceId: input.traceId,
+        projectId: input.projectId,
+      });
 
       if (!clickhouseTrace) {
         logger.error(

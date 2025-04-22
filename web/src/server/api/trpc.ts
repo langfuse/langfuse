@@ -352,7 +352,11 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const projectId = result.data.projectId;
   const timestamp = result.data.timestamp;
 
-  const trace = await getTraceById(traceId, projectId, timestamp ?? undefined);
+  const trace = await getTraceById({
+    traceId,
+    projectId,
+    timestamp: timestamp ?? undefined,
+  });
 
   if (!trace) {
     logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
