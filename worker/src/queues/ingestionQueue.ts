@@ -72,10 +72,8 @@ export const ingestionQueueProcessorBuilder = (
       // We write the new file into the ClickHouse event log to keep track for retention and deletions
       const clickhouseWriter = ClickhouseWriter.getInstance();
 
-      const fileName = job.data.payload.data.fileKey
-        ? `${job.data.payload.data.fileKey}.json`
-        : undefined;
-      if (job.data.payload.data.fileKey && fileName) {
+      if (job.data.payload.data.fileKey && job.data.payload.data.fileKey) {
+        const fileName = `${job.data.payload.data.fileKey}.json`;
         clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
           id: randomUUID(),
           project_id: job.data.payload.authCheck.scope.projectId,
