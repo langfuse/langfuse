@@ -14,7 +14,7 @@ export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
   projectId: string;
   scoreIds: string[];
 }) => {
-  const eventLogStream = getBlobStorageByProjectIdAndEntityIds(
+  const stream = getBlobStorageByProjectIdAndEntityIds(
     p.projectId,
     "score",
     p.scoreIds,
@@ -22,7 +22,7 @@ export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
 
   return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
     projectId: p.projectId,
-    stream: eventLogStream,
+    stream,
   });
 };
 
