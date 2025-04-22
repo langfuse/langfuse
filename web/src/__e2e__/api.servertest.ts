@@ -111,7 +111,7 @@ describe("Ingestion Pipeline", () => {
         expect(traceResponse.body).not.toBeNull();
         expect((await traceResponse.json()).id).toBe(traceId);
 
-        const trace = await getTraceById(traceId, projectId);
+        const trace = await getTraceById({ traceId, projectId });
         expect(trace).not.toBeNull();
         expect(trace?.name).toBe("test trace");
 

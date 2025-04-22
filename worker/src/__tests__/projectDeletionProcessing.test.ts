@@ -135,7 +135,7 @@ describe("ProjectDeletionProcessingJob", () => {
     } as Job);
 
     // Then
-    const trace = await getTraceById(`${baseId}-trace`, projectId);
+    const trace = await getTraceById({ traceId: `${baseId}-trace`, projectId });
     expect(trace).toBeUndefined();
     expect(() =>
       getObservationById(`${baseId}-observation`, projectId),

@@ -16,7 +16,7 @@ describe("Clickhouse Traces Repository Test", () => {
   });
 
   it("should throw if no traces are found", async () => {
-    expect(await getTraceById(v4(), v4())).toBeUndefined();
+    expect(await getTraceById({ traceId: v4(), projectId: v4() })).toBeUndefined();
   });
 
   it("should return a trace if it exists", async () => {
@@ -51,11 +51,11 @@ describe("Clickhouse Traces Repository Test", () => {
 
     await createTracesCh([trace]);
 
-    const result = await getTraceById(
+    const result = await getTraceById({
       traceId,
       projectId,
-      new Date(trace.timestamp),
-    );
+      timestamp: new Date(trace.timestamp),
+    });
     expect(result).not.toBeNull();
     if (!result) {
       return;
@@ -102,7 +102,7 @@ describe("Clickhouse Traces Repository Test", () => {
 
     await createTracesCh([trace]);
 
-    const result = await getTraceById(traceId, projectId);
+    const result = await getTraceById({ traceId, projectId });
     expect(result).not.toBeNull();
     if (!result) {
       return;
