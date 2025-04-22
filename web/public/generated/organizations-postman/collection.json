@@ -80,7 +80,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\"\n}",
+              "raw": "{\n    \"name\": \"example\",\n    \"metadata\": {\n        \"example\": \"UNKNOWN\"\n    }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -152,7 +152,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\"\n}",
+              "raw": "{\n    \"name\": \"example\",\n    \"metadata\": {\n        \"example\": \"UNKNOWN\"\n    }\n}",
               "options": {
                 "raw": {
                   "language": "json"
