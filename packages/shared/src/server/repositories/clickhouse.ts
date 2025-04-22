@@ -41,6 +41,8 @@ export async function upsertClickhouse<
   return await instrumentAsync({ name: "clickhouse-upsert" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.table", opts.table);
+    span.setAttribute("db.system.name", "clickhouse");
+    span.setAttribute("db.operation.name", "UPSERT");
 
     await Promise.all(
       opts.records.map(async (record) => {
@@ -140,6 +142,9 @@ export async function* queryClickhouseStream<T>(opts: {
       async () => {
         // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
         span.setAttribute("ch.query.text", opts.query);
+        span.setAttribute("db.system.name", "clickhouse");
+        span.setAttribute("db.query.text", opts.query);
+        span.setAttribute("db.operation.name", "SELECT");
 
         const res = await clickhouseClient({
           tags: opts.tags,
@@ -196,6 +201,9 @@ export async function queryClickhouse<T>(opts: {
   return await instrumentAsync({ name: "clickhouse-query" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
+    span.setAttribute("db.system.name", "clickhouse");
+    span.setAttribute("db.query.text", opts.query);
+    span.setAttribute("db.operation.name", "SELECT");
 
     const res = await clickhouseClient({
       tags: opts.tags,
@@ -243,6 +251,10 @@ export async function commandClickhouse(opts: {
   return await instrumentAsync({ name: "clickhouse-command" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
+    span.setAttribute("db.system.name", "clickhouse");
+    span.setAttribute("db.query.text", opts.query);
+    span.setAttribute("db.operation.name", "COMMAND");
+
     const res = await clickhouseClient({
       tags: opts.tags,
       opts: opts.clickhouseConfigs,
