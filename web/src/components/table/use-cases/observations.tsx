@@ -508,7 +508,7 @@ export default function ObservationsTable({
         if (!model) return null;
 
         return modelId ? (
-          <TableId value={modelId} />
+          <TableId value={model} />
         ) : (
           <UpsertModelFormDrawer
             action="create"
