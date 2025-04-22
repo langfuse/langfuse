@@ -655,6 +655,7 @@ export function AnnotateDrawerContent({
           value,
           comment,
           queueId,
+          environment,
         });
 
         await mutUpdateScores.mutateAsync({
