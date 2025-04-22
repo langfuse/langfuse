@@ -18,6 +18,7 @@ const ProjectResponseSchema = z.object({
     z.object({
       id: z.string(),
       name: z.string(),
+      metadata: z.object({}).optional(),
       retentionDays: z.number().nullable().optional(),
     }),
   ),
@@ -27,6 +28,7 @@ const ProjectResponseSchema = z.object({
 const ProjectCreationResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
+  metadata: z.object({}).optional(),
   retentionDays: z.number().nullable().optional(),
 });
 
@@ -34,6 +36,7 @@ const ProjectCreationResponseSchema = z.object({
 const ProjectUpdateResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
+  metadata: z.object({}).optional(),
   retentionDays: z.number().nullable().optional(),
 });
 
@@ -113,6 +116,7 @@ describe("Projects API", () => {
       expect(response.body.data[0]).toMatchObject({
         id: projectId,
         name: projectName,
+        metadata: {},
       });
     });
 
@@ -174,6 +178,7 @@ describe("Projects API", () => {
 
     it("should create a new project with valid organization API key", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+      const metadata = { plan: "pro", features: ["all"] };
 
       const response = await makeZodVerifiedAPICall(
         ProjectCreationResponseSchema,
@@ -181,6 +186,7 @@ describe("Projects API", () => {
         "/api/public/projects",
         {
           name: uniqueProjectName,
+          metadata: metadata,
         },
         createBasicAuthHeader(orgApiKey, orgSecretKey),
         201, // Expected status code is 201 Created
@@ -190,6 +196,7 @@ describe("Projects API", () => {
       expect(response.body).toMatchObject({
         name: uniqueProjectName,
       });
+      expect(response.body.metadata).toEqual(metadata);
       expect(response.body.id).toBeDefined();
 
       // Verify the project was actually created in the database
@@ -198,6 +205,7 @@ describe("Projects API", () => {
       });
       expect(project).not.toBeNull();
       expect(project?.name).toBe(uniqueProjectName);
+      expect(project?.metadata).toEqual(metadata);
     });
 
     it("should create a new project with retention days", async () => {
@@ -340,6 +348,7 @@ describe("Projects API", () => {
         data: {
           name: uniqueProjectName,
           orgId: "seed-org-id", // Same org ID used for the API key
+          metadata: { plan: "free", features: ["basic"] },
         },
       });
       testProjectId = project.id;
@@ -411,6 +420,33 @@ describe("Projects API", () => {
       expect(response.status).toBe(200);
       // Retentions with value 0 are not returned.
       expect(response.body.retentionDays).toBeUndefined();
+    });
+
+    it("should update project metadata", async () => {
+      const newMetadata = { plan: "enterprise", features: ["all", "custom"] };
+      const response = await makeZodVerifiedAPICall(
+        ProjectUpdateResponseSchema,
+        "PUT",
+        `/api/public/projects/${testProjectId}`,
+        {
+          name: "Updated Project Name",
+          metadata: newMetadata,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200, // Expected status code is 200 OK
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.name).toBe("Updated Project Name");
+      expect(response.body.metadata).toEqual(newMetadata);
+
+      // Verify the project was updated in the database
+      const project = await prisma.project.findUnique({
+        where: { id: testProjectId },
+      });
+      expect(project).not.toBeNull();
+      expect(project?.name).toBe("Updated Project Name");
+      expect(project?.metadata).toEqual(newMetadata);
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {

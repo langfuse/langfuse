@@ -24,6 +24,9 @@ service:
         body:
           properties:
             name: string
+            metadata:
+              type: optional<map<string, unknown>>
+              docs: Optional metadata for the organization
       response: Organization
       errors:
         - commons.Error
@@ -53,6 +56,9 @@ service:
         body:
           properties:
             name: string
+            metadata:
+              type: optional<map<string, unknown>>
+              docs: Optional metadata for the organization
       response: Organization
       errors:
         - commons.Error
@@ -128,6 +134,9 @@ types:
       id: string
       name: string
       createdAt: datetime
+      metadata:
+        type: map<string, unknown>
+        docs: Metadata for the organization
 
   DeleteOrganizationResponse:
     docs: Response for successful organization deletion

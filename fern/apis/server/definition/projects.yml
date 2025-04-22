@@ -21,6 +21,9 @@ service:
         body:
           properties:
             name: string
+            metadata:
+              type: optional<map<string, unknown>>
+              docs: Optional metadata for the project
             retention:
               type: integer
               docs: Number of days to retain data. Must be 0 or at least 7 days. Requires data-retention entitlement for non-zero values. Optional.
@@ -37,6 +40,9 @@ service:
         body:
           properties:
             name: string
+            metadata:
+              type: optional<map<string, unknown>>
+              docs: Optional metadata for the project
             retention:
               type: integer
               docs: Number of days to retain data. Must be 0 or at least 7 days. Requires data-retention entitlement for non-zero values. Optional.
@@ -94,6 +100,9 @@ types:
     properties:
       id: string
       name: string
+      metadata:
+        type: map<string, unknown>
+        docs: Metadata for the project
       retentionDays:
         type: integer
         docs: Number of days to retain data. Null or 0 means no retention. Omitted if no retention is configured.

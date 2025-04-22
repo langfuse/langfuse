@@ -31,6 +31,7 @@ export async function handleGetOrganizationById(
       id: true,
       name: true,
       createdAt: true,
+      metadata: true,
     },
   });
 
@@ -38,7 +39,10 @@ export async function handleGetOrganizationById(
     return res.status(404).json({ error: "Organization not found" });
   }
 
-  return res.status(200).json(organization);
+  return res.status(200).json({
+    ...organization,
+    metadata: organization.metadata ?? {},
+  });
 }
 
 export async function handleUpdateOrganization(
@@ -61,6 +65,17 @@ export async function handleUpdateOrganization(
 
   const { name } = validationResult.data;
 
+  const { metadata } = req.body;
+  if (metadata !== undefined && typeof metadata !== "object") {
+    try {
+      JSON.parse(metadata);
+    } catch (error) {
+      return res.status(400).json({
+        message: `Invalid metadata. Should be a valid JSON object: ${error}`,
+      });
+    }
+  }
+
   // Check if organization exists
   const existingOrg = await prisma.organization.findUnique({
     where: { id: organizationId },
@@ -73,7 +88,7 @@ export async function handleUpdateOrganization(
   // Update the organization
   const updatedOrganization = await prisma.organization.update({
     where: { id: organizationId },
-    data: { name },
+    data: { name, metadata },
   });
 
   // Log the update
@@ -94,6 +109,7 @@ export async function handleUpdateOrganization(
     id: updatedOrganization.id,
     name: updatedOrganization.name,
     createdAt: updatedOrganization.createdAt,
+    metadata: updatedOrganization.metadata ?? {},
   });
 }
 
