@@ -259,7 +259,11 @@ export const SessionPage: React.FC<{
             key={trace.id}
           >
             <div className="col-span-2 overflow-hidden">
-              <SessionIO traceId={trace.id} projectId={projectId} />
+              <SessionIO
+                traceId={trace.id}
+                projectId={projectId}
+                timestamp={trace.timestamp}
+              />
             </div>
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
               <Link
@@ -317,12 +321,14 @@ export const SessionPage: React.FC<{
 const SessionIO = ({
   traceId,
   projectId,
+  timestamp,
 }: {
   traceId: string;
   projectId: string;
+  timestamp: Date;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId, projectId, timestamp },
     {
       enabled: typeof traceId === "string",
       trpc: {
