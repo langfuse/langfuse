@@ -32,10 +32,7 @@ export default withMiddlewares({
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const { traceId } = query;
-      const trace = await getTraceById({
-        traceId,
-        projectId: auth.scope.projectId,
-      });
+      const trace = await getTraceById(traceId, auth.scope.projectId);
       const [observations, scores] = await Promise.all([
         getObservationsForTrace(
           traceId,

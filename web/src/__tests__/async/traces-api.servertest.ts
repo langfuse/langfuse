@@ -435,7 +435,7 @@ describe("/api/public/traces API Endpoint", () => {
     // Then
     expect(deleteResponse.status).toBe(200);
     await waitForExpect(async () => {
-      const trace = await getTraceById({ traceId: createdTrace.id, projectId });
+      const trace = await getTraceById(createdTrace.id, projectId);
       expect(trace).toBeUndefined();
     }, 10_000);
   }, 10_000);
@@ -465,9 +465,9 @@ describe("/api/public/traces API Endpoint", () => {
     // Then
     expect(deleteResponse.status).toBe(200);
     await waitForExpect(async () => {
-      const trace1 = await getTraceById({ traceId: createdTrace1.id, projectId });
+      const trace1 = await getTraceById(createdTrace1.id, projectId);
       expect(trace1).toBeUndefined();
-      const trace2 = await getTraceById({ traceId: createdTrace2.id, projectId });
+      const trace2 = await getTraceById(createdTrace2.id, projectId);
       expect(trace2).toBeUndefined();
     }, 40_000);
   }, 60_000);

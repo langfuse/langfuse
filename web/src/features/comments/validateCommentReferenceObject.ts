@@ -23,10 +23,7 @@ export const validateCommentReferenceObject = async ({
     if (objectType === CommentObjectType.OBSERVATION) {
       clickhouseObject = await getObservationById(objectId, projectId);
     } else {
-      clickhouseObject = await getTraceById({
-        traceId: objectId,
-        projectId,
-      });
+      clickhouseObject = await getTraceById(objectId, projectId);
     }
 
     return !!clickhouseObject

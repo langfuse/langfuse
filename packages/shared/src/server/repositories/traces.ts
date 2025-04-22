@@ -302,27 +302,17 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
   return Number(rows[0]?.count ?? 0);
 };
 
-/**
- * Retrieves a trace record by its ID and associated project ID, with optional filtering by timestamp range.
- */
-export const getTraceById = async ({
-  traceId,
-  projectId,
-  timestamp,
-  fromTimestamp,
-}: {
-  traceId: string;
-  projectId: string;
-  timestamp?: Date;
-  fromTimestamp?: Date;
-}) => {
+export const getTraceById = async (
+  traceId: string,
+  projectId: string,
+  timestamp?: Date,
+) => {
   const query = `
     SELECT * 
     FROM traces
     WHERE id = {traceId: String} 
     AND project_id = {projectId: String}
     ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
-    ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""} 
     ORDER BY event_ts DESC 
     LIMIT 1
   `;
@@ -334,9 +324,6 @@ export const getTraceById = async ({
       projectId,
       ...(timestamp
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
-        : {}),
-      ...(fromTimestamp
-        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
         : {}),
     },
     tags: {
