@@ -12,7 +12,7 @@ export async function handleCreateProject(
   scope: ApiAccessScope,
 ) {
   try {
-    const { name, retention } = req.body;
+    const { name, retention, metadata } = req.body;
 
     // Validate project name
     try {
@@ -21,6 +21,16 @@ export async function handleCreateProject(
       return res.status(400).json({
         message: "Invalid project name. Should be between 3 and 60 characters.",
       });
+    }
+
+    if (metadata !== undefined && typeof metadata !== "object") {
+      try {
+        JSON.parse(metadata);
+      } catch (error) {
+        return res.status(400).json({
+          message: `Invalid metadata. Should be a valid JSON object: ${error}`,
+        });
+      }
     }
 
     // Validate retention days if provided
@@ -69,12 +79,14 @@ export async function handleCreateProject(
         name,
         orgId: scope.orgId,
         retentionDays: retention,
+        metadata,
       },
     });
 
     return res.status(201).json({
       id: project.id,
       name: project.name,
+      metadata: project.metadata ?? {},
       ...(project.retentionDays // Do not add if null or 0
         ? { retentionDays: project.retentionDays }
         : {}),

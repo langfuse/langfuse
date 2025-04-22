@@ -105,6 +105,7 @@ model Organization {
   createdAt               DateTime                 @default(now()) @map("created_at")
   updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at")
   cloudConfig             Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
+  metadata                Json?
   organizationMemberships OrganizationMembership[]
   projects                Project[]
   MembershipInvitation    MembershipInvitation[]
@@ -121,6 +122,7 @@ model Project {
   deletedAt              DateTime?                 @map("deleted_at")
   name                   String
   retentionDays          Int?                      @map("retention_days")
+  metadata               Json?
   projectMembers         ProjectMembership[]
   organization           Organization              @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   apiKeys                ApiKey[]

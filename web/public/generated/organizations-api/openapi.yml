@@ -126,6 +126,11 @@ paths:
               properties:
                 name:
                   type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  nullable: true
+                  description: Optional metadata for the organization
               required:
                 - name
   /api/admin/organizations/{organizationId}:
@@ -224,6 +229,11 @@ paths:
               properties:
                 name:
                   type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  nullable: true
+                  description: Optional metadata for the organization
               required:
                 - name
     delete:
@@ -441,10 +451,15 @@ components:
         createdAt:
           type: string
           format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Metadata for the organization
       required:
         - id
         - name
         - createdAt
+        - metadata
     DeleteOrganizationResponse:
       title: DeleteOrganizationResponse
       type: object
