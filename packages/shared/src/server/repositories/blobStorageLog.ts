@@ -1,6 +1,5 @@
 import {
   commandClickhouse,
-  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
 } from "./clickhouse";
@@ -14,7 +13,7 @@ export const getBlobStorageByProjectAndEntityId = async (
 ): Promise<BlobStorageFileRefRecordReadType[]> => {
   const query = `
     select *
-    from blob_storage_file_log
+    from blob_storage_file_log FINAL
     where project_id = {projectId: String}
     and entity_type = {entityType: String}
     and entity_id = {entityId: String}
@@ -40,7 +39,7 @@ export const getBlobStorageByProjectId = (
 ): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     select *
-    from blob_storage_file_log
+    from blob_storage_file_log FINAL
     where project_id = {projectId: String}
   `;
 
@@ -63,7 +62,7 @@ export const getBlobStorageByProjectIdBeforeDate = (
 ): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
         select *
-        from blob_storage_file_log
+        from blob_storage_file_log FINAL
         where project_id = {projectId: String}
         and created_at <= {beforeDate: DateTime64(3)}
     `;
@@ -89,7 +88,7 @@ export const getBlobStorageByProjectIdAndEntityIds = (
 ): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     select *
-    from blob_storage_file_log
+    from blob_storage_file_log FINAL
     where project_id = {projectId: String}
       and entity_type = {entityType: String}
       and entity_id in ({entityIds: Array(String)})
@@ -156,7 +155,7 @@ export const getBlobStorageByProjectIdAndTraceIds = (
     -- We use a semi join because we only use the 'filtered_events' as a filter.
     -- There is no need to build the cartesian product (i.e. the combination) between the event log and the events.
     select el.*
-    from blob_storage_file_log el
+    from blob_storage_file_log el FINAL
     left semi join filtered_events fe
     on el.project_id = fe.project_id and el.entity_id = fe.entity_id and el.entity_type = fe.entity_type
     where el.project_id = {projectId: String}
@@ -174,87 +173,6 @@ export const getBlobStorageByProjectIdAndTraceIds = (
     tags: {
       feature: "eventLog",
       kind: "list",
-      projectId,
-    },
-  });
-};
-
-/**
- * Deletes event log records by projectId and the _eventLog_.id
- * @param projectId - Project ID
- * @param ids - ID record of the event log table to be deleted
- */
-export const deleteBlobStorageByProjectIdAndIds = async (
-  projectId: string,
-  ids: string[],
-): Promise<void> => {
-  const query = `  
-    delete from blob_storage_file_log
-    where project_id = {projectId: String}
-    and id in ({ids: Array(String)});
-  `;
-
-  await commandClickhouse({
-    query,
-    params: {
-      projectId,
-      ids,
-    },
-    clickhouseConfigs: {
-      request_timeout: 300_000, // 5 minutes
-    },
-    tags: {
-      feature: "eventLog",
-      kind: "delete",
-      projectId,
-    },
-  });
-};
-
-export const deleteBlobStorageByProjectId = async (
-  projectId: string,
-): Promise<void> => {
-  const query = `
-    DELETE FROM blob_storage_file_log
-    WHERE project_id = {projectId: String};
-  `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-    },
-    clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
-    },
-    tags: {
-      feature: "eventLog",
-      kind: "delete",
-      projectId,
-    },
-  });
-};
-
-export const deleteBlobStorageByProjectIdBeforeDate = async (
-  projectId: string,
-  beforeDate: Date,
-): Promise<void> => {
-  const query = `
-    DELETE FROM blob_storage_file_log
-    WHERE project_id = {projectId: String}
-    AND created_at <= {beforeDate: DateTime64(3)};
-  `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-      beforeDate: convertDateToClickhouseDateTime(beforeDate),
-    },
-    clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
-    },
-    tags: {
-      feature: "eventLog",
-      kind: "delete",
       projectId,
     },
   });
