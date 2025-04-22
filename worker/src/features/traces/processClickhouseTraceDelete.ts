@@ -1,10 +1,9 @@
 import {
-  deleteBlobStorageByProjectIdAndIds,
   deleteObservationsByTraceIds,
   deleteScoresByTraceIds,
   deleteTraces,
-  getBlobStorageByProjectIdAndTraceIds,
   logger,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces,
   StorageService,
   StorageServiceFactory,
   traceException,
@@ -26,22 +25,6 @@ const getS3MediaStorageClient = (bucketName: string): StorageService => {
     });
   }
   return s3MediaStorageClient;
-};
-
-let s3EventStorageClient: StorageService;
-
-const getS3EventStorageClient = (bucketName: string): StorageService => {
-  if (!s3EventStorageClient) {
-    s3EventStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3EventStorageClient;
 };
 
 const deleteMediaItemsForTraces = async (
@@ -158,32 +141,10 @@ export const processClickhouseTraceDelete = async (
 
   await deleteMediaItemsForTraces(projectId, traceIds);
 
-  const eventLogStream = getBlobStorageByProjectIdAndTraceIds(
+  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces({
     projectId,
     traceIds,
-  );
-  let eventLogRecords: { id: string; path: string }[] = [];
-  const eventStorageClient = getS3EventStorageClient(
-    env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-  );
-  for await (const eventLog of eventLogStream) {
-    eventLogRecords.push({ id: eventLog.id, path: eventLog.bucket_path });
-    if (eventLogRecords.length > 500) {
-      // Delete the current batch and reset the list
-      await eventStorageClient.deleteFiles(eventLogRecords.map((r) => r.path));
-      await deleteBlobStorageByProjectIdAndIds(
-        projectId,
-        eventLogRecords.map((r) => r.id),
-      );
-      eventLogRecords = [];
-    }
-  }
-  // Delete any remaining files
-  await eventStorageClient.deleteFiles(eventLogRecords.map((r) => r.path));
-  await deleteBlobStorageByProjectIdAndIds(
-    projectId,
-    eventLogRecords.map((r) => r.id),
-  );
+  });
 
   try {
     await Promise.all([
