@@ -4,14 +4,14 @@ import {
   queryClickhouse,
   queryClickhouseStream,
 } from "./clickhouse";
-import { EventLogRecordReadType } from "./definitions";
+import { BlobStorageFileRefRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 export const getBlobStorageByProjectAndEntityId = async (
   projectId: string,
   entityType: string,
   entityId: string,
-): Promise<EventLogRecordReadType[]> => {
+): Promise<BlobStorageFileRefRecordReadType[]> => {
   const query = `
     select * 
     from blob_storage_file_log FINAL
@@ -20,7 +20,7 @@ export const getBlobStorageByProjectAndEntityId = async (
     and entity_id = {entityId: String}
   `;
 
-  return queryClickhouse<EventLogRecordReadType>({
+  return queryClickhouse<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -37,14 +37,14 @@ export const getBlobStorageByProjectAndEntityId = async (
 
 export const getBlobStorageByProjectId = (
   projectId: string,
-): AsyncGenerator<EventLogRecordReadType> => {
+): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     select * 
     from blob_storage_file_log FINAL
     where project_id = {projectId: String}
   `;
 
-  return queryClickhouseStream<EventLogRecordReadType>({
+  return queryClickhouseStream<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -60,7 +60,7 @@ export const getBlobStorageByProjectId = (
 export const getBlobStorageByProjectIdBeforeDate = (
   projectId: string,
   beforeDate: Date,
-): AsyncGenerator<EventLogRecordReadType> => {
+): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
         select *
         from blob_storage_file_log FINAL
@@ -68,7 +68,7 @@ export const getBlobStorageByProjectIdBeforeDate = (
         and created_at <= {beforeDate: DateTime64(3)}
     `;
 
-  return queryClickhouseStream<EventLogRecordReadType>({
+  return queryClickhouseStream<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -86,7 +86,7 @@ export const getBlobStorageByProjectIdAndEntityIds = (
   projectId: string,
   entityType: "observation" | "trace" | "score",
   entityIds: string[],
-): AsyncGenerator<EventLogRecordReadType> => {
+): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     select *
     from blob_storage_file_log FINAL
@@ -95,7 +95,7 @@ export const getBlobStorageByProjectIdAndEntityIds = (
       and entity_id in ({entityIds: Array(String)})
   `;
 
-  return queryClickhouseStream<EventLogRecordReadType>({
+  return queryClickhouseStream<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -116,7 +116,7 @@ export const getBlobStorageByProjectIdAndEntityIds = (
 export const getBlobStorageByProjectIdAndTraceIds = (
   projectId: string,
   traceIds: string[],
-): AsyncGenerator<EventLogRecordReadType> => {
+): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     with filtered_traces as (
       select distinct
@@ -162,7 +162,7 @@ export const getBlobStorageByProjectIdAndTraceIds = (
     where el.project_id = {projectId: String}
   `;
 
-  return queryClickhouseStream<EventLogRecordReadType>({
+  return queryClickhouseStream<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -192,7 +192,7 @@ export const getEventLogOrderedByTime = async (
     LIMIT {limit: Int32}
   `;
 
-  const rows = await queryClickhouse<EventLogRecordReadType>({
+  const rows = await queryClickhouse<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       largerThanEqual: convertDateToClickhouseDateTime(largerThanEqual),
