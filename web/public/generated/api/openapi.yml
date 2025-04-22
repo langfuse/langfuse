@@ -2256,6 +2256,11 @@ paths:
               properties:
                 name:
                   type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  nullable: true
+                  description: Optional metadata for the project
                 retention:
                   type: integer
                   description: >-
@@ -2320,6 +2325,11 @@ paths:
               properties:
                 name:
                   type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  nullable: true
+                  description: Optional metadata for the project
                 retention:
                   type: integer
                   description: >-
@@ -6282,6 +6292,10 @@ components:
           type: string
         name:
           type: string
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Metadata for the project
         retentionDays:
           type: integer
           description: >-
@@ -6290,6 +6304,7 @@ components:
       required:
         - id
         - name
+        - metadata
         - retentionDays
     ProjectDeletionResponse:
       title: ProjectDeletionResponse
