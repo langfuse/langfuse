@@ -253,11 +253,13 @@ export const ExperimentMetadataSchema = z
 export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
 
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
-// WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
+// WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const openAIModels = [
   "gpt-4.1",
   "gpt-4.1-2025-04-14",
+  "gpt-4.1-mini",
   "gpt-4.1-mini-2025-04-14",
+  "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
   "o3",
   "o3-2025-04-16",
@@ -293,7 +295,7 @@ export const openAIModels = [
 export type OpenAIModel = (typeof openAIModels)[number];
 
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
-// WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
+// WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
   "claude-3-7-sonnet-20250219",
   "claude-3-5-sonnet-20241022",
@@ -307,10 +309,11 @@ export const anthropicModels = [
   "claude-instant-1.2",
 ] as const;
 
-// WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
+// WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
   "gemini-2.5-pro-exp-03-25",
   "gemini-2.0-pro-exp-02-05",
+  "gemini-2.0-flash",
   "gemini-2.0-flash-001",
   "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-exp",
@@ -323,6 +326,7 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-pro-exp-03-25",
   "gemini-2.0-flash",
+  "gemini-2.0-flash-lite-preview",
   "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-thinking-exp-01-21",
   "gemini-1.5-pro",

@@ -42,7 +42,7 @@ export const getOrganizationSettingsPages = ({
   showBillingSettings,
   isLangfuseCloud,
 }: {
-  organization: { id: string; name: string };
+  organization: { id: string; name: string; metadata: Record<string, unknown> };
   showBillingSettings: boolean;
   isLangfuseCloud: boolean;
 }): OrganizationSettingsPage[] => [
@@ -57,7 +57,11 @@ export const getOrganizationSettingsPages = ({
           <Header title="Debug Information" />
           <JSONView
             title="Metadata"
-            json={{ name: organization.name, id: organization.id }}
+            json={{
+              name: organization.name,
+              id: organization.id,
+              ...organization.metadata,
+            }}
           />
         </div>
         <SettingsDangerZone

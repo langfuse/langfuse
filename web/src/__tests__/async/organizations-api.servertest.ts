@@ -13,6 +13,7 @@ const OrganizationResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   createdAt: z.string().datetime(),
+  metadata: z.object({}),
 });
 
 // Schema for multiple organizations response
@@ -56,6 +57,39 @@ describe("Admin Organizations API", () => {
   describe("POST /api/admin/organizations", () => {
     it("should create a new organization with valid admin authentication", async () => {
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
+      const metadata = { tier: "testing", users: 5 };
+
+      const response = await makeZodVerifiedAPICall(
+        OrganizationResponseSchema,
+        "POST",
+        "/api/admin/organizations",
+        {
+          name: uniqueOrgName,
+          metadata: metadata,
+        },
+        `Bearer ${ADMIN_API_KEY}`,
+        201, // Expected status code is 201 Created
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body).toMatchObject({
+        name: uniqueOrgName,
+        metadata: metadata,
+      });
+      expect(response.body.id).toBeDefined();
+      expect(response.body.createdAt).toBeDefined();
+
+      // Verify the organization was actually created in the database
+      const org = await prisma.organization.findUnique({
+        where: { id: response.body.id },
+      });
+      expect(org).not.toBeNull();
+      expect(org?.name).toBe(uniqueOrgName);
+      expect(org?.metadata).toEqual(metadata);
+    });
+
+    it("should create a new organization without metadata", async () => {
+      const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
 
       const response = await makeZodVerifiedAPICall(
         OrganizationResponseSchema,
@@ -71,6 +105,7 @@ describe("Admin Organizations API", () => {
       expect(response.status).toBe(201);
       expect(response.body).toMatchObject({
         name: uniqueOrgName,
+        metadata: {},
       });
       expect(response.body.id).toBeDefined();
       expect(response.body.createdAt).toBeDefined();
@@ -81,6 +116,7 @@ describe("Admin Organizations API", () => {
       });
       expect(org).not.toBeNull();
       expect(org?.name).toBe(uniqueOrgName);
+      expect(org?.metadata).toBeNull();
     });
 
     it("should return 401 when no authorization header is provided", async () => {
@@ -142,7 +178,7 @@ describe("Admin Organizations API", () => {
       // Create a test organization to retrieve
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
-        data: { name: uniqueOrgName },
+        data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
       });
       testOrgId = org.id;
     });
@@ -175,6 +211,10 @@ describe("Admin Organizations API", () => {
       expect(
         response.body.organizations.some((org) => org.id === testOrgId),
       ).toBe(true);
+      expect(
+        response.body.organizations.find((org) => org.id === testOrgId)
+          ?.metadata,
+      ).toEqual({ tier: "testing", users: 5 });
     });
 
     it("should return 401 when no authorization header is provided", async () => {
@@ -191,7 +231,7 @@ describe("Admin Organizations API", () => {
       // Create a test organization to retrieve
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
-        data: { name: uniqueOrgName },
+        data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
       });
       testOrgId = org.id;
     });
@@ -219,6 +259,7 @@ describe("Admin Organizations API", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.id).toBe(testOrgId);
+      expect(response.body.metadata).toEqual({ tier: "testing", users: 5 });
     });
 
     it("should return 404 when getting a non-existent organization", async () => {
@@ -242,7 +283,7 @@ describe("Admin Organizations API", () => {
       // Create a test organization to update
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
-        data: { name: uniqueOrgName },
+        data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
       });
       testOrgId = org.id;
     });
@@ -260,6 +301,7 @@ describe("Admin Organizations API", () => {
 
     it("should update an organization with valid admin authentication", async () => {
       const newName = `Updated Org ${randomUUID().substring(0, 8)}`;
+      const newMetadata = { tier: "updated", users: 10, featureX: true };
 
       const response = await makeZodVerifiedAPICall(
         OrganizationResponseSchema,
@@ -267,6 +309,7 @@ describe("Admin Organizations API", () => {
         `/api/admin/organizations/${testOrgId}`,
         {
           name: newName,
+          metadata: newMetadata,
         },
         `Bearer ${ADMIN_API_KEY}`,
         200,
@@ -276,6 +319,7 @@ describe("Admin Organizations API", () => {
       expect(response.body).toMatchObject({
         id: testOrgId,
         name: newName,
+        metadata: newMetadata,
       });
 
       // Verify the organization was actually updated in the database
@@ -284,6 +328,7 @@ describe("Admin Organizations API", () => {
       });
       expect(org).not.toBeNull();
       expect(org?.name).toBe(newName);
+      expect(org?.metadata).toEqual(newMetadata);
     });
 
     it("should return 404 when updating a non-existent organization", async () => {
@@ -336,7 +381,7 @@ describe("Admin Organizations API", () => {
       // Create a test organization to delete
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
-        data: { name: uniqueOrgName },
+        data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
       });
       testOrgId = org.id;
     });
@@ -357,7 +402,10 @@ describe("Admin Organizations API", () => {
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const orgId = (
         await prisma.organization.create({
-          data: { name: uniqueOrgName },
+          data: {
+            name: uniqueOrgName,
+            metadata: { tier: "testing", users: 5 },
+          },
         })
       ).id;
 
@@ -440,7 +488,7 @@ describe("Admin Organizations API", () => {
       // Create a test organization
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
-        data: { name: uniqueOrgName },
+        data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
       });
       testOrgId = org.id;
 
@@ -508,7 +556,7 @@ describe("Admin Organizations API", () => {
       // Create a test organization
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
-        data: { name: uniqueOrgName },
+        data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
       });
       testOrgId = org.id;
     });
@@ -590,7 +638,7 @@ describe("Admin Organizations API", () => {
       // Create a test organization
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
-        data: { name: uniqueOrgName },
+        data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
       });
       testOrgId = org.id;
 

@@ -13,9 +13,15 @@ export async function handleGetOrganizations(
       id: true,
       name: true,
       createdAt: true,
+      metadata: true,
     },
   });
-  return res.status(200).json({ organizations });
+  return res.status(200).json({
+    organizations: organizations.map((org) => ({
+      ...org,
+      metadata: org.metadata ?? {},
+    })),
+  });
 }
 
 export async function handleCreateOrganization(
@@ -35,10 +41,22 @@ export async function handleCreateOrganization(
 
   const { name } = validationResult.data;
 
+  const { metadata } = req.body;
+  if (metadata !== undefined && typeof metadata !== "object") {
+    try {
+      JSON.parse(metadata);
+    } catch (error) {
+      return res.status(400).json({
+        message: `Invalid metadata. Should be a valid JSON object: ${error}`,
+      });
+    }
+  }
+
   // Create the organization in the database
   const organization = await prisma.organization.create({
     data: {
       name,
+      metadata,
     },
   });
 
@@ -59,5 +77,6 @@ export async function handleCreateOrganization(
     id: organization.id,
     name: organization.name,
     createdAt: organization.createdAt,
+    metadata: organization.metadata ?? {},
   });
 }

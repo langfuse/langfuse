@@ -521,6 +521,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           id: orgMembership.organization.id,
                           name: orgMembership.organization.name,
                           role: orgMembership.role,
+                          metadata:
+                            (orgMembership.organization.metadata as Record<
+                              string,
+                              unknown
+                            >) ?? {},
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {
@@ -535,6 +540,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                 role: projectRole,
                                 retentionDays: project.retentionDays,
                                 deletedAt: project.deletedAt,
+                                metadata:
+                                  (project.metadata as Record<
+                                    string,
+                                    unknown
+                                  >) ?? {},
                               };
                             })
                             // Only include projects where the user has the required role

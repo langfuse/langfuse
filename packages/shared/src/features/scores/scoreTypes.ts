@@ -303,7 +303,7 @@ export const legacyFilterAndValidateV1GetScoreList = (
       if (result.success) {
         acc.push(result.data);
       } else {
-        console.error("Score parsing error: ", result.error);
+        console.error(`Score parsing error ${JSON.stringify(result.error)}`);
         onParseError?.(result.error);
       }
       return acc;
