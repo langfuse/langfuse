@@ -389,7 +389,7 @@ export const getScoresGroupedByNameSourceType = async (
   }));
 };
 
-export const getScoresGroupedByName = async (
+export const getNumericScoresGroupedByName = async (
   projectId: string,
   timestampFilter?: FilterState,
 ) => {

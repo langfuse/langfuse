@@ -12,7 +12,7 @@ import {
   getObservationsGroupedByModelId,
   getObservationsGroupedByName,
   getObservationsGroupedByPromptName,
-  getScoresGroupedByName,
+  getNumericScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
 } from "@langfuse/shared/src/server";
@@ -77,7 +77,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       modelId,
     ] = await Promise.all([
       // numeric scores
-      getScoresGroupedByName(
+      getNumericScoresGroupedByName(
         input.projectId,
         startTimeFilter
           ? [

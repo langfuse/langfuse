@@ -24,7 +24,7 @@ import {
   getTracesTable,
   getTracesTableCount,
   getScoresForTraces,
-  getScoresGroupedByName,
+  getNumericScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
   getObservationsForTrace,
@@ -156,7 +156,7 @@ export const traceRouter = createTRPCRouter({
 
       const [numericScoreNames, categoricalScoreNames, traceNames, tags] =
         await Promise.all([
-          getScoresGroupedByName(
+          getNumericScoresGroupedByName(
             input.projectId,
             timestampFilter ? [timestampFilter] : [],
           ),
