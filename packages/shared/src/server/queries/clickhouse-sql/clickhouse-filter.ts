@@ -179,7 +179,7 @@ export class CategoryOptionsFilter implements Filter {
   constructor(opts: {
     clickhouseTable: string;
     field: string;
-    operator: (typeof filterOperators.stringOptions)[number];
+    operator: (typeof filterOperators.categoryOptions)[number];
     key: string;
     values: string[];
     tablePrefix?: string;
