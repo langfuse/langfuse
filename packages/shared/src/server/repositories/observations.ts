@@ -998,18 +998,18 @@ export const deleteObservationsByProjectId = async (projectId: string) => {
 
 export const deleteObservationsOlderThanDays = async (
   projectId: string,
-  days: number,
+  beforeDate: Date,
 ) => {
   const query = `
     DELETE FROM observations
     WHERE project_id = {projectId: String}
-    AND start_time < now() - INTERVAL {numDays: Int} DAYS;
+    AND start_time < {cutoffDate: DateTime64(3)};
   `;
   await commandClickhouse({
     query: query,
     params: {
       projectId,
-      numDays: days,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes

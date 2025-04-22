@@ -115,9 +115,9 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     `[Data Retention] Deleting ClickHouse data older than ${retention} days for project ${projectId}`,
   );
   await Promise.all([
-    deleteTracesOlderThanDays(projectId, retention),
-    deleteObservationsOlderThanDays(projectId, retention),
-    deleteScoresOlderThanDays(projectId, retention),
+    deleteTracesOlderThanDays(projectId, cutoffDate),
+    deleteObservationsOlderThanDays(projectId, cutoffDate),
+    deleteScoresOlderThanDays(projectId, cutoffDate),
     deleteEventLogByProjectIdBeforeDate(projectId, cutoffDate),
   ]);
   logger.info(
