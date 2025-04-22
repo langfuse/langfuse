@@ -303,7 +303,7 @@ function FilterBuilderForm({
                         role="combobox"
                         type="button"
                         disabled={disabled}
-                        className="flex min-w-32 max-w-fit items-center justify-between gap-2"
+                        className="flex w-full min-w-32 items-center justify-between gap-2"
                       >
                         <span className="truncate">
                           {column ? column.name : "Column"}
