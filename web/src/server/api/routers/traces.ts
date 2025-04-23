@@ -24,7 +24,7 @@ import {
   getTracesTable,
   getTracesTableCount,
   getScoresForTraces,
-  getScoresGroupedByName,
+  getNumericScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
   getObservationsForTrace,
@@ -36,6 +36,7 @@ import {
   QueueJobs,
   TraceDeleteQueue,
   getTracesTableMetrics,
+  getCategoricalScoresGroupedByName,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
@@ -153,25 +154,31 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const { timestampFilter } = input;
 
-      const [scoreNames, traceNames, tags] = await Promise.all([
-        getScoresGroupedByName(
-          input.projectId,
-          timestampFilter ? [timestampFilter] : [],
-        ),
-        getTracesGroupedByName(
-          input.projectId,
-          tracesTableUiColumnDefinitions,
-          timestampFilter ? [timestampFilter] : [],
-        ),
-        getTracesGroupedByTags({
-          projectId: input.projectId,
-          filter: timestampFilter ? [timestampFilter] : [],
-        }),
-      ]);
+      const [numericScoreNames, categoricalScoreNames, traceNames, tags] =
+        await Promise.all([
+          getNumericScoresGroupedByName(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getCategoricalScoresGroupedByName(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getTracesGroupedByName(
+            input.projectId,
+            tracesTableUiColumnDefinitions,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getTracesGroupedByTags({
+            projectId: input.projectId,
+            filter: timestampFilter ? [timestampFilter] : [],
+          }),
+        ]);
 
       return {
         name: traceNames.map((n) => ({ value: n.name })),
-        scores_avg: scoreNames.map((s) => s.name),
+        scores_avg: numericScoreNames.map((s) => s.name),
+        score_categories: categoricalScoreNames,
         tags: tags,
       };
     }),
