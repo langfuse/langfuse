@@ -38,6 +38,16 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
+  
+  // Secondary ClickHouse instance configuration
+  CLICKHOUSE_SECONDARY_ENABLED: z.enum(["true", "false"]).default("false"),
+  CLICKHOUSE_SECONDARY_URL: z.string().url().optional(),
+  CLICKHOUSE_SECONDARY_CLUSTER_NAME: z.string().default("default"),
+  CLICKHOUSE_SECONDARY_DB: z.string().default("default"),
+  CLICKHOUSE_SECONDARY_USER: z.string().optional(),
+  CLICKHOUSE_SECONDARY_PASSWORD: z.string().optional(),
+  CLICKHOUSE_SECONDARY_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()

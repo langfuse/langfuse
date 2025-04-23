@@ -9,6 +9,7 @@ import {
   recordIncrement,
   ScoreRecordInsertType,
   TraceRecordInsertType,
+  dualClickhouseWrite,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
@@ -212,20 +213,16 @@ export class ClickhouseWriter {
   }): Promise<void> {
     const startTime = Date.now();
 
-    await (
-      ClickhouseWriter.client ??
-      clickhouseClient({ tags: { feature: "ingestion" } })
-    )
-      .insert({
-        table: params.table,
-        format: "JSONEachRow",
-        values: params.records,
-      })
-      .catch((err) => {
-        logger.error(`ClickhouseWriter.writeToClickhouse ${err}`);
-
-        throw err;
-      });
+    // Use dualClickhouseWrite instead of direct client insert
+    await dualClickhouseWrite({
+      table: params.table,
+      values: params.records,
+      format: "JSONEachRow",
+      tags: { feature: "ingestion" },
+    }).catch((err) => {
+      logger.error(`ClickhouseWriter.writeToClickhouse ${err}`);
+      throw err;
+    });
 
     logger.debug(
       `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`,

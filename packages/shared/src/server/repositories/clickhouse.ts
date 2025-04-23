@@ -2,6 +2,7 @@ import { env } from "../../env";
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
+  dualClickhouseWrite,
 } from "../clickhouse/client";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
@@ -55,11 +56,7 @@ export async function upsertClickhouse<
         const eventId = randomUUID();
         const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${eventId}.json`;
 
-        // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
-        // and are not worried that much about latency.
-        await clickhouseClient({
-          tags: opts.tags,
-        }).insert({
+        await dualClickhouseWrite({
           table: "blob_storage_file_log",
           values: [
             {
@@ -75,6 +72,7 @@ export async function upsertClickhouse<
             },
           ],
           format: "JSONEachRow",
+          tags: opts.tags,
         });
 
         return getS3StorageServiceClient(
@@ -90,13 +88,14 @@ export async function upsertClickhouse<
       }),
     );
 
-    const res = await clickhouseClient({ tags: opts.tags }).insert({
+    const res = await dualClickhouseWrite({
       table: opts.table,
       values: opts.records.map((record) => ({
         ...record,
         event_ts: convertDateToClickhouseDateTime(new Date()),
       })),
       format: "JSONEachRow",
+      tags: opts.tags,
     });
     // same logic as for prisma. we want to see queries in development
     if (env.NODE_ENV === "development") {

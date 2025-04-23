@@ -5,9 +5,9 @@ import {
   getBlobStorageByProjectIdAndTraceIds,
   getBlobStorageByProjectIdBeforeDate,
   logger,
+  dualClickhouseWrite,
 } from "..";
 import { env } from "../../env";
-import { clickhouseClient } from "../clickhouse/client";
 import { getS3EventStorageClient } from "../s3";
 
 export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
@@ -95,7 +95,7 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
 async function softDeleteInClickhouse(
   blobStorageRefs: BlobStorageFileRefRecordReadType[],
 ) {
-  await clickhouseClient().insert({
+  await dualClickhouseWrite({
     table: "blob_storage_file_log",
     values: blobStorageRefs.map((e) => ({
       ...e,

@@ -22,6 +22,7 @@ import {
   queryClickhouse,
   type ScoreRecordReadType,
   traceException,
+  dualClickhouseWrite,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
@@ -162,13 +163,12 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
     })),
   );
 
-  await clickhouseClient({
-    tags: { feature: "dataset", projectId },
-    opts: { session_id: clickhouseSession },
-  }).insert({
+  await dualClickhouseWrite({
     table: tableName,
     values: rows,
     format: "JSONEachRow",
+    tags: { feature: "dataset", projectId },
+    opts: { session_id: clickhouseSession },
   });
 };
 
