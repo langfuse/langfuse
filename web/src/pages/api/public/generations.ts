@@ -5,7 +5,7 @@ import {
   PatchGenerationsV1Response,
 } from "@/src/features/public-api/types/generations";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   eventTypes,
   logger,
@@ -14,7 +14,7 @@ import {
 import { v4 } from "uuid";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Generation (Legacy)",
     bodySchema: PostGenerationsV1Body,
     responseSchema: PostGenerationsV1Response,
@@ -50,7 +50,7 @@ export default withMiddlewares({
       return { id: event.body.id };
     },
   }),
-  PATCH: createAuthedAPIRoute({
+  PATCH: createAuthedProjectAPIRoute({
     name: "Patch Generation (Legacy)",
     bodySchema: PatchGenerationsV1Body,
     responseSchema: PatchGenerationsV1Response,

@@ -10,7 +10,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
-import { type RowSelectionState } from "@tanstack/react-table";
+import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import {
   NumberParam,
@@ -32,7 +32,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
-  type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevelType,
   BatchExportTableName,
@@ -84,41 +83,45 @@ import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTra
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 
 export type TracesTableRow = {
+  // Shown by default
   bookmarked: boolean;
-  id: string;
   timestamp: Date;
   name: string;
-  userId: string;
-  level?: ObservationLevelType;
-  observationCount?: bigint;
+  // i/o and metadata not set explicitly, but fetched from the server from the cell
+  input?: unknown;
+  output?: unknown;
   levelCounts: {
     errorCount?: bigint;
     warningCount?: bigint;
     debugCount?: bigint;
     defaultCount?: bigint;
   };
+  latency?: number;
+  usageDetails?: Record<string, number>;
+  totalCost?: Decimal;
+  costDetails?: Record<string, number>;
+  environment?: string;
+  tags: string[];
+  metadata?: unknown;
   // scores holds grouped column with individual scores
   scores?: ScoreAggregate;
-  latency?: number;
-  release?: string;
-  version?: string;
+  // Hidden by default
   sessionId?: string;
-  environment?: string;
-  // i/o and metadata not set explicitly, but fetched from the server from the cell
-  input?: unknown;
-  output?: unknown;
-  metadata?: unknown;
-  tags: string[];
+  userId: string;
+  observationCount?: bigint;
+  level?: ObservationLevelType;
+  version?: string;
+  release?: string;
+  id: string;
   usage: {
     inputUsage?: bigint;
     outputUsage?: bigint;
     totalUsage?: bigint;
   };
-  usageDetails?: Record<string, number>;
-  costDetails?: Record<string, number>;
-  inputCost?: Decimal;
-  outputCost?: Decimal;
-  totalCost?: Decimal;
+  cost?: {
+    inputCost?: Decimal;
+    outputCost?: Decimal;
+  };
 };
 
 export type TracesTableProps = {
@@ -266,20 +269,11 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
+
+  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
+    { projectId },
     {
-      projectId,
-      timestampFilter:
-        dateRangeFilter[0]?.type === "datetime"
-          ? dateRangeFilter[0]
-          : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
@@ -287,13 +281,16 @@ export default function TracesTable({
     },
   );
 
-  const transformFilterOptions = (
-    traceFilterOptions: TraceOptions | undefined,
-  ) => {
+  const traceFilterOptions = traceFilterOptionsResponse.data;
+
+  const transformedFilterOptions = useMemo(() => {
     return tracesTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name),
+      (c) =>
+        c.id !== "environment" &&
+        !omittedFilter?.includes(c.name) &&
+        !omittedFilter?.includes(c.id),
     );
-  };
+  }, [traceFilterOptions, omittedFilter]);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
@@ -436,21 +433,7 @@ export default function TracesTable({
       },
       enableSorting: true,
     },
-    {
-      accessorKey: "id",
-      header: "ID",
-      id: "id",
-      size: 90,
-      isPinned: true,
-      cell: ({ row }) => {
-        const value: TracesTableRow["id"] = row.getValue("id");
 
-        return value && typeof value === "string" ? (
-          <TableId value={value} />
-        ) : undefined;
-      },
-      enableSorting: true,
-    },
     {
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -468,217 +451,6 @@ export default function TracesTable({
       header: "Name",
       id: "name",
       size: 150,
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "environment",
-      header: "Environment",
-      id: "environment",
-      size: 150,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: TracesTableRow["environment"] =
-          row.getValue("environment");
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
-    {
-      accessorKey: "userId",
-      header: "User",
-      id: "userId",
-      size: 150,
-      headerTooltip: {
-        description: "Add `userId` to traces to track users.",
-        href: "https://langfuse.com/docs/tracing-features/users",
-      },
-      cell: ({ row }) => {
-        const value: TracesTableRow["userId"] = row.getValue("userId");
-        return value && typeof value === "string" ? (
-          <TableId value={value} />
-        ) : undefined;
-      },
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "sessionId",
-      enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
-      id: "sessionId",
-      header: "Session",
-      size: 150,
-      headerTooltip: {
-        description: "Add `sessionId` to traces to track sessions.",
-        href: "https://langfuse.com/docs/tracing-features/sessions",
-      },
-      cell: ({ row }) => {
-        const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
-        return value && typeof value === "string" ? (
-          <TableId value={value} />
-        ) : undefined;
-      },
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "latency",
-      id: "latency",
-      header: "Latency",
-      size: 70,
-      // add seconds to the end of the latency
-      cell: ({ row }) => {
-        const value: TracesTableRow["latency"] = row.getValue("latency");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return value !== undefined ? (
-          <span>{formatIntervalSeconds(value)}</span>
-        ) : undefined;
-      },
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "inputTokens",
-      id: "inputTokens",
-      header: "Input Tokens",
-      size: 110,
-      cell: ({ row }) => {
-        const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "outputTokens",
-      id: "outputTokens",
-      header: "Output Tokens",
-      size: 110,
-      cell: ({ row }) => {
-        const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "totalTokens",
-      id: "totalTokens",
-      header: "Total Tokens",
-      size: 110,
-      cell: ({ row }) => {
-        const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "usage",
-      header: "Usage",
-      id: "usage",
-      size: 220,
-      cell: ({ row }) => {
-        const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return (
-          <BreakdownTooltip details={row.original.usageDetails ?? []}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={Number(value.inputUsage ?? 0)}
-                outputUsage={Number(value.outputUsage ?? 0)}
-                totalUsage={Number(value.totalUsage ?? 0)}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
-      enableSorting: true,
-      enableHiding: true,
-    },
-    {
-      ...getScoreGroupColumnProps(isColumnLoading || !traceMetrics.data),
-      columns: scoreColumns,
-    },
-    {
-      accessorKey: "inputCost",
-      id: "inputCost",
-      header: "Input Cost",
-      size: 100,
-      cell: ({ row }) => {
-        const cost: TracesTableRow["inputCost"] = row.getValue("inputCost");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return (
-          <div>
-            {cost ? (
-              <span>{usdFormatter(cost.toNumber())}</span>
-            ) : (
-              <span>-</span>
-            )}
-          </div>
-        );
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "outputCost",
-      id: "outputCost",
-      header: "Output Cost",
-      size: 100,
-      cell: ({ row }) => {
-        const cost: TracesTableRow["outputCost"] = row.getValue("outputCost");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return (
-          <div>
-            {cost ? (
-              <span>{usdFormatter(cost.toNumber())}</span>
-            ) : (
-              <span>-</span>
-            )}
-          </div>
-        );
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "totalCost",
-      id: "totalCost",
-      header: "Total Cost",
-      size: 100,
-      cell: ({ row }) => {
-        const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return cost != null ? (
-          <BreakdownTooltip details={row.original.costDetails ?? []} isCost>
-            <div className="flex items-center gap-1">
-              {cost ? (
-                <span>{usdFormatter(cost.toNumber())}</span>
-              ) : (
-                <span>-</span>
-              )}
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        ) : null;
-      },
       enableHiding: true,
       enableSorting: true,
     },
@@ -702,7 +474,6 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
-      defaultHidden: true,
     },
     {
       accessorKey: "output",
@@ -724,7 +495,143 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
-      defaultHidden: true,
+    },
+    {
+      accessorKey: "levelCounts",
+      id: "levelCounts",
+      header: "Observation Levels",
+      size: 150,
+      cell: ({ row }) => {
+        const value: TracesTableRow["levelCounts"] =
+          row.getValue("levelCounts");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+
+        const counts: LevelCount[] = Object.entries(value).map(
+          ([level, count]) => ({
+            level: formatAsLabel(level),
+            count,
+            symbol: LevelSymbols[formatAsLabel(level)],
+          }),
+        );
+
+        return <LevelCountsDisplay counts={counts} />;
+      },
+      enableHiding: true,
+    },
+    {
+      accessorKey: "latency",
+      id: "latency",
+      header: "Latency",
+      size: 100,
+      // add seconds to the end of the latency
+      cell: ({ row }) => {
+        const value: TracesTableRow["latency"] = row.getValue("latency");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        return value !== undefined ? (
+          <span className="text-nowrap">{formatIntervalSeconds(value)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+
+    {
+      accessorKey: "tokens",
+      header: "Tokens",
+      id: "tokens",
+      size: 180,
+      cell: ({ row }) => {
+        const value: TracesTableRow["usage"] = row.getValue("usage");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
+          return null;
+        }
+        return (
+          <BreakdownTooltip details={row.original.usageDetails ?? []}>
+            <div className="flex items-center gap-1">
+              <TokenUsageBadge
+                inputUsage={Number(value.inputUsage ?? 0)}
+                outputUsage={Number(value.outputUsage ?? 0)}
+                totalUsage={Number(value.totalUsage ?? 0)}
+                inline
+              />
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+    },
+    {
+      accessorKey: "totalCost",
+      id: "totalCost",
+      header: "Total Cost",
+      size: 130,
+      cell: ({ row }) => {
+        const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        return cost != null ? (
+          <BreakdownTooltip details={row.original.costDetails ?? []} isCost>
+            <div className="flex items-center gap-1">
+              {cost ? (
+                <span>{usdFormatter(cost.toNumber())}</span>
+              ) : (
+                <span>-</span>
+              )}
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
+        ) : null;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
+      size: 150,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: TracesTableRow["environment"] =
+          row.getValue("environment");
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+          >
+            {value}
+          </Badge>
+        ) : null;
+      },
+    },
+    {
+      accessorKey: "tags",
+      id: "tags",
+      header: "Tags",
+      size: 150,
+      headerTooltip: {
+        description: "Group traces with tags.",
+        href: "https://langfuse.com/docs/tracing-features/tags",
+      },
+      cell: ({ row }) => {
+        const tags: TracesTableRow["tags"] = row.getValue("tags");
+        const traceId: TracesTableRow["id"] = row.getValue("id");
+        const filterOptionTags = traceFilterOptions?.tags ?? [];
+        const allTags = filterOptionTags.map((t) => t.value);
+        return (
+          <TagTracePopover
+            tags={tags}
+            availableTags={allTags}
+            projectId={projectId}
+            traceId={traceId}
+            tracesFilter={tracesAllQueryFilter}
+            className={cn(rowHeight !== "s" && "flex-wrap")}
+          />
+        );
+      },
+      enableHiding: true,
     },
     {
       accessorKey: "metadata",
@@ -749,7 +656,66 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
+    },
+    {
+      ...getScoreGroupColumnProps(isColumnLoading || !traceMetrics.data),
+      columns: scoreColumns,
+    },
+    {
+      accessorKey: "sessionId",
+      enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
+      id: "sessionId",
+      header: "Session",
+      size: 150,
+      headerTooltip: {
+        description: "Add `sessionId` to traces to track sessions.",
+        href: "https://langfuse.com/docs/tracing-features/sessions",
+      },
+      cell: ({ row }) => {
+        const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
+        return value && typeof value === "string" ? (
+          <TableId value={value} />
+        ) : undefined;
+      },
       defaultHidden: true,
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "userId",
+      header: "User",
+      id: "userId",
+      size: 150,
+      headerTooltip: {
+        description: "Add `userId` to traces to track users.",
+        href: "https://langfuse.com/docs/tracing-features/users",
+      },
+      cell: ({ row }) => {
+        const value: TracesTableRow["userId"] = row.getValue("userId");
+        return value && typeof value === "string" ? (
+          <TableId value={value} />
+        ) : undefined;
+      },
+      defaultHidden: true,
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "observationCount",
+      id: "observationCount",
+      header: "Observations",
+      size: 120,
+      headerTooltip: {
+        description: "The number of observations in the trace.",
+      },
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: TracesTableRow["observationCount"] =
+          row.getValue("observationCount");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        return <span>{numberFormatter(value, 0)}</span>;
+      },
     },
     {
       accessorKey: "level",
@@ -773,48 +739,9 @@ export default function TracesTable({
           <span>-</span>
         );
       },
-      enableHiding: true,
       defaultHidden: true,
+      enableHiding: true,
       enableSorting: true,
-    },
-    {
-      accessorKey: "levelCounts",
-      id: "levelCounts",
-      header: "Observation Levels",
-      size: 75,
-      cell: ({ row }) => {
-        const value: TracesTableRow["levelCounts"] =
-          row.getValue("levelCounts");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-
-        const counts: LevelCount[] = Object.entries(value).map(
-          ([level, count]) => ({
-            level: formatAsLabel(level),
-            count,
-            symbol: LevelSymbols[formatAsLabel(level)],
-          }),
-        );
-
-        return <LevelCountsDisplay counts={counts} />;
-      },
-      enableHiding: true,
-    },
-    {
-      accessorKey: "observationCount",
-      id: "observationCount",
-      header: "Observations",
-      size: 120,
-      headerTooltip: {
-        description: "The number of observations in the trace.",
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      cell: ({ row }) => {
-        const value: TracesTableRow["observationCount"] =
-          row.getValue("observationCount");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value, 0)}</span>;
-      },
     },
     {
       accessorKey: "version",
@@ -825,9 +752,9 @@ export default function TracesTable({
         description: "Track changes via the version tag.",
         href: "https://langfuse.com/docs/experimentation",
       },
+      defaultHidden: true,
       enableHiding: true,
       enableSorting: true,
-      defaultHidden: true,
     },
     {
       accessorKey: "release",
@@ -838,36 +765,139 @@ export default function TracesTable({
         description: "Track changes to your application via the release tag.",
         href: "https://langfuse.com/docs/experimentation",
       },
+      defaultHidden: true,
       enableHiding: true,
       enableSorting: true,
-      defaultHidden: true,
     },
     {
-      accessorKey: "tags",
-      id: "tags",
-      header: "Tags",
-      size: 150,
-      headerTooltip: {
-        description: "Group traces with tags.",
-        href: "https://langfuse.com/docs/tracing-features/tags",
-      },
+      accessorKey: "id",
+      header: "Trace ID",
+      id: "id",
+      size: 90,
       cell: ({ row }) => {
-        const tags: TracesTableRow["tags"] = row.getValue("tags");
-        const traceId: TracesTableRow["id"] = row.getValue("id");
-        const filterOptionTags = traceFilterOptions.data?.tags ?? [];
-        const allTags = filterOptionTags.map((t) => t.value);
-        return (
-          <TagTracePopover
-            tags={tags}
-            availableTags={allTags}
-            projectId={projectId}
-            traceId={traceId}
-            tracesFilter={tracesAllQueryFilter}
-            className={cn(rowHeight !== "s" && "flex-wrap")}
-          />
-        );
+        const value: TracesTableRow["id"] = row.getValue("id");
+
+        return value && typeof value === "string" ? (
+          <TableId value={value} />
+        ) : undefined;
       },
+      defaultHidden: true,
       enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "cost",
+      header: "Cost",
+      id: "cost",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return traceMetrics.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: [
+        {
+          accessorKey: "inputCost",
+          id: "inputCost",
+          header: "Input Cost",
+          size: 100,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const cost: TracesTableRow["cost"] = row.getValue("cost");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return (
+              <div>
+                {cost?.inputCost ? (
+                  <span>{usdFormatter(cost.inputCost.toNumber())}</span>
+                ) : (
+                  <span>-</span>
+                )}
+              </div>
+            );
+          },
+          defaultHidden: true,
+          enableHiding: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "outputCost",
+          id: "outputCost",
+          header: "Output Cost",
+          size: 100,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const cost: TracesTableRow["cost"] = row.getValue("cost");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return (
+              <div>
+                {cost?.outputCost ? (
+                  <span>{usdFormatter(cost.outputCost.toNumber())}</span>
+                ) : (
+                  <span>-</span>
+                )}
+              </div>
+            );
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+      ],
+    },
+    {
+      accessorKey: "usage",
+      header: "Usage",
+      id: "usage",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return traceMetrics.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: [
+        {
+          accessorKey: "inputTokens",
+          id: "inputTokens",
+          header: "Input Tokens",
+          size: 110,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const value: TracesTableRow["usage"] = row.getValue("usage");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "outputTokens",
+          id: "outputTokens",
+          header: "Output Tokens",
+          size: 110,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const value: TracesTableRow["usage"] = row.getValue("usage");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "totalTokens",
+          id: "totalTokens",
+          header: "Total Tokens",
+          size: 110,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const value: TracesTableRow["usage"] = row.getValue("usage");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+      ],
     },
     {
       accessorKey: "action",
@@ -903,12 +933,12 @@ export default function TracesTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
-      `tracesColumnVisibility-${projectId}`,
+      `traceColumnVisibility-${projectId}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
-    "tracesColumnOrder",
+    "traceColumnOrder",
     columns,
   );
 
@@ -941,13 +971,18 @@ export default function TracesTable({
               outputUsage: trace.completionTokens,
               totalUsage: trace.totalTokens,
             },
+            tokens: {
+              inputUsage: trace.promptTokens,
+              outputUsage: trace.completionTokens,
+              totalUsage: trace.totalTokens,
+            },
             levelCounts: {
               errorCount: trace.errorCount,
               warningCount: trace.warningCount,
               defaultCount: trace.defaultCount,
               debugCount: trace.debugCount,
             },
-            usageDetails: trace.usageDetails,
+            tokenDetails: trace.usageDetails,
             costDetails: trace.costDetails,
             scores: trace.scores
               ? verifyAndPrefixScoreDataAgainstKeys(
@@ -955,8 +990,10 @@ export default function TracesTable({
                   trace.scores,
                 )
               : undefined,
-            inputCost: trace.calculatedInputCost ?? undefined,
-            outputCost: trace.calculatedOutputCost ?? undefined,
+            cost: {
+              inputCost: trace.calculatedInputCost ?? undefined,
+              outputCost: trace.calculatedOutputCost ?? undefined,
+            },
             totalCost: trace.calculatedTotalCost ?? undefined,
           };
         }) ?? [])
@@ -966,7 +1003,7 @@ export default function TracesTable({
     <>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
+        filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
           placeholder: "Search (by id, name, trace name, user id)",
           updateQuery: setSearchQuery,

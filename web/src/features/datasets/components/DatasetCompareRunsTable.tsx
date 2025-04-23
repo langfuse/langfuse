@@ -10,7 +10,7 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -27,6 +27,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import _ from "lodash";
 import { useDatasetComparePeekState } from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
 import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDatasetComparePeekNavigation } from "@/src/components/table/peek/hooks/useDatasetComparePeekNavigation";
 
 export type RunMetrics = {
   id: string;
@@ -114,8 +117,11 @@ export function DatasetCompareRunsTable(props: {
     Record<string, number>
   >({});
   const queryClient = useQueryClient();
-
-  const rowHeight = "l";
+  const { setDetailPageList } = useDetailPageLists();
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "datasetCompareRuns",
+    "m",
+  );
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -128,6 +134,18 @@ export function DatasetCompareRunsTable(props: {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+
+  useEffect(() => {
+    if (baseDatasetItems.isSuccess) {
+      setDetailPageList(
+        "datasetCompareRuns",
+        baseDatasetItems.data.datasetItems.map((item) => ({
+          id: item.id,
+        })),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
 
   // 1. First, separate the run definitions
   const runQueries = useMemo(
@@ -364,6 +382,8 @@ export function DatasetCompareRunsTable(props: {
   const urlPathname = `/project/${props.projectId}/datasets/${props.datasetId}/compare`;
 
   const { setPeekView } = useDatasetComparePeekState(urlPathname);
+  const { getNavigationPath, shouldUpdateRowOnDetailPageNavigation } =
+    useDatasetComparePeekNavigation(urlPathname);
 
   return (
     <>
@@ -372,15 +392,16 @@ export function DatasetCompareRunsTable(props: {
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
         actionButtons={
           <DropdownMenu open={isMetricsDropdownOpen}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                size="icon"
                 onClick={() => setIsMetricsDropdownOpen(!isMetricsDropdownOpen)}
               >
-                <Cog className="h-4 w-4" />
+                <Cog className="mr-2 h-4 w-4" />
+                <span>Run metrics</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -439,10 +460,18 @@ export function DatasetCompareRunsTable(props: {
           state: paginationState,
         }}
         rowHeight={rowHeight}
+        customRowHeights={{
+          s: "h-48",
+          m: "h-64",
+          l: "h-96",
+        }}
         peekView={{
           itemType: "DATASET_ITEM",
           urlPathname,
           onOpenChange: setPeekView,
+          getNavigationPath,
+          shouldUpdateRowOnDetailPageNavigation,
+          listKey: "datasetCompareRuns",
           children: (row?: DatasetCompareRunRowData) => (
             <PeekDatasetCompareDetail
               projectId={props.projectId}

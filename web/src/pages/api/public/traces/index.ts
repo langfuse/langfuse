@@ -7,7 +7,7 @@ import {
   DeleteTracesV1Response,
 } from "@/src/features/public-api/types/traces";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import {
   eventTypes,
@@ -26,7 +26,7 @@ import {
 } from "@/src/features/public-api/server/traces";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Trace (Legacy)",
     bodySchema: PostTracesV1Body,
     responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
@@ -58,7 +58,7 @@ export default withMiddlewares({
     },
   }),
 
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Traces",
     querySchema: GetTracesV1Query,
     responseSchema: GetTracesV1Response,
@@ -102,7 +102,7 @@ export default withMiddlewares({
     },
   }),
 
-  DELETE: createAuthedAPIRoute({
+  DELETE: createAuthedProjectAPIRoute({
     name: "Delete Multiple Traces",
     bodySchema: DeleteTracesV1Body,
     responseSchema: DeleteTracesV1Response,

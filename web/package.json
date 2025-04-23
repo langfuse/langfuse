@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.48.1",
+  "version": "3.52.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -92,6 +92,7 @@
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^4.36.1",
     "@tanstack/react-table": "^8.20.5",
+    "@team-plain/typescript-sdk": "^5.8.0",
     "@tremor/react": "3.16.2",
     "@trpc/client": "^10.45.0",
     "@trpc/next": "^10.45.0",
@@ -200,9 +201,6 @@
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"
-  },
-  "optionalDependencies": {
-    "crisp-sdk-web": "^1.0.25"
   },
   "pnpm": {
     "overrides": {

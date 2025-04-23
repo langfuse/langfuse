@@ -1,4 +1,7 @@
-import { convertOtelSpanToIngestionEvent } from "@/src/features/otel/server";
+import {
+  convertOtelSpanToIngestionEvent,
+  convertNanoTimestampToISO,
+} from "@/src/features/otel/server";
 import { ingestionEvent } from "@langfuse/shared/src/server";
 
 describe("OTel Resource Span Mapping", () => {
@@ -1200,5 +1203,54 @@ describe("OTel Resource Span Mapping", () => {
         );
       },
     );
+  });
+
+  describe("Timestamp Conversion", () => {
+    it("should correctly convert OpenTelemetry timestamps to ISO strings", () => {
+      // Test case with positive low value
+      const positiveTimestamp = {
+        low: 1095848032,
+        high: 406260507,
+        unsigned: true,
+      };
+
+      // Test case with negative low value
+      const negativeTimestamp = {
+        low: -1431863980,
+        high: 406260507,
+        unsigned: true,
+      };
+
+      // Expected ISO strings based on the provided mapping
+      const expectedStartTime = "2025-04-17T07:39:52.317Z";
+      const expectedEndTime = "2025-04-17T07:39:54.084Z";
+
+      // Convert timestamps to ISO strings
+      const actualStartTime = convertNanoTimestampToISO(positiveTimestamp);
+      const actualEndTime = convertNanoTimestampToISO(negativeTimestamp);
+
+      // Verify conversions match expected values
+      expect(actualStartTime).toBe(expectedStartTime);
+      expect(actualEndTime).toBe(expectedEndTime);
+    });
+
+    it("should handle various timestamp formats correctly", () => {
+      // Test with string timestamp (nanoseconds)
+      const stringTimestamp = "1744317592317227000"; // Same as positiveTimestamp above
+      const expectedStringResult = "2025-04-10T20:39:52.317Z";
+      expect(convertNanoTimestampToISO(stringTimestamp)).toBe(
+        expectedStringResult,
+      );
+
+      // Test with zero timestamp
+      const zeroTimestamp = {
+        low: 0,
+        high: 0,
+        unsigned: true,
+      };
+      expect(convertNanoTimestampToISO(zeroTimestamp)).toBe(
+        "1970-01-01T00:00:00.000Z",
+      );
+    });
   });
 });

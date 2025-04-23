@@ -189,6 +189,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   isSelectHidden = false,
   queueId,
   actionButtons,
+  environment,
 }: AnnotateDrawerContentProps<Target>) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -279,6 +280,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
           comment: score.comment,
           value,
           queueId,
+          environment,
         });
 
         await updateMutation.mutateAsync({
@@ -306,6 +308,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
             comment: score.comment,
             value,
             queueId,
+            environment,
           });
 
           await updateMutation.mutateAsync({
@@ -328,6 +331,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
             comment: score.comment,
             value,
             queueId,
+            environment,
           });
 
           const createPromise = createMutation.mutateAsync({
@@ -513,6 +517,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
           value,
           comment,
           queueId,
+          environment,
         });
 
         await updateMutation.mutateAsync({

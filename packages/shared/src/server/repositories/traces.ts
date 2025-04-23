@@ -28,6 +28,19 @@ import {
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
+/**
+ * Checks if trace exists in clickhouse.
+ *
+ * @param {string} projectId - Project ID for the trace
+ * @param {string} traceId - ID of the trace to check
+ * @param {Date} timestamp - Timestamp for time-based filtering, uses event payload or job timestamp
+ * @param {FilterState} filter - Filter for the trace
+ * @returns {Promise<boolean>} - True if trace exists
+ *
+ * Notes:
+ * • Filters within ±2 day window
+ * • Used for validating trace references before eval job creation
+ */
 export const checkTraceExists = async (
   projectId: string,
   traceId: string,
@@ -289,17 +302,27 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
   return Number(rows[0]?.count ?? 0);
 };
 
-export const getTraceById = async (
-  traceId: string,
-  projectId: string,
-  timestamp?: Date,
-) => {
+/**
+ * Retrieves a trace record by its ID and associated project ID, with optional filtering by timestamp range.
+ */
+export const getTraceById = async ({
+  traceId,
+  projectId,
+  timestamp,
+  fromTimestamp,
+}: {
+  traceId: string;
+  projectId: string;
+  timestamp?: Date;
+  fromTimestamp?: Date;
+}) => {
   const query = `
     SELECT * 
     FROM traces
     WHERE id = {traceId: String} 
     AND project_id = {projectId: String}
     ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
+    ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""} 
     ORDER BY event_ts DESC 
     LIMIT 1
   `;
@@ -311,6 +334,9 @@ export const getTraceById = async (
       projectId,
       ...(timestamp
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+      ...(fromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
         : {}),
     },
     tags: {
@@ -489,7 +515,8 @@ export const getTracesIdentifierForSession = async (
       user_id,
       name,
       timestamp,
-      project_id
+      project_id,
+      environment
     FROM traces
     WHERE (project_id = {projectId: String})
     AND (session_id = {sessionId: String})
@@ -502,6 +529,7 @@ export const getTracesIdentifierForSession = async (
     user_id: string;
     name: string;
     timestamp: string;
+    environment: string;
   }>({
     query: query,
     params: {
@@ -521,6 +549,7 @@ export const getTracesIdentifierForSession = async (
     userId: row.user_id,
     name: row.name,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    environment: row.environment,
   }));
 };
 
@@ -550,18 +579,18 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
 
 export const deleteTracesOlderThanDays = async (
   projectId: string,
-  days: number,
+  beforeDate: Date,
 ) => {
   const query = `
     DELETE FROM traces
     WHERE project_id = {projectId: String}
-    AND timestamp < now() - INTERVAL {numDays: Int} DAYS;
+    AND timestamp < {cutoffDate: DateTime64(3)};
   `;
   await commandClickhouse({
     query: query,
     params: {
       projectId,
-      numDays: days,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes

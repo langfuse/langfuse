@@ -52,6 +52,7 @@ import {
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
+import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -503,6 +504,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     id: dbUser.id,
                     name: dbUser.name,
                     email: dbUser.email,
+                    emailSupportHash: dbUser.email
+                      ? createSupportEmailHash(dbUser.email)
+                      : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
                     canCreateOrganizations: canCreateOrganizations(
@@ -517,6 +521,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           id: orgMembership.organization.id,
                           name: orgMembership.organization.name,
                           role: orgMembership.role,
+                          metadata:
+                            (orgMembership.organization.metadata as Record<
+                              string,
+                              unknown
+                            >) ?? {},
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {
@@ -531,6 +540,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                 role: projectRole,
                                 retentionDays: project.retentionDays,
                                 deletedAt: project.deletedAt,
+                                metadata:
+                                  (project.metadata as Record<
+                                    string,
+                                    unknown
+                                  >) ?? {},
                               };
                             })
                             // Only include projects where the user has the required role

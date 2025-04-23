@@ -147,9 +147,10 @@ export const scoresRouter = createTRPCRouter({
         scoreId: input.scoreId,
       });
       if (!score) {
-        throw new LangfuseNotFoundError(
-          `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
-        );
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
+        });
       }
       return score;
     }),
@@ -287,10 +288,10 @@ export const scoresRouter = createTRPCRouter({
           };
 
       if (inflatedParams.traceId) {
-        const clickhouseTrace = await getTraceById(
-          inflatedParams.traceId,
-          input.projectId,
-        );
+        const clickhouseTrace = await getTraceById({
+          traceId: inflatedParams.traceId,
+          projectId: input.projectId,
+        });
 
         if (!clickhouseTrace) {
           logger.error(

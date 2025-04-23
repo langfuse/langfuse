@@ -1,7 +1,7 @@
 import { v4 } from "uuid";
 import { type z } from "zod";
 
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { isBooleanDataType } from "@/src/features/scores/lib/helpers";
 import {
@@ -30,7 +30,7 @@ const inflateConfigBody = (body: z.infer<typeof PostScoreConfigBody>) => {
 };
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Score Config",
     bodySchema: PostScoreConfigBody,
     responseSchema: PostScoreConfigResponse,
@@ -59,7 +59,7 @@ export default withMiddlewares({
       return validateDbScoreConfig(config);
     },
   }),
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Score Configs",
     querySchema: GetScoreConfigsQuery,
     responseSchema: GetScoreConfigsResponse,

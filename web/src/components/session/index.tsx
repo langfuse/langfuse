@@ -310,6 +310,7 @@ export const SessionPage: React.FC<{
                   variant="badge"
                   analyticsData={{ type: "trace", source: "SessionDetail" }}
                   key={"annotation-drawer" + trace.id}
+                  environment={trace.environment}
                 />
                 <CommentDrawerButton
                   projectId={projectId}

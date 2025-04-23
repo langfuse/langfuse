@@ -5,7 +5,7 @@ import {
   PostSpansV1Response,
 } from "@/src/features/public-api/types/spans";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   eventTypes,
   logger,
@@ -14,7 +14,7 @@ import {
 import { v4 } from "uuid";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Span (Legacy)",
     bodySchema: PostSpansV1Body,
     responseSchema: PostSpansV1Response,
@@ -46,7 +46,7 @@ export default withMiddlewares({
       return { id: event.body.id };
     },
   }),
-  PATCH: createAuthedAPIRoute({
+  PATCH: createAuthedProjectAPIRoute({
     name: "Update Span (Legacy)",
     bodySchema: PatchSpansV1Body,
     responseSchema: PatchSpansV1Response,

@@ -9,7 +9,7 @@ import {
   createScoresCh,
   createTrace,
   createTracesCh,
-  getEventLogByProjectAndEntityId,
+  getBlobStorageByProjectAndEntityId,
   getObservationById,
   getScoreById,
   getTraceById,
@@ -28,7 +28,7 @@ describe("DataRetentionProcessingJob", () => {
     storageService = StorageServiceFactory.getInstance({
       accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
-      bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+      bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
@@ -50,7 +50,7 @@ describe("DataRetentionProcessingJob", () => {
     });
 
     await clickhouseClient().insert({
-      table: "event_log",
+      table: "blob_storage_file_log",
       format: "JSONEachRow",
       values: [
         {
@@ -76,7 +76,7 @@ describe("DataRetentionProcessingJob", () => {
     const files = await storageService.listFiles("");
     expect(files.map((file) => file.file)).toContain(fileName);
 
-    const eventLogRecord = await getEventLogByProjectAndEntityId(
+    const eventLogRecord = await getBlobStorageByProjectAndEntityId(
       projectId,
       "trace",
       `${baseId}-trace`,
@@ -99,7 +99,7 @@ describe("DataRetentionProcessingJob", () => {
     });
 
     await clickhouseClient().insert({
-      table: "event_log",
+      table: "blob_storage_file_log",
       format: "JSONEachRow",
       values: [
         {
@@ -125,7 +125,7 @@ describe("DataRetentionProcessingJob", () => {
     const files = await storageService.listFiles("");
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
-    const eventLogRecord = await getEventLogByProjectAndEntityId(
+    const eventLogRecord = await getBlobStorageByProjectAndEntityId(
       projectId,
       "trace",
       `${baseId}-trace`,
@@ -155,7 +155,7 @@ describe("DataRetentionProcessingJob", () => {
         projectId,
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 days in the past
         bucketPath: fileName,
-        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
       },
@@ -213,7 +213,7 @@ describe("DataRetentionProcessingJob", () => {
         projectId,
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30), // 30 days in the past
         bucketPath: fileName,
-        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
       },
@@ -270,9 +270,9 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const traceOld = await getTraceById(`${baseId}-trace-old`, projectId);
+    const traceOld = await getTraceById({ traceId: `${baseId}-trace-old`, projectId });
     expect(traceOld).toBeUndefined();
-    const traceNew = await getTraceById(`${baseId}-trace-new`, projectId);
+    const traceNew = await getTraceById({ traceId: `${baseId}-trace-new`, projectId });
     expect(traceNew).toBeDefined();
   });
 

@@ -59,6 +59,7 @@ export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   variant?: "button" | "badge";
   buttonVariant?: "secondary" | "outline";
   hasGroupedButton?: boolean;
+  environment?: string;
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;

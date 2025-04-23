@@ -1,13 +1,12 @@
 import { Job, Processor } from "bullmq";
 import {
-  deleteEventLogByProjectId,
   deleteObservationsByProjectId,
   deleteScoresByProjectId,
   deleteTracesByProjectId,
   getCurrentSpan,
-  getEventLogByProjectId,
   logger,
   QueueName,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   StorageService,
   StorageServiceFactory,
   TQueueJobTypes,
@@ -30,22 +29,6 @@ const getS3MediaStorageClient = (bucketName: string): StorageService => {
     });
   }
   return s3MediaStorageClient;
-};
-
-let s3EventStorageClient: StorageService;
-
-const getS3EventStorageClient = (bucketName: string): StorageService => {
-  if (!s3EventStorageClient) {
-    s3EventStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3EventStorageClient;
 };
 
 export const projectDeleteProcessor: Processor = async (
@@ -94,21 +77,10 @@ export const projectDeleteProcessor: Processor = async (
   logger.info(`Deleting S3 event logs for ${projectId} in org ${orgId}`);
 
   // Remove event files from S3
-  const eventLogStream = getEventLogByProjectId(projectId);
-  let eventLogPaths: string[] = [];
-  const eventStorageClient = getS3EventStorageClient(
-    env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
+    projectId,
+    undefined,
   );
-  for await (const eventLog of eventLogStream) {
-    eventLogPaths.push(eventLog.bucket_path);
-    if (eventLogPaths.length > 500) {
-      // Delete the current batch and reset the list
-      await eventStorageClient.deleteFiles(eventLogPaths);
-      eventLogPaths = [];
-    }
-  }
-  // Delete any remaining files
-  await eventStorageClient.deleteFiles(eventLogPaths);
 
   logger.info(`Deleting ClickHouse data for ${projectId} in org ${orgId}`);
 
@@ -117,7 +89,6 @@ export const projectDeleteProcessor: Processor = async (
     deleteTracesByProjectId(projectId),
     deleteObservationsByProjectId(projectId),
     deleteScoresByProjectId(projectId),
-    deleteEventLogByProjectId(projectId),
   ]);
 
   logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);
@@ -144,6 +115,9 @@ export const projectDeleteProcessor: Processor = async (
       },
     });
   } catch (e) {
+    logger.error(`Error deleting project ${projectId} in org ${orgId}: ${e}`, {
+      stack: e instanceof Error ? e.stack : undefined,
+    });
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025" || e.code === "P2016") {
         logger.warn(

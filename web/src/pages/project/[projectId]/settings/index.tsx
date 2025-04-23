@@ -73,8 +73,8 @@ export const getProjectSettingsPages = ({
   showLLMConnectionsSettings,
   showProtectedLabelsSettings,
 }: {
-  project: { id: string; name: string };
-  organization: { id: string; name: string };
+  project: { id: string; name: string; metadata: Record<string, unknown> };
+  organization: { id: string; name: string; metadata: Record<string, unknown> };
   showBillingSettings: boolean;
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
@@ -94,8 +94,16 @@ export const getProjectSettingsPages = ({
           <JSONView
             title="Metadata"
             json={{
-              project: { name: project.name, id: project.id },
-              org: { name: organization.name, id: organization.id },
+              project: {
+                name: project.name,
+                id: project.id,
+                ...project.metadata,
+              },
+              org: {
+                name: organization.name,
+                id: organization.id,
+                ...organization.metadata,
+              },
             }}
           />
         </div>
@@ -283,7 +291,7 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <span className="font-semibold">Blob Storage (Beta)</span>
+          <span className="font-semibold">Blob Storage</span>
           <p className="mb-4 text-sm text-primary">
             Configure scheduled exports of your trace data to S3 compatible
             storages or Azure Blob Storage. Set up a scheduled export to your

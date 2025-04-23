@@ -34,6 +34,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
   variant = "button",
   buttonVariant = "secondary",
   hasGroupedButton = false,
+  environment,
 }: AnnotateDrawerProps<Target>) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showSaving, setShowSaving] = useState(false);
@@ -165,6 +166,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
             showSaving={showSaving}
             setShowSaving={setShowSaving}
             isDrawerOpen={isDrawerOpen}
+            environment={environment}
           />
         )}
       </DrawerContent>

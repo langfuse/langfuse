@@ -1,0 +1,170 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+
+service:
+  auth: true
+  base-path: /api/admin
+  endpoints:
+    getAll:
+      docs: Get all organizations
+      method: GET
+      path: /organizations
+      response: Organizations
+      errors:
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+    
+    create:
+      docs: Create a new organization
+      method: POST
+      path: /organizations
+      request:
+        name: CreateOrganizationRequest
+        body:
+          properties:
+            name: string
+            metadata:
+              type: optional<map<string, unknown>>
+              docs: Optional metadata for the organization
+      response: Organization
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+    
+    getById:
+      docs: Get organization by ID
+      method: GET
+      path: /organizations/{organizationId}
+      path-parameters:
+        organizationId: string
+      response: Organization
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+    
+    update:
+      docs: Update an organization
+      method: PUT
+      path: /organizations/{organizationId}
+      path-parameters:
+        organizationId: string
+      request:
+        name: UpdateOrganizationRequest
+        body:
+          properties:
+            name: string
+            metadata:
+              type: optional<map<string, unknown>>
+              docs: Optional metadata for the organization
+      response: Organization
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+    
+    delete:
+      docs: Delete an organization
+      method: DELETE
+      path: /organizations/{organizationId}
+      path-parameters:
+        organizationId: string
+      response: DeleteOrganizationResponse
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+
+    # API Key endpoints
+    getApiKeys:
+      docs: Get all API keys for an organization
+      method: GET
+      path: /organizations/{organizationId}/apiKeys
+      path-parameters:
+        organizationId: string
+      response: ApiKeyList
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+
+    createApiKey:
+      docs: Create a new API key for an organization
+      method: POST
+      path: /organizations/{organizationId}/apiKeys
+      path-parameters:
+        organizationId: string
+      request:
+        name: CreateApiKeyRequest
+        body:
+          properties:
+            note:
+              type: optional<string>
+              docs: Optional note for the API key
+      response: ApiKeyResponse
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+
+    deleteApiKey:
+      docs: Delete an API key for an organization
+      method: DELETE
+      path: /organizations/{organizationId}/apiKeys/{apiKeyId}
+      path-parameters:
+        organizationId: string
+        apiKeyId: string
+      response: DeleteOrganizationResponse
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+
+types:
+  Organizations:
+    docs: List of organizations
+    properties:
+      organizations: list<Organization>
+
+  Organization:
+    docs: Organization object
+    properties:
+      id: string
+      name: string
+      createdAt: datetime
+      metadata:
+        type: map<string, unknown>
+        docs: Metadata for the organization
+
+  DeleteOrganizationResponse:
+    docs: Response for successful organization deletion
+    properties:
+      success: boolean
+
+  ApiKeyList:
+    docs: List of API keys for an organization
+    properties:
+      apiKeys: list<ApiKeySummary>
+
+  ApiKeySummary:
+    docs: Summary of an API key
+    properties:
+      id: string
+      createdAt: datetime
+      expiresAt: optional<datetime>
+      lastUsedAt: optional<datetime>
+      note: optional<string>
+      publicKey: string
+      displaySecretKey: string
+
+  ApiKeyResponse:
+    docs: Response for API key creation
+    properties:
+      id: string
+      createdAt: datetime
+      publicKey: string
+      secretKey: string
+      displaySecretKey: string
+      note: optional<string>

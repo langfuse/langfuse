@@ -18,6 +18,8 @@ const entitlements = [
   "audit-logs",
   "data-retention",
   "prompt-protected-labels",
+  "custom-dashboards",
+  "admin-api",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -29,9 +31,10 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "annotation-queues",
   "prompt-experiments",
   "trace-deletion",
+  "custom-dashboards",
 ];
 
-const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion"];
+const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion",  "custom-dashboards"];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
 const entitlementLimits = [
@@ -95,6 +98,7 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "integration-blobstorage",
       "prompt-protected-labels",
+      "admin-api",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -113,6 +117,7 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "integration-blobstorage",
       "prompt-protected-labels",
+      "admin-api",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -165,6 +170,7 @@ export const entitlementAccess: Record<
       "audit-logs",
       "data-retention",
       "prompt-protected-labels",
+      "admin-api",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

@@ -247,6 +247,94 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("GET /api/public/scores", () => {
+    it("#6396: should correctly list 100s of scores", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create a trace to associate with all scores
+      const traceId = v4();
+      const trace = createTrace({
+        id: traceId,
+        project_id: projectId,
+      });
+      await createTracesCh([trace]);
+
+      // Create observation to associate with scores
+      const observationId = v4();
+      const observation = createObservation({
+        id: observationId,
+        project_id: projectId,
+        type: "GENERATION",
+      });
+      await createObservationsCh([observation]);
+
+      // Create about 200 scores
+      const totalScores = 220;
+      const scores = [];
+
+      for (let i = 0; i < totalScores; i++) {
+        scores.push(
+          createScore({
+            id: v4(),
+            project_id: projectId,
+            trace_id: traceId,
+            name: `score-${i}`,
+            value: i,
+            data_type: "NUMERIC",
+            observation_id: observationId,
+          }),
+        );
+      }
+
+      await createScoresCh(scores);
+
+      // Define page size smaller than total to ensure pagination
+      const pageSize = 50;
+      let page = 1;
+      let totalFetched = 0;
+      let hasMorePages = true;
+
+      // Fetch all pages and verify count matches
+      while (hasMorePages) {
+        const response = await makeZodVerifiedAPICall(
+          GetScoresResponse,
+          "GET",
+          `/api/public/scores?limit=${pageSize}&page=${page}`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+
+        // Verify metadata is accurate
+        expect(response.body.meta).toMatchObject({
+          page,
+          limit: pageSize,
+          totalItems: totalScores,
+          totalPages: 5, // totalScores / pageSize
+        });
+
+        // Count fetched items
+        totalFetched += response.body.data.length;
+
+        for (const score of response.body.data) {
+          expect(score).toMatchObject({
+            traceId,
+            observationId,
+            dataType: "NUMERIC",
+          });
+          expect(score.name).toMatch(/^score-\d+$/);
+          expect(score.value).toBe(parseInt(score.name.split("-")[1]));
+        }
+
+        // Check if we need to fetch more pages
+        hasMorePages = page <= response.body.meta.totalPages;
+        page++;
+      }
+
+      // Verify we fetched exactly the number of scores we created
+      expect(totalFetched).toBe(totalScores);
+    });
+
     describe("should Filter scores", () => {
       let configId = "";
       const userId = "user-name";

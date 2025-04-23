@@ -41,24 +41,32 @@ export default async function handler(
           query: `
             SELECT id
             FROM traces
-            WHERE created_at <= {now: DateTime64(3)}
-            AND created_at >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+            WHERE timestamp <= {now: DateTime64(3)}
+            AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
             LIMIT 1
           `,
           params: {
             now: convertDateToClickhouseDateTime(now),
+          },
+          tags: {
+            feature: "health-check",
+            type: "trace",
           },
         });
         const observations = await queryClickhouse({
           query: `
             SELECT id
             FROM observations
-            WHERE created_at <= {now: DateTime64(3)}
-            AND created_at >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+            WHERE start_time <= {now: DateTime64(3)}
+            AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
             LIMIT 1
           `,
           params: {
             now: convertDateToClickhouseDateTime(now),
+          },
+          tags: {
+            feature: "health-check",
+            type: "observation",
           },
         });
         if (traces.length === 0 || observations.length === 0) {
