@@ -3,6 +3,8 @@ import { LangfuseNotFoundError } from "../../../errors";
 import {
   SavedViewDomain,
   SavedViewDomainSchema,
+  SavedViewListDomainSchema,
+  UpdateSavedViewNameInput,
   type CreateSavedViewInput,
   type UpdateSavedViewInput,
 } from "./types";
@@ -15,15 +17,16 @@ export class TableViewService {
     input: CreateSavedViewInput,
     createdBy: string,
   ): Promise<SavedViewDomain> {
-    const newDashboard = await prisma.savedView.create({
+    const newSavedView = await prisma.savedView.create({
       data: {
         createdBy,
         updatedBy: createdBy,
         ...input,
+        orderBy: input.orderBy ?? undefined,
       },
     });
 
-    return SavedViewDomainSchema.parse(newDashboard);
+    return SavedViewDomainSchema.parse(newSavedView);
   }
 
   /**
@@ -33,7 +36,6 @@ export class TableViewService {
     input: UpdateSavedViewInput,
     updatedBy: string,
   ): Promise<SavedViewDomain> {
-    // check if the saved view exists
     const savedView = await prisma.savedView.findUnique({
       where: {
         id: input.id,
@@ -56,6 +58,43 @@ export class TableViewService {
       },
       data: {
         ...input,
+        orderBy: input.orderBy ?? undefined,
+        updatedBy,
+      },
+    });
+
+    return SavedViewDomainSchema.parse(updatedSavedView);
+  }
+
+  /**
+   * Updates a saved view's name
+   */
+  public static async updateSavedViewName(
+    input: UpdateSavedViewNameInput,
+    updatedBy: string,
+  ): Promise<SavedViewDomain> {
+    const savedView = await prisma.savedView.findUnique({
+      where: {
+        id: input.id,
+        projectId: input.projectId,
+        tableName: input.tableName,
+      },
+    });
+
+    if (!savedView) {
+      throw new LangfuseNotFoundError(
+        `Saved view not found for table ${input.tableName} in project ${input.projectId}`,
+      );
+    }
+
+    const updatedSavedView = await prisma.savedView.update({
+      where: {
+        id: input.id,
+        projectId: input.projectId,
+        tableName: input.tableName,
+      },
+      data: {
+        name: input.name,
         updatedBy,
       },
     });
@@ -92,7 +131,7 @@ export class TableViewService {
       },
     });
 
-    return savedViews;
+    return SavedViewListDomainSchema.parse(savedViews);
   }
 
   /**

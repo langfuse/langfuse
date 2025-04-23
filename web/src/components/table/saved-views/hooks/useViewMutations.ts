@@ -11,7 +11,13 @@ export const useViewMutations = () => {
     },
   });
 
-  const updateMutation = api.savedViews.update.useMutation({
+  const updateConfigMutation = api.savedViews.update.useMutation({
+    onSuccess: () => {
+      utils.savedViews.getByTableName.invalidate();
+    },
+  });
+
+  const updateNameMutation = api.savedViews.updateName.useMutation({
     onSuccess: () => {
       utils.savedViews.getByTableName.invalidate();
     },
@@ -25,7 +31,8 @@ export const useViewMutations = () => {
 
   return {
     createMutation,
-    updateMutation,
+    updateConfigMutation,
+    updateNameMutation,
     deleteMutation,
   };
 };

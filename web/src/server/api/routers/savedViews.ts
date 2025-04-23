@@ -8,6 +8,7 @@ import {
   TableViewService,
   CreateSavedViewInput,
   UpdateSavedViewInput,
+  UpdateSavedViewNameInput,
 } from "@langfuse/shared/src/server";
 
 export const savedViewsRouter = createTRPCRouter({
@@ -41,6 +42,26 @@ export const savedViewsRouter = createTRPCRouter({
       });
 
       const view = await TableViewService.updateSavedView(
+        input,
+        ctx.session.user?.id,
+      );
+
+      return {
+        success: true,
+        view,
+      };
+    }),
+
+  updateName: protectedProjectProcedure
+    .input(UpdateSavedViewNameInput)
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "savedViews:CUD",
+      });
+
+      const view = await TableViewService.updateSavedViewName(
         input,
         ctx.session.user?.id,
       );

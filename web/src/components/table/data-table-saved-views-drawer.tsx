@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { X, Plus, Bookmark, Clock, ChevronDown } from "lucide-react";
+import { X, Plus, ChevronDown, Link, MoreVertical, Pen } from "lucide-react";
 import {
   DrawerTrigger,
   DrawerContent,
@@ -21,11 +21,7 @@ import {
 import { useViewMutations } from "@/src/components/table/saved-views/hooks/useViewMutations";
 import { useViewStore } from "@/src/components/table/saved-views/hooks/useViewStore";
 import { cn } from "@/src/utils/tailwind";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -39,8 +35,29 @@ import {
   type VisibilityState,
   type ColumnOrderState,
 } from "@tanstack/react-table";
-import { OrderByState, type FilterState } from "@langfuse/shared";
+import { type OrderByState, type FilterState } from "@langfuse/shared";
 import { useState } from "react";
+import {
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/ui/dropdown-menu";
+import { DropdownMenuContent } from "@/src/components/ui/dropdown-menu";
+import { DeleteButton } from "@/src/components/deleteButton";
+import { api } from "@/src/utils/api";
+import { Popover, PopoverContent } from "@/src/components/ui/popover";
+import { PopoverTrigger } from "@/src/components/ui/popover";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/src/components/ui/form";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 interface SavedViewsDrawerProps {
   tableName: string;
@@ -84,7 +101,17 @@ export function SavedViewsDrawer({
     projectId,
   });
   const { savedViewList } = useViewData({ tableName, projectId });
-  const { createMutation, updateMutation, deleteMutation } = useViewMutations();
+  const {
+    createMutation,
+    updateConfigMutation,
+    updateNameMutation,
+    deleteMutation,
+  } = useViewMutations();
+  const utils = api.useUtils();
+
+  const form = useForm<{ name: string }>({
+    resolver: zodResolver(z.object({ name: z.string() })),
+  });
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newViewName, setNewViewName] = useState("");
@@ -109,9 +136,9 @@ export function SavedViewsDrawer({
     setIsCreateDialogOpen(false);
   };
 
-  const handleUpdateView = (updatedView: { name: string }) => {
+  const handleUpdateViewConfig = (updatedView: { name: string }) => {
     if (!selectedViewId) return;
-    updateMutation.mutate({
+    updateConfigMutation.mutate({
       projectId,
       name: updatedView.name,
       id: selectedViewId,
@@ -124,8 +151,21 @@ export function SavedViewsDrawer({
     });
   };
 
-  const handleDeleteView = (viewId: string) => {
-    deleteMutation.mutate({
+  const handleUpdateViewName = (updatedView: { id: string; name: string }) => {
+    updateNameMutation.mutate({
+      id: updatedView.id,
+      name: updatedView.name,
+      tableName,
+      projectId,
+    });
+  };
+
+  const onSubmit = (id: string) => (data: { name: string }) => {
+    handleUpdateViewName({ id, name: data.name });
+  };
+
+  const handleDeleteView = async (viewId: string) => {
+    await deleteMutation.mutateAsync({
       projectId,
       savedViewId: viewId,
     });
@@ -133,7 +173,7 @@ export function SavedViewsDrawer({
 
   return (
     <>
-      <Drawer modal={false}>
+      <Drawer>
         <DrawerTrigger asChild>
           <Button variant="outline" title={selectedViewName ?? "Saved views"}>
             <span>{selectedViewName ?? "Saved Views"}</span>
@@ -175,17 +215,124 @@ export function SavedViewsDrawer({
                       key={view.id}
                       onSelect={() => setSelectedViewId(view.id)}
                       className={cn(
-                        "mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
+                        "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
                         selectedViewId === view.id && "bg-muted font-medium",
                       )}
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{view.name}</span>
                       </div>
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <Avatar>
-                          <AvatarImage src="https://github.com/shadcn.png" />
-                        </Avatar>
+                      <div className="flex flex-row gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                          className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
+                        >
+                          <Link className="h-4 w-4" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                              className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+                            <DropdownMenuItem asChild>
+                              <Popover key={view.id + "-edit"}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="space-x-6"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    <Pen className="ml-3 mr-2 h-4 w-4" />
+                                    Edit
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <h2 className="text-md mb-3 font-semibold">
+                                    Edit
+                                  </h2>
+                                  <Form {...form}>
+                                    <form
+                                      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                                      onSubmit={form.handleSubmit(
+                                        onSubmit(view.id),
+                                      )}
+                                      className="space-y-2"
+                                    >
+                                      <FormField
+                                        control={form.control}
+                                        name="name"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>View name</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                defaultValue={view.name}
+                                                {...field}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+
+                                      <div className="flex w-full justify-end">
+                                        <Button
+                                          type="submit"
+                                          variant="destructive"
+                                          loading={updateNameMutation.isLoading}
+                                        >
+                                          Save
+                                        </Button>
+                                      </div>
+                                    </form>
+                                  </Form>
+                                </PopoverContent>
+                              </Popover>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <DeleteButton
+                                itemId={view.id}
+                                projectId={projectId}
+                                scope="savedViews:CUD"
+                                entityToDeleteName="saved view"
+                                executeDeleteMutation={async () => {
+                                  await handleDeleteView(view.id);
+                                }}
+                                isDeleteMutationLoading={
+                                  deleteMutation.isLoading
+                                }
+                                invalidateFunc={() => {
+                                  utils.savedViews.invalidate();
+                                }}
+                                captureDeleteOpen={() => {}}
+                                captureDeleteSuccess={() => {}}
+                              />
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <Avatar>
+                            <AvatarImage src="https://github.com/shadcn.png" />
+                          </Avatar>
+                        </div>
                       </div>
                     </CommandItem>
                   ))}

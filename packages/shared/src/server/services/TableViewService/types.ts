@@ -16,8 +16,16 @@ export const UpdateSavedViewInput = CreateSavedViewInput.extend({
   id: z.string(),
 });
 
+export const UpdateSavedViewNameInput = z.object({
+  id: z.string(),
+  name: z.string(),
+  tableName: z.string(),
+  projectId: z.string(),
+});
+
 export type CreateSavedViewInput = z.infer<typeof CreateSavedViewInput>;
 export type UpdateSavedViewInput = z.infer<typeof UpdateSavedViewInput>;
+export type UpdateSavedViewNameInput = z.infer<typeof UpdateSavedViewNameInput>;
 
 export const SavedViewDomainSchema = z.object({
   id: z.string(),
@@ -34,4 +42,7 @@ export const SavedViewDomainSchema = z.object({
   orderBy: orderBy,
 });
 
+export const SavedViewListDomainSchema = z.array(SavedViewDomainSchema);
+
 export type SavedViewDomain = z.infer<typeof SavedViewDomainSchema>;
+export type SavedViewListDomain = z.infer<typeof SavedViewListDomainSchema>;
