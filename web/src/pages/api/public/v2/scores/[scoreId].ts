@@ -1,4 +1,4 @@
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
@@ -10,7 +10,7 @@ import {
 import { logger, traceException } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Score",
     querySchema: GetScoreQueryV2,
     responseSchema: GetScoreResponseV2,
