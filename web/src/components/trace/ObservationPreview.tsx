@@ -155,6 +155,7 @@ export const ObservationPreview = ({
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                     type="observation"
                     hasGroupedButton={hasEntitlement}
+                    environment={preloadedObservation.environment}
                   />
                   {hasEntitlement && (
                     <CreateNewAnnotationQueueItem
