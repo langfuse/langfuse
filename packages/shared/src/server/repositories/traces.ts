@@ -403,7 +403,7 @@ export const getTraceById = async ({
       return convertClickhouseToDomain(result[0]);
     }
   }
-  return null;
+  return undefined;
 };
 
 export const getTracesGroupedByName = async (

@@ -403,7 +403,7 @@ const getObservationByIdInternal = async (
 
   const queryWithoutStartTimePromise = !hasStartTimeFilter
     ? queryClickhouse<ObservationRecordReadType>({
-        query: getQuery(undefined),
+        query: getQuery(undefined, undefined),
         params: {
           id,
           projectId,
