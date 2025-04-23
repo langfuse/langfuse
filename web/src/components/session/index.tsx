@@ -292,6 +292,7 @@ export const SessionPage: React.FC<{
                   type="session"
                   source="SessionDetail"
                   key={"annotation-drawer" + trace.id}
+                  environment={trace.environment}
                 />
                 <CommentDrawerButton
                   projectId={projectId}

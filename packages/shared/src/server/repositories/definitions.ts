@@ -169,13 +169,15 @@ export const blobStorageFileLogRecordBaseSchema = z.object({
   bucket_path: z.string(),
   is_deleted: z.number(),
 });
-export const eventLogRecordReadSchema =
+export const blobStorageFileRefRecordReadSchema =
   blobStorageFileLogRecordBaseSchema.extend({
     created_at: clickhouseStringDateSchema,
     updated_at: clickhouseStringDateSchema,
     event_ts: clickhouseStringDateSchema,
   });
-export type EventLogRecordReadType = z.infer<typeof eventLogRecordReadSchema>;
+export type BlobStorageFileRefRecordReadType = z.infer<
+  typeof blobStorageFileRefRecordReadSchema
+>;
 export const blobStorageFileLogRecordInsertSchema =
   blobStorageFileLogRecordBaseSchema.extend({
     created_at: z.number(),
