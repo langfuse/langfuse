@@ -15,7 +15,7 @@ import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { afterAll, test as baseTest, beforeAll, describe } from "vitest";
 import { z } from "zod";
-import { createEvalJobs } from "../ee/evaluation/evalService";
+// import { createEvalJobs } from "../ee/evaluation/evalService";
 import { OpenAIServer } from "./network";
 import { pruneDatabase } from "./utils";
 
@@ -36,10 +36,11 @@ beforeAll(async () => {
 });
 afterAll(openAIServer.teardown);
 
-type EvalJobEventPartial = Omit<
-  Parameters<typeof createEvalJobs>[0]["event"],
-  "projectId" | "traceId"
->;
+type EvalJobEventPartial = any;
+// type EvalJobEventPartial = Omit<
+//   Parameters<typeof createEvalJobs>[0]["event"],
+//   "projectId" | "traceId"
+// >;
 
 type TraceRecordOmitProjectId = Partial<Omit<TraceRecordReadType, "projectId">>;
 type TraceRecordOmitProjectIdAndId = Partial<

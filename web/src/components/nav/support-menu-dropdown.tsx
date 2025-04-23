@@ -19,10 +19,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
-import {
-  type UiCustomizationOption,
-  useUiCustomization,
-} from "@/src/ee/features/ui-customization/useUiCustomization";
+// import {
+//   type UiCustomizationOption,
+//   useUiCustomization,
+// } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import {
   chatAvailable,
@@ -39,11 +39,11 @@ type SupportMenuItem = {
   pathname: string;
   icon: LucideIcon | React.ElementType;
   menuNode?: ReactNode;
-  customizableHref?: UiCustomizationOption;
+  // customizableHref?: UiCustomizationOption;
 };
 
 export const SupportMenuDropdown = () => {
-  const uiCustomization = useUiCustomization();
+  // const uiCustomization = useUiCustomization();
 
   const supportMenuItems: (SupportMenuItem | "separator")[] = useMemo(() => {
     const items: (SupportMenuItem | "separator")[] = [
@@ -55,12 +55,13 @@ export const SupportMenuDropdown = () => {
     ];
 
     const chatVisible = chatIsVisible();
-    if (uiCustomization?.supportHref) {
-      items.push({
-        title: "Support",
-        pathname: uiCustomization.supportHref,
-        icon: LifeBuoy,
-      });
+    // if (uiCustomization?.supportHref) {
+    if (false) {
+      // items.push({
+      //   title: "Support",
+      //   pathname: uiCustomization.supportHref,
+      //   icon: LifeBuoy,
+      // });
     } else {
       if (chatAvailable) {
         items.push({
@@ -105,7 +106,7 @@ export const SupportMenuDropdown = () => {
       title: "Docs",
       pathname: "https://langfuse.com/docs",
       icon: LibraryBig,
-      customizableHref: "documentationHref",
+      // customizableHref: "documentationHref",
     });
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       items.push({
@@ -116,31 +117,31 @@ export const SupportMenuDropdown = () => {
     }
     items.push("separator");
 
-    if (uiCustomization?.feedbackHref) {
-      items.push({
-        title: "Feedback",
-        pathname: uiCustomization.feedbackHref,
-        icon: MessageSquarePlus,
-      });
-    } else {
-      items.push(
-        ...[
-          {
-            title: "Feature Request",
-            pathname: "https://langfuse.com/ideas",
-            icon: Lightbulb,
-          },
-          {
-            title: "Report a Bug",
-            pathname: "https://langfuse.com/issues",
-            icon: Bug,
-          },
-        ],
-      );
-    }
+    // if (uiCustomization?.feedbackHref) {
+    //   items.push({
+    //     title: "Feedback",
+    //     pathname: uiCustomization.feedbackHref,
+    //     icon: MessageSquarePlus,
+    //   });
+    // } else {
+    items.push(
+      ...[
+        {
+          title: "Feature Request",
+          pathname: "https://langfuse.com/ideas",
+          icon: Lightbulb,
+        },
+        {
+          title: "Report a Bug",
+          pathname: "https://langfuse.com/issues",
+          icon: Bug,
+        },
+      ],
+    );
+    // }
 
     return items;
-  }, [uiCustomization]);
+  }, [/*uiCustomization*/]);
 
   const { isMobile } = useSidebar();
 

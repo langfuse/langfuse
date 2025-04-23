@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
-import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
+// import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportMenuDropdown } from "@/src/components/nav/support-menu-dropdown";
@@ -40,7 +40,7 @@ export type Route = {
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
   entitlements?: Entitlement[]; // entitlements required, array treated as OR
-  customizableHref?: UiCustomizationOption; // key of useUiCustomization object to use to replace the href
+  // customizableHref?: UiCustomizationOption; // key of useUiCustomization object to use to replace the href
   show?: (p: {
     organization: User["organizations"][number] | undefined;
   }) => boolean;

@@ -4,7 +4,7 @@ import {
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
 import { ClipboardCheck, Users, BarChart4, GitMerge } from "lucide-react";
-import { CreateOrEditAnnotationQueueButton } from "@/src/ee/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
+// import { CreateOrEditAnnotationQueueButton } from "@/src/ee/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 
 export function AnnotationQueuesOnboarding({
   projectId,
@@ -46,11 +46,12 @@ export function AnnotationQueuesOnboarding({
       primaryAction={{
         label: "Create Annotation Queue",
         component: (
-          <CreateOrEditAnnotationQueueButton
-            variant="default"
-            projectId={projectId}
-            size="lg"
-          />
+          // <CreateOrEditAnnotationQueueButton
+          //   variant="default"
+          //   projectId={projectId}
+          //   size="lg"
+          // />
+          <></>
         ),
       }}
       secondaryAction={{

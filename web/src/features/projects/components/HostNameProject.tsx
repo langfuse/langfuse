@@ -1,11 +1,11 @@
 import { Card } from "@/src/components/ui/card";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import Header from "@/src/components/layouts/header";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+// import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
 
 export function HostNameProject() {
-  const uiCustomization = useUiCustomization();
+  // const uiCustomization = useUiCustomization();
   return (
     <div>
       <Header title="Host Name" />
@@ -15,7 +15,8 @@ export function HostNameProject() {
             When connecting to Langfuse, use this hostname / baseurl.
           </div>
           <CodeView
-            content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
+            // content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
+            content={`${window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
           />
         </div>
       </Card>

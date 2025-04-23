@@ -1,5 +1,5 @@
-import { stripeWebhookApiHandler } from "@/src/ee/features/billing/server/stripeWebhookApiHandler";
+// import { stripeWebhookApiHandler } from "@/src/ee/features/billing/server/stripeWebhookApiHandler";
 
 export const dynamic = "force-dynamic";
 
-export const POST = stripeWebhookApiHandler;
+export const POST = () => {}; // stripeWebhookApiHandler;

@@ -5,7 +5,7 @@ import {
   TabsContent,
   TabsTrigger,
 } from "@/src/components/ui/tabs";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+// import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Link from "next/link";
@@ -14,7 +14,7 @@ export const QuickstartExamples = (p: {
   secretKey?: string;
   publicKey?: string;
 }) => {
-  const uiCustomization = useUiCustomization();
+  // const uiCustomization = useUiCustomization();
   const capture = usePostHogClientCapture();
   const tabs = [
     { value: "python", label: "Python" },
@@ -25,27 +25,27 @@ export const QuickstartExamples = (p: {
     { value: "llamaindex", label: "LlamaIndex" },
     { value: "other", label: "Other" },
   ];
-  const host = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
+  const host = `${/*uiCustomization?.hostname ??*/ window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 
   const secretKey = p.secretKey ?? "<secret key>";
   const publicKey = p.publicKey ?? "<public key>";
 
   // if custom docs link, do not show quickstart examples but refer to docs
-  if (uiCustomization?.documentationHref) {
-    return (
-      <p className="mb-2">
-        See your{" "}
-        <Link
-          href={uiCustomization.documentationHref}
-          target="_blank"
-          className="underline"
-        >
-          internal documentation
-        </Link>{" "}
-        for details on how to set up Langfuse in your organization.
-      </p>
-    );
-  }
+  // if (uiCustomization?.documentationHref) {
+  //   return (
+  //     <p className="mb-2">
+  //       See your{" "}
+  //       <Link
+  //         href={uiCustomization.documentationHref}
+  //         target="_blank"
+  //         className="underline"
+  //       >
+  //         internal documentation
+  //       </Link>{" "}
+  //       for details on how to set up Langfuse in your organization.
+  //     </p>
+  //   );
+  // }
 
   return (
     <div>
@@ -291,7 +291,7 @@ langfuse_handler = CallbackHandler(
 )
 
 # <Your Langchain code here>
- 
+
 # Add handler to run/invoke/call/chat
 chain.invoke({"input": "<user_input>"}, config={"callbacks": [langfuse_handler]})`;
 
@@ -300,17 +300,17 @@ const LANGCHAIN_JS_CODE = (p: {
   secretKey: string;
   host: string;
 }) => `import { CallbackHandler } from "langfuse-langchain";
- 
+
 // Initialize Langfuse callback handler
 const langfuseHandler = new CallbackHandler({
   publicKey: "${p.publicKey}",
   secretKey: "${p.secretKey}",
   baseUrl: "${p.host}"
 });
- 
+
 // Your Langchain implementation
 const chain = new LLMChain(...);
- 
+
 // Add handler as callback when running the Langchain agent
 await chain.invoke(
   { input: "<user_input>" },
@@ -324,7 +324,7 @@ const LLAMA_INDEX_CODE = (p: {
 }) => `from llama_index.core import Settings
 from llama_index.core.callbacks import CallbackManager
 from langfuse.llama_index import LlamaIndexCallbackHandler
- 
+
 langfuse_callback_handler = LlamaIndexCallbackHandler(
     public_key="${p.publicKey}",
     secret_key="${p.secretKey}",

@@ -31,16 +31,16 @@ import KeycloakProvider from "next-auth/providers/keycloak";
 import WorkOSProvider from "next-auth/providers/workos";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
-import {
-  getSsoAuthProviderIdForDomain,
-  loadSsoProviders,
-} from "@/src/ee/features/multi-tenant-sso/utils";
+// import {
+//   getSsoAuthProviderIdForDomain,
+//   loadSsoProviders,
+// } from "@/src/ee/features/multi-tenant-sso/utils";
 import { z } from "zod";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
-  traceException,
+  // traceException,
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
@@ -122,11 +122,11 @@ const staticProviders: Provider[] = [
       }
 
       // EE: Check custom SSO enforcement
-      const multiTenantSsoProvider =
-        await getSsoAuthProviderIdForDomain(domain);
-      if (multiTenantSsoProvider) {
-        throw new Error(`You must sign in via SSO for this domain.`);
-      }
+      // const multiTenantSsoProvider =
+      //   await getSsoAuthProviderIdForDomain(domain);
+      // if (multiTenantSsoProvider) {
+      //   throw new Error(`You must sign in via SSO for this domain.`);
+      // }
 
       const dbUser = await prisma.user.findUnique({
         where: {
@@ -441,12 +441,12 @@ const extendedPrismaAdapter: Adapter = {
  */
 export async function getAuthOptions(): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
-  try {
-    dynamicSsoProviders = await loadSsoProviders();
-  } catch (e) {
-    logger.error("Error loading dynamic SSO providers", e);
-    traceException(e);
-  }
+  // try {
+  //   dynamicSsoProviders = await loadSsoProviders();
+  // } catch (e) {
+  //   logger.error("Error loading dynamic SSO providers", e);
+  //   traceException(e);
+  // }
   const providers = [...staticProviders, ...dynamicSsoProviders];
 
   const data: NextAuthOptions = {
@@ -570,18 +570,18 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
           // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
-          const domain = email.split("@")[1];
-          const multiTenantSsoProvider =
-            await getSsoAuthProviderIdForDomain(domain);
-          if (
-            multiTenantSsoProvider &&
-            account?.provider !== multiTenantSsoProvider
-          ) {
-            console.log(
-              "Custom SSO provider enforced for domain, user signed in with other provider",
-            );
-            throw new Error(`You must sign in via SSO for this domain.`);
-          }
+          // const domain = email.split("@")[1];
+          // const multiTenantSsoProvider =
+          //   await getSsoAuthProviderIdForDomain(domain);
+          // if (
+          //   multiTenantSsoProvider &&
+          //   account?.provider !== multiTenantSsoProvider
+          // ) {
+          //   console.log(
+          //     "Custom SSO provider enforced for domain, user signed in with other provider",
+          //   );
+          //   throw new Error(`You must sign in via SSO for this domain.`);
+          // }
 
           // Only allow sign in via email link if user is already in db as this is used for password reset
           if (account?.provider === "email") {

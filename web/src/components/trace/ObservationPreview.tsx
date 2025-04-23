@@ -9,13 +9,13 @@ import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+// import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+// import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { Fragment, useMemo, useState } from "react";
@@ -156,22 +156,22 @@ export const ObservationPreview = ({
                     type="observation"
                     hasGroupedButton={hasEntitlement}
                   />
-                  {hasEntitlement && (
+                  {/* {hasEntitlement && (
                     <CreateNewAnnotationQueueItem
                       projectId={projectId}
                       objectId={preloadedObservation.id}
                       objectType={AnnotationQueueObjectType.OBSERVATION}
                     />
-                  )}
+                  )} */}
                 </div>
-                {observationWithInputAndOutput.data?.type === "GENERATION" && (
+                {/* {observationWithInputAndOutput.data?.type === "GENERATION" && (
                   <JumpToPlaygroundButton
                     source="generation"
                     generation={observationWithInputAndOutput.data}
                     analyticsEventName="trace_detail:test_in_playground_button_click"
                     className={cn(isTimeline ? "!hidden" : "")}
                   />
-                )}
+                )} */}
                 <CommentDrawerButton
                   projectId={preloadedObservation.projectId}
                   objectId={preloadedObservation.id}

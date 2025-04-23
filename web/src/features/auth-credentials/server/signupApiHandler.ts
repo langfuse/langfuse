@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
-import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
+// import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -60,13 +60,13 @@ export async function signupApiHandler(
   }
 
   // EE: check if custom SSO configuration is enabled for this domain
-  const multiTenantSsoProvider = await getSsoAuthProviderIdForDomain(domain);
-  if (multiTenantSsoProvider) {
-    res.status(422).json({
-      message: "You must sign in via SSO for this domain.",
-    });
-    return;
-  }
+  // const multiTenantSsoProvider = await getSsoAuthProviderIdForDomain(domain);
+  // if (multiTenantSsoProvider) {
+  //   res.status(422).json({
+  //     message: "You must sign in via SSO for this domain.",
+  //   });
+  //   return;
+  // }
 
   // create the user
   let userId: string;

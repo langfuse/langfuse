@@ -12,7 +12,7 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+// import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
@@ -201,7 +201,7 @@ export default function DatasetCompare() {
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
-                <CreateExperimentsForm
+                {/* <CreateExperimentsForm
                   key={`create-experiment-form-${datasetId}`}
                   projectId={projectId as string}
                   setFormOpen={setIsCreateExperimentDialogOpen}
@@ -210,7 +210,7 @@ export default function DatasetCompare() {
                   }}
                   handleExperimentSettled={handleExperimentSettled}
                   showSDKRunInfoPage
-                />
+                /> */}
               </DialogContent>
             </Dialog>
             <MultiSelectKeyValues

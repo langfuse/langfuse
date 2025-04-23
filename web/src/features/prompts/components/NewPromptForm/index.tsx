@@ -48,7 +48,7 @@ import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
+// import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 
@@ -62,7 +62,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const projectId = useProjectIdFromURL();
   const [shouldLoadPlaygroundCache] = useQueryParam("loadPlaygroundCache");
   const [formError, setFormError] = useState<string | null>(null);
-  const { playgroundCache } = usePlaygroundCache();
+  // const { playgroundCache } = usePlaygroundCache();
   const [initialMessages, setInitialMessages] = useState<unknown>([]);
 
   const utils = api.useUtils();
@@ -179,14 +179,15 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   }
 
   useEffect(() => {
-    if (shouldLoadPlaygroundCache && playgroundCache) {
-      form.setValue("type", PromptType.Chat);
+    // if (shouldLoadPlaygroundCache && playgroundCache) {
+    //   form.setValue("type", PromptType.Chat);
 
-      setInitialMessages(playgroundCache.messages);
-    } else if (initialPrompt?.type === PromptType.Chat) {
+    //   setInitialMessages(playgroundCache.messages);
+    // } else
+    if (initialPrompt?.type === PromptType.Chat) {
       setInitialMessages(initialPrompt.prompt);
     }
-  }, [playgroundCache, initialPrompt, form, shouldLoadPlaygroundCache]);
+  }, [initialPrompt, form, shouldLoadPlaygroundCache]);
 
   usePromptNameValidation({
     currentName,

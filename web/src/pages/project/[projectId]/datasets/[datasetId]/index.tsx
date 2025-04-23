@@ -29,7 +29,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+// import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
@@ -164,7 +164,7 @@ export default function Dataset() {
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
-                <CreateExperimentsForm
+                {/* <CreateExperimentsForm
                   key={`create-experiment-form-${datasetId}`}
                   projectId={projectId as string}
                   setFormOpen={setIsCreateExperimentDialogOpen}
@@ -173,7 +173,7 @@ export default function Dataset() {
                   }}
                   handleExperimentSuccess={handleExperimentSuccess}
                   showSDKRunInfoPage
-                />
+                /> */}
               </DialogContent>
             </Dialog>
 

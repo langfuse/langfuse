@@ -23,7 +23,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@langfuse/shared";
 import { PromptHistoryNode } from "./prompt-history";
-import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+// import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import Generations from "@/src/components/table/use-cases/observations";
 import { FlaskConical, MoreVertical, Plus } from "lucide-react";
@@ -35,7 +35,7 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+// import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useMemo, useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -65,7 +65,7 @@ const getPythonCode = (
 # Initialize Langfuse client
 langfuse = Langfuse()
 
-# Get production prompt 
+# Get production prompt
 prompt = langfuse.get_prompt("${name}")
 
 # Get by label
@@ -85,7 +85,7 @@ const getJsCode = (
 // Initialize the Langfuse client
 const langfuse = new Langfuse();
 
-// Get production prompt 
+// Get production prompt
 const prompt = await langfuse.getPrompt("${name}");
 
 // Get by label
@@ -384,12 +384,12 @@ export const PromptDetail = () => {
                 <div className="min-h-1 flex-1" />
               </div>
               <div className="flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
-                <JumpToPlaygroundButton
+                {/* <JumpToPlaygroundButton
                   source="prompt"
                   prompt={prompt}
                   analyticsEventName="prompt_detail:test_in_playground_button_click"
                   variant="outline"
-                />
+                /> */}
                 {hasAccess && hasEntitlement && (
                   <Dialog
                     open={isCreateExperimentDialogOpen}
@@ -408,7 +408,7 @@ export const PromptDetail = () => {
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-h-[90vh] overflow-y-auto">
-                      <CreateExperimentsForm
+                      {/* <CreateExperimentsForm
                         key={`create-experiment-form-${prompt.id}`}
                         projectId={projectId as string}
                         setFormOpen={setIsCreateExperimentDialogOpen}
@@ -420,7 +420,7 @@ export const PromptDetail = () => {
                           version: prompt.version,
                         }}
                         handleExperimentSuccess={handleExperimentSuccess}
-                      />
+                      /> */}
                     </DialogContent>
                   </Dialog>
                 )}

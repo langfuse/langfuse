@@ -1,1 +1,4 @@
-export { default as default } from "@/src/ee/features/evals/pages/evaluators";
+// export { default as default } from "@/src/ee/features/evals/pages/evaluators";
+const Evaluators = () => (<></>);
+
+export default Evaluators;

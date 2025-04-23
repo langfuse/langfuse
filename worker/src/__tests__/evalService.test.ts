@@ -27,11 +27,11 @@ import {
   expect,
   test,
 } from "vitest";
-import {
-  createEvalJobs,
-  evaluate,
-  extractVariablesFromTracingData,
-} from "../ee/evaluation/evalService";
+// import {
+//   createEvalJobs,
+//   evaluate,
+//   extractVariablesFromTracingData,
+// } from "../ee/evaluation/evalService";
 import { compileHandlebarString } from "../features/utilities";
 import { OpenAIServer } from "./network";
 import { pruneDatabase } from "./utils";

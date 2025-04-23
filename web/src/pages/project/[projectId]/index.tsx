@@ -23,7 +23,7 @@ import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+// import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
@@ -38,7 +38,7 @@ export default function Dashboard() {
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useDashboardDateRange();
 
-  const uiCustomization = useUiCustomization();
+  // const uiCustomization = useUiCustomization();
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
 
@@ -206,7 +206,7 @@ export default function Dashboard() {
             onChange={useDebounce(setUserFilterState)}
           />
         </div>
-        {uiCustomization?.feedbackHref === undefined && (
+        {/* {uiCustomization?.feedbackHref === undefined && (
           <FeedbackButtonWrapper
             title="Request Chart"
             description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
@@ -226,7 +226,7 @@ export default function Dashboard() {
               Request Chart
             </Button>
           </FeedbackButtonWrapper>
-        )}
+        )} */}
       </div>
       <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart

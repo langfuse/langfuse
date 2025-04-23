@@ -29,7 +29,7 @@ import { Switch } from "@/src/components/ui/switch";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+// import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 
 const formSchema = z
   .object({
@@ -74,7 +74,7 @@ export function CreateLLMApiKeyForm({
 }: {
   projectId?: string;
   onSuccess: () => void;
-  customization: ReturnType<typeof useUiCustomization>;
+  // customization: ReturnType<typeof useUiCustomization>;
 }) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -92,9 +92,11 @@ export function CreateLLMApiKeyForm({
 
   const mutTestLLMApiKey = api.llmApiKey.test.useMutation();
 
-  const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
-    ? LLMAdapter[customization.defaultModelAdapter]
-    : LLMAdapter.OpenAI;
+  const defaultAdapter: LLMAdapter =
+    // customization?.defaultModelAdapter
+    // ? LLMAdapter[customization.defaultModelAdapter]
+    // :
+    LLMAdapter.OpenAI;
 
   const getCustomizedBaseURL = (adapter: LLMAdapter) => {
     switch (adapter) {

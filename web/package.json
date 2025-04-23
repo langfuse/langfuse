@@ -39,7 +39,6 @@
     "@langchain/anthropic": "^0.3.8",
     "@langchain/core": "^0.3.18",
     "@langchain/openai": "^0.3.14",
-    "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.1",
     "@marsidev/react-turnstile": "^0.5.4",

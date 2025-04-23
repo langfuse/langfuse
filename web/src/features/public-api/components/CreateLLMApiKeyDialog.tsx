@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+// import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { CreateLLMApiKeyForm } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 
 export function CreateLLMApiKeyDialog() {
@@ -21,7 +21,7 @@ export function CreateLLMApiKeyDialog() {
     projectId,
     scope: "llmApiKeys:create",
   });
-  const uiCustomization = useUiCustomization();
+  // const uiCustomization = useUiCustomization();
 
   if (!hasAccess) return null;
 
@@ -46,7 +46,7 @@ export function CreateLLMApiKeyDialog() {
           <CreateLLMApiKeyForm
             projectId={projectId}
             onSuccess={() => setOpen(false)}
-            customization={uiCustomization}
+            // customization={uiCustomization}
           />
         )}
       </DialogContent>

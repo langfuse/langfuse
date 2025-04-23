@@ -12,7 +12,7 @@ import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+// import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
@@ -92,7 +92,7 @@ export const ApiKeyRender = ({
 }: {
   generatedKeys?: { secretKey: string; publicKey: string };
 }) => {
-  const uiCustomization = useUiCustomization();
+  // const uiCustomization = useUiCustomization();
   return (
     <>
       <div className="mb-4">
@@ -110,7 +110,8 @@ export const ApiKeyRender = ({
       <div>
         <div className="text-md mb-2 font-semibold">Host</div>
         <CodeView
-          content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
+          // content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
+          content={`${window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
         />
       </div>
     </>

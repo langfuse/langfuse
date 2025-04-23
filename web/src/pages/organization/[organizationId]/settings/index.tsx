@@ -8,10 +8,10 @@ import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
-import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
+// import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
+// import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
 import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 
@@ -93,14 +93,16 @@ export const getOrganizationSettingsPages = ({
     title: "Billing",
     slug: "billing",
     cmdKKeywords: ["payment", "subscription", "plan", "invoice"],
-    content: <BillingSettings />,
+    // content: <BillingSettings />,
+    content: (<></>),
     show: showBillingSettings,
   },
   {
     title: "SSO",
     slug: "sso",
     cmdKKeywords: ["sso", "login", "auth", "okta", "saml", "azure"],
-    content: <SSOSettings />,
+    // content: <SSOSettings />,
+    content: (<></>),
     show: isLangfuseCloud,
   },
   {

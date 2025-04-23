@@ -11,7 +11,7 @@ import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+// import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
@@ -106,7 +106,7 @@ export default function Layout(props: PropsWithChildren) {
 
   const entitlements = useEntitlements();
 
-  const uiCustomization = useUiCustomization();
+  // const uiCustomization = useUiCustomization();
 
   const cloudAdmin =
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
@@ -177,9 +177,10 @@ export default function Layout(props: PropsWithChildren) {
       route.items?.map((item) => mapNavigation(item)).filter(Boolean) ?? [];
 
     const url = (
-      route.customizableHref
-        ? (uiCustomization?.[route.customizableHref] ?? route.pathname)
-        : route.pathname
+      // route.customizableHref
+      //   ? (uiCustomization?.[route.customizableHref] ?? route.pathname)
+        // :
+      route.pathname
     )
       ?.replace("[projectId]", routerProjectId ?? "")
       .replace("[organizationId]", routerOrganizationId ?? "");

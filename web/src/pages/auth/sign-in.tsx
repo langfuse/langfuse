@@ -27,7 +27,7 @@ import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPriv
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
-import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
+// import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { Shield, Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
@@ -76,7 +76,7 @@ export type PageProps = {
 // Also used in src/pages/auth/sign-up.tsx
 // eslint-disable-next-line @typescript-eslint/require-await
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
-  const sso: boolean = await isAnySsoConfigured();
+  const sso: boolean = false; // await isAnySsoConfigured();
   return {
     props: {
       authProviders: {

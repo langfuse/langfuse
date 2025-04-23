@@ -4,7 +4,7 @@
 // For more information see https://langfuse.com/docs/open-source
 
 import { useRouter } from "next/router";
-import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
+// import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import {
   TabsBar,
   TabsBarList,
@@ -52,7 +52,7 @@ export default function LogPage() {
         ),
       }}
     >
-      <EvalLogTable projectId={projectId} />
+      {/* <EvalLogTable projectId={projectId} /> */}
     </Page>
   );
 }

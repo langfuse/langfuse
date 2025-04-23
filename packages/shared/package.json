@@ -46,7 +46,7 @@
     "ch:up": "bash clickhouse/scripts/up.sh",
     "ch:down": "bash clickhouse/scripts/down.sh",
     "ch:drop": "bash clickhouse/scripts/drop.sh",
-    "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed",
+    "ch:reset": "pnpm run ch:up && pnpm run ch:seed",
     "ch:seed": "dotenv -e ../../.env -- ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options '{\"module\":\"CommonJS\"}' clickhouse/scripts/seed.ts",
     "load:setup": "dotenv -e ../../.env -- tsx scripts/load-seed.ts"
   },
