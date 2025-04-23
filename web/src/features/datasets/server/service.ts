@@ -9,7 +9,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
 import {
-  clickhouseClient,
   clickhouseCompliantRandomCharacters,
   commandClickhouse,
   convertToScore,
