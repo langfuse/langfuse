@@ -273,7 +273,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       for (let i = 0; i < totalScores; i++) {
         scores.push(
-          createScore({
+          createTraceScore({
             id: v4(),
             project_id: projectId,
             trace_id: traceId,
@@ -296,7 +296,7 @@ describe("/api/public/scores API Endpoint", () => {
       // Fetch all pages and verify count matches
       while (hasMorePages) {
         const response = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV1,
           "GET",
           `/api/public/scores?limit=${pageSize}&page=${page}`,
           undefined,
