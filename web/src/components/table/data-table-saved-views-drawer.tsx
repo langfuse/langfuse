@@ -106,6 +106,7 @@ export function SavedViewsDrawer({
     updateConfigMutation,
     updateNameMutation,
     deleteMutation,
+    generatePermalinkMutation,
   } = useViewMutations();
   const utils = api.useUtils();
 
@@ -115,6 +116,8 @@ export function SavedViewsDrawer({
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newViewName, setNewViewName] = useState("");
+  const [isEditPopoverOpen, setIsEditPopoverOpen] = useState<boolean>(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
 
   const selectedViewName = savedViewList?.find(
     (view) => view.id === selectedViewId,
@@ -162,6 +165,8 @@ export function SavedViewsDrawer({
 
   const onSubmit = (id: string) => (data: { name: string }) => {
     handleUpdateViewName({ id, name: data.name });
+    setIsEditPopoverOpen(false);
+    setIsDropdownOpen(false);
   };
 
   const handleDeleteView = async (viewId: string) => {
@@ -228,12 +233,22 @@ export function SavedViewsDrawer({
                           size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
+                            generatePermalinkMutation.mutate({
+                              viewId: view.id,
+                              projectId,
+                              tableName,
+                            });
                           }}
                           className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
                         >
                           <Link className="h-4 w-4" />
                         </Button>
-                        <DropdownMenu>
+                        <DropdownMenu
+                          open={isDropdownOpen}
+                          onOpenChange={(open) => {
+                            setIsDropdownOpen(open);
+                          }}
+                        >
                           <DropdownMenuTrigger asChild>
                             <Button
                               variant="ghost"
@@ -248,7 +263,18 @@ export function SavedViewsDrawer({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
                             <DropdownMenuItem asChild>
-                              <Popover key={view.id + "-edit"}>
+                              <Popover
+                                key={view.id + "-edit"}
+                                open={isEditPopoverOpen}
+                                onOpenChange={(open) => {
+                                  setIsEditPopoverOpen(open);
+                                  if (open) {
+                                    form.reset({ name: view.name });
+                                  } else {
+                                    setIsDropdownOpen(false);
+                                  }
+                                }}
+                              >
                                 <PopoverTrigger asChild>
                                   <Button
                                     variant="ghost"
@@ -296,7 +322,6 @@ export function SavedViewsDrawer({
                                       <div className="flex w-full justify-end">
                                         <Button
                                           type="submit"
-                                          variant="destructive"
                                           loading={updateNameMutation.isLoading}
                                         >
                                           Save

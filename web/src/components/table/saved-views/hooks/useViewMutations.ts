@@ -1,3 +1,4 @@
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 
 type UseViewMutationsProps = {};
@@ -29,10 +30,22 @@ export const useViewMutations = () => {
     },
   });
 
+  const generatePermalinkMutation =
+    api.savedViews.generatePermalink.useMutation({
+      onSuccess: (data) => {
+        navigator.clipboard.writeText(data);
+        showSuccessToast({
+          title: "Permalink copied to clipboard",
+          description: "You can now share the permalink with others",
+        });
+      },
+    });
+
   return {
     createMutation,
     updateConfigMutation,
     updateNameMutation,
     deleteMutation,
+    generatePermalinkMutation,
   };
 };

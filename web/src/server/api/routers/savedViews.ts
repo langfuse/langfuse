@@ -10,6 +10,37 @@ import {
   UpdateSavedViewInput,
   UpdateSavedViewNameInput,
 } from "@langfuse/shared/src/server";
+import { TRPCError } from "@trpc/server";
+import { LangfuseNotFoundError } from "@langfuse/shared";
+
+/**
+ * Maps domain errors to appropriate TRPC errors
+ * @param fn Function to execute that might throw domain errors
+ * @param errorConfig Optional configuration for customizing error messages
+ */
+export async function withErrorMapping<T>(
+  fn: () => Promise<T>,
+  errorConfig?: {
+    notFoundMessage?: string;
+    // Add more error type configurations as needed
+  },
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    // Map domain errors to TRPC errors
+    if (error instanceof LangfuseNotFoundError) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: errorConfig?.notFoundMessage || error.message,
+        cause: error,
+      });
+    }
+
+    // Re-throw unknown errors
+    throw error;
+  }
+}
 
 export const savedViewsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -41,9 +72,9 @@ export const savedViewsRouter = createTRPCRouter({
         scope: "savedViews:CUD",
       });
 
-      const view = await TableViewService.updateSavedView(
-        input,
-        ctx.session.user?.id,
+      const view = await withErrorMapping(
+        () => TableViewService.getSavedViewById(input.id, ctx.session.user?.id),
+        { notFoundMessage: "Saved view not found, failed to update" },
       );
 
       return {
@@ -61,9 +92,9 @@ export const savedViewsRouter = createTRPCRouter({
         scope: "savedViews:CUD",
       });
 
-      const view = await TableViewService.updateSavedViewName(
-        input,
-        ctx.session.user?.id,
+      const view = await withErrorMapping(
+        () => TableViewService.updateSavedViewName(input, ctx.session.user?.id),
+        { notFoundMessage: "Saved view not found, failed to update name" },
       );
 
       return {
@@ -125,10 +156,33 @@ export const savedViewsRouter = createTRPCRouter({
         scope: "savedViews:read",
       });
 
-      return await TableViewService.getSavedViewById(input.id, input.projectId);
+      return await withErrorMapping(
+        () => TableViewService.getSavedViewById(input.id, input.projectId),
+        { notFoundMessage: "Saved view not found, likely it has been deleted" },
+      );
     }),
 
-  // generatePermalink: protectedProjectProcedure
+  generatePermalink: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        viewId: z.string(),
+        tableName: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "savedViews:read",
+      });
 
-  // resolve?
+      return await TableViewService.generatePermalink(
+        input.viewId,
+        input.tableName,
+        input.projectId,
+      );
+    }),
+
+  // resolvePermalink: protectedProjectProcedure
 });
