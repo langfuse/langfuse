@@ -27,6 +27,7 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { recordIncrement } from "../instrumentation";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -304,6 +305,10 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
 
 /**
  * Retrieves a trace record by its ID and associated project ID, with optional filtering by timestamp range.
+ * If no timestamp filters are provided, runs two queries in parallel:
+ * 1. One with a 7-day fromTimestamp filter (typically faster)
+ * 2. One without any timestamp filters (complete but slower)
+ * Returns the first non-empty result.
  */
 export const getTraceById = async ({
   traceId,
@@ -316,40 +321,89 @@ export const getTraceById = async ({
   timestamp?: Date;
   fromTimestamp?: Date;
 }) => {
-  const query = `
-    SELECT * 
-    FROM traces
-    WHERE id = {traceId: String} 
-    AND project_id = {projectId: String}
-    ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
-    ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""} 
-    ORDER BY event_ts DESC 
-    LIMIT 1
-  `;
+  const getQuery = (timestamp?: Date, fromTimestamp?: Date) => {
+    return `
+      SELECT * 
+      FROM traces
+      WHERE id = {traceId: String} 
+      AND project_id = {projectId: String}
+      ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
+      ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""} 
+      ORDER BY event_ts DESC 
+      LIMIT 1
+    `;
+  };
 
-  const records = await queryClickhouse<TraceRecordReadType>({
-    query,
+  const hasTimestampFilter = Boolean(timestamp) || Boolean(fromTimestamp);
+
+  const tags = {
+    feature: "tracing",
+    type: "trace",
+    kind: "byId",
+    projectId,
+  };
+
+  // If no fromTimestamp or timestamp is provided, use a 7-day lookback for a faster query
+  const queryFromTimestamp = !hasTimestampFilter
+    ? new Date(new Date().getTime() - 1000 * 60 * 60 * 24 * 7)
+    : fromTimestamp;
+  const queryWithTimestampPromise = queryClickhouse<TraceRecordReadType>({
+    query: getQuery(timestamp, queryFromTimestamp),
     params: {
       traceId,
       projectId,
       ...(timestamp
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),
-      ...(fromTimestamp
-        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+      ...(queryFromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(queryFromTimestamp) }
         : {}),
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "byId",
-      projectId,
-    },
+    tags,
   });
 
-  const res = records.map(convertClickhouseToDomain);
+  const queryWithoutTimestampPromise = !hasTimestampFilter
+    ? queryClickhouse<TraceRecordReadType>({
+        query: getQuery(undefined, undefined),
+        params: {
+          traceId,
+          projectId,
+        },
+        tags,
+      })
+    : null;
 
-  return res.shift();
+  const promises = [
+    queryWithTimestampPromise,
+    queryWithoutTimestampPromise,
+  ].filter((elem) => elem !== null);
+
+  // Get the first result
+  const result = await Promise.race(promises);
+
+  // Check if faster result has a value and if yes, return it
+  if (result?.length && result.length > 0) {
+    recordIncrement("langfuse.by_id.hit", 1, {
+      kind: "race",
+      type: "trace",
+      has_time_filter: `${hasTimestampFilter}`,
+    });
+    return convertClickhouseToDomain(result[0]);
+  }
+
+  // If not, check all results for a value and return the first non-null one
+  const allResults = await Promise.all(promises);
+  for (const result of allResults) {
+    if (result && result.length > 0) {
+      recordIncrement("langfuse.by_id.hit", 1, {
+        kind: "all_settled",
+        type: "trace",
+        has_time_filter: `${hasTimestampFilter}`,
+      });
+      return convertClickhouseToDomain(result[0]);
+    }
+  }
+  return undefined;
 };
 
 export const getTracesGroupedByName = async (
