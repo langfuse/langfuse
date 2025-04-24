@@ -1004,7 +1004,7 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
   }));
 };
 
-export const searchTraceWithSessionId = async (
+export const traceWithSessionIdExists = async (
   projectId: string,
   sessionId: string,
 ) => {
@@ -1025,9 +1025,10 @@ export const searchTraceWithSessionId = async (
     tags: {
       feature: "tracing",
       type: "trace",
-      kind: "list",
+      kind: "exists",
+      projectId,
     },
   });
 
-  return result.shift();
+  return result.length > 0;
 };
