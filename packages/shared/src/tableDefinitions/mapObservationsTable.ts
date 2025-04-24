@@ -189,7 +189,8 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."metadata"',
   },
-  // TODO: remove duplication once session storage cache is outdated
+  // Scores column duplicated to allow renaming column name. Will be removed once session storage cache is outdated
+  // Column names are cached in user sessions - changing them breaks existing filters
   {
     uiTableName: "Scores",
     uiTableId: "scores",
