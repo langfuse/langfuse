@@ -206,7 +206,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Scores (categorical)",
     uiTableId: "scores",
-    clickhouseTableName: "scores",
+    clickhouseTableName: "observations",
     clickhouseSelect: "s.score_categories",
   },
   {
