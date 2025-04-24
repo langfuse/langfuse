@@ -415,7 +415,7 @@ const getObservationByIdInternal = async (
 
   // If no fromStartTime or startTime is provided, use a 7-day lookback for a faster query
   const queryFromStartTime = !hasStartTimeFilter
-    ? new Date(new Date().getTime() - 1000 * 60 * 60 * 24 * 7)
+    ? new Date(new Date().getTime() - 1000 * 60 * 60 * 24 * 1)
     : fromStartTime;
 
   const queryWithStartTimePromise = queryClickhouse<ObservationRecordReadType>({
