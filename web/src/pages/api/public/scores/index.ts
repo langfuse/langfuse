@@ -5,9 +5,9 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import {
   GetScoresQueryV1,
   GetScoresResponseV1,
-  legacyFilterAndValidateV1GetScoreList,
-  PostScoresBody,
-  PostScoresResponse,
+  filterAndValidateV1GetScoreList,
+  PostScoresBodyV1,
+  PostScoresResponseV1,
 } from "@langfuse/shared";
 import {
   eventTypes,
@@ -19,8 +19,8 @@ import { ScoresApiService } from "@/src/features/public-api/server/scores-api-se
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",
-    bodySchema: PostScoresBody,
-    responseSchema: PostScoresResponse,
+    bodySchema: PostScoresBodyV1,
+    responseSchema: PostScoresResponseV1,
     fn: async ({ body, auth, res }) => {
       const event = {
         id: v4(),
@@ -80,7 +80,9 @@ export default withMiddlewares({
       const finalCount = count ? count : 0;
 
       return {
-        data: legacyFilterAndValidateV1GetScoreList(items),
+        // As these are traces scores, we expect all scores to have a traceId set
+        // For type consistency, we validate the scores against the v1 schema which requires a traceId
+        data: filterAndValidateV1GetScoreList(items),
         meta: {
           page: query.page,
           limit: query.limit,

@@ -4,7 +4,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { type APIScoreV2, type LastUserScore } from "@langfuse/shared";
+import { type LastUserScore, type APIScoreV2 } from "@langfuse/shared";
 import { BracesIcon, MessageCircleMoreIcon } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 

@@ -3,7 +3,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import {
   GetScoresQueryV2,
   GetScoresResponseV2,
-  legacyFilterAndValidateV2GetScoreList,
+  filterAndValidateV2GetScoreList,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
@@ -41,7 +41,7 @@ export default withMiddlewares({
       const finalCount = count ? count : 0;
 
       return {
-        data: legacyFilterAndValidateV2GetScoreList(items),
+        data: filterAndValidateV2GetScoreList(items),
         meta: {
           page: query.page,
           limit: query.limit,
@@ -51,5 +51,4 @@ export default withMiddlewares({
       };
     },
   }),
-  // Question: do I copy the POST route from v1?
 });

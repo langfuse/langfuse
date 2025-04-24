@@ -1,8 +1,8 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  DeleteScoreQuery,
-  DeleteScoreResponse,
+  DeleteScoreQueryV1,
+  DeleteScoreResponseV1,
   GetScoreQueryV1,
   GetScoreResponseV1,
   InternalServerError,
@@ -47,8 +47,8 @@ export default withMiddlewares({
   }),
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete Score",
-    querySchema: DeleteScoreQuery,
-    responseSchema: DeleteScoreResponse,
+    querySchema: DeleteScoreQueryV1,
+    responseSchema: DeleteScoreResponseV1,
     successStatusCode: 202,
     fn: async ({ query, auth }) => {
       const { scoreId } = query;
