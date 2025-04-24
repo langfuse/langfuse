@@ -130,6 +130,13 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
+  // TODO: remove duplication once session storage cache is outdated
+  {
+    uiTableName: "Scores",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.scores_avg",
+  },
   {
     uiTableName: "Scores (numeric)",
     uiTableId: "scores",

@@ -189,6 +189,13 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."metadata"',
   },
+  // TODO: remove duplication once session storage cache is outdated
+  {
+    uiTableName: "Scores",
+    uiTableId: "scores",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "s.scores_avg",
+  },
   {
     uiTableName: "Scores (numeric)",
     uiTableId: "scores",
