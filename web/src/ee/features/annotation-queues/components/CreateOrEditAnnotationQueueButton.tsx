@@ -1,5 +1,5 @@
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,7 @@ import {
 } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 
 export const CreateOrEditAnnotationQueueButton = ({
   projectId,
@@ -118,6 +119,24 @@ export const CreateOrEditAnnotationQueueButton = ({
       enabled: hasAccess && isOpen,
     },
   );
+
+  const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
+    { projectId },
+    { enabled: hasAccess && !queueId },
+  );
+
+  const allQueueNames = useMemo(() => {
+    return !queueId && allQueueNamesAndIds.data
+      ? allQueueNamesAndIds.data.map((queue) => ({ value: queue.name }))
+      : [];
+  }, [allQueueNamesAndIds.data, queueId]);
+
+  useUniqueNameValidation({
+    currentName: form.watch("name"),
+    allNames: allQueueNames,
+    form,
+    errorMessage: "Queue name already exists.",
+  });
 
   const configs = configsData.data?.configs ?? [];
 
@@ -280,7 +299,11 @@ export const CreateOrEditAnnotationQueueButton = ({
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="text-xs">
+              <Button
+                type="submit"
+                className="text-xs"
+                disabled={!!form.formState.errors.name}
+              >
                 {queueId ? "Save" : "Create"} queue
               </Button>
             </form>

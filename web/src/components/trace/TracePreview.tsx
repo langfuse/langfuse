@@ -134,6 +134,7 @@ export const TracePreview = ({
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                     hasGroupedButton={hasEntitlement}
+                    environment={trace.environment}
                   />
                   {hasEntitlement && (
                     <CreateNewAnnotationQueueItem

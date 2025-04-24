@@ -34,7 +34,20 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { recordIncrement } from "../instrumentation";
 
+/**
+ * Checks if observation exists in clickhouse.
+ *
+ * @param {string} projectId - Project ID for the observation
+ * @param {string} id - ID of the observation
+ * @param {Date} startTime - Timestamp for time-based filtering, uses event payload or job timestamp
+ * @returns {Promise<boolean>} - True if observation exists
+ *
+ * Notes:
+ * • Filters with two days lookback window subject to startTime
+ * • Used for validating observation references before eval job creation
+ */
 export const checkObservationExists = async (
   projectId: string,
   id: string,
@@ -158,6 +171,38 @@ export const getObservationsForTrace = async (
       projectId,
     },
   });
+
+  // Large number of observations in trace with large input / output / metadata will lead to
+  // high CPU and memory consumption in the convertObservation step, where parsing occurs
+  // Thus, limit the size of the payload to 4MB, follows NextJS response size limitation:
+  // https://nextjs.org/docs/messages/api-routes-response-size-limit
+  // See also LFE-4882 for more details
+  const PAYLOAD_SIZE_LIMIT = 4e6; // 4MB
+  let payloadSize = 0;
+
+  for (const observation of records) {
+    for (const key of ["input", "output"] as const) {
+      const value = observation[key];
+
+      if (value && typeof value === "string") {
+        payloadSize += value.length;
+      }
+    }
+
+    const metadataValues = Object.values(observation["metadata"]);
+
+    metadataValues.forEach((value) => {
+      if (value && typeof value === "string") {
+        payloadSize += value.length;
+      }
+    });
+
+    if (payloadSize >= PAYLOAD_SIZE_LIMIT) {
+      const errorMessage = `Observations in trace are too large: ${(payloadSize / 1e6).toFixed(2)}MB exceeds limit of ${(PAYLOAD_SIZE_LIMIT / 1e6).toFixed(2)}MB`;
+
+      throw new Error(errorMessage);
+    }
+  }
 
   return records.map(convertObservation);
 };
@@ -304,65 +349,132 @@ export const getObservationsById = async (
   return records.map(convertObservation);
 };
 
+/**
+ * Retrieves an observation record by its ID and associated project ID, with optional filtering by startTime.
+ * If no startTime filters are provided, runs two queries in parallel:
+ * 1. One with a 7-day fromStartTime filter (typically faster)
+ * 2. One without any startTime filters (complete but slower)
+ * Returns the first non-empty result.
+ */
 const getObservationByIdInternal = async (
   id: string,
   projectId: string,
   fetchWithInputOutput: boolean = false,
   startTime?: Date,
+  fromStartTime?: Date,
 ) => {
-  const query = `
-  SELECT
-    id,
-    trace_id,
-    project_id,
-    environment,
-    type,
-    parent_observation_id,
-    start_time,
-    end_time,
-    name,
-    metadata,
-    level,
-    status_message,
-    version,
-    ${fetchWithInputOutput ? "input, output," : ""}
-    provided_model_name,
-    internal_model_id,
-    model_parameters,
-    provided_usage_details,
-    usage_details,
-    provided_cost_details,
-    cost_details,
-    total_cost,
-    completion_start_time,
-    prompt_id,
-    prompt_name,
-    prompt_version,
-    created_at,
-    updated_at,
-    event_ts
-  FROM observations
-  WHERE id = {id: String}
-  AND project_id = {projectId: String}
-  ${startTime ? `AND start_time = {startTime: DateTime64(3)}` : ""}
-  ORDER BY event_ts desc
-  LIMIT 1 by id, project_id`;
-  return await queryClickhouse<ObservationRecordReadType>({
-    query,
+  const getQuery = (startTime?: Date, fromStartTime?: Date) => {
+    return `
+    SELECT
+      id,
+      trace_id,
+      project_id,
+      environment,
+      type,
+      parent_observation_id,
+      start_time,
+      end_time,
+      name,
+      metadata,
+      level,
+      status_message,
+      version,
+      ${fetchWithInputOutput ? "input, output," : ""}
+      provided_model_name,
+      internal_model_id,
+      model_parameters,
+      provided_usage_details,
+      usage_details,
+      provided_cost_details,
+      cost_details,
+      total_cost,
+      completion_start_time,
+      prompt_id,
+      prompt_name,
+      prompt_version,
+      created_at,
+      updated_at,
+      event_ts
+    FROM observations
+    WHERE id = {id: String}
+    AND project_id = {projectId: String}
+    ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
+    ${fromStartTime ? `AND start_time >= {fromStartTime: DateTime64(3)}` : ""}
+    ORDER BY event_ts desc
+    LIMIT 1 by id, project_id`;
+  };
+
+  const hasStartTimeFilter = Boolean(startTime) || Boolean(fromStartTime);
+
+  const tags = {
+    feature: "tracing",
+    type: "observation",
+    kind: "byId",
+    projectId,
+  };
+
+  // If no fromStartTime or startTime is provided, use a lookback for a faster query
+  const queryFromStartTime = !hasStartTimeFilter
+    ? new Date(new Date().getTime() - 1000 * 60 * 60 * 24 * 1)
+    : fromStartTime;
+
+  const queryWithStartTimePromise = queryClickhouse<ObservationRecordReadType>({
+    query: getQuery(startTime, queryFromStartTime),
     params: {
       id,
       projectId,
       ...(startTime
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
         : {}),
+      ...(queryFromStartTime
+        ? { fromStartTime: convertDateToClickhouseDateTime(queryFromStartTime) }
+        : {}),
     },
-    tags: {
-      feature: "tracing",
-      type: "observation",
-      kind: "byId",
-      projectId,
-    },
+    tags,
   });
+
+  const queryWithoutStartTimePromise = !hasStartTimeFilter
+    ? queryClickhouse<ObservationRecordReadType>({
+        query: getQuery(undefined, undefined),
+        params: {
+          id,
+          projectId,
+        },
+        tags,
+      })
+    : null;
+
+  const promises = [
+    queryWithStartTimePromise,
+    queryWithoutStartTimePromise,
+  ].filter((elem) => elem !== null);
+
+  // Get the first result
+  const result = await Promise.race(promises);
+
+  // Check if faster result has a value and if yes, return it
+  if (result?.length && result.length > 0) {
+    recordIncrement("langfuse.by_id.hit", 1, {
+      kind: "race",
+      type: "observation",
+      has_time_filter: `${hasStartTimeFilter}`,
+    });
+    return result;
+  }
+
+  // If not, check all results for a value and return the first non-null one
+  const allResults = await Promise.all(promises);
+  for (const result of allResults) {
+    if (result && result.length > 0) {
+      recordIncrement("langfuse.by_id.hit", 1, {
+        kind: "all_settled",
+        type: "observation",
+        has_time_filter: `${hasStartTimeFilter}`,
+      });
+      return result;
+    }
+  }
+  return [];
 };
 
 export type ObservationTableQuery = {
@@ -540,8 +652,8 @@ const getObservationsTableInternal = async <T>(
         .includes(f.column),
   );
 
-  const hasScoresFilter = filter.some(
-    (f) => f.column === "Scores" || f.column === "scores",
+  const hasScoresFilter = filter.some((f) =>
+    f.column.toLowerCase().includes("scores"),
   );
 
   const orderByTraces = opts.orderBy
@@ -586,17 +698,28 @@ const getObservationsTableInternal = async <T>(
 
   const search = clickhouseSearchCondition(opts.searchQuery);
 
-  const scoresCte = `WITH scores_avg AS (
+  const scoresCte = `WITH scores_agg AS (
     SELECT
       trace_id,
       observation_id,
-       groupArray(tuple(name, avg_value)) AS "scores_avg"
+      -- For numeric scores, use tuples of (name, avg_value)
+      groupArrayIf(
+        tuple(name, avg_value),
+        data_type IN ('NUMERIC', 'BOOLEAN')
+      ) AS scores_avg,
+      -- For categorical scores, use name:value format for improved query performance
+      groupArrayIf(
+        concat(name, ':', string_value),
+        data_type = 'CATEGORICAL' AND notEmpty(string_value)
+      ) AS score_categories
     FROM (
       SELECT
         trace_id,
         observation_id,
         name,
         avg(value) avg_value,
+        string_value,
+        data_type,
         comment
       FROM
         scores final
@@ -605,6 +728,8 @@ const getObservationsTableInternal = async <T>(
         trace_id,
         observation_id,
         name,
+        string_value,
+        data_type,
         comment
       ORDER BY
         trace_id
@@ -640,7 +765,7 @@ const getObservationsTableInternal = async <T>(
        ${selectString}
       FROM observations o 
         ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
-        ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
+        ${hasScoresFilter ? `LEFT JOIN scores_agg AS s ON s.trace_id = o.trace_id and s.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
         
         ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
@@ -986,18 +1111,18 @@ export const deleteObservationsByProjectId = async (projectId: string) => {
 
 export const deleteObservationsOlderThanDays = async (
   projectId: string,
-  days: number,
+  beforeDate: Date,
 ) => {
   const query = `
     DELETE FROM observations
     WHERE project_id = {projectId: String}
-    AND start_time < now() - INTERVAL {numDays: Int} DAYS;
+    AND start_time < {cutoffDate: DateTime64(3)};
   `;
   await commandClickhouse({
     query: query,
     params: {
       projectId,
-      numDays: days,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes

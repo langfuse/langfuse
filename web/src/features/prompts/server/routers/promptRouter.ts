@@ -16,7 +16,11 @@ import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
-import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  optionalPaginationZod,
+  paginationZod,
+} from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import {
@@ -236,6 +240,12 @@ export const promptRouter = createTRPCRouter({
         return prompt;
       } catch (e) {
         logger.error(e);
+        if (e instanceof InvalidRequestError) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: e.message,
+          });
+        }
         throw e;
       }
     }),

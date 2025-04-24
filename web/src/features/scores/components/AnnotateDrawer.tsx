@@ -30,6 +30,7 @@ export function AnnotateDrawer({
   type = "trace",
   source = "TraceDetail",
   hasGroupedButton = false,
+  environment,
 }: {
   traceId: string;
   scores: APIScore[];
@@ -41,6 +42,7 @@ export function AnnotateDrawer({
   type?: "trace" | "observation" | "session";
   source?: "TraceDetail" | "SessionDetail";
   hasGroupedButton?: boolean;
+  environment?: string;
 }) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showSaving, setShowSaving] = useState(false);
@@ -179,6 +181,7 @@ export function AnnotateDrawer({
             showSaving={showSaving}
             setShowSaving={setShowSaving}
             isDrawerOpen={isDrawerOpen}
+            environment={environment}
           />
         )}
       </DrawerContent>

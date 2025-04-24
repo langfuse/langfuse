@@ -177,6 +177,7 @@ const AnnotateIOView = ({
                 queueId={item.queueId}
                 showSaving={showSaving}
                 setShowSaving={setShowSaving}
+                environment={trace.data?.environment}
                 actionButtons={
                   isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
                     <div className="flex items-center justify-center rounded-sm border border-dark-red bg-light-red p-1">

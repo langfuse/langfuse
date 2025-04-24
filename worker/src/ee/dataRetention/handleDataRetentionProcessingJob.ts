@@ -1,48 +1,14 @@
 import {
-  deleteEventLogByProjectIdBeforeDate,
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteTracesOlderThanDays,
-  getEventLogByProjectIdBeforeDate,
   logger,
-  StorageService,
-  StorageServiceFactory,
+  getS3MediaStorageClient,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../../env";
-
-let s3MediaStorageClient: StorageService;
-
-const getS3MediaStorageClient = (bucketName: string): StorageService => {
-  if (!s3MediaStorageClient) {
-    s3MediaStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3MediaStorageClient;
-};
-
-let s3EventStorageClient: StorageService;
-
-const getS3EventStorageClient = (bucketName: string): StorageService => {
-  if (!s3EventStorageClient) {
-    s3EventStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3EventStorageClient;
-};
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {
   const { projectId, retention } = job.data.payload;
@@ -90,35 +56,19 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     );
   }
 
-  // Remove event files from S3
-  const eventLogStream = getEventLogByProjectIdBeforeDate(
+  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
     projectId,
     cutoffDate,
   );
-  let eventLogPaths: string[] = [];
-  const eventStorageClient = getS3EventStorageClient(
-    env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-  );
-  for await (const eventLog of eventLogStream) {
-    eventLogPaths.push(eventLog.bucket_path);
-    if (eventLogPaths.length > 500) {
-      // Delete the current batch and reset the list
-      await eventStorageClient.deleteFiles(eventLogPaths);
-      eventLogPaths = [];
-    }
-  }
-  // Delete any remaining files
-  await eventStorageClient.deleteFiles(eventLogPaths);
 
   // Delete ClickHouse (TTL / Delete Queries)
   logger.info(
     `[Data Retention] Deleting ClickHouse data older than ${retention} days for project ${projectId}`,
   );
   await Promise.all([
-    deleteTracesOlderThanDays(projectId, retention),
-    deleteObservationsOlderThanDays(projectId, retention),
-    deleteScoresOlderThanDays(projectId, retention),
-    deleteEventLogByProjectIdBeforeDate(projectId, cutoffDate),
+    deleteTracesOlderThanDays(projectId, cutoffDate),
+    deleteObservationsOlderThanDays(projectId, cutoffDate),
+    deleteScoresOlderThanDays(projectId, cutoffDate),
   ]);
   logger.info(
     `[Data Retention] Deleted ClickHouse data older than ${retention} days for project ${projectId}`,

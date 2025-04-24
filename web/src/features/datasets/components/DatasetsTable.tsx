@@ -23,6 +23,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 
 type RowData = {
   key: {
@@ -52,6 +53,16 @@ export function DatasetsTable(props: { projectId: string }) {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+
+  const metrics = api.datasets.allDatasetsMetrics.useQuery(
+    {
+      projectId: props.projectId,
+      datasetIds: datasets.data?.datasets.map((t) => t.id) ?? [],
+    },
+    {
+      enabled: datasets.isSuccess,
+    },
+  );
 
   useEffect(() => {
     if (datasets.isSuccess) {
@@ -184,17 +195,26 @@ export function DatasetsTable(props: { projectId: string }) {
     },
   ];
 
+  type CoreOutput = RouterOutput["datasets"]["allDatasets"]["datasets"][number];
+  type MetricsOutput =
+    RouterOutput["datasets"]["allDatasetsMetrics"]["metrics"][number];
+
+  const datasetsRowData = joinTableCoreAndMetrics<CoreOutput, MetricsOutput>(
+    datasets.data?.datasets,
+    metrics.data?.metrics,
+  );
+
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["allDatasets"]["datasets"][number],
+    row: CoreOutput & Partial<MetricsOutput>,
   ): RowData => {
     return {
-      key: { id: item.id, name: item.name },
-      description: item.description ?? "",
-      createdAt: item.createdAt,
-      lastRunAt: item.lastRunAt ?? undefined,
-      countItems: item.countDatasetItems,
-      countRuns: item.countDatasetRuns,
-      metadata: item.metadata,
+      key: { id: row.id, name: row.name },
+      description: row.description ?? "",
+      createdAt: row.createdAt,
+      lastRunAt: row.lastRunAt ?? undefined,
+      countItems: row.countDatasetItems ?? 0,
+      countRuns: row.countDatasetRuns ?? 0,
+      metadata: row.metadata,
     };
   };
 
@@ -233,7 +253,9 @@ export function DatasetsTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: datasets.data.datasets.map((t) => convertToTableRow(t)),
+                  data: (datasetsRowData.rows ?? []).map((t) =>
+                    convertToTableRow(t),
+                  ),
                 }
         }
         pagination={{

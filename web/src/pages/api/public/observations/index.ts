@@ -1,7 +1,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 
 import {
   GetObservationsV1Query,
@@ -14,7 +14,7 @@ import {
 } from "@/src/features/public-api/server/observations";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Observations",
     querySchema: GetObservationsV1Query,
     responseSchema: GetObservationsV1Response,

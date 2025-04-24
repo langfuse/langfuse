@@ -26,11 +26,13 @@ export const PeekViewObservationDetail = ({
     withDefault(StringParam, "details"),
   );
 
-  return !peekId || !trace.data || row?.id !== peekId ? (
-    <Skeleton className="h-full w-full" />
-  ) : (
+  if (!peekId || !row?.traceId || !trace.data || row.id !== peekId) {
+    return <Skeleton className="h-full w-full" />;
+  }
+
+  return (
     <Trace
-      key={trace.data.id}
+      key={`${trace.data.id}-${peekId}`}
       trace={trace.data}
       scores={trace.data.scores}
       projectId={trace.data.projectId}

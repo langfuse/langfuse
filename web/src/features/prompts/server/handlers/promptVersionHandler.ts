@@ -2,7 +2,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { updatePrompt } from "@/src/features/prompts/server/actions/updatePrompts";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -16,7 +16,7 @@ const UpdatePromptBodySchema = z.object({
 });
 
 export const promptVersionHandler = withMiddlewares({
-  PATCH: createAuthedAPIRoute({
+  PATCH: createAuthedProjectAPIRoute({
     name: "Update Prompt",
     bodySchema: UpdatePromptBodySchema,
     responseSchema: z.any(),

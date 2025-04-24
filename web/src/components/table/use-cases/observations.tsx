@@ -381,7 +381,7 @@ export default function ObservationsTable({
       size: 100,
       headerTooltip: {
         description:
-          "Use You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
+          "You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
         href: "https://langfuse.com/docs/tracing-features/log-levels",
       },
       enableHiding: true,
@@ -494,6 +494,86 @@ export default function ObservationsTable({
       enableSorting: true,
     },
     {
+      accessorKey: "latency",
+      id: "latency",
+      header: "Latency",
+      size: 100,
+      cell: ({ row }) => {
+        const latency: number | undefined = row.getValue("latency");
+        return latency !== undefined ? (
+          <span>{formatIntervalSeconds(latency)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "totalCost",
+      header: "Total Cost",
+      id: "totalCost",
+      size: 120,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("totalCost");
+
+        return value !== undefined ? (
+          <BreakdownTooltip details={row.original.costDetails} isCost>
+            <div className="flex items-center gap-1">
+              <span>{usdFormatter(value)}</span>
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "timeToFirstToken",
+      id: "timeToFirstToken",
+      header: "Time to First Token",
+      size: 150,
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const timeToFirstToken: number | undefined =
+          row.getValue("timeToFirstToken");
+
+        return (
+          <span>
+            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "tokens",
+      header: "Tokens",
+      id: "tokens",
+      size: 150,
+      cell: ({ row }) => {
+        const value: {
+          inputUsage: number;
+          outputUsage: number;
+          totalUsage: number;
+        } = row.getValue("usage");
+        return (
+          <BreakdownTooltip details={row.original.usageDetails}>
+            <div className="flex items-center gap-1">
+              <TokenUsageBadge
+                inputUsage={value.inputUsage}
+                outputUsage={value.outputUsage}
+                totalUsage={value.totalUsage}
+                inline
+              />
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
+        );
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
       accessorKey: "model",
       id: "model",
       header: "Model",
@@ -507,7 +587,7 @@ export default function ObservationsTable({
         if (!model) return null;
 
         return modelId ? (
-          <TableId value={modelId} />
+          <TableId value={model} />
         ) : (
           <UpsertModelFormDrawer
             action="create"

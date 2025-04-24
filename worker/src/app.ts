@@ -264,6 +264,11 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
     postHogIntegrationProcessingProcessor,
     {
       concurrency: 1,
+      limiter: {
+        // Process at most one PostHog job globally per 10s.
+        max: 1,
+        duration: 10_000,
+      },
     },
   );
 }

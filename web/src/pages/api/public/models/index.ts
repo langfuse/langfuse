@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetModelsV1Query,
   GetModelsV1Response,
@@ -13,7 +13,7 @@ import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgr
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get model definitions",
     querySchema: GetModelsV1Query,
     responseSchema: GetModelsV1Response,
@@ -67,7 +67,7 @@ export default withMiddlewares({
       };
     },
   }),
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create custom model definition",
     bodySchema: PostModelsV1Body,
     responseSchema: PostModelsV1Response,

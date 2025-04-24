@@ -1,0 +1,313 @@
+{
+  "info": {
+    "name": "Langfuse Organizations",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "## General Notes\n\nThis admin API is only available on self-hosted instances, not on Langfuse Cloud.\nAn administrator must set the `ADMIN_API_KEY` environment variable to use this API.\n\n## Authentication\n\nAuthenticate with the API by setting the Authorization header to `Bearer $ADMIN_API_KEY` where\n`$ADMIN_API_KEY` is the API key set via the container environment.\n\n## Exports\n\n- OpenAPI spec: https://cloud.langfuse.com/generated/organizations-api/openapi.yml\n- Postman collection: https://cloud.langfuse.com/generated/organizations-postman/collection.json\n\n## Looking for the Langfuse API?\n\nAre you looking for the full Langfuse API?\nCheck out our [API reference](https://api.reference.langfuse.com/#overview)."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Organizations",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get All",
+          "request": {
+            "description": "Get all organizations",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "organizations"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a new organization",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "organizations"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"example\",\n    \"metadata\": {\n        \"example\": \"UNKNOWN\"\n    }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get By Id",
+          "request": {
+            "description": "Get organization by ID",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/:organizationId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "organizations",
+                ":organizationId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "organizationId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update an organization",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/:organizationId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "organizations",
+                ":organizationId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "organizationId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"example\",\n    \"metadata\": {\n        \"example\": \"UNKNOWN\"\n    }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete an organization",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/:organizationId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "organizations",
+                ":organizationId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "organizationId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Api Keys",
+          "request": {
+            "description": "Get all API keys for an organization",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/:organizationId/apiKeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "organizations",
+                ":organizationId",
+                "apiKeys"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "organizationId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create Api Key",
+          "request": {
+            "description": "Create a new API key for an organization",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/:organizationId/apiKeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "organizations",
+                ":organizationId",
+                "apiKeys"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "organizationId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"note\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Api Key",
+          "request": {
+            "description": "Delete an API key for an organization",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/:organizationId/apiKeys/:apiKeyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "organizations",
+                ":organizationId",
+                "apiKeys",
+                ":apiKeyId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "organizationId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "apiKeyId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
 import {
@@ -26,13 +26,23 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Single Trace",
     querySchema: GetTraceV1Query,
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const { traceId } = query;
-      const trace = await getTraceById(traceId, auth.scope.projectId);
+      const trace = await getTraceById({
+        traceId,
+        projectId: auth.scope.projectId,
+      });
+
+      if (!trace) {
+        throw new LangfuseNotFoundError(
+          `Trace ${traceId} not found within authorized project`,
+        );
+      }
+
       const [observations, scores] = await Promise.all([
         getObservationsForTrace(
           traceId,
@@ -89,12 +99,6 @@ export default withMiddlewares({
         };
       });
 
-      if (!trace) {
-        throw new LangfuseNotFoundError(
-          `Trace ${traceId} not found within authorized project`,
-        );
-      }
-
       const outObservations = observationsView.map(transformDbToApiObservation);
       const validatedScores = filterAndValidateDbScoreList({
         scores,
@@ -136,7 +140,7 @@ export default withMiddlewares({
     },
   }),
 
-  DELETE: createAuthedAPIRoute({
+  DELETE: createAuthedProjectAPIRoute({
     name: "Delete Single Trace",
     querySchema: DeleteTraceV1Query,
     responseSchema: DeleteTraceV1Response,

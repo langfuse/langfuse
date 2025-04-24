@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetAnnotationQueueByIdQuery,
   GetAnnotationQueueByIdResponse,
@@ -8,7 +8,7 @@ import {
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get annotation queue by ID",
     querySchema: GetAnnotationQueueByIdQuery,
     responseSchema: GetAnnotationQueueByIdResponse,
