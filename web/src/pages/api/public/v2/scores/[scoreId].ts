@@ -36,5 +36,4 @@ export default withMiddlewares({
       return parsedScore.data;
     },
   }),
-  // Question: do I copy the DELETE route from v1?
 });

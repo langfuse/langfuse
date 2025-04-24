@@ -44,6 +44,7 @@ import {
   QueueJobs,
   getScoreMetadataById,
   deleteScores,
+  searchTraceWithSessionId,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -302,21 +303,17 @@ export const scoresRouter = createTRPCRouter({
           );
         }
       } else if (inflatedParams.sessionId) {
-        const traceSession = await prisma.traceSession.findUnique({
-          where: {
-            id_projectId: {
-              id: inflatedParams.sessionId,
-              projectId: input.projectId,
-            },
-          },
-        });
-
-        if (!traceSession) {
+        // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+        const traceWithSessionId = await searchTraceWithSessionId(
+          input.projectId,
+          inflatedParams.sessionId,
+        );
+        if (!traceWithSessionId) {
           logger.error(
-            `No trace session with id ${inflatedParams.sessionId} in project ${input.projectId} in Prisma`,
+            `No trace referencing session with id ${inflatedParams.sessionId} in project ${input.projectId} in Clickhouse`,
           );
           throw new LangfuseNotFoundError(
-            `No trace session with id ${inflatedParams.sessionId} in project ${input.projectId} in Prisma`,
+            `No trace referencing session with id ${inflatedParams.sessionId} in project ${input.projectId} in Clickhouse`,
           );
         }
       }

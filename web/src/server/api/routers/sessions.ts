@@ -386,7 +386,7 @@ export const sessionRouter = createTRPCRouter({
           projectId: input.projectId,
           sessionIds: [input.sessionId],
         }),
-        await handleGetSessionById({
+        handleGetSessionById({
           sessionId: input.sessionId,
           projectId: input.projectId,
           ctx,

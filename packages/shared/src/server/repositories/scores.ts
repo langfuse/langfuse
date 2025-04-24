@@ -105,6 +105,7 @@ export const getScoresByIds = async (
     projectId,
     scoreId,
     source,
+    scoreScope: "all",
   });
 };
 

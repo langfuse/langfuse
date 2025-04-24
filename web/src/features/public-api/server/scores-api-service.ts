@@ -4,10 +4,7 @@ import {
   type ScoreQueryType,
 } from "@/src/features/public-api/server/scores";
 import { type ScoreSourceType } from "@langfuse/shared";
-import {
-  _handleGetScoreById,
-  _handleGetScoresByIds,
-} from "@langfuse/shared/src/server";
+import { _handleGetScoreById } from "@langfuse/shared/src/server";
 
 export class ScoresApiService {
   constructor(private readonly apiVersion: "v1" | "v2") {}
@@ -29,25 +26,6 @@ export class ScoresApiService {
       scoreId,
       source,
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
-    });
-  }
-
-  /**
-   * Get a list of scores by IDs
-   */
-  async getScoresByIds({
-    projectId,
-    scoreId,
-    source,
-  }: {
-    projectId: string;
-    scoreId: string[];
-    source?: ScoreSourceType;
-  }) {
-    return _handleGetScoresByIds({
-      projectId,
-      scoreId,
-      source,
     });
   }
 

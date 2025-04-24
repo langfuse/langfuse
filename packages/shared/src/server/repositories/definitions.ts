@@ -353,7 +353,7 @@ export const convertPostgresScoreToInsert = (
     timestamp: score.timestamp?.getTime(),
     project_id: score.project_id,
     trace_id: score.trace_id,
-    session_id: score.session_id,
+    session_id: null,
     observation_id: score.observation_id,
     environment: score.environment,
     name: score.name,

@@ -57,10 +57,12 @@ export const _handleGetScoresByIds = async ({
   projectId,
   scoreId,
   source,
+  scoreScope,
 }: {
   projectId: string;
   scoreId: string[];
   source?: ScoreSourceType;
+  scoreScope: "traces_only" | "all";
 }) => {
   const query = `
   SELECT *
@@ -68,6 +70,7 @@ export const _handleGetScoresByIds = async ({
   WHERE s.project_id = {projectId: String}
   AND s.id IN ({scoreId: Array(String)})
   ${source ? `AND s.source = {source: String}` : ""}
+  ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
   ORDER BY s.event_ts DESC
   LIMIT 1 BY s.id, s.project_id
 `;

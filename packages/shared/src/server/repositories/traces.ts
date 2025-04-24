@@ -1003,3 +1003,31 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
     projectId: record.project_id,
   }));
 };
+
+export const searchTraceWithSessionId = async (
+  projectId: string,
+  sessionId: string,
+) => {
+  const query = `
+    SELECT id, project_id
+    FROM traces
+    WHERE session_id = {sessionId: String}
+    AND project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const result = await queryClickhouse<{ id: string; project_id: string }>({
+    query,
+    params: {
+      sessionId,
+      projectId,
+    },
+    tags: {
+      feature: "tracing",
+      type: "trace",
+      kind: "list",
+    },
+  });
+
+  return result.shift();
+};
