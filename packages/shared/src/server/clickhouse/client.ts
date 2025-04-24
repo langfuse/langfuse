@@ -85,6 +85,7 @@ export class ClickHouseClientManager {
         database: env.CLICKHOUSE_DB,
         http_headers: headers,
         clickhouse_settings: {
+          ...cloudOptions,
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
