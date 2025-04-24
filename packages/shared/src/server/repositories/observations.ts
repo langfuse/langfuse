@@ -413,7 +413,7 @@ const getObservationByIdInternal = async (
     projectId,
   };
 
-  // If no fromStartTime or startTime is provided, use a 7-day lookback for a faster query
+  // If no fromStartTime or startTime is provided, use a lookback for a faster query
   const queryFromStartTime = !hasStartTimeFilter
     ? new Date(new Date().getTime() - 1000 * 60 * 60 * 24 * 1)
     : fromStartTime;

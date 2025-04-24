@@ -343,7 +343,7 @@ export const getTraceById = async ({
     projectId,
   };
 
-  // If no fromTimestamp or timestamp is provided, use a 1-day lookback for a faster query
+  // If no fromTimestamp or timestamp is provided, use a lookback for a faster query
   const queryFromTimestamp = !hasTimestampFilter
     ? new Date(new Date().getTime() - 1000 * 60 * 60 * 24 * 1)
     : fromTimestamp;
