@@ -162,13 +162,13 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
     })),
   );
 
-  await clickhouseClient({
-    tags: { feature: "dataset", projectId },
-    opts: { session_id: clickhouseSession },
-  }).insert({
+  await clickhouseClient({ session_id: clickhouseSession }).insert({
     table: tableName,
     values: rows,
     format: "JSONEachRow",
+    clickhouse_settings: {
+      log_comment: JSON.stringify({ feature: "dataset", projectId }),
+    },
   });
 };
 
