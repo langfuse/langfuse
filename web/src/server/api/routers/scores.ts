@@ -51,7 +51,6 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
-import { prisma } from "@langfuse/shared/src/db";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 
 const ScoreFilterOptions = z.object({

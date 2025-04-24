@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
-  DeleteScoreResponse,
+  DeleteScoreResponseV1,
   GetScoreResponseV1,
   GetScoresResponseV1,
 } from "@langfuse/shared";
@@ -124,7 +124,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       // When
       const deleteResponse = await makeZodVerifiedAPICall(
-        DeleteScoreResponse,
+        DeleteScoreResponseV1,
         "DELETE",
         `/api/public/scores/${scoreId}`,
         undefined,
