@@ -4,6 +4,7 @@ import { env } from "../../env";
 const CUSTOM_EMAIL_CLAIM = env.LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM;
 const CUSTOM_NAME_CLAIM = env.LANGFUSE_CUSTOM_SSO_NAME_CLAIM;
 const CUSTOM_SUB_CLAIM = env.LANGFUSE_CUSTOM_SSO_SUB_CLAIM;
+const CUSTOM_PICTURE_CLAIM = env.LANGFUSE_CUSTOM_SSO_PICTURE_CLAIM;
 
 interface CustomSSOUser extends Record<string, any> {
   email: string;
@@ -28,7 +29,7 @@ export function CustomSSOProvider<P extends CustomSSOUser>(
         id: profile[CUSTOM_SUB_CLAIM],
         name: profile[CUSTOM_NAME_CLAIM],
         email: profile[CUSTOM_EMAIL_CLAIM],
-        image: null,
+        image: profile[CUSTOM_PICTURE_CLAIM],
       };
     },
     options,
