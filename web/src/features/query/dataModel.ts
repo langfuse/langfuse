@@ -51,6 +51,12 @@ export const traceView: ViewDeclarationType = {
       type: "string",
       relationTable: "observations",
     },
+    scoreName: {
+      sql: "name",
+      alias: "scoreName",
+      type: "string",
+      relationTable: "scores",
+    },
   },
   measures: {
     count: {
@@ -180,6 +186,12 @@ export const observationsView: ViewDeclarationType = {
       sql: "version",
       type: "string",
       relationTable: "traces",
+    },
+    scoreName: {
+      sql: "name",
+      alias: "scoreName",
+      type: "string",
+      relationTable: "scores",
     },
   },
   measures: {
