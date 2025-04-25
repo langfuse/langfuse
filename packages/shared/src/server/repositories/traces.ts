@@ -27,7 +27,6 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { recordIncrement } from "../instrumentation";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -321,90 +320,40 @@ export const getTraceById = async ({
   timestamp?: Date;
   fromTimestamp?: Date;
 }) => {
-  const getQuery = (timestamp?: Date, fromTimestamp?: Date) => {
-    return `
-      SELECT * 
-      FROM traces
-      WHERE id = {traceId: String} 
-      AND project_id = {projectId: String}
-      ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
-      ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""} 
-      ORDER BY event_ts DESC 
-      LIMIT 1
-    `;
-  };
+  const query = `
+    SELECT * 
+    FROM traces
+    WHERE id = {traceId: String} 
+    AND project_id = {projectId: String}
+    ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
+    ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""} 
+    ORDER BY event_ts DESC 
+    LIMIT 1
+  `;
 
-  const hasTimestampFilter = Boolean(timestamp) || Boolean(fromTimestamp);
-
-  const tags = {
-    feature: "tracing",
-    type: "trace",
-    kind: "byId",
-    projectId,
-  };
-
-  // If no fromTimestamp or timestamp is provided, use a lookback for a faster query
-  const queryFromTimestamp = !hasTimestampFilter
-    ? new Date(new Date().getTime() - 1000 * 60 * 60 * 24 * 1)
-    : fromTimestamp;
-
-  const queryWithTimestampPromise = queryClickhouse<TraceRecordReadType>({
-    query: getQuery(timestamp, queryFromTimestamp),
+  const records = await queryClickhouse<TraceRecordReadType>({
+    query,
     params: {
       traceId,
       projectId,
       ...(timestamp
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),
-      ...(queryFromTimestamp
-        ? { fromTimestamp: convertDateToClickhouseDateTime(queryFromTimestamp) }
+      ...(fromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
         : {}),
     },
-    tags,
+    tags: {
+      feature: "tracing",
+      type: "trace",
+      kind: "byId",
+      projectId,
+    },
   });
 
-  const queryWithoutTimestampPromise = !hasTimestampFilter
-    ? queryClickhouse<TraceRecordReadType>({
-        query: getQuery(undefined, undefined),
-        params: {
-          traceId,
-          projectId,
-        },
-        tags,
-      })
-    : null;
+  const res = records.map(convertClickhouseToDomain);
 
-  const promises = [
-    queryWithTimestampPromise,
-    queryWithoutTimestampPromise,
-  ].filter((elem) => elem !== null);
-
-  // Get the first result
-  const result = await Promise.race(promises);
-
-  // Check if faster result has a value and if yes, return it
-  if (result?.length && result.length > 0) {
-    recordIncrement("langfuse.by_id.hit", 1, {
-      kind: "race",
-      type: "trace",
-      has_time_filter: `${hasTimestampFilter}`,
-    });
-    return convertClickhouseToDomain(result[0]);
-  }
-
-  // If not, check all results for a value and return the first non-null one
-  const allResults = await Promise.all(promises);
-  for (const result of allResults) {
-    if (result && result.length > 0) {
-      recordIncrement("langfuse.by_id.hit", 1, {
-        kind: "all_settled",
-        type: "trace",
-        has_time_filter: `${hasTimestampFilter}`,
-      });
-      return convertClickhouseToDomain(result[0]);
-    }
-  }
-  return undefined;
+  return res.shift();
 };
 
 export const getTracesGroupedByName = async (
