@@ -463,7 +463,7 @@ describe("/api/public/traces API Endpoint", () => {
         `/api/public/traces/${traceId}`,
       ),
     ).rejects.toThrow(
-      "Observations in trace are too large: 6.00MB exceeds limit of 4.00MB",
+      "Observations in trace are too large: 6.00MB exceeds limit of 5.00MB",
     );
   });
 
