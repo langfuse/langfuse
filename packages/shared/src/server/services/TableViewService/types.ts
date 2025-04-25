@@ -3,7 +3,7 @@ import { orderBy, singleFilter } from "../../..";
 
 export const CreateSavedViewInput = z.object({
   projectId: z.string(),
-  name: z.string().min(1, "Widget name is required"),
+  name: z.string().min(1, "View name is required"),
   tableName: z.string(),
   filters: z.array(singleFilter),
   columnOrder: z.array(z.string()),

@@ -2,9 +2,12 @@ import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
-import { OrderByState, type FilterState } from "@langfuse/shared";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type ColumnDefinition } from "@langfuse/shared";
+import {
+  type FilterState,
+  type ColumnDefinition,
+  type OrderByState,
+} from "@langfuse/shared";
 import {
   type RowSelectionState,
   type ColumnOrderState,
@@ -74,7 +77,7 @@ interface DataTableToolbarProps<TData, TValue> {
   tableName: string;
   projectId: string;
   orderByState?: OrderByState;
-  setOrderBy?: (s: OrderByState) => void;
+  handleApplyView: (viewId: string) => void;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -99,7 +102,7 @@ export function DataTableToolbar<TData, TValue>({
   tableName,
   projectId,
   orderByState,
-  setOrderBy,
+  handleApplyView,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -171,13 +174,9 @@ export function DataTableToolbar<TData, TValue>({
                 filters: filterState,
                 columnOrder,
                 columnVisibility,
-                searchQuery: searchConfig?.currentQuery ?? "",
+                searchQuery: searchString,
               }}
-              setOrderBy={setOrderBy}
-              setFilters={setFilterState}
-              setColumnOrder={setColumnOrder}
-              setColumnVisibility={setColumnVisibility}
-              setSearchQuery={searchConfig?.updateQuery}
+              handleApplyView={handleApplyView}
             />
           )}
           {!!columnVisibility && !!setColumnVisibility && (

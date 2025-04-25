@@ -19,7 +19,6 @@ import {
   CommandItem,
 } from "@/src/components/ui/command";
 import { useViewMutations } from "@/src/components/table/saved-views/hooks/useViewMutations";
-import { useViewStore } from "@/src/components/table/saved-views/hooks/useViewStore";
 import { cn } from "@/src/utils/tailwind";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import {
@@ -58,6 +57,8 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { StringParam, useQueryParam } from "use-query-params";
+import { withDefault } from "use-query-params";
 
 interface SavedViewsDrawerProps {
   tableName: string;
@@ -69,11 +70,7 @@ interface SavedViewsDrawerProps {
     columnVisibility: VisibilityState;
     searchQuery: string;
   };
-  setOrderBy?: (value: OrderByState) => void;
-  setFilters?: (value: FilterState) => void;
-  setColumnOrder?: (value: ColumnOrderState) => void;
-  setColumnVisibility?: (value: VisibilityState) => void;
-  setSearchQuery?: (value: string) => void;
+  handleApplyView: (viewId: string) => void;
 }
 
 function formatOrderBy(orderBy?: OrderByState) {
@@ -84,22 +81,13 @@ export function SavedViewsDrawer({
   tableName,
   projectId,
   currentState,
-  setOrderBy,
-  setFilters,
-  setColumnOrder,
-  setColumnVisibility,
-  setSearchQuery,
+  handleApplyView,
 }: SavedViewsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
-  const { selectedViewId, setSelectedViewId } = useViewStore({
-    setOrderBy,
-    setFilters,
-    setColumnOrder,
-    setColumnVisibility,
-    setSearchQuery,
-    tableName,
-    projectId,
-  });
+  const [selectedViewId, setSelectedViewId] = useQueryParam(
+    "viewId",
+    withDefault(StringParam, null),
+  );
   const { savedViewList } = useViewData({ tableName, projectId });
   const {
     createMutation,
@@ -122,6 +110,11 @@ export function SavedViewsDrawer({
   const selectedViewName = savedViewList?.find(
     (view) => view.id === selectedViewId,
   )?.name;
+
+  const handleSelectView = (viewId: string) => {
+    setSelectedViewId(viewId);
+    handleApplyView(viewId);
+  };
 
   const handleCreateView = () => {
     createMutation.mutate({
@@ -218,7 +211,7 @@ export function SavedViewsDrawer({
                   {savedViewList?.map((view) => (
                     <CommandItem
                       key={view.id}
-                      onSelect={() => setSelectedViewId(view.id)}
+                      onSelect={() => handleSelectView(view.id)}
                       className={cn(
                         "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
                         selectedViewId === view.id && "bg-muted font-medium",

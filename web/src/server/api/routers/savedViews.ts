@@ -148,7 +148,7 @@ export const savedViewsRouter = createTRPCRouter({
     }),
 
   getById: protectedProjectProcedure
-    .input(z.object({ id: z.string(), projectId: z.string() }))
+    .input(z.object({ viewId: z.string(), projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -157,7 +157,7 @@ export const savedViewsRouter = createTRPCRouter({
       });
 
       return await withErrorMapping(
-        () => TableViewService.getSavedViewById(input.id, input.projectId),
+        () => TableViewService.getSavedViewById(input.viewId, input.projectId),
         { notFoundMessage: "Saved view not found, likely it has been deleted" },
       );
     }),

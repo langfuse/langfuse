@@ -81,6 +81,7 @@ import {
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { useTableState } from "@/src/components/table/saved-views/hooks/useTableState";
 
 export type TracesTableRow = {
   // Shown by default
@@ -949,6 +950,17 @@ export default function TracesTable({
 
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
   const { setPeekView } = useTracePeekState(urlPathname);
+  const { isLoading: isTableStateLoading, handleApplyView } = useTableState({
+    tableName: "traces",
+    projectId,
+    stateUpdaters: {
+      setOrderBy: setOrderByState,
+      setFilters: setUserFilterState,
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+      setSearchQuery: setSearchQuery,
+    },
+  });
 
   const rows = useMemo(() => {
     return traces.isSuccess
@@ -1014,6 +1026,7 @@ export default function TracesTable({
         }}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
+        handleApplyView={handleApplyView}
         columnsWithCustomSelect={["name", "tags"]}
         actionButtons={[
           Object.keys(selectedRows).filter((traceId) =>
@@ -1033,7 +1046,6 @@ export default function TracesTable({
           />,
         ]}
         orderByState={orderByState}
-        setOrderBy={setOrderByState}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
