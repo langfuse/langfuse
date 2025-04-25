@@ -388,7 +388,7 @@ const getObservationByIdInternal = async (
   FROM observations
   WHERE id = {id: String}
   AND project_id = {projectId: String}
-  ${startTime ? `AND start_time = {startTime: DateTime64(3)}` : ""}
+  ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
   ORDER BY event_ts desc
   LIMIT 1 by id, project_id`;
   return await queryClickhouse<ObservationRecordReadType>({
