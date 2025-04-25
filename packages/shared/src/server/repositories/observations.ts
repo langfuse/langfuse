@@ -174,10 +174,10 @@ export const getObservationsForTrace = async (
 
   // Large number of observations in trace with large input / output / metadata will lead to
   // high CPU and memory consumption in the convertObservation step, where parsing occurs
-  // Thus, limit the size of the payload to 4MB, follows NextJS response size limitation:
+  // Thus, limit the size of the payload to 5MB, follows NextJS response size limitation:
   // https://nextjs.org/docs/messages/api-routes-response-size-limit
   // See also LFE-4882 for more details
-  const PAYLOAD_SIZE_LIMIT = 4e6; // 4MB
+  const PAYLOAD_SIZE_LIMIT = 5e6; // 5MB
   let payloadSize = 0;
 
   for (const observation of records) {
