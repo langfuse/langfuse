@@ -451,7 +451,7 @@ describe("/api/public/traces API Endpoint", () => {
         input: "a".repeat(1e6),
         output: "b".repeat(1e6),
         metadata: {
-          foo: "c".repeat(2e6),
+          foo: "c".repeat(6e6),
         },
       }),
     ]);
@@ -463,7 +463,7 @@ describe("/api/public/traces API Endpoint", () => {
         `/api/public/traces/${traceId}`,
       ),
     ).rejects.toThrow(
-      "Observations in trace are too large: 7.00MB exceeds limit of 6.00MB",
+      "Observations in trace are too large: 11.00MB exceeds limit of 10.00MB",
     );
   });
 
