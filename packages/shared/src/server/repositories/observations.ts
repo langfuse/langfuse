@@ -34,7 +34,6 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { recordIncrement } from "../instrumentation";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -349,132 +348,65 @@ export const getObservationsById = async (
   return records.map(convertObservation);
 };
 
-/**
- * Retrieves an observation record by its ID and associated project ID, with optional filtering by startTime.
- * If no startTime filters are provided, runs two queries in parallel:
- * 1. One with a 7-day fromStartTime filter (typically faster)
- * 2. One without any startTime filters (complete but slower)
- * Returns the first non-empty result.
- */
 const getObservationByIdInternal = async (
   id: string,
   projectId: string,
   fetchWithInputOutput: boolean = false,
   startTime?: Date,
-  fromStartTime?: Date,
 ) => {
-  const getQuery = (startTime?: Date, fromStartTime?: Date) => {
-    return `
-    SELECT
-      id,
-      trace_id,
-      project_id,
-      environment,
-      type,
-      parent_observation_id,
-      start_time,
-      end_time,
-      name,
-      metadata,
-      level,
-      status_message,
-      version,
-      ${fetchWithInputOutput ? "input, output," : ""}
-      provided_model_name,
-      internal_model_id,
-      model_parameters,
-      provided_usage_details,
-      usage_details,
-      provided_cost_details,
-      cost_details,
-      total_cost,
-      completion_start_time,
-      prompt_id,
-      prompt_name,
-      prompt_version,
-      created_at,
-      updated_at,
-      event_ts
-    FROM observations
-    WHERE id = {id: String}
-    AND project_id = {projectId: String}
-    ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
-    ${fromStartTime ? `AND start_time >= {fromStartTime: DateTime64(3)}` : ""}
-    ORDER BY event_ts desc
-    LIMIT 1 by id, project_id`;
-  };
-
-  const hasStartTimeFilter = Boolean(startTime) || Boolean(fromStartTime);
-
-  const tags = {
-    feature: "tracing",
-    type: "observation",
-    kind: "byId",
-    projectId,
-  };
-
-  // If no fromStartTime or startTime is provided, use a lookback for a faster query
-  const queryFromStartTime = !hasStartTimeFilter
-    ? new Date(new Date().getTime() - 1000 * 60 * 60 * 24 * 1)
-    : fromStartTime;
-
-  const queryWithStartTimePromise = queryClickhouse<ObservationRecordReadType>({
-    query: getQuery(startTime, queryFromStartTime),
+  const query = `
+  SELECT
+    id,
+    trace_id,
+    project_id,
+    environment,
+    type,
+    parent_observation_id,
+    start_time,
+    end_time,
+    name,
+    metadata,
+    level,
+    status_message,
+    version,
+    ${fetchWithInputOutput ? "input, output," : ""}
+    provided_model_name,
+    internal_model_id,
+    model_parameters,
+    provided_usage_details,
+    usage_details,
+    provided_cost_details,
+    cost_details,
+    total_cost,
+    completion_start_time,
+    prompt_id,
+    prompt_name,
+    prompt_version,
+    created_at,
+    updated_at,
+    event_ts
+  FROM observations
+  WHERE id = {id: String}
+  AND project_id = {projectId: String}
+  ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
+  ORDER BY event_ts desc
+  LIMIT 1 by id, project_id`;
+  return await queryClickhouse<ObservationRecordReadType>({
+    query,
     params: {
       id,
       projectId,
       ...(startTime
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
         : {}),
-      ...(queryFromStartTime
-        ? { fromStartTime: convertDateToClickhouseDateTime(queryFromStartTime) }
-        : {}),
     },
-    tags,
-  });
-
-  const queryWithoutStartTimePromise = !hasStartTimeFilter
-    ? queryClickhouse<ObservationRecordReadType>({
-        query: getQuery(undefined, undefined),
-        params: {
-          id,
-          projectId,
-        },
-        tags,
-      })
-    : null;
-
-  const promises = [
-    queryWithStartTimePromise,
-    queryWithoutStartTimePromise,
-  ].filter((elem) => elem !== null);
-
-  // Get the first result
-  const result = await Promise.race(promises);
-
-  // Check if faster result has a value and if yes, return it
-  if (result?.length && result.length > 0) {
-    recordIncrement("langfuse.by_id.hit", 1, {
-      kind: "race",
+    tags: {
+      feature: "tracing",
       type: "observation",
-      has_time_filter: `${hasStartTimeFilter}`,
-    });
-    return result;
-  }
-
-  // If not, check all results for a value and return the first non-null one
-  const allResults = await Promise.all(promises);
-  for (const result of allResults) {
-    if (result && result.length > 0) {
-      recordIncrement("langfuse.by_id.hit", 1, {
-        kind: "all_settled",
-        type: "observation",
-        has_time_filter: `${hasStartTimeFilter}`,
-      });
-      return result;
-    }
-  }
-  return [];
+      kind: "byId",
+      projectId,
+    },
+  });
 };
 
 export type ObservationTableQuery = {
