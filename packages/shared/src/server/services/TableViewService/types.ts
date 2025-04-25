@@ -42,7 +42,15 @@ export const SavedViewDomainSchema = z.object({
   orderBy: orderBy,
 });
 
-export const SavedViewListDomainSchema = z.array(SavedViewDomainSchema);
+export const SavedViewNamesCreatorListSchema = z.array(
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    createdBy: z.string(),
+  }),
+);
 
 export type SavedViewDomain = z.infer<typeof SavedViewDomainSchema>;
-export type SavedViewListDomain = z.infer<typeof SavedViewListDomainSchema>;
+export type SavedViewNamesCreatorList = z.infer<
+  typeof SavedViewNamesCreatorListSchema
+>;

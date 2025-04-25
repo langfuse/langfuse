@@ -73,7 +73,7 @@ export const savedViewsRouter = createTRPCRouter({
       });
 
       const view = await withErrorMapping(
-        () => TableViewService.getSavedViewById(input.id, ctx.session.user?.id),
+        () => TableViewService.updateSavedView(input, ctx.session.user?.id),
         { notFoundMessage: "Saved view not found, failed to update" },
       );
 

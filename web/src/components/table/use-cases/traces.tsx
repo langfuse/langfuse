@@ -950,8 +950,13 @@ export default function TracesTable({
 
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
   const { setPeekView } = useTracePeekState(urlPathname);
-  const { isLoading: isTableStateLoading, handleApplyView } = useTableState({
-    tableName: "traces",
+  const {
+    selectedViewId,
+    handleSetViewId,
+    applyViewState,
+    isLoading: isViewLoading,
+  } = useTableState({
+    tableName: BatchExportTableName.Traces,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
@@ -1012,6 +1017,9 @@ export default function TracesTable({
         }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
+
+  console.log("isViewLoading", isViewLoading);
+
   return (
     <>
       <DataTableToolbar
@@ -1026,7 +1034,9 @@ export default function TracesTable({
         }}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
-        handleApplyView={handleApplyView}
+        applyViewState={applyViewState}
+        selectedViewId={selectedViewId}
+        handleSetViewId={handleSetViewId}
         columnsWithCustomSelect={["name", "tags"]}
         actionButtons={[
           Object.keys(selectedRows).filter((traceId) =>
@@ -1073,7 +1083,7 @@ export default function TracesTable({
       <DataTable
         columns={columns}
         data={
-          traces.isLoading
+          traces.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : traces.isError
               ? {

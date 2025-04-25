@@ -1,5 +1,10 @@
 import { Button } from "@/src/components/ui/button";
-import React, { type Dispatch, type SetStateAction, useState } from "react";
+import React, {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useState,
+} from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -29,6 +34,7 @@ import { DataTableSelectAllBanner } from "@/src/components/table/data-table-mult
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
 import { SavedViewsDrawer } from "@/src/components/table/data-table-saved-views-drawer";
+import { type SavedViewDomain } from "@langfuse/shared/src/server";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -77,7 +83,9 @@ interface DataTableToolbarProps<TData, TValue> {
   tableName: string;
   projectId: string;
   orderByState?: OrderByState;
-  handleApplyView: (viewId: string) => void;
+  applyViewState: (viewData: SavedViewDomain) => void;
+  selectedViewId: string | null;
+  handleSetViewId: (viewId: string | null) => void;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -102,12 +110,21 @@ export function DataTableToolbar<TData, TValue>({
   tableName,
   projectId,
   orderByState,
-  handleApplyView,
+  applyViewState,
+  selectedViewId,
+  handleSetViewId,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
   const capture = usePostHogClientCapture();
+
+  // Update searchString when searchConfig.currentQuery changes to account for saved view selection
+  useEffect(() => {
+    if (searchConfig?.currentQuery !== searchString) {
+      setSearchString(searchConfig?.currentQuery ?? "");
+    }
+  }, [searchConfig?.currentQuery, searchString]);
 
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
@@ -176,7 +193,9 @@ export function DataTableToolbar<TData, TValue>({
                 columnVisibility,
                 searchQuery: searchString,
               }}
-              handleApplyView={handleApplyView}
+              selectedViewId={selectedViewId}
+              handleSetViewId={handleSetViewId}
+              applyViewState={applyViewState}
             />
           )}
           {!!columnVisibility && !!setColumnVisibility && (

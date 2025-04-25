@@ -57,12 +57,14 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { StringParam, useQueryParam } from "use-query-params";
-import { withDefault } from "use-query-params";
+import { type SavedViewDomain } from "@langfuse/shared/src/server";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 interface SavedViewsDrawerProps {
   tableName: string;
   projectId: string;
+  selectedViewId: string | null;
+  handleSetViewId: (viewId: string | null) => void;
   currentState: {
     orderBy: OrderByState;
     filters: FilterState;
@@ -70,7 +72,7 @@ interface SavedViewsDrawerProps {
     columnVisibility: VisibilityState;
     searchQuery: string;
   };
-  handleApplyView: (viewId: string) => void;
+  applyViewState: (viewData: SavedViewDomain) => void;
 }
 
 function formatOrderBy(orderBy?: OrderByState) {
@@ -81,13 +83,12 @@ export function SavedViewsDrawer({
   tableName,
   projectId,
   currentState,
-  handleApplyView,
+  selectedViewId,
+  applyViewState,
+  handleSetViewId,
 }: SavedViewsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
-  const [selectedViewId, setSelectedViewId] = useQueryParam(
-    "viewId",
-    withDefault(StringParam, null),
-  );
+
   const { savedViewList } = useViewData({ tableName, projectId });
   const {
     createMutation,
@@ -95,7 +96,7 @@ export function SavedViewsDrawer({
     updateNameMutation,
     deleteMutation,
     generatePermalinkMutation,
-  } = useViewMutations();
+  } = useViewMutations({ handleSetViewId });
   const utils = api.useUtils();
 
   const form = useForm<{ name: string }>({
@@ -105,15 +106,30 @@ export function SavedViewsDrawer({
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newViewName, setNewViewName] = useState("");
   const [isEditPopoverOpen, setIsEditPopoverOpen] = useState<boolean>(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const [dropdownId, setDropdownId] = useState<string | null>(null);
 
   const selectedViewName = savedViewList?.find(
     (view) => view.id === selectedViewId,
   )?.name;
 
-  const handleSelectView = (viewId: string) => {
-    setSelectedViewId(viewId);
-    handleApplyView(viewId);
+  const handleSelectView = async (viewId: string) => {
+    handleSetViewId(viewId);
+    try {
+      const fetchedViewData = await utils.savedViews.getById.fetch({
+        projectId,
+        viewId,
+      });
+
+      if (fetchedViewData) {
+        applyViewState(fetchedViewData);
+      }
+    } catch (error) {
+      showErrorToast(
+        "Failed to apply view selection",
+        "Please try again",
+        "WARNING",
+      );
+    }
   };
 
   const handleCreateView = () => {
@@ -159,7 +175,7 @@ export function SavedViewsDrawer({
   const onSubmit = (id: string) => (data: { name: string }) => {
     handleUpdateViewName({ id, name: data.name });
     setIsEditPopoverOpen(false);
-    setIsDropdownOpen(false);
+    setDropdownId(null);
   };
 
   const handleDeleteView = async (viewId: string) => {
@@ -217,8 +233,23 @@ export function SavedViewsDrawer({
                         selectedViewId === view.id && "bg-muted font-medium",
                       )}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col">
                         <span className="text-sm font-medium">{view.name}</span>
+                        {view.id === selectedViewId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-fit pl-0 text-xs text-primary-accent"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUpdateViewConfig({
+                                name: view.name,
+                              });
+                            }}
+                          >
+                            Update
+                          </Button>
+                        )}
                       </div>
                       <div className="flex flex-row gap-1">
                         <Button
@@ -237,9 +268,9 @@ export function SavedViewsDrawer({
                           <Link className="h-4 w-4" />
                         </Button>
                         <DropdownMenu
-                          open={isDropdownOpen}
+                          open={dropdownId === view.id}
                           onOpenChange={(open) => {
-                            setIsDropdownOpen(open);
+                            setDropdownId(open ? view.id : null);
                           }}
                         >
                           <DropdownMenuTrigger asChild>
@@ -264,7 +295,7 @@ export function SavedViewsDrawer({
                                   if (open) {
                                     form.reset({ name: view.name });
                                   } else {
-                                    setIsDropdownOpen(false);
+                                    setDropdownId(null);
                                   }
                                 }}
                               >

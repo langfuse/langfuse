@@ -3,7 +3,8 @@ import { LangfuseNotFoundError } from "../../../errors";
 import {
   SavedViewDomain,
   SavedViewDomainSchema,
-  SavedViewListDomainSchema,
+  SavedViewNamesCreatorList,
+  SavedViewNamesCreatorListSchema,
   UpdateSavedViewNameInput,
   type CreateSavedViewInput,
   type UpdateSavedViewInput,
@@ -130,15 +131,20 @@ export class TableViewService {
   public static async getSavedViewsByTableName(
     tableName: string,
     projectId: string,
-  ): Promise<SavedViewDomain[]> {
+  ): Promise<SavedViewNamesCreatorList> {
     const savedViews = await prisma.savedView.findMany({
       where: {
         tableName,
         projectId,
       },
+      select: {
+        id: true,
+        name: true,
+        createdBy: true,
+      },
     });
 
-    return SavedViewListDomainSchema.parse(savedViews);
+    return SavedViewNamesCreatorListSchema.parse(savedViews);
   }
 
   /**

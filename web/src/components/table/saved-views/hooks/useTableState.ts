@@ -8,6 +8,10 @@ import { useRouter } from "next/router";
 import { useEffect, useCallback, useState } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
 import { type SavedViewDomain } from "@langfuse/shared/src/server";
+import { StringParam, withDefault } from "use-query-params";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { useQueryParam } from "use-query-params";
+import { truncate } from "fs/promises";
 
 interface TableStateUpdaters {
   setOrderBy: (orderBy: OrderByState) => void;
@@ -28,12 +32,28 @@ interface UseTableStateProps {
  */
 export function useTableState({
   projectId,
+  tableName,
   stateUpdaters,
 }: UseTableStateProps) {
   const router = useRouter();
   const { viewId } = router.query;
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isLoading, setIsLoading] = useState(!!viewId);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
+    `${tableName}-${projectId}-viewId`,
+    null,
+  );
+  const [selectedViewId, setSelectedViewId] = useQueryParam(
+    "viewId",
+    withDefault(StringParam, storedViewId),
+  );
+
+  // Keep track of the viewId in session storage and in the query params
+  const handleSetViewId = (viewId: string | null) => {
+    setStoredViewId(viewId);
+    setSelectedViewId(viewId);
+  };
 
   // Extract updater functions
   const {
@@ -44,7 +64,22 @@ export function useTableState({
     setSearchQuery,
   } = stateUpdaters;
 
-  console.log("viewId", viewId, isInitialized);
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewIdInUrl = urlParams.get("viewId");
+
+    // If no viewId in URL but we have one in storage, use that
+    if (!viewIdInUrl && storedViewId) {
+      setSelectedViewId(storedViewId);
+    }
+    // If there's a viewId in the URL, update our storage
+    else if (viewIdInUrl) {
+      setStoredViewId(viewIdInUrl);
+    } else {
+      setIsLoading(false);
+      setIsInitialized(true);
+    }
+  }, [storedViewId, setStoredViewId, setSelectedViewId]);
 
   // Fetch view data if viewId is provided
   const { isLoading: isViewLoading } = api.savedViews.getById.useQuery(
@@ -52,7 +87,6 @@ export function useTableState({
     {
       enabled: !!viewId && !isInitialized,
       onSuccess: (data) => {
-        console.log("data", data);
         if (data) {
           // Apply view state
           applyViewState(data);
@@ -76,8 +110,8 @@ export function useTableState({
       if (viewData.columnOrder) setColumnOrder(viewData.columnOrder);
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
-      if (viewData.searchQuery !== undefined)
-        setSearchQuery(viewData.searchQuery);
+      if (!!viewData.searchQuery) setSearchQuery(viewData.searchQuery);
+      else setSearchQuery("");
     },
     [
       setOrderBy,
@@ -86,31 +120,6 @@ export function useTableState({
       setColumnVisibility,
       setSearchQuery,
     ],
-  );
-
-  // Method to programmatically update from a view ID
-  const handleApplyView = useCallback(
-    async (newViewId: string) => {
-      if (!newViewId) return;
-
-      setIsLoading(true);
-
-      try {
-        const { data: savedView } = api.savedViews.getById.useQuery({
-          projectId,
-          viewId: newViewId,
-        });
-
-        if (savedView) {
-          applyViewState(savedView);
-        }
-      } catch (error) {
-        console.error("Failed to load view:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [projectId, applyViewState],
   );
 
   // Initialize on mount if no viewId
@@ -125,6 +134,8 @@ export function useTableState({
 
   return {
     isLoading,
-    handleApplyView,
+    applyViewState,
+    handleSetViewId,
+    selectedViewId,
   };
 }
