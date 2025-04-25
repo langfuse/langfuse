@@ -18,7 +18,7 @@ export const EnvLabel = ({ className }: { className?: string }) => {
         className,
       )}
     >
-      {["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+      {["EU", "US", "HIPAA"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
         ? `PROD-${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
         : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
     </div>
