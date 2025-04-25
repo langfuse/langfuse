@@ -306,7 +306,7 @@ export const env = createEnv({
 
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-      .enum(["US", "EU", "STAGING", "DEV"])
+      .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
       .optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
