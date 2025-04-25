@@ -176,7 +176,6 @@ export const getObservationsForTrace = async (
   // Thus, limit the size of the payload to 5MB, follows NextJS response size limitation:
   // https://nextjs.org/docs/messages/api-routes-response-size-limit
   // See also LFE-4882 for more details
-  const PAYLOAD_SIZE_LIMIT = 5e6; // 5MB
   let payloadSize = 0;
 
   for (const observation of records) {
@@ -196,8 +195,8 @@ export const getObservationsForTrace = async (
       }
     });
 
-    if (payloadSize >= PAYLOAD_SIZE_LIMIT) {
-      const errorMessage = `Observations in trace are too large: ${(payloadSize / 1e6).toFixed(2)}MB exceeds limit of ${(PAYLOAD_SIZE_LIMIT / 1e6).toFixed(2)}MB`;
+    if (payloadSize >= env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES) {
+      const errorMessage = `Observations in trace are too large: ${(payloadSize / 1e6).toFixed(2)}MB exceeds limit of ${(env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES / 1e6).toFixed(2)}MB`;
 
       throw new Error(errorMessage);
     }
