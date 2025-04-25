@@ -4,7 +4,6 @@ import { z } from "zod";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { updatePrompt } from "@/src/features/prompts/server/actions/updatePrompts";
-import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const UpdatePromptBodySchema = z.object({
