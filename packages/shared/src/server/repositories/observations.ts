@@ -171,6 +171,37 @@ export const getObservationsForTrace = async (
     },
   });
 
+  // Large number of observations in trace with large input / output / metadata will lead to
+  // high CPU and memory consumption in the convertObservation step, where parsing occurs
+  // Thus, limit the size of the payload to 5MB, follows NextJS response size limitation:
+  // https://nextjs.org/docs/messages/api-routes-response-size-limit
+  // See also LFE-4882 for more details
+  let payloadSize = 0;
+
+  for (const observation of records) {
+    for (const key of ["input", "output"] as const) {
+      const value = observation[key];
+
+      if (value && typeof value === "string") {
+        payloadSize += value.length;
+      }
+    }
+
+    const metadataValues = Object.values(observation["metadata"]);
+
+    metadataValues.forEach((value) => {
+      if (value && typeof value === "string") {
+        payloadSize += value.length;
+      }
+    });
+
+    if (payloadSize >= env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES) {
+      const errorMessage = `Observations in trace are too large: ${(payloadSize / 1e6).toFixed(2)}MB exceeds limit of ${(env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES / 1e6).toFixed(2)}MB`;
+
+      throw new Error(errorMessage);
+    }
+  }
+
   return records.map(convertObservation);
 };
 
@@ -356,7 +387,7 @@ const getObservationByIdInternal = async (
   FROM observations
   WHERE id = {id: String}
   AND project_id = {projectId: String}
-  ${startTime ? `AND start_time = {startTime: DateTime64(3)}` : ""}
+  ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
   ORDER BY event_ts desc
   LIMIT 1 by id, project_id`;
   return await queryClickhouse<ObservationRecordReadType>({
@@ -552,8 +583,8 @@ const getObservationsTableInternal = async <T>(
         .includes(f.column),
   );
 
-  const hasScoresFilter = filter.some(
-    (f) => f.column === "Scores" || f.column === "scores",
+  const hasScoresFilter = filter.some((f) =>
+    f.column.toLowerCase().includes("scores"),
   );
 
   const orderByTraces = opts.orderBy
@@ -598,17 +629,28 @@ const getObservationsTableInternal = async <T>(
 
   const search = clickhouseSearchCondition(opts.searchQuery);
 
-  const scoresCte = `WITH scores_avg AS (
+  const scoresCte = `WITH scores_agg AS (
     SELECT
       trace_id,
       observation_id,
-       groupArray(tuple(name, avg_value)) AS "scores_avg"
+      -- For numeric scores, use tuples of (name, avg_value)
+      groupArrayIf(
+        tuple(name, avg_value),
+        data_type IN ('NUMERIC', 'BOOLEAN')
+      ) AS scores_avg,
+      -- For categorical scores, use name:value format for improved query performance
+      groupArrayIf(
+        concat(name, ':', string_value),
+        data_type = 'CATEGORICAL' AND notEmpty(string_value)
+      ) AS score_categories
     FROM (
       SELECT
         trace_id,
         observation_id,
         name,
         avg(value) avg_value,
+        string_value,
+        data_type,
         comment
       FROM
         scores final
@@ -617,6 +659,8 @@ const getObservationsTableInternal = async <T>(
         trace_id,
         observation_id,
         name,
+        string_value,
+        data_type,
         comment
       ORDER BY
         trace_id
@@ -652,7 +696,7 @@ const getObservationsTableInternal = async <T>(
        ${selectString}
       FROM observations o 
         ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
-        ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
+        ${hasScoresFilter ? `LEFT JOIN scores_agg AS s ON s.trace_id = o.trace_id and s.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
         
         ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
@@ -998,18 +1042,18 @@ export const deleteObservationsByProjectId = async (projectId: string) => {
 
 export const deleteObservationsOlderThanDays = async (
   projectId: string,
-  days: number,
+  beforeDate: Date,
 ) => {
   const query = `
     DELETE FROM observations
     WHERE project_id = {projectId: String}
-    AND start_time < now() - INTERVAL {numDays: Int} DAYS;
+    AND start_time < {cutoffDate: DateTime64(3)};
   `;
   await commandClickhouse({
     query: query,
     params: {
       projectId,
-      numDays: days,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes

@@ -57,10 +57,8 @@ export async function upsertClickhouse<
 
         // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
         // and are not worried that much about latency.
-        await clickhouseClient({
-          tags: opts.tags,
-        }).insert({
-          table: "event_log",
+        await clickhouseClient().insert({
+          table: "blob_storage_file_log",
           values: [
             {
               id: randomUUID(),
@@ -70,9 +68,14 @@ export async function upsertClickhouse<
               event_id: eventId,
               bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
               bucket_path: bucketPath,
+              event_ts: convertDateToClickhouseDateTime(new Date()),
+              is_deleted: 0,
             },
           ],
           format: "JSONEachRow",
+          clickhouse_settings: {
+            log_comment: JSON.stringify(opts.tags ?? {}),
+          },
         });
 
         return getS3StorageServiceClient(
@@ -88,13 +91,16 @@ export async function upsertClickhouse<
       }),
     );
 
-    const res = await clickhouseClient({ tags: opts.tags }).insert({
+    const res = await clickhouseClient().insert({
       table: opts.table,
       values: opts.records.map((record) => ({
         ...record,
         event_ts: convertDateToClickhouseDateTime(new Date()),
       })),
       format: "JSONEachRow",
+      clickhouse_settings: {
+        log_comment: JSON.stringify(opts.tags ?? {}),
+      },
     });
     // same logic as for prisma. we want to see queries in development
     if (env.NODE_ENV === "development") {
@@ -139,13 +145,13 @@ export async function* queryClickhouseStream<T>(opts: {
         // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
         span.setAttribute("ch.query.text", opts.query);
 
-        const res = await clickhouseClient({
-          tags: opts.tags,
-          opts: opts.clickhouseConfigs,
-        }).query({
+        const res = await clickhouseClient(opts.clickhouseConfigs).query({
           query: opts.query,
           format: "JSONEachRow",
           query_params: opts.params,
+          clickhouse_settings: {
+            log_comment: JSON.stringify(opts.tags ?? {}),
+          },
         });
         // same logic as for prisma. we want to see queries in development
         if (env.NODE_ENV === "development") {
@@ -195,13 +201,13 @@ export async function queryClickhouse<T>(opts: {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
 
-    const res = await clickhouseClient({
-      tags: opts.tags,
-      opts: opts.clickhouseConfigs,
-    }).query({
+    const res = await clickhouseClient(opts.clickhouseConfigs).query({
       query: opts.query,
       format: "JSONEachRow",
       query_params: opts.params,
+      clickhouse_settings: {
+        log_comment: JSON.stringify(opts.tags ?? {}),
+      },
     });
     // same logic as for prisma. we want to see queries in development
     if (env.NODE_ENV === "development") {
@@ -241,12 +247,12 @@ export async function commandClickhouse(opts: {
   return await instrumentAsync({ name: "clickhouse-command" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
-    const res = await clickhouseClient({
-      tags: opts.tags,
-      opts: opts.clickhouseConfigs,
-    }).command({
+    const res = await clickhouseClient(opts.clickhouseConfigs).command({
       query: opts.query,
       query_params: opts.params,
+      clickhouse_settings: {
+        log_comment: JSON.stringify(opts.tags ?? {}),
+      },
     });
     // same logic as for prisma. we want to see queries in development
     if (env.NODE_ENV === "development") {

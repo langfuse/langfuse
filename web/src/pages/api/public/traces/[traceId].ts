@@ -32,7 +32,17 @@ export default withMiddlewares({
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const { traceId } = query;
-      const trace = await getTraceById(traceId, auth.scope.projectId);
+      const trace = await getTraceById({
+        traceId,
+        projectId: auth.scope.projectId,
+      });
+
+      if (!trace) {
+        throw new LangfuseNotFoundError(
+          `Trace ${traceId} not found within authorized project`,
+        );
+      }
+
       const [observations, scores] = await Promise.all([
         getObservationsForTrace(
           traceId,
@@ -88,12 +98,6 @@ export default withMiddlewares({
           totalPrice,
         };
       });
-
-      if (!trace) {
-        throw new LangfuseNotFoundError(
-          `Trace ${traceId} not found within authorized project`,
-        );
-      }
 
       const outObservations = observationsView.map(transformDbToApiObservation);
       const validatedScores = filterAndValidateDbScoreList({
