@@ -2,17 +2,17 @@ import { QueueName, recordHistogram } from "@langfuse/shared/src/server";
 import { getQueue } from "@langfuse/shared/src/server";
 
 export class DlxRetryService {
-  private static queueRetryConfigs = {
-    [QueueName.ProjectDelete]: {},
-    [QueueName.TraceDelete]: {},
-    [QueueName.ScoreDelete]: {},
-  };
+  private static retryQueues = [
+    QueueName.ProjectDelete,
+    QueueName.TraceDelete,
+    QueueName.ScoreDelete,
+  ];
 
   public static async init() {}
 
   // called each 10 minutes, defined by the bull cron job
   public static async retryDeadLetterQueue() {
-    for (const [queueName, config] of Object.entries(this.queueRetryConfigs)) {
+    for (const queueName of this.retryQueues) {
       const queue = getQueue(queueName as QueueName);
 
       if (!queue) {
