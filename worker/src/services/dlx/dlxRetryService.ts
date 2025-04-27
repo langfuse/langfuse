@@ -14,6 +14,7 @@ export class DlxRetryService {
 
   // called each 10 minutes, defined by the bull cron job
   public static async retryDeadLetterQueue() {
+    logger.info("Retrying dead letter queue");
     const retryQueues = DlxRetryService.retryQueues;
     for (const queueName of retryQueues) {
       const queue = getQueue(queueName as QueueName);

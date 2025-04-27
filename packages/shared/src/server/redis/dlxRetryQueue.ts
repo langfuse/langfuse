@@ -42,7 +42,7 @@ export class DeadLetterRetryQueue {
           QueueJobs.DeadLetterRetryJob,
           { timestamp: new Date() },
           {
-            repeat: { pattern: "*/10 * * * *" }, // every 10 minutes
+            repeat: { pattern: "0 */10 * * * *" }, // every 10 minutes (with seconds precision)
           },
         )
         .catch((err) => {
