@@ -1,4 +1,8 @@
-import { QueueName, recordHistogram } from "@langfuse/shared/src/server";
+import {
+  logger,
+  QueueName,
+  recordHistogram,
+} from "@langfuse/shared/src/server";
 import { getQueue } from "@langfuse/shared/src/server";
 
 export class DlxRetryService {
@@ -16,7 +20,7 @@ export class DlxRetryService {
       const queue = getQueue(queueName as QueueName);
 
       if (!queue) {
-        console.error(`Queue ${queueName} not found`);
+        logger.error(`Queue ${queueName} not found`);
         continue;
       }
 
@@ -37,11 +41,11 @@ export class DlxRetryService {
           });
 
           await job.retry();
-          console.log(
+          logger.info(
             `Retried job ${JSON.stringify(job)} in queue ${queueName}`,
           );
         } catch (error) {
-          console.error(
+          logger.error(
             `Failed to retry job ${JSON.stringify(job)} in queue ${queueName}:`,
             error,
           );
