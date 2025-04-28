@@ -7,11 +7,12 @@ import {
 } from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import {
+  getCategoricalScoresGroupedByName,
   getObservationsGroupedByModel,
   getObservationsGroupedByModelId,
   getObservationsGroupedByName,
   getObservationsGroupedByPromptName,
-  getScoresGroupedByName,
+  getNumericScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
 } from "@langfuse/shared/src/server";
@@ -65,47 +66,69 @@ export const filterOptionsQuery = protectedProjectProcedure
       return traces.map((i) => ({ tag: i.value }));
     };
 
-    const [scores, model, name, promptNames, traceNames, tags, modelId] =
-      await Promise.all([
-        //scores
-        getScoresGroupedByName(
-          input.projectId,
-          startTimeFilter
-            ? [
-                {
-                  column: "Timestamp",
-                  operator: startTimeFilter.operator,
-                  value: startTimeFilter.value,
-                  type: "datetime",
-                },
-              ]
-            : [],
-        ),
-        //model
-        getObservationsGroupedByModel(
-          input.projectId,
-          startTimeFilter ? [startTimeFilter] : [],
-        ),
-        //name
-        getObservationsGroupedByName(
-          input.projectId,
-          startTimeFilter ? [startTimeFilter] : [],
-        ),
-        //prompt name
-        getObservationsGroupedByPromptName(
-          input.projectId,
-          startTimeFilter ? [startTimeFilter] : [],
-        ),
-        //trace name
-        getClickhouseTraceName(),
-        // trace tags
-        getClickhouseTraceTags(),
-        // modelId
-        getObservationsGroupedByModelId(
-          input.projectId,
-          startTimeFilter ? [startTimeFilter] : [],
-        ),
-      ]);
+    const [
+      numericScoreNames,
+      categoricalScoreNames,
+      model,
+      name,
+      promptNames,
+      traceNames,
+      tags,
+      modelId,
+    ] = await Promise.all([
+      // numeric scores
+      getNumericScoresGroupedByName(
+        input.projectId,
+        startTimeFilter
+          ? [
+              {
+                column: "Timestamp",
+                operator: startTimeFilter.operator,
+                value: startTimeFilter.value,
+                type: "datetime",
+              },
+            ]
+          : [],
+      ),
+      // categorical scores
+      getCategoricalScoresGroupedByName(
+        input.projectId,
+        startTimeFilter
+          ? [
+              {
+                column: "Timestamp",
+                operator: startTimeFilter.operator,
+                value: startTimeFilter.value,
+                type: "datetime",
+              },
+            ]
+          : [],
+      ),
+      //model
+      getObservationsGroupedByModel(
+        input.projectId,
+        startTimeFilter ? [startTimeFilter] : [],
+      ),
+      //name
+      getObservationsGroupedByName(
+        input.projectId,
+        startTimeFilter ? [startTimeFilter] : [],
+      ),
+      //prompt name
+      getObservationsGroupedByPromptName(
+        input.projectId,
+        startTimeFilter ? [startTimeFilter] : [],
+      ),
+      //trace name
+      getClickhouseTraceName(),
+      // trace tags
+      getClickhouseTraceTags(),
+      // modelId
+      getObservationsGroupedByModelId(
+        input.projectId,
+        startTimeFilter ? [startTimeFilter] : [],
+      ),
+    ]);
 
     // typecheck filter options, needs to include all columns with options
     const res: ObservationOptions = {
@@ -125,7 +148,8 @@ export const filterOptionsQuery = protectedProjectProcedure
         .map((i) => ({
           value: i.traceName as string,
         })),
-      scores_avg: scores.map((score) => score.name),
+      scores_avg: numericScoreNames.map((score) => score.name),
+      score_categories: categoricalScoreNames,
       promptName: promptNames
         .filter((i) => i.promptName !== null)
         .map((i) => ({

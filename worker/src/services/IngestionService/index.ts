@@ -903,6 +903,12 @@ export class IngestionService {
           `,
           format: "JSONEachRow",
           query_params: { projectId, entityId, ...additionalFilters.params },
+          clickhouse_settings: {
+            log_comment: JSON.stringify({
+              feature: "ingestion",
+              projectId,
+            }),
+          },
         });
 
         const result = await queryResult.json();

@@ -1806,10 +1806,8 @@ describe("queryBuilder", () => {
 
         const result = await (
           await clickhouseClient({
-            opts: {
-              clickhouse_settings: {
-                date_time_output_format: "iso",
-              },
+            clickhouse_settings: {
+              date_time_output_format: "iso",
             },
           }).query({
             query: compiledQuery,

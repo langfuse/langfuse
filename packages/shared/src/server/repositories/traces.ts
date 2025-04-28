@@ -304,6 +304,10 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
 
 /**
  * Retrieves a trace record by its ID and associated project ID, with optional filtering by timestamp range.
+ * If no timestamp filters are provided, runs two queries in parallel:
+ * 1. One with a 7-day fromTimestamp filter (typically faster)
+ * 2. One without any timestamp filters (complete but slower)
+ * Returns the first non-empty result.
  */
 export const getTraceById = async ({
   traceId,

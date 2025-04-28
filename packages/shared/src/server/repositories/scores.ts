@@ -426,7 +426,7 @@ export const getScoresGroupedByNameSourceType = async (
   }));
 };
 
-export const getScoresGroupedByName = async (
+export const getNumericScoresGroupedByName = async (
   projectId: string,
   timestampFilter?: FilterState,
 ) => {
@@ -461,6 +461,58 @@ export const getScoresGroupedByName = async (
 
   const rows = await queryClickhouse<{
     name: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
+  });
+
+  return rows;
+};
+
+export const getCategoricalScoresGroupedByName = async (
+  projectId: string,
+  timestampFilter?: FilterState,
+) => {
+  const chFilter = timestampFilter
+    ? createFilterFromFilterState(timestampFilter, [
+        {
+          uiTableName: "Timestamp",
+          uiTableId: "timestamp",
+          clickhouseTableName: "scores",
+          clickhouseSelect: "timestamp",
+        },
+      ])
+    : undefined;
+
+  const timestampFilterRes = chFilter
+    ? new FilterList(chFilter).apply()
+    : undefined;
+
+  const query = `
+    SELECT 
+      name AS label,
+      groupArray(DISTINCT string_value) AS values
+    FROM scores s
+    WHERE s.project_id = {projectId: String}
+    AND s.data_type = 'CATEGORICAL'
+    ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+    GROUP BY name
+    ORDER BY count() DESC
+    LIMIT 1000;
+  `;
+
+  const rows = await queryClickhouse<{
+    label: string;
+    values: string[];
   }>({
     query: query,
     params: {

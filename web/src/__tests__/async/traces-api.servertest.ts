@@ -489,6 +489,56 @@ describe("/api/public/traces API Endpoint", () => {
     });
   });
 
+  it("should return 5XX if observations are too large when fetching single trace", async () => {
+    // See LFE-4882 for context
+    const traceId = randomUUID();
+    const trace = createTrace({
+      id: traceId,
+      name: "trace-name1",
+      project_id: projectId,
+      metadata: { key: JSON.stringify({ foo: "bar" }) },
+      input: JSON.stringify({
+        args: [
+          {
+            foo: "bar",
+          },
+        ],
+      }),
+    });
+
+    await createTracesCh([trace]);
+    await createObservationsCh([
+      createObservation({
+        trace_id: traceId,
+        project_id: projectId,
+        input: "a".repeat(1e6),
+        output: "b".repeat(1e6),
+        metadata: {
+          foo: "c".repeat(1e6),
+        },
+      }),
+      createObservation({
+        trace_id: traceId,
+        project_id: projectId,
+        input: "a".repeat(1e6),
+        output: "b".repeat(1e6),
+        metadata: {
+          foo: "c".repeat(6e6),
+        },
+      }),
+    ]);
+
+    await expect(
+      makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${traceId}`,
+      ),
+    ).rejects.toThrow(
+      "Observations in trace are too large: 11.00MB exceeds limit of 10.00MB",
+    );
+  });
+
   it("should delete a single trace via DELETE /traces/:traceId", async () => {
     // Setup
     const createdTrace = createTrace({
@@ -537,9 +587,15 @@ describe("/api/public/traces API Endpoint", () => {
     // Then
     expect(deleteResponse.status).toBe(200);
     await waitForExpect(async () => {
-      const trace1 = await getTraceById({ traceId: createdTrace1.id, projectId });
+      const trace1 = await getTraceById({
+        traceId: createdTrace1.id,
+        projectId,
+      });
       expect(trace1).toBeUndefined();
-      const trace2 = await getTraceById({ traceId: createdTrace2.id, projectId });
+      const trace2 = await getTraceById({
+        traceId: createdTrace2.id,
+        projectId,
+      });
       expect(trace2).toBeUndefined();
     }, 40_000);
   }, 60_000);

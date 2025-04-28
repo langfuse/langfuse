@@ -36,6 +36,13 @@ export default withMiddlewares({
         traceId,
         projectId: auth.scope.projectId,
       });
+
+      if (!trace) {
+        throw new LangfuseNotFoundError(
+          `Trace ${traceId} not found within authorized project`,
+        );
+      }
+
       const [observations, scores] = await Promise.all([
         getObservationsForTrace(
           traceId,
@@ -91,12 +98,6 @@ export default withMiddlewares({
           totalPrice,
         };
       });
-
-      if (!trace) {
-        throw new LangfuseNotFoundError(
-          `Trace ${traceId} not found within authorized project`,
-        );
-      }
 
       const outObservations = observationsView.map(transformDbToApiObservation);
       // As these are traces scores, we expect all scores to have a traceId set
