@@ -81,7 +81,7 @@ import {
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
-import { useTableState } from "@/src/components/table/saved-views/hooks/useTableState";
+import { useTableViewManager } from "@/src/components/table/saved-views/hooks/useTableViewManager";
 
 export type TracesTableRow = {
   // Shown by default
@@ -950,12 +950,7 @@ export default function TracesTable({
 
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
   const { setPeekView } = useTracePeekState(urlPathname);
-  const {
-    selectedViewId,
-    handleSetViewId,
-    applyViewState,
-    isLoading: isViewLoading,
-  } = useTableState({
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: BatchExportTableName.Traces,
     projectId,
     stateUpdaters: {
@@ -1022,12 +1017,10 @@ export default function TracesTable({
     <>
       <DataTableToolbar
         columns={columns}
-        tableViewState={{
+        viewConfig={{
           tableName: BatchExportTableName.Traces,
           projectId,
-          applyViewState,
-          selectedViewId,
-          handleSetViewId,
+          controllers: viewControllers,
         }}
         filterColumnDefinition={transformedFilterOptions}
         searchConfig={{

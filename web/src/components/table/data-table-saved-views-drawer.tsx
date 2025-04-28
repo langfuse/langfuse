@@ -60,10 +60,15 @@ import { z } from "zod";
 import { type SavedViewDomain } from "@langfuse/shared/src/server";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 interface SavedViewsDrawerProps {
-  tableName: string;
-  projectId: string;
-  selectedViewId: string | null;
-  handleSetViewId: (viewId: string | null) => void;
+  viewConfig: {
+    tableName: string;
+    projectId: string;
+    controllers: {
+      selectedViewId: string | null;
+      handleSetViewId: (viewId: string | null) => void;
+      applyViewState: (viewData: SavedViewDomain) => void;
+    };
+  };
   currentState: {
     orderBy: OrderByState;
     filters: FilterState;
@@ -71,7 +76,6 @@ interface SavedViewsDrawerProps {
     columnVisibility: VisibilityState;
     searchQuery: string;
   };
-  applyViewState: (viewData: SavedViewDomain) => void;
 }
 
 function formatOrderBy(orderBy?: OrderByState) {
@@ -79,14 +83,12 @@ function formatOrderBy(orderBy?: OrderByState) {
 }
 
 export function SavedViewsDrawer({
-  tableName,
-  projectId,
+  viewConfig,
   currentState,
-  selectedViewId,
-  applyViewState,
-  handleSetViewId,
 }: SavedViewsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
+  const { tableName, projectId, controllers } = viewConfig;
+  const { handleSetViewId, applyViewState, selectedViewId } = controllers;
   const { savedViewList } = useViewData({ tableName, projectId });
   const {
     createMutation,

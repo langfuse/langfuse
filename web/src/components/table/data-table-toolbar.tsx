@@ -52,12 +52,16 @@ interface SearchConfig {
   currentQuery?: string;
 }
 
-interface TableViewState {
-  tableName: string;
-  projectId: string;
+interface TableViewControllers {
   applyViewState: (viewData: SavedViewDomain) => void;
   selectedViewId: string | null;
   handleSetViewId: (viewId: string | null) => void;
+}
+
+interface TableViewConfig {
+  tableName: string;
+  projectId: string;
+  controllers: TableViewControllers;
 }
 
 interface DataTableToolbarProps<TData, TValue> {
@@ -88,7 +92,7 @@ interface DataTableToolbarProps<TData, TValue> {
     options: { value: string }[];
   };
   orderByState?: OrderByState;
-  tableViewState: TableViewState;
+  viewConfig: TableViewConfig;
   className?: string;
 }
 
@@ -112,7 +116,7 @@ export function DataTableToolbar<TData, TValue>({
   environmentFilter,
   className,
   orderByState,
-  tableViewState,
+  viewConfig,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -185,7 +189,7 @@ export function DataTableToolbar<TData, TValue>({
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
           {!!columnVisibility && !!columnOrder && !!filterState && (
             <SavedViewsDrawer
-              {...tableViewState}
+              viewConfig={viewConfig}
               currentState={{
                 orderBy: orderByState ?? null,
                 filters: filterState,

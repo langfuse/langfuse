@@ -29,7 +29,7 @@ interface UseTableStateProps {
 /**
  * Hook to manage table view state with permalink support
  */
-export function useTableState({
+export function useTableViewManager({
   projectId,
   tableName,
   stateUpdaters,
