@@ -952,7 +952,7 @@ export default function TracesTable({
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
   const { setPeekView } = useTracePeekState(urlPathname);
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
-    tableName: BatchExportTableName.Traces,
+    tableName: SavedViewTableName.Traces,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,

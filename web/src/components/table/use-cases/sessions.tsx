@@ -10,6 +10,7 @@ import {
   type FilterState,
   sessionsTableColsWithOptions,
   BatchExportTableName,
+  SavedViewTableName,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -34,6 +35,7 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
+import { useTableViewManager } from "@/src/components/table/saved-views/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
 
 export type SessionTableRow = {
@@ -518,6 +520,17 @@ export default function SessionsTable({
     columns,
   );
 
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: SavedViewTableName.Sessions,
+    projectId,
+    stateUpdaters: {
+      setOrderBy: setOrderByState,
+      setFilters: setUserFilterState,
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+    },
+  });
+
   return (
     <>
       <DataTableToolbar
@@ -529,6 +542,11 @@ export default function SessionsTable({
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
+        viewConfig={{
+          tableName: SavedViewTableName.Sessions,
+          projectId,
+          controllers: viewControllers,
+        }}
         actionButtons={[
           <BatchExportTableButton
             {...{ projectId, filterState, orderByState }}
@@ -550,7 +568,7 @@ export default function SessionsTable({
       <DataTable
         columns={columns}
         data={
-          sessions.isLoading
+          sessions.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : sessions.isError
               ? {
@@ -561,24 +579,7 @@ export default function SessionsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: sessionRowData.rows?.map<SessionTableRow>(
-                    (session) => ({
-                      id: session.id,
-                      bookmarked: session.bookmarked,
-                      createdAt: session.createdAt,
-                      userIds: session.userIds,
-                      countTraces: session.countTraces,
-                      sessionDuration: session.sessionDuration,
-                      inputCost: session.inputCost,
-                      outputCost: session.outputCost,
-                      totalCost: session.totalCost,
-                      inputTokens: session.promptTokens,
-                      outputTokens: session.completionTokens,
-                      totalTokens: session.totalTokens,
-                      traceTags: session.traceTags,
-                      environment: session.environment,
-                    }),
-                  ),
+                  data: sessionRowData.rows ?? [],
                 }
         }
         pagination={{

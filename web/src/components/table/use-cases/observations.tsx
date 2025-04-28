@@ -20,6 +20,7 @@ import {
   type ObservationOptions,
   BatchExportTableName,
   type ObservationType,
+  SavedViewTableName,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -56,6 +57,7 @@ import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-obse
 import { useObservationPeekState } from "@/src/components/table/peek/hooks/useObservationPeekState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/useObservationPeekNavigation";
+import { useTableViewManager } from "@/src/components/table/saved-views/hooks/useTableViewManager";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -851,6 +853,17 @@ export default function ObservationsTable({
   const { getNavigationPath, expandPeek } =
     useObservationPeekNavigation(urlPathname);
   const { setPeekView } = useObservationPeekState(urlPathname);
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: SavedViewTableName.Observations,
+    projectId,
+    stateUpdaters: {
+      setOrderBy: setOrderByState,
+      setFilters: setInputFilterState,
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibilityState,
+      setSearchQuery: setSearchQuery,
+    },
+  });
 
   const rows: ObservationsTableRow[] = useMemo(() => {
     return generations.isSuccess
@@ -909,11 +922,17 @@ export default function ObservationsTable({
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
+        viewConfig={{
+          tableName: SavedViewTableName.Observations,
+          projectId,
+          controllers: viewControllers,
+        }}
         columnsWithCustomSelect={["model", "name", "traceName", "promptName"]}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibilityState}
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
+        orderByState={orderByState}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
@@ -947,7 +966,7 @@ export default function ObservationsTable({
           ),
         }}
         data={
-          generations.isLoading
+          generations.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : generations.error
               ? {

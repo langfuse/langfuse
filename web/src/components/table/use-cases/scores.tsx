@@ -24,6 +24,7 @@ import {
   type ScoreDataType,
   BatchExportTableName,
   BatchActionType,
+  SavedViewTableName,
 } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
@@ -44,6 +45,7 @@ import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { useTableViewManager } from "@/src/components/table/saved-views/hooks/useTableViewManager";
 
 export type ScoresTableRow = {
   id: string;
@@ -581,6 +583,17 @@ export default function ScoresTable({
     );
   };
 
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: SavedViewTableName.Scores,
+    projectId,
+    stateUpdaters: {
+      setOrderBy: setOrderByState,
+      setFilters: setUserFilterState,
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+    },
+  });
+
   return (
     <>
       <DataTableToolbar
@@ -592,6 +605,11 @@ export default function ScoresTable({
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
+        viewConfig={{
+          tableName: SavedViewTableName.Scores,
+          projectId,
+          controllers: viewControllers,
+        }}
         actionButtons={[
           Object.keys(selectedRows).filter((scoreId) =>
             scores.data?.scores.map((s) => s.id).includes(scoreId),
@@ -632,7 +650,7 @@ export default function ScoresTable({
       <DataTable
         columns={columns}
         data={
-          scores.isLoading
+          scores.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : scores.isError
               ? {
@@ -643,7 +661,7 @@ export default function ScoresTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: scores.data.scores.map((t) => convertToTableRow(t)),
+                  data: scores.data?.scores.map(convertToTableRow) ?? [],
                 }
         }
         pagination={{
@@ -651,14 +669,14 @@ export default function ScoresTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-        orderBy={orderByState}
         setOrderBy={setOrderByState}
+        orderBy={orderByState}
+        rowSelection={selectedRows}
+        setRowSelection={setSelectedRows}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
-        rowSelection={selectedRows}
-        setRowSelection={setSelectedRows}
         rowHeight={rowHeight}
       />
     </>

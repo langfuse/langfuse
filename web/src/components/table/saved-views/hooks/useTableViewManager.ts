@@ -1,13 +1,13 @@
 import { api } from "@/src/utils/api";
 import {
-  type TableName,
+  type SavedViewTableName,
   type FilterState,
   type OrderByState,
+  type SavedViewDomain,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { useEffect, useCallback, useState } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
-import { type SavedViewDomain } from "@langfuse/shared/src/server";
 import { StringParam, withDefault } from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam } from "use-query-params";
@@ -17,13 +17,17 @@ interface TableStateUpdaters {
   setFilters: (filters: FilterState) => void;
   setColumnOrder: (columnOrder: string[]) => void;
   setColumnVisibility: (columnVisibility: VisibilityState) => void;
-  setSearchQuery: (searchQuery: string) => void;
+  setSearchQuery?: (searchQuery: string) => void;
 }
 
 interface UseTableStateProps {
-  tableName: TableName;
+  tableName: SavedViewTableName;
   projectId: string;
   stateUpdaters: TableStateUpdaters;
+}
+
+function isDefinedFunction(fn: unknown): fn is (...args: unknown[]) => void {
+  return typeof fn === "function";
 }
 
 /**
@@ -109,8 +113,9 @@ export function useTableViewManager({
       if (viewData.columnOrder) setColumnOrder(viewData.columnOrder);
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
-      if (!!viewData.searchQuery) setSearchQuery(viewData.searchQuery);
-      else setSearchQuery("");
+      if (!!viewData.searchQuery && isDefinedFunction(setSearchQuery))
+        setSearchQuery(viewData.searchQuery);
+      else if (isDefinedFunction(setSearchQuery)) setSearchQuery("");
     },
     [
       setOrderBy,

@@ -93,7 +93,7 @@ interface DataTableToolbarProps<TData, TValue> {
     options: { value: string }[];
   };
   orderByState?: OrderByState;
-  viewConfig: TableViewConfig;
+  viewConfig?: TableViewConfig;
   className?: string;
 }
 
@@ -188,12 +188,12 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
-          {!!columnVisibility && !!columnOrder && !!filterState && (
+          {!!columnVisibility && !!columnOrder && !!viewConfig && (
             <SavedViewsDrawer
               viewConfig={viewConfig}
               currentState={{
                 orderBy: orderByState ?? null,
-                filters: filterState,
+                filters: filterState ?? [],
                 columnOrder,
                 columnVisibility,
                 searchQuery: searchString,

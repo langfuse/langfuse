@@ -4,6 +4,9 @@ import z from "zod";
 
 export enum SavedViewTableName {
   Traces = "traces",
+  Observations = "observations",
+  Scores = "scores",
+  Sessions = "sessions",
 }
 
 export const SavedViewDomainSchema = z.object({

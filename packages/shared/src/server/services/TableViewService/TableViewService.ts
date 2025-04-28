@@ -15,6 +15,9 @@ import {
 
 const TABLE_NAME_TO_URL_MAP = <Record<SavedViewTableName, string>>{
   [SavedViewTableName.Traces]: "traces",
+  [SavedViewTableName.Observations]: "observations",
+  [SavedViewTableName.Scores]: "scores",
+  [SavedViewTableName.Sessions]: "sessions",
 };
 
 export class TableViewService {
