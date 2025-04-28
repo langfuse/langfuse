@@ -961,6 +961,10 @@ export default function TracesTable({
       setColumnVisibility: setColumnVisibility,
       setSearchQuery: setSearchQuery,
     },
+    validationContext: {
+      columns,
+      filterColumnDefinition: transformedFilterOptions,
+    },
   });
 
   const rows = useMemo(() => {

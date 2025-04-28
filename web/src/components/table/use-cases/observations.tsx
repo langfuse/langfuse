@@ -863,6 +863,10 @@ export default function ObservationsTable({
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
     },
+    validationContext: {
+      columns,
+      filterColumnDefinition: transformFilterOptions(filterOptions.data),
+    },
   });
 
   const rows: ObservationsTableRow[] = useMemo(() => {

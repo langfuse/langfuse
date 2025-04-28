@@ -4,6 +4,7 @@ import {
   type FilterState,
   type OrderByState,
   type SavedViewDomain,
+  type ColumnDefinition,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { useEffect, useCallback, useState } from "react";
@@ -11,6 +12,9 @@ import { type VisibilityState } from "@tanstack/react-table";
 import { StringParam, withDefault } from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam } from "use-query-params";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import _ from "lodash";
 
 interface TableStateUpdaters {
   setOrderBy: (orderBy: OrderByState) => void;
@@ -24,10 +28,48 @@ interface UseTableStateProps {
   tableName: SavedViewTableName;
   projectId: string;
   stateUpdaters: TableStateUpdaters;
+  validationContext?: {
+    columns?: LangfuseColumnDef<any, any>[];
+    filterColumnDefinition?: ColumnDefinition[];
+  };
 }
 
-function isDefinedFunction(fn: unknown): fn is (...args: unknown[]) => void {
+function isFunction(fn: unknown): fn is (...args: unknown[]) => void {
   return typeof fn === "function";
+}
+
+/**
+ * Validates if an orderBy state references valid columns
+ */
+function validateOrderBy(
+  orderBy: OrderByState | null,
+  columns?: LangfuseColumnDef<any, any>[],
+): OrderByState | null {
+  if (!orderBy || !columns || columns.length === 0) return null;
+
+  // Check if the column exists and supports sorting
+  const isValid = columns.some(
+    (col) => col.id === orderBy.column && col.enableSorting !== false,
+  );
+  return isValid ? orderBy : null;
+}
+
+/**
+ * Validates if filters reference valid columns
+ */
+function validateFilters(
+  filters: FilterState,
+  filterColumnDefinition?: ColumnDefinition[],
+): FilterState {
+  if (!filterColumnDefinition || filterColumnDefinition.length === 0)
+    return filters;
+
+  // Filter out invalid filters
+  return filters.filter((filter) => {
+    return filterColumnDefinition.some(
+      (def) => def.id === filter.column || def.name === filter.column,
+    );
+  });
 }
 
 /**
@@ -37,6 +79,7 @@ export function useTableViewManager({
   projectId,
   tableName,
   stateUpdaters,
+  validationContext = {},
 }: UseTableStateProps) {
   const router = useRouter();
   const { viewId } = router.query;
@@ -107,15 +150,49 @@ export function useTableViewManager({
   // Method to apply state from a view
   const applyViewState = useCallback(
     (viewData: SavedViewDomain) => {
-      // Only update if values exist in the view data
-      if (viewData.orderBy) setOrderBy(viewData.orderBy);
-      if (viewData.filters) setFilters(viewData.filters);
+      /**
+       * Validate orderBy and filters
+       */
+      let validOrderBy: OrderByState | null = null;
+      let validFilters: FilterState = [];
+      if (viewData.orderBy) {
+        validOrderBy = validateOrderBy(
+          viewData.orderBy,
+          validationContext.columns,
+        );
+      }
+
+      // Validate and apply filters
+      if (viewData.filters) {
+        validFilters = validateFilters(
+          viewData.filters,
+          validationContext.filterColumnDefinition,
+        );
+      }
+
+      if (
+        !_.isEqual(validOrderBy, viewData.orderBy) ||
+        validFilters.length !== viewData.filters.length
+      ) {
+        showErrorToast(
+          "Outdated view",
+          "This view is outdated. Some old filters or ordering may have been ignored. Please update it.",
+          "WARNING",
+        );
+      }
+
+      setOrderBy(validOrderBy);
+      setFilters(validFilters);
+
+      // Handle search query
+      if (viewData.searchQuery !== undefined && isFunction(setSearchQuery)) {
+        setSearchQuery(viewData.searchQuery);
+      }
+
+      // Apply column order and visibility without validation since UI will handle gracefully
       if (viewData.columnOrder) setColumnOrder(viewData.columnOrder);
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
-      if (!!viewData.searchQuery && isDefinedFunction(setSearchQuery))
-        setSearchQuery(viewData.searchQuery);
-      else if (isDefinedFunction(setSearchQuery)) setSearchQuery("");
     },
     [
       setOrderBy,
@@ -123,6 +200,7 @@ export function useTableViewManager({
       setColumnOrder,
       setColumnVisibility,
       setSearchQuery,
+      validationContext,
     ],
   );
 

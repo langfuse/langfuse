@@ -592,6 +592,10 @@ export default function ScoresTable({
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
     },
+    validationContext: {
+      columns,
+      filterColumnDefinition: transformFilterOptions(filterOptions.data),
+    },
   });
 
   return (

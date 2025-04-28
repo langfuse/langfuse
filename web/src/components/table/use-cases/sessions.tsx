@@ -529,6 +529,10 @@ export default function SessionsTable({
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
     },
+    validationContext: {
+      columns,
+      filterColumnDefinition: transformFilterOptions(),
+    },
   });
 
   return (
@@ -579,7 +583,23 @@ export default function SessionsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: sessionRowData.rows ?? [],
+                  data:
+                    sessionRowData.rows?.map((session) => ({
+                      id: session.id,
+                      createdAt: session.createdAt,
+                      bookmarked: session.bookmarked,
+                      userIds: session.userIds,
+                      countTraces: session.countTraces,
+                      sessionDuration: session.sessionDuration,
+                      inputCost: session.inputCost,
+                      outputCost: session.outputCost,
+                      totalCost: session.totalCost,
+                      inputTokens: session.promptTokens,
+                      outputTokens: session.completionTokens,
+                      totalTokens: session.totalTokens,
+                      traceTags: session.traceTags,
+                      environment: session.environment,
+                    })) ?? [],
                 }
         }
         pagination={{
