@@ -59,7 +59,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { type SavedViewDomain } from "@langfuse/shared/src/server";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-
 interface SavedViewsDrawerProps {
   tableName: string;
   projectId: string;
@@ -88,7 +87,6 @@ export function SavedViewsDrawer({
   handleSetViewId,
 }: SavedViewsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
-
   const { savedViewList } = useViewData({ tableName, projectId });
   const {
     createMutation,
@@ -257,11 +255,20 @@ export function SavedViewsDrawer({
                           size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
-                            generatePermalinkMutation.mutate({
-                              viewId: view.id,
-                              projectId,
-                              tableName,
-                            });
+                            if (window.location.origin) {
+                              generatePermalinkMutation.mutate({
+                                viewId: view.id,
+                                projectId,
+                                tableName,
+                                baseUrl: window.location.origin,
+                              });
+                            } else {
+                              showErrorToast(
+                                "Failed to generate permalink",
+                                "Please reach out to langfuse support and report this issue.",
+                                "WARNING",
+                              );
+                            }
                           }}
                           className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
                         >

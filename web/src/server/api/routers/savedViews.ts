@@ -168,6 +168,7 @@ export const savedViewsRouter = createTRPCRouter({
         projectId: z.string(),
         viewId: z.string(),
         tableName: z.string(),
+        baseUrl: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -178,11 +179,10 @@ export const savedViewsRouter = createTRPCRouter({
       });
 
       return await TableViewService.generatePermalink(
+        input.baseUrl,
         input.viewId,
         input.tableName,
         input.projectId,
       );
     }),
-
-  // resolvePermalink: protectedProjectProcedure
 });

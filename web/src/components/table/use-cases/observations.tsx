@@ -412,6 +412,7 @@ export default function ObservationsTable({
         href: "https://langfuse.com/docs/tracing-features/log-levels",
       },
       enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "latency",

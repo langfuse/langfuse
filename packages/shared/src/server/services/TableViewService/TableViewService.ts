@@ -14,9 +14,6 @@ const TABLE_NAME_TO_URL_MAP = <Record<string, string>>{
   traces: "traces",
 };
 
-// TODO: Make this configurable
-const BASE_URL = "http://localhost:3000/";
-
 export class TableViewService {
   /**
    * Creates a saved view
@@ -179,11 +176,12 @@ export class TableViewService {
    * Generates a permanent link to a saved view
    */
   public static async generatePermalink(
+    baseUrl: string,
     savedViewId: string,
     tableName: string,
     projectId: string,
   ): Promise<string> {
     const page = TABLE_NAME_TO_URL_MAP[tableName];
-    return `${BASE_URL}/project/${projectId}/${page}?viewId=${savedViewId}`;
+    return `${baseUrl}/project/${projectId}/${page}?viewId=${savedViewId}`;
   }
 }
