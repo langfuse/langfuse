@@ -1,6 +1,6 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
-  type APIScore,
+  type APIScoreV2,
   type TraceDomain,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
@@ -50,7 +50,7 @@ export const TracePreview = ({
     output: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
-  scores: APIScore[];
+  scores: APIScoreV2[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
 }) => {
@@ -129,7 +129,10 @@ export const TracePreview = ({
                   <AnnotateDrawer
                     key={"annotation-drawer" + trace.id}
                     projectId={trace.projectId}
-                    traceId={trace.id}
+                    scoreTarget={{
+                      type: "trace",
+                      traceId: trace.id,
+                    }}
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}

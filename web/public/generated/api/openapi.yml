@@ -3318,58 +3318,12 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
-  /api/public/scores:
-    post:
-      description: Create a score
-      operationId: score_create
-      tags:
-        - Score
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreateScoreResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateScoreRequest'
+  /api/public/v2/scores:
     get:
-      description: Get a list of scores
-      operationId: score_get
+      description: Get a list of scores (supports both trace and session scores)
+      operationId: scoreV2_get
       tags:
-        - Score
+        - ScoreV2
       parameters:
         - name: page
           in: query
@@ -3527,12 +3481,12 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
-  /api/public/scores/{scoreId}:
+  /api/public/v2/scores/{scoreId}:
     get:
-      description: Get a score
-      operationId: score_get-by-id
+      description: Get a score (supports both trace and session scores)
+      operationId: scoreV2_get-by-id
       tags:
-        - Score
+        - ScoreV2
       parameters:
         - name: scoreId
           in: path
@@ -3574,8 +3528,56 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/scores:
+    post:
+      description: Create a score (supports both trace and session scores)
+      operationId: score_create
+      tags:
+        - Score
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateScoreResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScoreRequest'
+  /api/public/scores/{scoreId}:
     delete:
-      description: Delete a score
+      description: Delete a score (supports both trace and session scores)
       operationId: score_delete
       tags:
         - Score
@@ -4343,7 +4345,7 @@ components:
         scores:
           type: array
           items:
-            $ref: '#/components/schemas/Score'
+            $ref: '#/components/schemas/ScoreV1'
           description: List of scores
       required:
         - htmlPath
@@ -4657,8 +4659,8 @@ components:
       required:
         - value
         - label
-    BaseScore:
-      title: BaseScore
+    BaseScoreV1:
+      title: BaseScoreV1
       type: object
       properties:
         id:
@@ -4712,6 +4714,157 @@ components:
       required:
         - id
         - traceId
+        - name
+        - source
+        - timestamp
+        - createdAt
+        - updatedAt
+    NumericScoreV1:
+      title: NumericScoreV1
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: The numeric value of the score
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV1'
+    BooleanScoreV1:
+      title: BooleanScoreV1
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: >-
+            The numeric value of the score. Equals 1 for "True" and 0 for
+            "False"
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. Is inferred from the
+            numeric value and equals "True" or "False"
+      required:
+        - value
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV1'
+    CategoricalScoreV1:
+      title: CategoricalScoreV1
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Only defined if a config is linked. Represents the numeric category
+            mapping of the stringValue
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. If no config is
+            linked, can be any string. Otherwise, must map to a config category
+      required:
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV1'
+    ScoreV1:
+      title: ScoreV1
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/NumericScoreV1'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/CategoricalScoreV1'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/BooleanScoreV1'
+          required:
+            - dataType
+    BaseScore:
+      title: BaseScore
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        observationId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        timestamp:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
+          nullable: true
+        comment:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. When set, config and score name
+            must be equal and value must comply to optionally defined numerical
+            range
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            Reference an annotation queue on a score. Populated if the score was
+            initially created in an annotation queue.
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment from which this score originated. Can be any
+            lowercase alphanumeric string with hyphens and underscores that does
+            not start with 'langfuse'.
+      required:
+        - id
         - name
         - source
         - timestamp
@@ -5662,7 +5815,13 @@ components:
           nullable: true
         traceId:
           type: string
-          example: cdef-1234-5678-90ab
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        observationId:
+          type: string
+          nullable: true
         name:
           type: string
           example: novelty
@@ -5675,9 +5834,6 @@ components:
             The value of the score. Must be passed as string for categorical
             scores, and numeric for boolean and numeric scores. Boolean score
             values must equal either 1 or 0 (true or false)
-        observationId:
-          type: string
-          nullable: true
         comment:
           type: string
           nullable: true
@@ -5699,7 +5855,6 @@ components:
             config category. Numeric scores might be constrained by the score
             config's max and min values
       required:
-        - traceId
         - name
         - value
     BaseEvent:
@@ -6967,67 +7122,6 @@ components:
       required:
         - name
         - dataType
-    CreateScoreRequest:
-      title: CreateScoreRequest
-      type: object
-      properties:
-        id:
-          type: string
-          nullable: true
-        traceId:
-          type: string
-          example: cdef-1234-5678-90ab
-        name:
-          type: string
-          example: novelty
-        value:
-          $ref: '#/components/schemas/CreateScoreValue'
-          description: >-
-            The value of the score. Must be passed as string for categorical
-            scores, and numeric for boolean and numeric scores. Boolean score
-            values must equal either 1 or 0 (true or false)
-        observationId:
-          type: string
-          nullable: true
-        comment:
-          type: string
-          nullable: true
-        metadata:
-          nullable: true
-        environment:
-          type: string
-          nullable: true
-          description: >-
-            The environment of the score. Can be any lowercase alphanumeric
-            string with hyphens and underscores that does not start with
-            'langfuse'.
-        dataType:
-          $ref: '#/components/schemas/ScoreDataType'
-          nullable: true
-          description: >-
-            The data type of the score. When passing a configId this field is
-            inferred. Otherwise, this field must be passed or will default to
-            numeric.
-        configId:
-          type: string
-          nullable: true
-          description: >-
-            Reference a score config on a score. The unique langfuse identifier
-            of a score config. When passing this field, the dataType and
-            stringValue fields are automatically populated.
-      required:
-        - traceId
-        - name
-        - value
-    CreateScoreResponse:
-      title: CreateScoreResponse
-      type: object
-      properties:
-        id:
-          type: string
-          description: The id of the created object in Langfuse
-      required:
-        - id
     GetScoresResponseTraceData:
       title: GetScoresResponseTraceData
       type: object
@@ -7052,8 +7146,7 @@ components:
       properties:
         trace:
           $ref: '#/components/schemas/GetScoresResponseTraceData'
-      required:
-        - trace
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/NumericScore'
     GetScoresResponseDataCategorical:
@@ -7062,8 +7155,7 @@ components:
       properties:
         trace:
           $ref: '#/components/schemas/GetScoresResponseTraceData'
-      required:
-        - trace
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/CategoricalScore'
     GetScoresResponseDataBoolean:
@@ -7072,8 +7164,7 @@ components:
       properties:
         trace:
           $ref: '#/components/schemas/GetScoresResponseTraceData'
-      required:
-        - trace
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/BooleanScore'
     GetScoresResponseData:
@@ -7125,6 +7216,69 @@ components:
       required:
         - data
         - meta
+    CreateScoreRequest:
+      title: CreateScoreRequest
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        observationId:
+          type: string
+          nullable: true
+        name:
+          type: string
+          example: novelty
+        value:
+          $ref: '#/components/schemas/CreateScoreValue'
+          description: >-
+            The value of the score. Must be passed as string for categorical
+            scores, and numeric for boolean and numeric scores. Boolean score
+            values must equal either 1 or 0 (true or false)
+        comment:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment of the score. Can be any lowercase alphanumeric
+            string with hyphens and underscores that does not start with
+            'langfuse'.
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
+          description: >-
+            The data type of the score. When passing a configId this field is
+            inferred. Otherwise, this field must be passed or will default to
+            numeric.
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. The unique langfuse identifier
+            of a score config. When passing this field, the dataType and
+            stringValue fields are automatically populated.
+      required:
+        - name
+        - value
+    CreateScoreResponse:
+      title: CreateScoreResponse
+      type: object
+      properties:
+        id:
+          type: string
+          description: The id of the created object in Langfuse
+      required:
+        - id
     PaginatedSessions:
       title: PaginatedSessions
       type: object

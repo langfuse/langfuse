@@ -6,7 +6,7 @@ import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJ
 import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
 import {
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -129,7 +129,7 @@ describe("select all test suite", () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
 
-    const score = createScore({ project_id: projectId });
+    const score = createTraceScore({ project_id: projectId });
     await createScoresCh([score]);
 
     // When

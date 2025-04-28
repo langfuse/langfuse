@@ -121,6 +121,7 @@ export const createFilterFromFilterState = (
           tablePrefix: column.queryPrefix,
         });
       default:
+        // eslint-disable-next-line no-case-declarations
         const exhaustiveCheck: never = frontEndFilter;
         logger.error(`Invalid filter type: ${JSON.stringify(exhaustiveCheck)}`);
         throw new QueryBuilderError(`Invalid filter type`);
