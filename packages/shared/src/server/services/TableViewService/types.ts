@@ -47,6 +47,9 @@ export const SavedViewNamesCreatorListSchema = z.array(
     id: z.string(),
     name: z.string(),
     createdBy: z.string(),
+    createdByUser: z.object({
+      image: z.string(),
+    }),
   }),
 );
 

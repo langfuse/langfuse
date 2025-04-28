@@ -141,6 +141,11 @@ export class TableViewService {
         id: true,
         name: true,
         createdBy: true,
+        createdByUser: {
+          select: {
+            image: true,
+          },
+        },
       },
     });
 

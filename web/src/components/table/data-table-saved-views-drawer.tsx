@@ -379,7 +379,7 @@ export function SavedViewsDrawer({
                         </DropdownMenu>
                         <div className="flex items-center text-xs text-muted-foreground">
                           <Avatar>
-                            <AvatarImage src="https://github.com/shadcn.png" />
+                            <AvatarImage src={view.createdByUser.image} />
                           </Avatar>
                         </div>
                       </div>

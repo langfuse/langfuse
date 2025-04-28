@@ -124,7 +124,8 @@ export function DataTableToolbar<TData, TValue>({
     if (searchConfig?.currentQuery !== searchString) {
       setSearchString(searchConfig?.currentQuery ?? "");
     }
-  }, [searchConfig?.currentQuery, searchString]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchConfig?.currentQuery]);
 
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>

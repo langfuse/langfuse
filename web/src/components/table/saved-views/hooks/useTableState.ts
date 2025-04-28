@@ -11,7 +11,6 @@ import { type SavedViewDomain } from "@langfuse/shared/src/server";
 import { StringParam, withDefault } from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam } from "use-query-params";
-import { truncate } from "fs/promises";
 
 interface TableStateUpdaters {
   setOrderBy: (orderBy: OrderByState) => void;

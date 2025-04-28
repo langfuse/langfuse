@@ -1018,8 +1018,6 @@ export default function TracesTable({
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
 
-  console.log("isViewLoading", isViewLoading);
-
   return (
     <>
       <DataTableToolbar
