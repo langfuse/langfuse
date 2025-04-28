@@ -37,6 +37,7 @@ import {
   BatchExportTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  SavedViewTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -1018,7 +1019,7 @@ export default function TracesTable({
       <DataTableToolbar
         columns={columns}
         viewConfig={{
-          tableName: BatchExportTableName.Traces,
+          tableName: SavedViewTableName.Traces,
           projectId,
           controllers: viewControllers,
         }}

@@ -27,21 +27,6 @@ export type CreateSavedViewInput = z.infer<typeof CreateSavedViewInput>;
 export type UpdateSavedViewInput = z.infer<typeof UpdateSavedViewInput>;
 export type UpdateSavedViewNameInput = z.infer<typeof UpdateSavedViewNameInput>;
 
-export const SavedViewDomainSchema = z.object({
-  id: z.string(),
-  projectId: z.string().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-  createdBy: z.string().nullable(),
-  name: z.string(),
-  tableName: z.string(),
-  filters: z.array(singleFilter),
-  columnOrder: z.array(z.string()),
-  columnVisibility: z.record(z.string(), z.boolean()),
-  searchQuery: z.string().optional(),
-  orderBy: orderBy,
-});
-
 export const SavedViewNamesCreatorListSchema = z.array(
   z.object({
     id: z.string(),
@@ -53,7 +38,6 @@ export const SavedViewNamesCreatorListSchema = z.array(
   }),
 );
 
-export type SavedViewDomain = z.infer<typeof SavedViewDomainSchema>;
 export type SavedViewNamesCreatorList = z.infer<
   typeof SavedViewNamesCreatorListSchema
 >;

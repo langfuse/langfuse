@@ -12,6 +12,8 @@ import {
   type FilterState,
   type ColumnDefinition,
   type OrderByState,
+  type SavedViewDomain,
+  type SavedViewTableName,
 } from "@langfuse/shared";
 import {
   type RowSelectionState,
@@ -34,7 +36,6 @@ import { DataTableSelectAllBanner } from "@/src/components/table/data-table-mult
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
 import { SavedViewsDrawer } from "@/src/components/table/data-table-saved-views-drawer";
-import { type SavedViewDomain } from "@langfuse/shared/src/server";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -59,7 +60,7 @@ interface TableViewControllers {
 }
 
 interface TableViewConfig {
-  tableName: string;
+  tableName: SavedViewTableName;
   projectId: string;
   controllers: TableViewControllers;
 }

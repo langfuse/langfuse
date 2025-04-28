@@ -11,7 +11,7 @@ import {
   UpdateSavedViewNameInput,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError, SavedViewTableName } from "@langfuse/shared";
 
 /**
  * Maps domain errors to appropriate TRPC errors
@@ -167,7 +167,7 @@ export const savedViewsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         viewId: z.string(),
-        tableName: z.string(),
+        tableName: z.nativeEnum(SavedViewTableName),
         baseUrl: z.string(),
       }),
     )

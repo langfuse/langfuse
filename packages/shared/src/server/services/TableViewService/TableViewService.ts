@@ -1,8 +1,11 @@
 import { prisma } from "../../../db";
+import {
+  SavedViewDomainSchema,
+  SavedViewTableName,
+  type SavedViewDomain,
+} from "../../../domain/saved-views";
 import { LangfuseNotFoundError } from "../../../errors";
 import {
-  SavedViewDomain,
-  SavedViewDomainSchema,
   SavedViewNamesCreatorList,
   SavedViewNamesCreatorListSchema,
   UpdateSavedViewNameInput,
@@ -10,8 +13,8 @@ import {
   type UpdateSavedViewInput,
 } from "./types";
 
-const TABLE_NAME_TO_URL_MAP = <Record<string, string>>{
-  traces: "traces",
+const TABLE_NAME_TO_URL_MAP = <Record<SavedViewTableName, string>>{
+  [SavedViewTableName.Traces]: "traces",
 };
 
 export class TableViewService {
@@ -178,7 +181,7 @@ export class TableViewService {
   public static async generatePermalink(
     baseUrl: string,
     savedViewId: string,
-    tableName: string,
+    tableName: SavedViewTableName,
     projectId: string,
   ): Promise<string> {
     const page = TABLE_NAME_TO_URL_MAP[tableName];

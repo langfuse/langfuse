@@ -34,7 +34,12 @@ import {
   type VisibilityState,
   type ColumnOrderState,
 } from "@tanstack/react-table";
-import { type OrderByState, type FilterState } from "@langfuse/shared";
+import {
+  type OrderByState,
+  type FilterState,
+  type SavedViewTableName,
+  type SavedViewDomain,
+} from "@langfuse/shared";
 import { useState } from "react";
 import {
   DropdownMenuItem,
@@ -57,11 +62,10 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { type SavedViewDomain } from "@langfuse/shared/src/server";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 interface SavedViewsDrawerProps {
   viewConfig: {
-    tableName: string;
+    tableName: SavedViewTableName;
     projectId: string;
     controllers: {
       selectedViewId: string | null;
