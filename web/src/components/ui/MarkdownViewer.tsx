@@ -26,6 +26,8 @@ import {
   type OpenAIContentParts,
   type OpenAIContentSchema,
   type OpenAIOutputAudioType,
+  isOpenAITextContentPart,
+  isOpenAIImageContentPart,
 } from "@/src/components/schemas/ChatMlSchema";
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
@@ -320,14 +322,14 @@ export function MarkdownView({
         ) : (
           // content parts (multi-modal)
           (markdown ?? []).map((content, index) =>
-            content.type === "text" ? (
+            isOpenAITextContentPart(content) ? (
               <MarkdownRenderer
                 key={index}
                 markdown={content.text}
                 theme={theme}
                 customCodeHeaderClassName={customCodeHeaderClassName}
               />
-            ) : content.type === "image_url" ? (
+            ) : isOpenAIImageContentPart(content) ? (
               OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
                 <div key={index}>
                   <ResizableImage src={content.image_url.url.toString()} />
