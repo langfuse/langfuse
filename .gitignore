@@ -55,6 +55,7 @@ yarn-error.log*
 
 # vscode
 .devcontainer
+.pnpm-store
 
 node_modules
 **/node_modules
