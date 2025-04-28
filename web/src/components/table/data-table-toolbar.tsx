@@ -52,6 +52,14 @@ interface SearchConfig {
   currentQuery?: string;
 }
 
+interface TableViewState {
+  tableName: string;
+  projectId: string;
+  applyViewState: (viewData: SavedViewDomain) => void;
+  selectedViewId: string | null;
+  handleSetViewId: (viewId: string | null) => void;
+}
+
 interface DataTableToolbarProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   filterColumnDefinition?: ColumnDefinition[];
@@ -79,13 +87,9 @@ interface DataTableToolbarProps<TData, TValue> {
     onValueChange: (values: string[]) => void;
     options: { value: string }[];
   };
-  className?: string;
-  tableName: string;
-  projectId: string;
   orderByState?: OrderByState;
-  applyViewState: (viewData: SavedViewDomain) => void;
-  selectedViewId: string | null;
-  handleSetViewId: (viewId: string | null) => void;
+  tableViewState: TableViewState;
+  className?: string;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -107,12 +111,8 @@ export function DataTableToolbar<TData, TValue>({
   multiSelect,
   environmentFilter,
   className,
-  tableName,
-  projectId,
   orderByState,
-  applyViewState,
-  selectedViewId,
-  handleSetViewId,
+  tableViewState,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -185,8 +185,7 @@ export function DataTableToolbar<TData, TValue>({
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
           {!!columnVisibility && !!columnOrder && !!filterState && (
             <SavedViewsDrawer
-              tableName={tableName}
-              projectId={projectId}
+              {...tableViewState}
               currentState={{
                 orderBy: orderByState ?? null,
                 filters: filterState,
@@ -194,9 +193,6 @@ export function DataTableToolbar<TData, TValue>({
                 columnVisibility,
                 searchQuery: searchString,
               }}
-              selectedViewId={selectedViewId}
-              handleSetViewId={handleSetViewId}
-              applyViewState={applyViewState}
             />
           )}
           {!!columnVisibility && !!setColumnVisibility && (

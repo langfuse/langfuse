@@ -1021,9 +1021,14 @@ export default function TracesTable({
   return (
     <>
       <DataTableToolbar
-        tableName={BatchExportTableName.Traces}
-        projectId={projectId}
         columns={columns}
+        tableViewState={{
+          tableName: BatchExportTableName.Traces,
+          projectId,
+          applyViewState,
+          selectedViewId,
+          handleSetViewId,
+        }}
         filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
           placeholder: "Search (by id, name, trace name, user id)",
@@ -1032,9 +1037,6 @@ export default function TracesTable({
         }}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
-        applyViewState={applyViewState}
-        selectedViewId={selectedViewId}
-        handleSetViewId={handleSetViewId}
         columnsWithCustomSelect={["name", "tags"]}
         actionButtons={[
           Object.keys(selectedRows).filter((traceId) =>
