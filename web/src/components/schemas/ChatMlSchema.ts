@@ -1,8 +1,12 @@
 import { z } from "zod";
 
-// OpenAI API Content Schema defined as per https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages, 20.08.2024
+// OpenAI API Content Schema defined as per https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages, 28.04.2025
 const OpenAITextContentPart = z.object({
-  type: z.literal("text"),
+  type: z.union([
+    z.literal("text"),
+    z.literal("input_text"),
+    z.literal("output_text"),
+  ]),
   text: z.string(),
 });
 
