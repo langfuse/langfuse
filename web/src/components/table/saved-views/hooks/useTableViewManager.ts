@@ -160,7 +160,7 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    async (viewData: SavedViewDomain) => {
+    (viewData: SavedViewDomain) => {
       // lock table
       setIsLoading(true);
 
