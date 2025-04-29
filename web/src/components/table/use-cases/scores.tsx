@@ -49,7 +49,7 @@ import { useTableViewManager } from "@/src/components/table/saved-views/hooks/us
 
 export type ScoresTableRow = {
   id: string;
-  traceId: string;
+  traceId?: string;
   timestamp: Date;
   source: string;
   name: string;
@@ -566,7 +566,7 @@ export default function ScoresTable({
       },
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
-      traceId: score.traceId,
+      traceId: score.traceId ?? undefined,
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,

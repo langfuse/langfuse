@@ -2,7 +2,7 @@ import { expect, describe, it, beforeAll } from "vitest";
 import {
   clickhouseClient,
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
   getBlobStorageByProjectId,
   getScoresByIds,
@@ -31,7 +31,7 @@ describe("score deletion", () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
 
-    const score = createScore({ project_id: projectId });
+    const score = createTraceScore({ project_id: projectId });
     await createScoresCh([score]);
 
     // When
@@ -47,7 +47,9 @@ describe("score deletion", () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const scoreId = randomUUID();
-    await createScoresCh([createScore({ id: scoreId, project_id: projectId })]);
+    await createScoresCh([
+      createTraceScore({ id: scoreId, project_id: projectId }),
+    ]);
 
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });

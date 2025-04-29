@@ -14,7 +14,7 @@ import { Settings2, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { useCallback, useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScore, ObservationLevel } from "@langfuse/shared";
+import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/isLanggraphTrace";
@@ -57,7 +57,7 @@ export function Trace(props: {
     input: string | null;
     output: string | null;
   };
-  scores: APIScore[];
+  scores: APIScoreV2[];
   projectId: string;
   viewType?: "detailed" | "focused";
   isValidObservationId?: boolean;

@@ -273,7 +273,10 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const score = await getScoreById(projectId, entity.body.id);
+        const score = await getScoreById({
+          projectId,
+          scoreId: entity.body.id,
+        });
         expect(score).toBeDefined();
         expect(score!.id).toBe(entity.body.id);
         expect(score!.projectId).toBe(projectId);
@@ -611,7 +614,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const score = await getScoreById(projectId, scoreId);
+        const score = await getScoreById({ projectId, scoreId });
         expect(score).toBeDefined();
         expect(score!.id).toBe(scoreId);
         expect(JSON.stringify(score!.metadata)).toBe(
@@ -658,7 +661,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.status).toBe(207);
 
     await waitForExpect(async () => {
-      const score = await getScoreById(projectId, scoreId);
+      const score = await getScoreById({ projectId, scoreId });
       expect(score).toBeDefined();
       expect(score!.id).toBe(scoreId);
       expect(score!.projectId).toBe(projectId);

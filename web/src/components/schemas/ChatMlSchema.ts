@@ -1,10 +1,15 @@
 import { z } from "zod";
 
-// OpenAI API Content Schema defined as per https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages, 20.08.2024
+// OpenAI API Content Schema defined as per https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages, 28.04.2025
 const OpenAITextContentPart = z.object({
-  type: z.literal("text"),
+  type: z.union([
+    z.literal("text"),
+    z.literal("input_text"),
+    z.literal("output_text"),
+  ]),
   text: z.string(),
 });
+export type OpenAITextContentPartType = z.infer<typeof OpenAITextContentPart>;
 
 export const OpenAIUrlImageUrl = z.string().regex(/^https?:/);
 
@@ -71,6 +76,7 @@ const OpenAIImageContentPart = z.object({
     detail: z.enum(["low", "high", "auto"]).optional(), // Controls how the model processes the image. Defaults to "auto". [https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding]
   }),
 });
+export type OpenAIImageContentPartType = z.infer<typeof OpenAIImageContentPart>;
 
 const OpenAIInputAudioContentPart = z.object({
   type: z.literal("input_audio"),
@@ -130,3 +136,16 @@ export type ChatMlMessageSchema = z.infer<typeof ChatMlMessageSchema>;
 
 export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
 export type ChatMlArraySchema = z.infer<typeof ChatMlArraySchema>;
+
+// Typeguards to help with type inference in components
+export const isOpenAITextContentPart = (
+  content: any,
+): content is z.infer<typeof OpenAITextContentPart> => {
+  return OpenAITextContentPart.safeParse(content).success;
+};
+
+export const isOpenAIImageContentPart = (
+  content: any,
+): content is z.infer<typeof OpenAIImageContentPart> => {
+  return OpenAIImageContentPart.safeParse(content).success;
+};

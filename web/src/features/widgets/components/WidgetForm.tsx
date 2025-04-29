@@ -168,6 +168,12 @@ export function WidgetForm({
       internal: "internalValue",
     },
     {
+      name: "Score Name",
+      id: "scoreName",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
       name: "Tags",
       id: "tags",
       type: "arrayOptions",

@@ -2460,54 +2460,22 @@
     {
       "_type": "container",
       "description": null,
-      "name": "Score",
+      "name": "Score V 2",
       "item": [
-        {
-          "_type": "endpoint",
-          "name": "Create",
-          "request": {
-            "description": "Create a score",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/scores",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "scores"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "POST",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"name\": \"novelty\",\n    \"value\": 0.9,\n    \"traceId\": \"cdef-1234-5678-90ab\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
         {
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get a list of scores",
+            "description": "Get a list of scores (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
+              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "scores"
               ],
               "query": [
@@ -2600,15 +2568,16 @@
           "_type": "endpoint",
           "name": "Get By Id",
           "request": {
-            "description": "Get a score",
+            "description": "Get a score (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores/:scoreId",
+              "raw": "{{baseUrl}}/api/public/v2/scores/:scoreId",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "scores",
                 ":scoreId"
               ],
@@ -2627,12 +2596,52 @@
             "body": null
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Score",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a score (supports both trace and session scores)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scores"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"novelty\",\n    \"value\": 0.9,\n    \"traceId\": \"cdef-1234-5678-90ab\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         },
         {
           "_type": "endpoint",
           "name": "Delete",
           "request": {
-            "description": "Delete a score",
+            "description": "Delete a score (supports both trace and session scores)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores/:scoreId",
               "host": [

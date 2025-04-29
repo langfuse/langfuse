@@ -125,7 +125,8 @@ export type TraceRecordInsertType = z.infer<typeof traceRecordInsertSchema>;
 export const scoreRecordBaseSchema = z.object({
   id: z.string(),
   project_id: z.string(),
-  trace_id: z.string(),
+  trace_id: z.string().nullish(),
+  session_id: z.string().nullish(),
   observation_id: z.string().nullish(),
   environment: z.string().default("default"),
   name: z.string(),
@@ -352,6 +353,7 @@ export const convertPostgresScoreToInsert = (
     timestamp: score.timestamp?.getTime(),
     project_id: score.project_id,
     trace_id: score.trace_id,
+    session_id: null,
     observation_id: score.observation_id,
     environment: score.environment,
     name: score.name,

@@ -15,6 +15,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "observationName",
     },
     {
+      uiTableName: "Score Name",
+      viewName: "scoreName",
+    },
+    {
       uiTableName: "Tags",
       viewName: "tags",
     },
@@ -47,6 +51,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     {
       uiTableName: "Observation Name",
       viewName: "name",
+    },
+    {
+      uiTableName: "Score Name",
+      viewName: "scoreName",
     },
     {
       uiTableName: "User",

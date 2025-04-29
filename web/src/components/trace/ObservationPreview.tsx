@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { AnnotationQueueObjectType, type APIScore } from "@langfuse/shared";
+import { AnnotationQueueObjectType, type APIScoreV2 } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -47,7 +47,7 @@ export const ObservationPreview = ({
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
-  scores: APIScore[];
+  scores: APIScoreV2[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;
@@ -148,12 +148,14 @@ export const ObservationPreview = ({
                   <AnnotateDrawer
                     key={"annotation-drawer" + preloadedObservation.id}
                     projectId={projectId}
-                    traceId={traceId}
-                    observationId={preloadedObservation.id}
+                    scoreTarget={{
+                      type: "trace",
+                      traceId: traceId,
+                      observationId: preloadedObservation.id,
+                    }}
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    type="observation"
                     hasGroupedButton={hasEntitlement}
                     environment={preloadedObservation.environment}
                   />
