@@ -19,6 +19,7 @@ import {
   extractVariables,
   datasetItemMatchesVariable,
   stringifyValue,
+  type LLMToolDefinition,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -206,10 +207,13 @@ export const createExperimentJob = async ({
     .filter(({ input }) => validateDatasetItem(input, extractedVariables))
     .map((datasetItem) => ({
       ...datasetItem,
-      input: parseDatasetItemInput(
-        datasetItem.input as Prisma.JsonObject, // this is safe because we already filtered for valid input
-        extractedVariables,
-      ),
+      input: {
+        ...parseDatasetItemInput(
+          datasetItem.input as Prisma.JsonObject, // this is safe because we already filtered for valid input
+          extractedVariables,
+        ),
+        tools: (datasetItem.input as any).tools,
+      },
     }));
 
   if (!validatedDatasetItems.length) {
@@ -288,6 +292,17 @@ export const createExperimentJob = async ({
       },
     };
 
+    let tools = (prompt.config as any)?.tools;
+    if ((datasetItem.input as any)?.tools) {
+      tools = (datasetItem.input as any).tools;
+    }
+
+    const toolDefinitions = tools?.map(
+      (tool: { type: string; function: LLMToolDefinition }) => ({
+        ...(tool.function as LLMToolDefinition),
+      }),
+    );
+
     await backOff(
       async () =>
         await callLLM(
@@ -297,6 +312,7 @@ export const createExperimentJob = async ({
           provider,
           model,
           traceParams,
+          toolDefinitions,
         ),
       {
         numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
