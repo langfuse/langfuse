@@ -2,7 +2,6 @@ import {
   validateFilters,
   validateOrderBy,
 } from "@/src/components/table/saved-views/hooks/useTableViewManager";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type ColumnDefinition,
   type FilterState,
@@ -10,7 +9,7 @@ import {
 } from "@langfuse/shared";
 
 // Mock data for testing
-const mockColumns: LangfuseColumnDef<any, any>[] = [
+const mockColumns = [
   { id: "name", enableSorting: true, accessorKey: "name" },
   { id: "status", enableSorting: true, accessorKey: "status" },
   { id: "age", enableSorting: false, accessorKey: "age" },

@@ -55,7 +55,7 @@ If a user navigates to a permalink for a deleted view:
 1. The view loading will fail gracefully
 2. Default table settings are applied
 3. No error is shown to the user
-4. The URL parameter remains but has no effect
+4. The URL parameter remains but has no effect, and the session storage is cleared if the view is not found
 
 ## Permalink Feature
 

@@ -149,16 +149,21 @@ export function useTableViewManager({
         setIsInitialized(true);
         setIsLoading(false);
       },
-      onError: () => {
+      onError: (error) => {
         setIsInitialized(true);
         setIsLoading(false);
+        handleSetViewId(null);
+        showErrorToast("Error applying view", error.message, "WARNING");
       },
     },
   );
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: SavedViewDomain) => {
+    async (viewData: SavedViewDomain) => {
+      // lock table
+      setIsLoading(true);
+
       /**
        * Validate orderBy and filters
        */
@@ -202,6 +207,9 @@ export function useTableViewManager({
       if (viewData.columnOrder) setColumnOrder(viewData.columnOrder);
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
+
+      // unlock table
+      setIsLoading(false);
     },
     [
       setOrderBy,

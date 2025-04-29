@@ -22,7 +22,6 @@ export async function withErrorMapping<T>(
   fn: () => Promise<T>,
   errorConfig?: {
     notFoundMessage?: string;
-    // Add more error type configurations as needed
   },
 ): Promise<T> {
   try {
