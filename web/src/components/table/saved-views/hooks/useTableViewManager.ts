@@ -42,7 +42,7 @@ function isFunction(fn: unknown): fn is (...args: unknown[]) => void {
 /**
  * Validates if an orderBy state references valid columns
  */
-function validateOrderBy(
+export function validateOrderBy(
   orderBy: OrderByState | null,
   columns?: LangfuseColumnDef<any, any>[],
 ): OrderByState | null {
@@ -58,7 +58,7 @@ function validateOrderBy(
 /**
  * Validates if filters reference valid columns
  */
-function validateFilters(
+export function validateFilters(
   filters: FilterState,
   filterColumnDefinition?: ColumnDefinition[],
 ): FilterState {
