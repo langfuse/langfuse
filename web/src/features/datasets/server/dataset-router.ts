@@ -93,7 +93,21 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const query = DB.selectFrom("datasets")
+      // Base query for both datasets and count
+      const baseQuery = DB.selectFrom("datasets").where(
+        "datasets.project_id",
+        "=",
+        input.projectId,
+      );
+
+      // Apply search condition to the base query
+      const baseQueryWithSearch = addSearchCondition(
+        baseQuery,
+        input.searchQuery,
+      );
+
+      // Query for datasets
+      const datasetsQuery = baseQueryWithSearch
         .select(({}) => [
           "datasets.id",
           "datasets.name",
@@ -102,23 +116,31 @@ export const datasetRouter = createTRPCRouter({
           "datasets.updated_at as updatedAt",
           "datasets.metadata",
         ])
-        .where("datasets.project_id", "=", input.projectId)
         .orderBy("datasets.created_at", "desc")
         .limit(input.limit)
         .offset(input.page * input.limit);
 
-      const compiledQuery = query.compile();
+      const compiledDatasetsQuery = datasetsQuery.compile();
 
-      const datasets = await ctx.prisma.$queryRawUnsafe<Array<Dataset>>(
-        compiledQuery.sql,
-        ...compiledQuery.parameters,
-      );
+      // Query for count
+      const countQuery = baseQueryWithSearch.select(({ fn }) => [
+        fn.count("datasets.id").as("count"),
+      ]);
 
-      const totalDatasets = await ctx.prisma.dataset.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
+      const compiledCountQuery = countQuery.compile();
+
+      const [datasets, countResult] = await Promise.all([
+        ctx.prisma.$queryRawUnsafe<Array<Dataset>>(
+          compiledDatasetsQuery.sql,
+          ...compiledDatasetsQuery.parameters,
+        ),
+        ctx.prisma.$queryRawUnsafe<[{ count: string }]>(
+          compiledCountQuery.sql,
+          ...compiledCountQuery.parameters,
+        ),
+      ]);
+
+      const totalDatasets = parseInt(countResult[0].count);
 
       return {
         totalDatasets,
@@ -151,8 +173,7 @@ export const datasetRouter = createTRPCRouter({
         .where("datasets.id", "in", input.datasetIds)
         .groupBy("datasets.id");
 
-      const querySubjectToSearch = addSearchCondition(query, input.searchQuery);
-      const compiledQuery = querySubjectToSearch.compile();
+      const compiledQuery = query.compile();
 
       const metrics = await ctx.prisma.$queryRawUnsafe<
         Array<{
