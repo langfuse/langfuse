@@ -14,12 +14,13 @@ types:
   CreateScoreRequest:
     properties:
       id: optional<string>
-      traceId: string
+      traceId: optional<string>
+      sessionId: optional<string>
+      observationId: optional<string>
       name: string
       value:
         type: CreateScoreValue
         docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
-      observationId: optional<string>
       comment: optional<string>
       metadata: optional<unknown>
       dataType:
@@ -65,6 +66,10 @@ types:
           dataType: "BOOLEAN"
           configId: "1234-5678-90ab-cdef"
           traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "contextrelevant"
+          value: "not relevant"
+          sessionId: "abyt-1234-5678-80ab"
   BaseScore:
     properties:
       id: string
@@ -105,6 +110,7 @@ types:
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  # Question: where is this used, if not needed remove BaseScore too
   Score:
     discriminant: "dataType"
     union:

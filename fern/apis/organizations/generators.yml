@@ -1,0 +1,17 @@
+default-group: local
+groups:
+  local:
+    generators:
+      - name: fernapi/fern-openapi
+        version: 0.1.7
+        output:
+          location: local-file-system
+          path: ../../../web/public/generated/organizations-api
+        config:
+          namespaceExport: Langfuse
+          allowCustomFetcher: true
+      - name: fernapi/fern-postman
+        version: 0.0.45
+        output:
+          location: local-file-system
+          path: ../../../web/public/generated/organizations-postman

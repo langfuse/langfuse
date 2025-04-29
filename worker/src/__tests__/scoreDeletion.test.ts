@@ -2,9 +2,9 @@ import { expect, describe, it, beforeAll } from "vitest";
 import {
   clickhouseClient,
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
-  getEventLogByProjectId,
+  getBlobStorageByProjectId,
   getScoresByIds,
   StorageService,
   StorageServiceFactory,
@@ -31,7 +31,7 @@ describe("score deletion", () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
 
-    const score = createScore({ project_id: projectId });
+    const score = createTraceScore({ project_id: projectId });
     await createScoresCh([score]);
 
     // When
@@ -47,7 +47,9 @@ describe("score deletion", () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const scoreId = randomUUID();
-    await createScoresCh([createScore({ id: scoreId, project_id: projectId })]);
+    await createScoresCh([
+      createTraceScore({ id: scoreId, project_id: projectId }),
+    ]);
 
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });
@@ -62,7 +64,7 @@ describe("score deletion", () => {
     ]);
 
     await clickhouseClient().insert({
-      table: "event_log",
+      table: "blob_storage_file_log",
       format: "JSONEachRow",
       values: [
         {
@@ -83,7 +85,7 @@ describe("score deletion", () => {
     await processClickhouseScoreDelete(projectId, [scoreId]);
 
     // Then
-    const eventLog = getEventLogByProjectId(projectId);
+    const eventLog = getBlobStorageByProjectId(projectId);
     for await (const _ of eventLog) {
       // Should never happen as the expect event log to be empty
       expect(true).toBe(false);

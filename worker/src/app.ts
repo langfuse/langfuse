@@ -28,6 +28,7 @@ import {
   QueueName,
   logger,
   BlobStorageIntegrationQueue,
+  DeadLetterRetryQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -51,6 +52,7 @@ import {
 } from "./queues/dataRetentionQueue";
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
+import { DlxRetryService } from "./services/dlx/dlxRetryService";
 
 const app = express();
 
@@ -264,6 +266,11 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
     postHogIntegrationProcessingProcessor,
     {
       concurrency: 1,
+      limiter: {
+        // Process at most one PostHog job globally per 10s.
+        max: 1,
+        duration: 10_000,
+      },
     },
   );
 }
@@ -300,6 +307,19 @@ if (env.QUEUE_CONSUMER_DATA_RETENTION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.DataRetentionProcessingQueue,
     dataRetentionProcessingProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  DeadLetterRetryQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.DeadLetterRetryQueue,
+    DlxRetryService.retryDeadLetterQueue,
     {
       concurrency: 1,
     },

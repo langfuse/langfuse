@@ -68,12 +68,13 @@ const main = async () => {
             data: {
               type: eventType,
               eventBodyId: eventBodyId,
+              fileKey: eventId,
             },
             authCheck: {
               validKey: true as const,
               scope: {
                 projectId: projectId,
-                accessLevel: "all" as const,
+                accessLevel: "project" as const,
               },
             },
           },

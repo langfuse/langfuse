@@ -128,6 +128,18 @@ export default function DashboardDetail() {
       internal: "internalValue",
     },
     {
+      name: "Observation Name",
+      id: "observationName",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Score Name",
+      id: "scoreName",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
       name: "Tags",
       id: "tags",
       type: "arrayOptions",
@@ -205,8 +217,6 @@ export default function DashboardDetail() {
               ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
             )
           : 0;
-
-      debugger;
 
       // Create a new widget placement
       const newWidgetPlacement: WidgetPlacement = {

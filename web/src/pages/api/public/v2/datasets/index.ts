@@ -6,11 +6,11 @@ import {
   PostDatasetsV2Response,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Dataset",
     bodySchema: PostDatasetsV2Body,
     responseSchema: PostDatasetsV2Response,
@@ -49,7 +49,7 @@ export default withMiddlewares({
       return dataset;
     },
   }),
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Datasets",
     querySchema: GetDatasetsV2Query,
     responseSchema: GetDatasetsV2Response,

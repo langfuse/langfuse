@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetAnnotationQueuesQuery,
   GetAnnotationQueuesResponse,
@@ -8,7 +8,7 @@ import {
 
 export default withMiddlewares({
   // NOTE: Post API requires entitlement check
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get annotation queues",
     querySchema: GetAnnotationQueuesQuery,
     responseSchema: GetAnnotationQueuesResponse,

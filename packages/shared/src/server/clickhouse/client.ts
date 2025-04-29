@@ -6,42 +6,112 @@ import { propagation, context } from "@opentelemetry/api";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
-export const clickhouseClient = (
-  params: {
-    tags?: Record<string, string>;
-    opts?: NodeClickHouseClientConfigOptions;
-  } = {},
-) => {
-  const headers = params.opts?.http_headers ?? {};
-  const activeSpan = getCurrentSpan();
-  if (activeSpan) {
-    propagation.inject(context.active(), headers);
+/**
+ * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
+ * It creates and reuses clients based on their configuration to avoid creating
+ * a new connection for each query.
+ */
+export class ClickHouseClientManager {
+  private static instance: ClickHouseClientManager;
+  private clientMap: Map<string, ClickhouseClientType> = new Map();
+
+  /**
+   * Private constructor to enforce singleton pattern
+   */
+  private constructor() {}
+
+  /**
+   * Get the singleton instance of the ClickHouseClientManager
+   */
+  public static getInstance(): ClickHouseClientManager {
+    if (!ClickHouseClientManager.instance) {
+      ClickHouseClientManager.instance = new ClickHouseClientManager();
+    }
+    return ClickHouseClientManager.instance;
   }
 
-  const cloudOptions: Record<string, unknown> = {};
-  if (
-    ["STAGING", "EU", "US"].includes(
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
-    )
-  ) {
-    cloudOptions.input_format_json_throw_on_bad_escape_sequence = 0;
+  /**
+   * Generate a consistent hash key for client configurations
+   * @param opts Client parameters
+   * @returns String hash key
+   */
+  private generateClientSettingsKey(
+    opts: NodeClickHouseClientConfigOptions,
+  ): string {
+    const keyParams = {
+      url: env.CLICKHOUSE_URL,
+      username: env.CLICKHOUSE_USER,
+      password: env.CLICKHOUSE_PASSWORD,
+      database: env.CLICKHOUSE_DB,
+      http_headers: opts?.http_headers,
+      settings: opts?.clickhouse_settings,
+      // Include any other relevant config options
+    };
+
+    return JSON.stringify(keyParams);
   }
 
-  return createClient({
-    ...params.opts,
-    url: env.CLICKHOUSE_URL,
-    username: env.CLICKHOUSE_USER,
-    password: env.CLICKHOUSE_PASSWORD,
-    database: env.CLICKHOUSE_DB,
-    http_headers: headers,
-    clickhouse_settings: {
-      ...cloudOptions,
-      ...(params.opts?.clickhouse_settings ?? {}),
-      log_comment: JSON.stringify(params.tags ?? {}),
-      async_insert: 1,
-      wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
-    },
-  });
+  /**
+   * Get or create a client based on the provided parameters
+   * @param opts Client configuration parameters
+   * @returns ClickHouse client instance
+   */
+  public getClient(
+    opts: NodeClickHouseClientConfigOptions,
+  ): ClickhouseClientType {
+    const key = this.generateClientSettingsKey(opts);
+
+    if (!this.clientMap.has(key)) {
+      const headers = opts?.http_headers ?? {};
+      const activeSpan = getCurrentSpan();
+      if (activeSpan) {
+        propagation.inject(context.active(), headers);
+      }
+
+      const cloudOptions: Record<string, unknown> = {};
+      if (
+        ["STAGING", "EU", "US", "HIPAA"].includes(
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
+        )
+      ) {
+        cloudOptions.input_format_json_throw_on_bad_escape_sequence = 0;
+      }
+
+      const client = createClient({
+        ...opts,
+        url: env.CLICKHOUSE_URL,
+        username: env.CLICKHOUSE_USER,
+        password: env.CLICKHOUSE_PASSWORD,
+        database: env.CLICKHOUSE_DB,
+        http_headers: headers,
+        clickhouse_settings: {
+          ...cloudOptions,
+          ...opts.clickhouse_settings,
+          async_insert: 1,
+          wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
+        },
+      });
+
+      this.clientMap.set(key, client);
+    }
+
+    return this.clientMap.get(key)!;
+  }
+
+  /**
+   * Close all client connections - useful for application shutdown
+   */
+  public closeAllConnections(): Promise<void[]> {
+    const closePromises = Array.from(this.clientMap.values()).map((client) =>
+      client.close(),
+    );
+    this.clientMap.clear();
+    return Promise.all(closePromises);
+  }
+}
+
+export const clickhouseClient = (opts?: NodeClickHouseClientConfigOptions) => {
+  return ClickHouseClientManager.getInstance().getClient(opts ?? {});
 };
 
 /**

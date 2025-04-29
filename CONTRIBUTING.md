@@ -27,7 +27,7 @@ The maintainers are available on [Discord](https://langfuse.com/discord) in case
 
 ## Making a change
 
-_Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone. Large changes that were not discussed in an issue may be rejected.
+_Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone. Changes that were not discussed in an issue may be rejected.
 
 Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
 

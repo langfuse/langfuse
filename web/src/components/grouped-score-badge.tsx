@@ -4,12 +4,11 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { type LastUserScore, type APIScoreV2 } from "@langfuse/shared";
 import { BracesIcon, MessageCircleMoreIcon } from "lucide-react";
-
-import { type APIScore, type LastUserScore } from "@langfuse/shared";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
-const partitionScores = <T extends APIScore | LastUserScore>(
+const partitionScores = <T extends APIScoreV2 | LastUserScore>(
   scores: Record<string, T[]>,
   maxVisible?: number,
 ) => {
@@ -23,7 +22,7 @@ const partitionScores = <T extends APIScore | LastUserScore>(
   return { visibleScores, hiddenScores };
 };
 
-const ScoreGroupBadge = <T extends APIScore | LastUserScore>({
+const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
   name,
   scores,
 }: {
@@ -52,7 +51,7 @@ const ScoreGroupBadge = <T extends APIScore | LastUserScore>({
                   <MessageCircleMoreIcon className="mb-[0.0625rem] !size-3" />
                 </HoverCardTrigger>
                 <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
-                  <p>{s.comment}</p>
+                  <p className="whitespace-pre-wrap">{s.comment}</p>
                 </HoverCardContent>
               </HoverCard>
             )}
@@ -74,7 +73,7 @@ const ScoreGroupBadge = <T extends APIScore | LastUserScore>({
   );
 };
 
-export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
+export const GroupedScoreBadges = <T extends APIScoreV2 | LastUserScore>({
   scores,
   maxVisible,
 }: {

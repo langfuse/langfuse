@@ -23,8 +23,8 @@ export function CreateApiKeyButton(props: { projectId: string }) {
     scope: "apiKeys:CUD",
   });
 
-  const mutCreateApiKey = api.apiKeys.create.useMutation({
-    onSuccess: () => utils.apiKeys.invalidate(),
+  const mutCreateApiKey = api.projectApiKeys.create.useMutation({
+    onSuccess: () => utils.projectApiKeys.invalidate(),
   });
   const [open, setOpen] = useState(false);
   const [generatedKeys, setGeneratedKeys] = useState<{

@@ -17,7 +17,6 @@ export const IngestionEvent = z.object({
     validKey: z.literal(true),
     scope: z.object({
       projectId: z.string(),
-      accessLevel: z.enum(["all", "scores"]),
     }),
   }),
 });
@@ -124,6 +123,10 @@ export const CreateEvalQueueEventSchema = DatasetRunItemUpsertEventSchema.and(
   ),
 );
 
+export const DeadLetterRetryQueueEventSchema = z.object({
+  timestamp: z.date(),
+});
+
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
 >;
@@ -152,6 +155,9 @@ export type BatchActionProcessingEventType = z.infer<
 export type BlobStorageIntegrationProcessingEventType = z.infer<
   typeof BlobStorageIntegrationProcessingEventSchema
 >;
+export type DeadLetterRetryQueueEventType = z.infer<
+  typeof DeadLetterRetryQueueEventSchema
+>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -175,6 +181,7 @@ export enum QueueName {
   BatchActionQueue = "batch-action-queue",
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
+  DeadLetterRetryQueue = "dead-letter-retry-queue",
 }
 
 export enum QueueJobs {
@@ -199,6 +206,7 @@ export enum QueueJobs {
   BatchActionProcessingJob = "batch-action-processing-job",
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
+  DeadLetterRetryJob = "dead-letter-retry-job",
 }
 
 export type TQueueJobTypes = {
@@ -291,5 +299,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: BlobStorageIntegrationProcessingEventType;
     name: QueueJobs.BlobStorageIntegrationProcessingJob;
+  };
+  [QueueName.DeadLetterRetryQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: DeadLetterRetryQueueEventType;
+    name: QueueJobs.DeadLetterRetryJob;
   };
 };

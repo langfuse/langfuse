@@ -4,11 +4,11 @@ import {
   createObservation,
   createObservationsCh,
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
-  getEventLogByProjectId,
+  getBlobStorageByProjectId,
   getObservationsForTrace,
   getScoresForTraces,
   getTracesByIds,
@@ -51,7 +51,7 @@ describe("trace deletion", () => {
     const traceId = randomUUID();
     await createTracesCh([createTrace({ id: traceId })]);
     await createObservationsCh([createObservation({ trace_id: traceId })]);
-    await createScoresCh([createScore({ trace_id: traceId })]);
+    await createScoresCh([createTraceScore({ trace_id: traceId })]);
 
     // When
     await processClickhouseTraceDelete("projectId", [traceId]);
@@ -262,7 +262,11 @@ describe("trace deletion", () => {
       }),
     ]);
     await createScoresCh([
-      createScore({ id: scoreId, trace_id: traceId, project_id: projectId }),
+      createTraceScore({
+        id: scoreId,
+        trace_id: traceId,
+        project_id: projectId,
+      }),
     ]);
 
     const fileType = "application/json";
@@ -290,7 +294,7 @@ describe("trace deletion", () => {
     ]);
 
     await clickhouseClient().insert({
-      table: "event_log",
+      table: "blob_storage_file_log",
       format: "JSONEachRow",
       values: [
         {
@@ -333,7 +337,7 @@ describe("trace deletion", () => {
     await processClickhouseTraceDelete(projectId, [traceId]);
 
     // Then
-    const eventLog = getEventLogByProjectId(projectId);
+    const eventLog = getBlobStorageByProjectId(projectId);
     for await (const _ of eventLog) {
       // Should never happen as the expect event log to be empty
       expect(true).toBe(false);

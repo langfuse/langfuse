@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public/v2
+  endpoints:
+    get:
+      docs: Get a list of scores (supports both trace and session scores)
+      method: GET
+      path: /scores
+      request:
+        name: GetScoresRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: Page number, starts at 1.
+          limit:
+            type: optional<integer>
+            docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
+          userId:
+            type: optional<string>
+            docs: Retrieve only scores with this userId associated to the trace.
+          name:
+            type: optional<string>
+            docs: Retrieve only scores with this name.
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include scores created on or after a certain datetime (ISO 8601)
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include scores created before a certain datetime (ISO 8601)
+          environment:
+            type: optional<string>
+            allow-multiple: true
+            docs: Optional filter for scores where the environment is one of the provided values.
+          source:
+            type: optional<commons.ScoreSource>
+            docs: Retrieve only scores from a specific source.
+          operator:
+            type: optional<string>
+            docs: Retrieve only scores with <operator> value.
+          value:
+            type: optional<double>
+            docs: Retrieve only scores with <operator> value.
+          scoreIds:
+            type: optional<string>
+            docs: Comma-separated list of score IDs to limit the results to.
+          configId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific configId.
+          queueId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific annotation queueId.
+          dataType:
+            type: optional<commons.ScoreDataType>
+            docs: Retrieve only scores with a specific dataType.
+          traceTags:
+            type: optional<string>
+            allow-multiple: true
+            docs: Only scores linked to traces that include all of these tags will be returned.
+      response: GetScoresResponse
+    get-by-id:
+      docs: Get a score (supports both trace and session scores)
+      method: GET
+      path: /scores/{scoreId}
+      path-parameters:
+        scoreId:
+          type: string
+          docs: The unique langfuse identifier of a score
+      response: commons.Score
+
+types:
+  GetScoresResponseTraceData:
+    properties:
+      userId:
+        type: optional<string>
+        docs: The user ID associated with the trace referenced by score
+      tags:
+        type: optional<list<string>>
+        docs: A list of tags associated with the trace referenced by score
+      environment:
+        type: optional<string>
+        docs: The environment of the trace referenced by score
+
+  GetScoresResponseDataNumeric:
+    extends: commons.NumericScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
+  GetScoresResponseDataCategorical:
+    extends: commons.CategoricalScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
+  GetScoresResponseDataBoolean:
+    extends: commons.BooleanScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
+  GetScoresResponseData:
+    discriminant: dataType
+    union:
+      NUMERIC: GetScoresResponseDataNumeric
+      CATEGORICAL: GetScoresResponseDataCategorical
+      BOOLEAN: GetScoresResponseDataBoolean
+
+  GetScoresResponse:
+    properties:
+      data: list<GetScoresResponseData>
+      meta: pagination.MetaResponse

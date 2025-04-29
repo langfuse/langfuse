@@ -6,7 +6,7 @@ import {
   createObservation,
   createTracesCh,
   createObservationsCh,
-  createScore,
+  createTraceScore,
   createScoresCh,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
@@ -291,7 +291,7 @@ describe("queryBuilder", () => {
 
       for (const data of scoresData) {
         scores.push(
-          createScore({
+          createTraceScore({
             project_id: projectId,
             trace_id: data.traceId,
             observation_id: data.observationId,
@@ -1806,10 +1806,8 @@ describe("queryBuilder", () => {
 
         const result = await (
           await clickhouseClient({
-            opts: {
-              clickhouse_settings: {
-                date_time_output_format: "iso",
-              },
+            clickhouse_settings: {
+              date_time_output_format: "iso",
             },
           }).query({
             query: compiledQuery,
