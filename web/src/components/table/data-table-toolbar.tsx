@@ -35,7 +35,7 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
-import { SavedViewsDrawer } from "@/src/components/table/data-table-saved-views-drawer";
+import { SavedViewsDrawer } from "@/src/components/table/saved-views/components/data-table-saved-views-drawer";
 
 export interface MultiSelect {
   selectAll: boolean;

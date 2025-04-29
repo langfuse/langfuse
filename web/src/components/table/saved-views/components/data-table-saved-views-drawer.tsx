@@ -29,7 +29,6 @@ import {
   DialogFooter,
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import {
   type VisibilityState,
   type ColumnOrderState,
@@ -40,7 +39,7 @@ import {
   type SavedViewTableName,
   type SavedViewDomain,
 } from "@langfuse/shared";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -63,6 +62,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+
 interface SavedViewsDrawerProps {
   viewConfig: {
     tableName: SavedViewTableName;
@@ -102,13 +104,16 @@ export function SavedViewsDrawer({
     generatePermalinkMutation,
   } = useViewMutations({ handleSetViewId });
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
 
   const form = useForm<{ name: string }>({
-    resolver: zodResolver(z.object({ name: z.string() })),
+    resolver: zodResolver(z.object({ name: z.string().min(1) })),
+    defaultValues: {
+      name: "",
+    },
   });
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newViewName, setNewViewName] = useState("");
   const [isEditPopoverOpen, setIsEditPopoverOpen] = useState<boolean>(false);
   const [dropdownId, setDropdownId] = useState<string | null>(null);
 
@@ -116,7 +121,24 @@ export function SavedViewsDrawer({
     (view) => view.id === selectedViewId,
   )?.name;
 
+  const allViewNames = useMemo(
+    () => savedViewList?.map((view) => ({ value: view.name })) ?? [],
+    [savedViewList],
+  );
+
+  useUniqueNameValidation({
+    currentName: form.watch("name"),
+    allNames: allViewNames,
+    form,
+    errorMessage: "View name already exists.",
+  });
+
   const handleSelectView = async (viewId: string) => {
+    capture("saved_views:view_selected", {
+      tableName,
+      viewId,
+    });
+
     handleSetViewId(viewId);
     try {
       const fetchedViewData = await utils.savedViews.getById.fetch({
@@ -136,9 +158,14 @@ export function SavedViewsDrawer({
     }
   };
 
-  const handleCreateView = () => {
+  const handleCreateView = (createdView: { name: string }) => {
+    capture("saved_views:create", {
+      tableName,
+      name: createdView.name,
+    });
+
     createMutation.mutate({
-      name: newViewName || "New View",
+      name: createdView.name,
       tableName,
       projectId,
       orderBy: currentState.orderBy,
@@ -148,12 +175,18 @@ export function SavedViewsDrawer({
       searchQuery: currentState.searchQuery,
     });
 
-    setNewViewName("");
     setIsCreateDialogOpen(false);
   };
 
   const handleUpdateViewConfig = (updatedView: { name: string }) => {
     if (!selectedViewId) return;
+
+    capture("saved_views:update_config", {
+      tableName,
+      viewId: selectedViewId,
+      name: updatedView.name,
+    });
+
     updateConfigMutation.mutate({
       projectId,
       name: updatedView.name,
@@ -168,6 +201,12 @@ export function SavedViewsDrawer({
   };
 
   const handleUpdateViewName = (updatedView: { id: string; name: string }) => {
+    capture("saved_views:update_name", {
+      tableName,
+      viewId: updatedView.id,
+      name: updatedView.name,
+    });
+
     updateNameMutation.mutate({
       id: updatedView.id,
       name: updatedView.name,
@@ -176,22 +215,63 @@ export function SavedViewsDrawer({
     });
   };
 
-  const onSubmit = (id: string) => (data: { name: string }) => {
-    handleUpdateViewName({ id, name: data.name });
-    setIsEditPopoverOpen(false);
-    setDropdownId(null);
+  const onSubmit = (id?: string) => (data: { name: string }) => {
+    console.log("submitting");
+    if (id) {
+      handleUpdateViewName({ id, name: data.name });
+      setIsEditPopoverOpen(false);
+      setDropdownId(null);
+    } else {
+      console.log("Creating view");
+      handleCreateView({ name: data.name });
+    }
   };
 
   const handleDeleteView = async (viewId: string) => {
+    capture("saved_views:delete", {
+      tableName,
+      viewId,
+    });
+
     await deleteMutation.mutateAsync({
       projectId,
       savedViewId: viewId,
     });
   };
 
+  const handleGeneratePermalink = (viewId: string) => {
+    capture("saved_views:permalink_generate", {
+      tableName,
+      viewId,
+    });
+
+    if (window.location.origin) {
+      generatePermalinkMutation.mutate({
+        viewId,
+        projectId,
+        tableName,
+        baseUrl: window.location.origin,
+      });
+    } else {
+      showErrorToast(
+        "Failed to generate permalink",
+        "Please reach out to langfuse support and report this issue.",
+        "WARNING",
+      );
+    }
+  };
+
   return (
     <>
-      <Drawer>
+      <Drawer
+        onOpenChange={(open) => {
+          if (open) {
+            capture("saved_views:drawer_open", { tableName });
+          } else {
+            capture("saved_views:drawer_close", { tableName });
+          }
+        }}
+      >
         <DrawerTrigger asChild>
           <Button variant="outline" title={selectedViewName ?? "Saved views"}>
             <span>{selectedViewName ?? "Saved Views"}</span>
@@ -261,20 +341,7 @@ export function SavedViewsDrawer({
                           size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.location.origin) {
-                              generatePermalinkMutation.mutate({
-                                viewId: view.id,
-                                projectId,
-                                tableName,
-                                baseUrl: window.location.origin,
-                              });
-                            } else {
-                              showErrorToast(
-                                "Failed to generate permalink",
-                                "Please reach out to langfuse support and report this issue.",
-                                "WARNING",
-                              );
-                            }
+                            handleGeneratePermalink(view.id);
                           }}
                           className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
                         >
@@ -307,6 +374,10 @@ export function SavedViewsDrawer({
                                   setIsEditPopoverOpen(open);
                                   if (open) {
                                     form.reset({ name: view.name });
+                                    capture("saved_views:update_form_open", {
+                                      tableName,
+                                      viewId: view.id,
+                                    });
                                   } else {
                                     setDropdownId(null);
                                   }
@@ -315,13 +386,11 @@ export function SavedViewsDrawer({
                                 <PopoverTrigger asChild>
                                   <Button
                                     variant="ghost"
-                                    size="icon"
-                                    className="space-x-6"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                     }}
                                   >
-                                    <Pen className="ml-3 mr-2 h-4 w-4" />
+                                    <Pen className="mr-2 h-4 w-4" />
                                     Edit
                                   </Button>
                                 </PopoverTrigger>
@@ -333,7 +402,6 @@ export function SavedViewsDrawer({
                                   </h2>
                                   <Form {...form}>
                                     <form
-                                      // eslint-disable-next-line @typescript-eslint/no-misused-promises
                                       onSubmit={form.handleSubmit(
                                         onSubmit(view.id),
                                       )}
@@ -360,6 +428,9 @@ export function SavedViewsDrawer({
                                         <Button
                                           type="submit"
                                           loading={updateNameMutation.isLoading}
+                                          disabled={
+                                            !!form.formState.errors.name
+                                          }
                                         >
                                           Save
                                         </Button>
@@ -384,7 +455,12 @@ export function SavedViewsDrawer({
                                 invalidateFunc={() => {
                                   utils.savedViews.invalidate();
                                 }}
-                                captureDeleteOpen={() => {}}
+                                captureDeleteOpen={() =>
+                                  capture("saved_views:delete_form_open", {
+                                    tableName,
+                                    viewId: view.id,
+                                  })
+                                }
                                 captureDeleteSuccess={() => {}}
                               />
                             </DropdownMenuItem>
@@ -404,11 +480,14 @@ export function SavedViewsDrawer({
 
             <Separator />
 
-            <div className="px-0 py-2">
+            <div className="p-2">
               <Button
-                onClick={() => setIsCreateDialogOpen(true)}
+                onClick={() => {
+                  setIsCreateDialogOpen(true);
+                  capture("saved_views:create_form_open", { tableName });
+                }}
                 variant="ghost"
-                className="w-full justify-start"
+                className="w-full justify-start px-1"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Create New View
@@ -419,52 +498,72 @@ export function SavedViewsDrawer({
       </Drawer>
 
       {/* Create View Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open) {
+            form.reset({ name: "" });
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Save Current View</DialogTitle>
           </DialogHeader>
-
-          <div className="py-4">
-            <Label htmlFor="view-name">View Name</Label>
-            <Input
-              id="view-name"
-              placeholder="My Saved View"
-              value={newViewName}
-              onChange={(e) => setNewViewName(e.target.value)}
-              className="mt-2"
-              autoFocus
-            />
-
-            <div className="mt-4 text-sm text-muted-foreground">
-              <p>This will save the current:</p>
-              <ul className="mt-2 list-disc pl-5">
-                <li>
-                  Column arrangement ({currentState.columnOrder.length} columns)
-                </li>
-                <li>Filters ({currentState.filters.length} active)</li>
-                <li>
-                  Sort order ({formatOrderBy(currentState.orderBy)} criteria)
-                </li>
-                {currentState.searchQuery && <li>Search term</li>}
-              </ul>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsCreateDialogOpen(false)}
+          <Form {...form}>
+            <form
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+              onSubmit={form.handleSubmit(onSubmit())}
+              className="space-y-4"
             >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateView}
-              disabled={createMutation.isLoading}
-            >
-              {createMutation.isLoading ? "Saving..." : "Save View"}
-            </Button>
-          </DialogFooter>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>View name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="mt-4 text-sm text-muted-foreground">
+                <p>This will save the current:</p>
+                <ul className="mt-2 list-disc pl-5">
+                  <li>
+                    Column arrangement ({currentState.columnOrder.length}{" "}
+                    columns)
+                  </li>
+                  <li>Filters ({currentState.filters.length} active)</li>
+                  <li>
+                    Sort order ({formatOrderBy(currentState.orderBy)} criteria)
+                  </li>
+                  {currentState.searchQuery && <li>Search term</li>}
+                </ul>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCreateDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    createMutation.isLoading || !!form.formState.errors.name
+                  }
+                >
+                  {createMutation.isLoading ? "Saving..." : "Save View"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </>

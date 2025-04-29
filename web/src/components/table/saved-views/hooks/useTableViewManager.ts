@@ -15,6 +15,7 @@ import { useQueryParam } from "use-query-params";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import _ from "lodash";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface TableStateUpdaters {
   setOrderBy: (orderBy: OrderByState) => void;
@@ -85,6 +86,7 @@ export function useTableViewManager({
   const { viewId } = router.query;
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const capture = usePostHogClientCapture();
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
     `${tableName}-${projectId}-viewId`,
@@ -134,6 +136,13 @@ export function useTableViewManager({
       enabled: !!viewId && !isInitialized,
       onSuccess: (data) => {
         if (data) {
+          // Track permalink visit
+          capture("saved_views:permalink_visit", {
+            tableName,
+            viewId: viewId as string,
+            name: data.name,
+          });
+
           // Apply view state
           applyViewState(data);
         }
@@ -176,7 +185,7 @@ export function useTableViewManager({
       ) {
         showErrorToast(
           "Outdated view",
-          "This view is outdated. Some old filters or ordering may have been ignored. Please update it.",
+          "This view is outdated. Some old filters or ordering may have been ignored. Please update your view.",
           "WARNING",
         );
       }
