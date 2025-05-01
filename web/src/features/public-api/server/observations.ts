@@ -88,7 +88,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         : {}),
     },
   });
-  return result.map(convertObservation);
+  return await Promise.all(result.map(convertObservation));
 };
 
 export const getObservationsCountForPublicApi = async (props: QueryType) => {
