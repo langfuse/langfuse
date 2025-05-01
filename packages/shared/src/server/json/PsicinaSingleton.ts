@@ -1,17 +1,15 @@
-import Piscina from "piscina";
-import path from "path";
+import workerpool from "workerpool";
 import { JsonNested } from "../../utils/zod";
 import { parseJsonPrioritised } from "../../json/json-parse";
 import { instrumentAsync, logger } from "..";
+import Pool from "workerpool/types/Pool";
 
 export class PsicinaSingleton {
-  private instance: Piscina | undefined;
+  private instance: Pool | undefined;
 
-  public getInstance(): Piscina {
+  public getInstance(): Pool {
     if (!this.instance) {
-      this.instance = new Piscina({
-        filename: path.resolve(__dirname, "worker.js"),
-      });
+      this.instance = workerpool.pool();
     }
     return this.instance;
   }
@@ -33,7 +31,7 @@ export async function parseLargeJson(
       "Parsing large JSON of size " + json.length + " on a worker thread",
     );
     span.setAttribute("parsing-strategy", "async");
-    const piscina = new PsicinaSingleton().getInstance();
-    return await piscina.run(json);
+    const workerPool = new PsicinaSingleton().getInstance();
+    return await workerPool.exec(parseJsonPrioritised, [json]);
   });
 }

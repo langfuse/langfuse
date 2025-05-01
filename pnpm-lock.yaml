@@ -251,6 +251,9 @@ importers:
       winston:
         specifier: ^3.15.0
         version: 3.15.0
+      workerpool:
+        specifier: ^9.2.0
+        version: 9.2.0
       zod:
         specifier: ^3.23.8
         version: 3.23.8
@@ -12028,6 +12031,9 @@ packages:
 
   wordwrap@1.0.0:
     resolution: {integrity: sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==}
+
+  workerpool@9.2.0:
+    resolution: {integrity: sha512-PKZqBOCo6CYkVOwAxWxQaSF2Fvb5Iv2fCeTP7buyWI2GiynWr46NcXSgK/idoV6e60dgCBfgYc+Un3HMvmqP8w==}
 
   wrap-ansi@6.2.0:
     resolution: {integrity: sha512-r6lPcBGxZXlIcymEu7InxDMhdW0KDxpLgoFLcguasxCaJ/SOIZwINatK9KY/tf+ZrlywOKU0UDj3ATXUBfxJXA==}
@@ -26110,6 +26116,8 @@ snapshots:
       winston-transport: 4.7.1
 
   wordwrap@1.0.0: {}
+
+  workerpool@9.2.0: {}
 
   wrap-ansi@6.2.0:
     dependencies:

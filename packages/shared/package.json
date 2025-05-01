@@ -92,6 +92,7 @@
     "prisma-extension-kysely": "^2.1.0",
     "uuid": "^9.0.1",
     "winston": "^3.15.0",
+    "workerpool": "^9.2.0",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.23.5"
   },
