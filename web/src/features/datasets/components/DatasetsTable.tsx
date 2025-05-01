@@ -12,7 +12,13 @@ import {
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import {
+  useQueryParams,
+  withDefault,
+  NumberParam,
+  useQueryParam,
+  StringParam,
+} from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { MoreVertical } from "lucide-react";
 import { useEffect } from "react";
@@ -40,16 +46,20 @@ type RowData = {
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
-
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
-
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const [searchQuery, setSearchQuery] = useQueryParam(
+    "search",
+    withDefault(StringParam, null),
+  );
+
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
+    searchQuery,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
@@ -238,6 +248,11 @@ export function DatasetsTable(props: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        searchConfig={{
+          placeholder: "Search by name",
+          updateQuery: setSearchQuery,
+          currentQuery: searchQuery ?? undefined,
+        }}
       />
       <DataTable
         columns={columns}
