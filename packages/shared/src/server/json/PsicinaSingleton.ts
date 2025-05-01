@@ -23,9 +23,9 @@ export async function parseLargeJson(
   return instrumentAsync({ name: "parse-large-json" }, async (span) => {
     span.setAttribute("json-length", json.length.toString());
 
-    if (json.length > 0) {
+    if (json.length < 0) {
       //2e6
-      span.setAttribute("parse-strategy", "sync");
+      span.setAttribute("parsing-strategy", "sync");
       return Promise.resolve(parseJsonPrioritised(json));
     }
 
@@ -34,7 +34,7 @@ export async function parseLargeJson(
         json.length +
         " with Piscina on a worker thread",
     );
-    span.setAttribute("parse-strategy", "async");
+    span.setAttribute("parsing-strategy", "async");
     const piscina = new PsicinaSingleton().getInstance();
     return await piscina.run(json);
   });
