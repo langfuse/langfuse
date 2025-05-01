@@ -156,14 +156,16 @@ export const generateTracesForPublicApi = async ({
     },
   });
 
-  return result.map((trace) => ({
-    ...convertClickhouseToDomain(trace),
-    observations: trace.observations,
-    scores: trace.scores,
-    totalCost: trace.totalCost,
-    latency: trace.latency,
-    htmlPath: trace.htmlPath,
-  }));
+  return await Promise.all(
+    result.map(async (trace) => ({
+      ...(await convertClickhouseToDomain(trace)),
+      observations: trace.observations,
+      scores: trace.scores,
+      totalCost: trace.totalCost,
+      latency: trace.latency,
+      htmlPath: trace.htmlPath,
+    })),
+  );
 };
 
 export const getTracesCountForPublicApi = async ({
