@@ -5,7 +5,7 @@ import { parseJsonPrioritised } from "../../json/json-parse";
 import { instrumentAsync, logger } from "..";
 
 /* eslint-disable no-unused-vars */
-import worker from "./psicina-worker";
+import worker from "./worker";
 
 export class PsicinaSingleton {
   private instance: Piscina | undefined;
@@ -13,7 +13,7 @@ export class PsicinaSingleton {
   public getInstance(): Piscina {
     if (!this.instance) {
       this.instance = new Piscina({
-        filename: path.resolve(__dirname, "piscina-worker.js"),
+        filename: path.resolve(__dirname, "worker.js"),
       });
     }
     return this.instance;
