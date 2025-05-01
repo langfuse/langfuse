@@ -30,9 +30,7 @@ export async function parseLargeJson(
     }
 
     logger.info(
-      "Parsing large JSON of size " +
-        json.length +
-        " with Piscina on a worker thread",
+      "Parsing large JSON of size " + json.length + " on a worker thread",
     );
     span.setAttribute("parsing-strategy", "async");
     const piscina = new PsicinaSingleton().getInstance();
