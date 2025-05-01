@@ -36,6 +36,7 @@ import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useRouter } from "next/router";
+import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
 
 export const TracePreview = ({
   trace,
@@ -106,13 +107,14 @@ export const TracePreview = ({
     <div className="ph-no-capture col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
         <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
-          <div className="flex w-full flex-row items-start gap-2">
+          <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type="TRACE" isSmall />
             </div>
-            <span className="mb-0 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
+            <span className="mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
               {trace.name}
             </span>
+            <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
           </div>
           <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
             <NewDatasetItemFromExistingObject
