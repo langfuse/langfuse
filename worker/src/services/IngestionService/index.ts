@@ -621,7 +621,7 @@ export class IngestionService {
         })
       : null;
 
-    const final_usage_details = this.getUsageUnits(
+    const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
@@ -654,12 +654,14 @@ export class IngestionService {
       : [];
   }
 
-  private getUsageUnits(
+  private async getUsageUnits(
     observationRecord: ObservationRecordInsertType,
     model: Model | null | undefined,
-  ): Pick<
-    ObservationRecordInsertType,
-    "usage_details" | "provided_usage_details"
+  ): Promise<
+    Pick<
+      ObservationRecordInsertType,
+      "usage_details" | "provided_usage_details"
+    >
   > {
     const providedUsageDetails = Object.fromEntries(
       Object.entries(observationRecord.provided_usage_details).filter(
@@ -672,11 +674,11 @@ export class IngestionService {
       model &&
       Object.keys(providedUsageDetails).length === 0
     ) {
-      const newInputCount = tokenCount({
+      const newInputCount = await tokenCount({
         text: observationRecord.input,
         model,
       });
-      const newOutputCount = tokenCount({
+      const newOutputCount = await tokenCount({
         text: observationRecord.output,
         model,
       });

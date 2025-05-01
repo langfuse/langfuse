@@ -1,9 +1,9 @@
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { TraceRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { parseJsonPrioritised } from "../../utils/json";
 import { TraceDomain } from "../../domain";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import { parseLargeJson } from "../json/PsicinaSingleton";
 
 export const convertTraceDomainToClickhouse = (
   trace: TraceDomain,
@@ -31,9 +31,9 @@ export const convertTraceDomainToClickhouse = (
   };
 };
 
-export const convertClickhouseToDomain = (
+export const convertClickhouseToDomain = async (
   record: TraceRecordReadType,
-): TraceDomain => {
+): Promise<TraceDomain> => {
   return {
     id: record.id,
     projectId: record.project_id,
@@ -47,9 +47,9 @@ export const convertClickhouseToDomain = (
     userId: record.user_id ?? null,
     sessionId: record.session_id ?? null,
     public: record.public,
-    input: record.input ? (parseJsonPrioritised(record.input) ?? null) : null,
+    input: record.input ? ((await parseLargeJson(record.input)) ?? null) : null,
     output: record.output
-      ? (parseJsonPrioritised(record.output) ?? null)
+      ? ((await parseLargeJson(record.output)) ?? null)
       : null,
     metadata: parseMetadataCHRecordToDomain(record.metadata),
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),

@@ -9,7 +9,7 @@ export * from "./types";
 export * from "./tableDefinitions/tracesTable";
 export * from "./observationsTable";
 export * from "./utils/zod";
-export * from "./utils/json";
+export * from "./json/json-parse";
 export * from "./utils/stringChecks";
 export * from "./utils/objects";
 export * from "./utils/typeChecks";

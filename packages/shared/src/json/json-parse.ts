@@ -1,4 +1,4 @@
-import { JsonNested } from "./zod";
+import { JsonNested } from "../utils/zod";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
 
 /**

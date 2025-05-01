@@ -35,7 +35,7 @@ export async function upsertClickhouse<
 >(opts: {
   table: "scores" | "traces" | "observations";
   records: T[];
-  eventBodyMapper: (body: T) => Record<string, unknown>;
+  eventBodyMapper: (body: T) => Promise<Record<string, unknown>>;
   tags?: Record<string, string>;
 }): Promise<void> {
   return await instrumentAsync({ name: "clickhouse-upsert" }, async (span) => {

@@ -54,6 +54,7 @@ export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
 export * from "./services/datasets-ui-table-service";
 export * from "./services/DashboardService";
+export * from "./json/PsicinaSingleton";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
