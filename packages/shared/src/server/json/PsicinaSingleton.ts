@@ -4,9 +4,6 @@ import { JsonNested } from "../../utils/zod";
 import { parseJsonPrioritised } from "../../json/json-parse";
 import { instrumentAsync, logger } from "..";
 
-/* eslint-disable no-unused-vars */
-import worker from "./worker";
-
 export class PsicinaSingleton {
   private instance: Piscina | undefined;
 
