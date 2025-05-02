@@ -47,6 +47,15 @@ service:
           scoreIds:
             type: optional<string>
             docs: Comma-separated list of score IDs to limit the results to.
+          observationIds:
+            type: optional<string>
+            docs: Comma-separated list of observation IDs to limit the results to.
+          sessionIds:
+            type: optional<string>
+            docs: Comma-separated list of session IDs to limit the results to.
+          traceIds:
+            type: optional<string>
+            docs: Comma-separated list of trace IDs to limit the results to.
           configId:
             type: optional<string>
             docs: Retrieve only scores with a specific configId.
