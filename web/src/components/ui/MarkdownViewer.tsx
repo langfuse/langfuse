@@ -93,15 +93,6 @@ function MarkdownRenderer({
   // Try to parse markdown content
 
   try {
-    const parseMarkdown = () => {
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkGfm)
-        .use(remarkMath);
-      return processor.parse(markdown);
-    };
-    parseMarkdown();
-
     // If parsing succeeds, render with ReactMarkdown
     return (
       <MemoizedReactMarkdown
