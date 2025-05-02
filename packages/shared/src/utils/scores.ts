@@ -7,16 +7,18 @@ export const applyScoreValidation = <T extends z.ZodType<any, any, any>>(
     (data) => {
       const hasTraceId = !!data.traceId;
       const hasSessionId = !!data.sessionId;
+      const hasRunId = !!data.runId;
 
       return (
-        (hasTraceId && !hasSessionId) ||
-        (hasSessionId && !hasTraceId && !data.observationId)
+        (hasTraceId && !hasSessionId && !hasRunId) ||
+        (hasSessionId && !hasTraceId && !hasRunId && !data.observationId) ||
+        (hasRunId && !hasTraceId && !hasSessionId && !data.observationId)
       );
     },
     {
       message:
-        "Either provide traceId (with optional observationId) or sessionId, but not both. ObservationId requires traceId.",
-      path: ["traceId", "sessionId", "observationId"],
+        "Provide exactly one of the following: traceId (with optional observationId), sessionId or runId. ObservationId requires traceId.",
+      path: ["traceId", "sessionId", "runId", "observationId"],
     },
   );
 };

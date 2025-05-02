@@ -305,6 +305,7 @@ types:
       traceId: optional<string>
       sessionId: optional<string>
       observationId: optional<string>
+      runId: optional<string>
       name: string
       source: ScoreSource
       timestamp: datetime

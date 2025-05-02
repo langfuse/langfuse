@@ -28,12 +28,12 @@ interfaces/
 ## API Versioning
 
 We have added a new v2 api and will continue to support the v1 api for the foreseeable future.
-POST and DELETE APIs will continue to support both trace and session level scores across v1 and v2.
+POST and DELETE APIs will continue to support all score types (trace, session, run) across v1 and v2.
 
 For GET APIs:
 
 - **V1 API**: Requires `traceId`, ONLY supports trace-level scores
-- **V2 API**: Makes `traceId` optional, adds `sessionId` support, supports BOTH trace and session level scores
+- **V2 API**: Makes `traceId` optional, adds `sessionId` and `runId` support, supports all score types (trace, session, run)
 - Both versions maintain compatibility for existing clients
 
 ## Usage Guide
