@@ -3415,6 +3415,27 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: observationIds
+          in: query
+          description: Comma-separated list of observation IDs to limit the results to.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sessionIds
+          in: query
+          description: Comma-separated list of session IDs to limit the results to.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: traceIds
+          in: query
+          description: Comma-separated list of trace IDs to limit the results to.
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: configId
           in: query
           description: Retrieve only scores with a specific configId.
