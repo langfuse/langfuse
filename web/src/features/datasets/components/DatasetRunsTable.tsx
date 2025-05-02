@@ -68,6 +68,7 @@ export type DatasetRunRowData = {
   avgTotalCost: string | undefined;
   // scores holds grouped column with individual scores
   scores?: ScoreAggregate | undefined;
+  runScores?: ScoreAggregate | undefined;
   description: string;
   metadata: Prisma.JsonValue;
 };
@@ -236,8 +237,20 @@ export function DatasetRunsTable(props: {
     useIndividualScoreColumns<DatasetRunRowData>({
       projectId: props.projectId,
       scoreColumnKey: "scores",
-      showAggregateViewOnly: true,
+      showAggregateViewOnly: false,
+      scoreColumnPrefix: "Run Item",
     });
+
+  const {
+    scoreColumns: runScoreColumns,
+    scoreKeysAndProps: runScoreKeysAndProps,
+    isColumnLoading: isRunScoreColumnLoading,
+  } = useIndividualScoreColumns<DatasetRunRowData>({
+    projectId: props.projectId,
+    scoreColumnKey: "runScores",
+    showAggregateViewOnly: false,
+    scoreColumnPrefix: "Run",
+  });
 
   const scoreIdToName = useMemo(() => {
     return new Map(scoreKeysAndProps.map((obj) => [obj.key, obj.name]) ?? []);
@@ -386,6 +399,14 @@ export function DatasetRunsTable(props: {
     },
     { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
     {
+      ...getScoreGroupColumnProps(isRunScoreColumnLoading, {
+        accessorKey: "runScores",
+        header: "Run Scores",
+        id: "runScores",
+      }),
+      columns: runScoreColumns,
+    },
+    {
       accessorKey: "createdAt",
       header: "Created",
       id: "createdAt",
@@ -440,7 +461,7 @@ export function DatasetRunsTable(props: {
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
+    item: DatasetsCoreOutput & Partial<DatasetsMetricOutput>,
   ): DatasetRunRowData => {
     return {
       id: item.id,
@@ -452,7 +473,18 @@ export function DatasetRunsTable(props: {
         ? usdFormatter(item.avgTotalCost.toNumber())
         : undefined,
       scores: item.scores
-        ? verifyAndPrefixScoreDataAgainstKeys(scoreKeysAndProps, item.scores)
+        ? verifyAndPrefixScoreDataAgainstKeys(
+            scoreKeysAndProps,
+            item.scores,
+            "Run Item",
+          )
+        : undefined,
+      runScores: item.runScores
+        ? verifyAndPrefixScoreDataAgainstKeys(
+            runScoreKeysAndProps,
+            item.runScores,
+            "Run",
+          )
         : undefined,
       description: item.description ?? "",
       metadata: item.metadata,
