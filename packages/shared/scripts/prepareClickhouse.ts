@@ -99,7 +99,7 @@ export const prepareClickhouse = async (
       repeat('input', toInt64(randExponential(1 / 100))) AS input,
       repeat('output', toInt64(randExponential(1 / 100))) AS output,
       case
-        when number % 2 = 0 then 'clause-3-haiku-20230407'
+        when number % 2 = 0 then 'claude-3-haiku-20230407'
         else 'gpt-4'
       end as provided_model_name,
       case
