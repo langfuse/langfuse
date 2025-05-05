@@ -97,7 +97,7 @@ export type TracesTableRow = {
     defaultCount?: bigint;
   };
   latency?: number;
-  usageDetails?: Record<string, number>;
+  tokenDetails?: Record<string, number>;
   totalCost?: Decimal;
   costDetails?: Record<string, number>;
   environment?: string;
@@ -547,8 +547,10 @@ export default function TracesTable({
         if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
           return null;
         }
+
+
         return (
-          <BreakdownTooltip details={row.original.usageDetails ?? []}>
+          <BreakdownTooltip details={row.original.tokenDetails ?? []}>
             <div className="flex items-center gap-1">
               <TokenUsageBadge
                 inputUsage={Number(value.inputUsage ?? 0)}
