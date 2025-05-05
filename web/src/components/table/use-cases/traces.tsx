@@ -1099,6 +1099,10 @@ export default function TracesTable({
           onExpand: expandPeek,
           getNavigationPath,
           children: <PeekViewTraceDetail projectId={projectId} />,
+          tableDataUpdatedAt: Math.max(
+            traces.dataUpdatedAt,
+            traceMetrics.dataUpdatedAt,
+          ),
         }}
       />
     </>

@@ -468,6 +468,10 @@ export function DatasetCompareRunsTable(props: {
         peekView={{
           itemType: "DATASET_ITEM",
           urlPathname,
+          tableDataUpdatedAt: Math.max(
+            baseDatasetItems.dataUpdatedAt,
+            ...runs.map(({ items }) => items.dataUpdatedAt),
+          ),
           onOpenChange: setPeekView,
           getNavigationPath,
           shouldUpdateRowOnDetailPageNavigation,
