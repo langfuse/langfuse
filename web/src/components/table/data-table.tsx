@@ -188,12 +188,16 @@ export function DataTable<TData extends object, TValue>({
     peekView,
   });
 
-  const handleOnRowClick = (row: TData) => {
-    if (inflatedPeekView) {
-      handleOnRowClickPeek?.(row);
-    }
-    onRowClick?.(row);
-  };
+  const handleOnRowClick = useCallback(
+    (row: TData) => {
+      if (inflatedPeekView) {
+        handleOnRowClickPeek?.(row);
+      }
+      onRowClick?.(row);
+    },
+    [handleOnRowClickPeek, onRowClick, inflatedPeekView],
+  );
+
   const hasRowClickAction = !!onRowClick || !!inflatedPeekView;
 
   // memo column sizes for performance
@@ -346,7 +350,7 @@ export function DataTable<TData extends object, TValue>({
                 ))}
               </TableHeader>
               {table.getState().columnSizingInfo.isResizingColumn ||
-              peekViewId ? (
+              !!peekView ? (
                 <MemoizedTableBody
                   table={table}
                   rowheighttw={rowheighttw}
@@ -503,8 +507,22 @@ function TableBodyComponent<TData>({
   );
 }
 
-// memo tables for performance, should only re-render when data changes
-// https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
+// Optimize table rendering performance by memoizing the table body
+// This is critical for two high-frequency re-render scenarios:
+// 1. During column resizing: When users drag column headers, it can trigger
+//    many state updates that would otherwise cause the entire table to re-render.
+// 2. When using peek views: URL/state changes from peek view navigation would
+//    otherwise cause unnecessary table re-renders.
+//
+// Following TanStack Table's performance recommendations:
+// - We memoize the entire TableBody to prevent re-renders when only UI state changes
+// - We only allow re-renders when the actual data or loading state changes
+// - The row highlighting is handled via React Context to avoid table body re-renders
+//
+// See: https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
 const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
-  return prev.table.options.data === next.table.options.data;
+  return (
+    prev.table.options.data === next.table.options.data &&
+    prev.data.isLoading === next.data.isLoading
+  );
 }) as typeof TableBodyComponent;
