@@ -53,6 +53,35 @@ export type DatasetCompareRunRowData = {
   runs?: RunAggregate;
 };
 
+/**
+ * Hook to determine when multiple async data sources are complete.
+ *
+ * @returns A boolean indicating if all data is complete
+ */
+function useCompleteDataStatus() {
+  // For basic usage with single data sources
+  const isSingleDataComplete = (query: any) => query.isSuccess;
+
+  // For multiple independent queries
+  const areQueriesComplete = (queries: any[]) =>
+    queries.every((query) => query.isSuccess);
+
+  // For dependent queries with polling/progressive loading
+  const arePollingQueriesComplete = (
+    mainQuery: any,
+    dataProcessor: (data: any) => boolean,
+  ) => {
+    if (!mainQuery.isSuccess) return false;
+    return dataProcessor(mainQuery.data);
+  };
+
+  return {
+    isSingleDataComplete,
+    areQueriesComplete,
+    arePollingQueriesComplete,
+  };
+}
+
 type QueryKeyType = ReturnType<typeof getQueryKey>;
 
 const formatQueryKey = (queryKey?: QueryKeyType): QueryKeyType => {
@@ -385,6 +414,8 @@ export function DatasetCompareRunsTable(props: {
   const { getNavigationPath, shouldUpdateRowOnDetailPageNavigation } =
     useDatasetComparePeekNavigation(urlPathname);
 
+  const { arePollingQueriesComplete } = useCompleteDataStatus();
+
   return (
     <>
       <DataTableToolbar
@@ -468,6 +499,10 @@ export function DatasetCompareRunsTable(props: {
         peekView={{
           itemType: "DATASET_ITEM",
           urlPathname,
+          isTableDataComplete: arePollingQueriesComplete(
+            baseDatasetItems,
+            () => runs.every((run) => unchangedCounts[run.runId] >= 2), // Consider data complete after 2 stable fetches
+          ),
           onOpenChange: setPeekView,
           getNavigationPath,
           shouldUpdateRowOnDetailPageNavigation,

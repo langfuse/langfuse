@@ -31,7 +31,7 @@ import {
   type PaginationState,
   type RowSelectionState,
   type VisibilityState,
-  Row,
+  type Row,
 } from "@tanstack/react-table";
 import { TablePeekView } from "@/src/components/table/peek";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
@@ -359,6 +359,7 @@ export function DataTable<TData extends object, TValue>({
                   help={help}
                   onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                   pinFirstColumn={pinFirstColumn}
+                  isTableDataComplete={peekView?.isTableDataComplete}
                 />
               ) : (
                 <TableBodyComponent
@@ -412,8 +413,8 @@ interface TableBodyComponentProps<TData> {
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
-  peekViewId?: string;
   pinFirstColumn?: boolean;
+  isTableDataComplete?: boolean;
 }
 
 function TableRowComponent<TData>({
@@ -428,7 +429,6 @@ function TableRowComponent<TData>({
   const peekViewId = useContext(SelectedRowContext);
   return (
     <TableRow
-      key={row.id}
       data-row-index={row.index}
       onClick={() => onRowClick?.(row.original)}
       onKeyDown={(e) => {
@@ -514,15 +514,17 @@ function TableBodyComponent<TData>({
 // 2. When using peek views: URL/state changes from peek view navigation would
 //    otherwise cause unnecessary table re-renders.
 //
-// Following TanStack Table's performance recommendations:
-// - We memoize the entire TableBody to prevent re-renders when only UI state changes
-// - We only allow re-renders when the actual data or loading state changes
-// - The row highlighting is handled via React Context to avoid table body re-renders
+// We need to ensure the table re-renders when:
+// - The actual data changes (including metrics loaded asynchronously)
+// - The loading state changes
+// - The error state changes
+// - The new column widths are computed
 //
 // See: https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
 const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   return (
     prev.table.options.data === next.table.options.data &&
-    prev.data.isLoading === next.data.isLoading
+    prev.data.isLoading === next.data.isLoading &&
+    prev.isTableDataComplete === next.isTableDataComplete
   );
 }) as typeof TableBodyComponent;
