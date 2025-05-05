@@ -57,4 +57,4 @@ export const isTimeSeriesChart = (
 
 // Used for a combination of YAxis styling workarounds as discussed in https://github.com/recharts/recharts/issues/2027#issuecomment-769674096.
 export const formatAxisLabel = (label: string): string =>
-  label.length > 13 ? label.slice(0, 13).concat("..") : label;
+  label.length > 13 ? label.slice(0, 13).concat("…") : label;
