@@ -535,7 +535,8 @@ function TableBodyComponent<TData>({
 //
 // See: https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
 const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
-  if (!prev.tableSnapshot || !next.tableSnapshot) return true;
+  if (!prev.tableSnapshot || !next.tableSnapshot)
+    return !prev.tableSnapshot && !next.tableSnapshot;
 
   // Check reference equality first (faster)
   if (
