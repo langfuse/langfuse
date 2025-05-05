@@ -10,10 +10,10 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { api } from "@/src/utils/api";
 import type { RouterOutput } from "@/src/utils/types";
 import { Trash } from "lucide-react";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type Organization, type Role } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Header from "@/src/components/layouts/header";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 export type tmp = Organization;
 export type InvitesTableRow = {
@@ -37,6 +37,10 @@ export function MembershipInvitesPage({
   orgId: string;
   projectId?: string;
 }) {
+  const paginationKey = projectId
+    ? `projectInvites_${projectId}_pagination`
+    : `orgInvites_${orgId}_pagination`;
+
   const hasOrgViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
@@ -47,10 +51,13 @@ export function MembershipInvitesPage({
       scope: "projectMembers:read",
     }) || hasOrgViewAccess;
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 10),
-  });
+  const [paginationState, setPaginationState] = useSessionStorage(
+    paginationKey,
+    {
+      pageIndex: 0,
+      pageSize: 10,
+    },
+  );
 
   const invites = projectId
     ? api.members.allInvitesFromProject.useQuery(
