@@ -360,10 +360,11 @@ export function DataTable<TData extends object, TValue>({
                   help={help}
                   onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                   pinFirstColumn={pinFirstColumn}
-                  isTableDataComplete={peekView?.isTableDataComplete}
+                  tableDataUpdatedAt={peekView?.tableDataUpdatedAt}
                   columnVisibility={columnVisibility}
                   columnOrder={columnOrder}
                   pagination={pagination?.state}
+                  rowSelection={rowSelection}
                 />
               ) : (
                 <TableBodyComponent
@@ -418,10 +419,11 @@ interface TableBodyComponentProps<TData> {
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
   pinFirstColumn?: boolean;
-  isTableDataComplete?: boolean;
+  tableDataUpdatedAt?: number;
   columnVisibility?: VisibilityState;
   columnOrder?: ColumnOrderState;
   pagination?: PaginationState;
+  rowSelection?: RowSelectionState;
 }
 
 function TableRowComponent<TData>({
@@ -522,27 +524,25 @@ function TableBodyComponent<TData>({
 //    otherwise cause unnecessary table re-renders.
 //
 // We need to ensure the table re-renders when:
-// - The actual data changes (including metrics loaded asynchronously)
+// - The actual data changes (including metrics loaded asynchronously and pagination state)
 // - The loading state changes
-// - The error state changes
 // - The new column widths are computed
-// - The number of visible cells changes
 // - The row height changes
+// - The number of visible cells changes
 // - The column order changes
-// - The pagination state changes
 //
 // See: https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
 const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   // Check reference equality first (faster)
+  if (prev.tableDataUpdatedAt !== next.tableDataUpdatedAt) return false;
   if (prev.table.options.data !== next.table.options.data) return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
-  if (prev.isTableDataComplete !== next.isTableDataComplete) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
 
   // Then do more expensive deep equality checks
+  if (!isEqual(prev.rowSelection, next.rowSelection)) return false;
   if (!isEqual(prev.columnVisibility, next.columnVisibility)) return false;
   if (!isEqual(prev.columnOrder, next.columnOrder)) return false;
-  if (!isEqual(prev.pagination, next.pagination)) return false;
 
   // If all checks pass, components are equal
   return true;

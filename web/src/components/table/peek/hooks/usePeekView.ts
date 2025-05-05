@@ -21,7 +21,7 @@ export type PeekViewProps<TData> = Omit<
   DataTablePeekViewProps<TData>,
   "selectedRowId" | "row"
 > & {
-  isTableDataComplete: boolean;
+  tableDataUpdatedAt: number;
 };
 
 function getInitialRow<TData>(
