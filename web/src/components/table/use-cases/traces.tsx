@@ -548,7 +548,6 @@ export default function TracesTable({
           return null;
         }
 
-        console.log(row.original);
 
         return (
           <BreakdownTooltip details={row.original.tokenDetails ?? []}>
