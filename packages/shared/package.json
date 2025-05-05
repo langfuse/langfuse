@@ -28,6 +28,10 @@
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
+    },
+    "./worker": {
+      "import": "./dist/src/server/json/worker.js",
+      "require": "./dist/src/server/json/worker.js"
     }
   },
   "scripts": {
@@ -92,7 +96,6 @@
     "prisma-extension-kysely": "^2.1.0",
     "uuid": "^9.0.1",
     "winston": "^3.15.0",
-    "workerpool": "^9.2.0",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.23.5"
   },

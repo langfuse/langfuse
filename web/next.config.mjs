@@ -5,6 +5,7 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
+import { createRequire } from "module";
 
 /**
  * CSP headers
@@ -139,22 +140,22 @@ const nextConfig = {
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
-          {
-            source: "/api/auth/session",
-            headers: [
-              {
-                key: "Access-Control-Allow-Origin",
-                value: "https://langfuse.com",
-              },
-              { key: "Access-Control-Allow-Credentials", value: "true" },
-              { key: "Access-Control-Allow-Methods", value: "GET,POST" },
-              {
-                key: "Access-Control-Allow-Headers",
-                value: "Content-Type, Authorization",
-              },
-            ],
-          },
-        ]
+            {
+              source: "/api/auth/session",
+              headers: [
+                {
+                  key: "Access-Control-Allow-Origin",
+                  value: "https://langfuse.com",
+                },
+                { key: "Access-Control-Allow-Credentials", value: "true" },
+                { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+                {
+                  key: "Access-Control-Allow-Headers",
+                  value: "Content-Type, Authorization",
+                },
+              ],
+            },
+          ]
         : []),
       // all files in /public/generated are public and can be accessed from any origin, e.g. to render an API reference based on our openapi schema
       {
@@ -182,6 +183,13 @@ const nextConfig = {
 
     // Exclude Datadog packages from webpack bundling to avoid issues
     config.externals.push("@datadog/pprof", "dd-trace");
+
+    // === Customizations for Piscina Worker ===
+    if (isServer) {
+      // Fix worker path resolution for server builds
+      config.output.publicPath = "";
+    }
+    // === End Customizations ===
 
     return config;
   },
