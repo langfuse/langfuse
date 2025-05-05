@@ -360,11 +360,12 @@ export function DataTable<TData extends object, TValue>({
                   help={help}
                   onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                   pinFirstColumn={pinFirstColumn}
-                  tableDataUpdatedAt={peekView?.tableDataUpdatedAt}
-                  columnVisibility={columnVisibility}
-                  columnOrder={columnOrder}
-                  pagination={pagination?.state}
-                  rowSelection={rowSelection}
+                  tableSnapshot={{
+                    tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
+                    columnVisibility,
+                    columnOrder,
+                    rowSelection,
+                  }}
                 />
               ) : (
                 <TableBodyComponent
@@ -419,11 +420,12 @@ interface TableBodyComponentProps<TData> {
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
   pinFirstColumn?: boolean;
-  tableDataUpdatedAt?: number;
-  columnVisibility?: VisibilityState;
-  columnOrder?: ColumnOrderState;
-  pagination?: PaginationState;
-  rowSelection?: RowSelectionState;
+  tableSnapshot?: {
+    tableDataUpdatedAt?: number;
+    columnVisibility?: VisibilityState;
+    columnOrder?: ColumnOrderState;
+    rowSelection?: RowSelectionState;
+  };
 }
 
 function TableRowComponent<TData>({
@@ -533,16 +535,32 @@ function TableBodyComponent<TData>({
 //
 // See: https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
 const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
+  if (!prev.tableSnapshot || !next.tableSnapshot) return true;
+
   // Check reference equality first (faster)
-  if (prev.tableDataUpdatedAt !== next.tableDataUpdatedAt) return false;
+  if (
+    prev.tableSnapshot.tableDataUpdatedAt !==
+    next.tableSnapshot.tableDataUpdatedAt
+  )
+    return false;
   if (prev.table.options.data !== next.table.options.data) return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
 
   // Then do more expensive deep equality checks
-  if (!isEqual(prev.rowSelection, next.rowSelection)) return false;
-  if (!isEqual(prev.columnVisibility, next.columnVisibility)) return false;
-  if (!isEqual(prev.columnOrder, next.columnOrder)) return false;
+  if (
+    !isEqual(prev.tableSnapshot.rowSelection, next.tableSnapshot.rowSelection)
+  )
+    return false;
+  if (
+    !isEqual(
+      prev.tableSnapshot.columnVisibility,
+      next.tableSnapshot.columnVisibility,
+    )
+  )
+    return false;
+  if (!isEqual(prev.tableSnapshot.columnOrder, next.tableSnapshot.columnOrder))
+    return false;
 
   // If all checks pass, components are equal
   return true;
