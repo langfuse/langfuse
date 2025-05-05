@@ -46,7 +46,9 @@ export const BreakdownTooltip = ({
   };
 
   const maxDecimals = isCost
-    ? Math.max(...Object.values(aggregatedDetails).map(getMaxDecimals))
+    ? Math.max(
+        ...Object.values(aggregatedDetails).map((v) => getMaxDecimals(v)),
+      )
     : 0;
 
   return (
