@@ -120,7 +120,7 @@ export const upsertScore = async (score: Partial<ScoreRecordReadType>) => {
   await upsertClickhouse({
     table: "scores",
     records: [score as ScoreRecordReadType],
-    eventBodyMapper: convertToScore,
+    eventBodyMapper: async (body: ScoreRecordReadType) => convertToScore(body),
     tags: {
       feature: "tracing",
       type: "score",

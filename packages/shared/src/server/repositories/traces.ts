@@ -177,7 +177,7 @@ export const getTracesByIds = async (
     clickhouseConfigs,
   });
 
-  return records.map(convertClickhouseToDomain);
+  return await Promise.all(records.map(convertClickhouseToDomain));
 };
 
 export const getTracesBySessionId = async (
@@ -208,7 +208,7 @@ export const getTracesBySessionId = async (
     },
   });
 
-  return records.map(convertClickhouseToDomain);
+  return await Promise.all(records.map(convertClickhouseToDomain));
 };
 
 export const hasAnyTrace = async (projectId: string) => {
@@ -351,7 +351,7 @@ export const getTraceById = async ({
     },
   });
 
-  const res = records.map(convertClickhouseToDomain);
+  const res = await Promise.all(records.map(convertClickhouseToDomain));
 
   return res.shift();
 };

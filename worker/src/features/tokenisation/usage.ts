@@ -1,4 +1,4 @@
-import { Model, parseJsonPrioritised } from "@langfuse/shared";
+import { Model } from "@langfuse/shared";
 import { isChatModel, isTiktokenModel } from "./types";
 import { countTokens } from "@anthropic-ai/tokenizer";
 
@@ -11,9 +11,10 @@ import {
 
 import { z } from "zod";
 import {
-  instrumentSync,
+  instrumentAsync,
   logger,
   recordIncrement,
+  parseLargeJson,
 } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
@@ -34,15 +35,15 @@ const OpenAiChatTokenConfig = z.object({
 
 const tokenCountMetric = "langfuse.tokenisedTokens";
 
-export function tokenCount(p: {
+export async function tokenCount(p: {
   model: Model;
   text: unknown;
-}): number | undefined {
-  return instrumentSync(
+}): Promise<number | undefined> {
+  return instrumentAsync(
     {
       name: "token-count",
     },
-    (span) => {
+    async (span) => {
       if (
         p.text === null ||
         p.text === undefined ||
@@ -52,7 +53,7 @@ export function tokenCount(p: {
       }
 
       if (p.model.tokenizerId === "openai") {
-        const count = openAiTokenCount({
+        const count = await openAiTokenCount({
           model: p.model,
           text: p.text,
         });
@@ -87,7 +88,7 @@ type ChatMessage = {
   content: string;
 };
 
-function openAiTokenCount(p: { model: Model; text: unknown }) {
+async function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
     logger.warn(
@@ -100,7 +101,7 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
 
   let result = undefined;
   const parsedText =
-    typeof p.text === "string" ? parseJsonPrioritised(p.text) : p.text; // Clickhouse stores ChatMessage array as string
+    typeof p.text === "string" ? await parseLargeJson(p.text) : p.text; // Clickhouse stores ChatMessage array as string
 
   if (
     isChatMessageArray(parsedText) &&

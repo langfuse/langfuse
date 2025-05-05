@@ -47,7 +47,7 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 export type TokenCountDelegate = (p: {
   model: Model;
   text: unknown;
-}) => number | undefined;
+}) => Promise<number | undefined>;
 
 /**
  * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between

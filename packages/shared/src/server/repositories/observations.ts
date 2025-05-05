@@ -171,38 +171,7 @@ export const getObservationsForTrace = async (
     },
   });
 
-  // Large number of observations in trace with large input / output / metadata will lead to
-  // high CPU and memory consumption in the convertObservation step, where parsing occurs
-  // Thus, limit the size of the payload to 5MB, follows NextJS response size limitation:
-  // https://nextjs.org/docs/messages/api-routes-response-size-limit
-  // See also LFE-4882 for more details
-  let payloadSize = 0;
-
-  for (const observation of records) {
-    for (const key of ["input", "output"] as const) {
-      const value = observation[key];
-
-      if (value && typeof value === "string") {
-        payloadSize += value.length;
-      }
-    }
-
-    const metadataValues = Object.values(observation["metadata"]);
-
-    metadataValues.forEach((value) => {
-      if (value && typeof value === "string") {
-        payloadSize += value.length;
-      }
-    });
-
-    if (payloadSize >= env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES) {
-      const errorMessage = `Observations in trace are too large: ${(payloadSize / 1e6).toFixed(2)}MB exceeds limit of ${(env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES / 1e6).toFixed(2)}MB`;
-
-      throw new Error(errorMessage);
-    }
-  }
-
-  return records.map(convertObservation);
+  return await Promise.all(records.map(convertObservation));
 };
 
 export const getObservationForTraceIdByName = async (
@@ -268,7 +237,7 @@ export const getObservationForTraceIdByName = async (
     },
   });
 
-  return records.map(convertObservation);
+  return await Promise.all(records.map(convertObservation));
 };
 
 export const getObservationById = async (
@@ -283,7 +252,7 @@ export const getObservationById = async (
     fetchWithInputOutput,
     startTime,
   );
-  const mapped = records.map(convertObservation);
+  const mapped = await Promise.all(records.map(convertObservation));
 
   if (mapped.length === 0) {
     throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
@@ -344,7 +313,7 @@ export const getObservationsById = async (
     query,
     params: { ids, projectId },
   });
-  return records.map(convertObservation);
+  return await Promise.all(records.map(convertObservation));
 };
 
 const getObservationByIdInternal = async (
@@ -478,28 +447,30 @@ export const getObservationsTableWithModelData = async (
     ),
   ]);
 
-  return observationRecords.map((o) => {
-    const trace = traces.find((t) => t.id === o.trace_id);
-    const model = models.find((m) => m.id === o.internal_model_id);
-    return {
-      ...convertObservation(o),
-      latency: o.latency ? Number(o.latency) / 1000 : null,
-      timeToFirstToken: o.time_to_first_token
-        ? Number(o.time_to_first_token) / 1000
-        : null,
-      traceName: trace?.name ?? null,
-      traceTags: trace?.tags ?? [],
-      traceTimestamp: trace?.timestamp ?? null,
-      userId: trace?.userId ?? null,
-      modelId: model?.id ?? null,
-      inputPrice:
-        model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-      outputPrice:
-        model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-      totalPrice:
-        model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
-    };
-  });
+  return Promise.all(
+    observationRecords.map(async (o) => {
+      const trace = traces.find((t) => t.id === o.trace_id);
+      const model = models.find((m) => m.id === o.internal_model_id);
+      return {
+        ...(await convertObservation(o)),
+        latency: o.latency ? Number(o.latency) / 1000 : null,
+        timeToFirstToken: o.time_to_first_token
+          ? Number(o.time_to_first_token) / 1000
+          : null,
+        traceName: trace?.name ?? null,
+        traceTags: trace?.tags ?? [],
+        traceTimestamp: trace?.timestamp ?? null,
+        userId: trace?.userId ?? null,
+        modelId: model?.id ?? null,
+        inputPrice:
+          model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+        outputPrice:
+          model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+        totalPrice:
+          model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+      };
+    }),
+  );
 };
 
 const getObservationsTableInternal = async <T>(

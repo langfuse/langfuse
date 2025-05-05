@@ -1,4 +1,4 @@
-import { parseJsonPrioritised } from "../../utils/json";
+import { parseJsonPrioritised } from "../../json/json-parse";
 import { MetadataDomain } from "../../domain";
 
 export function parseMetadataCHRecordToDomain(

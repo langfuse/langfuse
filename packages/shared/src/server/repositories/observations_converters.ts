@@ -1,6 +1,5 @@
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { ObservationRecordReadType } from "./definitions";
-import { parseJsonPrioritised } from "../../utils/json";
 import {
   Observation,
   ObservationLevelType,
@@ -8,9 +7,10 @@ import {
 } from "../../domain";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-export const convertObservation = (
+import { parseLargeJson } from "../json/PsicinaSingleton";
+export const convertObservation = async (
   record: ObservationRecordReadType,
-): Observation => {
+): Promise<Observation> => {
   const reducedCostDetails = reduceUsageOrCostDetails(record.cost_details);
   const reducedUsageDetails = reduceUsageOrCostDetails(record.usage_details);
 
@@ -30,9 +30,9 @@ export const convertObservation = (
     level: record.level as ObservationLevelType,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,
-    input: record.input ? (parseJsonPrioritised(record.input) ?? null) : null,
+    input: record.input ? ((await parseLargeJson(record.input)) ?? null) : null,
     output: record.output
-      ? (parseJsonPrioritised(record.output) ?? null)
+      ? ((await parseLargeJson(record.output)) ?? null)
       : null,
     modelParameters: record.model_parameters
       ? (JSON.parse(record.model_parameters) ?? null)

@@ -1,5 +1,5 @@
 import Redis, { RedisOptions } from "ioredis";
-import fs from 'fs';
+import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
 
@@ -29,9 +29,15 @@ export const createNewRedisInstance = (
   const tlsOptions = tlsEnabled
     ? {
         tls: {
-          ca: env.REDIS_TLS_CA_PATH ? fs.readFileSync(env.REDIS_TLS_CA_PATH) : undefined,
-          cert: env.REDIS_TLS_CERT_PATH ? fs.readFileSync(env.REDIS_TLS_CERT_PATH) : undefined,
-          key: env.REDIS_TLS_KEY_PATH ? fs.readFileSync(env.REDIS_TLS_KEY_PATH) : undefined,
+          ca: env.REDIS_TLS_CA_PATH
+            ? fs.readFileSync(env.REDIS_TLS_CA_PATH)
+            : undefined,
+          cert: env.REDIS_TLS_CERT_PATH
+            ? fs.readFileSync(env.REDIS_TLS_CERT_PATH)
+            : undefined,
+          key: env.REDIS_TLS_KEY_PATH
+            ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
+            : undefined,
         },
       }
     : {};

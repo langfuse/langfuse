@@ -1,5 +1,5 @@
 import express from "express";
-import { traceException } from "@langfuse/shared/src/server";
+import { getTraceById, traceException } from "@langfuse/shared/src/server";
 
 import { checkContainerHealth } from "../features/health";
 import { logger } from "@langfuse/shared/src/server";
@@ -27,6 +27,14 @@ router.get<{}, { status: string }>("/ready", async (_req, res) => {
       status: "error",
     });
   }
+});
+
+router.get<{}, {}>("/traces", async (req, res) => {
+  const trace = await getTraceById({
+    traceId: req.query.id as string,
+    projectId: req.query.projectId as string,
+  });
+  res.json(trace);
 });
 
 export default router;
