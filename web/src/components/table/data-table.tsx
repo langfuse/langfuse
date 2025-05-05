@@ -36,6 +36,7 @@ import {
 import { TablePeekView } from "@/src/components/table/peek";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
+import _ from "lodash";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -360,6 +361,9 @@ export function DataTable<TData extends object, TValue>({
                   onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                   pinFirstColumn={pinFirstColumn}
                   isTableDataComplete={peekView?.isTableDataComplete}
+                  columnVisibility={columnVisibility}
+                  columnOrder={columnOrder}
+                  pagination={pagination?.state}
                 />
               ) : (
                 <TableBodyComponent
@@ -415,6 +419,9 @@ interface TableBodyComponentProps<TData> {
   onRowClick?: (row: TData) => void;
   pinFirstColumn?: boolean;
   isTableDataComplete?: boolean;
+  columnVisibility?: VisibilityState;
+  columnOrder?: ColumnOrderState;
+  pagination?: PaginationState;
 }
 
 function TableRowComponent<TData>({
@@ -519,12 +526,24 @@ function TableBodyComponent<TData>({
 // - The loading state changes
 // - The error state changes
 // - The new column widths are computed
+// - The number of visible cells changes
+// - The row height changes
+// - The column order changes
+// - The pagination state changes
 //
 // See: https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
 const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
-  return (
-    prev.table.options.data === next.table.options.data &&
-    prev.data.isLoading === next.data.isLoading &&
-    prev.isTableDataComplete === next.isTableDataComplete
-  );
+  // Check reference equality first (faster)
+  if (prev.table.options.data !== next.table.options.data) return false;
+  if (prev.data.isLoading !== next.data.isLoading) return false;
+  if (prev.isTableDataComplete !== next.isTableDataComplete) return false;
+  if (prev.rowheighttw !== next.rowheighttw) return false;
+
+  // Then do more expensive deep equality checks
+  if (!_.isEqual(prev.columnVisibility, next.columnVisibility)) return false;
+  if (!_.isEqual(prev.columnOrder, next.columnOrder)) return false;
+  if (!_.isEqual(prev.pagination, next.pagination)) return false;
+
+  // If all checks pass, components are equal
+  return true;
 }) as typeof TableBodyComponent;
