@@ -36,7 +36,7 @@ import {
 import { TablePeekView } from "@/src/components/table/peek";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
-import _ from "lodash";
+import { isEqual } from "lodash";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -540,9 +540,9 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.rowheighttw !== next.rowheighttw) return false;
 
   // Then do more expensive deep equality checks
-  if (!_.isEqual(prev.columnVisibility, next.columnVisibility)) return false;
-  if (!_.isEqual(prev.columnOrder, next.columnOrder)) return false;
-  if (!_.isEqual(prev.pagination, next.pagination)) return false;
+  if (!isEqual(prev.columnVisibility, next.columnVisibility)) return false;
+  if (!isEqual(prev.columnOrder, next.columnOrder)) return false;
+  if (!isEqual(prev.pagination, next.pagination)) return false;
 
   // If all checks pass, components are equal
   return true;
