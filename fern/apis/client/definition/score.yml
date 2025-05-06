@@ -76,6 +76,12 @@ types:
           value: 0
           datasetRunId: "7891-5678-90ab-hijk"
 
+  ScoreDataType:
+    enum:
+      - NUMERIC
+      - CATEGORICAL
+      - BOOLEAN
+
   CreateScoreValue:
     discriminated: false
     union:
