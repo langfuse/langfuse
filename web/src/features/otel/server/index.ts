@@ -330,8 +330,10 @@ const extractMetadata = (
 
   for (const [key, value] of Object.entries(attributes)) {
     for (const prefix of [metadataKeyPrefix, "langfuse.metadata"]) {
-      const newKey = key.replace(`${prefix}.`, "");
-      langfuseMetadata[newKey] = value;
+      if (key.startsWith(`${prefix}.`)) {
+        const newKey = key.replace(`${prefix}.`, "");
+        langfuseMetadata[newKey] = value;
+      }
     }
   }
 
