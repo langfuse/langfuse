@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, ChevronDown, ChevronUp } from "lucide-react";
 import { type FC, memo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import {
@@ -46,13 +46,26 @@ export const programmingLanguages: languageMap = {
   // add more file extensions here, make sure the key is same as language prop in CodeBlock.tsx component
 };
 
+const COLLAPSE_LINE_THRESHOLD = 8;
+
 const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
   const [isCopied, setIsCopied] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(
+    value.split("\n").length > COLLAPSE_LINE_THRESHOLD,
+  );
+
   const handleCopy = () => {
     setIsCopied(true);
     void navigator.clipboard.writeText(value ?? "");
     setTimeout(() => setIsCopied(false), 1000);
   };
+
+  const lines = value.split("\n");
+  const shouldCollapse = lines.length > COLLAPSE_LINE_THRESHOLD;
+  const displayedValue =
+    isCollapsed && shouldCollapse
+      ? lines.slice(0, COLLAPSE_LINE_THRESHOLD).join("\n") + "\n..."
+      : value;
 
   return (
     <div className="codeblock relative w-full overflow-hidden rounded border font-sans dark:bg-zinc-950">
@@ -63,7 +76,27 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
         )}
       >
         <span className="text-xs lowercase">{language}</span>
-        <div className="flex items-center py-1">
+        <div className="flex items-center gap-1 py-1">
+          {shouldCollapse && (
+            <Button
+              variant="ghost"
+              size="xs"
+              className="text-xs hover:bg-border focus-visible:ring-1 focus-visible:ring-offset-0"
+              onClick={() => setIsCollapsed((prev) => !prev)}
+              aria-expanded={!isCollapsed}
+              aria-label={isCollapsed ? "Show more code" : "Show less code"}
+            >
+              {isCollapsed ? (
+                <>
+                  <ChevronDown className="mr-1 h-3 w-3" /> Show more
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="mr-1 h-3 w-3" /> Show less
+                </>
+              )}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="xs"
@@ -97,7 +130,7 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
           },
         }}
       >
-        {value}
+        {displayedValue}
       </SyntaxHighlighter>
     </div>
   );
