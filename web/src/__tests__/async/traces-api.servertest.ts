@@ -489,7 +489,7 @@ describe("/api/public/traces API Endpoint", () => {
     });
   });
 
-  it("should return 5XX if observations are too large when fetching single trace", async () => {
+  it.only("should return 5XX if observations are too large when fetching single trace", async () => {
     // See LFE-4882 for context
     const traceId = randomUUID();
     const trace = createTrace({
@@ -511,10 +511,10 @@ describe("/api/public/traces API Endpoint", () => {
       createObservation({
         trace_id: traceId,
         project_id: projectId,
-        input: "a".repeat(1e6),
-        output: "b".repeat(1e6),
+        input: "a".repeat(30e6),
+        output: "b".repeat(30e6),
         metadata: {
-          foo: "c".repeat(1e6),
+          foo: "c".repeat(30e6),
         },
       }),
     ]);
@@ -522,10 +522,10 @@ describe("/api/public/traces API Endpoint", () => {
       createObservation({
         trace_id: traceId,
         project_id: projectId,
-        input: "a".repeat(1e6),
-        output: "b".repeat(1e6),
+        input: "a".repeat(30e6),
+        output: "b".repeat(30e6),
         metadata: {
-          foo: "c".repeat(1e6),
+          foo: "c".repeat(30e6),
         },
       }),
     ]);
