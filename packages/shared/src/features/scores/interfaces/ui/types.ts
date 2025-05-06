@@ -34,11 +34,3 @@ export type ScoreSimplified = {
   metadata?: MetadataDomain | null;
   stringValue?: string | null;
 };
-
-export type LastUserScore = ScoreSimplified & {
-  timestamp: string;
-  traceId: string;
-  observationId?: string | null;
-
-  userId: string;
-};

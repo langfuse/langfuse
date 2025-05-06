@@ -1,6 +1,6 @@
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
-import { type APIScoreV2, type ScoreDataType } from "@langfuse/shared";
+import { type ScoreDataType, type ScoreDomain } from "@langfuse/shared";
 import { type z } from "zod";
 
 export type HistogramBin = { binLabel: string; count: number };
@@ -49,7 +49,7 @@ export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
 export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   projectId: string;
   scoreTarget: Target;
-  scores: APIScoreV2[];
+  scores: ScoreDomain[];
   emptySelectedConfigIds: string[];
   setEmptySelectedConfigIds: (ids: string[]) => void;
   analyticsData?: {

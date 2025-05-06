@@ -1,4 +1,8 @@
-import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
+import {
+  type ScoreDomain,
+  type ObservationLevelType,
+  type TraceDomain,
+} from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -14,7 +18,7 @@ import { Settings2, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { useCallback, useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
+import { ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/isLanggraphTrace";
@@ -57,7 +61,7 @@ export function Trace(props: {
     input: string | null;
     output: string | null;
   };
-  scores: APIScoreV2[];
+  scores: ScoreDomain[];
   projectId: string;
   viewType?: "detailed" | "focused";
   isValidObservationId?: boolean;

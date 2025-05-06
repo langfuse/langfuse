@@ -3,7 +3,7 @@ import { APIScoreSchemaV2, APIScoreV2 } from "../api/v2/schemas";
 import { APIScoreSchemaV1, APIScoreV1 } from "../api/v1/schemas";
 import { ScoreDomain } from "../../../../domain";
 
-type ValidatedAPIScore<IncludeHasMetadata extends boolean> = APIScoreV2 & {
+type ValidatedScoreDomain<IncludeHasMetadata extends boolean> = ScoreDomain & {
   hasMetadata: IncludeHasMetadata extends true ? boolean : never;
 };
 
@@ -36,7 +36,7 @@ export const filterAndValidateDbScoreList = <
   includeHasMetadata?: IncludeHasMetadata;
   // eslint-disable-next-line no-unused-vars
   onParseError?: (error: z.ZodError) => void;
-}): ValidatedAPIScore<IncludeHasMetadata>[] => {
+}): ValidatedScoreDomain<IncludeHasMetadata>[] => {
   return scores.reduce((acc, ts) => {
     const result = APIScoreSchemaV2.safeParse(ts);
     if (result.success) {
@@ -44,13 +44,13 @@ export const filterAndValidateDbScoreList = <
       if (includeHasMetadata) {
         Object.assign(score, { hasMetadata: ts.hasMetadata ?? false });
       }
-      acc.push(score as ValidatedAPIScore<IncludeHasMetadata>);
+      acc.push(score as ValidatedScoreDomain<IncludeHasMetadata>);
     } else {
       console.error("Score parsing error: ", result.error);
       onParseError?.(result.error);
     }
     return acc;
-  }, [] as ValidatedAPIScore<IncludeHasMetadata>[]);
+  }, [] as ValidatedScoreDomain<IncludeHasMetadata>[]);
 };
 
 type ValidatedAPITraceScore<IncludeHasMetadata extends boolean> = APIScoreV1 & {

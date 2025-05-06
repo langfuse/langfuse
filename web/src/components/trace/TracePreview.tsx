@@ -1,6 +1,6 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
-  type APIScoreV2,
+  type ScoreDomain,
   type TraceDomain,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
@@ -51,7 +51,7 @@ export const TracePreview = ({
     output: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
-  scores: APIScoreV2[];
+  scores: ScoreDomain[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
 }) => {

@@ -4,11 +4,11 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { type LastUserScore, type APIScoreV2 } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
 import { BracesIcon, MessageCircleMoreIcon } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
-const partitionScores = <T extends APIScoreV2 | LastUserScore>(
+const partitionScores = <T extends ScoreDomain>(
   scores: Record<string, T[]>,
   maxVisible?: number,
 ) => {
@@ -22,7 +22,7 @@ const partitionScores = <T extends APIScoreV2 | LastUserScore>(
   return { visibleScores, hiddenScores };
 };
 
-const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
+const ScoreGroupBadge = <T extends ScoreDomain>({
   name,
   scores,
 }: {
@@ -73,7 +73,7 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
   );
 };
 
-export const GroupedScoreBadges = <T extends APIScoreV2 | LastUserScore>({
+export const GroupedScoreBadges = <T extends ScoreDomain>({
   scores,
   maxVisible,
 }: {

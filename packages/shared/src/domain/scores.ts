@@ -1,4 +1,3 @@
-import { ScoreDataType } from "@prisma/client";
 import z from "zod";
 import { MetadataDomain } from "./traces";
 
@@ -7,30 +6,30 @@ export const ScoreSource = {
   API: "API",
   EVAL: "EVAL",
 } as const;
-
 export const ScoreSourceDomain = z.enum(["ANNOTATION", "API", "EVAL"]);
 export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
 
-export const ScoreSchema = z.object({
+const ScoreSchema = z.object({
   id: z.string(),
   timestamp: z.date(),
   projectId: z.string(),
   environment: z.string(),
   name: z.string(),
-  value: z.number().nullable(),
   source: ScoreSourceDomain,
-  authorUserId: z.string().nullable(),
-  comment: z.string().nullable(),
-  traceId: z.string().nullable(),
-  sessionId: z.string().nullable(),
+  authorUserId: z.string().nullish(),
+  comment: z.string().nullish(),
   metadata: MetadataDomain,
-  observationId: z.string().nullable(),
-  configId: z.string().nullable(),
-  stringValue: z.string().nullable(),
-  queueId: z.string().nullable(),
+  configId: z.string().nullish(),
+  queueId: z.string().nullish(),
   createdAt: z.date(),
   updatedAt: z.date(),
-  dataType: z.nativeEnum(ScoreDataType),
+  traceId: z.string().nullish(),
+  observationId: z.string().nullish(),
+  sessionId: z.string().nullish(),
+  runId: z.string().nullish(),
+  value: z.number().nullish(),
+  stringValue: z.string().nullish(),
+  dataType: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]),
 });
 
 export type ScoreDomain = z.infer<typeof ScoreSchema>;
