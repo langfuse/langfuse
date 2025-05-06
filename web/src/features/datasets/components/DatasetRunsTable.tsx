@@ -67,7 +67,7 @@ export type DatasetRunRowData = {
   avgLatency: number | undefined;
   avgTotalCost: string | undefined;
   // scores holds grouped column with individual scores
-  scores?: ScoreAggregate | undefined;
+  runItemScores?: ScoreAggregate | undefined;
   runScores?: ScoreAggregate | undefined;
   description: string;
   metadata: Prisma.JsonValue;
@@ -236,7 +236,7 @@ export function DatasetRunsTable(props: {
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<DatasetRunRowData>({
       projectId: props.projectId,
-      scoreColumnKey: "scores",
+      scoreColumnKey: "runItemScores",
       showAggregateViewOnly: false,
       scoreColumnPrefix: "Run Item",
     });
@@ -397,7 +397,6 @@ export function DatasetRunsTable(props: {
         return <>{avgTotalCost}</>;
       },
     },
-    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
     {
       ...getScoreGroupColumnProps(isRunScoreColumnLoading, {
         accessorKey: "runScores",
@@ -405,6 +404,14 @@ export function DatasetRunsTable(props: {
         id: "runScores",
       }),
       columns: runScoreColumns,
+    },
+    {
+      ...getScoreGroupColumnProps(isColumnLoading, {
+        accessorKey: "runItemScores",
+        header: "Run Item Scores",
+        id: "runItemScores",
+      }),
+      columns: scoreColumns,
     },
     {
       accessorKey: "createdAt",
@@ -472,7 +479,7 @@ export function DatasetRunsTable(props: {
       avgTotalCost: item.avgTotalCost
         ? usdFormatter(item.avgTotalCost.toNumber())
         : undefined,
-      scores: item.scores
+      runItemScores: item.scores
         ? verifyAndPrefixScoreDataAgainstKeys(
             scoreKeysAndProps,
             item.scores,
