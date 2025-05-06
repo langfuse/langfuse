@@ -5,7 +5,7 @@ import {
   clickhouseClient,
   createObservation,
   createObservationsCh,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -311,12 +311,12 @@ describe("DataRetentionProcessingJob", () => {
     // Setup
     const baseId = randomUUID();
     await createScoresCh([
-      createScore({
+      createTraceScore({
         id: `${baseId}-score-old`,
         project_id: projectId,
         timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).getTime(), // 30 days in the past
       }),
-      createScore({
+      createTraceScore({
         id: `${baseId}-score-new`,
         project_id: projectId,
       }),
@@ -328,9 +328,15 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const scoresOld = await getScoreById(projectId, `${baseId}-score-old`);
+    const scoresOld = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score-old`,
+    });
     expect(scoresOld).toBeUndefined();
-    const scoresNew = await getScoreById(projectId, `${baseId}-score-new`);
+    const scoresNew = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score-new`,
+    });
     expect(scoresNew).toBeDefined();
   });
 });

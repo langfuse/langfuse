@@ -1,8 +1,8 @@
 import {
   createObservation,
-  createScore,
+  createTraceScore,
   createTrace,
-  getScoresByIds,
+  createSessionScore,
 } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
@@ -11,26 +11,20 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
-import {
-  DeleteScoreResponse,
-  GetScoreResponse,
-  GetScoresResponse,
-} from "@langfuse/shared";
+import { GetScoreResponseV2, GetScoresResponseV2 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
-import waitForExpect from "wait-for-expect";
 
-describe("/api/public/scores API Endpoint", () => {
-  describe("GET /api/public/scores/:scoreId", () => {
-    it("should GET a score", async () => {
+describe("/api/public/v2/scores API Endpoint", () => {
+  describe("GET /api/public/v2/scores/:scoreId", () => {
+    it("should GET a trace score", async () => {
       const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
 
       const scoreId = v4();
       const traceId = v4();
-      const score = createScore({
+      const score = createTraceScore({
         id: scoreId,
-        environment: "default",
         project_id: projectId,
         trace_id: traceId,
         name: "Test Score",
@@ -39,7 +33,6 @@ describe("/api/public/scores API Endpoint", () => {
         value: 100.5,
         source: "API",
         comment: "comment",
-        metadata: { "test-key": "test-value" },
         data_type: "NUMERIC" as const,
         created_at: Date.now(),
         updated_at: Date.now(),
@@ -50,9 +43,9 @@ describe("/api/public/scores API Endpoint", () => {
       await createScoresCh([score]);
 
       const getScore = await makeZodVerifiedAPICall(
-        GetScoreResponse,
+        GetScoreResponseV2,
         "GET",
-        `/api/public/scores/${scoreId}`,
+        `/api/public/v2/scores/${scoreId}`,
         undefined,
         auth,
       );
@@ -63,7 +56,6 @@ describe("/api/public/scores API Endpoint", () => {
         name: "Test Score",
         value: 100.5,
         comment: "comment",
-        metadata: { "test-key": "test-value" },
         source: "API",
         traceId,
         observationId: score.observation_id,
@@ -84,7 +76,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const minimalScoreId = v4();
 
-      const score = createScore({
+      const score = createTraceScore({
         id: minimalScoreId,
         project_id: projectId,
         trace_id: minimalTraceId,
@@ -97,243 +89,63 @@ describe("/api/public/scores API Endpoint", () => {
       await createScoresCh([score]);
 
       const fetchedScore = await makeZodVerifiedAPICall(
-        GetScoreResponse,
+        GetScoreResponseV2,
         "GET",
-        `/api/public/scores/${minimalScoreId}`,
+        `/api/public/v2/scores/${minimalScoreId}`,
         undefined,
         auth,
       );
 
       expect(fetchedScore.status).toBe(200);
     });
-  });
 
-  describe("DELETE /api/public/scores/:scoreId", () => {
-    it("should delete a score", async () => {
-      // Setup
-      const { projectId, auth } = await createOrgProjectAndApiKey();
-
-      const scoreId = v4();
-
-      const score = createScore({
-        id: scoreId,
-        project_id: projectId,
-      });
-      await createScoresCh([score]);
-
-      // When
-      const deleteResponse = await makeZodVerifiedAPICall(
-        DeleteScoreResponse,
-        "DELETE",
-        `/api/public/scores/${scoreId}`,
-        undefined,
-        auth,
-        202,
-      );
-
-      // Then
-      expect(deleteResponse.status).toBe(202);
-      await waitForExpect(async () => {
-        const scores = await getScoresByIds(projectId, [scoreId]);
-        expect(scores).toHaveLength(0);
-      });
-    });
-  });
-
-  describe("POST /api/public/scores", () => {
-    it("should create score for a trace", async () => {
-      const traceId = v4();
-
+    it("should GET a session score", async () => {
       const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
 
-      const trace = createTrace({
-        id: traceId,
-        project_id: projectId,
-      });
-      await createTracesCh([trace]);
-
       const scoreId = v4();
-
-      const score = createScore({
+      const sessionId = v4();
+      const score = createSessionScore({
         id: scoreId,
         project_id: projectId,
-        trace_id: traceId,
-        name: "score-name",
+        session_id: sessionId,
+        name: "Test Score",
+        timestamp: Date.now(),
         value: 100.5,
         source: "API",
         comment: "comment",
-        metadata: { "test-key": "test-value" },
-        observation_id: null,
-        environment: "production",
+        data_type: "NUMERIC" as const,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        event_ts: Date.now(),
+        is_deleted: 0,
       });
+
       await createScoresCh([score]);
 
-      const fetchedScore = await makeZodVerifiedAPICall(
-        GetScoreResponse,
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoreResponseV2,
         "GET",
-        `/api/public/scores/${scoreId}`,
+        `/api/public/v2/scores/${scoreId}`,
         undefined,
         auth,
       );
 
-      expect(fetchedScore.body?.id).toBe(scoreId);
-      expect(fetchedScore.body?.traceId).toBe(traceId);
-      expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(100.5);
-      expect(fetchedScore.body?.observationId).toBeNull();
-      expect(fetchedScore.body?.comment).toBe("comment");
-      expect(fetchedScore.body?.source).toBe("API");
-      expect(fetchedScore.body?.projectId).toBe(projectId);
-      expect(fetchedScore.body?.environment).toBe("production");
-      expect(fetchedScore.body?.metadata).toEqual({ "test-key": "test-value" });
-    });
-
-    it("should update score for a trace", async () => {
-      const traceId = v4();
-
-      const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
-
-      const trace = createTrace({
-        id: traceId,
-        project_id: projectId,
-      });
-      await createTracesCh([trace]);
-
-      const scoreId = v4();
-
-      const score = createScore({
+      expect(getScore.status).toBe(200);
+      expect(getScore.body).toMatchObject({
         id: scoreId,
-        project_id: projectId,
-        trace_id: traceId,
-        name: "score-name",
+        name: "Test Score",
         value: 100.5,
-        source: "API",
         comment: "comment",
-        metadata: { "test-key": "test-value" },
-        observation_id: null,
-        environment: "production",
-      });
-      await createScoresCh([score]);
-
-      const updatedScore = {
-        ...score,
-        value: 200.5,
-        metadata: { "test-key": "test-value-updated" },
-      };
-      await createScoresCh([updatedScore]);
-
-      const fetchedScore = await makeZodVerifiedAPICall(
-        GetScoreResponse,
-        "GET",
-        `/api/public/scores/${scoreId}`,
-        undefined,
-        auth,
-      );
-
-      expect(fetchedScore.body?.id).toBe(scoreId);
-      expect(fetchedScore.body?.traceId).toBe(traceId);
-      expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(200.5);
-      expect(fetchedScore.body?.observationId).toBeNull();
-      expect(fetchedScore.body?.comment).toBe("comment");
-      expect(fetchedScore.body?.source).toBe("API");
-      expect(fetchedScore.body?.projectId).toBe(projectId);
-      expect(fetchedScore.body?.environment).toBe("production");
-      expect(fetchedScore.body?.metadata).toEqual({
-        "test-key": "test-value-updated",
+        source: "API",
+        sessionId,
+        observationId: null,
+        traceId: null,
+        dataType: "NUMERIC",
       });
     });
   });
 
   describe("GET /api/public/scores", () => {
-    it("#6396: should correctly list 100s of scores", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
-
-      // Create a trace to associate with all scores
-      const traceId = v4();
-      const trace = createTrace({
-        id: traceId,
-        project_id: projectId,
-      });
-      await createTracesCh([trace]);
-
-      // Create observation to associate with scores
-      const observationId = v4();
-      const observation = createObservation({
-        id: observationId,
-        project_id: projectId,
-        type: "GENERATION",
-      });
-      await createObservationsCh([observation]);
-
-      // Create about 200 scores
-      const totalScores = 220;
-      const scores = [];
-
-      for (let i = 0; i < totalScores; i++) {
-        scores.push(
-          createScore({
-            id: v4(),
-            project_id: projectId,
-            trace_id: traceId,
-            name: `score-${i}`,
-            value: i,
-            data_type: "NUMERIC",
-            observation_id: observationId,
-          }),
-        );
-      }
-
-      await createScoresCh(scores);
-
-      // Define page size smaller than total to ensure pagination
-      const pageSize = 50;
-      let page = 1;
-      let totalFetched = 0;
-      let hasMorePages = true;
-
-      // Fetch all pages and verify count matches
-      while (hasMorePages) {
-        const response = await makeZodVerifiedAPICall(
-          GetScoresResponse,
-          "GET",
-          `/api/public/scores?limit=${pageSize}&page=${page}`,
-          undefined,
-          auth,
-        );
-
-        expect(response.status).toBe(200);
-
-        // Verify metadata is accurate
-        expect(response.body.meta).toMatchObject({
-          page,
-          limit: pageSize,
-          totalItems: totalScores,
-          totalPages: 5, // totalScores / pageSize
-        });
-
-        // Count fetched items
-        totalFetched += response.body.data.length;
-
-        for (const score of response.body.data) {
-          expect(score).toMatchObject({
-            traceId,
-            observationId,
-            dataType: "NUMERIC",
-          });
-          expect(score.name).toMatch(/^score-\d+$/);
-          expect(score.value).toBe(parseInt(score.name.split("-")[1]));
-        }
-
-        // Check if we need to fetch more pages
-        hasMorePages = page <= response.body.meta.totalPages;
-        page++;
-      }
-
-      // Verify we fetched exactly the number of scores we created
-      expect(totalFetched).toBe(totalScores);
-    });
-
     describe("should Filter scores", () => {
       let configId = "";
       const userId = "user-name";
@@ -345,11 +157,14 @@ describe("/api/public/scores API Endpoint", () => {
       const traceId_2 = v4();
       const traceId_3 = v4();
       const generationId = v4();
+      const sessionId = v4();
       const scoreId_1 = v4();
       const scoreId_2 = v4();
       const scoreId_3 = v4();
       const scoreId_4 = v4();
       const scoreId_5 = v4();
+      const scoreId_6 = v4();
+      const scoreId_7 = v4();
       let authentication: string;
       let newProjectId: string;
 
@@ -401,7 +216,7 @@ describe("/api/public/scores API Endpoint", () => {
 
         configId = config.id;
 
-        const score1 = createScore({
+        const score1 = createTraceScore({
           id: scoreId_1,
           project_id: newProjectId,
           trace_id: traceId,
@@ -413,7 +228,7 @@ describe("/api/public/scores API Endpoint", () => {
           comment: "comment",
         });
 
-        const score2 = createScore({
+        const score2 = createTraceScore({
           id: scoreId_2,
           project_id: newProjectId,
           trace_id: traceId,
@@ -424,7 +239,7 @@ describe("/api/public/scores API Endpoint", () => {
           comment: "comment",
         });
 
-        const score3 = createScore({
+        const score3 = createTraceScore({
           id: scoreId_3,
           project_id: newProjectId,
           trace_id: traceId,
@@ -435,7 +250,7 @@ describe("/api/public/scores API Endpoint", () => {
           comment: "comment",
         });
 
-        const score4 = createScore({
+        const score4 = createTraceScore({
           id: scoreId_4,
           project_id: newProjectId,
           trace_id: traceId_2,
@@ -446,7 +261,7 @@ describe("/api/public/scores API Endpoint", () => {
           comment: "comment",
         });
 
-        const score5 = createScore({
+        const score5 = createTraceScore({
           id: scoreId_5,
           project_id: newProjectId,
           trace_id: traceId_3,
@@ -458,14 +273,40 @@ describe("/api/public/scores API Endpoint", () => {
           environment: "production",
         });
 
-        await createScoresCh([score1, score2, score3, score4, score5]);
+        const sessionScore1 = createSessionScore({
+          id: scoreId_6,
+          project_id: newProjectId,
+          session_id: sessionId,
+          name: scoreName,
+          value: 100.5,
+          data_type: "NUMERIC",
+        });
+
+        const sessionScore2 = createSessionScore({
+          id: scoreId_7,
+          project_id: newProjectId,
+          session_id: sessionId,
+          name: "session-score-name",
+          value: 100.5,
+          data_type: "NUMERIC",
+        });
+
+        await createScoresCh([
+          score1,
+          score2,
+          score3,
+          score4,
+          score5,
+          sessionScore1,
+          sessionScore2,
+        ]);
       });
 
       it("get all scores", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV2,
           "GET",
-          `/api/public/scores?${queryUserName}`,
+          `/api/public/v2/scores`,
           undefined,
           authentication,
         );
@@ -473,22 +314,28 @@ describe("/api/public/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 3,
+          totalItems: 7,
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
-          expect(val).toMatchObject({
-            traceId: traceId,
-            observationId: generationId,
-          });
+          if (val.traceId) {
+            expect(val).toMatchObject({
+              sessionId: null,
+            });
+          } else {
+            expect(val).toMatchObject({
+              sessionId: sessionId,
+              trace: null,
+            });
+          }
         }
       });
 
       it("get all scores for config", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV2,
           "GET",
-          `/api/public/scores?configId=${configId}`,
+          `/api/public/v2/scores?configId=${configId}`,
           undefined,
           authentication,
         );
@@ -511,9 +358,9 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("get all scores for numeric data type", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV2,
           "GET",
-          `/api/public/scores?dataType=NUMERIC`,
+          `/api/public/v2/scores?dataType=NUMERIC`,
           undefined,
           authentication,
         );
@@ -522,13 +369,11 @@ describe("/api/public/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 3,
+          totalItems: 5,
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
           expect(val).toMatchObject({
-            traceId: traceId,
-            observationId: generationId,
             dataType: "NUMERIC",
           });
         }
@@ -536,9 +381,9 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("get all scores for trace tag 'prod'", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV2,
           "GET",
-          `/api/public/scores?traceTags=prod`,
+          `/api/public/v2/scores?traceTags=prod`,
           undefined,
           authentication,
         );
@@ -560,9 +405,9 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("get all scores for environment 'production'", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV2,
           "GET",
-          `/api/public/scores?environment=production`,
+          `/api/public/v2/scores?environment=production`,
           undefined,
           authentication,
         );
@@ -589,9 +434,9 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("get all scores for trace tags 'staging' and 'dev'", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV2,
           "GET",
-          `/api/public/scores?traceTags=${["staging", "dev"]}`,
+          `/api/public/v2/scores?traceTags=${["staging", "dev"]}`,
           undefined,
           authentication,
         );
@@ -620,7 +465,7 @@ describe("/api/public/scores API Endpoint", () => {
 
           beforeEach(async () => {
             queueId = v4();
-            const score = createScore({
+            const score = createTraceScore({
               id: v4(),
               project_id: newProjectId,
               trace_id: traceId,
@@ -631,7 +476,7 @@ describe("/api/public/scores API Endpoint", () => {
               observation_id: generationId,
               queue_id: queueId,
             });
-            const score2 = createScore({
+            const score2 = createTraceScore({
               id: v4(),
               project_id: newProjectId,
               trace_id: traceId,
@@ -648,9 +493,9 @@ describe("/api/public/scores API Endpoint", () => {
 
           it("get all scores for queueId", async () => {
             const getAllScore = await makeZodVerifiedAPICall(
-              GetScoresResponse,
+              GetScoresResponseV2,
               "GET",
-              `/api/public/scores?queueId=${queueId}`,
+              `/api/public/v2/scores?queueId=${queueId}`,
               undefined,
               authentication,
             );
@@ -676,9 +521,9 @@ describe("/api/public/scores API Endpoint", () => {
       describe("should use score operators correctly", () => {
         it("test only operator", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=<`,
+            `/api/public/v2/scores?${queryUserName}&operator=<`,
             undefined,
             authentication,
           );
@@ -693,9 +538,9 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test only value", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&value=0.8`,
+            `/api/public/v2/scores?${queryUserName}&value=0.8`,
             undefined,
             authentication,
           );
@@ -710,9 +555,9 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator <", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=<&value=50`,
+            `/api/public/v2/scores?${queryUserName}&operator=<&value=50`,
             undefined,
             authentication,
           );
@@ -734,9 +579,9 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator >", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=>&value=100`,
+            `/api/public/v2/scores?${queryUserName}&operator=>&value=100`,
             undefined,
             authentication,
           );
@@ -758,9 +603,9 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator <=", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
+            `/api/public/v2/scores?${queryUserName}&operator=<=&value=50.5`,
             undefined,
             authentication,
           );
@@ -789,9 +634,9 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator >=", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
+            `/api/public/v2/scores?${queryUserName}&operator=>=&value=50.5`,
             undefined,
             authentication,
           );
@@ -820,9 +665,9 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator !=", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
+            `/api/public/v2/scores?${queryUserName}&operator=!=&value=50.5`,
             undefined,
             authentication,
           );
@@ -851,9 +696,9 @@ describe("/api/public/scores API Endpoint", () => {
 
         it("test operator =", async () => {
           const getScore = await makeZodVerifiedAPICall(
-            GetScoresResponse,
+            GetScoresResponseV2,
             "GET",
-            `/api/public/scores?${queryUserName}&operator==&value=50.5`,
+            `/api/public/v2/scores?${queryUserName}&operator==&value=50.5`,
             undefined,
             authentication,
           );
@@ -881,7 +726,7 @@ describe("/api/public/scores API Endpoint", () => {
                 error: z.array(z.object({})),
               }),
               "GET",
-              `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
+              `/api/public/v2/scores?${queryUserName}&operator=op&value=50.5`,
               undefined,
               authentication,
             );
@@ -900,7 +745,7 @@ describe("/api/public/scores API Endpoint", () => {
                 error: z.array(z.object({})),
               }),
               "GET",
-              `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
+              `/api/public/v2/scores?${queryUserName}&operator=<&value=myvalue`,
               undefined,
               authentication,
             );
@@ -914,9 +759,9 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("should filter scores by score IDs", async () => {
         const getScore = await makeZodVerifiedAPICall(
-          GetScoresResponse,
+          GetScoresResponseV2,
           "GET",
-          `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`,
+          `/api/public/v2/scores?scoreIds=${scoreId_1},${scoreId_2}`,
           undefined,
           authentication,
         );

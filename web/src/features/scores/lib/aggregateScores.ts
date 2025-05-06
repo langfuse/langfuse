@@ -1,7 +1,7 @@
 import {
   type ScoreAggregate,
   type ScoreSimplified,
-  type APIScore,
+  type APIScoreV2,
   type ScoreSourceType,
   type ScoreDataType,
 } from "@langfuse/shared";
@@ -20,7 +20,7 @@ export const composeAggregateScoreKey = ({
   return `${formattedName}-${source}-${dataType}`;
 };
 
-type ScoreToAggregate = (APIScore | ScoreSimplified) & {
+type ScoreToAggregate = (APIScoreV2 | ScoreSimplified) & {
   hasMetadata?: boolean;
 };
 

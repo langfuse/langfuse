@@ -165,14 +165,20 @@ const AnnotateIOView = ({
             <div className="w-full overflow-auto">
               <AnnotateDrawerContent
                 key={"annotation-drawer-content" + item.objectId}
-                traceId={traceId}
+                scoreTarget={{
+                  type: "trace",
+                  traceId: traceId,
+                  observationId: item.parentTraceId ? item.objectId : undefined,
+                }}
                 scores={trace.data?.scores ?? []}
-                observationId={item.parentTraceId ? item.objectId : undefined}
                 configs={configs}
                 emptySelectedConfigIds={emptySelectedConfigIds}
                 setEmptySelectedConfigIds={() => {}}
                 projectId={item.projectId}
-                type={item.objectType.toLowerCase() as "trace" | "observation"}
+                analyticsData={{
+                  type: "trace",
+                  source: "AnnotationQueue",
+                }}
                 isSelectHidden
                 queueId={item.queueId}
                 showSaving={showSaving}
@@ -188,6 +194,7 @@ const AnnotateIOView = ({
                     </div>
                   ) : undefined
                 }
+                isDrawerOpen={true}
               />
             </div>
             <div className="relative max-h-64 overflow-auto">

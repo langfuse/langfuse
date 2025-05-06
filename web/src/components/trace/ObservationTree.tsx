@@ -1,7 +1,7 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import {
-  type APIScore,
+  type APIScoreV2,
   ObservationLevel,
   type ObservationLevelType,
   type TraceDomain,
@@ -47,7 +47,7 @@ export const ObservationTree = ({
     input: string | null;
     output: string | null;
   };
-  scores: APIScore[];
+  scores: APIScoreV2[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics: boolean;
@@ -135,7 +135,7 @@ const ObservationTreeTraceNode = (props: {
   };
   expandAll: () => void;
   collapseAll: () => void;
-  scores: APIScore[];
+  scores: APIScoreV2[];
   comments: Map<string, number> | undefined;
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
@@ -239,7 +239,7 @@ const ObservationTreeNode = (props: {
   observations: NestedObservation[];
   collapsedObservations: string[];
   toggleCollapsedObservation: (id: string) => void;
-  scores: APIScore[];
+  scores: APIScoreV2[];
   comments?: Map<string, number> | undefined;
   indentationLevel: number;
   currentObservationId: string | undefined;
@@ -312,7 +312,7 @@ const ObservationTreeNodeCard = ({
   observation: NestedObservation;
   collapsed: boolean;
   toggleCollapsedObservation: (id: string) => void;
-  scores: APIScore[];
+  scores: APIScoreV2[];
   comments?: Map<string, number> | undefined;
   indentationLevel: number;
   currentObservationId: string | undefined;

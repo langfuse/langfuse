@@ -1,4 +1,7 @@
-import { type ScoreDataType } from "@langfuse/shared";
+import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
+import { type AnnotateFormSchema } from "@/src/features/scores/schema";
+import { type APIScoreV2, type ScoreDataType } from "@langfuse/shared";
+import { type z } from "zod";
 
 export type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;
@@ -29,3 +32,37 @@ export type ScoreData = {
 export interface TimeseriesDataTransformer {
   toChartData(): ChartData;
 }
+
+export type SessionScoreTarget = {
+  type: "session";
+  sessionId: string;
+};
+
+export type TraceScoreTarget = {
+  type: "trace";
+  traceId: string;
+  observationId?: string;
+};
+
+export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
+
+export type AnnotateDrawerProps<Target extends ScoreTarget> = {
+  projectId: string;
+  scoreTarget: Target;
+  scores: APIScoreV2[];
+  emptySelectedConfigIds: string[];
+  setEmptySelectedConfigIds: (ids: string[]) => void;
+  analyticsData?: {
+    type: "trace" | "session";
+    source: "TraceDetail" | "SessionDetail" | "AnnotationQueue";
+  };
+  variant?: "button" | "badge";
+  buttonVariant?: "secondary" | "outline";
+  hasGroupedButton?: boolean;
+  environment?: string;
+};
+
+export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
+export type AnnotationScoreSchemaType = z.infer<
+  typeof AnnotationScoreDataSchema
+>;

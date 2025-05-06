@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
@@ -25,15 +25,13 @@ import {
 } from "@/src/components/ui/form";
 import { DrawerHeader, DrawerTitle } from "@/src/components/ui/drawer";
 import {
-  type APIScore,
+  type APIScoreV2,
   isPresent,
-  ScoreDataType,
   CreateAnnotationScoreData,
   UpdateAnnotationScoreData,
   type ValidatedScoreConfig,
   type ConfigCategory,
 } from "@langfuse/shared";
-import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
 import {
   Popover,
@@ -41,7 +39,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { api } from "@/src/utils/api";
 import {
   Select,
   SelectContent,
@@ -54,6 +51,7 @@ import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { ScoreConfigDetails } from "@/src/features/scores/components/ScoreConfigDetails";
 import {
+  formatAnnotateDescription,
   isNumericDataType,
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
@@ -66,23 +64,15 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { cn } from "@/src/utils/tailwind";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
-
-const AnnotationScoreDataSchema = z.object({
-  name: z.string(),
-  scoreId: z.string().optional(),
-  value: z.number().nullable().optional(),
-  stringValue: z.string().optional(),
-  dataType: z.nativeEnum(ScoreDataType),
-  configId: z.string().optional(),
-  comment: z.string().optional(),
-});
-
-const AnnotateFormSchema = z.object({
-  scoreData: z.array(AnnotationScoreDataSchema),
-});
-
-type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
-type AnnotationScoreSchemaType = z.infer<typeof AnnotationScoreDataSchema>;
+import {
+  type ScoreTarget,
+  type AnnotateDrawerProps,
+  type AnnotateFormSchemaType,
+  type AnnotationScoreSchemaType,
+} from "@/src/features/scores/types";
+import { useScoreValues } from "@/src/features/scores/hooks/useScoreValues";
+import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
+import { AnnotateFormSchema } from "@/src/features/scores/schema";
 
 const CHAR_CUTOFF = 6;
 
@@ -141,17 +131,17 @@ function handleOnKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
 function AnnotateHeader({
   showSaving,
   actionButtons,
-  observationId,
+  description,
 }: {
   showSaving: boolean;
   actionButtons: React.ReactNode;
-  observationId?: string;
+  description: string;
 }) {
   return (
     <Header
       title="Annotate"
       help={{
-        description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
+        description,
         href: "https://langfuse.com/docs/scores/manually",
         className: "leading-relaxed",
       }}
@@ -174,57 +164,33 @@ function AnnotateHeader({
   );
 }
 
-function useCustomOptimistic<State, Action>(
-  initialState: State,
-  reducer: (state: State, action: Action) => State,
-): [State, (action: Action) => void] {
-  const [state, setState] = useState<State>(initialState);
+type AnnotateDrawerContentProps<Target extends ScoreTarget> =
+  AnnotateDrawerProps<Target> & {
+    configs: ValidatedScoreConfig[];
+    isDrawerOpen: boolean;
+    showSaving: boolean;
+    setShowSaving: (showSaving: boolean) => void;
+    isSelectHidden?: boolean;
+    queueId?: string;
+    actionButtons?: React.ReactNode;
+  };
 
-  const dispatch = useCallback(
-    (action: Action) => {
-      setState((currentState) => reducer(currentState, action));
-    },
-    [reducer],
-  );
-
-  return [state, dispatch];
-}
-
-export function AnnotateDrawerContent({
-  traceId,
+export function AnnotateDrawerContent<Target extends ScoreTarget>({
+  scoreTarget,
   scores,
   configs,
+  analyticsData,
   emptySelectedConfigIds,
   setEmptySelectedConfigIds,
-  observationId,
   projectId,
   showSaving,
   setShowSaving,
   isDrawerOpen = true,
-  type = "trace",
-  source = "TraceDetail",
   isSelectHidden = false,
   queueId,
   actionButtons,
   environment,
-}: {
-  traceId: string;
-  scores: APIScore[];
-  configs: ValidatedScoreConfig[];
-  emptySelectedConfigIds: string[];
-  setEmptySelectedConfigIds: (ids: string[]) => void;
-  observationId?: string;
-  projectId: string;
-  showSaving: boolean;
-  setShowSaving: (showSaving: boolean) => void;
-  isDrawerOpen?: boolean;
-  type?: "trace" | "observation" | "session";
-  source?: "TraceDetail" | "SessionDetail";
-  isSelectHidden?: boolean;
-  queueId?: string;
-  actionButtons?: React.ReactNode;
-  environment?: string;
-}) {
+}: AnnotateDrawerContentProps<Target>) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
 
@@ -235,44 +201,9 @@ export function AnnotateDrawerContent({
         scores,
         emptySelectedConfigIds,
         configs,
-        traceId,
-        observationId,
+        scoreTarget,
       }),
     },
-  });
-
-  const [optimisticScores, setOptimisticScore] = useCustomOptimistic<
-    AnnotateFormSchemaType["scoreData"],
-    {
-      index: number;
-      value: number | null;
-      stringValue: string | null;
-      name?: string | null;
-      dataType?: ScoreDataType | null;
-      configId?: string | null;
-    }
-  >(form.getValues().scoreData, (state, updatedScore) => {
-    const stateCopy = state.map((score, idx) =>
-      idx === updatedScore.index
-        ? {
-            ...score,
-            value: updatedScore.value,
-            stringValue: updatedScore.stringValue ?? undefined,
-          }
-        : score,
-    );
-
-    if (updatedScore.index === stateCopy.length) {
-      const newScore = {
-        name: updatedScore.name ?? "",
-        dataType: updatedScore.dataType ?? ScoreDataType.NUMERIC,
-        configId: updatedScore.configId ?? undefined,
-        value: updatedScore.value,
-        stringValue: updatedScore.stringValue ?? undefined,
-      };
-      return [...stateCopy, newScore];
-    }
-    return stateCopy;
   });
 
   const { fields, remove, update, replace } = useFieldArray({
@@ -281,6 +212,21 @@ export function AnnotateDrawerContent({
   });
 
   const prevEmptySelectedConfigIdsRef = useRef(emptySelectedConfigIds);
+
+  const { optimisticScores, setOptimisticScore } = useScoreValues({
+    getValues: form.getValues,
+  });
+
+  const { createMutation, updateMutation, deleteMutation } = useScoreMutations(
+    scoreTarget,
+    projectId,
+    fields,
+    update,
+    remove,
+    configs,
+    isDrawerOpen,
+    setShowSaving,
+  );
 
   useEffect(() => {
     // Only reset the form if emptySelectedConfigIds has changed, compare by value not reference
@@ -296,93 +242,16 @@ export function AnnotateDrawerContent({
           scores,
           emptySelectedConfigIds,
           configs,
-          traceId,
-          observationId,
+          scoreTarget,
         }),
       });
     }
 
     prevEmptySelectedConfigIdsRef.current = emptySelectedConfigIds;
-  }, [emptySelectedConfigIds, scores, configs, traceId, observationId, form]);
+  }, [emptySelectedConfigIds, scores, configs, scoreTarget, form]);
 
-  const mutDeleteScore = api.scores.deleteAnnotationScore.useMutation({
-    onSettled: async (data, error) => {
-      if (!data || error) return;
-
-      const { id, name, dataType, configId } = data;
-      const updatedScoreIndex = fields.findIndex(
-        (field) => field.scoreId === id,
-      );
-
-      const config = configs.find((config) => config.id === configId);
-      if (config && config.isArchived) {
-        remove(updatedScoreIndex);
-      } else {
-        update(updatedScoreIndex, {
-          name,
-          dataType,
-          configId: configId ?? undefined,
-          value: null,
-          scoreId: undefined,
-          stringValue: undefined,
-          comment: undefined,
-        });
-      }
-
-      await Promise.all([
-        utils.scores.invalidate(),
-        utils.traces.invalidate(),
-        utils.sessions.invalidate(),
-      ]);
-
-      if (!isDrawerOpen) setShowSaving(false);
-    },
-  });
-
-  const utils = api.useUtils();
-
-  const onSettledUpsert = async (data?: APIScore, error?: unknown) => {
-    if (!data || error) return;
-
-    const { id, value, stringValue, name, dataType, configId, comment } = data;
-    const updatedScoreIndex = fields.findIndex(
-      (field) => field.configId === configId,
-    );
-
-    update(updatedScoreIndex, {
-      value,
-      name,
-      dataType,
-      scoreId: id,
-      stringValue: stringValue ?? undefined,
-      configId: configId ?? undefined,
-      comment: comment ?? undefined,
-    });
-
-    await Promise.all([
-      utils.scores.invalidate(),
-      utils.traces.byIdWithObservationsAndScores.invalidate(
-        { projectId, traceId },
-        {
-          type: "all",
-          refetchType: "all",
-        },
-      ),
-      utils.sessions.invalidate(),
-    ]);
-
-    if (!isDrawerOpen) setShowSaving(false);
-  };
-
-  const mutCreateScores = api.scores.createAnnotationScore.useMutation({
-    onSettled: onSettledUpsert,
-  });
-
-  const mutUpdateScores = api.scores.updateAnnotationScore.useMutation({
-    onSettled: onSettledUpsert,
-  });
-
-  const pendingCreates = useRef(new Map<number, Promise<APIScore>>());
+  const pendingCreates = useRef(new Map<number, Promise<APIScoreV2>>());
+  const description = formatAnnotateDescription(scoreTarget);
 
   async function handleScoreChange(
     score: AnnotationScoreSchemaType,
@@ -403,25 +272,23 @@ export function AnnotateDrawerContent({
         const validatedScore = UpdateAnnotationScoreData.parse({
           id: score.scoreId,
           projectId,
-          traceId,
+          scoreTarget,
           name: score.name,
           dataType: score.dataType,
           configId: score.configId,
           stringValue: stringValue ?? score.stringValue,
           comment: score.comment,
-          observationId,
           value,
           queueId,
           environment,
         });
 
-        await mutUpdateScores.mutateAsync({
+        await updateMutation.mutateAsync({
           ...validatedScore,
         });
 
         capture("score:update", {
-          type: type,
-          source: source,
+          ...analyticsData,
           dataType: score.dataType,
         });
       } else {
@@ -433,50 +300,46 @@ export function AnnotateDrawerContent({
           const validatedScore = UpdateAnnotationScoreData.parse({
             id: createdScore.id,
             projectId,
-            traceId,
+            scoreTarget,
             name: score.name,
             dataType: score.dataType,
             configId: score.configId,
             stringValue: stringValue ?? score.stringValue,
             comment: score.comment,
-            observationId,
             value,
             queueId,
             environment,
           });
 
-          await mutUpdateScores.mutateAsync({
+          await updateMutation.mutateAsync({
             ...validatedScore,
           });
 
           capture("score:update", {
-            type: type,
-            source: source,
+            ...analyticsData,
             dataType: score.dataType,
           });
         } else {
           // If no pending create, straightforward create
           const validatedScore = CreateAnnotationScoreData.parse({
             projectId,
-            traceId,
+            scoreTarget,
             name: score.name,
             dataType: score.dataType,
             configId: score.configId,
             stringValue: stringValue ?? score.stringValue,
             comment: score.comment,
-            observationId,
             value,
             queueId,
             environment,
           });
 
-          const createPromise = mutCreateScores.mutateAsync({
+          const createPromise = createMutation.mutateAsync({
             ...validatedScore,
           });
 
           capture("score:create", {
-            type: type,
-            source: source,
+            ...analyticsData,
             dataType: score.dataType,
           });
 
@@ -545,18 +408,18 @@ export function AnnotateDrawerContent({
 
   useEffect(() => {
     if (
-      mutUpdateScores.isLoading ||
-      mutCreateScores.isLoading ||
-      mutDeleteScore.isLoading
+      updateMutation.isLoading ||
+      createMutation.isLoading ||
+      deleteMutation.isLoading
     ) {
       setShowSaving(true);
     } else {
       setShowSaving(false);
     }
   }, [
-    mutUpdateScores.isLoading,
-    mutCreateScores.isLoading,
-    mutDeleteScore.isLoading,
+    updateMutation.isLoading,
+    createMutation.isLoading,
+    deleteMutation.isLoading,
     setShowSaving,
   ]);
 
@@ -646,26 +509,25 @@ export function AnnotateDrawerContent({
         const validatedScore = UpdateAnnotationScoreData.parse({
           id: scoreId,
           projectId,
-          traceId,
+          scoreTarget,
           name: score.name,
           dataType: score.dataType,
           configId: score.configId,
           stringValue: score.stringValue,
-          observationId,
           value,
           comment,
           queueId,
           environment,
         });
 
-        await mutUpdateScores.mutateAsync({
+        await updateMutation.mutateAsync({
           ...validatedScore,
         });
 
-        capture(comment ? "score:update_comment" : "score:delete_comment", {
-          type: type,
-          source: source,
-        });
+        capture(
+          comment ? "score:update_comment" : "score:delete_comment",
+          analyticsData,
+        );
       }
     };
   }
@@ -677,14 +539,14 @@ export function AnnotateDrawerContent({
           <AnnotateHeader
             showSaving={showSaving}
             actionButtons={actionButtons}
-            observationId={observationId}
+            description={description}
           />
         ) : (
           <DrawerTitle>
             <AnnotateHeader
               showSaving={showSaving}
               actionButtons={actionButtons}
-              observationId={observationId}
+              description={description}
             />
           </DrawerTitle>
         )}
@@ -714,7 +576,7 @@ export function AnnotateDrawerContent({
                     optimisticScores.some(
                       (score) => score.configId === config.id && !!score.value,
                     ) ||
-                    mutDeleteScore.isLoading,
+                    deleteMutation.isLoading,
                   isArchived: config.isArchived,
                 }))}
               values={fields
@@ -726,10 +588,10 @@ export function AnnotateDrawerContent({
               controlButtons={
                 <DropdownMenuItem
                   onSelect={() => {
-                    capture("score_configs:manage_configs_item_click", {
-                      type: type,
-                      source: source,
-                    });
+                    capture(
+                      "score_configs:manage_configs_item_click",
+                      analyticsData,
+                    );
                     router.push(`/project/${projectId}/settings/scores`);
                   }}
                 >
@@ -875,9 +737,7 @@ export function AnnotateDrawerContent({
                                                 !field.value ||
                                                 config.isArchived
                                               }
-                                              loading={
-                                                mutUpdateScores.isLoading
-                                              }
+                                              loading={updateMutation.isLoading}
                                               onClick={handleCommentUpdate({
                                                 field,
                                                 score,
@@ -898,9 +758,7 @@ export function AnnotateDrawerContent({
                                               disabled={
                                                 !field.value || !score.comment
                                               }
-                                              loading={
-                                                mutUpdateScores.isLoading
-                                              }
+                                              loading={updateMutation.isLoading}
                                               onClick={handleCommentUpdate({
                                                 field,
                                                 score,
@@ -1074,7 +932,7 @@ export function AnnotateDrawerContent({
                                   <Button
                                     type="button"
                                     variant="destructive"
-                                    loading={mutDeleteScore.isLoading}
+                                    loading={deleteMutation.isLoading}
                                     onClick={async () => {
                                       if (score.scoreId) {
                                         setOptimisticScore({
@@ -1082,14 +940,11 @@ export function AnnotateDrawerContent({
                                           value: null,
                                           stringValue: null,
                                         });
-                                        await mutDeleteScore.mutateAsync({
+                                        await deleteMutation.mutateAsync({
                                           id: score.scoreId,
                                           projectId,
                                         });
-                                        capture("score:delete", {
-                                          type: type,
-                                          source: source,
-                                        });
+                                        capture("score:delete", analyticsData);
                                         form.clearErrors(
                                           `scoreData.${index}.value`,
                                         );
@@ -1109,10 +964,10 @@ export function AnnotateDrawerContent({
                               title="Delete score from trace/observation"
                               disabled={
                                 isScoreUnsaved(score.scoreId) ||
-                                mutUpdateScores.isLoading
+                                updateMutation.isLoading
                               }
                               loading={
-                                mutDeleteScore.isLoading &&
+                                deleteMutation.isLoading &&
                                 !optimisticScores.some(
                                   (s) => s.scoreId === score.scoreId,
                                 ) &&
@@ -1125,14 +980,11 @@ export function AnnotateDrawerContent({
                                     value: null,
                                     stringValue: null,
                                   });
-                                  await mutDeleteScore.mutateAsync({
+                                  await deleteMutation.mutateAsync({
                                     id: score.scoreId,
                                     projectId,
                                   });
-                                  capture("score:delete", {
-                                    type: type,
-                                    source: source,
-                                  });
+                                  capture("score:delete", analyticsData);
                                   form.clearErrors(`scoreData.${index}.value`);
                                 }
                               }}

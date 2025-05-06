@@ -34,7 +34,7 @@ export class DlxRetryService {
 
           const dlxDelay = Date.now() - ts;
 
-          recordHistogram("dlx_retry_delay", dlxDelay, {
+          recordHistogram("langfuse.dlx_retry_delay", dlxDelay, {
             unit: "milliseconds",
             projectId,
             name,

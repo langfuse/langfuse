@@ -6,6 +6,7 @@ import {
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
 
 /**
  * HorizontalBarChart component
@@ -46,6 +47,8 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          tickFormatter={formatAxisLabel}
+          width={90}
         />
         <Bar
           dataKey="metric"
