@@ -82,6 +82,18 @@ export const traceView: ViewDeclarationType = {
       type: "number",
       relationTable: "observations",
     },
+    totalTokens: {
+      sql: "sumMap(observations.usage_details)['total']",
+      alias: "totalTokens",
+      type: "sum",
+      relationTable: "observations",
+    },
+    totalCost: {
+      sql: "sum(observations.total_cost)",
+      alias: "totalCost",
+      type: "sum",
+      relationTable: "observations",
+    },
   },
   tableRelations: {
     observations: {
