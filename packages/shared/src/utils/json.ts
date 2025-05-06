@@ -1,3 +1,6 @@
+import { env } from "../env";
+import { InternalServerError } from "../errors";
+import { logger } from "../server/logger";
 import { JsonNested } from "./zod";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
 
@@ -41,6 +44,7 @@ export function deepParseJson(json: unknown): unknown {
 export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
+  assertJsonSize(json);
   try {
     return parse(json, null, (value) => {
       if (isNumber(value)) {
@@ -56,5 +60,23 @@ export const parseJsonPrioritised = (
     }) as JsonNested;
   } catch (error) {
     return json;
+  }
+};
+
+export const assertJsonSize = (json: string) => {
+  // Large number of observations in trace with large input / output / metadata will lead to
+  // high CPU and memory consumption in the convertObservation step, where parsing occurs
+  // Thus, limit the size of the payload to 5MB, follows NextJS response size limitation:
+  // https://nextjs.org/docs/messages/api-routes-response-size-limit
+  // See also LFE-4882 for more details
+
+  const size = json.length;
+
+  if (size >= env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES) {
+    const errorMessage = `Payload for arbitrary json is too large: ${(size / 1e6).toFixed(2)}MB exceeds limit of ${(env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES / 1e6).toFixed(2)}MB`;
+
+    logger.error(errorMessage);
+
+    throw new InternalServerError(errorMessage);
   }
 };
