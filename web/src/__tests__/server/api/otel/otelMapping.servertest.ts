@@ -278,8 +278,8 @@ describe("OTel Resource Span Mapping", () => {
         promptVersion: null,
         usageDetails: {},
         costDetails: {},
-        input: undefined,
-        output: undefined,
+        input: null,
+        output: null,
       });
 
       expect(generationEvent.body).toMatchObject({

@@ -135,7 +135,7 @@ const extractInputAndOutput = (
   input = attributes[LangfuseOtelSpanAttributes.OBSERVATION_INPUT];
   output = attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT];
 
-  if (input !== null || output !== null) {
+  if (input != null || output != null) {
     return { input, output };
   }
 
@@ -326,18 +326,18 @@ const extractMetadata = (
   }
 
   // Extract metadata from langfuse.metadata.* keys
-  const metadataAttributes = Object.keys(attributes).filter((key) =>
-    key.startsWith(`${metadataKeyPrefix}.`),
-  );
+  const langfuseMetadata: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(attributes)) {
+    for (const prefix of [metadataKeyPrefix, "langfuse.metadata"]) {
+      const newKey = key.replace(`${prefix}.`, "");
+      langfuseMetadata[newKey] = value;
+    }
+  }
 
   return {
     ...metadata,
-    ...metadataAttributes.reduce((acc: Record<string, unknown>, key) => {
-      const metadataKey = key.replace(`${metadataKeyPrefix}.`, "");
-      acc[metadataKey] = attributes[key];
-
-      return acc;
-    }, {}),
+    ...langfuseMetadata,
   };
 };
 
@@ -615,7 +615,9 @@ export const convertOtelSpanToIngestionEvent = (
           sessionId: extractSessionId(attributes),
           public:
             attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === true ||
-            attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === "true",
+            attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === "true" ||
+            attributes?.["langfuse.public"] === true ||
+            attributes?.["langfuse.public"] === "true",
           tags: extractTags(attributes),
 
           environment: extractEnvironment(attributes, resourceAttributes),
