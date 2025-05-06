@@ -42,10 +42,11 @@ export const ObservationTree = ({
   toggleCollapsedObservation: (id: string) => void;
   collapseAll: () => void;
   expandAll: () => void;
-  trace: Omit<TraceDomain, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     latency?: number;
     input: string | null;
     output: string | null;
+    metadata: string | null;
   };
   scores: APIScoreV2[];
   currentObservationId: string | undefined;
@@ -128,9 +129,10 @@ export const ObservationTree = ({
 };
 
 const ObservationTreeTraceNode = (props: {
-  trace: Omit<TraceDomain, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     input: string | null;
     output: string | null;
+    metadata: string | null;
     latency?: number;
   };
   expandAll: () => void;

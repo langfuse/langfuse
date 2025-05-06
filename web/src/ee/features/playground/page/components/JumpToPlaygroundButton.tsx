@@ -39,9 +39,10 @@ type JumpToPlaygroundButtonProps = (
     }
   | {
       source: "generation";
-      generation: Omit<Observation, "input" | "output"> & {
+      generation: Omit<Observation, "input" | "output" | "metadata"> & {
         input: string | null;
         output: string | null;
+        metadata: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
@@ -225,9 +226,10 @@ const parsePrompt = (prompt: Prompt): PlaygroundCache => {
 };
 
 const parseGeneration = (
-  generation: Omit<Observation, "input" | "output"> & {
+  generation: Omit<Observation, "input" | "output" | "metadata"> & {
     input: string | null;
     output: string | null;
+    metadata: string | null;
   },
 ): PlaygroundCache => {
   if (generation.type !== "GENERATION") return null;
@@ -308,7 +310,7 @@ const parseGeneration = (
 };
 
 function parseModelParams(
-  generation: Omit<Observation, "input" | "output">,
+  generation: Omit<Observation, "input" | "output" | "metadata">,
 ):
   | (Partial<UIModelParams> & Pick<UIModelParams, "provider" | "model">)
   | undefined {
@@ -351,7 +353,13 @@ function parseModelParams(
   return modelParams;
 }
 
-function parseTools(generation: Observation): PlaygroundTool[] {
+function parseTools(
+  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+    input: string | null;
+    output: string | null;
+    metadata: string | null;
+  },
+): PlaygroundTool[] {
   // OpenAI Schema
   try {
     const input = JSON.parse(generation.input as string);
@@ -389,7 +397,11 @@ function parseTools(generation: Observation): PlaygroundTool[] {
 }
 
 function parseStructuredOutputSchema(
-  generation: Observation,
+  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+    input: string | null;
+    output: string | null;
+    metadata: string | null;
+  },
 ): PlaygroundSchema | null {
   try {
     const metadata = generation.metadata;
