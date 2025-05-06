@@ -6,6 +6,8 @@ import { ingestionEvent } from "@langfuse/shared/src/server";
 
 describe("OTel Resource Span Mapping", () => {
   describe("Langfuse OTEL SDK spans", () => {
+    const publicKey = "pk-lf-1234567890";
+
     it("should convert LF-OTEL spans to LF-events", () => {
       const langfuseOtelSpans = [
         {
@@ -37,8 +39,14 @@ describe("OTel Resource Span Mapping", () => {
           scopeSpans: [
             {
               scope: {
-                name: "langfuse-sdk:pk-lf-1234567890",
-                version: "2.57.13a0",
+                name: "langfuse-sdk",
+                version: "2.60.3",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: { stringValue: "pk-lf-1234567890" },
+                  },
+                ],
               },
               spans: [
                 {
@@ -231,7 +239,9 @@ describe("OTel Resource Span Mapping", () => {
         },
       ];
 
-      const events = langfuseOtelSpans.flatMap(convertOtelSpanToIngestionEvent);
+      const events = langfuseOtelSpans.flatMap((span) =>
+        convertOtelSpanToIngestionEvent(span, publicKey),
+      );
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const generationEvents = events.filter(
         (e) => e.type === "generation-create",
@@ -256,8 +266,8 @@ describe("OTel Resource Span Mapping", () => {
           "telemetry.sdk.version": "1.32.0",
         },
         scope: {
-          name: "langfuse-sdk:pk-lf-1234567890",
-          version: "2.57.13a0",
+          name: "langfuse-sdk",
+          version: "2.60.3",
         },
       };
 
@@ -366,8 +376,14 @@ describe("OTel Resource Span Mapping", () => {
           scopeSpans: [
             {
               scope: {
-                name: "langfuse-sdk:pk-lf-1234567890",
-                version: "2.57.13a0",
+                name: "langfuse-sdk",
+                version: "2.60.3",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: { stringValue: "pk-lf-1234567890" },
+                  },
+                ],
               },
               spans: [
                 {
@@ -416,7 +432,9 @@ describe("OTel Resource Span Mapping", () => {
         },
       ];
 
-      const events = langfuseOtelSpans.flatMap(convertOtelSpanToIngestionEvent);
+      const events = langfuseOtelSpans.flatMap((span) =>
+        convertOtelSpanToIngestionEvent(span, publicKey),
+      );
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const spanEvents = events.filter((e) => e.type === "span-create");
 
@@ -444,6 +462,98 @@ describe("OTel Resource Span Mapping", () => {
         name: "my-span-with-custom-trace-id",
         environment: "production",
       });
+    });
+    it("should throw an error if langfuse scope spans have wrong project ID", () => {
+      const langfuseOtelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "telemetry.sdk.language",
+                value: {
+                  stringValue: "python",
+                },
+              },
+              {
+                key: "telemetry.sdk.name",
+                value: {
+                  stringValue: "opentelemetry",
+                },
+              },
+              {
+                key: "telemetry.sdk.version",
+                value: {
+                  stringValue: "1.32.0",
+                },
+              },
+              {
+                key: "service.name",
+                value: {
+                  stringValue: "unknown_service",
+                },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "langfuse-sdk",
+                version: "2.60.3",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: {
+                      stringValue: "pk-lf-another",
+                    },
+                  },
+                ],
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [
+                      219, 242, 249, 255, 154, 168, 21, 165, 233, 52, 222, 186,
+                      28, 97, 54, 95,
+                    ],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [128, 191, 93, 22, 69, 180, 81, 135],
+                  },
+                  name: "t1",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: -1422874264,
+                    high: 406650983,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: -904695264,
+                    high: 406650983,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.observation.type",
+                      value: {
+                        stringValue: "span",
+                      },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      expect(() =>
+        langfuseOtelSpans.flatMap((span) =>
+          convertOtelSpanToIngestionEvent(span, publicKey),
+        ),
+      ).toThrowError("Langfuse OTEL SDK span has different public key");
     });
   });
 

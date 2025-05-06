@@ -1,6 +1,6 @@
 import { type IngestionEventType } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { ObservationLevel } from "@langfuse/shared";
+import { ForbiddenError, ObservationLevel } from "@langfuse/shared";
 import { LangfuseOtelSpanAttributes } from "./attributes";
 
 export const convertNanoTimestampToISO = (
@@ -546,6 +546,7 @@ const extractTags = (attributes: Record<string, unknown>): string[] => {
  */
 export const convertOtelSpanToIngestionEvent = (
   resourceSpan: any,
+  publicKey?: string,
 ): IngestionEventType[] => {
   const resourceAttributes =
     resourceSpan?.resource?.attributes?.reduce((acc: any, attr: any) => {
@@ -556,7 +557,23 @@ export const convertOtelSpanToIngestionEvent = (
   const events: IngestionEventType[] = [];
 
   for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
-    const isLangfuseSDKSpan = scopeSpan.scope?.name.startsWith("langfuse-sdk");
+    const isLangfuseSDKSpans = scopeSpan.scope?.name.startsWith("langfuse-sdk");
+
+    const scopeAttributes =
+      scopeSpan?.scope?.attributes?.reduce((acc: any, attr: any) => {
+        acc[attr.key] = convertValueToPlainJavascript(attr.value);
+        return acc;
+      }, {}) ?? {};
+
+    if (
+      isLangfuseSDKSpans &&
+      (!publicKey ||
+        (scopeAttributes["public_key"] as unknown as string) !== publicKey)
+    ) {
+      throw new ForbiddenError(
+        `Langfuse OTEL SDK span has different public key '${scopeAttributes["public_key"]}' than used for authentication '${publicKey}'. Discarding span.`,
+      );
+    }
 
     for (const span of scopeSpan?.spans ?? []) {
       const attributes =
@@ -604,7 +621,7 @@ export const convertOtelSpanToIngestionEvent = (
           metadata: {
             ...resourceAttributeMetadata,
             ...extractMetadata(attributes, "trace"),
-            ...(isLangfuseSDKSpan ? {} : { attributes }),
+            ...(isLangfuseSDKSpans ? {} : { attributes }),
             resourceAttributes,
             scope: scopeSpan?.scope,
           },
@@ -652,7 +669,7 @@ export const convertOtelSpanToIngestionEvent = (
         metadata: {
           ...resourceAttributeMetadata,
           ...spanAttributeMetadata,
-          ...(isLangfuseSDKSpan ? {} : { attributes }),
+          ...(isLangfuseSDKSpans ? {} : { attributes }),
           resourceAttributes,
           scope: scopeSpan?.scope,
         },
@@ -681,8 +698,11 @@ export const convertOtelSpanToIngestionEvent = (
           attributes["langfuse.prompt.version"] ??
           null,
 
-        usageDetails: extractUsageDetails(attributes, isLangfuseSDKSpan) as any,
-        costDetails: extractCostDetails(attributes, isLangfuseSDKSpan) as any,
+        usageDetails: extractUsageDetails(
+          attributes,
+          isLangfuseSDKSpans,
+        ) as any,
+        costDetails: extractCostDetails(attributes, isLangfuseSDKSpans) as any,
 
         // Input and Output
         ...extractInputAndOutput(span?.events ?? [], attributes),

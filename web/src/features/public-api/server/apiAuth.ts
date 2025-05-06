@@ -219,6 +219,7 @@ export class ApiAuthService {
                 rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
                 apiKeyId: finalApiKey.id,
                 scope: finalApiKey.scope,
+                publicKey,
               },
             };
           }
