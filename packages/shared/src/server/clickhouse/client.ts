@@ -3,6 +3,7 @@ import { env } from "../../env";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
+import { randomUUID } from "crypto";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 

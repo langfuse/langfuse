@@ -511,19 +511,19 @@ describe("/api/public/traces API Endpoint", () => {
       createObservation({
         trace_id: traceId,
         project_id: projectId,
-        input: "a".repeat(1e6),
-        output: "b".repeat(1e6),
+        input: "a".repeat(100e6),
+        output: "b".repeat(100e6),
         metadata: {
-          foo: "c".repeat(1e6),
+          foo: "c".repeat(100e6),
         },
       }),
       createObservation({
         trace_id: traceId,
         project_id: projectId,
-        input: "a".repeat(1e6),
-        output: "b".repeat(1e6),
+        input: "a".repeat(100e6),
+        output: "b".repeat(100e6),
         metadata: {
-          foo: "c".repeat(6e6),
+          foo: "c".repeat(100e6),
         },
       }),
     ]);
