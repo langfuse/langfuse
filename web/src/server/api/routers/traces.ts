@@ -54,9 +54,10 @@ type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
 
 export type ObservationReturnTypeWithMetadata = Omit<
   Observation,
-  "input" | "output"
+  "input" | "output" | "metadata"
 > & {
   traceId: string;
+  metadata: string | null;
 };
 
 export type ObservationReturnType = Omit<
@@ -194,6 +195,9 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ ctx }) => {
       return {
         ...ctx.trace,
+        metadata: ctx.trace.metadata
+          ? JSON.stringify(ctx.trace.metadata)
+          : undefined,
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : undefined,
         output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : undefined,
       };
@@ -253,14 +257,21 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...ctx.trace,
+        metadata: ctx.trace.metadata
+          ? JSON.stringify(ctx.trace.metadata)
+          : null,
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
         output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : null,
-        scores: validatedScores,
+        scores: validatedScores.map((s) => ({
+          ...s,
+          metadata: s.metadata ? JSON.stringify(s.metadata) : undefined,
+        })),
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
           ...o,
           output: undefined,
           input: undefined, // this is not queried above.
+          metadata: o.metadata ? JSON.stringify(o.metadata) : undefined,
         })) as ObservationReturnTypeWithMetadata[],
       };
     }),

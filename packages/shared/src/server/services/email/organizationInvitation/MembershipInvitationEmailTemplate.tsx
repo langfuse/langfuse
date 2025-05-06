@@ -8,7 +8,6 @@ import {
   Hr,
   Html,
   Img,
-  Link,
   Preview,
   Section,
   Tailwind,
@@ -58,12 +57,9 @@ export const MembershipInvitationTemplate = ({
             <Text className="text-sm leading-6 text-black">Hello,</Text>
             <Text className="text-sm leading-6 text-black">
               <strong>{invitedByUsername}</strong> (
-              <Link
-                href={`mailto:${invitedByUserEmail}`}
-                className="text-blue-600 no-underline"
-              >
+              <span className="text-blue-600 no-underline">
                 {invitedByUserEmail}
-              </Link>
+              </span>
               ) has invited you to join the <strong>{orgName}</strong>{" "}
               organization on
               {langfuseCloudRegion
@@ -72,6 +68,7 @@ export const MembershipInvitationTemplate = ({
               .
             </Text>
             <Section className="mb-4 mt-8 text-center">
+              {/* Note: inviteLink always refers to a root langfuse url and is not vulnerable to hyperlink injection attacks */}
               <Button
                 className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
                 href={inviteLink}
@@ -84,9 +81,7 @@ export const MembershipInvitationTemplate = ({
             </Section>
             <Text className="text-sm leading-6 text-black">
               or copy and paste this URL into your browser:{" "}
-              <Link href={inviteLink} className="text-blue-600 no-underline">
-                {inviteLink}
-              </Link>
+              <span className="text-blue-600 no-underline">{inviteLink}</span>
             </Text>
             <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
             <Text className="text-xs leading-6 text-[#666666]">
