@@ -511,19 +511,21 @@ describe("/api/public/traces API Endpoint", () => {
       createObservation({
         trace_id: traceId,
         project_id: projectId,
-        input: "a".repeat(1e6),
-        output: "b".repeat(1e6),
+        input: "a".repeat(30e6),
+        output: "b".repeat(30e6),
         metadata: {
-          foo: "c".repeat(1e6),
+          foo: "c".repeat(30e6),
         },
       }),
+    ]);
+    await createObservationsCh([
       createObservation({
         trace_id: traceId,
         project_id: projectId,
-        input: "a".repeat(1e6),
-        output: "b".repeat(1e6),
+        input: "a".repeat(30e6),
+        output: "b".repeat(30e6),
         metadata: {
-          foo: "c".repeat(6e6),
+          foo: "c".repeat(30e6),
         },
       }),
     ]);
@@ -535,7 +537,7 @@ describe("/api/public/traces API Endpoint", () => {
         `/api/public/traces/${traceId}`,
       ),
     ).rejects.toThrow(
-      "Observations in trace are too large: 11.00MB exceeds limit of 10.00MB",
+      "Observations in trace are too large: 90.00MB exceeds limit of 80.00MB",
     );
   });
 
