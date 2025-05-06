@@ -12,7 +12,7 @@ export const PostScoreBodyFoundationSchema = z.object({
   name: NonEmptyString,
   traceId: z.string().nullish(),
   sessionId: z.string().nullish(),
-  runId: z.string().nullish(),
+  datasetRunId: z.string().nullish(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
   metadata: jsonSchema.nullish(),

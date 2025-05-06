@@ -7,18 +7,21 @@ export const applyScoreValidation = <T extends z.ZodType<any, any, any>>(
     (data) => {
       const hasTraceId = !!data.traceId;
       const hasSessionId = !!data.sessionId;
-      const hasRunId = !!data.runId;
+      const hasDatasetRunId = !!data.datasetRunId;
 
       return (
-        (hasTraceId && !hasSessionId && !hasRunId) ||
-        (hasSessionId && !hasTraceId && !hasRunId && !data.observationId) ||
-        (hasRunId && !hasTraceId && !hasSessionId && !data.observationId)
+        (hasTraceId && !hasSessionId && !hasDatasetRunId) ||
+        (hasSessionId &&
+          !hasTraceId &&
+          !hasDatasetRunId &&
+          !data.observationId) ||
+        (hasDatasetRunId && !hasTraceId && !hasSessionId && !data.observationId)
       );
     },
     {
       message:
-        "Provide exactly one of the following: traceId (with optional observationId), sessionId or runId. ObservationId requires traceId.",
-      path: ["traceId", "sessionId", "runId", "observationId"],
+        "Provide exactly one of the following: traceId (with optional observationId), sessionId or datasetRunId. ObservationId requires traceId.",
+      path: ["traceId", "sessionId", "datasetRunId", "observationId"],
     },
   );
 };

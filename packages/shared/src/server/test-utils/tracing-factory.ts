@@ -96,6 +96,7 @@ export const createTraceScore = (
     is_deleted: 0,
     ...score,
     session_id: null,
+    dataset_run_id: null,
   };
 };
 
@@ -121,16 +122,17 @@ export const createSessionScore = (
     ...score,
     observation_id: null,
     trace_id: null,
+    dataset_run_id: null,
   };
 };
 
-export const createRunScore = (
+export const createDatasetRunScore = (
   score: Partial<ScoreRecordInsertType>,
 ): ScoreRecordInsertType => {
   return {
     id: v4(),
     project_id: v4(),
-    run_id: v4(),
+    dataset_run_id: v4(),
     environment: "default",
     name: "test-run-score" + v4(),
     timestamp: Date.now(),

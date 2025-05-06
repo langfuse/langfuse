@@ -16,7 +16,7 @@ import {
   getLatencyAndTotalCostForObservations,
   getLatencyAndTotalCostForObservationsByTraces,
   getObservationsById,
-  getScoresForRuns,
+  getScoresForDatasetRuns,
   getScoresForTraces,
   getTracesByIds,
   logger,
@@ -101,7 +101,7 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       clickhouseSession,
     );
 
-    const runScores = await getScoresForRuns({
+    const runScores = await getScoresForDatasetRuns({
       projectId: input.projectId,
       runIds: runs.map((r) => r.run_id),
       includeHasMetadata: true,
@@ -142,8 +142,9 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
         scores: aggregateScores(
           traceScores.filter((s) => s.run_id === run.run_id),
         ),
+        // check this one
         runScores: aggregateScores(
-          runScores.filter((s) => s.runId === run.run_id),
+          runScores.filter((s) => s.datasetRunId === run.run_id),
         ),
       };
     });

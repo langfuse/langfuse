@@ -157,7 +157,7 @@ type GetScoresForSessionsProps<
   includeHasMetadata?: IncludeHasMetadata;
 };
 
-type GetScoresForRunsProps<
+type GetScoresForDatasetRunsProps<
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 > = {
@@ -233,11 +233,11 @@ export const getScoresForSessions = async <
   return rows.map(convertToScore);
 };
 
-export const getScoresForRuns = async <
+export const getScoresForDatasetRuns = async <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 >(
-  props: GetScoresForRunsProps<ExcludeMetadata, IncludeHasMetadata>,
+  props: GetScoresForDatasetRunsProps<ExcludeMetadata, IncludeHasMetadata>,
 ) => {
   const {
     projectId,
@@ -256,7 +256,7 @@ export const getScoresForRuns = async <
         ${select}
       from scores s
       WHERE s.project_id = {projectId: String}
-      AND s.run_id IN ({runIds: Array(String)}) 
+      AND s.dataset_run_id IN ({runIds: Array(String)}) 
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
@@ -648,7 +648,7 @@ export async function getScoresUiTable<
     comment: string | null;
     trace_id: string | null;
     session_id: string | null;
-    run_id: string | null;
+    dataset_run_id: string | null;
     metadata: ExcludeMetadata extends true ? never : Record<string, string>;
     observation_id: string | null;
     author_user_id: string | null;
@@ -680,7 +680,7 @@ export async function getScoresUiTable<
     traceId: row.trace_id,
     sessionId: row.session_id,
     observationId: row.observation_id,
-    runId: row.run_id,
+    datasetRunId: row.dataset_run_id,
     traceUserId: row.user_id,
     traceName: row.trace_name,
     traceTags: row.trace_tags,

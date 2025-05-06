@@ -1,1 +1,1 @@
-ALTER TABLE scores DROP COLUMN IF EXISTS run_id SETTINGS mutations_sync = 2;
+ALTER TABLE scores DROP COLUMN IF EXISTS dataset_run_id SETTINGS mutations_sync = 2;

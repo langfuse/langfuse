@@ -3,7 +3,7 @@ import {
   createTraceScore,
   createTrace,
   createSessionScore,
-  createRunScore,
+  createDatasetRunScore,
 } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
@@ -141,7 +141,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         sessionId,
         observationId: null,
         traceId: null,
-        runId: null,
+        datasetRunId: null,
         dataType: "NUMERIC",
       });
     });
@@ -151,10 +151,10 @@ describe("/api/public/v2/scores API Endpoint", () => {
 
       const scoreId = v4();
       const runId = v4();
-      const score = createRunScore({
+      const score = createDatasetRunScore({
         id: scoreId,
         project_id: projectId,
-        run_id: runId,
+        dataset_run_id: runId,
         name: "Test Score",
         timestamp: Date.now(),
         value: 100.5,
@@ -184,7 +184,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         value: 100.5,
         comment: "comment",
         source: "API",
-        runId,
+        datasetRunId: runId,
         observationId: null,
         traceId: null,
         dataType: "NUMERIC",
@@ -341,19 +341,19 @@ describe("/api/public/v2/scores API Endpoint", () => {
           data_type: "NUMERIC",
         });
 
-        const runScore1 = createRunScore({
+        const runScore1 = createDatasetRunScore({
           id: scoreId_8,
           project_id: newProjectId,
-          run_id: runId,
+          dataset_run_id: runId,
           name: scoreName,
           value: 100.5,
           data_type: "NUMERIC",
         });
 
-        const runScore2 = createRunScore({
+        const runScore2 = createDatasetRunScore({
           id: scoreId_9,
           project_id: newProjectId,
-          run_id: runId,
+          dataset_run_id: runId,
           name: scoreName,
           value: 100.5,
           data_type: "NUMERIC",
@@ -397,11 +397,15 @@ describe("/api/public/v2/scores API Endpoint", () => {
               expect.objectContaining({
                 trace: null,
                 ...(val.sessionId === sessionId ? { sessionId } : {}),
-                ...(val.runId ? { runId: expect.any(String) } : {}),
+                ...(val.datasetRunId
+                  ? { datasetRunId: expect.any(String) }
+                  : {}),
               }),
             );
             // Check that one of the two conditions is true
-            expect(val.sessionId === sessionId || val.runId).toBeTruthy();
+            expect(
+              val.sessionId === sessionId || val.datasetRunId,
+            ).toBeTruthy();
           }
         }
       });

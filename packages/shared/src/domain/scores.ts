@@ -23,7 +23,7 @@ export const ScoreSchema = z.object({
   comment: z.string().nullable(),
   traceId: z.string().nullable(),
   sessionId: z.string().nullable(),
-  runId: z.string().nullable(),
+  datasetRunId: z.string().nullable(),
   metadata: MetadataDomain,
   observationId: z.string().nullable(),
   configId: z.string().nullable(),
