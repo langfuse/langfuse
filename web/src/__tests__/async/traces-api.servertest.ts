@@ -489,7 +489,7 @@ describe("/api/public/traces API Endpoint", () => {
     });
   });
 
-  it.only("should return 5XX if observations are too large when fetching single trace", async () => {
+  it("should return 5XX if observations are too large when fetching single trace", async () => {
     // See LFE-4882 for context
     const traceId = randomUUID();
     const trace = createTrace({
