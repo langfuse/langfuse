@@ -35,6 +35,7 @@ export const observationsRouter = createTRPCRouter({
           ...obs,
           input: obs.input ? JSON.stringify(obs.input) : null,
           output: obs.output ? JSON.stringify(obs.output) : null,
+          metadata: obs.metadata ? JSON.stringify(obs.metadata) : null,
           internalModel: obs?.internalModelId,
         };
       } catch (e) {

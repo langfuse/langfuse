@@ -412,10 +412,11 @@ export function TraceTimelineView({
   minLevel,
   setMinLevel,
 }: {
-  trace: Omit<TraceDomain, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     latency?: number;
     input: string | null;
     output: string | null;
+    metadata: string | null;
   };
   observations: Array<ObservationReturnTypeWithMetadata>;
   projectId: string;

@@ -45,10 +45,11 @@ export const TracePreview = ({
   commentCounts,
   viewType = "detailed",
 }: {
-  trace: Omit<TraceDomain, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     latency?: number;
     input: string | null;
     output: string | null;
+    metadata: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
   scores: APIScoreV2[];
