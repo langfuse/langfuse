@@ -238,7 +238,7 @@ export function DatasetRunsTable(props: {
       projectId: props.projectId,
       scoreColumnKey: "runItemScores",
       showAggregateViewOnly: false,
-      scoreColumnPrefix: "Run Item",
+      scoreColumnPrefix: "Aggregated",
     });
 
   const {
@@ -249,7 +249,7 @@ export function DatasetRunsTable(props: {
     projectId: props.projectId,
     scoreColumnKey: "runScores",
     showAggregateViewOnly: false,
-    scoreColumnPrefix: "Run",
+    scoreColumnPrefix: "Run-level",
   });
 
   const scoreIdToName = useMemo(() => {
@@ -400,7 +400,7 @@ export function DatasetRunsTable(props: {
     {
       ...getScoreGroupColumnProps(isRunScoreColumnLoading, {
         accessorKey: "runScores",
-        header: "Run Scores",
+        header: "Run-level Scores",
         id: "runScores",
       }),
       columns: runScoreColumns,
@@ -408,7 +408,7 @@ export function DatasetRunsTable(props: {
     {
       ...getScoreGroupColumnProps(isColumnLoading, {
         accessorKey: "runItemScores",
-        header: "Run Item Scores",
+        header: "Aggregated Run Items Scores",
         id: "runItemScores",
       }),
       columns: scoreColumns,
@@ -483,14 +483,14 @@ export function DatasetRunsTable(props: {
         ? verifyAndPrefixScoreDataAgainstKeys(
             scoreKeysAndProps,
             item.scores,
-            "Run Item",
+            "Aggregated",
           )
         : undefined,
       runScores: item.runScores
         ? verifyAndPrefixScoreDataAgainstKeys(
             runScoreKeysAndProps,
             item.runScores,
-            "Run",
+            "Run-level",
           )
         : undefined,
       description: item.description ?? "",
