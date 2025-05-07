@@ -191,7 +191,7 @@ function TreeItemInner({
               <div
                 className={cn(
                   "flex h-8 items-center justify-start rounded-sm border border-border bg-muted",
-                  itemWidth ? "" : "border border-dashed",
+                  itemWidth ? "" : "border-dashed",
                   isSelected
                     ? "ring ring-primary-accent"
                     : "group-hover:ring group-hover:ring-tertiary",
