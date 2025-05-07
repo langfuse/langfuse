@@ -19,10 +19,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { validateOrderBy, validateFilters } from "../validation";
 
 interface TableStateUpdaters {
-  setOrderBy: (orderBy: OrderByState) => void;
-  setFilters: (filters: FilterState) => void;
   setColumnOrder: (columnOrder: string[]) => void;
   setColumnVisibility: (columnVisibility: VisibilityState) => void;
+  setOrderBy?: (orderBy: OrderByState) => void;
+  setFilters?: (filters: FilterState) => void;
   setSearchQuery?: (searchQuery: string) => void;
 }
 
@@ -162,8 +162,8 @@ export function useTableViewManager({
         );
       }
 
-      setOrderBy(validOrderBy);
-      setFilters(validFilters);
+      if (isFunction(setOrderBy)) setOrderBy(validOrderBy);
+      if (isFunction(setFilters)) setFilters(validFilters);
 
       // Handle search query
       if (viewData.searchQuery !== undefined && isFunction(setSearchQuery)) {
