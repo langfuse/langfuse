@@ -493,7 +493,9 @@ export function TableViewPresetsDrawer({
                         </DropdownMenu>
                         <div className="flex items-center text-xs text-muted-foreground">
                           <Avatar>
-                            <AvatarImage src={view.createdByUser.image} />
+                            <AvatarImage
+                              src={view.createdByUser?.image ?? undefined}
+                            />
                           </Avatar>
                         </div>
                       </div>

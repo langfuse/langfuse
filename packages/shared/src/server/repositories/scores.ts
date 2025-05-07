@@ -157,6 +157,19 @@ type GetScoresForSessionsProps<
   includeHasMetadata?: IncludeHasMetadata;
 };
 
+type GetScoresForDatasetRunsProps<
+  ExcludeMetadata extends boolean,
+  IncludeHasMetadata extends boolean,
+> = {
+  projectId: string;
+  runIds: string[];
+  limit?: number;
+  offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
+  excludeMetadata?: ExcludeMetadata;
+  includeHasMetadata?: IncludeHasMetadata;
+};
+
 const formatMetadataSelect = (
   excludeMetadata: boolean,
   includeHasMetadata: boolean,
@@ -205,6 +218,55 @@ export const getScoresForSessions = async <
     params: {
       projectId,
       sessionIds,
+      limit,
+      offset,
+    },
+    tags: {
+      feature: "sessions",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
+    clickhouseConfigs,
+  });
+
+  return rows.map(convertToScore);
+};
+
+export const getScoresForDatasetRuns = async <
+  ExcludeMetadata extends boolean,
+  IncludeHasMetadata extends boolean,
+>(
+  props: GetScoresForDatasetRunsProps<ExcludeMetadata, IncludeHasMetadata>,
+) => {
+  const {
+    projectId,
+    runIds,
+    limit,
+    offset,
+    clickhouseConfigs,
+    excludeMetadata = false,
+    includeHasMetadata = false,
+  } = props;
+
+  const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
+
+  const query = `
+      select 
+        ${select}
+      from scores s
+      WHERE s.project_id = {projectId: String}
+      AND s.dataset_run_id IN ({runIds: Array(String)}) 
+      ORDER BY s.event_ts DESC
+      LIMIT 1 BY s.id, s.project_id
+      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+    `;
+
+  const rows = await queryClickhouse<ScoreRecordReadType>({
+    query: query,
+    params: {
+      projectId,
+      runIds,
       limit,
       offset,
     },
@@ -586,6 +648,7 @@ export async function getScoresUiTable<
     comment: string | null;
     trace_id: string | null;
     session_id: string | null;
+    dataset_run_id: string | null;
     metadata: ExcludeMetadata extends true ? never : Record<string, string>;
     observation_id: string | null;
     author_user_id: string | null;
@@ -617,6 +680,7 @@ export async function getScoresUiTable<
     traceId: row.trace_id,
     sessionId: row.session_id,
     observationId: row.observation_id,
+    datasetRunId: row.dataset_run_id,
     traceUserId: row.user_id,
     traceName: row.trace_name,
     traceTags: row.trace_tags,

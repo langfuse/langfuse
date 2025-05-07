@@ -55,7 +55,7 @@ import {
   isNumericDataType,
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
-import { getDefaultScoreData } from "@/src/features/scores/lib/getDefaultScoreData";
+import { getDefaultAnnotationScoreData } from "@/src/features/scores/lib/getDefaultScoreData";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import Header from "@/src/components/layouts/header";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
@@ -197,7 +197,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
-      scoreData: getDefaultScoreData({
+      scoreData: getDefaultAnnotationScoreData({
         scores,
         emptySelectedConfigIds,
         configs,
@@ -238,7 +238,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
       )
     ) {
       form.reset({
-        scoreData: getDefaultScoreData({
+        scoreData: getDefaultAnnotationScoreData({
           scores,
           emptySelectedConfigIds,
           configs,
