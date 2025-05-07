@@ -185,6 +185,7 @@ export class IngestionService {
             source: validatedScore.source,
             trace_id: validatedScore.traceId,
             session_id: validatedScore.sessionId,
+            dataset_run_id: validatedScore.datasetRunId,
             data_type: validatedScore.dataType,
             observation_id: validatedScore.observationId,
             comment: validatedScore.comment,

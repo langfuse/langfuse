@@ -22,7 +22,7 @@ import { type SessionTableRow } from "@/src/components/table/use-cases/sessions"
 
 const prefixScoreColKey = (
   key: string,
-  prefix: "Trace" | "Generation",
+  prefix: "Trace" | "Generation" | "Run-level" | "Aggregated",
 ): string => `${prefix}-${key}`;
 
 export const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
@@ -47,7 +47,7 @@ const parseScoreColumn = <
     | SessionTableRow,
 >(
   col: ScoreData,
-  prefix?: "Trace" | "Generation",
+  prefix?: "Trace" | "Generation" | "Run-level" | "Aggregated",
 ): LangfuseColumnDef<T> => {
   const { key, name, source, dataType } = col;
 
@@ -73,7 +73,7 @@ const parseScoreColumn = <
 export function verifyAndPrefixScoreDataAgainstKeys(
   scoreKeys: ScoreData[],
   scoreData: ScoreAggregate,
-  prefix?: "Trace" | "Generation",
+  prefix?: "Trace" | "Generation" | "Run-level" | "Aggregated",
 ): ScoreAggregate {
   if (!Boolean(scoreKeys.length)) return {};
   let filteredScores: ScoreAggregate = {};
@@ -102,7 +102,7 @@ export const constructIndividualScoreColumns = <
   scoreColumnProps: ScoreData[];
   scoreColumnKey: keyof T & string;
   showAggregateViewOnly?: boolean;
-  scoreColumnPrefix?: "Trace" | "Generation";
+  scoreColumnPrefix?: "Trace" | "Generation" | "Run-level" | "Aggregated";
   cellsLoading?: boolean;
 }): LangfuseColumnDef<T>[] => {
   return scoreColumnProps.map((col) => {
@@ -140,10 +140,17 @@ export const constructIndividualScoreColumns = <
   });
 };
 
-export const getScoreGroupColumnProps = (isLoading: boolean) => ({
-  accessorKey: "scores",
-  header: "Scores",
-  id: "scores",
+export const getScoreGroupColumnProps = (
+  isLoading: boolean,
+  config = {
+    accessorKey: "scores",
+    header: "Scores",
+    id: "scores",
+  },
+) => ({
+  accessorKey: config.accessorKey,
+  header: config.header,
+  id: config.id,
   enableHiding: true,
   hideByDefault: true,
   cell: () => {
