@@ -683,6 +683,7 @@ const getScoresUiGeneric = async <T>(props: {
         s.comment,
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
+        s.session_id,
         s.observation_id,
         s.author_user_id,
         t.user_id,
