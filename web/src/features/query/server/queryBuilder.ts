@@ -136,7 +136,7 @@ export class QueryBuilder {
         type = "datetime";
       } else if (filter.column === "metadata") {
         clickhouseSelect = "metadata";
-        type = "json";
+        type = "stringObject";
       } else {
         throw new Error(
           `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${view.timeDimension}`,
