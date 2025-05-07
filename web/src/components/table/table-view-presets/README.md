@@ -1,18 +1,18 @@
-# Saved Table Views
+# Table View Presets
 
 This module provides a flexible and robust way to manage and persist table states across sessions. Users can save, load, and share specific table configurations including column visibility, ordering, filters, and search queries.
 
 Users can now:
 
 - Save current table state as a named view
-- Select saved views from the dropdown
+- Select table view presets from the dropdown
 - Update existing views. Please note that we do not currently detect drift between the view definition and the table state but show the update button at all times, even if there is no drift.
 - Delete views they no longer need
 - Generate permalinks to share specific views
 
 ## Robustness to Table Changes
 
-The saved views system is designed to gracefully handle changes to table structure:
+The table view presets system is designed to gracefully handle changes to table structure:
 
 ### Column Changes
 
@@ -33,7 +33,7 @@ The saved views system is designed to gracefully handle changes to table structu
 
 ### Default Validation
 
-Validation context is optional, and the system will apply saved views even if validation parameters aren't provided, allowing for gradual adoption.
+Validation context is optional, and the system will apply table view presets even if validation parameters aren't provided, allowing for gradual adoption.
 
 ## Graceful Degradation
 
@@ -81,19 +81,19 @@ When a user visits a permalink:
 ## File Structure
 
 ```
-web/src/components/table/saved-views/
+web/src/components/table/table-view-presets/
 ├── components/
-│   ├── data-table-saved-views-drawer.tsx # Main UI component for saved views
+│   ├── data-table-table-view-presets-drawer.tsx # Main UI component for table view presets
 ├── hooks/
 │   ├── useTableViewManager.ts    # Core hook for managing view state
-│   ├── useViewData.ts            # Hook for retrieving saved views
+│   ├── useViewData.ts            # Hook for retrieving table view presets
 │   └── useViewMutations.ts       # Hook for mutation operations (create, update, delete)
 ```
 
 Additional related files:
 
 ```
-packages/shared/src/domain/saved-views.ts      # Type definitions
+packages/shared/src/domain/table-view-presets.ts      # Type definitions
 packages/shared/src/server/services/TableViewService/ # Server-side handling
 ```
 
@@ -104,7 +104,7 @@ The implementation uses a combination of:
 - **Database storage** for permanent view saving
 - **Validation logic** for backwards compatibility
 
-By focusing on robustness and graceful degradation, the saved views feature provides a reliable experience even as tables evolve over time.
+By focusing on robustness and graceful degradation, the table view presets feature provides a reliable experience even as tables evolve over time.
 
 ## Example Usage
 
@@ -116,7 +116,7 @@ const {
   handleSetViewId,
   selectedViewId
 } = useTableViewManager({
-    tableName: SavedViewTableName.Traces,
+    tableName: TableViewPresetTableName.Traces,
     projectId,
     stateUpdaters: {
     setOrderBy,
@@ -134,7 +134,7 @@ const {
 // 2. Pass the view configuration to the DataTableToolbar
 <DataTableToolbar
   viewConfig={{
-    tableName: SavedViewTableName.Traces,
+    tableName: TableViewPresetTableName.Traces,
     projectId,
     controllers: {
       selectedViewId,

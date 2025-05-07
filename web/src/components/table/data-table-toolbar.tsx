@@ -12,8 +12,8 @@ import {
   type FilterState,
   type ColumnDefinition,
   type OrderByState,
-  type SavedViewDomain,
-  type SavedViewTableName,
+  type TableViewPresetDomain,
+  type TableViewPresetTableName,
 } from "@langfuse/shared";
 import {
   type RowSelectionState,
@@ -35,7 +35,7 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
-import { SavedViewsDrawer } from "@/src/components/table/saved-views/components/data-table-saved-views-drawer";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -54,13 +54,13 @@ interface SearchConfig {
 }
 
 interface TableViewControllers {
-  applyViewState: (viewData: SavedViewDomain) => void;
+  applyViewState: (viewData: TableViewPresetDomain) => void;
   selectedViewId: string | null;
   handleSetViewId: (viewId: string | null) => void;
 }
 
 interface TableViewConfig {
-  tableName: SavedViewTableName;
+  tableName: TableViewPresetTableName;
   projectId: string;
   controllers: TableViewControllers;
 }
@@ -189,7 +189,7 @@ export function DataTableToolbar<TData, TValue>({
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
           {!!columnVisibility && !!columnOrder && !!viewConfig && (
-            <SavedViewsDrawer
+            <TableViewPresetsDrawer
               viewConfig={viewConfig}
               currentState={{
                 orderBy: orderByState ?? null,

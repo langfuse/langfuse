@@ -1,34 +1,33 @@
 import { prisma } from "../../../db";
 import {
-  SavedViewDomainSchema,
-  SavedViewTableName,
-  type SavedViewDomain,
-} from "../../../domain/saved-views";
+  TableViewPresetTableName,
+  type TableViewPresetDomain,
+} from "../../../domain/table-view-presets";
 import { LangfuseNotFoundError } from "../../../errors";
 import {
-  SavedViewNamesCreatorList,
-  SavedViewNamesCreatorListSchema,
-  UpdateSavedViewNameInput,
-  type CreateSavedViewInput,
-  type UpdateSavedViewInput,
+  TableViewPresetsNamesCreatorList,
+  TableViewPresetsNamesCreatorListSchema,
+  UpdateTableViewPresetsNameInput,
+  type CreateTableViewPresetsInput,
+  type UpdateTableViewPresetsInput,
 } from "./types";
 
-const TABLE_NAME_TO_URL_MAP = <Record<SavedViewTableName, string>>{
-  [SavedViewTableName.Traces]: "traces",
-  [SavedViewTableName.Observations]: "observations",
-  [SavedViewTableName.Scores]: "scores",
-  [SavedViewTableName.Sessions]: "sessions",
+const TABLE_NAME_TO_URL_MAP = <Record<TableViewPresetTableName, string>>{
+  [TableViewPresetTableName.Traces]: "traces",
+  [TableViewPresetTableName.Observations]: "observations",
+  [TableViewPresetTableName.Scores]: "scores",
+  [TableViewPresetTableName.Sessions]: "sessions",
 };
 
 export class TableViewService {
   /**
    * Creates a saved view
    */
-  public static async createSavedView(
-    input: CreateSavedViewInput,
+  public static async createTableViewPresets(
+    input: CreateTableViewPresetsInput,
     createdBy: string,
-  ): Promise<SavedViewDomain> {
-    const newSavedView = await prisma.savedView.create({
+  ): Promise<TableViewPresetDomain> {
+    const newTableViewPresets = await prisma.tableViewPreset.create({
       data: {
         createdBy,
         updatedBy: createdBy,
@@ -37,17 +36,17 @@ export class TableViewService {
       },
     });
 
-    return SavedViewDomainSchema.parse(newSavedView);
+    return newTableViewPresets as unknown as TableViewPresetDomain;
   }
 
   /**
    * Updates a saved view's definition
    */
-  public static async updateSavedView(
-    input: UpdateSavedViewInput,
+  public static async updateTableViewPresets(
+    input: UpdateTableViewPresetsInput,
     updatedBy: string,
-  ): Promise<SavedViewDomain> {
-    const savedView = await prisma.savedView.findUnique({
+  ): Promise<TableViewPresetDomain> {
+    const tableViewPresets = await prisma.tableViewPreset.findUnique({
       where: {
         id: input.id,
         projectId: input.projectId,
@@ -55,13 +54,13 @@ export class TableViewService {
       },
     });
 
-    if (!savedView) {
+    if (!tableViewPresets) {
       throw new LangfuseNotFoundError(
         `Saved view not found for table ${input.tableName} in project ${input.projectId}`,
       );
     }
 
-    const updatedSavedView = await prisma.savedView.update({
+    const updatedTableViewPresets = await prisma.tableViewPreset.update({
       where: {
         id: input.id,
         projectId: input.projectId,
@@ -74,17 +73,17 @@ export class TableViewService {
       },
     });
 
-    return SavedViewDomainSchema.parse(updatedSavedView);
+    return updatedTableViewPresets as unknown as TableViewPresetDomain;
   }
 
   /**
    * Updates a saved view's name
    */
-  public static async updateSavedViewName(
-    input: UpdateSavedViewNameInput,
+  public static async updateTableViewPresetsName(
+    input: UpdateTableViewPresetsNameInput,
     updatedBy: string,
-  ): Promise<SavedViewDomain> {
-    const savedView = await prisma.savedView.findUnique({
+  ): Promise<TableViewPresetDomain> {
+    const tableViewPresets = await prisma.tableViewPreset.findUnique({
       where: {
         id: input.id,
         projectId: input.projectId,
@@ -92,13 +91,13 @@ export class TableViewService {
       },
     });
 
-    if (!savedView) {
+    if (!tableViewPresets) {
       throw new LangfuseNotFoundError(
         `Saved view not found for table ${input.tableName} in project ${input.projectId}`,
       );
     }
 
-    const updatedSavedView = await prisma.savedView.update({
+    const updatedTableViewPresets = await prisma.tableViewPreset.update({
       where: {
         id: input.id,
         projectId: input.projectId,
@@ -110,32 +109,32 @@ export class TableViewService {
       },
     });
 
-    return SavedViewDomainSchema.parse(updatedSavedView);
+    return updatedTableViewPresets as unknown as TableViewPresetDomain;
   }
 
   /**
    * Deletes a saved view
    */
-  public static async deleteSavedView(
-    savedViewId: string,
+  public static async deleteTableViewPresets(
+    TableViewPresetsId: string,
     projectId: string,
   ): Promise<void> {
-    await prisma.savedView.delete({
+    await prisma.tableViewPreset.delete({
       where: {
-        id: savedViewId,
+        id: TableViewPresetsId,
         projectId,
       },
     });
   }
 
   /**
-   * Gets all saved views for a table
+   * Gets all table view presets for a table
    */
-  public static async getSavedViewsByTableName(
+  public static async getTableViewPresetsByTableName(
     tableName: string,
     projectId: string,
-  ): Promise<SavedViewNamesCreatorList> {
-    const savedViews = await prisma.savedView.findMany({
+  ): Promise<TableViewPresetsNamesCreatorList> {
+    const TableViewPresets = await prisma.tableViewPreset.findMany({
       where: {
         tableName,
         projectId,
@@ -152,30 +151,30 @@ export class TableViewService {
       },
     });
 
-    return SavedViewNamesCreatorListSchema.parse(savedViews);
+    return TableViewPresetsNamesCreatorListSchema.parse(TableViewPresets);
   }
 
   /**
    * Gets a saved view by id
    */
-  public static async getSavedViewById(
+  public static async getTableViewPresetsById(
     id: string,
     projectId: string,
-  ): Promise<SavedViewDomain> {
-    const savedView = await prisma.savedView.findUnique({
+  ): Promise<TableViewPresetDomain> {
+    const tableViewPresets = await prisma.tableViewPreset.findUnique({
       where: {
         id,
         projectId,
       },
     });
 
-    if (!savedView) {
+    if (!tableViewPresets) {
       throw new LangfuseNotFoundError(
         `Saved view not found for id ${id} in project ${projectId}`,
       );
     }
 
-    return SavedViewDomainSchema.parse(savedView);
+    return tableViewPresets as unknown as TableViewPresetDomain;
   }
 
   /**
@@ -183,11 +182,11 @@ export class TableViewService {
    */
   public static async generatePermalink(
     baseUrl: string,
-    savedViewId: string,
-    tableName: SavedViewTableName,
+    TableViewPresetsId: string,
+    tableName: TableViewPresetTableName,
     projectId: string,
   ): Promise<string> {
     const page = TABLE_NAME_TO_URL_MAP[tableName];
-    return `${baseUrl}/project/${projectId}/${page}?viewId=${savedViewId}`;
+    return `${baseUrl}/project/${projectId}/${page}?viewId=${TableViewPresetsId}`;
   }
 }

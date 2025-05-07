@@ -10,14 +10,14 @@ export const useViewMutations = ({
 }: UseViewMutationsProps) => {
   const utils = api.useUtils();
 
-  const createMutation = api.savedViews.create.useMutation({
+  const createMutation = api.TableViewPresets.create.useMutation({
     onSuccess: (data) => {
-      utils.savedViews.getByTableName.invalidate();
+      utils.TableViewPresets.getByTableName.invalidate();
       handleSetViewId(data.view.id);
     },
   });
 
-  const updateConfigMutation = api.savedViews.update.useMutation({
+  const updateConfigMutation = api.TableViewPresets.update.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
         title: "View updated",
@@ -26,21 +26,21 @@ export const useViewMutations = ({
     },
   });
 
-  const updateNameMutation = api.savedViews.updateName.useMutation({
+  const updateNameMutation = api.TableViewPresets.updateName.useMutation({
     onSuccess: () => {
-      utils.savedViews.getByTableName.invalidate();
+      utils.TableViewPresets.getByTableName.invalidate();
     },
   });
 
-  const deleteMutation = api.savedViews.delete.useMutation({
+  const deleteMutation = api.TableViewPresets.delete.useMutation({
     onSuccess: () => {
-      utils.savedViews.getByTableName.invalidate();
+      utils.TableViewPresets.getByTableName.invalidate();
       handleSetViewId(null);
     },
   });
 
   const generatePermalinkMutation =
-    api.savedViews.generatePermalink.useMutation({
+    api.TableViewPresets.generatePermalink.useMutation({
       onSuccess: (data) => {
         navigator.clipboard.writeText(data);
         showSuccessToast({

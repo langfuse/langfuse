@@ -24,7 +24,7 @@ import {
   type ScoreDataType,
   BatchExportTableName,
   BatchActionType,
-  SavedViewTableName,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
@@ -45,7 +45,7 @@ import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useTableViewManager } from "@/src/components/table/saved-views/hooks/useTableViewManager";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 
 export type ScoresTableRow = {
   id: string;
@@ -584,7 +584,7 @@ export default function ScoresTable({
   };
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
-    tableName: SavedViewTableName.Scores,
+    tableName: TableViewPresetTableName.Scores,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
@@ -610,7 +610,7 @@ export default function ScoresTable({
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
         viewConfig={{
-          tableName: SavedViewTableName.Scores,
+          tableName: TableViewPresetTableName.Scores,
           projectId,
           controllers: viewControllers,
         }}

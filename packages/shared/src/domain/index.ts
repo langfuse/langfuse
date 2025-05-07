@@ -1,4 +1,4 @@
 export * from "./observations";
 export * from "./traces";
 export * from "./scores";
-export * from "./saved-views";
+export * from "./table-view-presets";

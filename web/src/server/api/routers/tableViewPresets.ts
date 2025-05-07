@@ -6,12 +6,15 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   TableViewService,
-  CreateSavedViewInput,
-  UpdateSavedViewInput,
-  UpdateSavedViewNameInput,
+  CreateTableViewPresetsInput,
+  UpdateTableViewPresetsInput,
+  UpdateTableViewPresetsNameInput,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { LangfuseNotFoundError, SavedViewTableName } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  TableViewPresetTableName,
+} from "@langfuse/shared";
 
 /**
  * Maps domain errors to appropriate TRPC errors
@@ -41,17 +44,17 @@ export async function withErrorMapping<T>(
   }
 }
 
-export const savedViewsRouter = createTRPCRouter({
+export const TableViewPresetsRouter = createTRPCRouter({
   create: protectedProjectProcedure
-    .input(CreateSavedViewInput)
+    .input(CreateTableViewPresetsInput)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "savedViews:CUD",
+        scope: "TableViewPresets:CUD",
       });
 
-      const view = await TableViewService.createSavedView(
+      const view = await TableViewService.createTableViewPresets(
         input,
         ctx.session.user?.id,
       );
@@ -63,16 +66,17 @@ export const savedViewsRouter = createTRPCRouter({
     }),
 
   update: protectedProjectProcedure
-    .input(UpdateSavedViewInput)
+    .input(UpdateTableViewPresetsInput)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "savedViews:CUD",
+        scope: "TableViewPresets:CUD",
       });
 
       const view = await withErrorMapping(
-        () => TableViewService.updateSavedView(input, ctx.session.user?.id),
+        () =>
+          TableViewService.updateTableViewPresets(input, ctx.session.user?.id),
         { notFoundMessage: "Saved view not found, failed to update" },
       );
 
@@ -83,16 +87,20 @@ export const savedViewsRouter = createTRPCRouter({
     }),
 
   updateName: protectedProjectProcedure
-    .input(UpdateSavedViewNameInput)
+    .input(UpdateTableViewPresetsNameInput)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "savedViews:CUD",
+        scope: "TableViewPresets:CUD",
       });
 
       const view = await withErrorMapping(
-        () => TableViewService.updateSavedViewName(input, ctx.session.user?.id),
+        () =>
+          TableViewService.updateTableViewPresetsName(
+            input,
+            ctx.session.user?.id,
+          ),
         { notFoundMessage: "Saved view not found, failed to update name" },
       );
 
@@ -106,18 +114,18 @@ export const savedViewsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        savedViewId: z.string(),
+        TableViewPresetsId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "savedViews:CUD",
+        scope: "TableViewPresets:CUD",
       });
 
-      await TableViewService.deleteSavedView(
-        input.savedViewId,
+      await TableViewService.deleteTableViewPresets(
+        input.TableViewPresetsId,
         input.projectId,
       );
 
@@ -137,10 +145,10 @@ export const savedViewsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "savedViews:read",
+        scope: "TableViewPresets:read",
       });
 
-      return await TableViewService.getSavedViewsByTableName(
+      return await TableViewService.getTableViewPresetsByTableName(
         input.tableName,
         input.projectId,
       );
@@ -152,11 +160,15 @@ export const savedViewsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "savedViews:read",
+        scope: "TableViewPresets:read",
       });
 
       return await withErrorMapping(
-        () => TableViewService.getSavedViewById(input.viewId, input.projectId),
+        () =>
+          TableViewService.getTableViewPresetsById(
+            input.viewId,
+            input.projectId,
+          ),
         { notFoundMessage: "Saved view not found, likely it has been deleted" },
       );
     }),
@@ -166,7 +178,7 @@ export const savedViewsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         viewId: z.string(),
-        tableName: z.nativeEnum(SavedViewTableName),
+        tableName: z.nativeEnum(TableViewPresetTableName),
         baseUrl: z.string(),
       }),
     )
@@ -174,7 +186,7 @@ export const savedViewsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "savedViews:read",
+        scope: "TableViewPresets:read",
       });
 
       return await TableViewService.generatePermalink(

@@ -6,12 +6,13 @@ type UseViewDataProps = {
 };
 
 export const useViewData = ({ tableName, projectId }: UseViewDataProps) => {
-  const { data: savedViews } = api.savedViews.getByTableName.useQuery({
-    tableName,
-    projectId,
-  });
+  const { data: TableViewPresets } =
+    api.TableViewPresets.getByTableName.useQuery({
+      tableName,
+      projectId,
+    });
 
   return {
-    savedViewList: savedViews,
+    TableViewPresetsList: TableViewPresets,
   };
 };

@@ -608,21 +608,6 @@ export type PromptProtectedLabels = {
     project_id: string;
     label: string;
 };
-export type SavedView = {
-    id: string;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-    project_id: string;
-    name: string;
-    table_name: string;
-    created_by: string | null;
-    updated_by: string | null;
-    filters: unknown;
-    column_order: unknown;
-    column_visibility: unknown;
-    search_query: string | null;
-    order_by: unknown | null;
-};
 export type ScoreConfig = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -648,6 +633,21 @@ export type SsoConfig = {
     updated_at: Generated<Timestamp>;
     auth_provider: string;
     auth_config: unknown | null;
+};
+export type TableViewPreset = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    table_name: string;
+    created_by: string | null;
+    updated_by: string | null;
+    filters: unknown;
+    column_order: unknown;
+    column_visibility: unknown;
+    search_query: string | null;
+    order_by: unknown | null;
 };
 export type TraceMedia = {
     id: string;
@@ -722,11 +722,11 @@ export type DB = {
     prompt_dependencies: PromptDependency;
     prompt_protected_labels: PromptProtectedLabels;
     prompts: Prompt;
-    saved_views: SavedView;
     score_configs: ScoreConfig;
     scores: LegacyPrismaScore;
     Session: Session;
     sso_configs: SsoConfig;
+    table_view_presets: TableViewPreset;
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: LegacyPrismaTrace;

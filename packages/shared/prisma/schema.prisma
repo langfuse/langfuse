@@ -86,8 +86,8 @@ model User {
   dashboardWidgetsUpdated DashboardWidget[]        @relation("UpdatedByUser")
   dashboardCreated        Dashboard[]              @relation("CreatedByUser")
   dashboardUpdated        Dashboard[]              @relation("UpdatedByUser")
-  savedViewsCreated       SavedView[]              @relation("CreatedByUser")
-  savedViewsUpdated       SavedView[]              @relation("UpdatedByUser")
+  tableViewPresetCreated  TableViewPreset[]        @relation("CreatedByUser")
+  tableViewPresetUpdated  TableViewPreset[]        @relation("UpdatedByUser")
 
   @@map("users")
 }
@@ -156,7 +156,7 @@ model Project {
   PromptProtectedLabels  PromptProtectedLabels[]
   Dashboard              Dashboard[]
   DashboardWidget        DashboardWidget[]
-  SavedView              SavedView[]
+  TableViewPreset        TableViewPreset[]
 
   @@index([orgId])
   @@map("projects")
@@ -1154,7 +1154,7 @@ model DashboardWidget {
   @@map("dashboard_widgets")
 }
 
-model SavedView {
+model TableViewPreset {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
@@ -1178,5 +1178,5 @@ model SavedView {
   orderBy          Json?   @map("order_by")
 
   @@unique([projectId, tableName, name])
-  @@map("saved_views")
+  @@map("table_view_presets")
 }

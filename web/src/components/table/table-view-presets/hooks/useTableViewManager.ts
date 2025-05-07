@@ -1,9 +1,9 @@
 import { api } from "@/src/utils/api";
 import {
-  type SavedViewTableName,
+  type TableViewPresetTableName,
   type FilterState,
   type OrderByState,
-  type SavedViewDomain,
+  type TableViewPresetDomain,
   type ColumnDefinition,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
@@ -26,7 +26,7 @@ interface TableStateUpdaters {
 }
 
 interface UseTableStateProps {
-  tableName: SavedViewTableName;
+  tableName: TableViewPresetTableName;
   projectId: string;
   stateUpdaters: TableStateUpdaters;
   validationContext?: {
@@ -130,7 +130,7 @@ export function useTableViewManager({
   }, [storedViewId, setStoredViewId, setSelectedViewId]);
 
   // Fetch view data if viewId is provided
-  const { isLoading: isViewLoading } = api.savedViews.getById.useQuery(
+  const { isLoading: isViewLoading } = api.TableViewPresets.getById.useQuery(
     { viewId: viewId as string, projectId },
     {
       enabled: !!viewId && !isInitialized,
@@ -160,7 +160,7 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: SavedViewDomain) => {
+    (viewData: TableViewPresetDomain) => {
       // lock table
       setIsLoading(true);
 

@@ -1,7 +1,7 @@
 import z from "zod";
 import { orderBy, singleFilter } from "../../..";
 
-export const CreateSavedViewInput = z.object({
+export const CreateTableViewPresetsInput = z.object({
   projectId: z.string(),
   name: z.string().min(1, "View name is required"),
   tableName: z.string(),
@@ -12,22 +12,28 @@ export const CreateSavedViewInput = z.object({
   orderBy: orderBy,
 });
 
-export const UpdateSavedViewInput = CreateSavedViewInput.extend({
+export const UpdateTableViewPresetsInput = CreateTableViewPresetsInput.extend({
   id: z.string(),
 });
 
-export const UpdateSavedViewNameInput = z.object({
+export const UpdateTableViewPresetsNameInput = z.object({
   id: z.string(),
   name: z.string(),
   tableName: z.string(),
   projectId: z.string(),
 });
 
-export type CreateSavedViewInput = z.infer<typeof CreateSavedViewInput>;
-export type UpdateSavedViewInput = z.infer<typeof UpdateSavedViewInput>;
-export type UpdateSavedViewNameInput = z.infer<typeof UpdateSavedViewNameInput>;
+export type CreateTableViewPresetsInput = z.infer<
+  typeof CreateTableViewPresetsInput
+>;
+export type UpdateTableViewPresetsInput = z.infer<
+  typeof UpdateTableViewPresetsInput
+>;
+export type UpdateTableViewPresetsNameInput = z.infer<
+  typeof UpdateTableViewPresetsNameInput
+>;
 
-export const SavedViewNamesCreatorListSchema = z.array(
+export const TableViewPresetsNamesCreatorListSchema = z.array(
   z.object({
     id: z.string(),
     name: z.string(),
@@ -38,6 +44,6 @@ export const SavedViewNamesCreatorListSchema = z.array(
   }),
 );
 
-export type SavedViewNamesCreatorList = z.infer<
-  typeof SavedViewNamesCreatorListSchema
+export type TableViewPresetsNamesCreatorList = z.infer<
+  typeof TableViewPresetsNamesCreatorListSchema
 >;

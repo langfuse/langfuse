@@ -9,7 +9,7 @@ import {
   DrawerClose,
 } from "@/src/components/ui/drawer";
 import { Separator } from "@/src/components/ui/separator";
-import { useViewData } from "@/src/components/table/saved-views/hooks/useViewData";
+import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import {
   Command,
   CommandInput,
@@ -18,7 +18,7 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/src/components/ui/command";
-import { useViewMutations } from "@/src/components/table/saved-views/hooks/useViewMutations";
+import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { cn } from "@/src/utils/tailwind";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import {
@@ -36,8 +36,8 @@ import {
 import {
   type OrderByState,
   type FilterState,
-  type SavedViewTableName,
-  type SavedViewDomain,
+  type TableViewPresetTableName,
+  type TableViewPresetDomain,
 } from "@langfuse/shared";
 import { useMemo, useState } from "react";
 import {
@@ -65,14 +65,14 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-interface SavedViewsDrawerProps {
+interface TableViewPresetsDrawerProps {
   viewConfig: {
-    tableName: SavedViewTableName;
+    tableName: TableViewPresetTableName;
     projectId: string;
     controllers: {
       selectedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
-      applyViewState: (viewData: SavedViewDomain) => void;
+      applyViewState: (viewData: TableViewPresetDomain) => void;
     };
   };
   currentState: {
@@ -88,14 +88,14 @@ function formatOrderBy(orderBy?: OrderByState) {
   return orderBy?.column ? `${orderBy.column} ${orderBy.order}` : "none";
 }
 
-export function SavedViewsDrawer({
+export function TableViewPresetsDrawer({
   viewConfig,
   currentState,
-}: SavedViewsDrawerProps) {
+}: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
   const { handleSetViewId, applyViewState, selectedViewId } = controllers;
-  const { savedViewList } = useViewData({ tableName, projectId });
+  const { TableViewPresetsList } = useViewData({ tableName, projectId });
   const {
     createMutation,
     updateConfigMutation,
@@ -117,13 +117,13 @@ export function SavedViewsDrawer({
   const [isEditPopoverOpen, setIsEditPopoverOpen] = useState<boolean>(false);
   const [dropdownId, setDropdownId] = useState<string | null>(null);
 
-  const selectedViewName = savedViewList?.find(
+  const selectedViewName = TableViewPresetsList?.find(
     (view) => view.id === selectedViewId,
   )?.name;
 
   const allViewNames = useMemo(
-    () => savedViewList?.map((view) => ({ value: view.name })) ?? [],
-    [savedViewList],
+    () => TableViewPresetsList?.map((view) => ({ value: view.name })) ?? [],
+    [TableViewPresetsList],
   );
 
   useUniqueNameValidation({
@@ -141,7 +141,7 @@ export function SavedViewsDrawer({
 
     handleSetViewId(viewId);
     try {
-      const fetchedViewData = await utils.savedViews.getById.fetch({
+      const fetchedViewData = await utils.TableViewPresets.getById.fetch({
         projectId,
         viewId,
       });
@@ -235,7 +235,7 @@ export function SavedViewsDrawer({
 
     await deleteMutation.mutateAsync({
       projectId,
-      savedViewId: viewId,
+      TableViewPresetsId: viewId,
     });
   };
 
@@ -273,13 +273,13 @@ export function SavedViewsDrawer({
         }}
       >
         <DrawerTrigger asChild>
-          <Button variant="outline" title={selectedViewName ?? "Saved views"}>
-            <span>{selectedViewName ?? "Saved Views"}</span>
+          <Button variant="outline" title={selectedViewName ?? "Table View"}>
+            <span>{selectedViewName ?? "Table View"}</span>
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />
             ) : (
               <div className="ml-1 rounded-sm bg-input px-1 text-xs">
-                {savedViewList?.length ?? 0}
+                {TableViewPresetsList?.length ?? 0}
               </div>
             )}
           </Button>
@@ -288,7 +288,7 @@ export function SavedViewsDrawer({
           <div className="mx-auto h-[80svh] w-full overflow-y-auto">
             <div className="sticky top-0 z-10">
               <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
-                <DrawerTitle>Saved Views</DrawerTitle>
+                <DrawerTitle>Saved Table Views</DrawerTitle>
                 <DrawerClose asChild>
                   <Button variant="outline" size="icon">
                     <X className="h-4 w-4" />
@@ -300,15 +300,15 @@ export function SavedViewsDrawer({
 
             <Command className="h-fit rounded-none border-none pb-1 shadow-none">
               <CommandInput
-                placeholder="Search saved views..."
+                placeholder="Search saved table views..."
                 value={searchQuery}
                 onValueChange={setSearchQueryLocal}
                 className="h-12 border-none focus:ring-0"
               />
               <CommandList>
-                <CommandEmpty>No saved views found</CommandEmpty>
+                <CommandEmpty>No saved table views found</CommandEmpty>
                 <CommandGroup className="pb-0">
-                  {savedViewList?.map((view) => (
+                  {TableViewPresetsList?.map((view) => (
                     <CommandItem
                       key={view.id}
                       onSelect={() => handleSelectView(view.id)}
@@ -444,7 +444,7 @@ export function SavedViewsDrawer({
                               <DeleteButton
                                 itemId={view.id}
                                 projectId={projectId}
-                                scope="savedViews:CUD"
+                                scope="TableViewPresets:CUD"
                                 entityToDeleteName="saved view"
                                 executeDeleteMutation={async () => {
                                   await handleDeleteView(view.id);
@@ -453,7 +453,7 @@ export function SavedViewsDrawer({
                                   deleteMutation.isLoading
                                 }
                                 invalidateFunc={() => {
-                                  utils.savedViews.invalidate();
+                                  utils.TableViewPresets.invalidate();
                                 }}
                                 captureDeleteOpen={() =>
                                   capture("saved_views:delete_form_open", {
@@ -509,7 +509,7 @@ export function SavedViewsDrawer({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Save Current View</DialogTitle>
+            <DialogTitle>Save Current Table View</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form

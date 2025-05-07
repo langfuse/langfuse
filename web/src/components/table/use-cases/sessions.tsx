@@ -10,7 +10,7 @@ import {
   type FilterState,
   sessionsTableColsWithOptions,
   BatchExportTableName,
-  SavedViewTableName,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -35,7 +35,7 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
-import { useTableViewManager } from "@/src/components/table/saved-views/hooks/useTableViewManager";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
@@ -541,7 +541,7 @@ export default function SessionsTable({
   );
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
-    tableName: SavedViewTableName.Sessions,
+    tableName: TableViewPresetTableName.Sessions,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
@@ -567,7 +567,7 @@ export default function SessionsTable({
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
         viewConfig={{
-          tableName: SavedViewTableName.Sessions,
+          tableName: TableViewPresetTableName.Sessions,
           projectId,
           controllers: viewControllers,
         }}

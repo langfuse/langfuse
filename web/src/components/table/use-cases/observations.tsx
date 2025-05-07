@@ -20,7 +20,7 @@ import {
   type ObservationOptions,
   BatchExportTableName,
   type ObservationType,
-  SavedViewTableName,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -57,7 +57,7 @@ import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-obse
 import { useObservationPeekState } from "@/src/components/table/peek/hooks/useObservationPeekState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/useObservationPeekNavigation";
-import { useTableViewManager } from "@/src/components/table/saved-views/hooks/useTableViewManager";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -854,7 +854,7 @@ export default function ObservationsTable({
     useObservationPeekNavigation(urlPathname);
   const { setPeekView } = useObservationPeekState(urlPathname);
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
-    tableName: SavedViewTableName.Observations,
+    tableName: TableViewPresetTableName.Observations,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
@@ -927,7 +927,7 @@ export default function ObservationsTable({
           currentQuery: searchQuery ?? undefined,
         }}
         viewConfig={{
-          tableName: SavedViewTableName.Observations,
+          tableName: TableViewPresetTableName.Observations,
           projectId,
           controllers: viewControllers,
         }}

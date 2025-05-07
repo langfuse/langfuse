@@ -37,7 +37,7 @@ import {
   BatchExportTableName,
   AnnotationQueueObjectType,
   BatchActionType,
-  SavedViewTableName,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -82,7 +82,7 @@ import {
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
-import { useTableViewManager } from "@/src/components/table/saved-views/hooks/useTableViewManager";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 
 export type TracesTableRow = {
   // Shown by default
@@ -952,7 +952,7 @@ export default function TracesTable({
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
   const { setPeekView } = useTracePeekState(urlPathname);
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
-    tableName: SavedViewTableName.Traces,
+    tableName: TableViewPresetTableName.Traces,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
@@ -1023,7 +1023,7 @@ export default function TracesTable({
       <DataTableToolbar
         columns={columns}
         viewConfig={{
-          tableName: SavedViewTableName.Traces,
+          tableName: TableViewPresetTableName.Traces,
           projectId,
           controllers: viewControllers,
         }}

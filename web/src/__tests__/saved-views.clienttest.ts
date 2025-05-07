@@ -1,7 +1,7 @@
 import {
   validateFilters,
   validateOrderBy,
-} from "@/src/components/table/saved-views/hooks/useTableViewManager";
+} from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   type ColumnDefinition,
   type FilterState,
@@ -21,7 +21,7 @@ const mockFilterDefinitions: ColumnDefinition[] = [
   { id: "city", name: "city", type: "string", internal: "city" },
 ];
 
-describe("saved views validation functions", () => {
+describe("table view presets validation functions", () => {
   describe("validateOrderBy", () => {
     it("should return null if orderBy is null", () => {
       expect(validateOrderBy(null, mockColumns)).toBeNull();
