@@ -120,7 +120,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        TableViewPresetsId: z.string(),
+        tableViewPresetsId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -131,7 +131,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
       });
 
       await TableViewService.deleteTableViewPresets(
-        input.TableViewPresetsId,
+        input.tableViewPresetsId,
         input.projectId,
       );
 

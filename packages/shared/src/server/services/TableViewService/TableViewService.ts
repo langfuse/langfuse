@@ -21,7 +21,7 @@ const TABLE_NAME_TO_URL_MAP = <Record<TableViewPresetTableName, string>>{
 
 export class TableViewService {
   /**
-   * Creates a saved view
+   * Creates a table view preset
    */
   public static async createTableViewPresets(
     input: CreateTableViewPresetsInput,
@@ -40,7 +40,7 @@ export class TableViewService {
   }
 
   /**
-   * Updates a saved view's definition
+   * Updates a table view preset's definition
    */
   public static async updateTableViewPresets(
     input: UpdateTableViewPresetsInput,
@@ -77,7 +77,7 @@ export class TableViewService {
   }
 
   /**
-   * Updates a saved view's name
+   * Updates a table view preset's name
    */
   public static async updateTableViewPresetsName(
     input: UpdateTableViewPresetsNameInput,
@@ -113,7 +113,7 @@ export class TableViewService {
   }
 
   /**
-   * Deletes a saved view
+   * Deletes a table view preset
    */
   public static async deleteTableViewPresets(
     TableViewPresetsId: string,
@@ -155,7 +155,7 @@ export class TableViewService {
   }
 
   /**
-   * Gets a saved view by id
+   * Gets a table view preset by id
    */
   public static async getTableViewPresetsById(
     id: string,
@@ -178,7 +178,7 @@ export class TableViewService {
   }
 
   /**
-   * Generates a permanent link to a saved view
+   * Generates a permanent link to a table view preset
    */
   public static async generatePermalink(
     baseUrl: string,

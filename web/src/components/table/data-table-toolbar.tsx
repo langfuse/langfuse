@@ -125,6 +125,7 @@ export function DataTableToolbar<TData, TValue>({
   const capture = usePostHogClientCapture();
 
   // Update searchString when searchConfig.currentQuery changes to account for saved view selection
+  // Only update once on initial value of searchConfig.currentQuery, to allow for initial value to be set
   useEffect(() => {
     if (searchConfig?.currentQuery !== searchString) {
       setSearchString(searchConfig?.currentQuery ?? "");

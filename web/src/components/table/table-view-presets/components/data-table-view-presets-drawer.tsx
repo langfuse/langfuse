@@ -235,7 +235,7 @@ export function TableViewPresetsDrawer({
 
     await deleteMutation.mutateAsync({
       projectId,
-      TableViewPresetsId: viewId,
+      tableViewPresetsId: viewId,
     });
   };
 
