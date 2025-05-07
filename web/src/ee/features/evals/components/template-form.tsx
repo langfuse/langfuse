@@ -237,7 +237,6 @@ export const InnerEvalTemplateForm = (props: {
     resolver: zodResolver(formSchema),
     disabled: !props.isEditing,
     defaultValues: {
-      // when updating, the name has to remain the same and should not be updated
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
       prompt: props.preFilledFormValues?.prompt ?? undefined,
@@ -250,24 +249,6 @@ export const InnerEvalTemplateForm = (props: {
         : undefined,
     },
   });
-
-  // reset the form if the input template changes
-  useEffect(() => {
-    if (props.preFilledFormValues) {
-      form.reset({
-        // taking the existing template over the pre-filled value.
-        // Existing is for editing, pre-filled is for creating off a template
-        name: props.existingEvalTemplateName ?? props.preFilledFormValues.name,
-        prompt: props.preFilledFormValues.prompt,
-        variables: props.preFilledFormValues.vars,
-        outputReasoning: OutputSchema.parse(
-          props.preFilledFormValues.outputSchema,
-        ).reasoning,
-        outputScore: OutputSchema.parse(props.preFilledFormValues.outputSchema)
-          .score,
-      });
-    }
-  }, [props.preFilledFormValues, form, props.existingEvalTemplateName]);
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)

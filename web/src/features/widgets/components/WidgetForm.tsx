@@ -193,6 +193,12 @@ export function WidgetForm({
       internal: "internalValue",
     },
     {
+      name: "Metadata",
+      id: "metadata",
+      type: "stringObject",
+      internal: "internalValue",
+    },
+    {
       name: "Release",
       id: "release",
       type: "string",
@@ -327,9 +333,14 @@ export function WidgetForm({
         const metricField = `${selectedAggregation}_${selectedMeasure}`;
 
         return {
-          dimension: item[dimensionField]
-            ? (item[dimensionField] as string)
-            : startCase(metricField === "count_count" ? "Count" : metricField),
+          dimension:
+            item[dimensionField] !== undefined
+              ? item[dimensionField]
+                ? (item[dimensionField] as string)
+                : "n/a"
+              : startCase(
+                  metricField === "count_count" ? "Count" : metricField,
+                ),
           metric: Number(item[metricField] || 0),
           time_dimension: item["time_dimension"],
         };

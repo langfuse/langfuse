@@ -12,8 +12,6 @@ import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { unified } from "unified";
-import remarkParse from "remark-parse";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
@@ -93,15 +91,6 @@ function MarkdownRenderer({
   // Try to parse markdown content
 
   try {
-    const parseMarkdown = () => {
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkGfm)
-        .use(remarkMath);
-      return processor.parse(markdown);
-    };
-    parseMarkdown();
-
     // If parsing succeeds, render with ReactMarkdown
     return (
       <MemoizedReactMarkdown

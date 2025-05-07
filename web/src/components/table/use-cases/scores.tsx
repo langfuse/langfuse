@@ -46,10 +46,12 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import TableId from "@/src/components/table/table-id";
 
 export type ScoresTableRow = {
   id: string;
   traceId?: string;
+  sessionId?: string;
   timestamp: Date;
   source: string;
   name: string;
@@ -260,6 +262,32 @@ export default function ScoresTable({
       enableSorting: false,
       defaultHidden: true,
       enableHiding: true,
+      cell: ({ row }) => {
+        const value = row.getValue("id");
+        return typeof value === "string" ? (
+          <TableId value={value} />
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "traceName",
+      header: "Trace Name",
+      id: "traceName",
+      enableHiding: true,
+      enableSorting: true,
+      size: 150,
+      cell: ({ row }) => {
+        const value = row.getValue("traceName") as ScoresTableRow["traceName"];
+        const filter = encodeURIComponent(
+          `name;stringOptions;;any of;${value}`,
+        );
+        return value ? (
+          <TableLink
+            path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
+            value={value}
+          />
+        ) : undefined;
+      },
     },
     {
       accessorKey: "traceId",
@@ -300,20 +328,17 @@ export default function ScoresTable({
       },
     },
     {
-      accessorKey: "traceName",
-      header: "Trace Name",
-      id: "traceName",
+      accessorKey: "sessionId",
+      header: "Session",
+      id: "sessionId",
       enableHiding: true,
       enableSorting: true,
-      size: 150,
+      size: 100,
       cell: ({ row }) => {
-        const value = row.getValue("traceName") as ScoresTableRow["traceName"];
-        const filter = encodeURIComponent(
-          `name;stringOptions;;any of;${value}`,
-        );
-        return value ? (
+        const value = row.getValue("sessionId");
+        return typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
+            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
           />
         ) : undefined;
@@ -566,6 +591,7 @@ export default function ScoresTable({
       },
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
+      sessionId: score.sessionId ?? undefined,
       traceId: score.traceId ?? undefined,
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,

@@ -83,7 +83,7 @@ Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/pri
 We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https://turbo.build/repo/docs) to manage the dependencies and build process. The monorepo contains the following packages:
 
 - `web`: is the main application package providing Frontend and Backend APIs for Langfuse.
-- `worker` (no production yet): contains an application for asynchronous processing of tasks. This package is not yet used in production.
+- `worker`: contains an application for asynchronous processing of tasks.
 - `packages`:
   - `shared`: contains shared code between the above packages.
   - `config-eslint`: contains eslint configurations which are shared between the above packages.

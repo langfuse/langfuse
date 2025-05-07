@@ -35,6 +35,24 @@ const formatDatasetItemData = (data: string | null | undefined) => {
   }
 };
 
+/**
+ * Adds a case-insensitive search condition to a Kysely query
+ * @param query The Kysely query to modify
+ * @param searchQuery The search term (optional)
+ * @param columnName The column to search in (defaults to "datasets.name")
+ * @returns The modified query
+ */
+const addSearchCondition = <T extends Record<string, any>>(
+  query: T,
+  searchQuery?: string | null,
+  columnName: string = "datasets.name",
+): T => {
+  if (!searchQuery || searchQuery.trim() === "") return query;
+
+  // Add case-insensitive search condition
+  return query.where(columnName, "ilike", `%${searchQuery}%`) as T;
+};
+
 export const datasetRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
     .input(
@@ -70,11 +88,26 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        searchQuery: z.string().nullable(),
         ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
-      const query = DB.selectFrom("datasets")
+      // Base query for both datasets and count
+      const baseQuery = DB.selectFrom("datasets").where(
+        "datasets.project_id",
+        "=",
+        input.projectId,
+      );
+
+      // Apply search condition to the base query
+      const baseQueryWithSearch = addSearchCondition(
+        baseQuery,
+        input.searchQuery,
+      );
+
+      // Query for datasets
+      const datasetsQuery = baseQueryWithSearch
         .select(({}) => [
           "datasets.id",
           "datasets.name",
@@ -83,23 +116,31 @@ export const datasetRouter = createTRPCRouter({
           "datasets.updated_at as updatedAt",
           "datasets.metadata",
         ])
-        .where("datasets.project_id", "=", input.projectId)
         .orderBy("datasets.created_at", "desc")
         .limit(input.limit)
         .offset(input.page * input.limit);
 
-      const compiledQuery = query.compile();
+      const compiledDatasetsQuery = datasetsQuery.compile();
 
-      const datasets = await ctx.prisma.$queryRawUnsafe<Array<Dataset>>(
-        compiledQuery.sql,
-        ...compiledQuery.parameters,
-      );
+      // Query for count
+      const countQuery = baseQueryWithSearch.select(({ fn }) => [
+        fn.count("datasets.id").as("count"),
+      ]);
 
-      const totalDatasets = await ctx.prisma.dataset.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
+      const compiledCountQuery = countQuery.compile();
+
+      const [datasets, countResult] = await Promise.all([
+        ctx.prisma.$queryRawUnsafe<Array<Dataset>>(
+          compiledDatasetsQuery.sql,
+          ...compiledDatasetsQuery.parameters,
+        ),
+        ctx.prisma.$queryRawUnsafe<[{ count: string }]>(
+          compiledCountQuery.sql,
+          ...compiledCountQuery.parameters,
+        ),
+      ]);
+
+      const totalDatasets = parseInt(countResult[0].count);
 
       return {
         totalDatasets,

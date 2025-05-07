@@ -106,7 +106,7 @@ function TreeItemInner({
           {firstTokenTimeOffset ? (
             <div
               className={cn(
-                "flex rounded-sm",
+                "flex rounded-sm border border-border",
                 isSelected
                   ? "ring ring-primary-accent"
                   : "group-hover:ring group-hover:ring-tertiary",
@@ -190,8 +190,8 @@ function TreeItemInner({
             >
               <div
                 className={cn(
-                  "flex h-8 items-center justify-start rounded-sm bg-muted",
-                  itemWidth ? "" : "border border-dashed",
+                  "flex h-8 items-center justify-start rounded-sm border border-border bg-muted",
+                  itemWidth ? "" : "border-dashed",
                   isSelected
                     ? "ring ring-primary-accent"
                     : "group-hover:ring group-hover:ring-tertiary",
@@ -412,10 +412,11 @@ export function TraceTimelineView({
   minLevel,
   setMinLevel,
 }: {
-  trace: Omit<TraceDomain, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     latency?: number;
     input: string | null;
     output: string | null;
+    metadata: string | null;
   };
   observations: Array<ObservationReturnTypeWithMetadata>;
   projectId: string;

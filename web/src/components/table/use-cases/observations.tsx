@@ -968,6 +968,7 @@ export default function ObservationsTable({
           children: (row) => (
             <PeekViewObservationDetail projectId={projectId} row={row} />
           ),
+          tableDataUpdatedAt: generations.dataUpdatedAt,
         }}
         data={
           generations.isLoading || isViewLoading

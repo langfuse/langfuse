@@ -21,7 +21,6 @@ import { Role } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import { Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -36,6 +35,7 @@ import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import Link from "next/link";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 export type MembersTableRow = {
   user: {
@@ -61,6 +61,11 @@ export function MembersTable({
   project?: { id: string; name: string };
   showSettingsCard?: boolean;
 }) {
+  // Create a unique key for this table's pagination state
+  const paginationKey = project
+    ? `projectMembers_${project.id}_pagination`
+    : `orgMembers_${orgId}_pagination`;
+
   const session = useSession();
   const hasOrgViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
@@ -71,10 +76,13 @@ export function MembersTable({
       projectId: project?.id,
       scope: "projectMembers:read",
     }) || hasOrgViewAccess;
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 10),
-  });
+  const [paginationState, setPaginationState] = useSessionStorage(
+    paginationKey,
+    {
+      pageIndex: 0,
+      pageSize: 10,
+    },
+  );
 
   const membersViaOrg = api.members.allFromOrg.useQuery(
     {
