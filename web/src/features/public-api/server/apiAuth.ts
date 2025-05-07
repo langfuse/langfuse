@@ -250,6 +250,7 @@ export class ApiAuthService {
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
                 scope: dbKey.scope,
+                publicKey,
               },
             };
           }
