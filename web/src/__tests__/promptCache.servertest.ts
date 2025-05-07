@@ -125,13 +125,9 @@ describe("PromptService", () => {
     it("should not log error if suppressNotFoundLog is true and prompt is not found", async () => {
       mockRedis.exists.mockResolvedValue(0);
       mockRedis.getex.mockResolvedValue(null);
-      // Simulate prompt not found
       mockPrisma.prompt.findFirst = jest.fn().mockResolvedValue(null);
 
-      const logErrorSpy = jest.spyOn(
-        promptService as any,
-        "Invalid prompt params",
-      );
+      const logErrorSpy = jest.spyOn(promptService as any, "logError");
 
       const result = await promptService.getPrompt(
         {
@@ -150,13 +146,9 @@ describe("PromptService", () => {
     it("should log error if suppressNotFoundLog is false and prompt is not found", async () => {
       mockRedis.exists.mockResolvedValue(0);
       mockRedis.getex.mockResolvedValue(null);
-      // Simulate prompt not found
       mockPrisma.prompt.findFirst = jest.fn().mockResolvedValue(null);
 
-      const logErrorSpy = jest.spyOn(
-        promptService as any,
-        "Invalid prompt params",
-      );
+      const logErrorSpy = jest.spyOn(promptService as any, "logError");
 
       const result = await promptService.getPrompt({
         projectId: "project1",
