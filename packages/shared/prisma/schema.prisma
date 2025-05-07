@@ -86,6 +86,8 @@ model User {
   dashboardWidgetsUpdated DashboardWidget[]        @relation("UpdatedByUser")
   dashboardCreated        Dashboard[]              @relation("CreatedByUser")
   dashboardUpdated        Dashboard[]              @relation("UpdatedByUser")
+  tableViewPresetCreated  TableViewPreset[]        @relation("CreatedByUser")
+  tableViewPresetUpdated  TableViewPreset[]        @relation("UpdatedByUser")
 
   @@map("users")
 }
@@ -154,6 +156,7 @@ model Project {
   PromptProtectedLabels  PromptProtectedLabels[]
   Dashboard              Dashboard[]
   DashboardWidget        DashboardWidget[]
+  TableViewPreset        TableViewPreset[]
 
   @@index([orgId])
   @@map("projects")
@@ -1149,4 +1152,31 @@ model DashboardWidget {
   chartConfig Json                     @map("chart_config")
 
   @@map("dashboard_widgets")
+}
+
+model TableViewPreset {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name      String @map("name")
+  tableName String @map("table_name")
+
+  createdBy     String? @map("created_by")
+  createdByUser User?   @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy     String? @map("updated_by")
+  updatedByUser User?   @relation("UpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  // view configuration
+  filters          Json    @map("filters")
+  columnOrder      Json    @map("column_order")
+  columnVisibility Json    @map("column_visibility")
+  searchQuery      String? @map("search_query")
+  orderBy          Json?   @map("order_by")
+
+  @@unique([projectId, tableName, name])
+  @@map("table_view_presets")
 }

@@ -634,6 +634,21 @@ export type SsoConfig = {
     auth_provider: string;
     auth_config: unknown | null;
 };
+export type TableViewPreset = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    table_name: string;
+    created_by: string | null;
+    updated_by: string | null;
+    filters: unknown;
+    column_order: unknown;
+    column_visibility: unknown;
+    search_query: string | null;
+    order_by: unknown | null;
+};
 export type TraceMedia = {
     id: string;
     project_id: string;
@@ -711,6 +726,7 @@ export type DB = {
     scores: LegacyPrismaScore;
     Session: Session;
     sso_configs: SsoConfig;
+    table_view_presets: TableViewPreset;
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: LegacyPrismaTrace;

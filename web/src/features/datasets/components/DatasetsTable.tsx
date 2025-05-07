@@ -24,12 +24,13 @@ import { MoreVertical } from "lucide-react";
 import { useEffect } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { type Prisma } from "@langfuse/shared";
+import { TableViewPresetTableName, type Prisma } from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 
 type RowData = {
   key: {
@@ -238,6 +239,19 @@ export function DatasetsTable(props: { projectId: string }) {
     columns,
   );
 
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Datasets,
+    projectId: props.projectId,
+    stateUpdaters: {
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+      setSearchQuery: setSearchQuery,
+    },
+    validationContext: {
+      columns,
+    },
+  });
+
   return (
     <>
       <DataTableToolbar
@@ -253,11 +267,16 @@ export function DatasetsTable(props: { projectId: string }) {
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
+        viewConfig={{
+          tableName: TableViewPresetTableName.Datasets,
+          projectId: props.projectId,
+          controllers: viewControllers,
+        }}
       />
       <DataTable
         columns={columns}
         data={
-          datasets.isLoading
+          datasets.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : datasets.isError
               ? {
