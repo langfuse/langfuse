@@ -2,10 +2,27 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 
+/**
+ * Props for configuring a peek view in a data table.
+ *
+ * @template TData The type of data in the table rows
+ *
+ * @property isTableDataComplete - Indicates whether all data (including asynchronously loaded data like metrics)
+ * has finished loading. This is critical for proper table memoization - when false, it ensures the table
+ * continues to re-render as additional data loads, even when the primary data reference remains stable.
+ * Set this to true only when ALL data needed for rendering the table is fully loaded.
+ *
+ * Common usage pattern:
+ * ```
+ * isTableDataComplete: !metricsQuery.isLoading && metricsQuery.data !== undefined
+ * ```
+ */
 export type PeekViewProps<TData> = Omit<
   DataTablePeekViewProps<TData>,
   "selectedRowId" | "row"
->;
+> & {
+  tableDataUpdatedAt: number;
+};
 
 function getInitialRow<TData>(
   peekViewId: string | undefined,

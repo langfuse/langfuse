@@ -896,7 +896,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                             >
                                               {category.label}
                                             </span>
-                                            <span className="text-primary/60">{`(${category.value})`}</span>
+                                            <span>{`(${category.value})`}</span>
                                           </ToggleGroupItem>
                                         ),
                                       )}

@@ -44,7 +44,7 @@ type BaseDeleteButtonProps = DeleteButtonProps & {
   isDeleteMutationLoading: boolean;
 };
 
-function DeleteButton({
+export function DeleteButton({
   itemId,
   projectId,
   isTableAction = false,

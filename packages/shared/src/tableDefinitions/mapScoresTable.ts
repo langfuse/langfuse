@@ -32,6 +32,12 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "observation_id",
   },
   {
+    uiTableName: "Session ID",
+    uiTableId: "sessionId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "session_id",
+  },
+  {
     uiTableName: "Name",
     uiTableId: "name",
     clickhouseTableName: "scores",
