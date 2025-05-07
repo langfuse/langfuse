@@ -244,7 +244,7 @@ export const ObservationPreview = ({
                       </Badge>
                     </BreakdownTooltip>
                   ) : undefined}
-                  {totalCost && totalCost !== thisCost ? (
+                  {totalCost && (!thisCost || !totalCost.equals(thisCost)) ? (
                     <Badge variant="tertiary">
                       ∑ {usdFormatter(totalCost.toNumber())}
                     </Badge>
