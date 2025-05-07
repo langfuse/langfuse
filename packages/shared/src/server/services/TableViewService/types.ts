@@ -41,6 +41,7 @@ export const TableViewPresetsNamesCreatorListSchema = z.array(
     createdByUser: z
       .object({
         image: z.string().nullish(),
+        name: z.string().nullish(),
       })
       .nullish(),
   }),

@@ -28,7 +28,11 @@ import {
 } from "@/src/components/ui/command";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { cn } from "@/src/utils/tailwind";
-import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/src/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -302,7 +306,20 @@ export function TableViewPresetsDrawer({
           <div className="mx-auto h-[80svh] w-full overflow-y-auto">
             <div className="sticky top-0 z-10">
               <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
-                <DrawerTitle>Saved Table Views</DrawerTitle>
+                <DrawerTitle className="flex flex-row items-center gap-1">
+                  Saved Table Views{" "}
+                  <a
+                    href="https://github.com/orgs/langfuse/discussions/4657"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center"
+                    title="Saving table view presets is currently in beta. Click here to provide feedback!"
+                  >
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                      Beta
+                    </span>
+                  </a>
+                </DrawerTitle>
                 <DrawerClose asChild>
                   <Button variant="outline" size="icon">
                     <X className="h-4 w-4" />
@@ -495,7 +512,17 @@ export function TableViewPresetsDrawer({
                           <Avatar>
                             <AvatarImage
                               src={view.createdByUser?.image ?? undefined}
+                              alt={view.createdByUser?.name ?? "User Avatar"}
                             />
+                            <AvatarFallback className="bg-tertiary">
+                              {view.createdByUser?.name
+                                ? view.createdByUser?.name
+                                    .split(" ")
+                                    .map((word) => word[0])
+                                    .slice(0, 2)
+                                    .concat("")
+                                : null}
+                            </AvatarFallback>
                           </Avatar>
                         </div>
                       </div>

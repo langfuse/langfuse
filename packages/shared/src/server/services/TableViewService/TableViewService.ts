@@ -146,6 +146,7 @@ export class TableViewService {
         createdByUser: {
           select: {
             image: true,
+            name: true,
           },
         },
       },
