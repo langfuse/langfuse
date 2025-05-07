@@ -1250,7 +1250,7 @@ describe("queryBuilder", () => {
         // Results should be ordered by time dimension (ascending)
         expect(result.data.length).toBeGreaterThan(0);
 
-        // Convert time_dimension strings to Date objects for comparison
+        // Convert time_dimension strings to Date objects for easier testing
         const dates = result.data.map(
           (row: any) => new Date(row.time_dimension),
         );
@@ -1835,6 +1835,80 @@ describe("queryBuilder", () => {
           expect(date.toString()).not.toBe("Invalid Date");
         }
       });
+
+      it("should filter traces by metadata correctly", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          {
+            name: "trace-with-metadata-1",
+            metadata: { customer: "test1" },
+          },
+          {
+            name: "trace-with-metadata-2",
+            metadata: { customer: "test2" },
+          },
+          {
+            name: "trace-without-metadata",
+            metadata: undefined,
+          },
+        ];
+
+        // Create traces with metadata
+        const traces = [];
+        for (const data of tracesData) {
+          const trace = await createTrace({
+            id: randomUUID(),
+            name: data.name,
+            project_id: projectId,
+            metadata: data.metadata,
+          });
+          traces.push(trace);
+        }
+
+        await createTracesCh(traces);
+
+        // Define query with metadata filter
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "metadata",
+              operator: "contains",
+              key: "customer",
+              value: "test",
+              type: "stringObject",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(2);
+        expect(result.data[0].name).toBe("trace-with-metadata-1");
+        expect(result.data[0].count_count).toBe("1");
+      });
     });
 
     describe("scores-numeric view", () => {
@@ -2360,6 +2434,91 @@ describe("queryBuilder", () => {
         expect(isHallucination.count_count).toBe("2");
         expect(isHelpful.count_count).toBe("2");
       });
+
+      it("should filter scores-numeric by metadata correctly", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+
+        // Create a trace
+        const trace = await createTrace({
+          id: traceId,
+          name: "trace-for-scores",
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        // Create scores with different metadata
+        const scores = [
+          await createTraceScore({
+            id: randomUUID(),
+            trace_id: traceId,
+            project_id: projectId,
+            name: "score-premium",
+            value: 0.95,
+            metadata: { customer: "test1" },
+          }),
+          await createTraceScore({
+            id: randomUUID(),
+            trace_id: traceId,
+            project_id: projectId,
+            name: "score-basic",
+            value: 0.75,
+            metadata: { customer: "test2" },
+          }),
+          await createTraceScore({
+            id: randomUUID(),
+            trace_id: traceId,
+            project_id: projectId,
+            name: "score-no-metadata",
+            value: 0.5,
+            metadata: undefined,
+          }),
+        ];
+
+        await createScoresCh(scores);
+
+        // Define query with metadata filter for scores-numeric
+        const query: QueryType = {
+          view: "scores-numeric",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "value", aggregation: "avg" }],
+          filters: [
+            {
+              column: "metadata",
+              operator: "contains",
+              key: "customer",
+              value: "test",
+              type: "stringObject",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(2);
+        expect(result.data[0].name).toBe("score-premium");
+        expect(parseFloat(result.data[0].avg_value)).toBeCloseTo(0.95);
+      });
     });
 
     describe("scores-categorical view", () => {
@@ -2808,6 +2967,88 @@ describe("queryBuilder", () => {
         expect(parseInt(claudeResult.p95_timeToFirstToken)).toBeLessThanOrEqual(
           1200,
         );
+      });
+
+      it("should filter observations by metadata correctly", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+
+        // Create a trace
+        const trace = await createTrace({
+          id: traceId,
+          name: "trace-for-observations",
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        // Create observations with different metadata
+        const observations = [
+          await createObservation({
+            id: randomUUID(),
+            trace_id: traceId,
+            project_id: projectId,
+            name: "observation-premium",
+            metadata: { customer: "test1" },
+          }),
+          await createObservation({
+            id: randomUUID(),
+            trace_id: traceId,
+            project_id: projectId,
+            name: "observation-basic",
+            metadata: { customer: "test2" },
+          }),
+          await createObservation({
+            id: randomUUID(),
+            trace_id: traceId,
+            project_id: projectId,
+            name: "observation-no-metadata",
+            metadata: undefined,
+          }),
+        ];
+
+        await createObservationsCh(observations);
+
+        // Define query with metadata filter for observations
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "metadata",
+              operator: "contains",
+              key: "customer",
+              value: "test",
+              type: "stringObject",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(2);
+        expect(result.data[0].name).toBe("observation-basic");
+        expect(result.data[0].count_count).toBe("1");
       });
     });
   });

@@ -281,6 +281,151 @@ describe("QueryBuilder SQL Injection Tests", () => {
         "production,development'); DROP TABLE traces; --",
       );
     });
+
+    it("should prevent SQL injection via metadata column name", async () => {
+      // Comment: The metadata column name should be validated to prevent SQL injection
+      const maliciousQuery: QueryType = {
+        view: "traces",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "metadata); DROP TABLE traces; --",
+            operator: "contains",
+            key: "customer",
+            value: "test",
+            type: "stringObject",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // Should throw an error for invalid filter field
+      expect(() =>
+        buildQueryWithoutExecuting(maliciousQuery, projectId),
+      ).toThrow("Invalid filter");
+    });
+
+    it("should prevent SQL injection via metadata operator", async () => {
+      // Comment: The metadata operator should be validated to prevent SQL injection
+      const maliciousQuery: QueryType = {
+        view: "traces",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "metadata",
+            operator: "contains); DROP TABLE traces; --" as any,
+            key: "customer",
+            value: "test",
+            type: "stringObject",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // Should throw an error for invalid operator
+      expect(() =>
+        buildQueryWithoutExecuting(maliciousQuery, projectId),
+      ).toThrow("Invalid query");
+    });
+
+    it("should safely handle special characters in metadata key path", async () => {
+      // Comment: The key path in metadata filters should be properly escaped
+      const query: QueryType = {
+        view: "traces",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "metadata",
+            operator: "contains",
+            key: "customer.field'); DROP TABLE traces; --",
+            value: "test",
+            type: "stringObject",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // Should build a valid query with parameterization
+      const result = buildQueryWithoutExecuting(query, projectId);
+
+      // Check for parameterization
+      expect(result.query).not.toContain(
+        "customer.field'); DROP TABLE traces; --",
+      );
+      expect(Object.values(result.parameters)).toContain(
+        "customer.field'); DROP TABLE traces; --",
+      );
+    });
+
+    it("should safely handle special characters in metadata value", async () => {
+      // Comment: The value in metadata filters should be properly parameterized
+      const query: QueryType = {
+        view: "traces",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "metadata",
+            operator: "contains",
+            key: "customer",
+            value: "test'); DROP TABLE traces; --",
+            type: "stringObject",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // Should build a valid query with parameterization
+      const result = buildQueryWithoutExecuting(query, projectId);
+
+      // Check for parameterization
+      expect(result.query).not.toContain("test'); DROP TABLE traces; --");
+      expect(Object.values(result.parameters)).toContain(
+        "test'); DROP TABLE traces; --",
+      );
+    });
+
+    it("should prevent SQL injection via metadata filter type", async () => {
+      // Comment: The type field should be validated to prevent SQL injection
+      const maliciousQuery: QueryType = {
+        view: "traces",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "metadata",
+            operator: "contains",
+            key: "customer",
+            value: "test",
+            type: "stringObject); DROP TABLE traces; --" as any,
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // Should throw an error for invalid type
+      expect(() =>
+        buildQueryWithoutExecuting(maliciousQuery, projectId),
+      ).toThrow("Invalid query");
+    });
   });
 
   describe("SQL Injection via Time Dimension", () => {
