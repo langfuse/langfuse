@@ -801,6 +801,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
       let scoreId_11: string;
       let scoreId_12: string;
       let scoreId_13: string;
+      let scoreId_14: string;
 
       beforeEach(async () => {
         // Create additional resources for ID filtering tests
@@ -816,6 +817,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         scoreId_11 = v4();
         scoreId_12 = v4();
         scoreId_13 = v4();
+        scoreId_14 = v4();
 
         const observation_1 = createObservation({
           id: obsId_1,
@@ -849,7 +851,6 @@ describe("/api/public/v2/scores API Endpoint", () => {
           project_id: newProjectId,
           trace_id: traceId_4,
           observation_id: obsId_1,
-          session_id: sessionId_1,
           name: "id-filter-score",
           value: 1,
         });
@@ -860,7 +861,6 @@ describe("/api/public/v2/scores API Endpoint", () => {
           project_id: newProjectId,
           trace_id: traceId_5,
           observation_id: obsId_2,
-          session_id: sessionId_2,
           name: "id-filter-score",
           value: 2,
         });
@@ -871,7 +871,6 @@ describe("/api/public/v2/scores API Endpoint", () => {
           project_id: newProjectId,
           trace_id: traceId_4,
           observation_id: obsId_2, // Different observation
-          session_id: sessionId_1,
           name: "id-filter-score",
           value: 3,
         });
@@ -882,7 +881,6 @@ describe("/api/public/v2/scores API Endpoint", () => {
           project_id: newProjectId,
           trace_id: traceId_5,
           observation_id: obsId_1, // Different observation
-          session_id: sessionId_2,
           name: "id-filter-score",
           value: 4,
         });
@@ -905,6 +903,15 @@ describe("/api/public/v2/scores API Endpoint", () => {
           value: 6,
         });
 
+        // Another standalone session score
+        const score_14 = createSessionScore({
+          id: scoreId_14,
+          project_id: newProjectId,
+          session_id: sessionId_2,
+          name: "id-filter-score-session-only",
+          value: 6,
+        });
+
         await createScoresCh([
           score_8,
           score_9,
@@ -912,6 +919,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           score_11,
           score_12,
           score_13,
+          score_14,
         ]);
       });
 
@@ -1028,19 +1036,19 @@ describe("/api/public/v2/scores API Endpoint", () => {
           authentication,
         );
         expect(getScore.status).toBe(200);
-        expect(getScore.body.meta).toMatchObject({ totalItems: 3 }); // score_8, score_10, score_12
+        expect(getScore.body.meta).toMatchObject({ totalItems: 1 }); // scoreId_12
         expect(getScore.body.data).toEqual(
           expect.arrayContaining([
-            expect.objectContaining({ id: scoreId_8, sessionId: sessionId_1 }),
-            expect.objectContaining({ id: scoreId_10, sessionId: sessionId_1 }),
             expect.objectContaining({ id: scoreId_12, sessionId: sessionId_1 }),
           ]),
         );
         expect(getScore.body.data).not.toEqual(
           expect.arrayContaining([
-            expect.objectContaining({ id: scoreId_9 }), // Belongs to sessionId_2
-            expect.objectContaining({ id: scoreId_11 }), // Belongs to sessionId_2
-            expect.objectContaining({ id: scoreId_13 }), // Belongs to sessionId_2
+            expect.objectContaining({ id: scoreId_14 }),
+            expect.objectContaining({ id: scoreId_8 }),
+            expect.objectContaining({ id: scoreId_9 }),
+            expect.objectContaining({ id: scoreId_11 }),
+            expect.objectContaining({ id: scoreId_13 }),
           ]),
         );
       });
@@ -1057,12 +1065,17 @@ describe("/api/public/v2/scores API Endpoint", () => {
         expect(getScore.body.meta).toMatchObject({ totalItems: 6 }); // All scores except those unrelated to session/trace
         expect(getScore.body.data).toEqual(
           expect.arrayContaining([
-            expect.objectContaining({ id: scoreId_8, sessionId: sessionId_1 }),
-            expect.objectContaining({ id: scoreId_9, sessionId: sessionId_2 }),
-            expect.objectContaining({ id: scoreId_10, sessionId: sessionId_1 }),
-            expect.objectContaining({ id: scoreId_11, sessionId: sessionId_2 }),
             expect.objectContaining({ id: scoreId_12, sessionId: sessionId_1 }),
             expect.objectContaining({ id: scoreId_13, sessionId: sessionId_2 }),
+            expect.objectContaining({ id: scoreId_14, sessionId: sessionId_2 }),
+          ]),
+        );
+        expect(getScore.body.data).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_8 }),
+            expect.objectContaining({ id: scoreId_9 }),
+            expect.objectContaining({ id: scoreId_10 }),
+            expect.objectContaining({ id: scoreId_11 }),
           ]),
         );
       });
