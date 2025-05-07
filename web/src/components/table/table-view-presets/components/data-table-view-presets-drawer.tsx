@@ -1,5 +1,13 @@
 import { Button } from "@/src/components/ui/button";
-import { X, Plus, ChevronDown, Link, MoreVertical, Pen } from "lucide-react";
+import {
+  X,
+  Plus,
+  ChevronDown,
+  Link,
+  MoreVertical,
+  Pen,
+  Lock,
+} from "lucide-react";
 import {
   DrawerTrigger,
   DrawerContent,
@@ -64,6 +72,7 @@ import { z } from "zod";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface TableViewPresetsDrawerProps {
   viewConfig: {
@@ -111,6 +120,11 @@ export function TableViewPresetsDrawer({
     defaultValues: {
       name: "",
     },
+  });
+
+  const hasWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "TableViewPresets:CUD",
   });
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -323,13 +337,19 @@ export function TableViewPresetsDrawer({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="w-fit pl-0 text-xs text-primary-accent"
+                            className={cn(
+                              "w-fit pl-0 text-xs",
+                              hasWriteAccess
+                                ? "text-primary-accent"
+                                : "text-muted-foreground",
+                            )}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleUpdateViewConfig({
                                 name: view.name,
                               });
                             }}
+                            disabled={!hasWriteAccess}
                           >
                             Update
                           </Button>
@@ -389,8 +409,13 @@ export function TableViewPresetsDrawer({
                                     onClick={(e) => {
                                       e.stopPropagation();
                                     }}
+                                    disabled={!hasWriteAccess}
                                   >
-                                    <Pen className="mr-2 h-4 w-4" />
+                                    {hasWriteAccess ? (
+                                      <Pen className="mr-2 h-4 w-4" />
+                                    ) : (
+                                      <Lock className="mr-2 h-4 w-4" />
+                                    )}
                                     Edit
                                   </Button>
                                 </PopoverTrigger>
@@ -556,9 +581,12 @@ export function TableViewPresetsDrawer({
                 <Button
                   type="submit"
                   disabled={
-                    createMutation.isLoading || !!form.formState.errors.name
+                    createMutation.isLoading ||
+                    !!form.formState.errors.name ||
+                    !hasWriteAccess
                   }
                 >
+                  {!hasWriteAccess && <Lock className="mr-2 h-4 w-4" />}
                   {createMutation.isLoading ? "Saving..." : "Save View"}
                 </Button>
               </DialogFooter>
