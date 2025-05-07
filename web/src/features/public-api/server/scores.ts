@@ -21,6 +21,9 @@ export type ScoreQueryType = {
   operator?: string;
   scoreIds?: string[];
   dataType?: string;
+  observationIds?: string[];
+  sessionIds?: string[];
+  traceIds?: string[];
 };
 
 /**
@@ -266,6 +269,27 @@ const secureScoreFilterOptions = [
     clickhouseSelect: "data_type",
     clickhouseTable: "scores",
     filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "observationIds",
+    clickhouseSelect: "observation_id",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "sessionIds",
+    clickhouseSelect: "session_id",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "traceIds",
+    clickhouseSelect: "trace_id",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
     clickhousePrefix: "s",
   },
 ];

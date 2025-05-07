@@ -83,6 +83,27 @@ export const GetScoresQuery = z.object({
       message: "Each score ID must be a string",
     })
     .nullish(),
+  observationIds: z
+    .string()
+    .transform((str) => str.split(",").map((id) => id.trim())) // Split the comma-separated string
+    .refine((arr) => arr.every((id) => typeof id === "string"), {
+      message: "Each observation ID must be a string",
+    })
+    .nullish(),
+  sessionIds: z
+    .string()
+    .transform((str) => str.split(",").map((id) => id.trim())) // Split the comma-separated string
+    .refine((arr) => arr.every((id) => typeof id === "string"), {
+      message: "Each session ID must be a string",
+    })
+    .nullish(),
+  traceIds: z
+    .string()
+    .transform((str) => str.split(",").map((id) => id.trim())) // Split the comma-separated string
+    .refine((arr) => arr.every((id) => typeof id === "string"), {
+      message: "Each trace ID must be a string",
+    })
+    .nullish(),
 });
 
 // POST /scores

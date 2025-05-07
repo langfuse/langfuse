@@ -1,14 +1,12 @@
 import {
   createObservation,
-  createTraceScore,
   createTrace,
-  createSessionScore,
-} from "@langfuse/shared/src/server";
-import {
-  createObservationsCh,
   createScoresCh,
   createTracesCh,
+  createObservationsCh,
   createOrgProjectAndApiKey,
+  createTraceScore,
+  createSessionScore,
 } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetScoreResponseV2, GetScoresResponseV2 } from "@langfuse/shared";
@@ -17,6 +15,9 @@ import { v4 } from "uuid";
 import { z } from "zod";
 
 describe("/api/public/v2/scores API Endpoint", () => {
+  let authentication: string;
+  let newProjectId: string;
+
   describe("GET /api/public/v2/scores/:scoreId", () => {
     it("should GET a trace score", async () => {
       const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
@@ -165,8 +166,6 @@ describe("/api/public/v2/scores API Endpoint", () => {
       const scoreId_5 = v4();
       const scoreId_6 = v4();
       const scoreId_7 = v4();
-      let authentication: string;
-      let newProjectId: string;
 
       beforeEach(async () => {
         const { projectId, auth } = await createOrgProjectAndApiKey();
@@ -784,6 +783,329 @@ describe("/api/public/v2/scores API Endpoint", () => {
               name: scoreName,
               value: 10.5,
             }),
+          ]),
+        );
+      });
+    });
+
+    describe("should Filter scores by traceIds / observationIds / sessionIds", () => {
+      let obsId_1: string;
+      let obsId_2: string;
+      let sessionId_1: string;
+      let sessionId_2: string;
+      let traceId_4: string;
+      let traceId_5: string;
+      let scoreId_8: string;
+      let scoreId_9: string;
+      let scoreId_10: string;
+      let scoreId_11: string;
+      let scoreId_12: string;
+      let scoreId_13: string;
+      let scoreId_14: string;
+
+      beforeEach(async () => {
+        // Create additional resources for ID filtering tests
+        obsId_1 = v4();
+        obsId_2 = v4();
+        sessionId_1 = v4();
+        sessionId_2 = v4();
+        traceId_4 = v4();
+        traceId_5 = v4();
+        scoreId_8 = v4();
+        scoreId_9 = v4();
+        scoreId_10 = v4();
+        scoreId_11 = v4();
+        scoreId_12 = v4();
+        scoreId_13 = v4();
+        scoreId_14 = v4();
+
+        const observation_1 = createObservation({
+          id: obsId_1,
+          project_id: newProjectId,
+          trace_id: traceId_4,
+          type: "SPAN",
+        });
+        const observation_2 = createObservation({
+          id: obsId_2,
+          project_id: newProjectId,
+          trace_id: traceId_5,
+          type: "SPAN",
+        });
+        await createObservationsCh([observation_1, observation_2]);
+
+        const trace_4 = createTrace({
+          id: traceId_4,
+          project_id: newProjectId,
+          session_id: sessionId_1,
+        });
+        const trace_5 = createTrace({
+          id: traceId_5,
+          project_id: newProjectId,
+          session_id: sessionId_2,
+        });
+        await createTracesCh([trace_4, trace_5]);
+
+        // Score linked to trace 4, obs 1, session 1
+        const score_8 = createTraceScore({
+          id: scoreId_8,
+          project_id: newProjectId,
+          trace_id: traceId_4,
+          observation_id: obsId_1,
+          name: "id-filter-score",
+          value: 1,
+        });
+
+        // Score linked to trace 5, obs 2, session 2
+        const score_9 = createTraceScore({
+          id: scoreId_9,
+          project_id: newProjectId,
+          trace_id: traceId_5,
+          observation_id: obsId_2,
+          name: "id-filter-score",
+          value: 2,
+        });
+
+        // Score linked to trace 4, obs 2, session 1
+        const score_10 = createTraceScore({
+          id: scoreId_10,
+          project_id: newProjectId,
+          trace_id: traceId_4,
+          observation_id: obsId_2, // Different observation
+          name: "id-filter-score",
+          value: 3,
+        });
+
+        // Score linked to trace 5, obs 1, session 2
+        const score_11 = createTraceScore({
+          id: scoreId_11,
+          project_id: newProjectId,
+          trace_id: traceId_5,
+          observation_id: obsId_1, // Different observation
+          name: "id-filter-score",
+          value: 4,
+        });
+
+        // Standalone session score
+        const score_12 = createSessionScore({
+          id: scoreId_12,
+          project_id: newProjectId,
+          session_id: sessionId_1,
+          name: "id-filter-score-session-only",
+          value: 5,
+        });
+
+        // Another standalone session score
+        const score_13 = createSessionScore({
+          id: scoreId_13,
+          project_id: newProjectId,
+          session_id: sessionId_2,
+          name: "id-filter-score-session-only",
+          value: 6,
+        });
+
+        // Another standalone session score
+        const score_14 = createSessionScore({
+          id: scoreId_14,
+          project_id: newProjectId,
+          session_id: sessionId_2,
+          name: "id-filter-score-session-only",
+          value: 6,
+        });
+
+        await createScoresCh([
+          score_8,
+          score_9,
+          score_10,
+          score_11,
+          score_12,
+          score_13,
+          score_14,
+        ]);
+      });
+
+      it("should filter by single traceId", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?traceIds=${traceId_4}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({ totalItems: 2 });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_8, traceId: traceId_4 }),
+            expect.objectContaining({ id: scoreId_10, traceId: traceId_4 }),
+          ]),
+        );
+        expect(getScore.body.data).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_9 }), // Belongs to traceId_5
+            expect.objectContaining({ id: scoreId_11 }), // Belongs to traceId_5
+            expect.objectContaining({ id: scoreId_12 }), // No traceId
+            expect.objectContaining({ id: scoreId_13 }), // No traceId
+          ]),
+        );
+      });
+
+      it("should filter by multiple traceIds", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?traceIds=${traceId_4},${traceId_5}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({ totalItems: 4 });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_8, traceId: traceId_4 }),
+            expect.objectContaining({ id: scoreId_9, traceId: traceId_5 }),
+            expect.objectContaining({ id: scoreId_10, traceId: traceId_4 }),
+            expect.objectContaining({ id: scoreId_11, traceId: traceId_5 }),
+          ]),
+        );
+        expect(getScore.body.data).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_12 }), // No traceId
+            expect.objectContaining({ id: scoreId_13 }), // No traceId
+          ]),
+        );
+      });
+
+      it("should filter by single observationId", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?observationIds=${obsId_1}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({ totalItems: 2 });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_8, observationId: obsId_1 }),
+            expect.objectContaining({ id: scoreId_11, observationId: obsId_1 }),
+          ]),
+        );
+        expect(getScore.body.data).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_9 }), // Belongs to obsId_2
+            expect.objectContaining({ id: scoreId_10 }), // Belongs to obsId_2
+            expect.objectContaining({ id: scoreId_12 }), // No obsId
+            expect.objectContaining({ id: scoreId_13 }), // No obsId
+          ]),
+        );
+      });
+
+      it("should filter by multiple observationIds", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?observationIds=${obsId_1},${obsId_2}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({ totalItems: 4 });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_8, observationId: obsId_1 }),
+            expect.objectContaining({ id: scoreId_9, observationId: obsId_2 }),
+            expect.objectContaining({ id: scoreId_10, observationId: obsId_2 }),
+            expect.objectContaining({ id: scoreId_11, observationId: obsId_1 }),
+          ]),
+        );
+        expect(getScore.body.data).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_12 }), // No obsId
+            expect.objectContaining({ id: scoreId_13 }), // No obsId
+          ]),
+        );
+      });
+
+      it("should filter by single sessionId", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?sessionIds=${sessionId_1}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({ totalItems: 1 }); // scoreId_12
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_12, sessionId: sessionId_1 }),
+          ]),
+        );
+        expect(getScore.body.data).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_14 }),
+            expect.objectContaining({ id: scoreId_8 }),
+            expect.objectContaining({ id: scoreId_9 }),
+            expect.objectContaining({ id: scoreId_11 }),
+            expect.objectContaining({ id: scoreId_13 }),
+          ]),
+        );
+      });
+
+      it("should filter by multiple sessionIds", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?sessionIds=${sessionId_1},${sessionId_2}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({ totalItems: 6 }); // All scores except those unrelated to session/trace
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_12, sessionId: sessionId_1 }),
+            expect.objectContaining({ id: scoreId_13, sessionId: sessionId_2 }),
+            expect.objectContaining({ id: scoreId_14, sessionId: sessionId_2 }),
+          ]),
+        );
+        expect(getScore.body.data).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_8 }),
+            expect.objectContaining({ id: scoreId_9 }),
+            expect.objectContaining({ id: scoreId_10 }),
+            expect.objectContaining({ id: scoreId_11 }),
+          ]),
+        );
+      });
+
+      it("should filter by combining traceId and observationId", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?traceIds=${traceId_4}&observationIds=${obsId_1}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({ totalItems: 1 }); // Only score_8 matches both
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_8,
+              traceId: traceId_4,
+              observationId: obsId_1,
+            }),
+          ]),
+        );
+        expect(getScore.body.data).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: scoreId_9 }),
+            expect.objectContaining({ id: scoreId_10 }),
+            expect.objectContaining({ id: scoreId_11 }),
+            expect.objectContaining({ id: scoreId_12 }),
+            expect.objectContaining({ id: scoreId_13 }),
           ]),
         );
       });
