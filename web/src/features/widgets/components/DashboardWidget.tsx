@@ -117,9 +117,12 @@ export function DashboardWidget({
       const metricField = `${metric.agg}_${metric.measure}`;
 
       return {
-        dimension: item[dimensionField]
-          ? (item[dimensionField] as string)
-          : startCase(metricField === "count_count" ? "Count" : metricField),
+        dimension:
+          item[dimensionField] !== undefined
+            ? item[dimensionField]
+              ? (item[dimensionField] as string)
+              : "n/a"
+            : startCase(metricField === "count_count" ? "Count" : metricField),
         metric: Number(item[metricField] || 0),
         time_dimension: item["time_dimension"],
       };

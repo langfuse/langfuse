@@ -89,7 +89,7 @@ const EnvSchema = z.object({
   LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
-    .default(10e6), // 10MB
+    .default(80e6), // 80MB
 });
 
 export const env: z.infer<typeof EnvSchema> =

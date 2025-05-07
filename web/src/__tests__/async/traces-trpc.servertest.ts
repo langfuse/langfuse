@@ -74,6 +74,24 @@ describe("traces trpc", () => {
       expect(traceRes?.sessionId).toEqual(trace.session_id);
     });
 
+    it("access private trace with protected superjson property", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+        metadata: { prototype: "test" },
+      });
+
+      await createTracesCh([trace]);
+
+      const traceRes = await caller.traces.byId({
+        projectId,
+        traceId: trace.id,
+      });
+
+      expect(traceRes?.id).toEqual(trace.id);
+      expect(traceRes?.projectId).toEqual(projectId);
+      expect(traceRes?.metadata).toEqual(JSON.stringify(trace.metadata));
+    });
+
     it("access public trace", async () => {
       const differentProjectId = randomUUID();
       const trace = createTrace({

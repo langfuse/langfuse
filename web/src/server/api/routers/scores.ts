@@ -152,7 +152,10 @@ export const scoresRouter = createTRPCRouter({
           message: `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
         });
       }
-      return score;
+      return {
+        ...score,
+        metadata: score.metadata ? JSON.stringify(score.metadata) : null,
+      };
     }),
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)
