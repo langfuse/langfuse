@@ -1,7 +1,7 @@
 import {
-  validateFilters,
   validateOrderBy,
-} from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+  validateFilters,
+} from "@/src/components/table/table-view-presets/validation";
 import {
   type ColumnDefinition,
   type FilterState,

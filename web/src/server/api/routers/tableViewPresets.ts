@@ -77,7 +77,10 @@ export const TableViewPresetsRouter = createTRPCRouter({
       const view = await withErrorMapping(
         () =>
           TableViewService.updateTableViewPresets(input, ctx.session.user?.id),
-        { notFoundMessage: "Saved view not found, failed to update" },
+        {
+          notFoundMessage:
+            "Saved table view preset not found, failed to update",
+        },
       );
 
       return {
@@ -101,7 +104,10 @@ export const TableViewPresetsRouter = createTRPCRouter({
             input,
             ctx.session.user?.id,
           ),
-        { notFoundMessage: "Saved view not found, failed to update name" },
+        {
+          notFoundMessage:
+            "Saved table view preset not found, failed to update name",
+        },
       );
 
       return {
@@ -169,7 +175,10 @@ export const TableViewPresetsRouter = createTRPCRouter({
             input.viewId,
             input.projectId,
           ),
-        { notFoundMessage: "Saved view not found, likely it has been deleted" },
+        {
+          notFoundMessage:
+            "Saved table view preset not found, likely it has been deleted",
+        },
       );
     }),
 

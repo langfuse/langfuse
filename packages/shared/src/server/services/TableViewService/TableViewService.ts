@@ -56,7 +56,7 @@ export class TableViewService {
 
     if (!tableViewPresets) {
       throw new LangfuseNotFoundError(
-        `Saved view not found for table ${input.tableName} in project ${input.projectId}`,
+        `Saved table view preset not found for table ${input.tableName} in project ${input.projectId}`,
       );
     }
 
@@ -93,7 +93,7 @@ export class TableViewService {
 
     if (!tableViewPresets) {
       throw new LangfuseNotFoundError(
-        `Saved view not found for table ${input.tableName} in project ${input.projectId}`,
+        `Saved table view preset not found for table ${input.tableName} in project ${input.projectId}`,
       );
     }
 
@@ -170,7 +170,7 @@ export class TableViewService {
 
     if (!tableViewPresets) {
       throw new LangfuseNotFoundError(
-        `Saved view not found for id ${id} in project ${projectId}`,
+        `Saved table view preset not found for id ${id} in project ${projectId}`,
       );
     }
 
