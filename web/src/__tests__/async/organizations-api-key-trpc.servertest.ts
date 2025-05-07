@@ -6,7 +6,6 @@ import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
 
 describe("organization API keys trpc", () => {

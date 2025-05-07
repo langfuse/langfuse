@@ -135,7 +135,7 @@ export const ApiKeyRender = ({
   scope,
   generatedKeys,
 }: {
-  scope: string;
+  scope: ApiKeyScope;
   generatedKeys?: { secretKey: string; publicKey: string };
 }) => {
   const uiCustomization = useUiCustomization();
