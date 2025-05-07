@@ -9,7 +9,7 @@ export const ScoreSource = {
 export const ScoreSourceDomain = z.enum(["ANNOTATION", "API", "EVAL"]);
 export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
 
-const ScoreSchema = z.object({
+export const ScoreSchema = z.object({
   id: z.string(),
   timestamp: z.date(),
   projectId: z.string(),

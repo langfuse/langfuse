@@ -1,7 +1,7 @@
 import z from "zod";
-import { APIScoreSchemaV2, APIScoreV2 } from "../api/v2/schemas";
+import { APIScoreSchemaV2 } from "../api/v2/schemas";
 import { APIScoreSchemaV1, APIScoreV1 } from "../api/v1/schemas";
-import { ScoreDomain } from "../../../../domain";
+import { ScoreDomain, ScoreSchema } from "../../../../domain";
 
 type ValidatedScoreDomain<IncludeHasMetadata extends boolean> = ScoreDomain & {
   hasMetadata: IncludeHasMetadata extends true ? boolean : never;
@@ -16,8 +16,8 @@ type InputScore = ScoreDomain & { hasMetadata?: boolean };
  * @returns validated score
  * @throws error if score fails validation
  */
-export const validateDbScore = (score: ScoreDomain): APIScoreV2 =>
-  APIScoreSchemaV2.parse(score);
+export const validateDbScore = (score: any): ScoreDomain =>
+  ScoreSchema.parse(score);
 
 /**
  * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.

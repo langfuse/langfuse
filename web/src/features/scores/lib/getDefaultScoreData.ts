@@ -2,14 +2,15 @@ import {
   type ScoreTarget,
   type ScoreTargetTrace,
   type ScoreTargetSession,
+  type ValidatedScoreConfig,
+  type ScoreDomain,
+  ScoreSource,
 } from "@langfuse/shared";
-import { ScoreSource } from "@langfuse/shared";
-import { type APIScoreV2, type ValidatedScoreConfig } from "@langfuse/shared";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 
 const filterTraceScores =
   ({ traceId, observationId }: ScoreTargetTrace) =>
-  (s: APIScoreV2) =>
+  (s: ScoreDomain) =>
     s.source === ScoreSource.ANNOTATION &&
     s.traceId === traceId &&
     (observationId !== undefined
@@ -18,7 +19,7 @@ const filterTraceScores =
 
 const filterSessionScores =
   ({ sessionId }: ScoreTargetSession) =>
-  (s: APIScoreV2) =>
+  (s: ScoreDomain) =>
     s.source === ScoreSource.ANNOTATION && s.sessionId === sessionId;
 
 export const getDefaultScoreData = ({
@@ -27,7 +28,7 @@ export const getDefaultScoreData = ({
   configs,
   scoreTarget,
 }: {
-  scores: APIScoreV2[];
+  scores: ScoreDomain[];
   emptySelectedConfigIds: string[];
   configs: ValidatedScoreConfig[];
   scoreTarget: ScoreTarget;
