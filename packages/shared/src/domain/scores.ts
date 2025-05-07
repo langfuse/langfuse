@@ -26,7 +26,6 @@ const ScoreSchema = z.object({
   traceId: z.string().nullish(),
   observationId: z.string().nullish(),
   sessionId: z.string().nullish(),
-  runId: z.string().nullish(),
   value: z.number().nullish(),
   stringValue: z.string().nullish(),
   dataType: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]),
