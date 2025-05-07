@@ -30,7 +30,7 @@ export const BooleanData = z.object({
 });
 
 /**
- * Foundation schema for all score types, needs to be extended with entity score may be associated with. Note there are two API versions, where v1 allows only trace and observation scores, while v2 additionally allows session scores
+ * Foundation schema for all score types, needs to be extended with entity score may be associated with. Note there are two API versions, where v1 allows only trace and observation scores, while v2 additionally allows session and dataset run scores
  * @see {@link ScoreFoundationSchemaV1}, {@link ScoreFoundationSchemaV2}
  *
  * Must also be extended with score data specific schema (numeric, categorical, boolean)
@@ -86,7 +86,7 @@ export const GetScoresQuery = z.object({
 });
 
 // POST /scores
-// Please note that the POST /scores endpoint supports both trace and session level scores across v1 and v2.
+// Please note that the POST /scores endpoint supports all score types (trace, session, dataset run) across v1 and v2.
 /**
  * PostScoresBody is copied for the ingestion API as `ScoreBody`. Please copy any changes here in `packages/shared/src/features/ingestion/types.ts`
  */
@@ -129,7 +129,7 @@ export const PostScoresBody = applyScoreValidation(
 export const PostScoresResponse = z.object({ id: z.string() });
 
 // DELETE /scores/{scoreId}
-// Please note that the DELETE /scores/{scoreId} endpoint supports both trace and session level scores across v1 and v2.
+// Please note that the DELETE /scores/{scoreId} endpoint supports all score types (trace, session, dataset run) across v1 and v2.
 export const DeleteScoreQuery = z.object({
   scoreId: z.string(),
 });

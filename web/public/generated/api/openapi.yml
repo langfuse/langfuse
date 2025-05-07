@@ -4822,6 +4822,9 @@ components:
         observationId:
           type: string
           nullable: true
+        datasetRunId:
+          type: string
+          nullable: true
         name:
           type: string
         source:
@@ -5820,6 +5823,9 @@ components:
           type: string
           nullable: true
         observationId:
+          type: string
+          nullable: true
+        datasetRunId:
           type: string
           nullable: true
         name:
@@ -7230,6 +7236,9 @@ components:
           type: string
           nullable: true
         observationId:
+          type: string
+          nullable: true
+        datasetRunId:
           type: string
           nullable: true
         name:

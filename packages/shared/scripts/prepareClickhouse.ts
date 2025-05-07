@@ -149,6 +149,7 @@ export const prepareClickhouse = async (
       'default' AS environment,
       toString(floor(randUniform(0, ${tracesPerProject}))) AS trace_id,
       NULL AS session_id,
+      NULL AS dataset_run_id,
       if(
         rand() > 0.9,
         toString(floor(randUniform(0, ${observationsPerProject}))),
@@ -214,6 +215,7 @@ export const prepareClickhouse = async (
           'default' AS environment,
           NULL AS trace_id,
           arrayElement(['${sessionsToScore.map((s) => s.session_id).join("','")}'], 1 + (number % ${sessionsToScore.length})) AS session_id,
+          NULL AS dataset_run_id,
           NULL AS observation_id,
           concat('session_quality_', toString(rand() % 10)) AS name,
           randUniform(0, 100) AS value,

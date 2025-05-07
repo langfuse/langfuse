@@ -19,7 +19,7 @@ export function useIndividualScoreColumns<
   scoreColumnKey: keyof T & string;
   selectedFilterOption?: TableDateRangeOptions;
   showAggregateViewOnly?: boolean;
-  scoreColumnPrefix?: "Trace" | "Generation";
+  scoreColumnPrefix?: "Trace" | "Generation" | "Run-level" | "Aggregated";
   cellsLoading?: boolean;
 }) {
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
