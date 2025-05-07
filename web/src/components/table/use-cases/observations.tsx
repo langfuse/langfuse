@@ -58,6 +58,7 @@ import { useObservationPeekState } from "@/src/components/table/peek/hooks/useOb
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/useObservationPeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useRouter } from "next/router";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -116,6 +117,9 @@ export default function ObservationsTable({
   modelId,
   omittedFilter = [],
 }: ObservationsTableProps) {
+  const router = useRouter();
+  const { viewId } = router.query;
+
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
@@ -133,14 +137,17 @@ export default function ObservationsTable({
   );
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
-    [
-      {
-        column: "type",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["GENERATION"],
-      },
-    ],
+    // If the user loads saved table view presets, we should not apply the default type filter
+    !viewId
+      ? [
+          {
+            column: "type",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["GENERATION"],
+          },
+        ]
+      : [],
     "generations",
     projectId,
   );
