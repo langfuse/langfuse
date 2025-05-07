@@ -128,7 +128,10 @@ describe("PromptService", () => {
       // Simulate prompt not found
       mockPrisma.prompt.findFirst = jest.fn().mockResolvedValue(null);
 
-      const logErrorSpy = jest.spyOn(promptService as any, "logError");
+      const logErrorSpy = jest.spyOn(
+        promptService as any,
+        "Invalid prompt params",
+      );
 
       const result = await promptService.getPrompt(
         {
@@ -150,7 +153,10 @@ describe("PromptService", () => {
       // Simulate prompt not found
       mockPrisma.prompt.findFirst = jest.fn().mockResolvedValue(null);
 
-      const logErrorSpy = jest.spyOn(promptService as any, "logError");
+      const logErrorSpy = jest.spyOn(
+        promptService as any,
+        "Invalid prompt params",
+      );
 
       const result = await promptService.getPrompt({
         projectId: "project1",
