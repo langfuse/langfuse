@@ -10,6 +10,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api } from "@/src/utils/api";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
 import { useState } from "react";
+import { copyToClipboard } from "@/src/utils/clipboard";
 
 export const PublishTraceSwitch = (props: {
   traceId: string;
@@ -96,7 +97,7 @@ const Base = (props: {
 
   const copyUrl = () => {
     setIsCopied(true);
-    void navigator.clipboard.writeText(window.location.href);
+    void copyToClipboard(window.location.href);
     setTimeout(() => setIsCopied(false), 2500);
   };
 
