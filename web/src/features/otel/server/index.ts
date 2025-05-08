@@ -364,7 +364,10 @@ const extractModelParameters = (
   );
   return modelParameters.reduce((acc: any, key) => {
     const modelParamKey = key.replace("gen_ai.request.", "");
-    acc[modelParamKey] = attributes[key];
+    // avoid double-reporting the model name, already included in native model attribute
+    if (modelParamKey !== "model") {
+      acc[modelParamKey] = attributes[key];
+    }
     return acc;
   }, {});
 };
