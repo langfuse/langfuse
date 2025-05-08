@@ -153,6 +153,16 @@ const extractInputAndOutput = (
     return { input: eventInput || input, output: eventOutput || output };
   }
 
+  // Google Vertex AI Agent-Developer-Kit (ADK)
+  input = attributes["gcp.vertex.agent.llm_request"];
+  output = attributes["gcp.vertex.agent.llm_response"];
+  if (input || output) {
+    return {
+      input: input,
+      output: output,
+    };
+  }
+
   // Logfire uses `prompt` and `all_messages_events` property on spans
   input = attributes["prompt"];
   output = attributes["all_messages_events"];
