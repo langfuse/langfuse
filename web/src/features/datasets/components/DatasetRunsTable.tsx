@@ -233,6 +233,12 @@ export function DatasetRunsTable(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
 
+  const runScoresKeysAndProps =
+    api.datasets.getRunLevelScoreKeysAndProps.useQuery({
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+    });
+
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<DatasetRunRowData>({
       projectId: props.projectId,
@@ -250,6 +256,7 @@ export function DatasetRunsTable(props: {
     scoreColumnKey: "runScores",
     showAggregateViewOnly: false,
     scoreColumnPrefix: "Run-level",
+    scoreKeysAndPropsData: runScoresKeysAndProps.data,
   });
 
   const scoreIdToName = useMemo(() => {
