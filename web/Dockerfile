@@ -69,6 +69,7 @@ ENV SENTRY_PROJECT=$SENTRY_PROJECT
 # Accept build id as NEXT_PUBLIC_BUILD_ID
 ARG NEXT_PUBLIC_BUILD_ID
 ENV NEXT_PUBLIC_BUILD_ID=$NEXT_PUBLIC_BUILD_ID
+ENV SENTRY_RELEASE=$NEXT_PUBLIC_BUILD_ID
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
