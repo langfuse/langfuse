@@ -124,6 +124,7 @@ export function DataTableToolbar<TData, TValue>({
   );
   const capture = usePostHogClientCapture();
 
+<<<<<<< Updated upstream
   // Update searchString when searchConfig.currentQuery changes to account for saved view selection
   // Only update once on initial value of searchConfig.currentQuery, to allow for initial value to be set
   useEffect(() => {
@@ -132,6 +133,13 @@ export function DataTableToolbar<TData, TValue>({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchConfig?.currentQuery]);
+=======
+  const fullTextSearchDisabled: boolean =
+    searchConfig?.countOfFilteredRecordsInDatabase === undefined ||
+    (typeof searchConfig?.countOfFilteredRecordsInDatabase === "number" &&
+      searchConfig.countOfFilteredRecordsInDatabase >
+        env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS);
+>>>>>>> Stashed changes
 
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
