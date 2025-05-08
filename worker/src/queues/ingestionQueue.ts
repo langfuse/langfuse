@@ -4,14 +4,13 @@ import {
   getClickhouseEntityType,
   getCurrentSpan,
   getQueue,
+  getS3EventStorageClient,
   IngestionEventType,
   logger,
   QueueName,
   recordDistribution,
   recordIncrement,
   redis,
-  StorageService,
-  StorageServiceFactory,
   TQueueJobTypes,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -22,22 +21,6 @@ import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
-
-let s3StorageServiceClient: StorageService;
-
-const getS3StorageServiceClient = (bucketName: string): StorageService => {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3StorageServiceClient;
-};
 
 export const ingestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
@@ -71,20 +54,23 @@ export const ingestionQueueProcessorBuilder = (
 
       // We write the new file into the ClickHouse event log to keep track for retention and deletions
       const clickhouseWriter = ClickhouseWriter.getInstance();
-      const fileName = job.data.payload.data.fileKey
-        ? `${job.data.payload.data.fileKey}.json`
-        : "";
-      clickhouseWriter.addToQueue(TableName.EventLog, {
-        id: randomUUID(),
-        project_id: job.data.payload.authCheck.scope.projectId,
-        entity_type: getClickhouseEntityType(job.data.payload.data.type),
-        entity_id: job.data.payload.data.eventBodyId,
-        event_id: job.data.payload.data.fileKey ?? null,
-        bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-        bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
-        created_at: new Date().getTime(),
-        updated_at: new Date().getTime(),
-      });
+
+      if (job.data.payload.data.fileKey && job.data.payload.data.fileKey) {
+        const fileName = `${job.data.payload.data.fileKey}.json`;
+        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
+          id: randomUUID(),
+          project_id: job.data.payload.authCheck.scope.projectId,
+          entity_type: getClickhouseEntityType(job.data.payload.data.type),
+          entity_id: job.data.payload.data.eventBodyId,
+          event_id: job.data.payload.data.fileKey,
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          event_ts: new Date().getTime(),
+          is_deleted: 0,
+        });
+      }
 
       // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
       if (
@@ -128,7 +114,7 @@ export const ingestionQueueProcessorBuilder = (
         }
       }
 
-      const s3Client = getS3StorageServiceClient(
+      const s3Client = getS3EventStorageClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
 
@@ -211,16 +197,12 @@ export const ingestionQueueProcessorBuilder = (
       // Perform merge of those events
       if (!redis) throw new Error("Redis not available");
       if (!prisma) throw new Error("Prisma not available");
+
       await new IngestionService(
         redis,
         prisma,
         clickhouseWriter,
-        clickhouseClient({
-          tags: {
-            feature: "ingestion",
-            projectId: job.data.payload.authCheck.scope.projectId,
-          },
-        }),
+        clickhouseClient(),
       ).mergeAndWrite(
         getClickhouseEntityType(events[0].type),
         job.data.payload.authCheck.scope.projectId,

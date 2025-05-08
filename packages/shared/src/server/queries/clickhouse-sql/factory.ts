@@ -8,6 +8,7 @@ import {
   StringFilter,
   DateTimeFilter,
   StringOptionsFilter,
+  CategoryOptionsFilter,
   FilterList,
   NumberFilter,
   ArrayOptionsFilter,
@@ -57,6 +58,15 @@ export const createFilterFromFilterState = (
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
+          values: frontEndFilter.value,
+          tablePrefix: column.queryPrefix,
+        });
+      case "categoryOptions":
+        return new CategoryOptionsFilter({
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
+          operator: frontEndFilter.operator,
+          key: frontEndFilter.key,
           values: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });
@@ -111,6 +121,7 @@ export const createFilterFromFilterState = (
           tablePrefix: column.queryPrefix,
         });
       default:
+        // eslint-disable-next-line no-case-declarations
         const exhaustiveCheck: never = frontEndFilter;
         logger.error(`Invalid filter type: ${JSON.stringify(exhaustiveCheck)}`);
         throw new QueryBuilderError(`Invalid filter type`);

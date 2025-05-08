@@ -27,7 +27,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
-  createScore,
+  createTraceScore,
   createScoresCh,
   ScoreDeleteQueue,
   BatchActionQueue,
@@ -79,7 +79,7 @@ describe("scores trpc", () => {
   describe("scores.deleteMany", () => {
     it("should delete scores by ids", async () => {
       // Setup
-      const createdScore = createScore({
+      const createdScore = createTraceScore({
         project_id: projectId,
       });
       await createScoresCh([createdScore]);
@@ -108,7 +108,7 @@ describe("scores trpc", () => {
     it("should delete scores via batch query", async () => {
       // Setup
       const scoreName = randomUUID();
-      const createdScore = createScore({
+      const createdScore = createTraceScore({
         project_id: projectId,
         name: scoreName,
       });

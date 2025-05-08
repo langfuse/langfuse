@@ -1,7 +1,8 @@
 import {
-  type OptionsDefinition,
   type ColumnDefinition,
+  type SingleValueOption,
 } from "../tableDefinitions/types";
+import { formatColumnOptions } from "./typeHelpers";
 
 export const sessionsViewCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "s.bookmarked" },
@@ -89,19 +90,19 @@ export const sessionsViewCols: ColumnDefinition[] = [
 ];
 
 export type SessionOptions = {
-  userIds: Array<OptionsDefinition>;
-  tags: Array<OptionsDefinition>;
+  userIds: Array<SingleValueOption>;
+  tags: Array<SingleValueOption>;
 };
 
 export function sessionsTableColsWithOptions(
-  options?: SessionOptions
+  options?: SessionOptions,
 ): ColumnDefinition[] {
   return sessionsViewCols.map((col) => {
     if (col.id === "userIds") {
-      return { ...col, options: options?.userIds ?? [] };
+      return formatColumnOptions(col, options?.userIds ?? []);
     }
     if (col.id === "tags") {
-      return { ...col, options: options?.tags ?? [] };
+      return formatColumnOptions(col, options?.tags ?? []);
     }
     return col;
   });

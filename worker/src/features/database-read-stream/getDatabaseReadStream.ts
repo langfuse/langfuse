@@ -125,6 +125,8 @@ export const getDatabaseReadStream = async ({
           return scores.map((score) => ({
             id: score.id,
             traceId: score.traceId,
+            sessionId: score.sessionId,
+            datasetRunId: score.datasetRunId,
             timestamp: score.timestamp,
             source: score.source,
             name: score.name,

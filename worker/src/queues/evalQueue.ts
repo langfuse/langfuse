@@ -9,6 +9,7 @@ import {
   traceException,
   EvalExecutionQueue,
   QueueJobs,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../ee/evaluation/evalService";
 import { randomUUID } from "crypto";
@@ -78,6 +79,7 @@ export const evalJobExecutorQueueProcessor = async (
   try {
     logger.info("Executing Evaluation Execution Job", job.data);
     await evaluate({ event: job.data.payload });
+
     return true;
   } catch (e) {
     // If the job fails with a 429, we want to retry it unless it's older than 24h.
@@ -103,6 +105,7 @@ export const evalJobExecutorQueueProcessor = async (
           logger.info(
             `Job ${job.data.payload.jobExecutionId} is rate limited. Retrying in ${delay}ms.`,
           );
+          recordIncrement("langfuse.evaluation-execution.rate-limited");
           await EvalExecutionQueue.getInstance()?.add(
             QueueName.EvaluationExecution,
             {

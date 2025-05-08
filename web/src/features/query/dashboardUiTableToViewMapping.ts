@@ -11,6 +11,14 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "name",
     },
     {
+      uiTableName: "Observation Name",
+      viewName: "observationName",
+    },
+    {
+      uiTableName: "Score Name",
+      viewName: "scoreName",
+    },
+    {
       uiTableName: "Tags",
       viewName: "tags",
     },
@@ -21,6 +29,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     {
       uiTableName: "Session",
       viewName: "sessionId",
+    },
+    {
+      uiTableName: "Metadata",
+      viewName: "metadata",
     },
     {
       uiTableName: "Release",
@@ -41,12 +53,24 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "traceName",
     },
     {
+      uiTableName: "Observation Name",
+      viewName: "name",
+    },
+    {
+      uiTableName: "Score Name",
+      viewName: "scoreName",
+    },
+    {
       uiTableName: "User",
       viewName: "userId",
     },
     {
       uiTableName: "Session",
       viewName: "sessionId",
+    },
+    {
+      uiTableName: "Metadata",
+      viewName: "metadata",
     },
     {
       uiTableName: "Type",
@@ -103,8 +127,16 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "sessionId",
     },
     {
+      uiTableName: "Metadata",
+      viewName: "metadata",
+    },
+    {
       uiTableName: "Trace Name",
       viewName: "traceName",
+    },
+    {
+      uiTableName: "Observation Name",
+      viewName: "observationName",
     },
     {
       uiTableName: "Release",
@@ -145,8 +177,16 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "sessionId",
     },
     {
+      uiTableName: "Metadata",
+      viewName: "metadata",
+    },
+    {
       uiTableName: "Trace Name",
       viewName: "traceName",
+    },
+    {
+      uiTableName: "Observation Name",
+      viewName: "observationName",
     },
     {
       uiTableName: "Release",
@@ -169,6 +209,18 @@ const isLegacyUiTableFilter = (
         uiTableId: "sessionId",
         clickhouseTableName: "traces",
         clickhouseSelect: 't."sessionId"',
+      },
+      {
+        uiTableName: "Observation Name",
+        uiTableId: "observationName",
+        clickhouseTableName: "observations",
+        clickhouseSelect: 'o."name"',
+      },
+      {
+        uiTableName: "Metadata",
+        uiTableId: "metadata",
+        clickhouseTableName: "traces",
+        clickhouseSelect: 't."metadata"',
       },
     ])
     .some((columnDef) => columnDef.uiTableName === filter.column);

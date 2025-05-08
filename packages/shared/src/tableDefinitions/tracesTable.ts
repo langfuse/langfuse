@@ -1,4 +1,10 @@
-import { ColumnDefinition, ObservationLevelType, OptionsDefinition } from "..";
+import {
+  type ColumnDefinition,
+  type MultiValueOption,
+  type ObservationLevelType,
+  type SingleValueOption,
+} from "..";
+import { formatColumnOptions } from "./typeHelpers";
 
 export const tracesOnlyCols: ColumnDefinition[] = [
   {
@@ -131,17 +137,25 @@ export const tracesTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Usage",
-    id: "usage",
+    name: "Tokens",
+    id: "tokens",
     type: "number",
     internal: 'generation_metrics."totalTokens"',
     nullable: true,
   },
   {
-    name: "Scores",
+    name: "Scores (numeric)",
     id: "scores_avg",
     type: "numberObject",
     internal: "scores_avg",
+  },
+  {
+    name: "Scores (categorical)",
+    id: "score_categories",
+    type: "categoryOptions",
+    internal: "score_categories",
+    options: [], // to be filled in at runtime
+    nullable: true,
   },
   {
     name: "Latency (s)",
@@ -187,12 +201,13 @@ export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
 export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 export type TraceOptions = {
   scores_avg?: Array<string>;
-  name?: Array<OptionsDefinition>;
-  tags?: Array<OptionsDefinition>;
-  environment?: Array<OptionsDefinition>;
+  score_categories?: Array<MultiValueOption>;
+  name?: Array<SingleValueOption>;
+  tags?: Array<SingleValueOption>;
+  environment?: Array<SingleValueOption>;
 };
 export type DatasetOptions = {
-  datasetId: Array<OptionsDefinition>;
+  datasetId: Array<SingleValueOption>;
 };
 
 // Used only for dataset evaluator, not on dataset table
@@ -202,7 +217,7 @@ export function datasetFormFilterColsWithOptions(
 ): ColumnDefinition[] {
   return cols.map((col) => {
     if (col.id === "datasetId") {
-      return { ...col, options: options?.datasetId ?? [] };
+      return formatColumnOptions(col, options?.datasetId ?? []);
     }
     return col;
   });
@@ -214,16 +229,19 @@ export function tracesTableColsWithOptions(
 ): ColumnDefinition[] {
   return cols.map((col) => {
     if (col.id === "scores_avg") {
-      return { ...col, keyOptions: options?.scores_avg ?? [] };
+      return formatColumnOptions(col, options?.scores_avg ?? []);
     }
     if (col.id === "name") {
-      return { ...col, options: options?.name ?? [] };
+      return formatColumnOptions(col, options?.name ?? []);
     }
     if (col.id === "tags") {
-      return { ...col, options: options?.tags ?? [] };
+      return formatColumnOptions(col, options?.tags ?? []);
     }
     if (col.id === "environment") {
-      return { ...col, options: options?.environment ?? [] };
+      return formatColumnOptions(col, options?.environment ?? []);
+    }
+    if (col.id === "score_categories") {
+      return formatColumnOptions(col, options?.score_categories ?? []);
     }
     return col;
   });

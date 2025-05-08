@@ -11,7 +11,7 @@ import {
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
 
-type QueryType = {
+export type TraceQueryType = {
   page: number;
   limit: number;
   projectId: string;
@@ -28,10 +28,13 @@ type QueryType = {
   toTimestamp?: string;
 };
 
-export const generateTracesForPublicApi = async (
-  props: QueryType,
-  orderBy: OrderByState,
-) => {
+export const generateTracesForPublicApi = async ({
+  props,
+  orderBy,
+}: {
+  props: TraceQueryType;
+  orderBy: OrderByState;
+}) => {
   const filter = convertApiProvidedFilterToClickhouseFilter(
     props,
     filterParams,
@@ -88,6 +91,8 @@ export const generateTracesForPublicApi = async (
         groupUniqArray(id) as score_ids
       FROM scores
       WHERE project_id = {projectId: String}
+      AND session_id IS NULL
+      AND dataset_run_id IS NULL
       ${timeFilter ? `AND timestamp >= {cteTimeFilter: DateTime64(3)}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
@@ -162,7 +167,11 @@ export const generateTracesForPublicApi = async (
   }));
 };
 
-export const getTracesCountForPublicApi = async (props: QueryType) => {
+export const getTracesCountForPublicApi = async ({
+  props,
+}: {
+  props: TraceQueryType;
+}) => {
   const filter = convertApiProvidedFilterToClickhouseFilter(
     props,
     filterParams,

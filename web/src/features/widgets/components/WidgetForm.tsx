@@ -162,6 +162,18 @@ export function WidgetForm({
       internal: "internalValue",
     },
     {
+      name: "Observation Name",
+      id: "observationName",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Score Name",
+      id: "scoreName",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
       name: "Tags",
       id: "tags",
       type: "arrayOptions",
@@ -178,6 +190,12 @@ export function WidgetForm({
       name: "Session",
       id: "session",
       type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Metadata",
+      id: "metadata",
+      type: "stringObject",
       internal: "internalValue",
     },
     {
@@ -315,9 +333,14 @@ export function WidgetForm({
         const metricField = `${selectedAggregation}_${selectedMeasure}`;
 
         return {
-          dimension: item[dimensionField]
-            ? (item[dimensionField] as string)
-            : startCase(metricField === "count_count" ? "Count" : metricField),
+          dimension:
+            item[dimensionField] !== undefined
+              ? item[dimensionField]
+                ? (item[dimensionField] as string)
+                : "n/a"
+              : startCase(
+                  metricField === "count_count" ? "Count" : metricField,
+                ),
           metric: Number(item[metricField] || 0),
           time_dimension: item["time_dimension"],
         };

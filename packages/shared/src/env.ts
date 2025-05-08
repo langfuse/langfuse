@@ -63,6 +63,15 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_USE_GOOGLE_CLOUD_STORAGE: z.enum(["true", "false"]).default("false"),
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
@@ -78,6 +87,9 @@ const EnvSchema = z.object({
   LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default("email"),
   LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default("name"),
   LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
+  LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
+    .number()
+    .default(80e6), // 80MB
 });
 
 export const env: z.infer<typeof EnvSchema> =

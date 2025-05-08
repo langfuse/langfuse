@@ -1,10 +1,21 @@
 import { Button } from "@/src/components/ui/button";
-import React, { type Dispatch, type SetStateAction, useState } from "react";
+import React, {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useState,
+} from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
-import { type TracingSearchType, type FilterState } from "@langfuse/shared";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type ColumnDefinition } from "@langfuse/shared";
+import {
+  type TracingSearchType,
+  type FilterState,
+  type ColumnDefinition,
+  type OrderByState,
+  type TableViewPresetDomain,
+  type TableViewPresetTableName,
+} from "@langfuse/shared";
 import {
   type RowSelectionState,
   type ColumnOrderState,
@@ -30,6 +41,7 @@ import { Label } from "@/src/components/ui/label";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { env } from "@/src/env.mjs";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -48,6 +60,18 @@ interface SearchConfig {
   countOfFilteredRecordsInDatabase?: number;
   searchType?: TracingSearchType[];
   setSearchType?: (searchType: TracingSearchType[]) => void;
+}
+
+interface TableViewControllers {
+  applyViewState: (viewData: TableViewPresetDomain) => void;
+  selectedViewId: string | null;
+  handleSetViewId: (viewId: string | null) => void;
+}
+
+interface TableViewConfig {
+  tableName: TableViewPresetTableName;
+  projectId: string;
+  controllers: TableViewControllers;
 }
 
 interface DataTableToolbarProps<TData, TValue> {
@@ -77,6 +101,8 @@ interface DataTableToolbarProps<TData, TValue> {
     onValueChange: (values: string[]) => void;
     options: { value: string }[];
   };
+  orderByState?: OrderByState;
+  viewConfig?: TableViewConfig;
   className?: string;
 }
 
@@ -99,6 +125,8 @@ export function DataTableToolbar<TData, TValue>({
   multiSelect,
   environmentFilter,
   className,
+  orderByState,
+  viewConfig,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -111,6 +139,15 @@ export function DataTableToolbar<TData, TValue>({
     searchConfig?.searchType && searchConfig?.setSearchType;
 
   const capture = usePostHogClientCapture();
+
+  // Update searchString when searchConfig.currentQuery changes to account for saved view selection
+  // Only update once on initial value of searchConfig.currentQuery, to allow for initial value to be set
+  useEffect(() => {
+    if (searchConfig?.currentQuery !== searchString) {
+      setSearchString(searchConfig?.currentQuery ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchConfig?.currentQuery]);
 
   const fullTextSearchDisabled: boolean =
     searchConfig?.countOfFilteredRecordsInDatabase === undefined ||
@@ -192,6 +229,18 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
+          {!!columnVisibility && !!columnOrder && !!viewConfig && (
+            <TableViewPresetsDrawer
+              viewConfig={viewConfig}
+              currentState={{
+                orderBy: orderByState ?? null,
+                filters: filterState ?? [],
+                columnOrder,
+                columnVisibility,
+                searchQuery: searchString,
+              }}
+            />
+          )}
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}

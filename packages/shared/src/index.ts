@@ -15,6 +15,7 @@ export * from "./utils/objects";
 export * from "./utils/typeChecks";
 export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
+export * from "./tableDefinitions/typeHelpers";
 
 // llm api
 export * from "./server/llm/types";

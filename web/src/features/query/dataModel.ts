@@ -45,6 +45,18 @@ export const traceView: ViewDeclarationType = {
       sql: "environment",
       type: "string",
     },
+    observationName: {
+      sql: "name",
+      alias: "observationName",
+      type: "string",
+      relationTable: "observations",
+    },
+    scoreName: {
+      sql: "name",
+      alias: "scoreName",
+      type: "string",
+      relationTable: "scores",
+    },
   },
   measures: {
     count: {
@@ -68,6 +80,18 @@ export const traceView: ViewDeclarationType = {
       sql: "date_diff('millisecond', min(observations.start_time), max(observations.end_time))",
       alias: "latency",
       type: "number",
+      relationTable: "observations",
+    },
+    totalTokens: {
+      sql: "sumMap(observations.usage_details)['total']",
+      alias: "totalTokens",
+      type: "sum",
+      relationTable: "observations",
+    },
+    totalCost: {
+      sql: "sum(observations.total_cost)",
+      alias: "totalCost",
+      type: "sum",
       relationTable: "observations",
     },
   },
@@ -174,6 +198,12 @@ export const observationsView: ViewDeclarationType = {
       sql: "version",
       type: "string",
       relationTable: "traces",
+    },
+    scoreName: {
+      sql: "name",
+      alias: "scoreName",
+      type: "string",
+      relationTable: "scores",
     },
   },
   measures: {

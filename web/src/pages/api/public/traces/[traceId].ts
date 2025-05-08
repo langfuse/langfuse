@@ -8,7 +8,7 @@ import {
   DeleteTraceV1Response,
 } from "@/src/features/public-api/types/traces";
 import {
-  filterAndValidateDbScoreList,
+  filterAndValidateDbTraceScoreList,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -32,7 +32,17 @@ export default withMiddlewares({
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const { traceId } = query;
-      const trace = await getTraceById(traceId, auth.scope.projectId);
+      const trace = await getTraceById({
+        traceId,
+        projectId: auth.scope.projectId,
+      });
+
+      if (!trace) {
+        throw new LangfuseNotFoundError(
+          `Trace ${traceId} not found within authorized project`,
+        );
+      }
+
       const [observations, scores] = await Promise.all([
         getObservationsForTrace(
           traceId,
@@ -89,14 +99,10 @@ export default withMiddlewares({
         };
       });
 
-      if (!trace) {
-        throw new LangfuseNotFoundError(
-          `Trace ${traceId} not found within authorized project`,
-        );
-      }
-
       const outObservations = observationsView.map(transformDbToApiObservation);
-      const validatedScores = filterAndValidateDbScoreList({
+      // As these are traces scores, we expect all scores to have a traceId set
+      // For type consistency, we validate the scores against the v1 schema which requires a traceId
+      const validatedScores = filterAndValidateDbTraceScoreList({
         scores,
         onParseError: traceException,
       });

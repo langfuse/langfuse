@@ -12,8 +12,6 @@ import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { unified } from "unified";
-import remarkParse from "remark-parse";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
@@ -26,6 +24,8 @@ import {
   type OpenAIContentParts,
   type OpenAIContentSchema,
   type OpenAIOutputAudioType,
+  isOpenAITextContentPart,
+  isOpenAIImageContentPart,
 } from "@/src/components/schemas/ChatMlSchema";
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
@@ -91,15 +91,6 @@ function MarkdownRenderer({
   // Try to parse markdown content
 
   try {
-    const parseMarkdown = () => {
-      const processor = unified()
-        .use(remarkParse)
-        .use(remarkGfm)
-        .use(remarkMath);
-      return processor.parse(markdown);
-    };
-    parseMarkdown();
-
     // If parsing succeeds, render with ReactMarkdown
     return (
       <MemoizedReactMarkdown
@@ -320,14 +311,14 @@ export function MarkdownView({
         ) : (
           // content parts (multi-modal)
           (markdown ?? []).map((content, index) =>
-            content.type === "text" ? (
+            isOpenAITextContentPart(content) ? (
               <MarkdownRenderer
                 key={index}
                 markdown={content.text}
                 theme={theme}
                 customCodeHeaderClassName={customCodeHeaderClassName}
               />
-            ) : content.type === "image_url" ? (
+            ) : isOpenAIImageContentPart(content) ? (
               OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
                 <div key={index}>
                   <ResizableImage src={content.image_url.url.toString()} />

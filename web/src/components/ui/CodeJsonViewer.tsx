@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
@@ -29,7 +29,7 @@ export function JSONView(props: {
   projectIdForPromptButtons?: string;
 }) {
   // some users ingest stringified json nested in json, parse it
-  const parsedJson = deepParseJson(props.json);
+  const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
   const capture = usePostHogClientCapture();

@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.51.0",
+  "version": "3.54.1",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -23,6 +23,8 @@
     "build": "turbo run build",
     "start": "turbo run start",
     "dev": "turbo run dev",
+    "dev:worker": "turbo run dev --filter=worker",
+    "dev:web": "turbo run dev --filter=web",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",

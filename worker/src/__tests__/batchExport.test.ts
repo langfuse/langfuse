@@ -4,7 +4,7 @@ import {
   createObservation,
   createObservationsCh,
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -35,7 +35,7 @@ describe("batch export test suite", () => {
       }),
     ];
 
-    const score = createScore({
+    const score = createTraceScore({
       project_id: projectId,
       trace_id: randomUUID(),
       observation_id: observations[0].id,
@@ -190,7 +190,7 @@ describe("batch export test suite", () => {
       }),
     ];
 
-    const score = createScore({
+    const score = createTraceScore({
       project_id: projectId,
       trace_id: randomUUID(),
       observation_id: generations[0].id,
@@ -375,7 +375,7 @@ describe("batch export test suite", () => {
       }),
     ];
 
-    const score = createScore({
+    const score = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
       observation_id: generations[0].id,
@@ -383,7 +383,7 @@ describe("batch export test suite", () => {
       value: 123,
     });
 
-    const qualitativeScore = createScore({
+    const qualitativeScore = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
       observation_id: generations[0].id,
@@ -545,7 +545,7 @@ describe("batch export test suite", () => {
 
     // Create scores with different names and values
     const scores = [
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[0].id,
         observation_id: observations[0].id,
@@ -553,7 +553,7 @@ describe("batch export test suite", () => {
         value: 0.85,
         timestamp: new Date("2024-01-01").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[0].id,
         observation_id: observations[0].id,
@@ -561,7 +561,7 @@ describe("batch export test suite", () => {
         value: 0.75,
         timestamp: new Date("2024-01-01").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[1].id,
         observation_id: observations[1].id,
@@ -569,7 +569,7 @@ describe("batch export test suite", () => {
         value: 0.92,
         timestamp: new Date("2024-01-02").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[1].id,
         observation_id: observations[1].id,
@@ -645,14 +645,14 @@ describe("batch export test suite", () => {
 
     // Create scores with string values
     const scores = [
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
         name: "category",
         string_value: "excellent",
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
@@ -728,7 +728,7 @@ describe("batch export test suite", () => {
 
     // Create scores with different timestamps
     const scores = [
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
@@ -736,7 +736,7 @@ describe("batch export test suite", () => {
         value: 0.5,
         timestamp: new Date("2024-01-01T10:00:00Z").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
@@ -744,7 +744,7 @@ describe("batch export test suite", () => {
         value: 0.6,
         timestamp: new Date("2024-01-15T10:00:00Z").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
@@ -834,7 +834,7 @@ describe("batch export test suite", () => {
 
     // Create scores with different attributes
     const scores = [
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[0].id,
         observation_id: observations[0].id,
@@ -842,7 +842,7 @@ describe("batch export test suite", () => {
         value: 0.7,
         source: "API",
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[0].id,
         observation_id: observations[0].id,
@@ -850,7 +850,7 @@ describe("batch export test suite", () => {
         value: 0.8,
         source: "UI",
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[1].id,
         observation_id: observations[1].id,
@@ -858,7 +858,7 @@ describe("batch export test suite", () => {
         value: 0.9,
         source: "API",
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[1].id,
         observation_id: observations[1].id,

@@ -109,6 +109,10 @@ export function tableColumnsToSqlFilter(
       case "boolean":
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
+      case "categoryOptions":
+        // LFE-4815: Support category options in postgres
+        logger.warn("Category options not supported in postgres yet");
+        throw new Error("Category options not supported in postgres yet");
       case "null":
         valuePrisma = Prisma.sql``;
         break;

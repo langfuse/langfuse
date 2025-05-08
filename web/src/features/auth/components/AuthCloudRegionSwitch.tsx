@@ -33,18 +33,26 @@ const regions =
             flag: "🚧",
           },
         ]
-      : [
-          {
-            name: "US",
-            hostname: "us.cloud.langfuse.com",
-            flag: "🇺🇸",
-          },
-          {
-            name: "EU",
-            hostname: "cloud.langfuse.com",
-            flag: "🇪🇺",
-          },
-        ];
+      : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA"
+        ? [
+            {
+              name: "HIPAA",
+              hostname: "hipaa.cloud.langfuse.com",
+              flag: "⚕️",
+            },
+          ]
+        : [
+            {
+              name: "US",
+              hostname: "us.cloud.langfuse.com",
+              flag: "🇺🇸",
+            },
+            {
+              name: "EU",
+              hostname: "cloud.langfuse.com",
+              flag: "🇪🇺",
+            },
+          ];
 
 export function CloudRegionSwitch({
   isSignUpPage,
@@ -134,7 +142,8 @@ const DataRegionInfo = () => (
         <p>
           Regions are strictly separated, and no data is shared across regions.
           Choosing a region close to you can help improve speed and comply with
-          local data residency laws and privacy regulations.
+          local data residency laws and privacy regulations. Contact us to
+          onboard into a HIPAA compliant region.
         </p>
         <p>
           You can have accounts in both regions and data migrations are

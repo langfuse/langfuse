@@ -125,8 +125,10 @@ export type TraceRecordInsertType = z.infer<typeof traceRecordInsertSchema>;
 export const scoreRecordBaseSchema = z.object({
   id: z.string(),
   project_id: z.string(),
-  trace_id: z.string(),
+  trace_id: z.string().nullish(),
+  session_id: z.string().nullish(),
   observation_id: z.string().nullish(),
+  dataset_run_id: z.string().nullish(),
   environment: z.string().default("default"),
   name: z.string(),
   value: z.number().nullish(),
@@ -157,7 +159,7 @@ export const scoreRecordInsertSchema = scoreRecordBaseSchema.extend({
 });
 export type ScoreRecordInsertType = z.infer<typeof scoreRecordInsertSchema>;
 
-export const eventLogRecordBaseSchema = z.object({
+export const blobStorageFileLogRecordBaseSchema = z.object({
   id: z.string(),
   project_id: z.string(),
   entity_type: z.string(),
@@ -167,18 +169,25 @@ export const eventLogRecordBaseSchema = z.object({
   event_id: z.string().nullable(),
   bucket_name: z.string(),
   bucket_path: z.string(),
+  is_deleted: z.number(),
 });
-export const eventLogRecordReadSchema = eventLogRecordBaseSchema.extend({
-  created_at: clickhouseStringDateSchema,
-  updated_at: clickhouseStringDateSchema,
-});
-export type EventLogRecordReadType = z.infer<typeof eventLogRecordReadSchema>;
-export const eventLogRecordInsertSchema = eventLogRecordBaseSchema.extend({
-  created_at: z.number(),
-  updated_at: z.number(),
-});
-export type EventLogRecordInsertType = z.infer<
-  typeof eventLogRecordInsertSchema
+export const blobStorageFileRefRecordReadSchema =
+  blobStorageFileLogRecordBaseSchema.extend({
+    created_at: clickhouseStringDateSchema,
+    updated_at: clickhouseStringDateSchema,
+    event_ts: clickhouseStringDateSchema,
+  });
+export type BlobStorageFileRefRecordReadType = z.infer<
+  typeof blobStorageFileRefRecordReadSchema
+>;
+export const blobStorageFileLogRecordInsertSchema =
+  blobStorageFileLogRecordBaseSchema.extend({
+    created_at: z.number(),
+    updated_at: z.number(),
+    event_ts: z.number(),
+  });
+export type BlobStorageFileLogInsertType = z.infer<
+  typeof blobStorageFileLogRecordInsertSchema
 >;
 
 export const convertTraceReadToInsert = (
@@ -345,6 +354,8 @@ export const convertPostgresScoreToInsert = (
     timestamp: score.timestamp?.getTime(),
     project_id: score.project_id,
     trace_id: score.trace_id,
+    session_id: null,
+    dataset_run_id: null,
     observation_id: score.observation_id,
     environment: score.environment,
     name: score.name,
