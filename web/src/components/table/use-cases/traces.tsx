@@ -1,9 +1,6 @@
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
-import {
-  DataTableToolbar,
-  useSupportedSearchTypes,
-} from "@/src/components/table/data-table-toolbar";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
@@ -14,21 +11,10 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
-import { useEffect, useMemo, useState, useRef } from "react";
-import {
-  ArrayParam,
-  NumberParam,
-  StringParam,
-  useQueryParam,
-  useQueryParams,
-  withDefault,
-} from "use-query-params";
+import { useEffect, useMemo, useState } from "react";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
-import {
-  numberFormatter,
-  usdFormatter,
-  compactNumberFormatter,
-} from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
@@ -39,7 +25,6 @@ import { cn } from "@/src/utils/tailwind";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
-  type TracingSearchType,
   type FilterState,
   tracesTableColsWithOptions,
   type ObservationLevelType,
@@ -72,7 +57,6 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type TableAction } from "@/src/features/table/types";
-import { env } from "@/src/env.mjs";
 import {
   LevelCountsDisplay,
   type LevelCount,
@@ -93,6 +77,7 @@ import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-deta
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 export type TracesTableRow = {
   // Shown by default
@@ -151,23 +136,10 @@ export default function TracesTable({
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
-  const [searchQuery, setSearchQuery] = useQueryParam(
-    "search",
-    withDefault(StringParam, null),
-  );
-
-  // Search type can be either "id" or "metadata". Keep it untyped here and
-  // cast later to the stricter `TracingSearchType[]` to avoid type mismatch
-  // with the generic `ArrayParam` from `use-query-params`.
-  const [searchType, setSearchType] = useQueryParam(
-    "searchType",
-    withDefault(ArrayParam, ["id"]),
-  );
-
-  const typedSearchType = (searchType ?? ["id"]) as TracingSearchType[];
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange(projectId);
+
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "traces",
@@ -234,39 +206,27 @@ export default function TracesTable({
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch();
+
   const tracesAllCountFilter = {
     projectId,
     filter: filterState,
     searchQuery: searchQuery,
-    searchType: typedSearchType,
+    searchType: searchType,
     page: 0,
     limit: 0,
     orderBy: null,
   };
 
-  // Handle Phase C: User has typed text
-  const handleSearchQueryChange = (query: string) => {
-    setSearchQuery(query);
-  };
-
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
     enabled: environmentFilterOptions.data !== undefined,
   });
-  console.log("totalCountQuery", totalCountQuery.data);
-
-  const supportedSearchTypes = useSupportedSearchTypes({
-    totalFilteredRecords: totalCountQuery.data?.totalCount ?? 0,
-    tableAllowsFullTextSearch: true,
-  });
-
-  useEffect(() => {
-    setSearchType(supportedSearchTypes);
-  }, [supportedSearchTypes, setSearchType]);
 
   const tracesAllQueryFilter = {
     ...tracesAllCountFilter,
     searchQuery: searchQuery,
-    searchType: typedSearchType,
+    searchType: searchType,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
@@ -1072,10 +1032,11 @@ export default function TracesTable({
         filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
           placeholder: "Search...",
-          updateQuery: handleSearchQueryChange,
+          updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
           tableAllowsFullTextSearch: true,
-          totalFilteredRecords: totalCountQuery.data?.totalCount,
+          setSearchType,
+          searchType,
         }}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}

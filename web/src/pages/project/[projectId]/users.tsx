@@ -345,6 +345,9 @@ const UsersTable = () => {
           placeholder: "Search by user id",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
         }}
         environmentFilter={{
           values: selectedEnvironments,

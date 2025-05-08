@@ -9,6 +9,7 @@ import {
   type OrderByState,
   type TableViewPresetDomain,
   type TableViewPresetTableName,
+  type TracingSearchType,
 } from "@langfuse/shared";
 import {
   type RowSelectionState,
@@ -30,10 +31,7 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
-import { Badge } from "@/src/components/ui/badge";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { env } from "@/src/env.mjs";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 
 export interface MultiSelect {
@@ -48,10 +46,11 @@ export interface MultiSelect {
 
 interface SearchConfig {
   placeholder: string;
-  updateQuery(event: string): void;
+  updateQuery: (event: string) => void;
   currentQuery?: string;
   tableAllowsFullTextSearch?: boolean;
-  totalFilteredRecords?: number;
+  setSearchType: ((newSearchType: TracingSearchType[]) => void) | undefined;
+  searchType: TracingSearchType[] | undefined;
 }
 
 interface TableViewControllers {
@@ -126,11 +125,6 @@ export function DataTableToolbar<TData, TValue>({
 
   const capture = usePostHogClientCapture();
 
-  const searchTypes = useSupportedSearchTypes({
-    totalFilteredRecords: searchConfig?.totalFilteredRecords ?? 0,
-    tableAllowsFullTextSearch: searchConfig?.tableAllowsFullTextSearch ?? false,
-  });
-
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
@@ -161,20 +155,32 @@ export function DataTableToolbar<TData, TValue>({
                 className="w-full border-none px-0"
               />
             </div>
-            {searchConfig.tableAllowsFullTextSearch && (
-              <div className="border-l px-2">
-                <Badge variant="tertiary" className="cursor-none">
-                  {searchTypes.indexOf("content") >= 0
-                    ? "Metadata + Full Text"
-                    : "Metadata"}
-                  <DocPopup
-                    description={`Full text search can only be executed on max. ${compactNumberFormatter(
-                      env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS,
-                    )} records. Current filters result in ${searchConfig.totalFilteredRecords} records.`}
-                  />
-                </Badge>
-              </div>
-            )}
+            {searchConfig.tableAllowsFullTextSearch &&
+              searchConfig.setSearchType && (
+                <div className="border-l px-2">
+                  <Button
+                    variant="tertiary"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => {
+                      const newSearchType =
+                        (searchConfig.searchType ?? []).indexOf("content") >= 0
+                          ? ["id" as const]
+                          : ["id" as const, "content" as const];
+                      searchConfig?.setSearchType?.(newSearchType);
+                    }}
+                  >
+                    <>
+                      {(searchConfig.searchType ?? []).indexOf("content") >= 0
+                        ? "Metadata + Full Text"
+                        : "Metadata"}
+                      <DocPopup
+                        description={`Metadata search: ID, Name, User ID\nFull text search: Input, Output`}
+                      />
+                    </>
+                  </Button>
+                </div>
+              )}
           </div>
         )}
         {selectedOption && setDateRangeAndOption && (
@@ -241,19 +247,3 @@ export function DataTableToolbar<TData, TValue>({
     </div>
   );
 }
-
-export const useSupportedSearchTypes = (p: {
-  totalFilteredRecords: number;
-  tableAllowsFullTextSearch: boolean;
-}) => {
-  // Implement the gating algorithm logic - Phase B
-  // THRESHOLD is defined in env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS
-  const fullTextSearchEnabled: boolean =
-    p.tableAllowsFullTextSearch === true &&
-    p.totalFilteredRecords !== undefined &&
-    p.totalFilteredRecords <= env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS;
-
-  return fullTextSearchEnabled
-    ? ["id" as const, "content" as const]
-    : ["id" as const];
-};

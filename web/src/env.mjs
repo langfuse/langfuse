@@ -317,10 +317,6 @@ export const env = createEnv({
     NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
-    NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS: z.coerce
-      .number()
-      .gte(1)
-      .default(1_000_000),
   },
 
   /**
@@ -341,8 +337,6 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
       process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
-    NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS:
-      process.env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,

@@ -3,14 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useEffect, useMemo } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
-import {
-  ArrayParam,
-  NumberParam,
-  StringParam,
-  useQueryParam,
-  useQueryParams,
-  withDefault,
-} from "use-query-params";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -21,7 +14,6 @@ import {
   type ObservationOptions,
   BatchExportTableName,
   type ObservationType,
-  type TracingSearchType,
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -61,6 +53,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/useObservationPeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -122,22 +115,10 @@ export default function ObservationsTable({
   const router = useRouter();
   const { viewId } = router.query;
 
-  const [searchQuery, setSearchQuery] = useQueryParam(
-    "search",
-    withDefault(StringParam, null),
-  );
   const { setDetailPageList } = useDetailPageLists();
 
-  const [searchType, setSearchType] = useQueryParam(
-    "searchType",
-    withDefault(ArrayParam, ["id"]),
-  );
-
-  const setTypedSearchType = (searchType: TracingSearchType[]) => {
-    setSearchType(searchType);
-  };
-
-  const typedSearchType = (searchType ?? ["id"]) as TracingSearchType[];
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch();
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -252,7 +233,7 @@ export default function ObservationsTable({
     projectId,
     filter: filterState,
     searchQuery,
-    searchType: typedSearchType,
+    searchType,
     page: 0,
     limit: 0,
     orderBy: null,
@@ -946,9 +927,8 @@ export default function ObservationsTable({
           placeholder: "Search (by id, name, trace name, model)",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
-          searchType: typedSearchType,
-          countOfFilteredRecordsInDatabase: totalCountQuery.data?.totalCount,
-          setSearchType: setTypedSearchType,
+          searchType,
+          setSearchType,
         }}
         viewConfig={{
           tableName: TableViewPresetTableName.Observations,

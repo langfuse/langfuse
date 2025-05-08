@@ -266,6 +266,9 @@ export function DatasetsTable(props: { projectId: string }) {
           placeholder: "Search by name",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
         }}
         viewConfig={{
           tableName: TableViewPresetTableName.Datasets,
