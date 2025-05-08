@@ -145,8 +145,7 @@ export function DataTableToolbar<TData, TValue>({
     if (searchConfig?.currentQuery !== searchString) {
       setSearchString(searchConfig?.currentQuery ?? "");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchConfig?.currentQuery]);
+  }, [searchConfig?.currentQuery, searchString]);
 
   const fullTextSearchDisabled: boolean =
     searchConfig?.countOfFilteredRecordsInDatabase === undefined ||
@@ -178,19 +177,6 @@ export function DataTableToolbar<TData, TValue>({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullTextSearchDisabled]);
-
-  // Toggle handler for the badge
-  const toggleFullText = () => {
-    if (!shouldShowFullTextSearchOption || !searchConfig?.setSearchType) return;
-    if (fullTextSearchDisabled) return; // not allowed
-
-    const newSearchType = searchType.includes("content")
-      ? searchType.filter((t) => t !== "content")
-      : Array.from(new Set([...searchType, "content"]));
-
-    setSearchType(newSearchType);
-    searchConfig.setSearchType(newSearchType);
-  };
 
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
@@ -226,14 +212,7 @@ export function DataTableToolbar<TData, TValue>({
               searchConfig.searchType &&
               searchConfig.setSearchType && (
                 <div className="border-l px-2">
-                  <Badge
-                    variant="tertiary"
-                    onClick={toggleFullText}
-                    className={cn(
-                      !fullTextSearchDisabled && "cursor-pointer",
-                      fullTextSearchDisabled && "cursor-not-allowed opacity-50",
-                    )}
-                  >
+                  <Badge variant="tertiary">
                     {fullTextSearchDisabled || !searchType.includes("content")
                       ? "Metadata"
                       : "Metadata + Full Text"}

@@ -105,7 +105,10 @@ export const traceRouter = createTRPCRouter({
         }),
         input.searchType.indexOf("content" as const),
       ]);
-      return { totalCount: counts[0], countWithoutFullText: 0 };
+
+      return {
+        totalCount: counts[0],
+      };
     }),
   metrics: protectedProjectProcedure
     .input(
