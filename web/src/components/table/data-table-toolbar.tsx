@@ -124,6 +124,15 @@ export function DataTableToolbar<TData, TValue>({
   );
   const capture = usePostHogClientCapture();
 
+  // Update searchString when searchConfig.currentQuery changes to account for saved view selection
+  // Only update once on initial value of searchConfig.currentQuery, to allow for initial value to be set
+  useEffect(() => {
+    if (searchConfig?.currentQuery !== searchString) {
+      setSearchString(searchConfig?.currentQuery ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchConfig?.currentQuery]);
+
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
