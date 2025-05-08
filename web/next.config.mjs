@@ -101,6 +101,10 @@ const nextConfig = {
             value: "strict-origin-when-cross-origin",
           },
           {
+            key: "Document-Policy",
+            value: "js-profiling",
+          },
+          {
             key: "Permissions-Policy",
             value: "autoplay=*, fullscreen=*, microphone=*",
           },
@@ -139,22 +143,22 @@ const nextConfig = {
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
-          {
-            source: "/api/auth/session",
-            headers: [
-              {
-                key: "Access-Control-Allow-Origin",
-                value: "https://langfuse.com",
-              },
-              { key: "Access-Control-Allow-Credentials", value: "true" },
-              { key: "Access-Control-Allow-Methods", value: "GET,POST" },
-              {
-                key: "Access-Control-Allow-Headers",
-                value: "Content-Type, Authorization",
-              },
-            ],
-          },
-        ]
+            {
+              source: "/api/auth/session",
+              headers: [
+                {
+                  key: "Access-Control-Allow-Origin",
+                  value: "https://langfuse.com",
+                },
+                { key: "Access-Control-Allow-Credentials", value: "true" },
+                { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+                {
+                  key: "Access-Control-Allow-Headers",
+                  value: "Content-Type, Authorization",
+                },
+              ],
+            },
+          ]
         : []),
       // all files in /public/generated are public and can be accessed from any origin, e.g. to render an API reference based on our openapi schema
       {
