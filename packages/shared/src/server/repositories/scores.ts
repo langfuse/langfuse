@@ -447,6 +447,10 @@ export const getRunScoresGroupedByNameSourceType = async (
   datasetRunIds: string[],
   timestamp: Date | undefined,
 ) => {
+  if (datasetRunIds.length === 0) {
+    return [];
+  }
+
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
