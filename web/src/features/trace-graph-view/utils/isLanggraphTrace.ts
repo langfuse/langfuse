@@ -5,6 +5,9 @@ export const isLanggraphTrace = (
   observations: ObservationReturnTypeWithMetadata[],
 ) => {
   return observations.some(
-    (o) => LanggraphMetadataSchema.safeParse(o.metadata).success,
+    (o) =>
+      LanggraphMetadataSchema.safeParse(
+        o.metadata ? JSON.parse(o.metadata) : undefined,
+      ).success,
   );
 };

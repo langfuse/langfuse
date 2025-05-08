@@ -42,9 +42,11 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
     );
     const nodeName =
       currentObservation &&
-      LanggraphMetadataSchema.safeParse(currentObservation.metadata).data?.[
-        LANGGRAPH_NODE_TAG
-      ];
+      LanggraphMetadataSchema.safeParse(
+        currentObservation.metadata
+          ? JSON.parse(currentObservation.metadata)
+          : undefined,
+      ).data?.[LANGGRAPH_NODE_TAG];
 
     setSelectedNodeName(nodeName ?? null);
   }, [currentObservationId, observations]);
@@ -86,7 +88,9 @@ function parseGraph(params: {
   const nodeToParentObservationMap = new Map<string, string>();
 
   observations?.forEach((o) => {
-    const parsedMetadata = LanggraphMetadataSchema.safeParse(o.metadata);
+    const parsedMetadata = LanggraphMetadataSchema.safeParse(
+      o.metadata ? JSON.parse(o.metadata) : undefined,
+    );
 
     if (!parsedMetadata.success) return;
 
@@ -101,7 +105,7 @@ function parseGraph(params: {
         (obs) => obs.id === o.parentObservationId,
       );
       const parsedParentMetadata = LanggraphMetadataSchema.safeParse(
-        parent?.metadata,
+        parent?.metadata ? JSON.parse(parent.metadata) : undefined,
       );
 
       if (parent && !parsedParentMetadata.success) {
