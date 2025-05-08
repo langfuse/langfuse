@@ -1,6 +1,9 @@
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableToolbar,
+  useSupportedSearchTypes,
+} from "@/src/components/table/data-table-toolbar";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
@@ -11,7 +14,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   ArrayParam,
   NumberParam,
@@ -21,7 +24,11 @@ import {
   withDefault,
 } from "use-query-params";
 import type Decimal from "decimal.js";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  numberFormatter,
+  usdFormatter,
+  compactNumberFormatter,
+} from "@/src/utils/numbers";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
@@ -65,6 +72,7 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type TableAction } from "@/src/features/table/types";
+import { env } from "@/src/env.mjs";
 import {
   LevelCountsDisplay,
   type LevelCount,
@@ -148,14 +156,13 @@ export default function TracesTable({
     withDefault(StringParam, null),
   );
 
+  // Search type can be either "id" or "metadata". Keep it untyped here and
+  // cast later to the stricter `TracingSearchType[]` to avoid type mismatch
+  // with the generic `ArrayParam` from `use-query-params`.
   const [searchType, setSearchType] = useQueryParam(
     "searchType",
     withDefault(ArrayParam, ["id"]),
   );
-
-  const setTypedSearchType = (searchType: TracingSearchType[]) => {
-    setSearchType(searchType);
-  };
 
   const typedSearchType = (searchType ?? ["id"]) as TracingSearchType[];
 
@@ -230,20 +237,36 @@ export default function TracesTable({
   const tracesAllCountFilter = {
     projectId,
     filter: filterState,
-    searchQuery,
+    searchQuery: searchQuery,
     searchType: typedSearchType,
-    // "empty" values as they do not matter for total count
     page: 0,
     limit: 0,
     orderBy: null,
   };
 
+  // Handle Phase C: User has typed text
+  const handleSearchQueryChange = (query: string) => {
+    setSearchQuery(query);
+  };
+
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
     enabled: environmentFilterOptions.data !== undefined,
   });
+  console.log("totalCountQuery", totalCountQuery.data);
+
+  const supportedSearchTypes = useSupportedSearchTypes({
+    totalFilteredRecords: totalCountQuery.data?.totalCount ?? 0,
+    tableAllowsFullTextSearch: true,
+  });
+
+  useEffect(() => {
+    setSearchType(supportedSearchTypes);
+  }, [supportedSearchTypes, setSearchType]);
 
   const tracesAllQueryFilter = {
     ...tracesAllCountFilter,
+    searchQuery: searchQuery,
+    searchType: typedSearchType,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
@@ -1049,11 +1072,10 @@ export default function TracesTable({
         filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
           placeholder: "Search...",
-          updateQuery: setSearchQuery,
+          updateQuery: handleSearchQueryChange,
           currentQuery: searchQuery ?? undefined,
-          searchType: typedSearchType,
-          countOfFilteredRecordsInDatabase: totalCountQuery.data?.totalCount,
-          setSearchType: setTypedSearchType,
+          tableAllowsFullTextSearch: true,
+          totalFilteredRecords: totalCountQuery.data?.totalCount,
         }}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}

@@ -1,15 +1,9 @@
 import { Button } from "@/src/components/ui/button";
-import React, {
-  type Dispatch,
-  type SetStateAction,
-  useEffect,
-  useState,
-} from "react";
+import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
-  type TracingSearchType,
   type FilterState,
   type ColumnDefinition,
   type OrderByState,
@@ -56,9 +50,8 @@ interface SearchConfig {
   placeholder: string;
   updateQuery(event: string): void;
   currentQuery?: string;
-  countOfFilteredRecordsInDatabase?: number;
-  searchType?: TracingSearchType[];
-  setSearchType?: (searchType: TracingSearchType[]) => void;
+  tableAllowsFullTextSearch?: boolean;
+  totalFilteredRecords?: number;
 }
 
 interface TableViewControllers {
@@ -130,35 +123,20 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
-  const [searchType, setSearchType] = useState<TracingSearchType[]>(
-    searchConfig?.searchType ?? ["id"],
-  );
-
-  const shouldShowFullTextSearchOption =
-    searchConfig?.searchType && searchConfig?.setSearchType;
 
   const capture = usePostHogClientCapture();
 
-  // Update searchString when searchConfig.currentQuery changes to account for saved view selection
-  // Only update once on initial value of searchConfig.currentQuery, to allow for initial value to be set
-  useEffect(() => {
-    if (searchConfig?.currentQuery !== searchString) {
-      setSearchString(searchConfig?.currentQuery ?? "");
-    }
-  }, [searchConfig?.currentQuery, searchString]);
-
-  const fullTextSearchDisabled: boolean =
-    searchConfig?.countOfFilteredRecordsInDatabase === undefined ||
-    (typeof searchConfig?.countOfFilteredRecordsInDatabase === "number" &&
-      searchConfig.countOfFilteredRecordsInDatabase >
-        env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS);
+  const searchTypes = useSupportedSearchTypes({
+    totalFilteredRecords: searchConfig?.totalFilteredRecords ?? 0,
+    tableAllowsFullTextSearch: searchConfig?.tableAllowsFullTextSearch ?? false,
+  });
 
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
           <div className="flex w-full max-w-xl items-center justify-between rounded-md border">
-            <div className="flex items-center">
+            <div className="flex flex-1 items-center">
               <Button
                 variant="ghost"
                 size="icon"
@@ -180,25 +158,23 @@ export function DataTableToolbar<TData, TValue>({
                     searchConfig.updateQuery(searchString);
                   }
                 }}
-                className="min-w-0 max-w-fit border-none px-0"
+                className="w-full border-none px-0"
               />
             </div>
-            {shouldShowFullTextSearchOption &&
-              searchConfig.searchType &&
-              searchConfig.setSearchType && (
-                <div className="border-l px-2">
-                  <Badge variant="tertiary">
-                    {fullTextSearchDisabled || !searchType.includes("content")
-                      ? "Metadata"
-                      : "Metadata + Full Text"}
-                    <DocPopup
-                      description={`Full text search can only be executed on max. ${compactNumberFormatter(
-                        env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS,
-                      )} records. Current filters result in ${searchConfig.countOfFilteredRecordsInDatabase} records.`}
-                    />
-                  </Badge>
-                </div>
-              )}
+            {searchConfig.tableAllowsFullTextSearch && (
+              <div className="border-l px-2">
+                <Badge variant="tertiary" className="cursor-none">
+                  {searchTypes.indexOf("content") >= 0
+                    ? "Metadata + Full Text"
+                    : "Metadata"}
+                  <DocPopup
+                    description={`Full text search can only be executed on max. ${compactNumberFormatter(
+                      env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS,
+                    )} records. Current filters result in ${searchConfig.totalFilteredRecords} records.`}
+                  />
+                </Badge>
+              </div>
+            )}
           </div>
         )}
         {selectedOption && setDateRangeAndOption && (
@@ -265,3 +241,19 @@ export function DataTableToolbar<TData, TValue>({
     </div>
   );
 }
+
+export const useSupportedSearchTypes = (p: {
+  totalFilteredRecords: number;
+  tableAllowsFullTextSearch: boolean;
+}) => {
+  // Implement the gating algorithm logic - Phase B
+  // THRESHOLD is defined in env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS
+  const fullTextSearchEnabled: boolean =
+    p.tableAllowsFullTextSearch === true &&
+    p.totalFilteredRecords !== undefined &&
+    p.totalFilteredRecords <= env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS;
+
+  return fullTextSearchEnabled
+    ? ["id" as const, "content" as const]
+    : ["id" as const];
+};
