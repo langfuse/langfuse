@@ -37,7 +37,6 @@ import { DataTableSelectAllBanner } from "@/src/components/table/data-table-mult
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
-import { Label } from "@/src/components/ui/label";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { env } from "@/src/env.mjs";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -155,6 +154,44 @@ export function DataTableToolbar<TData, TValue>({
       searchConfig.countOfFilteredRecordsInDatabase >
         env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS);
 
+  // keep local state in sync with parent
+  useEffect(() => {
+    if (
+      searchConfig?.searchType &&
+      JSON.stringify(searchConfig.searchType) !== JSON.stringify(searchType)
+    ) {
+      setSearchType(searchConfig.searchType);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchConfig?.searchType]);
+
+  // Automatically drop full-text ("content") when it becomes disallowed
+  useEffect(() => {
+    if (
+      fullTextSearchDisabled &&
+      searchType.includes("content") &&
+      searchConfig?.setSearchType
+    ) {
+      const downgraded = searchType.filter((t) => t !== "content");
+      setSearchType(downgraded);
+      searchConfig.setSearchType(downgraded);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullTextSearchDisabled]);
+
+  // Toggle handler for the badge
+  const toggleFullText = () => {
+    if (!shouldShowFullTextSearchOption || !searchConfig?.setSearchType) return;
+    if (fullTextSearchDisabled) return; // not allowed
+
+    const newSearchType = searchType.includes("content")
+      ? searchType.filter((t) => t !== "content")
+      : Array.from(new Set([...searchType, "content"]));
+
+    setSearchType(newSearchType);
+    searchConfig.setSearchType(newSearchType);
+  };
+
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
@@ -189,8 +226,15 @@ export function DataTableToolbar<TData, TValue>({
               searchConfig.searchType &&
               searchConfig.setSearchType && (
                 <div className="border-l px-2">
-                  <Badge variant="tertiary">
-                    {fullTextSearchDisabled
+                  <Badge
+                    variant="tertiary"
+                    onClick={toggleFullText}
+                    className={cn(
+                      !fullTextSearchDisabled && "cursor-pointer",
+                      fullTextSearchDisabled && "cursor-not-allowed opacity-50",
+                    )}
+                  >
+                    {fullTextSearchDisabled || !searchType.includes("content")
                       ? "Metadata"
                       : "Metadata + Full Text"}
                     <DocPopup

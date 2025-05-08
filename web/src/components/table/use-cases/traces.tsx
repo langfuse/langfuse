@@ -568,7 +568,6 @@ export default function TracesTable({
           return null;
         }
 
-
         return (
           <BreakdownTooltip details={row.original.tokenDetails ?? []}>
             <div className="flex items-center gap-1">
