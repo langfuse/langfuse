@@ -153,31 +153,6 @@ export function DataTableToolbar<TData, TValue>({
       searchConfig.countOfFilteredRecordsInDatabase >
         env.NEXT_PUBLIC_MAX_FULL_TEXT_SEARCH_RECORDS);
 
-  // keep local state in sync with parent
-  useEffect(() => {
-    if (
-      searchConfig?.searchType &&
-      JSON.stringify(searchConfig.searchType) !== JSON.stringify(searchType)
-    ) {
-      setSearchType(searchConfig.searchType);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchConfig?.searchType]);
-
-  // Automatically drop full-text ("content") when it becomes disallowed
-  useEffect(() => {
-    if (
-      fullTextSearchDisabled &&
-      searchType.includes("content") &&
-      searchConfig?.setSearchType
-    ) {
-      const downgraded = searchType.filter((t) => t !== "content");
-      setSearchType(downgraded);
-      searchConfig.setSearchType(downgraded);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullTextSearchDisabled]);
-
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
