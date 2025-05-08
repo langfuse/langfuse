@@ -181,6 +181,18 @@ export function WidgetForm({
       internal: "internalValue",
     },
     {
+      name: "Level",
+      id: "level",
+      type: "stringOptions",
+      options: [
+        { value: "ERROR" },
+        { value: "WARNING" },
+        { value: "DEFAULT" },
+        { value: "DEBUG" },
+      ],
+      internal: "internalValue",
+    },
+    {
       name: "User",
       id: "user",
       type: "string",
