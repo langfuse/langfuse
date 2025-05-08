@@ -22,6 +22,7 @@ export const convertToScore = (row: ScoreRecordReadType): ScoreDomain => {
     traceId: row.trace_id ?? null,
     sessionId: row.session_id ?? null,
     observationId: row.observation_id ?? null,
+    datasetRunId: row.dataset_run_id ?? null,
     name: row.name,
     value: row.value ?? null,
     source: row.source as ScoreSourceType,

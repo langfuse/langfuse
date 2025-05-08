@@ -16,6 +16,7 @@ import {
   getLatencyAndTotalCostForObservations,
   getLatencyAndTotalCostForObservationsByTraces,
   getObservationsById,
+  getScoresForDatasetRuns,
   getScoresForTraces,
   getTracesByIds,
   logger,
@@ -94,11 +95,18 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
 
     // these calls need to happen sequentially as there can be only one active session with
     // the same session_id at the time.
-    const scores = await getScoresFromTempTable(
+    const traceScores = await getTraceScoresFromTempTable(
       input,
       tableName,
       clickhouseSession,
     );
+
+    const runScores = await getScoresForDatasetRuns({
+      projectId: input.projectId,
+      runIds: runs.map((r) => r.run_id),
+      includeHasMetadata: true,
+      excludeMetadata: false,
+    });
 
     const obsAgg = await getObservationLatencyAndCostForDataset(
       input,
@@ -131,7 +139,13 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
         createdAt: run.run_created_at,
         updatedAt: run.run_updated_at,
         avgLatency: trace?.latency ?? observation?.latency ?? 0,
-        scores: aggregateScores(scores.filter((s) => s.run_id === run.run_id)),
+        scores: aggregateScores(
+          traceScores.filter((s) => s.run_id === run.run_id),
+        ),
+        // check this one
+        runScores: aggregateScores(
+          runScores.filter((s) => s.datasetRunId === run.run_id),
+        ),
       };
     });
 
@@ -246,7 +260,7 @@ export const getDatasetRunsFromPostgres = async (
   );
 };
 
-const getScoresFromTempTable = async (
+const getTraceScoresFromTempTable = async (
   input: DatasetRunsTableInput,
   tableName: string,
   clickhouseSession: string,

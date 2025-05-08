@@ -266,6 +266,7 @@ types:
       traceId: optional<string>
       sessionId: optional<string>
       observationId: optional<string>
+      datasetRunId: optional<string>
       name: string
       environment: optional<string>
       value:
@@ -320,6 +321,10 @@ types:
           name: "contextrelevant"
           value: "not relevant"
           sessionId: "abyt-1234-5678-80ab"
+      - value:
+          name: "hallucination"
+          value: 0
+          datasetRunId: "7891-5678-90ab-hijk"
 
   BaseEvent:
     properties:

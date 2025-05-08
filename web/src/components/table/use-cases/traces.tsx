@@ -37,6 +37,7 @@ import {
   BatchExportTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -81,6 +82,7 @@ import {
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 
 export type TracesTableRow = {
   // Shown by default
@@ -97,7 +99,7 @@ export type TracesTableRow = {
     defaultCount?: bigint;
   };
   latency?: number;
-  usageDetails?: Record<string, number>;
+  tokenDetails?: Record<string, number>;
   totalCost?: Decimal;
   costDetails?: Record<string, number>;
   environment?: string;
@@ -547,8 +549,10 @@ export default function TracesTable({
         if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
           return null;
         }
+
+
         return (
-          <BreakdownTooltip details={row.original.usageDetails ?? []}>
+          <BreakdownTooltip details={row.original.tokenDetails ?? []}>
             <div className="flex items-center gap-1">
               <TokenUsageBadge
                 inputUsage={Number(value.inputUsage ?? 0)}
@@ -949,6 +953,21 @@ export default function TracesTable({
 
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
   const { setPeekView } = useTracePeekState(urlPathname);
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Traces,
+    projectId,
+    stateUpdaters: {
+      setOrderBy: setOrderByState,
+      setFilters: setUserFilterState,
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+      setSearchQuery: setSearchQuery,
+    },
+    validationContext: {
+      columns,
+      filterColumnDefinition: transformedFilterOptions,
+    },
+  });
 
   const rows = useMemo(() => {
     return traces.isSuccess
@@ -1000,10 +1019,16 @@ export default function TracesTable({
         }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
+
   return (
     <>
       <DataTableToolbar
         columns={columns}
+        viewConfig={{
+          tableName: TableViewPresetTableName.Traces,
+          projectId,
+          controllers: viewControllers,
+        }}
         filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
           placeholder: "Search (by id, name, trace name, user id)",
@@ -1030,6 +1055,7 @@ export default function TracesTable({
             key="batchExport"
           />,
         ]}
+        orderByState={orderByState}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
@@ -1057,7 +1083,7 @@ export default function TracesTable({
       <DataTable
         columns={columns}
         data={
-          traces.isLoading
+          traces.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : traces.isError
               ? {
@@ -1097,6 +1123,10 @@ export default function TracesTable({
           onExpand: expandPeek,
           getNavigationPath,
           children: <PeekViewTraceDetail projectId={projectId} />,
+          tableDataUpdatedAt: Math.max(
+            traces.dataUpdatedAt,
+            traceMetrics.dataUpdatedAt,
+          ),
         }}
       />
     </>

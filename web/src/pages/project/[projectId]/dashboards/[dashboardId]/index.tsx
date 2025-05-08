@@ -159,6 +159,12 @@ export default function DashboardDetail() {
       internal: "internalValue",
     },
     {
+      name: "Metadata",
+      id: "metadata",
+      type: "stringObject",
+      internal: "internalValue",
+    },
+    {
       name: "Release",
       id: "release",
       type: "string",

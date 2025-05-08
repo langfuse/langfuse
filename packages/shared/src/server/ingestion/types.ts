@@ -319,6 +319,7 @@ const BaseScoreBody = z.object({
   name: NonEmptyString,
   traceId: z.string().nullish(),
   sessionId: z.string().nullish(),
+  datasetRunId: z.string().nullish(),
   environment: EnvironmentName,
   observationId: z.string().nullish(),
   comment: z.string().nullish(),

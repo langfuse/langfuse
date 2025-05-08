@@ -152,7 +152,10 @@ export const scoresRouter = createTRPCRouter({
           message: `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
         });
       }
-      return score;
+      return {
+        ...score,
+        metadata: score.metadata ? JSON.stringify(score.metadata) : null,
+      };
     }),
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)
@@ -342,6 +345,8 @@ export const scoresRouter = createTRPCRouter({
             projectId: input.projectId,
             environment: input.environment ?? "default",
             ...inflatedParams,
+            // only trace and session scores are supported for annotation
+            datasetRunId: null,
             value: input.value ?? null,
             stringValue: input.stringValue ?? null,
             dataType: input.dataType ?? null,

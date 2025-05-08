@@ -10,6 +10,7 @@ import {
   type FilterState,
   sessionsTableColsWithOptions,
   BatchExportTableName,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -34,6 +35,7 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
@@ -538,6 +540,21 @@ export default function SessionsTable({
     columns,
   );
 
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Sessions,
+    projectId,
+    stateUpdaters: {
+      setOrderBy: setOrderByState,
+      setFilters: setUserFilterState,
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+    },
+    validationContext: {
+      columns,
+      filterColumnDefinition: transformFilterOptions(),
+    },
+  });
+
   return (
     <>
       <DataTableToolbar
@@ -549,6 +566,11 @@ export default function SessionsTable({
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
+        viewConfig={{
+          tableName: TableViewPresetTableName.Sessions,
+          projectId,
+          controllers: viewControllers,
+        }}
         actionButtons={[
           <BatchExportTableButton
             {...{ projectId, filterState, orderByState }}
@@ -570,7 +592,7 @@ export default function SessionsTable({
       <DataTable
         columns={columns}
         data={
-          sessions.isLoading
+          sessions.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : sessions.isError
               ? {
@@ -584,8 +606,8 @@ export default function SessionsTable({
                   data: sessionRowData.rows?.map<SessionTableRow>((session) => {
                     return {
                       id: session.id,
-                      bookmarked: session.bookmarked,
                       createdAt: session.createdAt,
+                      bookmarked: session.bookmarked,
                       userIds: session.userIds,
                       countTraces: session.countTraces,
                       sessionDuration: session.sessionDuration,

@@ -92,6 +92,7 @@ export const generateTracesForPublicApi = async ({
       FROM scores
       WHERE project_id = {projectId: String}
       AND session_id IS NULL
+      AND dataset_run_id IS NULL
       ${timeFilter ? `AND timestamp >= {cteTimeFilter: DateTime64(3)}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
