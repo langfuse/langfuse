@@ -929,6 +929,7 @@ export default function ObservationsTable({
           currentQuery: searchQuery ?? undefined,
           searchType,
           setSearchType,
+          tableAllowsFullTextSearch: true,
         }}
         viewConfig={{
           tableName: TableViewPresetTableName.Observations,
