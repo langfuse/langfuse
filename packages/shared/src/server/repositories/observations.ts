@@ -118,8 +118,8 @@ export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
   includeIO?: IncludeIO;
 };
 
-export const getObservationsForTrace = async <ExcludeIO extends boolean>(
-  opts: GetObservationsForTraceOpts<ExcludeIO>,
+export const getObservationsForTrace = async <IncludeIO extends boolean>(
+  opts: GetObservationsForTraceOpts<IncludeIO>,
 ) => {
   const { traceId, projectId, timestamp, includeIO = false } = opts;
 
@@ -137,7 +137,7 @@ export const getObservationsForTrace = async <ExcludeIO extends boolean>(
     level,
     status_message,
     version,
-    ${includeIO ? "input, output, metadata," : ""}
+    ${includeIO === true ? "input, output, metadata," : ""}
     provided_model_name,
     internal_model_id,
     model_parameters,
