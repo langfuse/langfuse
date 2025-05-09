@@ -192,7 +192,7 @@ export const getObservationsForTrace = async <ExcludeIO extends boolean>(
       }
     }
 
-    const metadataValues = Object.values(observation["metadata"]);
+    const metadataValues = Object.values(observation["metadata"] ?? {});
 
     metadataValues.forEach((value) => {
       if (value && typeof value === "string") {
@@ -207,7 +207,9 @@ export const getObservationsForTrace = async <ExcludeIO extends boolean>(
     }
   }
 
-  return records.map(convertObservation);
+  return records.map((r) =>
+    convertObservation({ ...r, metadata: r.metadata ?? {} }),
+  );
 };
 
 export const getObservationForTraceIdByName = async (
