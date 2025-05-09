@@ -3,13 +3,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useEffect, useMemo } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
-import {
-  NumberParam,
-  StringParam,
-  useQueryParam,
-  useQueryParams,
-  withDefault,
-} from "use-query-params";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -59,6 +53,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/useObservationPeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -120,11 +115,10 @@ export default function ObservationsTable({
   const router = useRouter();
   const { viewId } = router.query;
 
-  const [searchQuery, setSearchQuery] = useQueryParam(
-    "search",
-    withDefault(StringParam, null),
-  );
   const { setDetailPageList } = useDetailPageLists();
+
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch();
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -239,6 +233,7 @@ export default function ObservationsTable({
     projectId,
     filter: filterState,
     searchQuery,
+    searchType,
     page: 0,
     limit: 0,
     orderBy: null,
@@ -929,9 +924,11 @@ export default function ObservationsTable({
         filterState={inputFilterState}
         setFilterState={useDebounce(setInputFilterState)}
         searchConfig={{
-          placeholder: "Search (by id, name, trace name, model)",
+          metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+          searchType,
+          setSearchType,
         }}
         viewConfig={{
           tableName: TableViewPresetTableName.Observations,
