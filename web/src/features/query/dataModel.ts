@@ -12,11 +12,13 @@ export const traceView: ViewDeclarationType = {
   name: "traces",
   dimensions: {
     id: {
-      sql: "id",
+      sql: "traces.id",
+      alias: "id",
       type: "string",
     },
     name: {
-      sql: "name",
+      sql: "traces.name",
+      alias: "name",
       type: "string",
     },
     tags: {
@@ -38,21 +40,29 @@ export const traceView: ViewDeclarationType = {
       type: "string",
     },
     version: {
-      sql: "version",
+      sql: "traces.version",
+      alias: "version",
       type: "string",
     },
     environment: {
-      sql: "environment",
+      sql: "traces.environment",
+      alias: "environment",
       type: "string",
     },
+    level: {
+      sql: "multiIf(arrayExists(x -> x = 'ERROR', groupArray(observations.level)), 'ERROR', arrayExists(x -> x = 'WARNING', groupArray(observations.level)), 'WARNING', arrayExists(x -> x = 'DEFAULT', groupArray(observations.level)), 'DEFAULT', 'DEBUG')",
+      alias: "aggregated_level",
+      type: "string",
+      relationTable: "observations",
+    },
     observationName: {
-      sql: "name",
+      sql: "observations.name",
       alias: "observationName",
       type: "string",
       relationTable: "observations",
     },
     scoreName: {
-      sql: "name",
+      sql: "scores.name",
       alias: "scoreName",
       type: "string",
       relationTable: "scores",
@@ -118,22 +128,24 @@ export const observationsView: ViewDeclarationType = {
   name: "observations",
   dimensions: {
     id: {
-      sql: "id",
+      sql: "observations.id",
+      alias: "id",
       type: "string",
     },
     traceId: {
-      sql: "trace_id",
+      sql: "observations.trace_id",
       alias: "traceId",
       type: "string",
     },
     traceName: {
-      sql: "name",
+      sql: "traces.name",
       alias: "traceName",
       type: "string",
       relationTable: "traces",
     },
     environment: {
-      sql: "environment",
+      sql: "observations.environment",
+      alias: "environment",
       type: "string",
     },
     parentObservationId: {
@@ -146,7 +158,8 @@ export const observationsView: ViewDeclarationType = {
       type: "string",
     },
     name: {
-      sql: "name",
+      sql: "observations.name",
+      alias: "name",
       type: "string",
     },
     level: {
@@ -154,7 +167,8 @@ export const observationsView: ViewDeclarationType = {
       type: "string",
     },
     version: {
-      sql: "version",
+      sql: "observations.version",
+      alias: "version",
       type: "string",
     },
     tags: {
@@ -260,15 +274,18 @@ export const observationsView: ViewDeclarationType = {
 
 const scoreBaseDimensions: DimensionsDeclarationType = {
   id: {
-    sql: "id",
+    sql: "scores.id",
+    alias: "id",
     type: "string",
   },
   environment: {
-    sql: "environment",
+    sql: "scores.environment",
+    alias: "environment",
     type: "string",
   },
   name: {
-    sql: "name",
+    sql: "scores.name",
+    alias: "name",
     type: "string",
   },
   source: {

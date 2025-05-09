@@ -148,7 +148,7 @@ export class QueryBuilder {
         uiTableId: filter.column,
         clickhouseTableName,
         clickhouseSelect,
-        queryPrefix: clickhouseTableName,
+        queryPrefix: "",
         type,
       };
     });
@@ -411,7 +411,7 @@ export class QueryBuilder {
       dimensions += `${appliedDimensions
         .map(
           (dimension) =>
-            `any(${dimension.table}.${dimension.sql}) as ${dimension.alias ?? dimension.sql}`,
+            `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`,
         )
         .join(",\n")},`;
     }
