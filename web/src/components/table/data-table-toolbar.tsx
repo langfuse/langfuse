@@ -146,7 +146,7 @@ export function DataTableToolbar<TData, TValue>({
                 placeholder={
                   searchConfig.tableAllowsFullTextSearch
                     ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields.length > 0 ? searchConfig.metadataSearchFields.join(", ") : ""})`
+                    : `Search (${searchConfig.metadataSearchFields.join(", ")})`
                 }
                 value={searchString}
                 onChange={(event) => setSearchString(event.currentTarget.value)}
