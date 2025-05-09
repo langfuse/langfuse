@@ -4,7 +4,7 @@ import { LanggraphMetadataSchema } from "../types";
 export const isLanggraphTrace = (
   observations: ObservationReturnTypeWithMetadata[],
 ) => {
-  return observations.some((o) => {
-    return LanggraphMetadataSchema.safeParse(o.metadata).success;
-  });
+  return observations.some(
+    (o) => LanggraphMetadataSchema.safeParse(o.metadata).success,
+  );
 };
