@@ -24,7 +24,22 @@ type TraceGraphViewProps = {
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
-  const { observations } = props;
+  const { observations: rawObservations } = props;
+  const observations = rawObservations.map((o) => {
+    let parsedMetadata = o.metadata;
+
+    try {
+      parsedMetadata =
+        o.metadata && typeof o.metadata === "string"
+          ? JSON.parse(o.metadata)
+          : o.metadata;
+    } catch {
+      return o;
+    }
+
+    return { ...o, metadata: parsedMetadata };
+  });
+
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const { graph, nodeToParentObservationMap } = useMemo(
     () => parseGraph({ observations }),
@@ -42,11 +57,9 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
     );
     const nodeName =
       currentObservation &&
-      LanggraphMetadataSchema.safeParse(
-        currentObservation.metadata
-          ? JSON.parse(currentObservation.metadata)
-          : undefined,
-      ).data?.[LANGGRAPH_NODE_TAG];
+      LanggraphMetadataSchema.safeParse(currentObservation.metadata).data?.[
+        LANGGRAPH_NODE_TAG
+      ];
 
     setSelectedNodeName(nodeName ?? null);
   }, [currentObservationId, observations]);
@@ -88,20 +101,7 @@ function parseGraph(params: {
   const nodeToParentObservationMap = new Map<string, string>();
 
   observations?.forEach((o) => {
-    // Metadata is returned stringified by API, parse it first
-    let jsonParsedMetadata = o.metadata;
-
-    try {
-      jsonParsedMetadata =
-        o.metadata && typeof o.metadata === "string"
-          ? JSON.parse(o.metadata)
-          : o.metadata;
-    } catch {
-      return;
-    }
-
-    const parsedMetadata =
-      LanggraphMetadataSchema.safeParse(jsonParsedMetadata);
+    const parsedMetadata = LanggraphMetadataSchema.safeParse(o.metadata);
 
     if (!parsedMetadata.success) return;
 
@@ -116,7 +116,7 @@ function parseGraph(params: {
         (obs) => obs.id === o.parentObservationId,
       );
       const parsedParentMetadata = LanggraphMetadataSchema.safeParse(
-        parent?.metadata ? JSON.parse(parent.metadata) : undefined,
+        parent?.metadata,
       );
 
       if (parent && !parsedParentMetadata.success) {
