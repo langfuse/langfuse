@@ -54,6 +54,7 @@ export * from "./server/utils/metadata_conversion";
 export * from "./errors/index";
 
 export * from "./utils/environment";
+export * from "./interfaces/search";
 
 // domain
 export * from "./domain";
