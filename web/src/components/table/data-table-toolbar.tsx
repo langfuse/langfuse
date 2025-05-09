@@ -45,7 +45,7 @@ export interface MultiSelect {
 }
 
 interface SearchConfig {
-  placeholder: string;
+  metadataSearchFields: string[];
   updateQuery: (event: string) => void;
   currentQuery?: string;
   tableAllowsFullTextSearch?: boolean;
@@ -143,7 +143,11 @@ export function DataTableToolbar<TData, TValue>({
               </Button>
               <Input
                 autoFocus
-                placeholder={searchConfig.placeholder}
+                placeholder={
+                  searchConfig.tableAllowsFullTextSearch
+                    ? "Search..."
+                    : `Search (${searchConfig.metadataSearchFields.join(", ")})`
+                }
                 value={searchString}
                 onChange={(event) => setSearchString(event.currentTarget.value)}
                 onKeyDown={(event) => {
@@ -175,7 +179,22 @@ export function DataTableToolbar<TData, TValue>({
                         ? "Metadata + Full Text"
                         : "Metadata"}
                       <DocPopup
-                        description={`Metadata search: ID, Name, User ID\nFull text search: Input, Output`}
+                        description={
+                          <>
+                            <p className="text-xs font-normal text-primary">
+                              <strong>Metadata search:</strong>{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}
+                            </p>
+                            <p className="text-xs font-normal text-primary">
+                              <strong>Full text search:</strong> Input, Output
+                            </p>
+                            <br />
+                            <p className="text-xs font-normal text-primary">
+                              For improved performance, filter the table before
+                              searching.
+                            </p>
+                          </>
+                        }
                       />
                     </>
                   </Button>

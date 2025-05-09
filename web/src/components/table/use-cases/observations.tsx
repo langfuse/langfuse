@@ -924,7 +924,7 @@ export default function ObservationsTable({
         filterState={inputFilterState}
         setFilterState={useDebounce(setInputFilterState)}
         searchConfig={{
-          placeholder: "Search (by id, name, trace name, model)",
+          metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
           searchType,

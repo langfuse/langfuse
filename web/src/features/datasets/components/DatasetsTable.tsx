@@ -263,7 +263,7 @@ export function DatasetsTable(props: { projectId: string }) {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         searchConfig={{
-          placeholder: "Search by name",
+          metadataSearchFields: ["Name"],
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
           tableAllowsFullTextSearch: false,

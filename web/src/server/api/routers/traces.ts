@@ -94,7 +94,7 @@ export const traceRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const counts = await getTracesTableCount({
+      const count = await getTracesTableCount({
         projectId: ctx.session.projectId,
         filter: input.filter ?? [],
         searchType: input.searchType,
