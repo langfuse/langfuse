@@ -88,9 +88,20 @@ function parseGraph(params: {
   const nodeToParentObservationMap = new Map<string, string>();
 
   observations?.forEach((o) => {
-    const parsedMetadata = LanggraphMetadataSchema.safeParse(
-      o.metadata ? JSON.parse(o.metadata) : undefined,
-    );
+    // Metadata is returned stringified by API, parse it first
+    let jsonParsedMetadata = o.metadata;
+
+    try {
+      jsonParsedMetadata =
+        o.metadata && typeof o.metadata === "string"
+          ? JSON.parse(o.metadata)
+          : o.metadata;
+    } catch {
+      return;
+    }
+
+    const parsedMetadata =
+      LanggraphMetadataSchema.safeParse(jsonParsedMetadata);
 
     if (!parsedMetadata.success) return;
 
