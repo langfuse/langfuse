@@ -60,7 +60,11 @@ describe("trace deletion", () => {
     const traces = await getTracesByIds([traceId], projectId);
     expect(traces).toHaveLength(0);
 
-    const observations = await getObservationsForTrace(traceId, projectId);
+    const observations = await getObservationsForTrace({
+      traceId,
+      projectId,
+      includeIO: true,
+    });
     expect(observations).toHaveLength(0);
 
     const scores = await getScoresForTraces({
