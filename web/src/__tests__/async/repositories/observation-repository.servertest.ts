@@ -126,7 +126,11 @@ describe("Clickhouse Observations Repository Test", () => {
 
     await createObservationsCh([observation]);
 
-    const result = await getObservationsForTrace(traceId, projectId);
+    const result = await getObservationsForTrace({
+      traceId,
+      projectId,
+      includeIO: true,
+    });
     if (!result || result.length === 0) {
       throw new Error("Observation not found");
     }

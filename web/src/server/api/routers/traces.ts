@@ -220,11 +220,12 @@ export const traceRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const [observations, scores] = await Promise.all([
-        getObservationsForTrace(
-          input.traceId,
-          input.projectId,
-          input.timestamp ?? input.fromTimestamp ?? undefined,
-        ),
+        getObservationsForTrace({
+          traceId: input.traceId,
+          projectId: input.projectId,
+          timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+          includeIO: false,
+        }),
         getScoresForTraces({
           projectId: input.projectId,
           traceIds: [input.traceId],

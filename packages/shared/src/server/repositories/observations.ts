@@ -111,12 +111,18 @@ export const upsertObservation = async (
   });
 };
 
-export const getObservationsForTrace = async (
-  traceId: string,
-  projectId: string,
-  timestamp?: Date,
-  fetchWithInputOutput: boolean = false,
+export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
+  traceId: string;
+  projectId: string;
+  timestamp?: Date;
+  includeIO?: IncludeIO;
+};
+
+export const getObservationsForTrace = async <IncludeIO extends boolean>(
+  opts: GetObservationsForTraceOpts<IncludeIO>,
 ) => {
+  const { traceId, projectId, timestamp, includeIO = false } = opts;
+
   const query = `
   SELECT
     id,
@@ -128,11 +134,10 @@ export const getObservationsForTrace = async (
     start_time,
     end_time,
     name,
-    metadata,
     level,
     status_message,
     version,
-    ${fetchWithInputOutput ? "input, output," : ""}
+    ${includeIO === true ? "input, output, metadata," : ""}
     provided_model_name,
     internal_model_id,
     model_parameters,
@@ -187,7 +192,7 @@ export const getObservationsForTrace = async (
       }
     }
 
-    const metadataValues = Object.values(observation["metadata"]);
+    const metadataValues = Object.values(observation["metadata"] ?? {});
 
     metadataValues.forEach((value) => {
       if (value && typeof value === "string") {
@@ -202,7 +207,9 @@ export const getObservationsForTrace = async (
     }
   }
 
-  return records.map(convertObservation);
+  return records.map((r) =>
+    convertObservation({ ...r, metadata: r.metadata ?? {} }),
+  );
 };
 
 export const getObservationForTraceIdByName = async (

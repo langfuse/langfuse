@@ -44,12 +44,12 @@ export default withMiddlewares({
       }
 
       const [observations, scores] = await Promise.all([
-        getObservationsForTrace(
+        getObservationsForTrace({
           traceId,
-          auth.scope.projectId,
-          trace?.timestamp,
-          true,
-        ),
+          projectId: auth.scope.projectId,
+          timestamp: trace?.timestamp,
+          includeIO: true,
+        }),
         getScoresForTraces({
           projectId: auth.scope.projectId,
           traceIds: [traceId],
