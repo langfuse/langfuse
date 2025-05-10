@@ -1,6 +1,7 @@
 import { type IngestionEventType } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { ObservationLevel } from "@langfuse/shared";
+import { ForbiddenError, ObservationLevel } from "@langfuse/shared";
+import { LangfuseOtelSpanAttributes } from "./attributes";
 
 export const convertNanoTimestampToISO = (
   timestamp:
@@ -127,14 +128,27 @@ const extractInputAndOutput = (
   events: any[],
   attributes: Record<string, unknown>,
 ): { input: any; output: any } => {
+  let input = null;
+  let output = null;
+
+  // Langfuse
+  input = attributes[LangfuseOtelSpanAttributes.OBSERVATION_INPUT];
+  output = attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT];
+
+  if (input != null || output != null) {
+    return { input, output };
+  }
+
   // Openlit uses events property
-  let input = events.find(
+  input = events.find(
     (event: Record<string, unknown>) => event.name === "gen_ai.content.prompt",
   )?.attributes;
-  let output = events.find(
+
+  output = events.find(
     (event: Record<string, unknown>) =>
       event.name === "gen_ai.content.completion",
   )?.attributes;
+
   if (input || output) {
     input =
       input?.reduce((acc: any, attr: any) => {
@@ -258,10 +272,11 @@ const extractEnvironment = (
   resourceAttributes: Record<string, unknown>,
 ): string => {
   const environmentAttributeKeys = [
-    "langfuse.environment",
+    LangfuseOtelSpanAttributes.ENVIRONMENT,
     "deployment.environment.name",
     "deployment.environment",
   ];
+
   for (const key of environmentAttributeKeys) {
     if (resourceAttributes[key]) {
       return resourceAttributes[key] as string;
@@ -270,6 +285,7 @@ const extractEnvironment = (
       return attributes[key] as string;
     }
   }
+
   return "default";
 };
 
@@ -285,23 +301,34 @@ const extractName = (
         : JSON.stringify(attributes[key]);
     }
   }
+
   return spanName;
 };
 
 const extractMetadata = (
   attributes: Record<string, unknown>,
+  domain: "trace" | "observation",
 ): Record<string, unknown> => {
   // Extract top-level metadata object if available
   let metadata: Record<string, unknown> = {};
-  if (attributes["langfuse.metadata"]) {
+
+  const metadataKeyPrefix =
+    domain === "observation"
+      ? LangfuseOtelSpanAttributes.OBSERVATION_METADATA
+      : LangfuseOtelSpanAttributes.TRACE_METADATA;
+
+  const langfuseMetadataAttribute =
+    attributes[metadataKeyPrefix] || attributes["langfuse.metadata"];
+
+  if (langfuseMetadataAttribute) {
     try {
       // If it's a string (JSON), parse it
-      if (typeof attributes["langfuse.metadata"] === "string") {
-        metadata = JSON.parse(attributes["langfuse.metadata"] as string);
+      if (typeof langfuseMetadataAttribute === "string") {
+        metadata = JSON.parse(langfuseMetadataAttribute as string);
       }
       // If it's already an object, use it
-      else if (typeof attributes["langfuse.metadata"] === "object") {
-        metadata = attributes["langfuse.metadata"] as Record<string, unknown>;
+      else if (typeof langfuseMetadataAttribute === "object") {
+        metadata = langfuseMetadataAttribute as Record<string, unknown>;
       }
     } catch (e) {
       // If parsing fails, continue with nested metadata extraction
@@ -309,17 +336,20 @@ const extractMetadata = (
   }
 
   // Extract metadata from langfuse.metadata.* keys
-  const metadataAttributes = Object.keys(attributes).filter((key) =>
-    key.startsWith("langfuse.metadata."),
-  );
+  const langfuseMetadata: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(attributes)) {
+    for (const prefix of [metadataKeyPrefix, "langfuse.metadata"]) {
+      if (key.startsWith(`${prefix}.`)) {
+        const newKey = key.replace(`${prefix}.`, "");
+        langfuseMetadata[newKey] = value;
+      }
+    }
+  }
 
   return {
     ...metadata,
-    ...metadataAttributes.reduce((acc: Record<string, unknown>, key) => {
-      const metadataKey = key.replace("langfuse.metadata.", "");
-      acc[metadataKey] = attributes[key];
-      return acc;
-    }, {}),
+    ...langfuseMetadata,
   };
 };
 
@@ -327,6 +357,7 @@ const extractUserId = (
   attributes: Record<string, unknown>,
 ): string | undefined => {
   const userIdKeys = ["langfuse.user.id", "user.id"];
+
   for (const key of userIdKeys) {
     if (attributes[key]) {
       return typeof attributes[key] === "string"
@@ -340,6 +371,7 @@ const extractSessionId = (
   attributes: Record<string, unknown>,
 ): string | undefined => {
   const userIdKeys = ["langfuse.session.id", "session.id"];
+
   for (const key of userIdKeys) {
     if (attributes[key]) {
       return typeof attributes[key] === "string"
@@ -352,6 +384,17 @@ const extractSessionId = (
 const extractModelParameters = (
   attributes: Record<string, unknown>,
 ): Record<string, unknown> => {
+  // Langfuse
+  if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS]) {
+    try {
+      return JSON.parse(
+        attributes[
+          LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
+        ] as string,
+      );
+    } catch {}
+  }
+
   // If we get invocation parameters, we use them as they are
   if (attributes["llm.invocation_parameters"]) {
     try {
@@ -372,6 +415,7 @@ const extractModelParameters = (
   const modelParameters = Object.keys(attributes).filter((key) =>
     key.startsWith("gen_ai.request."),
   );
+
   return modelParameters.reduce((acc: any, key) => {
     const modelParamKey = key.replace("gen_ai.request.", "");
     // avoid double-reporting the model name, already included in native model attribute
@@ -386,6 +430,7 @@ const extractModelName = (
   attributes: Record<string, unknown>,
 ): string | undefined => {
   const modelNameKeys = [
+    LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
     "gen_ai.request.model",
     "gen_ai.response.model",
     "llm.model_name",
@@ -402,12 +447,24 @@ const extractModelName = (
 
 const extractUsageDetails = (
   attributes: Record<string, unknown>,
+  isLangfuseSDKSpan: boolean,
 ): Record<string, unknown> => {
+  if (isLangfuseSDKSpan) {
+    try {
+      return JSON.parse(
+        attributes[
+          LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS
+        ] as string,
+      );
+    } catch {}
+  }
+
   const usageDetails = Object.keys(attributes).filter(
     (key) =>
       (key.startsWith("gen_ai.usage.") && key !== "gen_ai.usage.cost") ||
       key.startsWith("llm.token_count"),
   );
+
   const usageDetailKeyMapping: Record<string, string> = {
     prompt_tokens: "input",
     completion_tokens: "output",
@@ -417,6 +474,7 @@ const extractUsageDetails = (
     prompt: "input",
     completion: "output",
   };
+
   return usageDetails.reduce((acc: any, key) => {
     const usageDetailKey = key
       .replace("gen_ai.usage.", "")
@@ -434,7 +492,18 @@ const extractUsageDetails = (
 
 const extractCostDetails = (
   attributes: Record<string, unknown>,
+  isLangfuseSDKSpan: boolean,
 ): Record<string, unknown> => {
+  if (isLangfuseSDKSpan) {
+    try {
+      return JSON.parse(
+        attributes[
+          LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS
+        ] as string,
+      );
+    } catch {}
+  }
+
   if (attributes["gen_ai.usage.cost"]) {
     return { total: attributes["gen_ai.usage.cost"] };
   }
@@ -442,7 +511,9 @@ const extractCostDetails = (
 };
 
 const extractTags = (attributes: Record<string, unknown>): string[] => {
-  const tagsValue = attributes["langfuse.tags"];
+  const tagsValue =
+    attributes[LangfuseOtelSpanAttributes.TRACE_TAGS] ||
+    attributes["langfuse.tags"];
 
   // If no tags, return empty array
   if (tagsValue === undefined || tagsValue === null) {
@@ -488,6 +559,7 @@ const extractTags = (attributes: Record<string, unknown>): string[] => {
  */
 export const convertOtelSpanToIngestionEvent = (
   resourceSpan: any,
+  publicKey?: string,
 ): IngestionEventType[] => {
   const resourceAttributes =
     resourceSpan?.resource?.attributes?.reduce((acc: any, attr: any) => {
@@ -498,6 +570,24 @@ export const convertOtelSpanToIngestionEvent = (
   const events: IngestionEventType[] = [];
 
   for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+    const isLangfuseSDKSpans = scopeSpan.scope?.name.startsWith("langfuse-sdk");
+
+    const scopeAttributes =
+      scopeSpan?.scope?.attributes?.reduce((acc: any, attr: any) => {
+        acc[attr.key] = convertValueToPlainJavascript(attr.value);
+        return acc;
+      }, {}) ?? {};
+
+    if (
+      isLangfuseSDKSpans &&
+      (!publicKey ||
+        (scopeAttributes["public_key"] as unknown as string) !== publicKey)
+    ) {
+      throw new ForbiddenError(
+        `Langfuse OTEL SDK span has different public key '${scopeAttributes["public_key"]}' than used for authentication '${publicKey}'. Discarding span.`,
+      );
+    }
+
     for (const span of scopeSpan?.spans ?? []) {
       const attributes =
         span?.attributes?.reduce((acc: any, attr: any) => {
@@ -511,29 +601,53 @@ export const convertOtelSpanToIngestionEvent = (
           )
         : null;
 
-      const spanAttributeMetadata = extractMetadata(attributes);
-      const resourceAttributeMetadata = extractMetadata(resourceAttributes);
-      if (!parentObservationId) {
+      const spanAttributeMetadata = extractMetadata(attributes, "observation");
+      const resourceAttributeMetadata = extractMetadata(
+        resourceAttributes,
+        "trace",
+      );
+      const startTimeISO = convertNanoTimestampToISO(span.startTimeUnixNano);
+      const endTimeISO = convertNanoTimestampToISO(span.endTimeUnixNano);
+      const is_root_span =
+        !parentObservationId ||
+        String(attributes[LangfuseOtelSpanAttributes.AS_ROOT]) === "true";
+
+      const hasTraceUpdates = [
+        LangfuseOtelSpanAttributes.TRACE_NAME,
+        LangfuseOtelSpanAttributes.TRACE_INPUT,
+        LangfuseOtelSpanAttributes.TRACE_OUTPUT,
+        LangfuseOtelSpanAttributes.TRACE_METADATA,
+        LangfuseOtelSpanAttributes.TRACE_USER_ID,
+        LangfuseOtelSpanAttributes.TRACE_SESSION_ID,
+        LangfuseOtelSpanAttributes.TRACE_PUBLIC,
+        LangfuseOtelSpanAttributes.TRACE_TAGS,
+      ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
+
+      if (is_root_span || hasTraceUpdates) {
         // Create a trace for any root span
         const trace = {
           id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
-          timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
-          name: extractName(span.name, attributes),
+          timestamp: startTimeISO,
+          name:
+            attributes[LangfuseOtelSpanAttributes.TRACE_NAME] ??
+            extractName(span.name, attributes),
           metadata: {
             ...resourceAttributeMetadata,
-            ...spanAttributeMetadata,
-            attributes,
+            ...extractMetadata(attributes, "trace"),
+            ...(isLangfuseSDKSpans ? {} : { attributes }),
             resourceAttributes,
             scope: scopeSpan?.scope,
           },
           version:
-            attributes?.["langfuse.version"] ??
+            attributes?.[LangfuseOtelSpanAttributes.VERSION] ??
             resourceAttributes?.["service.version"] ??
             null,
-          release: attributes?.["langfuse.release"] ?? null,
+          release: attributes?.[LangfuseOtelSpanAttributes.RELEASE] ?? null,
           userId: extractUserId(attributes),
           sessionId: extractSessionId(attributes),
           public:
+            attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === true ||
+            attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === "true" ||
             attributes?.["langfuse.public"] === true ||
             attributes?.["langfuse.public"] === "true",
           tags: extractTags(attributes),
@@ -559,8 +673,8 @@ export const convertOtelSpanToIngestionEvent = (
         ),
         parentObservationId,
         name: extractName(span.name, attributes),
-        startTime: convertNanoTimestampToISO(span.startTimeUnixNano),
-        endTime: convertNanoTimestampToISO(span.endTimeUnixNano),
+        startTime: startTimeISO,
+        endTime: endTimeISO,
 
         environment: extractEnvironment(attributes, resourceAttributes),
 
@@ -568,27 +682,40 @@ export const convertOtelSpanToIngestionEvent = (
         metadata: {
           ...resourceAttributeMetadata,
           ...spanAttributeMetadata,
-          attributes,
+          ...(isLangfuseSDKSpans ? {} : { attributes }),
           resourceAttributes,
           scope: scopeSpan?.scope,
         },
         level:
-          span.status?.code === 2
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
+          (span.status?.code === 2
             ? ObservationLevel.ERROR
-            : ObservationLevel.DEFAULT,
-        statusMessage: span.status?.message ?? null,
+            : ObservationLevel.DEFAULT),
+        statusMessage:
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
+          span.status?.message ??
+          null,
         version:
-          attributes?.["langfuse.version"] ??
+          attributes[LangfuseOtelSpanAttributes.VERSION] ??
           resourceAttributes?.["service.version"] ??
           null,
         modelParameters: extractModelParameters(attributes) as any,
         model: extractModelName(attributes),
 
-        promptName: attributes?.["langfuse.prompt.name"] ?? null,
-        promptVersion: attributes?.["langfuse.prompt.version"] ?? null,
+        promptName:
+          attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
+          attributes["langfuse.prompt.name"] ??
+          null,
+        promptVersion:
+          attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION] ??
+          attributes["langfuse.prompt.version"] ??
+          null,
 
-        usageDetails: extractUsageDetails(attributes) as any,
-        costDetails: extractCostDetails(attributes) as any,
+        usageDetails: extractUsageDetails(
+          attributes,
+          isLangfuseSDKSpans,
+        ) as any,
+        costDetails: extractCostDetails(attributes, isLangfuseSDKSpans) as any,
 
         // Input and Output
         ...extractInputAndOutput(span?.events ?? [], attributes),
@@ -598,9 +725,12 @@ export const convertOtelSpanToIngestionEvent = (
       // Just checking for llm.* or gen_ai.* attributes leads to overreporting and wrong
       // aggregations for costs.
       const isGeneration =
+        attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] ===
+          "generation" ||
         Boolean(observation.model) ||
         ("openinference.span.kind" in attributes &&
           attributes["openinference.span.kind"] === "LLM");
+
       events.push({
         id: randomUUID(),
         type: isGeneration ? "generation-create" : "span-create",
@@ -609,5 +739,6 @@ export const convertOtelSpanToIngestionEvent = (
       });
     }
   }
+
   return events;
 };

@@ -5,6 +5,558 @@ import {
 import { ingestionEvent } from "@langfuse/shared/src/server";
 
 describe("OTel Resource Span Mapping", () => {
+  describe("Langfuse OTEL SDK spans", () => {
+    const publicKey = "pk-lf-1234567890";
+
+    it("should convert LF-OTEL spans to LF-events", () => {
+      const langfuseOtelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "telemetry.sdk.language",
+                value: { stringValue: "python" },
+              },
+              {
+                key: "telemetry.sdk.name",
+                value: { stringValue: "opentelemetry" },
+              },
+              {
+                key: "telemetry.sdk.version",
+                value: { stringValue: "1.32.0" },
+              },
+              {
+                key: "langfuse.environment",
+                value: { stringValue: "production" },
+              },
+              { key: "langfuse.release", value: { stringValue: "0.0.1" } },
+              {
+                key: "service.name",
+                value: { stringValue: "unknown_service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "langfuse-sdk",
+                version: "2.60.3",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: { stringValue: "pk-lf-1234567890" },
+                  },
+                ],
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [
+                      44, 206, 24, 247, 232, 205, 6, 90, 11, 78, 99, 78, 239,
+                      114, 131, 145,
+                    ],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [87, 240, 37, 84, 23, 151, 65, 189],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [223, 227, 135, 254, 167, 239, 59, 2],
+                  },
+                  name: "my-generation",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 466848096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 467248096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.observation.type",
+                      value: { stringValue: "generation" },
+                    },
+                    {
+                      key: "langfuse.observation.level",
+                      value: { stringValue: "WARNING" },
+                    },
+                    {
+                      key: "langfuse.observation.status_message",
+                      value: { stringValue: "nothing to report" },
+                    },
+                    {
+                      key: "langfuse.observation.input",
+                      value: {
+                        stringValue: '[{"role": "user", "content": "hello"}]',
+                      },
+                    },
+                    {
+                      key: "langfuse.observation.output",
+                      value: {
+                        stringValue:
+                          '{"role": "assistant", "content": "what\'s up?"}',
+                      },
+                    },
+                    {
+                      key: "langfuse.observation.model.name",
+                      value: { stringValue: "gpt-4o" },
+                    },
+                    {
+                      key: "langfuse.observation.prompt.name",
+                      value: { stringValue: "my-prompt" },
+                    },
+                    {
+                      key: "langfuse.observation.prompt.version",
+                      value: { intValue: { low: 1, high: 0, unsigned: false } },
+                    },
+                    {
+                      key: "langfuse.observation.usage_details",
+                      value: {
+                        stringValue:
+                          '{"input_tokens": 123, "output_tokens": 456}',
+                      },
+                    },
+                    {
+                      key: "langfuse.observation.cost_details",
+                      value: {
+                        stringValue:
+                          '{"input_tokens": 0.0001, "output_tokens": 0.002}',
+                      },
+                    },
+                    {
+                      key: "langfuse.observation.completion_start_time",
+                      value: { stringValue: '"2025-04-30T15:28:50.686390Z"' },
+                    },
+                    {
+                      key: "langfuse.observation.model_parameters",
+                      value: {
+                        stringValue: '{"temperature": 1, "top_p": "0.2"}',
+                      },
+                    },
+                    {
+                      key: "langfuse.observation.metadata.key1",
+                      value: { stringValue: '"value1"' },
+                    },
+                    {
+                      key: "langfuse.observation.metadata.key2",
+                      value: { stringValue: '"value2"' },
+                    },
+                    {
+                      key: "langfuse.trace.name",
+                      value: { stringValue: "test-trace" },
+                    },
+                    { key: "user.id", value: { stringValue: "my-user" } },
+                    { key: "session.id", value: { stringValue: "my-session" } },
+                    {
+                      key: "langfuse.version",
+                      value: { stringValue: "trace-0.0.1" },
+                    },
+                    {
+                      key: "langfuse.trace.input",
+                      value: {
+                        stringValue: '[{"role": "user", "content": "hello"}]',
+                      },
+                    },
+                    {
+                      key: "langfuse.trace.output",
+                      value: {
+                        stringValue:
+                          '{"role": "assistant", "content": "what\'s up?"}',
+                      },
+                    },
+                    {
+                      key: "langfuse.trace.tags",
+                      value: {
+                        arrayValue: { values: [{ stringValue: "tag2" }] },
+                      },
+                    },
+                    {
+                      key: "langfuse.trace.public",
+                      value: { boolValue: true },
+                    },
+                    {
+                      key: "langfuse.trace.metadata.trace-key1",
+                      value: { stringValue: '"value1"' },
+                    },
+                    {
+                      key: "langfuse.trace.metadata.trace-key2",
+                      value: { stringValue: '"value2"' },
+                    },
+                  ],
+                  status: {},
+                },
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [
+                      44, 206, 24, 247, 232, 205, 6, 90, 11, 78, 99, 78, 239,
+                      114, 131, 145,
+                    ],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [223, 227, 135, 254, 167, 239, 59, 2],
+                  },
+                  name: "my-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 205413096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 467608096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.observation.type",
+                      value: { stringValue: "span" },
+                    },
+                    {
+                      key: "langfuse.trace.tags",
+                      value: {
+                        arrayValue: { values: [{ stringValue: "tag1" }] },
+                      },
+                    },
+                    {
+                      key: "langfuse.trace.metadata.trace-key0",
+                      value: { stringValue: '"value1"' },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = langfuseOtelSpans.flatMap((span) =>
+        convertOtelSpanToIngestionEvent(span, publicKey),
+      );
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      const generationEvents = events.filter(
+        (e) => e.type === "generation-create",
+      );
+      const spanEvents = events.filter((e) => e.type === "span-create");
+
+      expect(events.length).toBe(4);
+      expect(traceEvents.length).toBe(2);
+      expect(spanEvents.length).toBe(1);
+      expect(generationEvents.length).toBe(1);
+
+      const spanEvent = spanEvents[0];
+      const generationEvent = generationEvents[0];
+
+      const defaultMetadata = {
+        resourceAttributes: {
+          "langfuse.environment": "production",
+          "langfuse.release": "0.0.1",
+          "service.name": "unknown_service",
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.32.0",
+        },
+        scope: {
+          name: "langfuse-sdk",
+          version: "2.60.3",
+        },
+      };
+
+      expect(spanEvent.body).toMatchObject({
+        id: "dfe387fea7ef3b02",
+        traceId: "2cce18f7e8cd065a0b4e634eef728391",
+        parentObservationId: null,
+        name: "my-span",
+        startTime: "2025-04-30T15:28:50.424Z",
+        endTime: "2025-04-30T15:28:50.687Z",
+        environment: "production",
+        metadata: { ...defaultMetadata },
+        level: "DEFAULT",
+        version: null,
+        modelParameters: {},
+        model: undefined,
+        promptName: null,
+        promptVersion: null,
+        usageDetails: {},
+        costDetails: {},
+        input: null,
+        output: null,
+      });
+
+      expect(generationEvent.body).toMatchObject({
+        id: "57f02554179741bd",
+        traceId: "2cce18f7e8cd065a0b4e634eef728391",
+        parentObservationId: "dfe387fea7ef3b02",
+        name: "my-generation",
+        startTime: "2025-04-30T15:28:50.686Z",
+        endTime: "2025-04-30T15:28:50.686Z",
+        environment: "production",
+        metadata: { ...defaultMetadata },
+        level: "WARNING",
+        statusMessage: "nothing to report",
+        version: "trace-0.0.1",
+        modelParameters: {},
+        model: "gpt-4o",
+        promptName: "my-prompt",
+        promptVersion: 1,
+        usageDetails: { input_tokens: 123, output_tokens: 456 },
+        costDetails: { input_tokens: 0.0001, output_tokens: 0.002 },
+        input: '[{"role": "user", "content": "hello"}]',
+        output: '{"role": "assistant", "content": "what\'s up?"}',
+      });
+
+      expect(traceEvents[0].body).toMatchObject({
+        id: "2cce18f7e8cd065a0b4e634eef728391",
+        name: "test-trace",
+        tags: ["tag2"],
+        userId: "my-user",
+        sessionId: "my-session",
+        input: '[{"role": "user", "content": "hello"}]',
+        output: '{"role": "assistant", "content": "what\'s up?"}',
+        version: "trace-0.0.1",
+        environment: "production",
+        public: true,
+        metadata: {
+          ...defaultMetadata,
+          "trace-key1": '"value1"',
+          "trace-key2": '"value2"',
+        },
+      });
+
+      expect(traceEvents[1].body).toMatchObject({
+        id: "2cce18f7e8cd065a0b4e634eef728391",
+        timestamp: "2025-04-30T15:28:50.424Z",
+        name: "my-span",
+        metadata: {
+          ...defaultMetadata,
+          "trace-key0": '"value1"',
+        },
+        tags: ["tag1"],
+        environment: "production",
+      });
+    });
+
+    it("should create a trace when as_root has been specified", () => {
+      const langfuseOtelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "telemetry.sdk.language",
+                value: { stringValue: "python" },
+              },
+              {
+                key: "telemetry.sdk.name",
+                value: { stringValue: "opentelemetry" },
+              },
+              {
+                key: "telemetry.sdk.version",
+                value: { stringValue: "1.32.0" },
+              },
+              {
+                key: "langfuse.environment",
+                value: { stringValue: "production" },
+              },
+              { key: "langfuse.release", value: { stringValue: "0.0.1" } },
+              {
+                key: "service.name",
+                value: { stringValue: "unknown_service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "langfuse-sdk",
+                version: "2.60.3",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: { stringValue: "pk-lf-1234567890" },
+                  },
+                ],
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [
+                      149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                      49, 17, 32,
+                    ],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [131, 78, 40, 181, 145, 127, 190, 246],
+                  },
+                  name: "my-span-with-custom-trace-id",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1149405088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.observation.type",
+                      value: { stringValue: "span" },
+                    },
+                    {
+                      key: "langfuse.internal.as_root",
+                      value: { boolValue: true },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = langfuseOtelSpans.flatMap((span) =>
+        convertOtelSpanToIngestionEvent(span, publicKey),
+      );
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      const spanEvents = events.filter((e) => e.type === "span-create");
+
+      expect(events.length).toBe(2);
+      expect(traceEvents.length).toBe(1);
+      expect(spanEvents.length).toBe(1);
+
+      const spanEvent = spanEvents[0];
+      const traceEvent = traceEvents[0];
+
+      expect(spanEvent.body).toMatchObject({
+        id: "d43e37b7d17e5476",
+        traceId: "95f3b926c7d009925bcb5dbc27311120",
+        parentObservationId: "834e28b5917fbef6",
+        name: "my-span-with-custom-trace-id",
+        startTime: "2025-05-05T13:42:33.936Z",
+        endTime: "2025-05-05T13:42:34.038Z",
+        environment: "production",
+        level: "DEFAULT",
+      });
+
+      expect(traceEvent.body).toMatchObject({
+        id: "95f3b926c7d009925bcb5dbc27311120",
+        timestamp: "2025-05-05T13:42:33.936Z",
+        name: "my-span-with-custom-trace-id",
+        environment: "production",
+      });
+    });
+    it("should throw an error if langfuse scope spans have wrong project ID", () => {
+      const langfuseOtelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "telemetry.sdk.language",
+                value: {
+                  stringValue: "python",
+                },
+              },
+              {
+                key: "telemetry.sdk.name",
+                value: {
+                  stringValue: "opentelemetry",
+                },
+              },
+              {
+                key: "telemetry.sdk.version",
+                value: {
+                  stringValue: "1.32.0",
+                },
+              },
+              {
+                key: "service.name",
+                value: {
+                  stringValue: "unknown_service",
+                },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "langfuse-sdk",
+                version: "2.60.3",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: {
+                      stringValue: "pk-lf-another",
+                    },
+                  },
+                ],
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [
+                      219, 242, 249, 255, 154, 168, 21, 165, 233, 52, 222, 186,
+                      28, 97, 54, 95,
+                    ],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [128, 191, 93, 22, 69, 180, 81, 135],
+                  },
+                  name: "t1",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: -1422874264,
+                    high: 406650983,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: -904695264,
+                    high: 406650983,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.observation.type",
+                      value: {
+                        stringValue: "span",
+                      },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      expect(() =>
+        langfuseOtelSpans.flatMap((span) =>
+          convertOtelSpanToIngestionEvent(span, publicKey),
+        ),
+      ).toThrowError("Langfuse OTEL SDK span has different public key");
+    });
+  });
+
   describe("Vendor Spans", () => {
     it("should convert an OpenLit OTel Span to Langfuse Events", () => {
       // Setup
