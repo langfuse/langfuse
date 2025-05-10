@@ -8,6 +8,7 @@ import {
 import { prisma, TriggerConfiguration } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { WebhookInput } from "./webhooks";
+import { getActionConfigById } from "./action-repository";
 
 export enum TriggerEventSource {
   ObservationCreated = "observation.created",
@@ -121,23 +122,16 @@ export class ActionCreationService {
       actionConfig: ActionConfigurationDomain,
     ) => Promise<any>,
   ) {
-    const actionConfig = await prisma.actionConfiguration.findFirst({
-      where: {
-        id: trigger.actionId,
-        projectId: this.projectId,
-      },
+    const actionConfig = await getActionConfigById({
+      projectId: this.projectId,
+      actionId: trigger.actionId,
     });
 
     if (!actionConfig) {
       throw new Error(`Action ${trigger.actionId} not found`);
     }
 
-    const actionDomain: ActionConfigurationDomain = {
-      ...actionConfig,
-      config: JSON.parse(actionConfig.config as string) as WebhookInput,
-    };
-
-    const actionInput = await convertEventToActionInput(actionDomain);
+    const actionInput = await convertEventToActionInput(actionConfig);
 
     // create new execution. The body is used by the websocket
     const actionExecution = await prisma.actionExecution.create({

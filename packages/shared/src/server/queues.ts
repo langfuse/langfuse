@@ -6,6 +6,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchExportTableName } from "../features/batchExport/types";
+import { ObservationTypeDomain } from "../domain";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -132,6 +133,7 @@ export const ObservationUpsertQueueEventSchema = z.object({
   id: z.string(),
   traceId: z.string(),
   startTime: z.date(),
+  type: ObservationTypeDomain,
 });
 
 export type CreateEvalQueueEventType = z.infer<

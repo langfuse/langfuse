@@ -11,11 +11,12 @@ import {
   TriggerEventSource,
 } from "../trigger/triggerService";
 import { prisma } from "@langfuse/shared/src/db";
+import { WebhookInput } from "../trigger/webhooks";
 
 export const observationUpsertProcessor = async (
   job: Job<TQueueJobTypes[QueueName.ObservationUpsert]>,
 ) => {
-  const { id, projectId, startTime, traceId } = job.data.payload;
+  const { id, projectId, startTime, traceId, type } = job.data.payload;
 
   const triggerService = new ActionCreationService(projectId);
   await triggerService.triggerAction({
@@ -54,8 +55,16 @@ export const observationUpsertProcessor = async (
     createEventId: () => {
       return id;
     },
-    convertEventToActionInput: async (actionConfig) => {
-      return {};
+    convertEventToActionInput: async () => {
+      const webhookInputSchema: WebhookInput = {
+        type: "observation",
+        observationId: id,
+        projectId,
+        startTime,
+        traceId,
+        observationType: type,
+      };
+      return webhookInputSchema;
     },
   });
 };
