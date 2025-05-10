@@ -21,6 +21,7 @@ import { BatchActionQueue } from "./batchActionQueue";
 import { CreateEvalQueue } from "./createEvalQueue";
 import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlxRetryQueue";
+import { ObservationUpsertQueue } from "./observationUpsert";
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
@@ -68,6 +69,8 @@ export function getQueue(queueName: QueueName): Queue | null {
       return ScoreDeleteQueue.getInstance();
     case QueueName.DeadLetterRetryQueue:
       return DeadLetterRetryQueue.getInstance();
+    case QueueName.ObservationUpsert:
+      return ObservationUpsertQueue.getInstance();
     default:
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

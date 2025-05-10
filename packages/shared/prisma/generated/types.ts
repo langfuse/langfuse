@@ -112,6 +112,11 @@ export const DashboardWidgetChartType = {
     PIE: "PIE"
 } as const;
 export type DashboardWidgetChartType = (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
+export const ActionType = {
+    WEBHOOK: "WEBHOOK",
+    ANNOTATION_QUEUE: "ANNOTATION_QUEUE"
+} as const;
+export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 export type Account = {
     id: string;
     user_id: string;
@@ -129,6 +134,31 @@ export type Account = {
     session_state: string | null;
     refresh_token_expires_in: number | null;
     created_at: number | null;
+};
+export type ActionConfiguration = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    description: string | null;
+    type: ActionType;
+    config: unknown;
+};
+export type ActionExecution = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    source_id: string;
+    trigger_id: string;
+    action_id: string;
+    project_id: string;
+    status: Generated<JobExecutionStatus>;
+    input: unknown;
+    output: unknown | null;
+    started_at: Timestamp | null;
+    finished_at: Timestamp | null;
+    error: string | null;
 };
 export type AnnotationQueue = {
     id: string;
@@ -667,6 +697,20 @@ export type TraceSession = {
     public: Generated<boolean>;
     environment: Generated<string>;
 };
+export type TriggerConfiguration = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    description: string | null;
+    eventSource: string;
+    filter: unknown | null;
+    action_id: string;
+    status: Generated<JobConfigState>;
+    last_fired_at: Timestamp | null;
+    sampling: string;
+    delay: number;
+};
 export type User = {
     id: string;
     name: string | null;
@@ -686,6 +730,8 @@ export type VerificationToken = {
 };
 export type DB = {
     Account: Account;
+    action_configurations: ActionConfiguration;
+    action_executions: ActionExecution;
     annotation_queue_items: AnnotationQueueItem;
     annotation_queues: AnnotationQueue;
     api_keys: ApiKey;
@@ -730,6 +776,7 @@ export type DB = {
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: LegacyPrismaTrace;
+    trigger_configurations: TriggerConfiguration;
     users: User;
     verification_tokens: VerificationToken;
 };

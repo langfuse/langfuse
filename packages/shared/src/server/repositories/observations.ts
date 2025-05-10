@@ -17,7 +17,10 @@ import {
   FullObservations,
   orderByToClickhouseSql,
 } from "../queries";
-import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
+import {
+  createFilterFromFilterState,
+  getProjectIdDefaultFilter,
+} from "../queries/clickhouse-sql/factory";
 import {
   observationsTableTraceUiColumnDefinitions,
   observationsTableUiColumnDefinitions,
@@ -47,17 +50,44 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
  * • Filters with two days lookback window subject to startTime
  * • Used for validating observation references before eval job creation
  */
-export const checkObservationExists = async (
-  projectId: string,
-  id: string,
-  startTime: Date | undefined,
-): Promise<boolean> => {
+export const checkObservationExists = async ({
+  projectId,
+  id,
+  filter,
+  ltStartTime,
+}: {
+  projectId: string;
+  id: string;
+  filter?: FilterState;
+  ltStartTime?: Date;
+}): Promise<boolean> => {
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...(filter
+      ? createFilterFromFilterState(
+          filter,
+          observationsTableUiColumnDefinitions,
+        )
+      : []),
+  );
+
+  const appliedFilter = observationsFilter.apply();
+
   const query = `
     SELECT id, project_id
     FROM observations o
     WHERE project_id = {projectId: String}
     AND id = {id: String}
-    ${startTime ? `AND start_time >= {startTime: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+    ${ltStartTime ? `AND start_time >= {startTime: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+    ${appliedFilter ? `AND ${appliedFilter.query}` : ""}
     ORDER BY event_ts DESC
     LIMIT 1 BY id, project_id
   `;
@@ -67,8 +97,9 @@ export const checkObservationExists = async (
     params: {
       id,
       projectId,
-      ...(startTime
-        ? { startTime: convertDateToClickhouseDateTime(startTime) }
+      ...(appliedFilter ? appliedFilter.params : {}),
+      ...(ltStartTime
+        ? { startTime: convertDateToClickhouseDateTime(ltStartTime) }
         : {}),
     },
     tags: {

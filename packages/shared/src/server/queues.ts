@@ -127,6 +127,13 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const ObservationUpsertQueueEventSchema = z.object({
+  projectId: z.string(),
+  id: z.string(),
+  traceId: z.string(),
+  startTime: z.date(),
+});
+
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
 >;
@@ -158,6 +165,9 @@ export type BlobStorageIntegrationProcessingEventType = z.infer<
 export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
+export type ObservationUpsertQueueEventType = z.infer<
+  typeof ObservationUpsertQueueEventSchema
+>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -182,6 +192,7 @@ export enum QueueName {
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
+  ObservationUpsert = "observation-upsert",
 }
 
 export enum QueueJobs {
@@ -207,6 +218,7 @@ export enum QueueJobs {
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
   DeadLetterRetryJob = "dead-letter-retry-job",
+  ObservationUpsert = "observation-upsert",
 }
 
 export type TQueueJobTypes = {
@@ -305,5 +317,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: DeadLetterRetryQueueEventType;
     name: QueueJobs.DeadLetterRetryJob;
+  };
+  [QueueName.ObservationUpsert]: {
+    timestamp: Date;
+    id: string;
+    payload: ObservationUpsertQueueEventType;
+    name: QueueJobs.ObservationUpsert;
   };
 };
