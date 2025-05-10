@@ -270,9 +270,15 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const traceOld = await getTraceById({ traceId: `${baseId}-trace-old`, projectId });
+    const traceOld = await getTraceById({
+      traceId: `${baseId}-trace-old`,
+      projectId,
+    });
     expect(traceOld).toBeUndefined();
-    const traceNew = await getTraceById({ traceId: `${baseId}-trace-new`, projectId });
+    const traceNew = await getTraceById({
+      traceId: `${baseId}-trace-new`,
+      projectId,
+    });
     expect(traceNew).toBeDefined();
   });
 
@@ -298,12 +304,12 @@ describe("DataRetentionProcessingJob", () => {
 
     // Then
     expect(() =>
-      getObservationById(`${baseId}-observation-old`, projectId),
+      getObservationById({ id: `${baseId}-observation-old`, projectId }),
     ).rejects.toThrowError("not found");
-    const observationNew = await getObservationById(
-      `${baseId}-observation-new`,
+    const observationNew = await getObservationById({
+      id: `${baseId}-observation-new`,
       projectId,
-    );
+    });
     expect(observationNew).toBeDefined();
   });
 
