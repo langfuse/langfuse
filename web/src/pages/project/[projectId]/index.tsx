@@ -31,6 +31,9 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/use-environment-filter";
+// import { ChartSelector } from "@/src/features/dashboard/components/chart-selector/ChartSelector";
+import { chartDefinitions } from "@/src/features/dashboard/components/chart-selector/chartDefinitions";
+import { useChartSelectState } from "@/src/features/dashboard/components/chart-selector/useChartSelectState";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -163,6 +166,45 @@ export default function Dashboard() {
     ...environmentFilter,
   ];
 
+  // type Chart = {
+  //   key: string;
+  //   value: string;
+  // };
+
+  //  Could move this to the useChartSelectState hook instead of passing as a prop
+  // const allDashboardChartKeys = chartDefinitions.map(
+  //   (chart) => chart.key,
+  // );
+
+  const { selectedDashboardChartKeys, setSelectedDashboardChartKeys } =
+    useChartSelectState(projectId);
+
+  // Moving this directly into the component props
+  // const chartSelectorOptions = [
+  //   ...chartDefinitions.map((chart) => ({
+  //     value: chart.key,
+  //     displayValue: chart.label,
+  //   })),
+  // ];
+
+  // const [selectedCharts, setSelectedCharts] = useSessionStorage<string[]>(
+  //   "dashboardSelectedCharts",
+  //   allChartKeys,
+  // );
+  // const [selectedDashboardChartKeys] = useChartSelectState<string[]>(
+  //   `selectedDashboardChartKeys-${projectId}`
+  // );
+  // console.log(selectedDashboardChartKeys);
+
+  // TODO: Decide on  practicality of fall back - as 'Select all' does not work as intended with empty = all implementation
+
+  // Fallback idea: if selectedCharts is empty or contains only unknown (invalid) keys, show all charts (commenting out for now)
+  // const validSelectedCharts = selectedCharts.filter((key) =>
+  //   allChartKeys.includes(key),
+  // );
+  // const chartsToShow = validSelectedCharts;
+  //  validSelectedCharts.length > 0 ? validSelectedCharts : allChartKeys;
+
   return (
     <Page
       withPadding
@@ -206,112 +248,151 @@ export default function Dashboard() {
             onChange={useDebounce(setUserFilterState)}
           />
         </div>
-        {uiCustomization?.feedbackHref === undefined && (
-          <FeedbackButtonWrapper
-            title="Request Chart"
-            description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
-            className="hidden lg:flex"
-          >
-            <Button
-              id="date"
-              variant={"outline"}
-              className={
-                "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
-              }
+        <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
+          {/* <ChartSelector
+            projectId={projectId}
+            // onChange={setSelectedCharts}
+          /> */}
+          <MultiSelect
+            title="Show/Hide Charts"
+            label="Charts"
+            values={selectedDashboardChartKeys}
+            onValueChange={useDebounce(setSelectedDashboardChartKeys)}
+            // options={chartSelectorOptions}
+            options={chartDefinitions.map((chart) => ({
+              value: chart.key,
+              displayValue: chart.label,
+            }))}
+          />
+          {uiCustomization?.feedbackHref === undefined && (
+            <FeedbackButtonWrapper
+              title="Request Chart"
+              description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
+              className="hidden lg:flex"
             >
-              <BarChart2
-                className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
-                aria-hidden="true"
-              />
-              Request Chart
-            </Button>
-          </FeedbackButtonWrapper>
-        )}
+              <Button
+                id="date"
+                variant={"outline"}
+                className={
+                  "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
+                }
+              >
+                <BarChart2
+                  className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
+                  aria-hidden="true"
+                />
+                Request Chart
+              </Button>
+            </FeedbackButtonWrapper>
+          )}
+        </div>
       </div>
       <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
-        <TracesBarListChart
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
-        />
-        <ModelCostTable
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
-        />
-        <ScoresTable
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          isLoading={environmentFilterOptions.isLoading}
-        />
-        <TracesAndObservationsTimeSeriesChart
-          className="col-span-1 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          agg={agg}
-          isLoading={environmentFilterOptions.isLoading}
-        />
-        <ModelUsageChart
-          className="col-span-1 min-h-24 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
-          agg={agg}
-          isLoading={environmentFilterOptions.isLoading}
-        />
-        <UserChart
-          className="col-span-1 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
-        />
-        <ChartScores
-          className="col-span-1 xl:col-span-3"
-          agg={agg}
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
-        />
-        <LatencyTables
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
-        />
-        <GenerationLatencyChart
-          className="col-span-1 flex-auto justify-between lg:col-span-full"
-          projectId={projectId}
-          agg={agg}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
-        />
-        <ScoreAnalytics
-          className="col-span-1 flex-auto justify-between lg:col-span-full"
-          agg={agg}
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
-        />
+        {selectedDashboardChartKeys.includes("traces") && (
+          <TracesBarListChart
+            className="col-span-1 xl:col-span-2"
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
+        {selectedDashboardChartKeys.includes("model-costs") && (
+          <ModelCostTable
+            className="col-span-1 xl:col-span-2"
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
+        {selectedDashboardChartKeys.includes("scores") && (
+          <ScoresTable
+            className="col-span-1 xl:col-span-2"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
+        {selectedDashboardChartKeys.includes("traces-by-time") && (
+          <TracesAndObservationsTimeSeriesChart
+            className="col-span-1 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            agg={agg}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
+        {selectedDashboardChartKeys.includes("model-usage") && (
+          <ModelUsageChart
+            className="col-span-1 min-h-24 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
+            agg={agg}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
+        {selectedDashboardChartKeys.includes("user-consumption") && (
+          <UserChart
+            className="col-span-1 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
+        {selectedDashboardChartKeys.includes("average-scores") && (
+          <ChartScores
+            className="col-span-1 xl:col-span-3"
+            agg={agg}
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
+        {selectedDashboardChartKeys.includes("trace-latency-percentiles") && (
+          <LatencyTables
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
+        {selectedDashboardChartKeys.includes(
+          "generation-latency-percentiles",
+        ) && (
+          <GenerationLatencyChart
+            className="col-span-1 flex-auto justify-between lg:col-span-full"
+            projectId={projectId}
+            agg={agg}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
+        {selectedDashboardChartKeys.includes("scores-analytics") && (
+          <ScoreAnalytics
+            className="col-span-1 flex-auto justify-between lg:col-span-full"
+            agg={agg}
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentFilterOptions.isLoading}
+          />
+        )}
       </div>
     </Page>
   );
