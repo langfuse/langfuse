@@ -61,7 +61,7 @@ export const sendMembershipInvitationEmail = async ({
   try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
 
-    const htmlTemplate = render(
+    const htmlTemplate = await render(
       MembershipInvitationTemplate({
         invitedByUsername: inviterName,
         invitedByUserEmail: inviterEmail,
