@@ -31,7 +31,6 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/use-environment-filter";
-// import { ChartSelector } from "@/src/features/dashboard/components/chart-selector/ChartSelector";
 import { chartDefinitions } from "@/src/features/dashboard/components/chart-selector/chartDefinitions";
 import { useChartSelectState } from "@/src/features/dashboard/components/chart-selector/useChartSelectState";
 
@@ -166,44 +165,8 @@ export default function Dashboard() {
     ...environmentFilter,
   ];
 
-  // type Chart = {
-  //   key: string;
-  //   value: string;
-  // };
-
-  //  Could move this to the useChartSelectState hook instead of passing as a prop
-  // const allDashboardChartKeys = chartDefinitions.map(
-  //   (chart) => chart.key,
-  // );
-
   const { selectedDashboardChartKeys, setSelectedDashboardChartKeys } =
     useChartSelectState(projectId);
-
-  // Moving this directly into the component props
-  // const chartSelectorOptions = [
-  //   ...chartDefinitions.map((chart) => ({
-  //     value: chart.key,
-  //     displayValue: chart.label,
-  //   })),
-  // ];
-
-  // const [selectedCharts, setSelectedCharts] = useSessionStorage<string[]>(
-  //   "dashboardSelectedCharts",
-  //   allChartKeys,
-  // );
-  // const [selectedDashboardChartKeys] = useChartSelectState<string[]>(
-  //   `selectedDashboardChartKeys-${projectId}`
-  // );
-  // console.log(selectedDashboardChartKeys);
-
-  // TODO: Decide on  practicality of fall back - as 'Select all' does not work as intended with empty = all implementation
-
-  // Fallback idea: if selectedCharts is empty or contains only unknown (invalid) keys, show all charts (commenting out for now)
-  // const validSelectedCharts = selectedCharts.filter((key) =>
-  //   allChartKeys.includes(key),
-  // );
-  // const chartsToShow = validSelectedCharts;
-  //  validSelectedCharts.length > 0 ? validSelectedCharts : allChartKeys;
 
   return (
     <Page
@@ -249,16 +212,11 @@ export default function Dashboard() {
           />
         </div>
         <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-          {/* <ChartSelector
-            projectId={projectId}
-            // onChange={setSelectedCharts}
-          /> */}
           <MultiSelect
             title="Show/Hide Charts"
             label="Charts"
             values={selectedDashboardChartKeys}
             onValueChange={useDebounce(setSelectedDashboardChartKeys)}
-            // options={chartSelectorOptions}
             options={chartDefinitions.map((chart) => ({
               value: chart.key,
               displayValue: chart.label,

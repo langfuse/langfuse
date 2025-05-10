@@ -1,13 +1,22 @@
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { chartDefinitions } from "@/src/features/dashboard/components/chart-selector/chartDefinitions";
 
+interface Chart {
+  key: string;
+  label: string;
+}
+
+type ChartArray = Chart[];
+
 export function useChartSelectState(
-  // allChartKeys: string[],
   projectId: string,   // Assuming projectId is always available per ScoreAnalytics.tsx
 
 ) {
+  const allDashboardCharts: ChartArray = chartDefinitions;
+  const allDashboardChartKeys: string[] = allDashboardCharts.map((chart) => chart.key);
+
   //  Moving deconstruction of chartKeys here instead of index.tsx
-  const allDashboardChartKeys = chartDefinitions.map((chart) => chart.key);
+  // const allDashboardChartKeys: ChartArray = chartDefinitions.map((chart) => chart.key);
 
   // Using similar storage naming pattern as ScoreAnalytics.tsx
   const [selectedDashboardChartKeys, setSelectedDashboardChartKeys] =
@@ -27,3 +36,6 @@ export function useChartSelectState(
     setSelectedDashboardChartKeys: handleSetDashboardCharts,
   };
 }
+
+
+
