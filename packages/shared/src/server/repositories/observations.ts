@@ -37,6 +37,7 @@ import {
 import { env } from "../../env";
 import { TracingSearchType } from "../../interfaces/search";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { ObservationType } from "../../domain";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -309,18 +310,26 @@ export const getObservationForTraceIdByName = async (
   return records.map(convertObservation);
 };
 
-export const getObservationById = async (
-  id: string,
-  projectId: string,
-  fetchWithInputOutput: boolean = false,
-  startTime?: Date,
-) => {
-  const records = await getObservationByIdInternal(
+export const getObservationById = async ({
+  id,
+  projectId,
+  fetchWithInputOutput = false,
+  startTime,
+  type,
+}: {
+  id: string;
+  projectId: string;
+  fetchWithInputOutput?: boolean;
+  startTime?: Date;
+  type?: ObservationType;
+}) => {
+  const records = await getObservationByIdInternal({
     id,
     projectId,
     fetchWithInputOutput,
     startTime,
-  );
+    type,
+  });
   const mapped = records.map(convertObservation);
 
   if (mapped.length === 0) {
@@ -385,12 +394,19 @@ export const getObservationsById = async (
   return records.map(convertObservation);
 };
 
-const getObservationByIdInternal = async (
-  id: string,
-  projectId: string,
-  fetchWithInputOutput: boolean = false,
-  startTime?: Date,
-) => {
+const getObservationByIdInternal = async ({
+  id,
+  projectId,
+  fetchWithInputOutput = false,
+  startTime,
+  type,
+}: {
+  id: string;
+  projectId: string;
+  fetchWithInputOutput?: boolean;
+  startTime?: Date;
+  type?: ObservationType;
+}) => {
   const query = `
   SELECT
     id,
@@ -426,6 +442,7 @@ const getObservationByIdInternal = async (
   WHERE id = {id: String}
   AND project_id = {projectId: String}
   ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
+  ${type ? `AND type = {type: String}` : ""}
   ORDER BY event_ts desc
   LIMIT 1 by id, project_id`;
   return await queryClickhouse<ObservationRecordReadType>({
