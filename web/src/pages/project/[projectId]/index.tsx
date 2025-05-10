@@ -307,7 +307,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("average-scores") && (
+        {selectedDashboardChartKeys.includes("chart-scores") && (
           <ChartScores
             className="col-span-1 xl:col-span-3"
             agg={agg}
@@ -318,7 +318,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("trace-latency-percentiles") && (
+        {selectedDashboardChartKeys.includes("latency-tables") && (
           <LatencyTables
             projectId={projectId}
             globalFilterState={[...userFilterState, ...environmentFilter]}
@@ -328,7 +328,7 @@ export default function Dashboard() {
           />
         )}
         {selectedDashboardChartKeys.includes(
-          "generation-latency-percentiles",
+          "model-latencies",
         ) && (
           <GenerationLatencyChart
             className="col-span-1 flex-auto justify-between lg:col-span-full"
