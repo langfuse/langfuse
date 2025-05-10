@@ -17,7 +17,12 @@ describe("Clickhouse Observations Repository Test", () => {
   });
 
   it("should throw if no observations are found", async () => {
-    await expect(getObservationById(v4(), v4())).rejects.toThrow();
+    await expect(
+      getObservationById({
+        id: v4(),
+        projectId: v4(),
+      }),
+    ).rejects.toThrow();
   });
 
   it("should return an observation if exists", async () => {
@@ -58,7 +63,11 @@ describe("Clickhouse Observations Repository Test", () => {
 
     await createObservationsCh([observation]);
 
-    const result = await getObservationById(observationId, projectId, true);
+    const result = await getObservationById({
+      id: observationId,
+      projectId,
+      fetchWithInputOutput: true,
+    });
     if (!result) {
       throw new Error("Observation not found");
     }
