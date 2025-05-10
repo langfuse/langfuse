@@ -120,7 +120,7 @@ const EnvSchema = z.object({
   // was activated and which don't rely on historic updates.
   LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS: z.string().default(""),
   // Set a date after which S3 was active. Projects created after this date do
-  // perform a ClickHouse read as part of the ingestion pipeline.
+  // not perform a ClickHouse read as part of the ingestion pipeline.
   LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE: z
     .string()
     .date()
