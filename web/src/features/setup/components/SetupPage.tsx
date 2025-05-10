@@ -270,7 +270,7 @@ const TracingSetup = ({
           more keys later in the project settings.
         </p>
         {apiKeys ? (
-          <ApiKeyRender generatedKeys={apiKeys} />
+          <ApiKeyRender generatedKeys={apiKeys} scope={"project"} />
         ) : (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">

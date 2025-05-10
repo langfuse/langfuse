@@ -3,6 +3,7 @@ import { type Role } from "@langfuse/shared/src/db";
 const organizationScopes = [
   "projects:create",
   "projects:transfer_org",
+  "organization:CRUD_apiKeys",
   "organization:update",
   "organization:delete",
   "organizationMembers:read",
@@ -17,6 +18,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
   OWNER: [
     "projects:create",
     "projects:transfer_org",
+    "organization:CRUD_apiKeys",
     "organization:update",
     "organization:delete",
     "organizationMembers:CUD",
@@ -26,6 +28,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
   ADMIN: [
     "projects:create",
     "projects:transfer_org",
+    "organization:CRUD_apiKeys",
     "organization:update",
     "organizationMembers:CUD",
     "organizationMembers:read",

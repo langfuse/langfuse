@@ -174,6 +174,8 @@ const events = {
     "send_membership_invitation",
     "delete_membership_invitation",
     "delete_membership",
+    "api_key_create",
+    "api_key_delete",
     "pricing_dialog_opened",
     "delete_organization",
   ],
