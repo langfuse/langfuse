@@ -51,7 +51,7 @@ export default function Dashboard() {
   );
 
   const { selectedDashboardCharts, setSelectedDashboardCharts } =
-  useChartSelectState(projectId);
+    useChartSelectState(projectId);
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
@@ -177,7 +177,7 @@ export default function Dashboard() {
         actionButtonsRight: <SetupTracingButton />,
       }}
     >
-      <div className="my-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="my-3 flex flex-col flex-wrap items-baseline gap-2 lg:flex-row lg:justify-between lg:items-center">
         <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
           <DatePickerWithRange
             dateRange={dateRange}
@@ -221,6 +221,7 @@ export default function Dashboard() {
               value: chart.key,
               displayValue: chart.label,
             }))}
+            className="my-0 w-auto overflow-hidden"
           />
           {uiCustomization?.feedbackHref === undefined && (
             <FeedbackButtonWrapper
