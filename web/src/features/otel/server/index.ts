@@ -497,6 +497,20 @@ const extractCostDetails = (
   return {};
 };
 
+const extractCompletionStartTime = (
+  attributes: Record<string, unknown>,
+): Date | null => {
+  try {
+    return JSON.parse(
+      attributes[
+        LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
+      ] as string,
+    );
+  } catch {}
+
+  return null;
+};
+
 const extractTags = (attributes: Record<string, unknown>): string[] => {
   const tagsValue =
     attributes[LangfuseOtelSpanAttributes.TRACE_TAGS] ||
@@ -623,7 +637,7 @@ export const convertOtelSpanToIngestionEvent = (
             ...extractMetadata(attributes, "trace"),
             ...(isLangfuseSDKSpans ? {} : { attributes }),
             resourceAttributes,
-            scope: scopeSpan?.scope,
+            scope: { ...scopeSpan.scope, attributes: scopeAttributes },
           },
           version:
             attributes?.[LangfuseOtelSpanAttributes.VERSION] ??
@@ -666,12 +680,13 @@ export const convertOtelSpanToIngestionEvent = (
         environment: extractEnvironment(attributes, resourceAttributes),
 
         // Additional fields
+        completionStartTime: extractCompletionStartTime(attributes),
         metadata: {
           ...resourceAttributeMetadata,
           ...spanAttributeMetadata,
           ...(isLangfuseSDKSpans ? {} : { attributes }),
           resourceAttributes,
-          scope: scopeSpan?.scope,
+          scope: { ...scopeSpan.scope, attributes: scopeAttributes },
         },
         level:
           attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
