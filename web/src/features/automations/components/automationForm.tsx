@@ -17,16 +17,9 @@ import {
 } from "@/src/components/ui/select";
 import { Separator } from "@/src/components/ui/separator";
 import { Switch } from "@/src/components/ui/switch";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/src/components/ui/tabs";
-import { Textarea } from "@/src/components/ui/textarea";
 import { useRouter } from "next/router";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
@@ -44,6 +37,7 @@ import { type ColumnDefinition } from "@langfuse/shared";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { X, Plus } from "lucide-react";
 
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
@@ -94,30 +88,57 @@ export const observationFilterColumns: ColumnDefinition[] = [
 ];
 
 // Define schemas for form validation
-const formSchema = z.object({
-  description: z.string().min(1, "Description is required").max(100),
-  eventSource: z.string().min(1, "Event source is required"),
-  status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
-  sampling: z.coerce.number().min(0).max(100).default(100),
-  delay: z.coerce.number().min(0).default(0),
-  filter: z.array(z.any()).optional(),
-  actionType: z.enum(["WEBHOOK", "ANNOTATION_QUEUE"]),
-  // Action specific fields
-  webhook: z
-    .object({
-      url: z.string().url("Invalid URL").optional(),
-      method: z.enum(["GET", "POST", "PUT", "DELETE"]).default("POST"),
-      headers: z.string().optional(),
-    })
-    .optional(),
-  annotationQueue: z
-    .object({
-      queueId: z.string().optional(),
-    })
-    .optional(),
-});
+const formSchema = z
+  .object({
+    description: z.string().min(1, "Description is required").max(100),
+    eventSource: z.string().min(1, "Event source is required"),
+    status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
+    sampling: z.coerce.number().min(0).max(100).default(100),
+    delay: z.coerce.number().min(0).default(0),
+    filter: z.array(z.any()).optional(),
+    actionType: z.enum(["WEBHOOK", "ANNOTATION_QUEUE"]),
+    webhook: z
+      .object({
+        url: z.string().url("Invalid URL"),
+        headers: z
+          .array(
+            z.object({
+              name: z.string(),
+              value: z.string(),
+            }),
+          )
+          .default([]),
+      })
+      .optional(),
+    annotationQueue: z
+      .object({
+        queueId: z.string(),
+      })
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      // Make sure proper fields are filled based on action type
+      if (data.actionType === "WEBHOOK") {
+        return !!data.webhook?.url;
+      } else if (data.actionType === "ANNOTATION_QUEUE") {
+        return !!data.annotationQueue?.queueId;
+      }
+      return false;
+    },
+    {
+      message: "Required fields for the selected action type are missing",
+      path: ["actionType"],
+    },
+  );
 
 type FormValues = z.infer<typeof formSchema>;
+
+// Define a type for header pairs
+type HeaderPair = {
+  name: string;
+  value: string;
+};
 
 interface AutomationFormProps {
   projectId: string;
@@ -140,6 +161,7 @@ export const AutomationForm = ({
     projectId,
     scope: "automations:CUD",
   });
+  const utils = api.useUtils();
 
   // Set up mutations
   const createAutomationMutation =
@@ -184,6 +206,23 @@ export const AutomationForm = ({
     return "WEBHOOK";
   };
 
+  // Parse existing headers if available
+  const parseHeaders = (): HeaderPair[] => {
+    if (isEditing && automation?.action?.config?.headers) {
+      try {
+        const headersObject = automation.action.config.headers;
+        return Object.entries(headersObject).map(([name, value]) => ({
+          name,
+          value: value as string,
+        }));
+      } catch (e) {
+        console.error("Failed to parse headers:", e);
+        return [];
+      }
+    }
+    return [];
+  };
+
   // Initialize form with default values or values from existing automation
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -201,17 +240,28 @@ export const AutomationForm = ({
       actionType: getActionType(),
       webhook: {
         url: (isEditing && automation?.action?.config?.url) || "",
-        method: (isEditing && automation?.action?.config?.method) || "POST",
-        headers:
-          isEditing && automation?.action?.config?.headers
-            ? JSON.stringify(automation.action.config.headers)
-            : "",
+        headers: parseHeaders(),
       },
       annotationQueue: {
         queueId: (isEditing && automation?.action?.config?.queueId) || "",
       },
     },
   });
+
+  // Add useFieldArray for the headers
+  const {
+    fields: headerFields,
+    append: appendHeader,
+    remove: removeHeader,
+  } = useFieldArray({
+    control: form.control,
+    name: "webhook.headers",
+  });
+
+  // Function to add a new header pair
+  const addHeader = () => {
+    appendHeader({ name: "", value: "" });
+  };
 
   // Set the active tab based on the action type
   useEffect(() => {
@@ -230,17 +280,72 @@ export const AutomationForm = ({
       return;
     }
 
+    // Additional validation for required fields based on action type
+    let validationError = false;
+
+    if (data.actionType === "WEBHOOK") {
+      if (!data.webhook?.url) {
+        validationError = true;
+      }
+    } else if (data.actionType === "ANNOTATION_QUEUE") {
+      if (!data.annotationQueue?.queueId) {
+        validationError = true;
+      }
+    }
+
+    if (validationError) {
+      showSuccessToast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+      });
+      return;
+    }
+
     try {
+      // Convert headers array to object
+      const headersObject: Record<string, string> = {};
+      if (data.actionType === "WEBHOOK" && data.webhook?.headers) {
+        let hasEmptyField = false;
+        data.webhook.headers.forEach(
+          (header: { name: string; value: string }, index: number) => {
+            // Only validate non-empty headers
+            if (header.name.trim() || header.value.trim()) {
+              // If one field is filled but not the other, show an error
+              if (!header.name.trim()) {
+                form.setError(`webhook.headers.${index}.name`, {
+                  type: "manual",
+                  message: "Name cannot be empty",
+                });
+                hasEmptyField = true;
+              }
+              if (!header.value.trim()) {
+                form.setError(`webhook.headers.${index}.value`, {
+                  type: "manual",
+                  message: "Value cannot be empty",
+                });
+                hasEmptyField = true;
+              }
+            }
+
+            if (header.name.trim() && header.value.trim()) {
+              headersObject[header.name.trim()] = header.value.trim();
+            }
+          },
+        );
+
+        if (hasEmptyField) {
+          return;
+        }
+      }
+
       // Format the data for the API
       const actionConfig =
         data.actionType === "WEBHOOK"
           ? {
               version: "1.0",
               url: data.webhook?.url,
-              method: data.webhook?.method,
-              headers: data.webhook?.headers
-                ? JSON.parse(data.webhook.headers)
-                : {},
+              method: "POST",
+              headers: headersObject,
             }
           : {
               version: "1.0",
@@ -286,6 +391,10 @@ export const AutomationForm = ({
       }
     } catch (error) {
       console.error("Failed to save automation:", error);
+      showSuccessToast({
+        title: "Error",
+        description: "Failed to save automation. Please try again.",
+      });
     }
   };
 
@@ -323,9 +432,12 @@ export const AutomationForm = ({
             <FormField
               control={form.control}
               name="description"
+              rules={{ required: "Description is required" }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel className="flex items-center">
+                    Description <span className="ml-1 text-destructive">*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input
                       placeholder="Notify Slack when an observation is created"
@@ -525,9 +637,13 @@ export const AutomationForm = ({
                 <FormField
                   control={form.control}
                   name="webhook.url"
+                  rules={{ required: "Description is required" }}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Webhook URL</FormLabel>
+                      <FormLabel className="flex items-center">
+                        Webhook URL{" "}
+                        <span className="ml-1 text-destructive">*</span>
+                      </FormLabel>
                       <FormControl>
                         <Input
                           placeholder="https://example.com/webhook"
@@ -536,66 +652,88 @@ export const AutomationForm = ({
                         />
                       </FormControl>
                       <FormDescription>
-                        The URL to call when the trigger fires.
+                        The URL to call when the trigger fires. We will send a
+                        POST request to this URL.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="webhook.method"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>HTTP Method</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        disabled={!hasAccess}
+                <div>
+                  <FormLabel>Headers (Optional)</FormLabel>
+                  <FormDescription className="mb-2">
+                    Optional headers to include in the webhook request. You can
+                    leave this empty if no headers are needed.
+                  </FormDescription>
+
+                  {headerFields.length > 0 ? (
+                    headerFields.map((field, index) => (
+                      <div
+                        key={field.id}
+                        className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2"
                       >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select HTTP method" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="GET">GET</SelectItem>
-                          <SelectItem value="POST">POST</SelectItem>
-                          <SelectItem value="PUT">PUT</SelectItem>
-                          <SelectItem value="DELETE">DELETE</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        The HTTP method to use for the webhook request.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="webhook.headers"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Headers (JSON)</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder='{"Content-Type": "application/json", "Authorization": "Bearer YOUR_TOKEN"}'
-                          className="font-mono text-sm"
-                          {...field}
-                          disabled={!hasAccess}
+                        <FormField
+                          control={form.control}
+                          name={`webhook.headers.${index}.name`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Input
+                                  placeholder="Header Name"
+                                  {...field}
+                                  disabled={!hasAccess}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
                         />
-                      </FormControl>
-                      <FormDescription>
-                        Optional JSON object with headers to include in the
-                        webhook request.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
+                        <FormField
+                          control={form.control}
+                          name={`webhook.headers.${index}.value`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Input
+                                  placeholder="Value"
+                                  {...field}
+                                  disabled={!hasAccess}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeHeader(index)}
+                          disabled={!hasAccess}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="mb-2 text-sm text-muted-foreground">
+                      No headers added yet.
+                    </div>
                   )}
-                />
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addHeader}
+                    disabled={!hasAccess}
+                    className="mt-2"
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Header
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -606,7 +744,10 @@ export const AutomationForm = ({
                   name="annotationQueue.queueId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Annotation Queue</FormLabel>
+                      <FormLabel className="flex items-center">
+                        Annotation Queue{" "}
+                        <span className="ml-1 text-destructive">*</span>
+                      </FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -658,7 +799,10 @@ export const AutomationForm = ({
             <Button type="button" variant="outline" onClick={handleCancel}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!hasAccess}>
+            <Button
+              type="submit"
+              disabled={!hasAccess || form.formState.isSubmitting}
+            >
               {submitButtonText}
             </Button>
           </div>

@@ -2,7 +2,8 @@ import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod";
 import { ActionType, JobConfigState } from "@langfuse/shared";
-import { Prisma, TRPCError } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export const automationsRouter = createTRPCRouter({
   getAutomations: protectedProjectProcedure
@@ -256,24 +257,3 @@ export const automationsRouter = createTRPCRouter({
       });
     }),
 });
-
-// Utility function to check if user has required access
-function throwIfNoProjectAccess({
-  session,
-  projectId,
-  scope,
-}: {
-  session: any;
-  projectId: string;
-  scope: "automations:read" | "automations:CUD";
-}) {
-  // Check if the user has the correct role
-  const hasAccess = session.projectPermissions[projectId]?.includes(scope);
-
-  if (!hasAccess) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: `You don't have permission to ${scope === "automations:read" ? "view" : "modify"} automations.`,
-    });
-  }
-}
