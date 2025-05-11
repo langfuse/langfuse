@@ -3,7 +3,6 @@ import { dashboardChartDefinitions } from "@/src/features/dashboard/constants/ch
 import { useEffect, useMemo } from "react";
 
 export function useChartSelectState(projectId: string) {
-  
   // Extract static dashboard chart definitions keys list
   const allDashboardChartKeys = useMemo<string[]>(
     () => dashboardChartDefinitions.map((chart) => chart.key),

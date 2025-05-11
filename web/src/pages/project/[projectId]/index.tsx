@@ -33,6 +33,7 @@ import {
 } from "@/src/hooks/use-environment-filter";
 import { dashboardChartDefinitions } from "@/src/features/dashboard/constants/chartDefinitions";
 import { useChartSelectState } from "@/src/features/dashboard/hooks/useChartSelectState";
+import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -177,7 +178,7 @@ export default function Dashboard() {
         actionButtonsRight: <SetupTracingButton />,
       }}
     >
-      <div className="my-3 flex flex-col flex-wrap items-baseline gap-2 lg:flex-row lg:justify-between lg:items-center">
+      <div className="my-3 flex flex-col flex-wrap items-baseline gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
           <DatePickerWithRange
             dateRange={dateRange}
@@ -212,16 +213,18 @@ export default function Dashboard() {
           />
         </div>
         <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-          <MultiSelect
-            title="Show/Hide Charts"
-            label="Charts"
+          <MultiSelectKeyValues
+            title="Charts"
+            placeholder="Show / Hide Charts"
             values={selectedDashboardCharts}
             onValueChange={useDebounce(setSelectedDashboardCharts)}
             options={dashboardChartDefinitions.map((chart) => ({
-              value: chart.key,
-              displayValue: chart.label,
+              key: chart.key,
+              value: chart.label,
             }))}
+            hideClearButton={true}
             className="my-0 w-auto overflow-hidden"
+            variant="outline"
           />
           {uiCustomization?.feedbackHref === undefined && (
             <FeedbackButtonWrapper
