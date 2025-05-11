@@ -1,5 +1,18 @@
+/**
+ * Defines the list of charts available for filter selection on the dashboard.
+ * IMPORTANT: This list must be kept in sync with the charts implemented
+ * in `pages/project/[projectId]/index.tsx` to work properly.
+ * - `key`: A unique string identifier for the chart. Used for session storage
+ *          and conditional rendering (e.g., `selectedChartKeys.includes(key)`).
+ * - `label`: The display name for the chart in the MultiSelect component.
+ */
 
-export const chartDefinitions = [
+export interface DashboardChartDefinition {
+  key: string;
+  label: string;
+}
+
+export const dashboardChartDefinitions: DashboardChartDefinition[] = [
   { key: "traces", label: "Traces" },
   { key: "model-costs", label: "Model Costs" },
   { key: "scores", label: "Scores (total)" },
@@ -28,7 +41,6 @@ export const chartDefinitions = [
 // Span latency percentiles - LatencyTables
 // Model latencies - GenerationalLatencyChart
 // Scores Analytics - ScoreAnalytics
-
 
 // Default layout:
 

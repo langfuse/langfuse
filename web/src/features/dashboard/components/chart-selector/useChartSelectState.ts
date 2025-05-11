@@ -1,82 +1,73 @@
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { chartDefinitions } from "@/src/features/dashboard/components/chart-selector/chartDefinitions";
+import { dashboardChartDefinitions } from "@/src/features/dashboard/components/chart-selector/chartDefinitions";
 import { useEffect, useMemo } from "react";
 
-interface Chart {
-  key: string;
-  label: string;
-}
-
-export function useChartSelectState(
-  projectId: string, // Assuming projectId is always available per ScoreAnalytics.tsx
-) {
-  const allDashboardCharts = useMemo<Chart[]>(
-    () => chartDefinitions,
+export function useChartSelectState(projectId: string) {
+  // Extract keys from chart definitions to be used in session storage
+  const allDashboardChartKeys = useMemo<string[]>(
+    () => dashboardChartDefinitions.map((chart) => chart.key),
     [],
   );
 
-  const allDashboardChartKeys = useMemo<string[]>(
-    () => allDashboardCharts.map((chart) => chart.key),
-    [allDashboardCharts],
-  );
-
-  // if (allDashboardChartKeys.length === 0) {
-  //   console.warn('No dashboard chart definitions found, this may indicate a configuration issue & cause issues with the show/hide chart filter');
-  // }
-
-  // const allDashboardCharts: ChartArray = chartDefinitions;
-  // const allDashboardChartKeys: string[] = allDashboardCharts.map((chart) => chart.key);
-
-  //  Moving deconstruction of chartKeys here instead of index.tsx
-  // const allDashboardChartKeys: ChartArray = chartDefinitions.map((chart) => chart.key);
-
-  // Using similar storage naming pattern as ScoreAnalytics.tsx
+  // Initialise all keys in storage as all charts are visible by default
   const [selectedDashboardChartKeys, setSelectedDashboardChartKeys] =
     useSessionStorage<string[]>(
       `selectedDashboardChartKeys-${projectId}`,
       allDashboardChartKeys,
     );
 
-  // Validate stored dashboard key names on mount - clear out any invalid keys (eg if a chart was removed) or reset if none are valid
+  // Validate stored dashboard key names against defined list - clear out any invalid keys (eg if a chart was removed) or reset back to all charts if empty to avoid edge cases of no charts loading
   useEffect(() => {
-    const validStoredKeys = selectedDashboardChartKeys.filter((key) =>
+    const validStoredDashboardKeys = selectedDashboardChartKeys.filter((key) =>
       allDashboardChartKeys.includes(key),
     );
 
-    if (validStoredKeys.length !== selectedDashboardChartKeys.length) {
+    // Flag in case invalid/stale keys are found
+    const invalidKeysFound =
+      validStoredDashboardKeys.length !== selectedDashboardChartKeys.length;
+    // Flag in case no valid keys are found
+    const noValidKeysFound =
+      validStoredDashboardKeys.length === 0 && allDashboardChartKeys.length > 0;
+
+    if (invalidKeysFound || noValidKeysFound) {
+      // If no valid keys found, reset - otherwise keep valid keys
       setSelectedDashboardChartKeys(
-        validStoredKeys.length ? validStoredKeys : allDashboardChartKeys,
+        noValidKeysFound ? allDashboardChartKeys : validStoredDashboardKeys,
       );
     }
-  });
+  }, [
+    allDashboardChartKeys,
+    selectedDashboardChartKeys,
+    setSelectedDashboardChartKeys,
+  ]);
 
-  // Multi Select Component sends all values that are currently selected as part of onChange
-  // Ensure at least one chart is always selected - allows for fallback without breaking user experience
-  const handleSetDashboardCharts = (newValues: string[]) => {
-    // If trying to deselect all charts, keep the last attempted deselection
-    if (newValues.length === 0) {
-      // Find the difference between current and new selection to identify the last deselected chart
-      const lastDeselected = selectedDashboardChartKeys.find(
-        (key) => !newValues.includes(key),
+  const handleSetDashboardCharts = (chartsToShow: string[]) => {
+    // Fallback UX handling: Ensure that at least one chart is always selected to avoid triggering the empty list fallback - causing all charts to reappear
+    if (chartsToShow.length === 0) {
+      const lastDeselectedChart = selectedDashboardChartKeys.find(
+        (key) => !chartsToShow.includes(key),
       );
-      // Keep the last chart selected
-      setSelectedDashboardChartKeys(
-        lastDeselected ? [lastDeselected] : [allDashboardChartKeys[0]],
-      );
+
+      if (lastDeselectedChart) {
+        setSelectedDashboardChartKeys([lastDeselectedChart]);
+      } else {
+        // Catch for last deselected chart can't be identified
+        if (allDashboardChartKeys.length > 0) {
+          setSelectedDashboardChartKeys([allDashboardChartKeys[0]]);
+        } else {
+          // Edge case fallback: No defined charts
+          setSelectedDashboardChartKeys([]);
+        }
+      }
+
       return;
     }
 
-    setSelectedDashboardChartKeys(newValues);
+    setSelectedDashboardChartKeys(chartsToShow);
   };
 
-  // Multi Select Component sends all values that are currently selected as part of onChange
-  // const handleSetDashboardCharts = (values: string[]) => {
-  //   setSelectedDashboardChartKeys(values);
-  // };
-
-  //  Similar pattern to use-environment-filter.tsx
   return {
-    selectedDashboardChartKeys,
-    setSelectedDashboardChartKeys: handleSetDashboardCharts,
+    selectedDashboardCharts: selectedDashboardChartKeys,
+    setSelectedDashboardCharts: handleSetDashboardCharts,
   };
 }

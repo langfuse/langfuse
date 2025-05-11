@@ -31,7 +31,7 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/use-environment-filter";
-import { chartDefinitions } from "@/src/features/dashboard/components/chart-selector/chartDefinitions";
+import { dashboardChartDefinitions } from "@/src/features/dashboard/components/chart-selector/chartDefinitions";
 import { useChartSelectState } from "@/src/features/dashboard/components/chart-selector/useChartSelectState";
 
 export default function Dashboard() {
@@ -165,7 +165,7 @@ export default function Dashboard() {
     ...environmentFilter,
   ];
 
-  const { selectedDashboardChartKeys, setSelectedDashboardChartKeys } =
+  const { selectedDashboardCharts, setSelectedDashboardCharts } =
     useChartSelectState(projectId);
 
   return (
@@ -215,9 +215,9 @@ export default function Dashboard() {
           <MultiSelect
             title="Show/Hide Charts"
             label="Charts"
-            values={selectedDashboardChartKeys}
-            onValueChange={useDebounce(setSelectedDashboardChartKeys)}
-            options={chartDefinitions.map((chart) => ({
+            values={selectedDashboardCharts}
+            onValueChange={useDebounce(setSelectedDashboardCharts)}
+            options={dashboardChartDefinitions.map((chart) => ({
               value: chart.key,
               displayValue: chart.label,
             }))}
@@ -246,7 +246,7 @@ export default function Dashboard() {
         </div>
       </div>
       <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
-        {selectedDashboardChartKeys.includes("traces") && (
+        {selectedDashboardCharts.includes("traces") && (
           <TracesBarListChart
             className="col-span-1 xl:col-span-2"
             projectId={projectId}
@@ -256,7 +256,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("model-costs") && (
+        {selectedDashboardCharts.includes("model-costs") && (
           <ModelCostTable
             className="col-span-1 xl:col-span-2"
             projectId={projectId}
@@ -266,7 +266,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("scores") && (
+        {selectedDashboardCharts.includes("scores") && (
           <ScoresTable
             className="col-span-1 xl:col-span-2"
             projectId={projectId}
@@ -274,7 +274,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("traces-by-time") && (
+        {selectedDashboardCharts.includes("traces-by-time") && (
           <TracesAndObservationsTimeSeriesChart
             className="col-span-1 xl:col-span-3"
             projectId={projectId}
@@ -285,7 +285,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("model-usage") && (
+        {selectedDashboardCharts.includes("model-usage") && (
           <ModelUsageChart
             className="col-span-1 min-h-24 xl:col-span-3"
             projectId={projectId}
@@ -297,7 +297,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("user-consumption") && (
+        {selectedDashboardCharts.includes("user-consumption") && (
           <UserChart
             className="col-span-1 xl:col-span-3"
             projectId={projectId}
@@ -307,7 +307,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("chart-scores") && (
+        {selectedDashboardCharts.includes("chart-scores") && (
           <ChartScores
             className="col-span-1 xl:col-span-3"
             agg={agg}
@@ -318,7 +318,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("latency-tables") && (
+        {selectedDashboardCharts.includes("latency-tables") && (
           <LatencyTables
             projectId={projectId}
             globalFilterState={[...userFilterState, ...environmentFilter]}
@@ -327,9 +327,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes(
-          "model-latencies",
-        ) && (
+        {selectedDashboardCharts.includes("model-latencies") && (
           <GenerationLatencyChart
             className="col-span-1 flex-auto justify-between lg:col-span-full"
             projectId={projectId}
@@ -340,7 +338,7 @@ export default function Dashboard() {
             isLoading={environmentFilterOptions.isLoading}
           />
         )}
-        {selectedDashboardChartKeys.includes("scores-analytics") && (
+        {selectedDashboardCharts.includes("scores-analytics") && (
           <ScoreAnalytics
             className="col-span-1 flex-auto justify-between lg:col-span-full"
             agg={agg}
