@@ -40,7 +40,10 @@ import {
 import { api } from "@/src/utils/api";
 import { type ActionType, type JobConfigState } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type FilterState, type ColumnDefinition } from "@langfuse/shared";
+import { type ColumnDefinition } from "@langfuse/shared";
+import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
@@ -48,7 +51,7 @@ enum TriggerEventSource {
 }
 
 // Define columns for observation events
-const observationFilterColumns: ColumnDefinition[] = [
+export const observationFilterColumns: ColumnDefinition[] = [
   { name: "name", id: "name", type: "string", internal: "name" },
   {
     name: "type",
@@ -133,12 +136,32 @@ export const AutomationForm = ({
 }: AutomationFormProps) => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>("webhook");
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "automations:CUD",
+  });
 
   // Set up mutations
   const createAutomationMutation =
     api.automations.createAutomation.useMutation();
   const updateAutomationMutation =
     api.automations.updateAutomation.useMutation();
+  const deleteAutomationMutation = api.automations.deleteAutomation.useMutation(
+    {
+      onSuccess: () => {
+        showSuccessToast({
+          title: "Automation deleted",
+          description: "The automation has been deleted successfully.",
+        });
+        utils.automations.getAutomations.invalidate({ projectId });
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.push(`/project/${projectId}/automations/list`);
+        }
+      },
+    },
+  );
 
   // Parse the filter if it exists for editing
   const getInitialFilter = () => {
@@ -199,6 +222,14 @@ export const AutomationForm = ({
 
   // Handle form submission
   const onSubmit = async (data: FormValues) => {
+    if (!hasAccess) {
+      showSuccessToast({
+        title: "Permission Denied",
+        description: "You don't have permission to modify automations.",
+      });
+      return;
+    }
+
     try {
       // Format the data for the API
       const actionConfig =
@@ -299,6 +330,7 @@ export const AutomationForm = ({
                     <Input
                       placeholder="Notify Slack when an observation is created"
                       {...field}
+                      disabled={!hasAccess}
                     />
                   </FormControl>
                   <FormDescription>
@@ -326,6 +358,7 @@ export const AutomationForm = ({
                       onCheckedChange={(checked) =>
                         field.onChange(checked ? "ACTIVE" : "INACTIVE")
                       }
+                      disabled={!hasAccess}
                     />
                   </FormControl>
                   <FormMessage />
@@ -352,6 +385,7 @@ export const AutomationForm = ({
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
+                    disabled={!hasAccess}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -384,7 +418,7 @@ export const AutomationForm = ({
                       columns={observationFilterColumns}
                       filterState={field.value || []}
                       onChange={field.onChange}
-                      disabled={false}
+                      disabled={activeTab === "annotation_queue" || !hasAccess}
                     />
                   </FormControl>
                   <FormDescription>
@@ -403,7 +437,13 @@ export const AutomationForm = ({
                   <FormItem>
                     <FormLabel>Sampling Rate (%)</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" max="100" {...field} />
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        {...field}
+                        disabled={!hasAccess}
+                      />
                     </FormControl>
                     <FormDescription>
                       The percentage of events that will trigger this
@@ -421,7 +461,12 @@ export const AutomationForm = ({
                   <FormItem>
                     <FormLabel>Delay (ms)</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" {...field} />
+                      <Input
+                        type="number"
+                        min="0"
+                        {...field}
+                        disabled={!hasAccess}
+                      />
                     </FormControl>
                     <FormDescription>
                       Delay in milliseconds before the action is executed.
@@ -451,6 +496,7 @@ export const AutomationForm = ({
                   <Select
                     onValueChange={handleActionTypeChange}
                     defaultValue={field.value}
+                    disabled={!hasAccess}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -486,6 +532,7 @@ export const AutomationForm = ({
                         <Input
                           placeholder="https://example.com/webhook"
                           {...field}
+                          disabled={!hasAccess}
                         />
                       </FormControl>
                       <FormDescription>
@@ -505,6 +552,7 @@ export const AutomationForm = ({
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
+                        disabled={!hasAccess}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -537,6 +585,7 @@ export const AutomationForm = ({
                           placeholder='{"Content-Type": "application/json", "Authorization": "Bearer YOUR_TOKEN"}'
                           className="font-mono text-sm"
                           {...field}
+                          disabled={!hasAccess}
                         />
                       </FormControl>
                       <FormDescription>
@@ -561,6 +610,7 @@ export const AutomationForm = ({
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
+                        disabled={!hasAccess}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -586,11 +636,32 @@ export const AutomationForm = ({
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button type="submit">{submitButtonText}</Button>
+        <div className="flex justify-between gap-3">
+          {isEditing && (
+            <div>
+              <DeleteAutomationButton
+                projectId={projectId}
+                triggerId={automation.id}
+                variant="button"
+                onSuccess={() => {
+                  if (onSuccess) {
+                    onSuccess();
+                  } else {
+                    router.push(`/project/${projectId}/automations/list`);
+                  }
+                }}
+              />
+            </div>
+          )}
+          <div className="flex-grow"></div>
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!hasAccess}>
+              {submitButtonText}
+            </Button>
+          </div>
         </div>
       </form>
     </Form>

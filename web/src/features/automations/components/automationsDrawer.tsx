@@ -9,50 +9,46 @@ import {
 } from "@/src/components/ui/drawer";
 import { Button } from "@/src/components/ui/button";
 import { Share2, Plus, X, ArrowLeft } from "lucide-react";
-import { api } from "@/src/utils/api";
 import { AutomationsList } from "./automationsList";
 import { AutomationForm } from "./automationForm";
 import { type TriggerConfiguration } from "@prisma/client";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type ViewState = "list" | "create" | "edit";
 
 export const AutomationsDrawer = ({ projectId }: { projectId: string }) => {
-  const { data: automations, refetch } =
-    api.automations.getAutomations.useQuery({
-      projectId,
-    });
   const [view, setView] = useState<ViewState>("list");
   const [selectedAutomation, setSelectedAutomation] =
     useState<TriggerConfiguration | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "automations:CUD",
+  });
 
   // Handle returning to list view and refreshing data
   const handleReturnToList = () => {
     setView("list");
     setSelectedAutomation(null);
-    void refetch();
   };
 
   // Handle editing an automation
   const handleEditAutomation = (automation: TriggerConfiguration) => {
+    if (!hasAccess) return;
     setSelectedAutomation(automation);
     setView("edit");
   };
 
   return (
-    <Drawer modal={false}>
+    <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
       <DrawerTrigger asChild>
         <Button variant="outline" size="icon" className="relative">
           <Share2 className="h-4 w-4" />
-          {automations && automations.length > 0 && (
-            <div className="absolute -right-2 -top-2 rounded-full bg-primary px-1.5 py-0.5 text-xs text-white">
-              {automations.length}
-            </div>
-          )}
         </Button>
       </DrawerTrigger>
-      <DrawerContent overlayClassName="bg-primary/10">
+      <DrawerContent className="h-[85vh] overflow-y-auto">
         <div className="mx-auto w-full max-w-4xl">
-          <DrawerHeader className="flex flex-row items-center justify-between px-4 py-2">
+          <DrawerHeader className="sticky top-0 z-10 flex flex-row items-center justify-between bg-background px-4 py-2">
             <div className="flex items-center gap-2">
               {view !== "list" && (
                 <Button
@@ -73,7 +69,11 @@ export const AutomationsDrawer = ({ projectId }: { projectId: string }) => {
             </div>
             <div className="flex gap-2">
               {view === "list" && (
-                <Button variant="outline" onClick={() => setView("create")}>
+                <Button
+                  variant="outline"
+                  onClick={() => setView("create")}
+                  disabled={!hasAccess}
+                >
                   <Plus className="h-4 w-4" />
                   New Automation
                 </Button>

@@ -12,8 +12,11 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { JobConfigState } from "@langfuse/shared";
-import { Edit } from "lucide-react";
+import { Edit, Share2 } from "lucide-react";
 import { type TriggerConfiguration } from "@prisma/client";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { observationFilterColumns } from "@/src/features/automations/components/automationForm";
+import { DeleteAutomationButton } from "./DeleteAutomationButton";
 
 interface AutomationsListProps {
   projectId: string;
@@ -85,17 +88,24 @@ export const AutomationsList = ({
                     })}
                   </div>
                 )}
-                {onEditAutomation && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={() => onEditAutomation(automation)}
-                  >
-                    <Edit className="h-4 w-4" />
-                    <span className="sr-only">Edit</span>
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {onEditAutomation && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => onEditAutomation(automation)}
+                    >
+                      <Edit className="h-4 w-4" />
+                      <span className="sr-only">Edit</span>
+                    </Button>
+                  )}
+                  <DeleteAutomationButton
+                    projectId={projectId}
+                    triggerId={automation.id}
+                    variant="icon"
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -104,9 +114,18 @@ export const AutomationsList = ({
             <div className="text-sm">
               <p>
                 <strong>Filter:</strong>{" "}
-                {automation.filter
-                  ? JSON.stringify(JSON.parse(automation.filter as string))
-                  : "No filter"}
+                {automation.filter ? (
+                  <div className="mt-2">
+                    <InlineFilterBuilder
+                      columns={observationFilterColumns}
+                      filterState={JSON.parse(automation.filter as string)}
+                      onChange={() => {}}
+                      disabled={true}
+                    />
+                  </div>
+                ) : (
+                  "No filter"
+                )}
               </p>
               <p className="mt-2">
                 <strong>Sampling:</strong>{" "}

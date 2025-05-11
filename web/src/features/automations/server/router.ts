@@ -2,12 +2,19 @@ import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod";
 import { ActionType, JobConfigState } from "@langfuse/shared";
-import { Prisma } from "@prisma/client";
+import { Prisma, TRPCError } from "@prisma/client";
 
 export const automationsRouter = createTRPCRouter({
   getAutomations: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx }) => {
+    .query(async ({ ctx, input }) => {
+      // Check if user has at least read access to automations
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
       const automations = await ctx.prisma.triggerConfiguration.findMany({
         where: { projectId: ctx.session.projectId },
         include: {
@@ -36,6 +43,13 @@ export const automationsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Check if user has create/update/delete access to automations
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
       // First create the action
       const action = await ctx.prisma.actionConfiguration.create({
         data: {
@@ -86,6 +100,13 @@ export const automationsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Check if user has create/update/delete access to automations
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
       // Update the action
       const action = await ctx.prisma.actionConfiguration.update({
         where: {
@@ -122,6 +143,54 @@ export const automationsRouter = createTRPCRouter({
       return { action, trigger };
     }),
 
+  // Delete an automation (both trigger and action)
+  deleteAutomation: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        triggerId: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Check if user has create/update/delete access to automations
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      // First find the trigger to get the actionId
+      const trigger = await ctx.prisma.triggerConfiguration.findUnique({
+        where: {
+          id: input.triggerId,
+          projectId: ctx.session.projectId,
+        },
+        select: { actionId: true },
+      });
+
+      if (!trigger) {
+        throw new Error("Trigger not found");
+      }
+
+      // Delete the trigger
+      await ctx.prisma.triggerConfiguration.delete({
+        where: {
+          id: input.triggerId,
+          projectId: ctx.session.projectId,
+        },
+      });
+
+      // Delete the associated action
+      await ctx.prisma.actionConfiguration.delete({
+        where: {
+          id: trigger.actionId,
+          projectId: ctx.session.projectId,
+        },
+      });
+
+      return { success: true };
+    }),
+
   // Keep the individual routes for backward compatibility
   createAction: protectedProjectProcedure
     .input(
@@ -134,6 +203,13 @@ export const automationsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Check if user has create/update/delete access to automations
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
       return await ctx.prisma.actionConfiguration.create({
         data: {
           projectId: ctx.session.projectId,
@@ -159,6 +235,13 @@ export const automationsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Check if user has create/update/delete access to automations
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
       return await ctx.prisma.triggerConfiguration.create({
         data: {
           projectId: ctx.session.projectId,
@@ -173,3 +256,24 @@ export const automationsRouter = createTRPCRouter({
       });
     }),
 });
+
+// Utility function to check if user has required access
+function throwIfNoProjectAccess({
+  session,
+  projectId,
+  scope,
+}: {
+  session: any;
+  projectId: string;
+  scope: "automations:read" | "automations:CUD";
+}) {
+  // Check if the user has the correct role
+  const hasAccess = session.projectPermissions[projectId]?.includes(scope);
+
+  if (!hasAccess) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `You don't have permission to ${scope === "automations:read" ? "view" : "modify"} automations.`,
+    });
+  }
+}
