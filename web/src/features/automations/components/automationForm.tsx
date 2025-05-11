@@ -38,6 +38,15 @@ import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { X, Plus } from "lucide-react";
+import {
+  WebhookActionForm,
+  webhookSchema,
+  formatWebhookHeaders,
+} from "./WebhookActionForm";
+import {
+  AnnotationQueueActionForm,
+  annotationQueueSchema,
+} from "./AnnotationQueueActionForm";
 
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
@@ -97,24 +106,8 @@ const formSchema = z
     delay: z.coerce.number().min(0).default(0),
     filter: z.array(z.any()).optional(),
     actionType: z.enum(["WEBHOOK", "ANNOTATION_QUEUE"]),
-    webhook: z
-      .object({
-        url: z.string().url("Invalid URL"),
-        headers: z
-          .array(
-            z.object({
-              name: z.string(),
-              value: z.string(),
-            }),
-          )
-          .default([]),
-      })
-      .optional(),
-    annotationQueue: z
-      .object({
-        queueId: z.string(),
-      })
-      .optional(),
+    webhook: webhookSchema.optional(),
+    annotationQueue: annotationQueueSchema.optional(),
   })
   .refine(
     (data) => {
@@ -168,22 +161,6 @@ export const AutomationForm = ({
     api.automations.createAutomation.useMutation();
   const updateAutomationMutation =
     api.automations.updateAutomation.useMutation();
-  const deleteAutomationMutation = api.automations.deleteAutomation.useMutation(
-    {
-      onSuccess: () => {
-        showSuccessToast({
-          title: "Automation deleted",
-          description: "The automation has been deleted successfully.",
-        });
-        utils.automations.getAutomations.invalidate({ projectId });
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          router.push(`/project/${projectId}/automations/list`);
-        }
-      },
-    },
-  );
 
   // Parse the filter if it exists for editing
   const getInitialFilter = () => {
@@ -248,21 +225,6 @@ export const AutomationForm = ({
     },
   });
 
-  // Add useFieldArray for the headers
-  const {
-    fields: headerFields,
-    append: appendHeader,
-    remove: removeHeader,
-  } = useFieldArray({
-    control: form.control,
-    name: "webhook.headers",
-  });
-
-  // Function to add a new header pair
-  const addHeader = () => {
-    appendHeader({ name: "", value: "" });
-  };
-
   // Set the active tab based on the action type
   useEffect(() => {
     if (isEditing && automation?.action?.type) {
@@ -302,8 +264,9 @@ export const AutomationForm = ({
     }
 
     try {
-      // Convert headers array to object
-      const headersObject: Record<string, string> = {};
+      // Convert headers array to object and perform validation
+      let headersObject: Record<string, string> = {};
+
       if (data.actionType === "WEBHOOK" && data.webhook?.headers) {
         let hasEmptyField = false;
         data.webhook.headers.forEach(
@@ -326,16 +289,15 @@ export const AutomationForm = ({
                 hasEmptyField = true;
               }
             }
-
-            if (header.name.trim() && header.value.trim()) {
-              headersObject[header.name.trim()] = header.value.trim();
-            }
           },
         );
 
         if (hasEmptyField) {
           return;
         }
+
+        // Use the helper function to format headers
+        headersObject = formatWebhookHeaders(data.webhook.headers);
       }
 
       // Format the data for the API
@@ -344,7 +306,7 @@ export const AutomationForm = ({
           ? {
               version: "1.0",
               url: data.webhook?.url,
-              method: "POST",
+              method: "POST", // Always POST
               headers: headersObject,
             }
           : {
@@ -496,7 +458,7 @@ export const AutomationForm = ({
                   <FormLabel>Event Source</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    value={field.value}
                     disabled={!hasAccess}
                   >
                     <FormControl>
@@ -607,7 +569,7 @@ export const AutomationForm = ({
                   <FormLabel>Action Type</FormLabel>
                   <Select
                     onValueChange={handleActionTypeChange}
-                    defaultValue={field.value}
+                    value={field.value}
                     disabled={!hasAccess}
                   >
                     <FormControl>
@@ -633,146 +595,15 @@ export const AutomationForm = ({
             <Separator className="my-4" />
 
             {activeTab === "webhook" && (
-              <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="webhook.url"
-                  rules={{ required: "Description is required" }}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center">
-                        Webhook URL{" "}
-                        <span className="ml-1 text-destructive">*</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="https://example.com/webhook"
-                          {...field}
-                          disabled={!hasAccess}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        The URL to call when the trigger fires. We will send a
-                        POST request to this URL.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div>
-                  <FormLabel>Headers (Optional)</FormLabel>
-                  <FormDescription className="mb-2">
-                    Optional headers to include in the webhook request. You can
-                    leave this empty if no headers are needed.
-                  </FormDescription>
-
-                  {headerFields.length > 0 ? (
-                    headerFields.map((field, index) => (
-                      <div
-                        key={field.id}
-                        className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2"
-                      >
-                        <FormField
-                          control={form.control}
-                          name={`webhook.headers.${index}.name`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input
-                                  placeholder="Header Name"
-                                  {...field}
-                                  disabled={!hasAccess}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`webhook.headers.${index}.value`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input
-                                  placeholder="Value"
-                                  {...field}
-                                  disabled={!hasAccess}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeHeader(index)}
-                          disabled={!hasAccess}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="mb-2 text-sm text-muted-foreground">
-                      No headers added yet.
-                    </div>
-                  )}
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addHeader}
-                    disabled={!hasAccess}
-                    className="mt-2"
-                  >
-                    <Plus className="mr-1 h-4 w-4" />
-                    Add Header
-                  </Button>
-                </div>
-              </div>
+              <WebhookActionForm form={form} disabled={!hasAccess} />
             )}
 
             {activeTab === "annotation_queue" && (
-              <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="annotationQueue.queueId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center">
-                        Annotation Queue{" "}
-                        <span className="ml-1 text-destructive">*</span>
-                      </FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        disabled={!hasAccess}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select an annotation queue" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {/* Dynamically populate with available queues */}
-                          <SelectItem value="queue1">Queue 1</SelectItem>
-                          <SelectItem value="queue2">Queue 2</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        The annotation queue to add items to when the trigger
-                        fires.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <AnnotationQueueActionForm
+                form={form}
+                disabled={!hasAccess}
+                projectId={projectId}
+              />
             )}
           </CardContent>
         </Card>
