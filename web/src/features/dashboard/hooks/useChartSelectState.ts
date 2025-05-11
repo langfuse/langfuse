@@ -1,9 +1,10 @@
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { dashboardChartDefinitions } from "@/src/features/dashboard/components/chart-selector/chartDefinitions";
+import { dashboardChartDefinitions } from "@/src/features/dashboard/constants/chartDefinitions";
 import { useEffect, useMemo } from "react";
 
 export function useChartSelectState(projectId: string) {
-  // Extract keys from chart definitions to be used in session storage
+  
+  // Extract static dashboard chart definitions keys list
   const allDashboardChartKeys = useMemo<string[]>(
     () => dashboardChartDefinitions.map((chart) => chart.key),
     [],
@@ -51,7 +52,7 @@ export function useChartSelectState(projectId: string) {
       if (lastDeselectedChart) {
         setSelectedDashboardChartKeys([lastDeselectedChart]);
       } else {
-        // Catch for last deselected chart can't be identified
+        // Catch if last deselected chart can't be identified
         if (allDashboardChartKeys.length > 0) {
           setSelectedDashboardChartKeys([allDashboardChartKeys[0]]);
         } else {

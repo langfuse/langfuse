@@ -25,9 +25,8 @@ export const dashboardChartDefinitions: DashboardChartDefinition[] = [
   { key: "scores-analytics", label: "Scores Analytics" },
 ];
 
-// Full existing list for testing:
-
-// Chart labels & Component names
+// TODO: Remove if unneeded:
+//  Full existing list of Dashboard Chart labels & Component names
 
 // Traces - TracesBarListChart
 // Model costs - ModelCostTable
@@ -40,30 +39,4 @@ export const dashboardChartDefinitions: DashboardChartDefinition[] = [
 // Generation latency percentiles - LatencyTables
 // Span latency percentiles - LatencyTables
 // Model latencies - GenerationalLatencyChart
-// Scores Analytics - ScoreAnalytics
-
-// Default layout:
-
-// Line 1:
-// Traces - TracesBarListChart
-// Model costs - ModelCostTable
-// Scores - ScoresTable
-
-// Line 2:
-// Traces by time - TracesAndObservationsTimeSeriesChart
-// Model Usage - ModelUsageChart
-
-// Line 4:
-// User consumption - UserChart
-// Scores - ChartScores
-
-// Line 5:
-// Trace latency percentiles - LatencyTables
-// Generation latency percentiles - LatencyTables
-// Span latency percentiles - LatencyTables
-
-// Line 6:
-// Model latencies - GenerationalLatencyChart
-
-// Line 7:
 // Scores Analytics - ScoreAnalytics

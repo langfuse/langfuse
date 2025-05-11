@@ -31,8 +31,8 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/use-environment-filter";
-import { dashboardChartDefinitions } from "@/src/features/dashboard/components/chart-selector/chartDefinitions";
-import { useChartSelectState } from "@/src/features/dashboard/components/chart-selector/useChartSelectState";
+import { dashboardChartDefinitions } from "@/src/features/dashboard/constants/chartDefinitions";
+import { useChartSelectState } from "@/src/features/dashboard/hooks/useChartSelectState";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -49,6 +49,9 @@ export default function Dashboard() {
     "dashboard",
     projectId,
   );
+
+  const { selectedDashboardCharts, setSelectedDashboardCharts } =
+  useChartSelectState(projectId);
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
@@ -164,9 +167,6 @@ export default function Dashboard() {
     ...timeFilter,
     ...environmentFilter,
   ];
-
-  const { selectedDashboardCharts, setSelectedDashboardCharts } =
-    useChartSelectState(projectId);
 
   return (
     <Page
