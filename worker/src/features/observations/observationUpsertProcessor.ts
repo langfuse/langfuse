@@ -1,9 +1,9 @@
 import { Job } from "bullmq";
 import {
   checkObservationExists,
-  getObservationById,
   QueueName,
   TQueueJobTypes,
+  WebhookInput,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -11,7 +11,6 @@ import {
   TriggerEventSource,
 } from "../trigger/triggerService";
 import { prisma } from "@langfuse/shared/src/db";
-import { WebhookInput } from "../trigger/webhooks";
 
 export const observationUpsertProcessor = async (
   job: Job<TQueueJobTypes[QueueName.ObservationUpsert]>,
@@ -55,7 +54,7 @@ export const observationUpsertProcessor = async (
     createEventId: () => {
       return id;
     },
-    convertEventToActionInput: async () => {
+    convertEventToActionInput: async (actionConfig) => {
       const webhookInputSchema: WebhookInput = {
         type: "observation",
         observationId: id,
@@ -63,6 +62,7 @@ export const observationUpsertProcessor = async (
         startTime,
         traceId,
         observationType: type,
+        actionId: actionConfig.id,
       };
       return webhookInputSchema;
     },

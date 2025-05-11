@@ -1,30 +1,26 @@
 import {
   ActionConfiguration,
+  ActionConfigurationDomain,
   FilterState,
   JobConfigState,
   JobExecution,
   JobExecutionStatus,
+  TriggerConfigurationDomain,
 } from "@langfuse/shared";
-import { prisma, TriggerConfiguration } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
-import { WebhookInput } from "./webhooks";
-import { getActionConfigById } from "./action-repository";
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  getActionConfigById,
+  logger,
+  QueueJobs,
+  QueueName,
+  WebhookQueue,
+} from "@langfuse/shared/src/server";
+
+import { v4 } from "uuid";
 
 export enum TriggerEventSource {
   ObservationCreated = "observation.created",
 }
-
-export type TriggerConfigurationDomain = Omit<
-  TriggerConfiguration,
-  "filter" | "eventSource"
-> & {
-  filter: FilterState;
-  eventSource: TriggerEventSource;
-};
-
-export type ActionConfigurationDomain = Omit<ActionConfiguration, "config"> & {
-  config: WebhookInput;
-};
 
 export class ActionCreationService {
   private projectId: string;
@@ -134,7 +130,7 @@ export class ActionCreationService {
     const actionInput = await convertEventToActionInput(actionConfig);
 
     // create new execution. The body is used by the websocket
-    const actionExecution = await prisma.actionExecution.create({
+    await prisma.actionExecution.create({
       data: {
         projectId: this.projectId,
         triggerId: trigger.id,
@@ -143,6 +139,13 @@ export class ActionCreationService {
         sourceId: createEventId(),
         input: actionInput,
       },
+    });
+
+    await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
+      timestamp: new Date(),
+      id: v4(),
+      payload: actionInput,
+      name: QueueJobs.WebhookJob,
     });
   }
 }

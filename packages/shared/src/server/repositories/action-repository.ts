@@ -1,6 +1,8 @@
-import { prisma } from "@langfuse/shared/src/db";
-import { ActionConfigurationDomain } from "./triggerService";
-import { WebhookInput } from "./webhooks";
+import { prisma } from "../../db";
+import {
+  ActionConfigurationDomain,
+  WebhookActionConfig,
+} from "../../domain/automations";
 
 export const getActionConfigById = async ({
   projectId,
@@ -22,7 +24,7 @@ export const getActionConfigById = async ({
 
   const actionDomain: ActionConfigurationDomain = {
     ...actionConfig,
-    config: JSON.parse(actionConfig.config as string) as WebhookInput,
+    config: JSON.parse(actionConfig.config as string) as WebhookActionConfig,
   };
 
   return actionDomain;

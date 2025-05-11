@@ -136,6 +136,25 @@ export const ObservationUpsertQueueEventSchema = z.object({
   type: ObservationTypeDomain,
 });
 
+export const WebhookInputSchema = z
+  .discriminatedUnion("type", [
+    z.object({
+      observationId: z.string(),
+      type: z.literal("observation"),
+      startTime: z.date(),
+      traceId: z.string(),
+      observationType: ObservationTypeDomain,
+    }),
+  ])
+  .and(
+    z.object({
+      projectId: z.string(),
+      actionId: z.string(),
+    }),
+  );
+
+export type WebhookInput = z.infer<typeof WebhookInputSchema>;
+
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
 >;
@@ -170,6 +189,7 @@ export type DeadLetterRetryQueueEventType = z.infer<
 export type ObservationUpsertQueueEventType = z.infer<
   typeof ObservationUpsertQueueEventSchema
 >;
+export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -195,6 +215,7 @@ export enum QueueName {
   ScoreDelete = "score-delete",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   ObservationUpsert = "observation-upsert",
+  WebhookQueue = "webhook-queue",
 }
 
 export enum QueueJobs {
@@ -220,7 +241,8 @@ export enum QueueJobs {
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
   DeadLetterRetryJob = "dead-letter-retry-job",
-  ObservationUpsert = "observation-upsert",
+  ObservationUpsertJob = "observation-upsert-job",
+  WebhookJob = "webhook-job",
 }
 
 export type TQueueJobTypes = {
@@ -324,6 +346,12 @@ export type TQueueJobTypes = {
     timestamp: Date;
     id: string;
     payload: ObservationUpsertQueueEventType;
-    name: QueueJobs.ObservationUpsert;
+    name: QueueJobs.ObservationUpsertJob;
+  };
+  [QueueName.WebhookQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: WebhookInput;
+    name: QueueJobs.WebhookJob;
   };
 };

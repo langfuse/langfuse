@@ -54,6 +54,7 @@ import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlxRetryService } from "./services/dlx/dlxRetryService";
 import { observationUpsertProcessor } from "./features/observations/observationUpsertProcessor";
+import { executeWebhook } from "./features/trigger/webhooks";
 
 const app = express();
 
@@ -333,6 +334,25 @@ if (env.QUEUE_CONSUMER_OBSERVATION_UPSERT_QUEUE_IS_ENABLED === "true") {
     observationUpsertProcessor,
     {
       concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.WebhookQueue,
+    async (job) => {
+      const { input } = job.data;
+      try {
+        await executeWebhook(input);
+        return { success: true };
+      } catch (error) {
+        logger.error("Error executing webhook", { error, input });
+        throw error;
+      }
+    },
+    {
+      concurrency: 5,
     },
   );
 }

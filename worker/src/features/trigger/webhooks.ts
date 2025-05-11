@@ -5,25 +5,12 @@ import {
   ObservationLevelDomain,
   ObservationTypeDomain,
 } from "@langfuse/shared";
-import { getObservationById } from "@langfuse/shared/src/server";
+import {
+  getActionConfigById,
+  getObservationById,
+  WebhookInput,
+} from "@langfuse/shared/src/server";
 import { z } from "zod";
-import { getActionConfigById } from "./action-repository";
-
-export const WebhookInputSchema = z.discriminatedUnion("type", [
-  z.object({
-    observationId: z.string(),
-    type: z.literal("observation"),
-    startTime: z.date(),
-    traceId: z.string(),
-    observationType: ObservationTypeDomain,
-    }),
-  ])
-  .and(
-    z.object({
-      projectId: z.string(),
-      actionId: z.string(),
-    }),
-  );
 
 export const ObservationWebhookOutputSchema = z.object({
   id: z.string(),
@@ -69,8 +56,6 @@ export type ObservationWebhookOutput = z.infer<
   typeof ObservationWebhookOutputSchema
 >;
 
-export type WebhookInput = z.infer<typeof WebhookInputSchema>;
-
 const convertObservationToWebhookOutput = (
   observation: Observation,
 ): ObservationWebhookOutput => {
@@ -78,15 +63,16 @@ const convertObservationToWebhookOutput = (
 };
 
 export const executeWebhook = async (input: WebhookInput) => {
-  const { observationId, projectId, startTime, traceId, observationType } =
+  const { observationId, projectId, startTime, observationType, actionId } =
     input;
 
-  const observation = await getObservationById(
-    observationId,
+  const observation = await getObservationById({
+    id: observationId,
     projectId,
-    true,
+    fetchWithInputOutput: true,
     startTime,
-  );
+    type: observationType,
+  });
 
   if (!observation) {
     throw new Error("Observation not found");
@@ -100,6 +86,12 @@ export const executeWebhook = async (input: WebhookInput) => {
   });
 
   if (!actionConfig) {
+    throw new Error("Action config not found");
+  }
+
+  await fetch(actionConfig.config.url, {
+    method: "POST",
+    body: JSON.stringify(reqBody),
+    headers: actionConfig.config.headers,
+  });
 };
-
-

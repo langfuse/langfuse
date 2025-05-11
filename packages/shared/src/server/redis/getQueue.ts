@@ -22,6 +22,7 @@ import { CreateEvalQueue } from "./createEvalQueue";
 import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlxRetryQueue";
 import { ObservationUpsertQueue } from "./observationUpsert";
+import { WebhookQueue } from "./webhookQueue";
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
@@ -71,6 +72,8 @@ export function getQueue(queueName: QueueName): Queue | null {
       return DeadLetterRetryQueue.getInstance();
     case QueueName.ObservationUpsert:
       return ObservationUpsertQueue.getInstance();
+    case QueueName.WebhookQueue:
+      return WebhookQueue.getInstance();
     default:
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);
