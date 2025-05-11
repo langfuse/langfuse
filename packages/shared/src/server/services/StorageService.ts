@@ -362,9 +362,8 @@ class AzureBlobStorageService implements StorageService {
 
 class S3StorageService implements StorageService {
   private client: S3Client;
+  private signedUrlClient: S3Client;
   private bucketName: string;
-  private endpoint: string | undefined;
-  private externalEndpoint: string | undefined;
 
   constructor(params: {
     accessKeyId: string | undefined;
@@ -385,6 +384,7 @@ class S3StorageService implements StorageService {
           }
         : undefined;
 
+    // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
       credentials,
       endpoint: params.endpoint,
@@ -396,9 +396,25 @@ class S3StorageService implements StorageService {
         },
       },
     });
+
+    // Create a separate client for generating presigned URLs
+    // If an external endpoint is provided, use it for the URL client
+    // Otherwise, use the same client for both operations
+    this.signedUrlClient = params.externalEndpoint
+      ? new S3Client({
+          credentials,
+          endpoint: params.externalEndpoint,
+          region: params.region,
+          forcePathStyle: params.forcePathStyle,
+          requestHandler: {
+            httpsAgent: {
+              maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
+            },
+          },
+        })
+      : this.client;
+
     this.bucketName = params.bucketName;
-    this.endpoint = params.endpoint;
-    this.externalEndpoint = params.externalEndpoint;
   }
 
   public async uploadFile({
@@ -487,8 +503,8 @@ class S3StorageService implements StorageService {
     asAttachment: boolean = true,
   ): Promise<string> {
     try {
-      let url = await getSignedUrl(
-        this.client,
+      return getSignedUrl(
+        this.signedUrlClient,
         new GetObjectCommand({
           Bucket: this.bucketName,
           Key: fileName,
@@ -498,17 +514,6 @@ class S3StorageService implements StorageService {
         }),
         { expiresIn: ttlSeconds },
       );
-
-      // Replace internal endpoint with external endpoint if configured
-      if (
-        this.externalEndpoint &&
-        this.endpoint &&
-        url.includes(this.endpoint)
-      ) {
-        url = url.replace(this.endpoint, this.externalEndpoint);
-      }
-
-      return url;
     } catch (err) {
       logger.error(`Failed to generate presigned URL for ${fileName}`, err);
       throw Error("Failed to generate signed URL");
@@ -566,8 +571,8 @@ class S3StorageService implements StorageService {
   }): Promise<string> {
     const { path, ttlSeconds, contentType, contentLength, sha256Hash } = params;
 
-    let url = await getSignedUrl(
-      this.client,
+    return getSignedUrl(
+      this.signedUrlClient,
       new PutObjectCommand({
         Bucket: this.bucketName,
         Key: path,
@@ -581,13 +586,6 @@ class S3StorageService implements StorageService {
         unhoistableHeaders: new Set(["x-amz-checksum-sha256"]),
       },
     );
-
-    // Replace internal endpoint with external endpoint if configured
-    if (this.externalEndpoint && this.endpoint && url.includes(this.endpoint)) {
-      url = url.replace(this.endpoint, this.externalEndpoint);
-    }
-
-    return url;
   }
 }
 
