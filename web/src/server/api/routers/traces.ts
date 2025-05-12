@@ -38,11 +38,16 @@ import {
   TraceDeleteQueue,
   getTracesTableMetrics,
   getCategoricalScoresGroupedByName,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  AgentGraphDataResponse,
+  AgentGraphDataSchema,
+} from "@/src/features/trace-graph-view/types";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -482,5 +487,68 @@ export const traceRouter = createTRPCRouter({
           code: "INTERNAL_SERVER_ERROR",
         });
       }
+    }),
+
+  getAgentGraphData: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        observationStartTimes: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {
+      const { traceId, projectId, observationStartTimes } = input;
+
+      const ascendingStartTimes = observationStartTimes
+        .map((t) => t.replaceAll("Z", ""))
+        .sort((a, b) => a.localeCompare(b));
+
+      const minStartTime = ascendingStartTimes[0];
+      const maxStartTime = ascendingStartTimes[ascendingStartTimes.length - 1];
+
+      const query = `
+          SELECT
+            id,
+            parent_observation_id,
+            metadata['langgraph_node'] AS node,
+            metadata['langgraph_step'] AS step
+          FROM
+            observations
+          WHERE
+            project_id = {projectId: String}
+            AND trace_id = {traceId: String}
+            AND start_time >= {minStartTime: DateTime64(3)}
+            AND start_time <= {maxStartTime: DateTime64(3)}
+        `;
+
+      const records = await queryClickhouse({
+        query,
+        params: {
+          traceId,
+          projectId,
+          minStartTime,
+          maxStartTime,
+        },
+      });
+
+      const result = records
+        .map((r) => {
+          const parsed = AgentGraphDataSchema.safeParse(r);
+
+          return parsed.success &&
+            parsed.data.step != null &&
+            parsed.data.node != null
+            ? {
+                id: parsed.data.id,
+                node: parsed.data.node,
+                step: parsed.data.step,
+                parentObservationId: parsed.data.parent_observation_id,
+              }
+            : null;
+        })
+        .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
+
+      return result;
     }),
 });
