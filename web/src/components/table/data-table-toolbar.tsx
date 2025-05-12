@@ -139,7 +139,7 @@ export function DataTableToolbar<TData, TValue>({
           <div className="flex w-full max-w-sm items-stretch">
             <div
               className={cn(
-                "flex flex-1 items-center border border-input bg-background pl-2",
+                "flex h-8 flex-1 items-center border border-input bg-background pl-2",
                 searchConfig.setSearchType
                   ? "rounded-l-md rounded-r-none border-r-0"
                   : "rounded-l-md rounded-r-md",
