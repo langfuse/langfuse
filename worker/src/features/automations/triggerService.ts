@@ -1,7 +1,5 @@
 import {
-  ActionConfiguration,
   ActionConfigurationDomain,
-  FilterState,
   JobConfigState,
   JobExecution,
   JobExecutionStatus,
@@ -17,6 +15,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { v4 } from "uuid";
+import { getCachedTriggerConfigs } from "./cached-automation-repo";
 
 export enum TriggerEventSource {
   ObservationCreated = "observation.created",
@@ -51,19 +50,11 @@ export class ActionCreationService {
       convertEventToActionInput,
     } = p;
 
-    const triggers = await prisma.triggerConfiguration.findMany({
-      where: {
-        projectId: this.projectId,
-        eventSource: eventSource,
-        status: JobConfigState.ACTIVE,
-      },
+    const triggerConfigurations = await getCachedTriggerConfigs({
+      projectId: this.projectId,
+      eventSource,
+      status: JobConfigState.ACTIVE,
     });
-
-    const triggerConfigurations = triggers.map((trigger) => ({
-      ...trigger,
-      filter: JSON.parse(trigger.filter as string) as FilterState,
-      eventSource: trigger.eventSource as TriggerEventSource,
-    }));
 
     for (const trigger of triggerConfigurations) {
       if (await checkTriggerAppliesToEvent(trigger)) {

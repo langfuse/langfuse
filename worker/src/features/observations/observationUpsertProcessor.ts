@@ -1,67 +1,58 @@
-import { Job } from "bullmq";
 import {
-  checkObservationExists,
-  QueueName,
-  TQueueJobTypes,
+  ObservationRecordInsertType,
   WebhookInput,
 } from "@langfuse/shared/src/server";
 
 import {
   ActionCreationService,
   TriggerEventSource,
-} from "../trigger/triggerService";
+} from "../automations/triggerService";
 import { prisma } from "@langfuse/shared/src/db";
+import { executeMemoryFilters } from "../automations/memory-filter";
 
 export const observationUpsertProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.ObservationUpsert]>,
+  observation: ObservationRecordInsertType,
 ) => {
-  const { id, projectId, startTime, traceId, type } = job.data.payload;
-
-  const triggerService = new ActionCreationService(projectId);
+  const triggerService = new ActionCreationService(observation.project_id);
   await triggerService.triggerAction({
     eventSource: TriggerEventSource.ObservationCreated,
-    event: job.data.payload,
+    event: observation,
     checkTriggerAppliesToEvent: async (trigger) => {
-      return await checkObservationExists({
-        projectId,
-        id,
-        filter: [
-          ...trigger.filter,
-          {
-            column: "traceId",
-            operator: "=",
-            value: traceId,
-            type: "string",
-          },
-          {
-            column: "startTime",
-            operator: "=",
-            value: startTime,
-            type: "datetime",
-          },
-        ],
+      if (!observation.trace_id || !observation.start_time) {
+        return false;
+      }
+      return executeMemoryFilters({
+        object: observation,
+        filters: trigger.filter,
+        columnMappings: [],
       });
     },
+
     getExistingJobForTrigger: async (trigger) => {
       return await prisma.jobExecution.findFirst({
         where: {
-          projectId: projectId,
+          projectId: observation.project_id,
           jobConfigurationId: trigger.id,
-          jobInputObservationId: id,
+          jobInputObservationId: observation.id,
         },
       });
     },
     createEventId: () => {
-      return id;
+      return observation.id;
     },
     convertEventToActionInput: async (actionConfig) => {
+      if (!observation.trace_id || !observation.start_time) {
+        throw new Error(
+          `Observation ${observation.id} has no trace_id or start_time for webhook.`,
+        );
+      }
       const webhookInputSchema: WebhookInput = {
         type: "observation",
-        observationId: id,
-        projectId,
-        startTime,
-        traceId,
-        observationType: type,
+        observationId: observation.id,
+        projectId: observation.project_id,
+        startTime: new Date(observation.start_time),
+        traceId: observation.trace_id ?? "",
+        observationType: observation.type as "SPAN" | "EVENT" | "GENERATION",
         actionId: actionConfig.id,
       };
       return webhookInputSchema;

@@ -54,7 +54,7 @@ import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlxRetryService } from "./services/dlx/dlxRetryService";
 import { observationUpsertProcessor } from "./features/observations/observationUpsertProcessor";
-import { executeWebhook } from "./features/trigger/webhooks";
+import { executeWebhook } from "./features/automations/webhooks";
 
 const app = express();
 
