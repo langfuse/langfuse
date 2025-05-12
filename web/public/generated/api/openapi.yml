@@ -845,6 +845,71 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
+    get:
+      description: List dataset run items
+      operationId: datasetRunItems_list
+      tags:
+        - DatasetRunItems
+      parameters:
+        - name: datasetId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: runName
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: response
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/PaginatedDatasetRunItems'
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/v2/datasets:
     get:
       description: Get all datasets
@@ -5439,6 +5504,19 @@ components:
       required:
         - runName
         - datasetItemId
+    PaginatedDatasetRunItems:
+      title: PaginatedDatasetRunItems
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetRunItem'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
     PaginatedDatasets:
       title: PaginatedDatasets
       type: object

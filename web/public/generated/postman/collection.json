@@ -642,6 +642,57 @@
             }
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "List dataset run items",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/dataset-run-items?datasetId=&runName=&page=&limit=&response=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-run-items"
+              ],
+              "query": [
+                {
+                  "key": "datasetId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "runName",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                },
+                {
+                  "key": "response",
+                  "value": "",
+                  "description": null
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
