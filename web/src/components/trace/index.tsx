@@ -133,13 +133,22 @@ export function Trace(props: {
     },
   );
 
+  const observationStartTimes = props.observations.map((o) =>
+    o.startTime.getTime(),
+  );
+  const minStartTime = new Date(
+    Math.min(...observationStartTimes),
+  ).toISOString();
+  const maxStartTime = new Date(
+    Math.max(...observationStartTimes),
+  ).toISOString();
+
   const agentGraphDataQuery = api.traces.getAgentGraphData.useQuery(
     {
       projectId: props.trace.projectId,
       traceId: props.trace.id,
-      observationStartTimes: props.observations.map((o) =>
-        o.startTime.toISOString(),
-      ),
+      minStartTime,
+      maxStartTime,
     },
     {
       enabled: isAuthenticatedAndProjectMember,
