@@ -510,9 +510,7 @@ const extractCostDetails = (
   return {};
 };
 
-const extractCompletionStartTime = (
-  attributes: Record<string, unknown>,
-): Date | null => {
+const extractCompletionStartTime = (attributes: Record<string, unknown>) => {
   try {
     return JSON.parse(
       attributes[
