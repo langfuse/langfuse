@@ -142,7 +142,6 @@ export function Trace(props: {
       ),
     },
     {
-      refetchOnMount: false, // prevents refetching loops
       enabled: isAuthenticatedAndProjectMember,
     },
   );
