@@ -53,16 +53,17 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const hasAccess =
     props.scope === "project" ? hasProjectAccess : hasOrganizationAccess;
 
+  const projectApiKeysQuery = api.projectApiKeys.byProjectId.useQuery(
+    { projectId: entityId },
+    { enabled: hasProjectAccess && props.scope === "project" },
+  );
+  const organizationApiKeysQuery =
+    api.organizationApiKeys.byOrganizationId.useQuery(
+      { orgId: entityId },
+      { enabled: hasOrganizationAccess && props.scope === "organization" },
+    );
   const apiKeysQuery =
-    scope === "project"
-      ? api.projectApiKeys.byProjectId.useQuery(
-          { projectId: entityId },
-          { enabled: hasAccess },
-        )
-      : api.organizationApiKeys.byOrganizationId.useQuery(
-          { orgId: entityId },
-          { enabled: hasAccess },
-        );
+    props.scope === "project" ? projectApiKeysQuery : organizationApiKeysQuery;
 
   if (!hasAccess) {
     return (
