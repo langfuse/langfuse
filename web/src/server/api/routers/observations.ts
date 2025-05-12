@@ -19,12 +19,12 @@ export const observationsRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       try {
-        const obs = await getObservationById(
-          input.observationId,
-          input.projectId,
-          true,
-          input.startTime ?? undefined,
-        );
+        const obs = await getObservationById({
+          id: input.observationId,
+          projectId: input.projectId,
+          fetchWithInputOutput: true,
+          startTime: input.startTime ?? undefined,
+        });
         if (!obs) {
           throw new TRPCError({
             code: "NOT_FOUND",

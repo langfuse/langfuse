@@ -134,6 +134,9 @@ export class QueryBuilder {
       } else if (filter.column === view.timeDimension) {
         clickhouseSelect = view.timeDimension;
         type = "datetime";
+      } else if (filter.column === "metadata") {
+        clickhouseSelect = "metadata";
+        type = "stringObject";
       } else {
         throw new Error(
           `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${view.timeDimension}`,

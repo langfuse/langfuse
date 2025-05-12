@@ -135,12 +135,18 @@ describe("ProjectDeletionProcessingJob", () => {
     } as Job);
 
     // Then
-    const trace = await getTraceById({ traceId: `${baseId}-trace`, projectId });
+    const trace = await getTraceById({
+      traceId: `${baseId}-trace`,
+      projectId,
+    });
     expect(trace).toBeUndefined();
     expect(() =>
-      getObservationById(`${baseId}-observation`, projectId),
+      getObservationById({ id: `${baseId}-observation`, projectId }),
     ).rejects.toThrowError("not found");
-    const score = await getScoreById({ projectId, scoreId: `${baseId}-score` });
+    const score = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score`,
+    });
     expect(score).toBeUndefined();
   });
 

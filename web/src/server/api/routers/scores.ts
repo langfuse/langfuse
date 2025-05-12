@@ -345,6 +345,8 @@ export const scoresRouter = createTRPCRouter({
             projectId: input.projectId,
             environment: input.environment ?? "default",
             ...inflatedParams,
+            // only trace and session scores are supported for annotation
+            datasetRunId: null,
             value: input.value ?? null,
             stringValue: input.stringValue ?? null,
             dataType: input.dataType ?? null,

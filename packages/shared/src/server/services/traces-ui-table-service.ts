@@ -22,6 +22,7 @@ import {
   queryClickhouse,
   reduceUsageOrCostDetails,
 } from "../repositories";
+import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
@@ -160,6 +161,7 @@ export type FetchTracesTableProps = {
   projectId: string;
   filter: FilterState;
   searchQuery?: string;
+  searchType?: TracingSearchType[];
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
@@ -171,6 +173,7 @@ export const getTracesTableCount = async (props: {
   projectId: string;
   filter: FilterState;
   searchQuery?: string;
+  searchType: TracingSearchType[];
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
@@ -211,6 +214,7 @@ export const getTracesTable = async (p: {
   projectId: string;
   filter: FilterState;
   searchQuery?: string;
+  searchType?: TracingSearchType[];
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
@@ -220,6 +224,7 @@ export const getTracesTable = async (p: {
     projectId,
     filter,
     searchQuery,
+    searchType,
     orderBy,
     limit,
     page,
@@ -231,6 +236,7 @@ export const getTracesTable = async (p: {
     projectId,
     filter,
     searchQuery,
+    searchType,
     orderBy,
     limit,
     page,
@@ -249,6 +255,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     limit,
     page,
     searchQuery,
+    searchType,
     clickhouseConfigs,
   } = props;
 
@@ -358,7 +365,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const scoresFilterRes = scoresFilter.apply();
   const observationFilterRes = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery);
+  const search = clickhouseSearchCondition(searchQuery, searchType);
 
   const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
   const orderByCols = [

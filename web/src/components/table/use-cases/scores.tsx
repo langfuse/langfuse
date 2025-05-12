@@ -24,6 +24,7 @@ import {
   type ScoreDataType,
   BatchExportTableName,
   BatchActionType,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
@@ -44,10 +45,13 @@ import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import TableId from "@/src/components/table/table-id";
 
 export type ScoresTableRow = {
   id: string;
   traceId?: string;
+  sessionId?: string;
   timestamp: Date;
   source: string;
   name: string;
@@ -258,6 +262,32 @@ export default function ScoresTable({
       enableSorting: false,
       defaultHidden: true,
       enableHiding: true,
+      cell: ({ row }) => {
+        const value = row.getValue("id");
+        return typeof value === "string" ? (
+          <TableId value={value} />
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "traceName",
+      header: "Trace Name",
+      id: "traceName",
+      enableHiding: true,
+      enableSorting: true,
+      size: 150,
+      cell: ({ row }) => {
+        const value = row.getValue("traceName") as ScoresTableRow["traceName"];
+        const filter = encodeURIComponent(
+          `name;stringOptions;;any of;${value}`,
+        );
+        return value ? (
+          <TableLink
+            path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
+            value={value}
+          />
+        ) : undefined;
+      },
     },
     {
       accessorKey: "traceId",
@@ -298,20 +328,17 @@ export default function ScoresTable({
       },
     },
     {
-      accessorKey: "traceName",
-      header: "Trace Name",
-      id: "traceName",
+      accessorKey: "sessionId",
+      header: "Session",
+      id: "sessionId",
       enableHiding: true,
       enableSorting: true,
-      size: 150,
+      size: 100,
       cell: ({ row }) => {
-        const value = row.getValue("traceName") as ScoresTableRow["traceName"];
-        const filter = encodeURIComponent(
-          `name;stringOptions;;any of;${value}`,
-        );
-        return value ? (
+        const value = row.getValue("sessionId");
+        return typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
+            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
           />
         ) : undefined;
@@ -564,6 +591,7 @@ export default function ScoresTable({
       },
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
+      sessionId: score.sessionId ?? undefined,
       traceId: score.traceId ?? undefined,
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
@@ -581,6 +609,21 @@ export default function ScoresTable({
     );
   };
 
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Scores,
+    projectId,
+    stateUpdaters: {
+      setOrderBy: setOrderByState,
+      setFilters: setUserFilterState,
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+    },
+    validationContext: {
+      columns,
+      filterColumnDefinition: transformFilterOptions(filterOptions.data),
+    },
+  });
+
   return (
     <>
       <DataTableToolbar
@@ -592,6 +635,11 @@ export default function ScoresTable({
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
+        viewConfig={{
+          tableName: TableViewPresetTableName.Scores,
+          projectId,
+          controllers: viewControllers,
+        }}
         actionButtons={[
           Object.keys(selectedRows).filter((scoreId) =>
             scores.data?.scores.map((s) => s.id).includes(scoreId),
@@ -632,7 +680,7 @@ export default function ScoresTable({
       <DataTable
         columns={columns}
         data={
-          scores.isLoading
+          scores.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : scores.isError
               ? {
@@ -643,7 +691,7 @@ export default function ScoresTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: scores.data.scores.map((t) => convertToTableRow(t)),
+                  data: scores.data?.scores.map(convertToTableRow) ?? [],
                 }
         }
         pagination={{
@@ -651,14 +699,14 @@ export default function ScoresTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-        orderBy={orderByState}
         setOrderBy={setOrderByState}
+        orderBy={orderByState}
+        rowSelection={selectedRows}
+        setRowSelection={setSelectedRows}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
-        rowSelection={selectedRows}
-        setRowSelection={setSelectedRows}
         rowHeight={rowHeight}
       />
     </>

@@ -126,6 +126,7 @@ export const getDatabaseReadStream = async ({
             id: score.id,
             traceId: score.traceId,
             sessionId: score.sessionId,
+            datasetRunId: score.datasetRunId,
             timestamp: score.timestamp,
             source: score.source,
             name: score.name,
@@ -286,6 +287,7 @@ export const getDatabaseReadStream = async ({
             filter: filter
               ? [...filter, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
+            searchType: ["id" as const],
             orderBy,
             limit: pageSize,
             page: Math.floor(offset / pageSize),

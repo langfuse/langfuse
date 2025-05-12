@@ -62,7 +62,8 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.queue_id as queue_id,
           s.trace_id as trace_id,
           s.observation_id as observation_id,
-          s.session_id as session_id
+          s.session_id as session_id,
+          s.dataset_run_id as dataset_run_id
       FROM
           scores s 
           LEFT JOIN traces t ON s.trace_id = t.id
@@ -80,14 +81,14 @@ export const _handleGenerateScoresForPublicApi = async ({
               WHERE
                 s.project_id = {projectId: String}
                 ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-                ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
+                ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
               ORDER BY
                 s.timestamp desc
               LIMIT
                 1 BY s.id, s.project_id
                 ))
           )
-          ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
+          ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
           ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       ORDER BY

@@ -12,13 +12,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
-import {
-  NumberParam,
-  StringParam,
-  useQueryParam,
-  useQueryParams,
-  withDefault,
-} from "use-query-params";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
@@ -37,6 +31,7 @@ import {
   BatchExportTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -81,6 +76,8 @@ import {
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 export type TracesTableRow = {
   // Shown by default
@@ -139,12 +136,10 @@ export default function TracesTable({
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
-  const [searchQuery, setSearchQuery] = useQueryParam(
-    "search",
-    withDefault(StringParam, null),
-  );
+
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange(projectId);
+
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "traces",
@@ -211,28 +206,36 @@ export default function TracesTable({
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch();
+
   const tracesAllCountFilter = {
     projectId,
     filter: filterState,
-    searchQuery,
-    // "empty" values as they do not matter for total count
+    searchQuery: searchQuery,
+    searchType: searchType,
     page: 0,
     limit: 0,
     orderBy: null,
   };
 
+  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
+
   const tracesAllQueryFilter = {
     ...tracesAllCountFilter,
+    searchQuery: searchQuery,
+    searchType: searchType,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
   };
+
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
     enabled: environmentFilterOptions.data !== undefined,
   });
-  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
-    enabled: environmentFilterOptions.data !== undefined,
-  });
+
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -547,7 +550,6 @@ export default function TracesTable({
         if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
           return null;
         }
-
 
         return (
           <BreakdownTooltip details={row.original.tokenDetails ?? []}>
@@ -951,6 +953,21 @@ export default function TracesTable({
 
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
   const { setPeekView } = useTracePeekState(urlPathname);
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Traces,
+    projectId,
+    stateUpdaters: {
+      setOrderBy: setOrderByState,
+      setFilters: setUserFilterState,
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+      setSearchQuery: setSearchQuery,
+    },
+    validationContext: {
+      columns,
+      filterColumnDefinition: transformedFilterOptions,
+    },
+  });
 
   const rows = useMemo(() => {
     return traces.isSuccess
@@ -1002,15 +1019,24 @@ export default function TracesTable({
         }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
+
   return (
     <>
       <DataTableToolbar
         columns={columns}
+        viewConfig={{
+          tableName: TableViewPresetTableName.Traces,
+          projectId,
+          controllers: viewControllers,
+        }}
         filterColumnDefinition={transformedFilterOptions}
         searchConfig={{
-          placeholder: "Search (by id, name, trace name, user id)",
+          metadataSearchFields: ["ID", "Name", "Trace Name", "User ID"],
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: true,
+          setSearchType,
+          searchType,
         }}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
@@ -1032,6 +1058,7 @@ export default function TracesTable({
             key="batchExport"
           />,
         ]}
+        orderByState={orderByState}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
@@ -1059,7 +1086,7 @@ export default function TracesTable({
       <DataTable
         columns={columns}
         data={
-          traces.isLoading
+          traces.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : traces.isError
               ? {

@@ -24,7 +24,22 @@ type TraceGraphViewProps = {
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
-  const { observations } = props;
+  const { observations: rawObservations } = props;
+  const observations = rawObservations.map((o) => {
+    let parsedMetadata = o.metadata;
+
+    try {
+      parsedMetadata =
+        o.metadata && typeof o.metadata === "string"
+          ? JSON.parse(o.metadata)
+          : o.metadata;
+    } catch {
+      return o;
+    }
+
+    return { ...o, metadata: parsedMetadata };
+  });
+
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const { graph, nodeToParentObservationMap } = useMemo(
     () => parseGraph({ observations }),

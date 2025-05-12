@@ -167,6 +167,16 @@ const extractInputAndOutput = (
     return { input: eventInput || input, output: eventOutput || output };
   }
 
+  // Google Vertex AI Agent-Developer-Kit (ADK)
+  input = attributes["gcp.vertex.agent.llm_request"];
+  output = attributes["gcp.vertex.agent.llm_response"];
+  if (input || output) {
+    return {
+      input: input,
+      output: output,
+    };
+  }
+
   // Logfire uses `prompt` and `all_messages_events` property on spans
   input = attributes["prompt"];
   output = attributes["all_messages_events"];
@@ -408,7 +418,10 @@ const extractModelParameters = (
 
   return modelParameters.reduce((acc: any, key) => {
     const modelParamKey = key.replace("gen_ai.request.", "");
-    acc[modelParamKey] = attributes[key];
+    // avoid double-reporting the model name, already included in native model attribute
+    if (modelParamKey !== "model") {
+      acc[modelParamKey] = attributes[key];
+    }
     return acc;
   }, {});
 };

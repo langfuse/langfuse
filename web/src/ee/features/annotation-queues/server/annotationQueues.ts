@@ -558,10 +558,10 @@ export const queueRouter = createTRPCRouter({
         };
 
         if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-          const clickhouseObservation = await getObservationById(
-            item.objectId,
-            input.projectId,
-          );
+          const clickhouseObservation = await getObservationById({
+            id: item.objectId,
+            projectId: input.projectId,
+          });
           return {
             ...inflatedUpdatedItem,
             parentTraceId: clickhouseObservation?.traceId,

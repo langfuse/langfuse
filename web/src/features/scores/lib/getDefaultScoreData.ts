@@ -7,7 +7,7 @@ import { ScoreSource } from "@langfuse/shared";
 import { type APIScoreV2, type ValidatedScoreConfig } from "@langfuse/shared";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 
-const filterTraceScores =
+const filterTraceAnnotationScores =
   ({ traceId, observationId }: ScoreTargetTrace) =>
   (s: APIScoreV2) =>
     s.source === ScoreSource.ANNOTATION &&
@@ -16,12 +16,12 @@ const filterTraceScores =
       ? s.observationId === observationId
       : s.observationId === null);
 
-const filterSessionScores =
+const filterSessionAnnotationScores =
   ({ sessionId }: ScoreTargetSession) =>
   (s: APIScoreV2) =>
     s.source === ScoreSource.ANNOTATION && s.sessionId === sessionId;
 
-export const getDefaultScoreData = ({
+export const getDefaultAnnotationScoreData = ({
   scores,
   emptySelectedConfigIds,
   configs,
@@ -33,8 +33,8 @@ export const getDefaultScoreData = ({
   scoreTarget: ScoreTarget;
 }) => {
   const isValidScore = isTraceScore(scoreTarget)
-    ? filterTraceScores(scoreTarget)
-    : filterSessionScores(scoreTarget);
+    ? filterTraceAnnotationScores(scoreTarget)
+    : filterSessionAnnotationScores(scoreTarget);
 
   const populatedScores = scores
     .filter(isValidScore)

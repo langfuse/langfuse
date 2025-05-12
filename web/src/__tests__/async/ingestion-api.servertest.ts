@@ -94,7 +94,10 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const trace = await getTraceById({ traceId: entity.body.id, projectId });
+        const trace = await getTraceById({
+          traceId: entity.body.id,
+          projectId,
+        });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(entity.body.id);
         expect(trace!.projectId).toBe(projectId);
@@ -212,11 +215,11 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const observation = await getObservationById(
-          entity.body.id,
+        const observation = await getObservationById({
+          id: entity.body.id,
           projectId,
-          true,
-        );
+          fetchWithInputOutput: true,
+        });
         expect(observation).toBeDefined();
         expect(observation!.id).toBe(entity.body.id);
         expect(observation!.projectId).toBe(projectId);
@@ -333,7 +336,10 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.status).toBe(207);
 
     await waitForExpect(async () => {
-      const trace = await getTraceById({ traceId: `${traceId}-${char}-test`, projectId });
+      const trace = await getTraceById({
+        traceId: `${traceId}-${char}-test`,
+        projectId,
+      });
       expect(trace).toBeDefined();
       expect(trace!.id).toBe(`${traceId}-${char}-test`);
       expect(trace!.projectId).toBe(projectId);
@@ -569,11 +575,11 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const observation = await getObservationById(
-          observationId,
+        const observation = await getObservationById({
+          id: observationId,
           projectId,
-          true,
-        );
+          fetchWithInputOutput: true,
+        });
         expect(observation).toBeDefined();
         expect(observation!.id).toBe(observationId);
         expect(JSON.stringify(observation!.metadata)).toBe(

@@ -30,8 +30,6 @@ export function TimeseriesChart({
           <CategoricalChart
             chartLabels={chartLabels}
             chartData={chartData}
-            className="h-full"
-            chartClass="h-full mt-0"
             showXAxis={chartData.length < 3}
           />
         ) : (

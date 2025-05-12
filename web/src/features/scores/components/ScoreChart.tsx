@@ -32,12 +32,15 @@ export function CategoricalChart(props: {
   ) : (
     <Card
       className={cn(
-        "max-h-full min-h-0 rounded-tremor-default border",
+        "max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border",
         props.className,
       )}
     >
       <BarChart
-        className={cn("mt-4 max-h-full min-h-0", props.chartClass)}
+        className={cn(
+          "max-h-full min-h-0 min-w-0 max-w-full",
+          props.chartClass,
+        )}
         data={props.chartData}
         index="binLabel"
         categories={props.chartLabels}

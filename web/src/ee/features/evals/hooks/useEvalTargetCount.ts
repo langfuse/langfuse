@@ -33,6 +33,7 @@ export function useEvalTargetCount({
   const tracesAllCountFilter = {
     ...baseAllCountFilter,
     searchQuery: null,
+    searchType: ["id" as const],
     orderBy: null,
   };
 

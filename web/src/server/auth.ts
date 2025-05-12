@@ -138,7 +138,7 @@ const staticProviders: Provider[] = [
       if (!dbUser) throw new Error("Invalid credentials");
       if (dbUser.password === null)
         throw new Error(
-          "Please sign in with the identity provider that is linked to your account.",
+          "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
 
       const isValidPassword = await verifyPassword(
