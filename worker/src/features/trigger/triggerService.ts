@@ -50,6 +50,7 @@ export class ActionCreationService {
       createEventId,
       convertEventToActionInput,
     } = p;
+
     const triggers = await prisma.triggerConfiguration.findMany({
       where: {
         projectId: this.projectId,
@@ -88,7 +89,6 @@ export class ActionCreationService {
         }
 
         await this.createAction(
-          event,
           trigger,
           createEventId,
           convertEventToActionInput,
@@ -111,7 +111,6 @@ export class ActionCreationService {
   }
 
   private async createAction<T>(
-    event: T,
     trigger: TriggerConfigurationDomain,
     createEventId: () => string,
     convertEventToActionInput: (

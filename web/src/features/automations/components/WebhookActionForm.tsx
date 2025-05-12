@@ -142,7 +142,6 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
         <Button
           type="button"
           variant="outline"
-          size="sm"
           onClick={addHeader}
           disabled={disabled}
           className="mt-2"
