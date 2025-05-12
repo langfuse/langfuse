@@ -15,7 +15,7 @@ import {
   BaseError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { instrumentSync, processEventBatch } from "@langfuse/shared/src/server";
+import { processEventBatch } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
