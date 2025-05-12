@@ -329,7 +329,7 @@ export type EvalTemplate = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
-    project_id: string;
+    project_id: string | null;
     name: string;
     version: number;
     prompt: string;
