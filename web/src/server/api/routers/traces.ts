@@ -40,6 +40,7 @@ import {
   getCategoricalScoresGroupedByName,
   queryClickhouse,
   convertDateToClickhouseDateTime,
+  getAgentGraphData,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
@@ -509,29 +510,11 @@ export const traceRouter = createTRPCRouter({
         new Date(maxStartTime),
       );
 
-      const query = `
-          SELECT
-            id,
-            parent_observation_id,
-            metadata['langgraph_node'] AS node,
-            metadata['langgraph_step'] AS step
-          FROM
-            observations
-          WHERE
-            project_id = {projectId: String}
-            AND trace_id = {traceId: String}
-            AND start_time >= {chMinStartTime: DateTime64(3)}
-            AND start_time <= {chMaxStartTime: DateTime64(3)}
-        `;
-
-      const records = await queryClickhouse({
-        query,
-        params: {
-          traceId,
-          projectId,
-          chMinStartTime,
-          chMaxStartTime,
-        },
+      const records = await getAgentGraphData({
+        projectId,
+        traceId,
+        chMinStartTime,
+        chMaxStartTime,
       });
 
       const result = records
