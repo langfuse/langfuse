@@ -129,7 +129,7 @@ export function DataTableToolbar<TData, TValue>({
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
-          <div className="flex w-full max-w-xl items-center justify-between rounded-md border">
+          <div className="flex w-full max-w-sm items-center justify-between rounded-md border">
             <div className="flex flex-1 items-center">
               <Button
                 variant="ghost"
