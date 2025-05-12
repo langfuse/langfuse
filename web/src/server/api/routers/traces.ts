@@ -38,7 +38,6 @@ import {
   TraceDeleteQueue,
   getTracesTableMetrics,
   getCategoricalScoresGroupedByName,
-  queryClickhouse,
   convertDateToClickhouseDateTime,
   getAgentGraphData,
 } from "@langfuse/shared/src/server";
@@ -47,7 +46,7 @@ import { randomUUID } from "crypto";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
-  AgentGraphDataResponse,
+  type AgentGraphDataResponse,
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
 

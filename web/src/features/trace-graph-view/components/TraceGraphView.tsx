@@ -5,7 +5,7 @@ import { TraceGraphCanvas } from "./TraceGraphCanvas";
 import {
   type GraphCanvasData,
   LANGGRAPH_END_NODE_NAME,
-  AgentGraphDataResponse,
+  type AgentGraphDataResponse,
 } from "../types";
 
 type TraceGraphViewProps = {
