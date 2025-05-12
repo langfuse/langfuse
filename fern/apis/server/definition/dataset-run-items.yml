@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   commons: ./commons.yml
+  pagination: ./utils/pagination.yml
 service:
   auth: true
   base-path: /api/public
@@ -11,6 +12,23 @@ service:
       path: /dataset-run-items
       request: CreateDatasetRunItemRequest
       response: commons.DatasetRunItem
+    list:
+      method: GET
+      docs: List dataset run items
+      path: /dataset-run-items
+      request:
+        name: ListDatasetRunItemsRequest
+        query-parameters:
+          datasetId: string
+          runName: string
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+          response: PaginatedDatasetRunItems
+
 types:
   CreateDatasetRunItemRequest:
     properties:
@@ -26,3 +44,7 @@ types:
       traceId:
         type: optional<string>
         docs: traceId should always be provided. For compatibility with older SDK versions it can also be inferred from the provided observationId.
+  PaginatedDatasetRunItems:
+    properties:
+      data: list<commons.DatasetRunItem>
+      meta: pagination.MetaResponse
