@@ -105,10 +105,7 @@ export default async function handler(
       metadata: jsonSchema.nullish(),
     });
 
-    const parsedSchema = instrumentSync(
-      { name: "ingestion-zod-parse-unknown-batch-event" },
-      () => batchType.safeParse(req.body),
-    );
+    const parsedSchema = batchType.safeParse(req.body);
 
     if (!parsedSchema.success) {
       logger.info("Invalid request data", parsedSchema.error);
