@@ -151,7 +151,7 @@ export function Trace(props: {
       maxStartTime,
     },
     {
-      enabled: isAuthenticatedAndProjectMember && props.observations.length > 0,
+      enabled: props.observations.length > 0,
     },
   );
 
