@@ -1,15 +1,18 @@
 import { Badge } from "@/src/components/ui/badge";
+import 
 
 import {
   PromptDependencyRegex,
   type ParsedPromptDependencyTag,
 } from "@langfuse/shared";
 
+import { env } from "@/src/env.mjs";
+
 import { FileCode } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 
 const getPromptUrl = (projectId: string, tag: ParsedPromptDependencyTag) => {
-  const baseUrl = `/project/${projectId}/prompts/`;
+  const baseUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/prompts/`;
   if (tag.type === "version") {
     return `${baseUrl}${encodeURIComponent(tag.name)}?version=${tag.version}`;
   } else {
