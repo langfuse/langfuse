@@ -132,7 +132,7 @@ export const getProjectSettingsPages = ({
     cmdKKeywords: ["auth", "public key", "secret key"],
     content: (
       <div className="flex flex-col gap-6">
-        <ApiKeyList projectId={project.id} />
+        <ApiKeyList entityId={project.id} scope="project" />
       </div>
     ),
   },
