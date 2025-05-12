@@ -2,9 +2,15 @@ import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
-import { type FilterState } from "@langfuse/shared";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type ColumnDefinition } from "@langfuse/shared";
+import {
+  type FilterState,
+  type ColumnDefinition,
+  type OrderByState,
+  type TableViewPresetDomain,
+  type TableViewPresetTableName,
+  type TracingSearchType,
+} from "@langfuse/shared";
 import {
   type RowSelectionState,
   type ColumnOrderState,
@@ -25,6 +31,8 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
+import DocPopup from "@/src/components/layouts/doc-popup";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -37,9 +45,24 @@ export interface MultiSelect {
 }
 
 interface SearchConfig {
-  placeholder: string;
-  updateQuery(event: string): void;
+  metadataSearchFields: string[];
+  updateQuery: (event: string) => void;
   currentQuery?: string;
+  tableAllowsFullTextSearch?: boolean;
+  setSearchType: ((newSearchType: TracingSearchType[]) => void) | undefined;
+  searchType: TracingSearchType[] | undefined;
+}
+
+interface TableViewControllers {
+  applyViewState: (viewData: TableViewPresetDomain) => void;
+  selectedViewId: string | null;
+  handleSetViewId: (viewId: string | null) => void;
+}
+
+interface TableViewConfig {
+  tableName: TableViewPresetTableName;
+  projectId: string;
+  controllers: TableViewControllers;
 }
 
 interface DataTableToolbarProps<TData, TValue> {
@@ -69,6 +92,8 @@ interface DataTableToolbarProps<TData, TValue> {
     onValueChange: (values: string[]) => void;
     options: { value: string }[];
   };
+  orderByState?: OrderByState;
+  viewConfig?: TableViewConfig;
   className?: string;
 }
 
@@ -91,40 +116,90 @@ export function DataTableToolbar<TData, TValue>({
   multiSelect,
   environmentFilter,
   className,
+  orderByState,
+  viewConfig,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+
   const capture = usePostHogClientCapture();
 
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
-          <div className="flex max-w-md items-center rounded-md border">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                capture("table:search_submit");
-                searchConfig.updateQuery(searchString);
-              }}
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-            <Input
-              autoFocus
-              placeholder={searchConfig.placeholder}
-              value={searchString}
-              onChange={(event) => setSearchString(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
+          <div className="flex w-full max-w-xl items-center justify-between rounded-md border">
+            <div className="flex flex-1 items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
                   capture("table:search_submit");
                   searchConfig.updateQuery(searchString);
+                }}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+              <Input
+                autoFocus
+                placeholder={
+                  searchConfig.tableAllowsFullTextSearch
+                    ? "Search..."
+                    : `Search (${searchConfig.metadataSearchFields.join(", ")})`
                 }
-              }}
-              className="min-w-0 max-w-fit border-none px-0"
-            />
+                value={searchString}
+                onChange={(event) => setSearchString(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    capture("table:search_submit");
+                    searchConfig.updateQuery(searchString);
+                  }
+                }}
+                className="w-full border-none px-0"
+              />
+            </div>
+            {searchConfig.tableAllowsFullTextSearch &&
+              searchConfig.setSearchType && (
+                <div className="border-l px-2">
+                  <Button
+                    variant="tertiary"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => {
+                      const newSearchType =
+                        (searchConfig.searchType ?? []).indexOf("content") >= 0
+                          ? ["id" as const]
+                          : ["id" as const, "content" as const];
+                      searchConfig?.setSearchType?.(newSearchType);
+                    }}
+                  >
+                    <>
+                      {(searchConfig.searchType ?? []).indexOf("content") >= 0
+                        ? "Metadata + Full Text"
+                        : "Metadata"}
+                      <DocPopup
+                        description={
+                          <>
+                            <p className="text-xs font-normal text-primary">
+                              <strong>Metadata search:</strong>{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}
+                            </p>
+                            <p className="text-xs font-normal text-primary">
+                              <strong>Full text search:</strong> Input, Output
+                            </p>
+                            <br />
+                            <p className="text-xs font-normal text-primary">
+                              For improved performance, filter the table before
+                              searching.
+                            </p>
+                          </>
+                        }
+                      />
+                    </>
+                  </Button>
+                </div>
+              )}
           </div>
         )}
         {selectedOption && setDateRangeAndOption && (
@@ -153,6 +228,18 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
+          {!!columnVisibility && !!columnOrder && !!viewConfig && (
+            <TableViewPresetsDrawer
+              viewConfig={viewConfig}
+              currentState={{
+                orderBy: orderByState ?? null,
+                filters: filterState ?? [],
+                columnOrder,
+                columnVisibility,
+                searchQuery: searchString,
+              }}
+            />
+          )}
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}

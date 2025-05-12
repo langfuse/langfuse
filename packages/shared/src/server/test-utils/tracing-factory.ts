@@ -96,6 +96,7 @@ export const createTraceScore = (
     is_deleted: 0,
     ...score,
     session_id: null,
+    dataset_run_id: null,
   };
 };
 
@@ -121,5 +122,32 @@ export const createSessionScore = (
     ...score,
     observation_id: null,
     trace_id: null,
+    dataset_run_id: null,
+  };
+};
+
+export const createDatasetRunScore = (
+  score: Partial<ScoreRecordInsertType>,
+): ScoreRecordInsertType => {
+  return {
+    id: v4(),
+    project_id: v4(),
+    dataset_run_id: v4(),
+    environment: "default",
+    name: "test-run-score" + v4(),
+    timestamp: Date.now(),
+    value: 100.5,
+    source: "API",
+    comment: "comment",
+    metadata: { "test-key": "test-value" },
+    data_type: "NUMERIC" as const,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    event_ts: Date.now(),
+    is_deleted: 0,
+    ...score,
+    observation_id: null,
+    trace_id: null,
+    session_id: null,
   };
 };

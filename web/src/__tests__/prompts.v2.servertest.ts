@@ -405,7 +405,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       // Delay to allow for async processing
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      const dbGeneration = await getObservationById(generationId, projectId);
+      const dbGeneration = await getObservationById({
+        id: generationId,
+        projectId,
+      });
 
       expect(dbGeneration?.id).toBe(generationId);
       expect(dbGeneration?.promptId).toBe(promptId);

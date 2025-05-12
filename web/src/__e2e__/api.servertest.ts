@@ -115,7 +115,10 @@ describe("Ingestion Pipeline", () => {
         expect(trace).not.toBeNull();
         expect(trace?.name).toBe("test trace");
 
-        const observation = await getObservationById(spanId, projectId);
+        const observation = await getObservationById({
+          id: spanId,
+          projectId,
+        });
         expect(observation).not.toBeNull();
         expect(observation?.name).toBe("test span");
 

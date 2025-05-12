@@ -3,6 +3,7 @@ import {
   createTraceScore,
   createTrace,
   createSessionScore,
+  createDatasetRunScore,
 } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
@@ -140,6 +141,52 @@ describe("/api/public/v2/scores API Endpoint", () => {
         sessionId,
         observationId: null,
         traceId: null,
+        datasetRunId: null,
+        dataType: "NUMERIC",
+      });
+    });
+
+    it("should GET a run score", async () => {
+      const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
+
+      const scoreId = v4();
+      const runId = v4();
+      const score = createDatasetRunScore({
+        id: scoreId,
+        project_id: projectId,
+        dataset_run_id: runId,
+        name: "Test Score",
+        timestamp: Date.now(),
+        value: 100.5,
+        source: "API",
+        comment: "comment",
+        data_type: "NUMERIC" as const,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        event_ts: Date.now(),
+        is_deleted: 0,
+      });
+
+      await createScoresCh([score]);
+
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoreResponseV2,
+        "GET",
+        `/api/public/v2/scores/${scoreId}`,
+        undefined,
+        auth,
+      );
+
+      expect(getScore.status).toBe(200);
+      expect(getScore.body).toMatchObject({
+        id: scoreId,
+        name: "Test Score",
+        value: 100.5,
+        comment: "comment",
+        source: "API",
+        datasetRunId: runId,
+        observationId: null,
+        traceId: null,
         dataType: "NUMERIC",
       });
     });
@@ -158,6 +205,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
       const traceId_3 = v4();
       const generationId = v4();
       const sessionId = v4();
+      const runId = v4();
       const scoreId_1 = v4();
       const scoreId_2 = v4();
       const scoreId_3 = v4();
@@ -165,6 +213,8 @@ describe("/api/public/v2/scores API Endpoint", () => {
       const scoreId_5 = v4();
       const scoreId_6 = v4();
       const scoreId_7 = v4();
+      const scoreId_8 = v4();
+      const scoreId_9 = v4();
       let authentication: string;
       let newProjectId: string;
 
@@ -291,6 +341,24 @@ describe("/api/public/v2/scores API Endpoint", () => {
           data_type: "NUMERIC",
         });
 
+        const runScore1 = createDatasetRunScore({
+          id: scoreId_8,
+          project_id: newProjectId,
+          dataset_run_id: runId,
+          name: scoreName,
+          value: 100.5,
+          data_type: "NUMERIC",
+        });
+
+        const runScore2 = createDatasetRunScore({
+          id: scoreId_9,
+          project_id: newProjectId,
+          dataset_run_id: runId,
+          name: scoreName,
+          value: 100.5,
+          data_type: "NUMERIC",
+        });
+
         await createScoresCh([
           score1,
           score2,
@@ -299,6 +367,8 @@ describe("/api/public/v2/scores API Endpoint", () => {
           score5,
           sessionScore1,
           sessionScore2,
+          runScore1,
+          runScore2,
         ]);
       });
 
@@ -314,7 +384,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 7,
+          totalItems: 9,
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
@@ -323,10 +393,19 @@ describe("/api/public/v2/scores API Endpoint", () => {
               sessionId: null,
             });
           } else {
-            expect(val).toMatchObject({
-              sessionId: sessionId,
-              trace: null,
-            });
+            expect(val).toEqual(
+              expect.objectContaining({
+                trace: null,
+                ...(val.sessionId === sessionId ? { sessionId } : {}),
+                ...(val.datasetRunId
+                  ? { datasetRunId: expect.any(String) }
+                  : {}),
+              }),
+            );
+            // Check that one of the two conditions is true
+            expect(
+              val.sessionId === sessionId || val.datasetRunId,
+            ).toBeTruthy();
           }
         }
       });
@@ -369,7 +448,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 5,
+          totalItems: 7,
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {

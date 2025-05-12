@@ -50,11 +50,11 @@ export default withMiddlewares({
 
       // Backwards compatibility: historically, dataset run items were linked to observations, not traces
       if (!traceId && observationId) {
-        const observation = await getObservationById(
-          observationId,
-          auth.scope.projectId,
-          true,
-        );
+        const observation = await getObservationById({
+          id: observationId,
+          projectId: auth.scope.projectId,
+          fetchWithInputOutput: true,
+        });
         if (observationId && !observation) {
           throw new LangfuseNotFoundError("Observation not found");
         }

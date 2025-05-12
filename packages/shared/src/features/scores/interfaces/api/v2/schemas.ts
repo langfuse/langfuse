@@ -16,6 +16,7 @@ const ScoreFoundationSchemaV2 = ScoreFoundationSchema.extend({
   traceId: z.string().nullish(),
   observationId: z.string().nullish(),
   sessionId: z.string().nullish(),
+  datasetRunId: z.string().nullish(),
 });
 
 export const APIScoreSchemaV2 = z.discriminatedUnion("dataType", [

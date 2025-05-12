@@ -67,7 +67,8 @@ export type DatasetRunRowData = {
   avgLatency: number | undefined;
   avgTotalCost: string | undefined;
   // scores holds grouped column with individual scores
-  scores?: ScoreAggregate | undefined;
+  runItemScores?: ScoreAggregate | undefined;
+  runScores?: ScoreAggregate | undefined;
   description: string;
   metadata: Prisma.JsonValue;
 };
@@ -232,12 +233,31 @@ export function DatasetRunsTable(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
 
+  const runScoresKeysAndProps =
+    api.datasets.getRunLevelScoreKeysAndProps.useQuery({
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+    });
+
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<DatasetRunRowData>({
       projectId: props.projectId,
-      scoreColumnKey: "scores",
-      showAggregateViewOnly: true,
+      scoreColumnKey: "runItemScores",
+      showAggregateViewOnly: false,
+      scoreColumnPrefix: "Aggregated",
     });
+
+  const {
+    scoreColumns: runScoreColumns,
+    scoreKeysAndProps: runScoreKeysAndProps,
+    isColumnLoading: isRunScoreColumnLoading,
+  } = useIndividualScoreColumns<DatasetRunRowData>({
+    projectId: props.projectId,
+    scoreColumnKey: "runScores",
+    showAggregateViewOnly: false,
+    scoreColumnPrefix: "Run-level",
+    scoreKeysAndPropsData: runScoresKeysAndProps.data,
+  });
 
   const scoreIdToName = useMemo(() => {
     return new Map(scoreKeysAndProps.map((obj) => [obj.key, obj.name]) ?? []);
@@ -384,7 +404,22 @@ export function DatasetRunsTable(props: {
         return <>{avgTotalCost}</>;
       },
     },
-    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
+    {
+      ...getScoreGroupColumnProps(isRunScoreColumnLoading, {
+        accessorKey: "runScores",
+        header: "Run-level Scores",
+        id: "runScores",
+      }),
+      columns: runScoreColumns,
+    },
+    {
+      ...getScoreGroupColumnProps(isColumnLoading, {
+        accessorKey: "runItemScores",
+        header: "Aggregated Run Items Scores",
+        id: "runItemScores",
+      }),
+      columns: scoreColumns,
+    },
     {
       accessorKey: "createdAt",
       header: "Created",
@@ -440,7 +475,7 @@ export function DatasetRunsTable(props: {
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
+    item: DatasetsCoreOutput & Partial<DatasetsMetricOutput>,
   ): DatasetRunRowData => {
     return {
       id: item.id,
@@ -451,8 +486,19 @@ export function DatasetRunsTable(props: {
       avgTotalCost: item.avgTotalCost
         ? usdFormatter(item.avgTotalCost.toNumber())
         : undefined,
-      scores: item.scores
-        ? verifyAndPrefixScoreDataAgainstKeys(scoreKeysAndProps, item.scores)
+      runItemScores: item.scores
+        ? verifyAndPrefixScoreDataAgainstKeys(
+            scoreKeysAndProps,
+            item.scores,
+            "Aggregated",
+          )
+        : undefined,
+      runScores: item.runScores
+        ? verifyAndPrefixScoreDataAgainstKeys(
+            runScoreKeysAndProps,
+            item.runScores,
+            "Run-level",
+          )
         : undefined,
       description: item.description ?? "",
       metadata: item.metadata,
