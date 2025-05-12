@@ -137,10 +137,10 @@ export function Trace(props: {
     o.startTime.getTime(),
   );
   const minStartTime = new Date(
-    Math.min(...observationStartTimes),
+    Math.min(...observationStartTimes, Date.now()), // the Date now is a guard for empty obs list
   ).toISOString();
   const maxStartTime = new Date(
-    Math.max(...observationStartTimes),
+    Math.max(...observationStartTimes, 0), // the zero is a guard for empty obs list
   ).toISOString();
 
   const agentGraphDataQuery = api.traces.getAgentGraphData.useQuery(
@@ -151,7 +151,7 @@ export function Trace(props: {
       maxStartTime,
     },
     {
-      enabled: isAuthenticatedAndProjectMember,
+      enabled: isAuthenticatedAndProjectMember && props.observations.length > 0,
     },
   );
 
