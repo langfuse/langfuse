@@ -1421,7 +1421,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     // Create 10 run items
     for (let i = 0; i < 10; i++) {
-      const runItemId = `run-item-${i}-${v4()}`;
       await makeZodVerifiedAPICall(
         PostDatasetRunItemsV1Response,
         "POST",
