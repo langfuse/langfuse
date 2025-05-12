@@ -243,14 +243,14 @@ const getPlanBasedRateLimitConfig = (
         case "public-api":
           return {
             resource: "public-api",
-            points: 20,
+            points: 100,
             durationInSec: 60,
           };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
-            points: 10,
-            durationInSec: 86400, // 10 requests per day
+            points: 20,
+            durationInSec: 86400, // 20 requests per day
           };
         default:
           const exhaustiveCheck: never = resource;
@@ -279,14 +279,14 @@ const getPlanBasedRateLimitConfig = (
         case "public-api":
           return {
             resource: "public-api",
-            points: 100,
+            points: 200,
             durationInSec: 60,
           };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
-            points: 20,
-            durationInSec: 86400, // 20 requests per day
+            points: 50,
+            durationInSec: 86400, // 50 requests per day
           };
         default:
           const exhaustiveCheck: never = resource;
