@@ -26,7 +26,9 @@ export const MetricsQueryObject = z
       .object({
         granularity: granularities,
       })
-      .nullable(),
+      .nullable()
+      .optional()
+      .default(null),
     fromTimestamp: z.string().datetime({ offset: true }),
     toTimestamp: z.string().datetime({ offset: true }),
     orderBy: z
@@ -36,7 +38,9 @@ export const MetricsQueryObject = z
           direction: z.enum(["asc", "desc"]),
         }),
       )
-      .nullable(),
+      .nullable()
+      .optional()
+      .default(null),
   })
   .refine(
     (query) =>
