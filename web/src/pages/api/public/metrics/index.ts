@@ -5,6 +5,8 @@ import {
   GetMetricsV1Query,
   GetMetricsV1Response,
 } from "@/src/features/public-api/types/metrics";
+import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
+import { queryClickhouse } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -23,24 +25,38 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
         });
 
-        // This is a dummy implementation as requested
-        // In the future, this would call the actual query execution logic
+        // Execute the query using QueryBuilder
+        const { query: compiledQuery, parameters } = new QueryBuilder().build(
+          queryParams,
+          auth.scope.projectId,
+        );
 
-        // Return dummy data for now
-        return {
-          data: [
-            {
-              metric: "dummy_metric",
-              value: 42,
-              timestamp: new Date().toISOString(),
+        // Run the query against ClickHouse
+        const result = await queryClickhouse<Record<string, unknown>>({
+          query: compiledQuery,
+          params: parameters,
+          clickhouseConfigs: {
+            clickhouse_settings: {
+              date_time_output_format: "iso",
             },
-          ],
-          meta: {
-            page: queryParams.page,
-            limit: queryParams.limit,
-            totalItems: 1,
-            totalPages: 1,
           },
+          tags: {
+            feature: "metrics-api",
+            type: queryParams.view,
+            kind: "analytic",
+            projectId: auth.scope.projectId,
+          },
+        });
+
+        // Format and return the result
+        return {
+          data: result,
+          // meta: {
+          //   page: queryParams.page,
+          //   limit: queryParams.limit,
+          //   totalItems: result.length,
+          //   totalPages: Math.ceil(result.length / queryParams.limit),
+          // },
         };
       } catch (error) {
         logger.error("Error in metrics API", { error, query });

@@ -23,11 +23,13 @@ describe("/api/public/metrics API Endpoint", () => {
     metadata?: Record<string, any>;
   }> = [];
   const testMetadataValue = randomUUID();
+  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
   // Current time for traces
+  const tomorrow = new Date(new Date().getTime() + 3600 * 24 * 1000);
   const now = new Date();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterday = new Date(new Date().getTime() - 3600 * 24 * 1000);
+  const twoDaysAgo = new Date(new Date().getTime() - 3600 * 24 * 2 * 1000);
 
   // Set up test data before running tests
   beforeAll(async () => {
@@ -64,6 +66,7 @@ describe("/api/public/metrics API Endpoint", () => {
         createTrace({
           id: trace.id,
           name: trace.name,
+          project_id: projectId,
           timestamp: trace.timestamp.getTime(),
           metadata: trace.metadata || {},
         }),
@@ -77,6 +80,7 @@ describe("/api/public/metrics API Endpoint", () => {
         createObservation({
           id: randomUUID(),
           trace_id: trace1Id,
+          project_id: projectId,
           name: `observation-${i}`,
           start_time: now.getTime(),
           metadata: { test: testMetadataValue },
@@ -91,6 +95,7 @@ describe("/api/public/metrics API Endpoint", () => {
         createObservation({
           id: randomUUID(),
           trace_id: trace2Id,
+          project_id: projectId,
           name: `observation-${i}`,
           start_time: yesterday.getTime(),
           metadata: { test: testMetadataValue },
@@ -117,8 +122,8 @@ describe("/api/public/metrics API Endpoint", () => {
           },
         ],
         timeDimension: null,
-        fromTimestamp: yesterday.toISOString(),
-        toTimestamp: now.toISOString(),
+        fromTimestamp: twoDaysAgo.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
         orderBy: null,
       } as QueryType,
       // Expected result structure (data will be dummy)
@@ -146,13 +151,13 @@ describe("/api/public/metrics API Endpoint", () => {
         timeDimension: {
           granularity: "day",
         },
-        fromTimestamp: yesterday.toISOString(),
-        toTimestamp: now.toISOString(),
+        fromTimestamp: twoDaysAgo.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
         orderBy: null,
       } as QueryType,
       // Expected result structure
       {
-        dataLength: 3,
+        dataLength: 4,
         expectedMetrics: ["count_count"],
         expectedDimensions: ["time_dimension", "name"],
       },
@@ -176,28 +181,33 @@ describe("/api/public/metrics API Endpoint", () => {
           },
         ],
         timeDimension: null,
-        fromTimestamp: yesterday.toISOString(),
-        toTimestamp: now.toISOString(),
+        fromTimestamp: twoDaysAgo.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
         orderBy: null,
       } as QueryType,
       // Expected result structure
       {
-        dataLength: 5,
-        expectedMetrics: ["dummy_metric"],
+        dataLength: 3,
+        expectedMetrics: ["count_count", "p95_latency"],
+        expectedDimensions: ["name"],
       },
     ],
   ])(
-    "should accept complex query formats and return expected results: %s",
+    "should accept queries and return expected results: %s",
     async (
       _name: string,
       queryObject: QueryType,
-      expectedResult: { dataLength: number; expectedMetrics: string[] },
+      expectedResult: {
+        dataLength: number;
+        expectedMetrics: string[];
+        expectedDimensions: string[];
+      },
     ) => {
       // Add pagination parameters needed for the API
       const fullQuery = {
         ...queryObject,
-        page: 1,
-        limit: 10,
+        // page: 1,
+        // limit: 10,
       };
 
       // Make the API call
@@ -213,12 +223,16 @@ describe("/api/public/metrics API Endpoint", () => {
 
       // Validate response matches expected structure
       expect(response.body.data).toHaveLength(expectedResult.dataLength);
-
-      // Check pagination metadata is present
-      expect(response.body.meta).toHaveProperty("page");
-      expect(response.body.meta).toHaveProperty("limit");
-      expect(response.body.meta).toHaveProperty("totalItems");
-      expect(response.body.meta).toHaveProperty("totalPages");
+      response.body.data.forEach((item) => {
+        expect(
+          expectedResult.expectedMetrics.every((metric) => metric in item),
+        ).toBe(true);
+        expect(
+          expectedResult.expectedDimensions.every(
+            (dimension) => dimension in item,
+          ),
+        ).toBe(true);
+      });
     },
   );
 

@@ -1692,6 +1692,94 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MembershipRequest'
+  /api/public/metrics:
+    get:
+      description: Get metrics from the Langfuse project using a query object
+      operationId: metrics_metrics
+      tags:
+        - Metrics
+      parameters:
+        - name: query
+          in: query
+          description: >-
+            JSON string containing the query parameters with the following
+            structure:
+
+            ```json
+
+            {
+              "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
+              "dimensions": [           // Optional. Default: []
+                {
+                  "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
+                }
+              ],
+              "metrics": [              // Required. At least one metric must be provided
+                {
+                  "measure": string,    // What to measure, e.g. "count", "latency", "value"
+                  "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95"
+                }
+              ],
+              "filters": [              // Optional. Default: []
+                {
+                  "column": string,     // Column to filter on
+                  "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
+                  "value": any,         // Value to compare against
+                  "type": string,       // Data type, e.g. "string", "number", "stringObject"
+                  "key": string         // Required only when filtering on metadata
+                }
+              ],
+              "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                "granularity": string   // One of "minute", "hour", "day", "week", "month", "year", "auto"
+              },
+              "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+              "toTimestamp": string,    // Required. ISO datetime string for end of time range
+              "orderBy": [              // Optional. Default: null
+                {
+                  "field": string,      // Field to order by
+                  "direction": string   // "asc" or "desc"
+                }
+              ]
+            }
+
+            ```
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/metrics/daily:
     get:
       description: Get daily metrics of the Langfuse project
@@ -6266,6 +6354,22 @@ components:
             $ref: '#/components/schemas/MembershipResponse'
       required:
         - memberships
+    MetricsResponse:
+      title: MetricsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: >-
+            The metrics data. Each item in the list contains the metric values
+            and dimensions requested in the query.
+
+            Format varies based on the query parameters.
+      required:
+        - data
     DailyMetrics:
       title: DailyMetrics
       type: object

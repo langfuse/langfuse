@@ -14,8 +14,8 @@ import { dimension, granularities, metric, views } from "@/src/features/query";
 export const MetricsQueryObject = z
   .object({
     // Pagination parameters
-    page: z.number().min(1).default(1),
-    limit: z.number().min(1).max(100).default(10),
+    // page: z.number().min(1).default(1),
+    // limit: z.number().min(1).max(100).default(10),
 
     // QueryType structure
     view: views,
@@ -26,8 +26,7 @@ export const MetricsQueryObject = z
       .object({
         granularity: granularities,
       })
-      .nullable()
-      .optional(),
+      .nullable(),
     fromTimestamp: z.string().datetime({ offset: true }),
     toTimestamp: z.string().datetime({ offset: true }),
     orderBy: z
@@ -37,8 +36,7 @@ export const MetricsQueryObject = z
           direction: z.enum(["asc", "desc"]),
         }),
       )
-      .nullable()
-      .optional(),
+      .nullable(),
   })
   .refine(
     (query) =>
@@ -70,7 +68,7 @@ export const GetMetricsV1Query = z.object({
 
 export const GetMetricsV1Response = z.object({
   data: z.array(z.record(z.unknown())),
-  meta: paginationMetaResponseZod,
+  // meta: paginationMetaResponseZod,
 });
 
 // Get /metrics/daily
