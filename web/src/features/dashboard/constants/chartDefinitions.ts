@@ -15,28 +15,12 @@ export interface DashboardChartDefinition {
 export const dashboardChartDefinitions: DashboardChartDefinition[] = [
   { key: "traces", label: "Traces" },
   { key: "model-costs", label: "Model Costs" },
-  { key: "scores", label: "Scores (total)" },
+  { key: "scores", label: "Scores (total)" }, // All scores tracked
   { key: "traces-by-time", label: "Traces by time" },
   { key: "model-usage", label: "Model Usage" },
   { key: "user-consumption", label: "User Consumption" },
-  { key: "chart-scores", label: "Scores (avg)" },
-  { key: "latency-tables", label: "Latency Percentiles" },
+  { key: "chart-scores", label: "Scores (avg)" }, // Moving average per score chart
+  { key: "latency-tables", label: "Latency Percentiles" }, // Trace, Generation & Span latency percentile charts
   { key: "model-latencies", label: "Model Latencies" },
   { key: "scores-analytics", label: "Scores Analytics" },
 ];
-
-// TODO: Remove if unneeded:
-//  Full existing list of Dashboard Chart labels & Component names
-
-// Traces - TracesBarListChart
-// Model costs - ModelCostTable
-// Scores - ScoresTable
-// Traces by time - TracesAndObservationsTimeSeriesChart
-// Model Usage - ModelUsageChart
-// User consumption - UserChart
-// Scores - ChartScores
-// Trace latency percentiles - LatencyTables
-// Generation latency percentiles - LatencyTables
-// Span latency percentiles - LatencyTables
-// Model latencies - GenerationalLatencyChart
-// Scores Analytics - ScoreAnalytics

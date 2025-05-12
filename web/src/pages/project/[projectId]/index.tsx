@@ -217,7 +217,7 @@ export default function Dashboard() {
             title="Charts"
             placeholder="Show / Hide Charts"
             values={selectedDashboardCharts}
-            onValueChange={useDebounce(setSelectedDashboardCharts)}
+            onValueChange={setSelectedDashboardCharts}
             options={dashboardChartDefinitions.map((chart) => ({
               key: chart.key,
               value: chart.label,

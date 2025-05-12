@@ -22,10 +22,9 @@ export function useChartSelectState(projectId: string) {
       allDashboardChartKeys.includes(key),
     );
 
-    // Flag in case invalid/stale keys are found
     const invalidKeysFound =
       validStoredDashboardKeys.length !== selectedDashboardChartKeys.length;
-    // Flag in case no valid keys are found
+
     const noValidKeysFound =
       validStoredDashboardKeys.length === 0 && allDashboardChartKeys.length > 0;
 
@@ -42,7 +41,7 @@ export function useChartSelectState(projectId: string) {
   ]);
 
   const handleSetDashboardCharts = (chartsToShow: string[]) => {
-    // Fallback UX handling: Ensure that at least one chart is always selected to avoid triggering the empty list fallback - causing all charts to reappear
+    // Fallback UX handling: Ensure that at least one chart is always selected to avoid triggering the empty list fallback & causing all charts to reappear
     if (chartsToShow.length === 0) {
       const lastDeselectedChart = selectedDashboardChartKeys.find(
         (key) => !chartsToShow.includes(key),
