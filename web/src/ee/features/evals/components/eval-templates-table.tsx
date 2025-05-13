@@ -24,6 +24,7 @@ import { PeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/pee
 import { useEvalTemplatesPeekNavigation } from "@/src/components/table/peek/hooks/useEvalTemplatesPeekNavigation";
 import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { Button } from "@/src/components/ui/button";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -31,6 +32,7 @@ export type EvalsTemplateRow = {
   latestCreatedAt?: Date;
   latestVersion?: number;
   id?: string;
+  actions?: string;
 };
 
 export default function EvalsTemplateTable({
@@ -120,7 +122,27 @@ export default function EvalsTemplateTable({
       size: 100,
       enableHiding: true,
       cell: (row) => {
-        return row.getValue();
+        const id = row.getValue();
+        return id ? <TableIdOrName value={id} /> : null;
+      },
+    }),
+    columnHelper.accessor("actions", {
+      header: "Actions",
+      id: "actions",
+      size: 100,
+      cell: () => {
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="configure"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            Configure
+          </Button>
+        );
       },
     }),
   ] as LangfuseColumnDef<EvalsTemplateRow>[];
@@ -178,6 +200,9 @@ export default function EvalsTemplateTable({
           children: (row) => (
             <PeekViewEvaluatorTemplateDetail projectId={projectId} row={row} />
           ),
+          peekEventOptions: {
+            ignoredSelectors: ['[aria-label="configure"]'],
+          },
           tableDataUpdatedAt: templates.dataUpdatedAt,
         }}
         data={
