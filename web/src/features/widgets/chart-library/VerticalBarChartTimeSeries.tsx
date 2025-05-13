@@ -1,9 +1,5 @@
 import React, { useMemo } from "react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
+import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
@@ -59,10 +55,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />
         ))}
-        <ChartTooltip
-          content={<ChartTooltipContent />}
-          cursor={{ opacity: 0.8 }}
-        />
+        <ChartTooltip />
       </BarChart>
     </ChartContainer>
   );
