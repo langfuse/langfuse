@@ -106,9 +106,11 @@ function FileViewer({
 }) {
   if (!src) return null;
 
+  const mimeType = String(contentType);
+
   const fileName = src.split("/").pop()?.split("?")[0] || "";
-  const fileType = contentType.split("/")[0];
-  const fileExtension = contentType.split("/")[1].toUpperCase();
+  const fileType = mimeType.split("/")[0];
+  const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
 
   const openInNewTab = () => {
     window.open(src, "_blank", "noopener,noreferrer");
