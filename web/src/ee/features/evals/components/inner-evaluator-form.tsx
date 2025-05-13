@@ -318,7 +318,7 @@ export const InnerEvaluatorForm = (props: {
             name="scoreName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Score Name</FormLabel>
+                <FormLabel>Generated Score Name</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -527,7 +527,7 @@ export const InnerEvaluatorForm = (props: {
                     )}
                   >
                     <JSONView
-                      title={"Eval Template"}
+                      title={"Referenced Evaluator"}
                       json={props.evalTemplate.prompt ?? null}
                       className={cn(
                         "min-h-48",

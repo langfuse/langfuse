@@ -196,7 +196,7 @@ export const EvaluatorDetail = () => {
               <>
                 <CardDescription className="flex items-center justify-between text-sm">
                   <span className="mr-2 text-sm font-medium">
-                    Eval Template
+                    Referenced Evaluator
                   </span>
                   <TableLink
                     path={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplateId}`}

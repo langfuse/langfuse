@@ -25,6 +25,9 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { UserCircle2Icon } from "lucide-react";
+import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
+import { useRunningEvaluatorsPeekNavigation } from "@/src/components/table/peek/hooks/useRunningEvaluatorsPeekNavigation";
+import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -113,7 +116,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("scoreName", {
       id: "scoreName",
       header: "Generated Score Name",
-      size: 150,
+      size: 200,
       cell: (row) => {
         const scoreName = row.getValue();
         return scoreName ? <TableIdOrName value={scoreName} /> : undefined;
@@ -149,12 +152,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       cell: (row) => {
         const template = row.getValue();
         if (!template) return "template not found";
-        return (
-          <TableLink
-            path={`/project/${projectId}/evals/templates/${template.id}`}
-            value={`${template.name} (v${template.version})`}
-          />
-        );
+        return <TableIdOrName value={template.name} />;
       },
     }),
     columnHelper.accessor("maintainer", {
@@ -251,6 +249,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
+  const urlPathname = `/project/${projectId}/evals`;
+  const { getNavigationPath, expandPeek } =
+    useRunningEvaluatorsPeekNavigation(urlPathname);
+  const { setPeekView } = usePeekState(urlPathname);
+
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
@@ -294,6 +297,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       />
       <DataTable
         columns={columns}
+        peekView={{
+          itemType: "RUNNING_EVALUATOR",
+          listKey: "evals",
+          urlPathname,
+          onOpenChange: setPeekView,
+          onExpand: expandPeek,
+          shouldUpdateRowOnDetailPageNavigation: true,
+          getNavigationPath,
+          children: (row) => (
+            <PeekViewEvaluatorConfigDetail projectId={projectId} row={row} />
+          ),
+          tableDataUpdatedAt: evaluators.dataUpdatedAt,
+        }}
         data={
           evaluators.isLoading
             ? { isLoading: true, isError: false }

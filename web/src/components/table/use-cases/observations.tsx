@@ -962,7 +962,7 @@ export default function ObservationsTable({
       <DataTable
         columns={columns}
         peekView={{
-          itemType: "TRACE",
+          itemType: "RUNNING_EVALUATOR",
           customTitlePrefix: "Observation ID:",
           listKey: "observations",
           urlPathname,
