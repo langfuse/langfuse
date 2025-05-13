@@ -45,9 +45,9 @@ export class ClickHouseClientManager {
       database: env.CLICKHOUSE_DB,
       http_headers: opts?.http_headers,
       settings: opts?.clickhouse_settings,
+      request_timeout: opts?.request_timeout ?? 30000,
       // Include any other relevant config options
     };
-
     return JSON.stringify(keyParams);
   }
 
@@ -60,7 +60,6 @@ export class ClickHouseClientManager {
     opts: NodeClickHouseClientConfigOptions,
   ): ClickhouseClientType {
     const key = this.generateClientSettingsKey(opts);
-
     if (!this.clientMap.has(key)) {
       const headers = opts?.http_headers ?? {};
       const activeSpan = getCurrentSpan();
@@ -89,7 +88,16 @@ export class ClickHouseClientManager {
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
+          ...(opts.request_timeout && opts.request_timeout > 30000
+            ? {
+                send_progress_in_http_headers: 1,
+                http_headers_progress_interval_ms: "25000", // UInt64, should be passed as a string
+              }
+            : {}),
         },
+        ...(opts.request_timeout
+          ? { request_timeout: opts.request_timeout }
+          : {}),
       });
 
       this.clientMap.set(key, client);
