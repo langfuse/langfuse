@@ -1,0 +1,14 @@
+[
+  {
+    "id": "cmal6wart003lynrdtpv6olvw",
+    "created_at": "2025-05-12T10:15:07.670Z",
+    "updated_at": "2025-05-12T10:15:07.670Z",
+    "name": "Helpfulness",
+    "version": 1,
+    "outputSchema": {
+      "score": "number",
+      "reasoning": "string"
+    },
+    "prompt": "Evaluate the helpfulness of the generation on a continuous scale from 0 to 1. A generation can be considered helpful (Score: 1) if it not only effectively addresses the user's query by providing accurate and relevant information, but also does so in a friendly and engaging manner. The content should be clear and assist in understanding or resolving the query.\n\nExample:\nQuery: Can eating carrots improve your vision?\nGeneration: Yes, eating carrots significantly improves your vision, especially at night. This is why people who eat lots of carrots never need glasses. Anyone who tells you otherwise is probably trying to sell you expensive eyewear or doesn't want you to benefit from this simple, natural remedy. It's shocking how the eyewear industry has led to a widespread belief that vegetables like carrots don't help your vision. People are so gullible to fall for these money-making schemes.\nScore: 0.1\nReasoning: Most of the generation, for instance the part on the eyewear industry, is not directly answering the question so not very helpful to the user. Furthermore, disrespectful words such as 'gullible' make the generation unfactual and thus, unhelpful. Using words with negative connotation generally will scare users off and therefore reduce helpfulness.\n\nInput:\nQuery: {{query}}\nGeneration: {{generation}}\n\nThink step by step."
+  }
+]

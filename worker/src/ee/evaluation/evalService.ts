@@ -66,6 +66,14 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
+// TODO: replace with default model from the database
+const DEFAULT_EVALUATION_MODEL = {
+  provider: "openai",
+  model: "gpt-4o",
+  model_params: {},
+  project_id: null,
+};
+
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
  * There might be multiple eval jobs to create for a single trace.
@@ -494,13 +502,15 @@ export const evaluate = async ({
     score: z.number().describe(parsedOutputSchema.score),
   });
 
-  const modelParams = ZodModelConfig.parse(template.modelParams);
+  const modelParams = ZodModelConfig.parse(
+    template.modelParams ?? DEFAULT_EVALUATION_MODEL.model_params,
+  );
 
   // the apiKey.secret_key must never be printed to the console or returned to the client.
   const apiKey = await prisma.llmApiKeys.findFirst({
     where: {
       projectId: event.projectId,
-      provider: template.provider,
+      provider: template.provider ?? DEFAULT_EVALUATION_MODEL.provider,
     },
   });
   const parsedKey = LLMApiKeySchema.safeParse(apiKey);
@@ -508,10 +518,10 @@ export const evaluate = async ({
   if (!parsedKey.success) {
     // this will fail the eval execution if a user deletes the API key.
     logger.error(
-      `Evaluating job ${event.jobExecutionId} did not find API key for provider ${template.provider} and project ${event.projectId}. Eval will fail. ${parsedKey.error}`,
+      `Evaluating job ${event.jobExecutionId} did not find API key for provider ${template.provider ?? DEFAULT_EVALUATION_MODEL.provider} and project ${event.projectId}. Eval will fail. ${parsedKey.error}`,
     );
     throw new LangfuseNotFoundError(
-      `API key for provider ${template.provider} and project ${event.projectId} not found.`,
+      `API key for provider ${template.provider ?? DEFAULT_EVALUATION_MODEL.provider} and project ${event.projectId} not found.`,
     );
   }
 
@@ -530,8 +540,8 @@ export const evaluate = async ({
         parsedKey.data,
         messages,
         modelParams,
-        template.provider,
-        template.model,
+        template.provider ?? DEFAULT_EVALUATION_MODEL.provider,
+        template.model ?? DEFAULT_EVALUATION_MODEL.model,
         evalScoreSchema,
       ),
     {

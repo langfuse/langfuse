@@ -799,9 +799,9 @@ model EvalTemplate {
   name             String
   version          Int
   prompt           String
-  model            String
-  provider         String
-  modelParams      Json               @map("model_params")
+  model            String?
+  provider         String?
+  modelParams      Json?              @map("model_params")
   vars             String[]           @default([])
   outputSchema     Json               @map("output_schema")
   JobConfiguration JobConfiguration[]

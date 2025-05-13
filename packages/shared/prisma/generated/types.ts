@@ -333,9 +333,9 @@ export type EvalTemplate = {
     name: string;
     version: number;
     prompt: string;
-    model: string;
-    provider: string;
-    model_params: unknown;
+    model: string | null;
+    provider: string | null;
+    model_params: unknown | null;
     vars: Generated<string[]>;
     output_schema: unknown;
 };
