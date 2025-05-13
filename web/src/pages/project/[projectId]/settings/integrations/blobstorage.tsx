@@ -53,6 +53,10 @@ export default function BlobStorageIntegrationSettings() {
     { projectId },
     {
       enabled: hasAccess && entitled,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 50 * 60 * 1000, // 50 minutes
     },
   );
   if (!entitled) return null;
