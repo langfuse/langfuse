@@ -186,7 +186,7 @@ export const createTempTableInClickhouse = async (
           trace_id String,
           observation_id Nullable(String)
       )  
-      ENGINE = ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ReplicatedMergeTree()" : "MergeTree()"} 
+      ENGINE = ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "MergeTree()" : "MergeTree()"} 
       PRIMARY KEY (project_id, dataset_id, run_id, trace_id)
   `;
   await commandClickhouse({
