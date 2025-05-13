@@ -48,7 +48,6 @@ export class ClickHouseClientManager {
       request_timeout: opts?.request_timeout ?? 30_000,
       // Include any other relevant config options
     };
-    console.log("stringified object", JSON.stringify(keyParams));
     return JSON.stringify(keyParams);
   }
 
@@ -61,7 +60,6 @@ export class ClickHouseClientManager {
     opts: NodeClickHouseClientConfigOptions,
   ): ClickhouseClientType {
     const key = this.generateClientSettingsKey(opts);
-    console.log("client map", this.clientMap);
     if (!this.clientMap.has(key)) {
       const headers = opts?.http_headers ?? {};
       const activeSpan = getCurrentSpan();
