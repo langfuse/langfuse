@@ -6,6 +6,7 @@ import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/Ver
 import HorizontalBarChart from "@/src/features/widgets/chart-library/HorizontalBarChart";
 import VerticalBarChart from "@/src/features/widgets/chart-library/VerticalBarChart";
 import PieChart from "@/src/features/widgets/chart-library/PieChart";
+import TableChart from "@/src/features/widgets/chart-library/TableChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
@@ -34,6 +35,8 @@ export const Chart = ({
         return <VerticalBarChart data={data.slice(0, rowLimit)} />;
       case "PIE":
         return <PieChart data={data.slice(0, rowLimit)} />;
+      case "TABLE":
+        return <TableChart data={data.slice(0, rowLimit)} />;
       default:
         return <HorizontalBarChart data={data.slice(0, rowLimit)} />;
     }

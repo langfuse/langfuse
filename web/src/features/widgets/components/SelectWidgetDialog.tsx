@@ -133,6 +133,8 @@ export function SelectWidgetDialog({
                             return "Vertical Bar Chart (Total Value)";
                           case "PIE":
                             return "Pie Chart (Total Value)";
+                          case "TABLE":
+                            return "Table";
                           default:
                             return widget.chartType;
                         }
