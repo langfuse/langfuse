@@ -88,8 +88,16 @@ export class ClickHouseClientManager {
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
+          ...(opts.request_timeout && opts.request_timeout > 30_000
+            ? {
+                send_progress_in_http_headers: 1,
+                http_headers_progress_interval_ms: "110000", // UInt64, should be passed as a string
+              }
+            : {}),
         },
-        request_timeout: opts.request_timeout ?? 30_000,
+        ...(opts.request_timeout
+          ? { request_timeout: opts.request_timeout }
+          : {}),
       });
 
       this.clientMap.set(key, client);
