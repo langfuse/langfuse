@@ -1,5 +1,5 @@
 import { JobConfigState } from "@langfuse/shared/src/db";
-import { TriggerEventSource } from "./triggerService";
+import { TriggerEventSource } from "./automationService";
 import { TriggerConfigurationDomain } from "@langfuse/shared";
 import {
   redis,

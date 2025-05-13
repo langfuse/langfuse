@@ -4,19 +4,17 @@ import {
 } from "@langfuse/shared/src/server";
 
 import {
-  ActionCreationService,
+  AutomationService,
+  AutomationServiceDelegates,
   TriggerEventSource,
-} from "../automations/triggerService";
+} from "../automations/automationService";
 import { prisma } from "@langfuse/shared/src/db";
 import { executeMemoryFilters } from "../automations/memory-filter";
 
 export const observationUpsertProcessor = async (
   observation: ObservationRecordInsertType,
 ) => {
-  const triggerService = new ActionCreationService(observation.project_id);
-  await triggerService.triggerAction({
-    eventSource: TriggerEventSource.ObservationCreated,
-    event: observation,
+  const delegates: AutomationServiceDelegates<ObservationRecordInsertType> = {
     checkTriggerAppliesToEvent: async (trigger) => {
       if (!observation.trace_id || !observation.start_time) {
         return false;
@@ -27,7 +25,6 @@ export const observationUpsertProcessor = async (
         columnMappings: [],
       });
     },
-
     getExistingJobForTrigger: async (trigger) => {
       return await prisma.jobExecution.findFirst({
         where: {
@@ -57,5 +54,14 @@ export const observationUpsertProcessor = async (
       };
       return webhookInputSchema;
     },
+  };
+
+  const triggerService = new AutomationService<ObservationRecordInsertType>(
+    observation.project_id,
+    delegates,
+  );
+
+  await triggerService.triggerAction({
+    eventSource: TriggerEventSource.ObservationCreated,
   });
 };

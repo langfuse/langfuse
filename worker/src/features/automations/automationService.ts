@@ -21,34 +21,33 @@ export enum TriggerEventSource {
   ObservationCreated = "observation.created",
 }
 
-export class ActionCreationService {
+export interface AutomationServiceDelegates<T> {
+  checkTriggerAppliesToEvent: (
+    trigger: TriggerConfigurationDomain,
+  ) => Promise<boolean>;
+  getExistingJobForTrigger: (
+    trigger: TriggerConfigurationDomain,
+  ) => Promise<JobExecution | null>;
+  createEventId: () => string;
+  convertEventToActionInput: (
+    actionConfig: ActionConfigurationDomain,
+  ) => Promise<any>;
+}
+
+export class AutomationService<T> {
   private projectId: string;
-  constructor(projectId: string) {
+  private delegates: AutomationServiceDelegates<T>;
+
+  constructor(projectId: string, delegates: AutomationServiceDelegates<T>) {
     this.projectId = projectId;
+    this.delegates = delegates;
   }
 
-  async triggerAction<T>(p: {
-    eventSource: TriggerEventSource;
-    event: T;
-    checkTriggerAppliesToEvent: (
-      trigger: TriggerConfigurationDomain,
-    ) => Promise<boolean>;
-    getExistingJobForTrigger: (
-      trigger: TriggerConfigurationDomain,
-    ) => Promise<JobExecution | null>;
-    createEventId: () => string;
-    convertEventToActionInput: (
-      actionConfig: ActionConfigurationDomain,
-    ) => Promise<any>;
-  }) {
-    const {
-      eventSource,
-      event,
-      checkTriggerAppliesToEvent,
-      getExistingJobForTrigger,
-      createEventId,
-      convertEventToActionInput,
-    } = p;
+  async triggerAction(p: { eventSource: TriggerEventSource }) {
+    const { eventSource } = p;
+
+    const { checkTriggerAppliesToEvent, getExistingJobForTrigger } =
+      this.delegates;
 
     const triggerConfigurations = await getCachedTriggerConfigs({
       projectId: this.projectId,
@@ -79,11 +78,7 @@ export class ActionCreationService {
           }
         }
 
-        await this.createAction(
-          trigger,
-          createEventId,
-          convertEventToActionInput,
-        );
+        await this.createAction(trigger);
       } else {
         logger.debug(`Trigger ${trigger.id} does not apply to event`);
         // if job exists already, we cancel the job
@@ -101,13 +96,9 @@ export class ActionCreationService {
     }
   }
 
-  private async createAction<T>(
-    trigger: TriggerConfigurationDomain,
-    createEventId: () => string,
-    convertEventToActionInput: (
-      actionConfig: ActionConfigurationDomain,
-    ) => Promise<any>,
-  ) {
+  private async createAction(trigger: TriggerConfigurationDomain) {
+    const { createEventId, convertEventToActionInput } = this.delegates;
+
     const actionConfig = await getActionConfigById({
       projectId: this.projectId,
       actionId: trigger.actionId,
