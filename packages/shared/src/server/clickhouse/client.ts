@@ -76,6 +76,10 @@ export class ClickHouseClientManager {
         cloudOptions.input_format_json_throw_on_bad_escape_sequence = 0;
       }
 
+      const langfuseDefaultSettings = {
+        lightweight_deletes_sync: 1,
+      };
+
       const client = createClient({
         ...opts,
         url: env.CLICKHOUSE_URL,
@@ -85,6 +89,7 @@ export class ClickHouseClientManager {
         http_headers: headers,
         clickhouse_settings: {
           ...cloudOptions,
+          ...langfuseDefaultSettings,
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
