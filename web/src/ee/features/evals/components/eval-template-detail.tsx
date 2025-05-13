@@ -53,10 +53,10 @@ export const EvalTemplateDetail = () => {
       scrollable
       headerProps={{
         title: `${template.data?.name}: ${templateId}`,
-        itemType: "EVAL_TEMPLATE",
+        itemType: "EVALUATOR",
         breadcrumb: [
           {
-            name: "Eval Templates",
+            name: "Evaluator Library",
             href: `/project/${router.query.projectId as string}/evals/templates`,
           },
         ],

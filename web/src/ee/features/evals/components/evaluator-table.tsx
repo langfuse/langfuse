@@ -12,7 +12,13 @@ import { type RouterOutputs, api } from "@/src/utils/api";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect } from "react";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import {
+  useQueryParams,
+  withDefault,
+  NumberParam,
+  useQueryParam,
+  StringParam,
+} from "use-query-params";
 import { z } from "zod";
 import { generateJobExecutionCounts } from "@/src/ee/features/evals/utils/job-execution-utils";
 import { evalConfigsTableColsWithOptions } from "@/src/server/api/definitions/evalConfigsTable";
@@ -56,6 +62,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const [searchQuery, setSearchQuery] = useQueryParam(
+    "search",
+    withDefault(StringParam, null),
+  );
 
   // Define default filter for target "trace"
   const defaultFilter: FilterState = [
@@ -96,6 +106,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     projectId,
     filter: filterState,
     orderBy: orderByState,
+    searchQuery: searchQuery,
   });
   const totalCount = evaluators.data?.totalCount ?? null;
 
@@ -294,6 +305,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         setFilterState={setFilterState}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        searchConfig={{
+          metadataSearchFields: ["Name"],
+          updateQuery: setSearchQuery,
+          currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
+        }}
       />
       <DataTable
         columns={columns}

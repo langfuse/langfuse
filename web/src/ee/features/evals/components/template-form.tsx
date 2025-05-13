@@ -41,6 +41,13 @@ import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 
+// TODO: replace with default model from the database
+const DEFAULT_EVALUATION_MODEL = {
+  provider: "openai",
+  model: "gpt-4o",
+  modelParams: {},
+};
+
 export const EvalTemplateForm = (props: {
   projectId: string;
   existingEvalTemplate?: EvalTemplate;
@@ -114,12 +121,17 @@ export const EvalTemplateForm = (props: {
                       reasoning: string;
                     },
                     selectedModel: {
-                      provider: props.existingEvalTemplate.provider,
-                      model: props.existingEvalTemplate.model,
-                      modelParams: props.existingEvalTemplate
-                        .modelParams as ModelParams & {
-                        maxTemperature: number;
-                      },
+                      provider:
+                        props.existingEvalTemplate.provider ??
+                        DEFAULT_EVALUATION_MODEL.provider,
+                      model:
+                        props.existingEvalTemplate.model ??
+                        DEFAULT_EVALUATION_MODEL.model,
+                      modelParams:
+                        (props.existingEvalTemplate
+                          .modelParams as ModelParams & {
+                          maxTemperature: number;
+                        }) ?? DEFAULT_EVALUATION_MODEL.modelParams,
                     },
                   }
                 : undefined

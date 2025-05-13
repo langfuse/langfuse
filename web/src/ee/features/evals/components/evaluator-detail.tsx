@@ -161,11 +161,11 @@ export const EvaluatorDetail = () => {
             />
           </div>
           <SidePanel
-            mobileTitle="Evaluator configuration"
+            mobileTitle="Running Evaluator Configuration"
             id="evaluator-configuration"
           >
             <SidePanelHeader>
-              <SidePanelTitle>Evaluator configuration</SidePanelTitle>
+              <SidePanelTitle>Running Evaluator Configuration</SidePanelTitle>
               <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="icon">
@@ -200,7 +200,7 @@ export const EvaluatorDetail = () => {
                   </span>
                   <TableLink
                     path={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplateId}`}
-                    value={`${existingEvaluator.evalTemplate.name} (v${existingEvaluator.evalTemplate.version})`}
+                    value={existingEvaluator.evalTemplate.name}
                     className="flex min-h-6 items-center"
                   />
                 </CardDescription>
