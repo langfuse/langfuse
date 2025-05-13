@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { CardContent } from "@/src/components/ui/card";
 import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
@@ -22,20 +22,22 @@ export const Chart = ({
   const [forceRender, setForceRender] = useState(false);
   const shouldWarn = data.length > 2000 && !forceRender;
 
-  const renderedData = data.map((item) => {
-    return {
-      ...item,
-      time_dimension: item.time_dimension
-        ? new Date(item.time_dimension).toLocaleTimeString("en-US", {
-            year: "2-digit",
-            month: "numeric",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : undefined,
-    };
-  });
+  const renderedData = useMemo(() => {
+    return data.map((item) => {
+      return {
+        ...item,
+        time_dimension: item.time_dimension
+          ? new Date(item.time_dimension).toLocaleTimeString("en-US", {
+              year: "2-digit",
+              month: "numeric",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : undefined,
+      };
+    });
+  }, [data]);
 
   const renderChart = () => {
     switch (chartType) {
