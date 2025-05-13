@@ -8,7 +8,10 @@ import {
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/utils/date-range-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
@@ -35,7 +38,7 @@ export function ChartScores(props: {
       props.globalFilterState,
     ),
     timeDimension: {
-      granularity: "auto",
+      granularity: dashboardDateRangeAggregationSettings[props.agg].date_trunc,
     },
     fromTimestamp: props.fromTimestamp.toISOString(),
     toTimestamp: props.toTimestamp.toISOString(),

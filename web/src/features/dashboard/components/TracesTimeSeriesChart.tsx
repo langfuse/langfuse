@@ -5,7 +5,10 @@ import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTim
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import {
@@ -36,7 +39,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: {
-      granularity: "auto",
+      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -82,7 +85,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters: mapLegacyUiTableFilterToView("observations", globalFilterState),
     timeDimension: {
-      granularity: "auto",
+      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
