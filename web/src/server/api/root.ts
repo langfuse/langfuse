@@ -20,6 +20,7 @@ import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
 import { llmToolRouter } from "@/src/features/llm-tools/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
+import { organizationApiKeysRouter } from "@/src/features/public-api/server/organizationApiKeyRouter";
 import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
 import { publicRouter } from "@/src/server/api/routers/public";
 import { credentialsRouter } from "@/src/features/auth-credentials/server/credentialsRouter";
@@ -54,6 +55,7 @@ export const appRouter = createTRPCRouter({
   scoreConfigs: scoreConfigsRouter,
   dashboard: dashboardRouter,
   organizations: organizationsRouter,
+  organizationApiKeys: organizationApiKeysRouter,
   projects: projectsRouter,
   users: userRouter,
   projectApiKeys: projectApiKeysRouter,

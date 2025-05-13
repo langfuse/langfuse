@@ -15,7 +15,7 @@ import {
   BaseError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { instrumentSync, processEventBatch } from "@langfuse/shared/src/server";
+import { processEventBatch } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -105,10 +105,7 @@ export default async function handler(
       metadata: jsonSchema.nullish(),
     });
 
-    const parsedSchema = instrumentSync(
-      { name: "ingestion-zod-parse-unknown-batch-event" },
-      () => batchType.safeParse(req.body),
-    );
+    const parsedSchema = batchType.safeParse(req.body);
 
     if (!parsedSchema.success) {
       logger.info("Invalid request data", parsedSchema.error);

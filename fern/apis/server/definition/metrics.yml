@@ -6,6 +6,54 @@ service:
   auth: true
   base-path: /api/public
   endpoints:
+    metrics:
+      docs: Get metrics from the Langfuse project using a query object
+      method: GET
+      path: /metrics
+      request:
+        name: GetMetricsRequest
+        query-parameters:
+          query:
+            type: string
+            docs: |
+              JSON string containing the query parameters with the following structure:
+              ```json
+              {
+                "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
+                "dimensions": [           // Optional. Default: []
+                  {
+                    "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
+                  }
+                ],
+                "metrics": [              // Required. At least one metric must be provided
+                  {
+                    "measure": string,    // What to measure, e.g. "count", "latency", "value"
+                    "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95"
+                  }
+                ],
+                "filters": [              // Optional. Default: []
+                  {
+                    "column": string,     // Column to filter on
+                    "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
+                    "value": any,         // Value to compare against
+                    "type": string,       // Data type, e.g. "string", "number", "stringObject"
+                    "key": string         // Required only when filtering on metadata
+                  }
+                ],
+                "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                  "granularity": string   // One of "minute", "hour", "day", "week", "month", "year", "auto"
+                },
+                "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+                "toTimestamp": string,    // Required. ISO datetime string for end of time range
+                "orderBy": [              // Optional. Default: null
+                  {
+                    "field": string,      // Field to order by
+                    "direction": string   // "asc" or "desc"
+                  }
+                ]
+              }
+              ```
+      response: MetricsResponse
     daily:
       docs: Get daily metrics of the Langfuse project
       method: GET
@@ -41,6 +89,13 @@ service:
             docs: Optional filter to only include traces and observations before a certain datetime (ISO 8601)
       response: DailyMetrics
 types:
+  MetricsResponse:
+    properties:
+      data:
+        type: list<map<string, unknown>>
+        docs: |
+          The metrics data. Each item in the list contains the metric values and dimensions requested in the query.
+          Format varies based on the query parameters.
   DailyMetrics:
     properties:
       data:

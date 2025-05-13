@@ -13,7 +13,6 @@ import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import {
   getCurrentSpan,
   instrumentAsync,
-  instrumentSync,
   recordDistribution,
   recordIncrement,
   traceException,
@@ -117,19 +116,7 @@ export const processEventBatch = async (
 
   const batch: z.infer<typeof ingestionEvent>[] = input
     .flatMap((event) => {
-      const parsed = instrumentSync(
-        { name: "ingestion-zod-parse-individual-event" },
-        (span) => {
-          const parsedBody = ingestionEvent.safeParse(event);
-          if (parsedBody.data?.id !== undefined) {
-            span.setAttribute(
-              "langfuse.ingestion.entity.id",
-              parsedBody.data.id,
-            );
-          }
-          return parsedBody;
-        },
-      );
+      const parsed = ingestionEvent.safeParse(event);
       if (!parsed.success) {
         validationErrors.push({
           id:

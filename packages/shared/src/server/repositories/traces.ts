@@ -1036,3 +1036,37 @@ export const traceWithSessionIdExists = async (
 
   return result.length > 0;
 };
+
+export async function getAgentGraphData(params: {
+  projectId: string;
+  traceId: string;
+  chMinStartTime: string;
+  chMaxStartTime: string;
+}) {
+  const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
+
+  const query = `
+          SELECT
+            id,
+            parent_observation_id,
+            metadata['langgraph_node'] AS node,
+            metadata['langgraph_step'] AS step
+          FROM
+            observations
+          WHERE
+            project_id = {projectId: String}
+            AND trace_id = {traceId: String}
+            AND start_time >= {chMinStartTime: DateTime64(3)}
+            AND start_time <= {chMaxStartTime: DateTime64(3)}
+        `;
+
+  return queryClickhouse({
+    query,
+    params: {
+      traceId,
+      projectId,
+      chMinStartTime,
+      chMaxStartTime,
+    },
+  });
+}
