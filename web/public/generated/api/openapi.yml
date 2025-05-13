@@ -1795,7 +1795,7 @@ paths:
                 }
               ],
               "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
-                "granularity": string   // One of "minute", "hour", "day", "week", "month", "year", "auto"
+                "granularity": string   // One of "minute", "hour", "day", "week", "month", "auto"
               },
               "fromTimestamp": string,  // Required. ISO datetime string for start of time range
               "toTimestamp": string,    // Required. ISO datetime string for end of time range
