@@ -9,7 +9,10 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { latencyFormatter } from "@/src/utils/numbers";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   ModelSelectorPopover,
@@ -78,7 +81,7 @@ export const GenerationLatencyChart = ({
       },
     ],
     timeDimension: {
-      granularity: "auto",
+      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),

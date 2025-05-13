@@ -12,7 +12,7 @@ import {
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
 } from "./constants";
 
-export type DateTrunc = "year" | "month" | "week" | "day" | "hour" | "minute";
+export type DateTrunc = "month" | "week" | "day" | "hour" | "minute";
 
 const extractEnvironmentFilterFromFilters = (
   filter: FilterState,
