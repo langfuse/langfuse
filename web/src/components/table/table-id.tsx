@@ -1,6 +1,6 @@
 import { cn } from "@/src/utils/tailwind";
 
-export default function TableId({
+export default function TableIdOrName({
   value,
   className,
 }: {

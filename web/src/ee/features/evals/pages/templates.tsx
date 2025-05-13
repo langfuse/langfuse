@@ -33,21 +33,21 @@ export default function TemplatesPage() {
   return (
     <Page
       headerProps={{
-        title: "Evaluators",
+        title: "Online Evaluation",
         help: {
-          description:
-            "Create an evaluation template. Choose from one of the pre-defined templates or create your own.",
+          description: "View all langfuse managed and custom evaluators.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         },
         tabsComponent: (
           <TabsBar value="templates">
             <TabsBarList>
-              <TabsBarTrigger value="evaluators" asChild>
-                <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
+              <TabsBarTrigger value="configs" asChild>
+                <Link href={`/project/${projectId}/evals`}>
+                  Running Evaluators
+                </Link>
               </TabsBarTrigger>
-              <TabsBarTrigger value="templates">Templates</TabsBarTrigger>
-              <TabsBarTrigger value="log" asChild>
-                <Link href={`/project/${projectId}/evals/log`}>Log</Link>
+              <TabsBarTrigger value="templates">
+                Evaluator Library
               </TabsBarTrigger>
             </TabsBarList>
           </TabsBar>
@@ -71,7 +71,7 @@ export default function TemplatesPage() {
               ) : (
                 <Lock className="mr-2 h-4 w-4" />
               )}
-              New Template
+              Custom Evaluator
             </Link>
           </Button>
         ),

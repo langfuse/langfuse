@@ -46,7 +46,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import TableId from "@/src/components/table/table-id";
+import TableIdOrName from "@/src/components/table/table-id";
 
 export type ScoresTableRow = {
   id: string;
@@ -265,7 +265,7 @@ export default function ScoresTable({
       cell: ({ row }) => {
         const value = row.getValue("id");
         return typeof value === "string" ? (
-          <TableId value={value} />
+          <TableIdOrName value={value} />
         ) : undefined;
       },
     },

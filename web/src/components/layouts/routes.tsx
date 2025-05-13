@@ -113,7 +113,7 @@ export const ROUTES: Route[] = [
         entitlements: ["annotation-queues"],
       },
       {
-        title: "LLM-as-a-Judge",
+        title: "Online Evaluation",
         pathname: `/project/[projectId]/evals`,
         entitlements: ["model-based-evaluations"],
         projectRbacScopes: ["evalJob:read"],

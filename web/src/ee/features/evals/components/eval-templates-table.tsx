@@ -9,6 +9,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type EvalsTemplateRow = {
   name: string;
+  maintainer: string;
   latestCreatedAt?: Date;
   latestVersion?: number;
   latestId?: string;

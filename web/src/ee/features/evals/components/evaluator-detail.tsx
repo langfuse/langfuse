@@ -106,7 +106,7 @@ export const EvaluatorDetail = () => {
         itemType: "EVALUATOR",
         breadcrumb: [
           {
-            name: "Evaluators",
+            name: "Online Evaluation",
             href: `/project/${router.query.projectId as string}/evals`,
           },
         ],

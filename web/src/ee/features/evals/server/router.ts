@@ -17,6 +17,7 @@ import {
   Prisma,
   TimeScopeSchema,
   JobConfigState,
+  orderBy,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -30,6 +31,8 @@ import {
   QueueJobs,
   LLMApiKeySchema,
   ChatMessageType,
+  tableColumnsToSqlFilterAndPrefix,
+  orderByToPrismaSql,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
@@ -40,6 +43,7 @@ import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { type PrismaClient } from "@prisma/client";
 import { type JobExecutionState } from "@/src/ee/features/evals/utils/job-execution-utils";
+import { evalConfigsTableCols } from "@/src/server/api/definitions/evalConfigsTable";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -170,6 +174,13 @@ export const calculateEvaluatorFinalStatus = (
   return status;
 };
 
+const ConfigFilterOptions = z.object({
+  projectId: z.string(), // Required for protectedProjectProcedure
+  filter: z.array(singleFilter),
+  orderBy: orderBy,
+  ...paginationZod,
+});
+
 export const evalRouter = createTRPCRouter({
   globalJobConfigs: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -232,12 +243,7 @@ export const evalRouter = createTRPCRouter({
       };
     }),
   allConfigs: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        ...paginationZod,
-      }),
-    )
+    .input(ConfigFilterOptions)
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
         entitlement: "model-based-evaluations",
@@ -251,27 +257,64 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const configs = await ctx.prisma.jobConfiguration.findMany({
-        where: {
-          projectId: input.projectId,
-          jobType: "EVAL",
-        },
-        include: {
-          evalTemplate: true,
-        },
-        orderBy: {
-          status: "asc",
-        },
-        take: input.limit,
-        skip: input.page * input.limit,
-      });
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter,
+        evalConfigsTableCols,
+        "job_configurations",
+      );
 
-      const count = await ctx.prisma.jobConfiguration.count({
-        where: {
-          projectId: input.projectId,
-          jobType: "EVAL",
-        },
-      });
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        evalConfigsTableCols,
+      );
+
+      const [configs, configsCount] = await Promise.all([
+        // job configs with their templates
+        ctx.prisma.$queryRaw<
+          Array<
+            Omit<
+              JobConfiguration,
+              "projectId" | "jobType" | "variableMapping" | "sampling" | "delay"
+            > & {
+              templateName: string;
+              templateVersion: number;
+              templateProjectId: string;
+            }
+          >
+        >(
+          generateConfigsQuery(
+            Prisma.sql`
+            jc.id,
+            jc.status,
+            jc.created_at as "createdAt",
+            jc.updated_at as "updatedAt",
+            jc.score_name as "scoreName",
+            jc.target_object as "targetObject",
+            jc.filter as "filter",
+            jc.time_scope as "timeScope",
+            et.id as "evalTemplateId",
+            et.name as "templateName",
+            et.version as "templateVersion",
+            et.project_id as "templateProjectId"`,
+            input.projectId,
+            filterCondition,
+            orderByCondition,
+            input.limit,
+            input.page,
+          ),
+        ),
+        // count
+        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+          generateConfigsQuery(
+            Prisma.sql`count(*) AS "totalCount"`,
+            input.projectId,
+            filterCondition,
+            Prisma.empty,
+            1, // limit
+            0, // page
+          ),
+        ),
+      ]);
 
       const jobExecutionsByState = await fetchJobExecutionsByState({
         prisma: ctx.prisma,
@@ -282,6 +325,14 @@ export const evalRouter = createTRPCRouter({
       return {
         configs: configs.map((config) => ({
           ...config,
+          evalTemplate: config.evalTemplateId
+            ? {
+                id: config.evalTemplateId,
+                name: config.templateName,
+                version: config.templateVersion,
+                projectId: config.templateProjectId,
+              }
+            : null,
           jobExecutionsByState: jobExecutionsByState.filter(
             (je) => je.jobConfigurationId === config.id,
           ),
@@ -293,7 +344,8 @@ export const evalRouter = createTRPCRouter({
             ),
           ),
         })),
-        totalCount: count,
+        totalCount:
+          configsCount.length > 0 ? Number(configsCount[0]?.totalCount) : 0,
       };
     }),
 
@@ -407,9 +459,9 @@ export const evalRouter = createTRPCRouter({
           name,
           MAX(version) as version,
           MAX(created_at) as "latestCreatedAt",
-          (SELECT id FROM "eval_templates" WHERE "project_id" = ${input.projectId} AND name = et.name ORDER BY version DESC LIMIT 1) as "latestId"
+          (SELECT id FROM "eval_templates" WHERE "project_id" = ${input.projectId} OR "project_id" IS NULL AND name = et.name ORDER BY version DESC LIMIT 1) as "latestId"
         FROM "eval_templates" as et
-        WHERE "project_id" = ${input.projectId}
+        WHERE "project_id" = ${input.projectId} OR "project_id" IS NULL
         GROUP BY name
         ORDER BY name
         LIMIT ${input.limit}
@@ -472,7 +524,7 @@ export const evalRouter = createTRPCRouter({
 
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
-          projectId: input.projectId,
+          OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
         },
         ...(input.limit && input.page
@@ -482,7 +534,7 @@ export const evalRouter = createTRPCRouter({
 
       const count = await ctx.prisma.evalTemplate.count({
         where: {
-          projectId: input.projectId,
+          OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
         },
       });
@@ -1168,4 +1220,54 @@ export const evalRouter = createTRPCRouter({
 
       return evaluators;
     }),
+
+  configFilterOptions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const [targets] = await Promise.all([
+        ctx.prisma.jobConfiguration.groupBy({
+          where: {
+            projectId: input.projectId,
+          },
+          by: ["targetObject"],
+        }),
+      ]);
+
+      return {
+        target: targets.map((t) => ({ value: t.targetObject })),
+      };
+    }),
 });
+
+// Add the generateConfigsQuery function similar to generatePromptQuery
+const generateConfigsQuery = (
+  select: Prisma.Sql,
+  projectId: string,
+  filterCondition: Prisma.Sql,
+  orderCondition: Prisma.Sql,
+  limit: number,
+  page: number,
+) => {
+  return Prisma.sql`
+  SELECT
+   ${select}
+   FROM job_configurations jc
+   LEFT JOIN eval_templates et ON jc.eval_template_id = et.id
+   WHERE jc.project_id = ${projectId}
+   AND jc.job_type = 'EVAL'
+   ${filterCondition}
+   ${orderCondition}
+   LIMIT ${limit} OFFSET ${page * limit};
+  `;
+};
