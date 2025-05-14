@@ -225,6 +225,14 @@ const EnvSchema = z.object({
     .default("false"),
 
   LANGFUSE_S3_CONCURRENT_READS: z.coerce.number().positive().default(50),
+  LANGFUSE_CLICKHOUSE_PROJECT_DELETION_CONCURRENCY_DURATION_MS: z.coerce
+    .number()
+    .positive()
+    .default(600_000), // 10 minutes
+  LANGFUSE_CLICKHOUSE_TRACE_DELETION_CONCURRENCY_DURATION_MS: z.coerce
+    .number()
+    .positive()
+    .default(120_000), // 2 minutes
 });
 
 export const env: z.infer<typeof EnvSchema> =
