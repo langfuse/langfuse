@@ -56,10 +56,10 @@ export class PromptService {
     if ((await this.shouldUseCache(params)) && dbPrompt) {
       await this.cachePrompt({ ...params, prompt: dbPrompt });
 
-      this.logInfo("Successfully cached prompt for params", params);
+      this.logDebug("Successfully cached prompt for params", params);
     }
 
-    this.logInfo("Returning DB prompt for params", params);
+    this.logDebug("Returning DB prompt for params", params);
 
     return dbPrompt;
   }
