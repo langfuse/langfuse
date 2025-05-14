@@ -50,7 +50,6 @@ export default function DashboardDetail() {
   const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
     widgets: WidgetPlacement[];
   } | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // State for the widget selection dialog
   const [isWidgetDialogOpen, setIsWidgetDialogOpen] = useState(false);
@@ -64,7 +63,6 @@ export default function DashboardDetail() {
           description: "Your changes have been saved automatically",
           duration: 2000,
         });
-        setHasUnsavedChanges(false);
         // Invalidate the dashboard query to refetch the data
         dashboard.refetch();
       },
@@ -218,7 +216,6 @@ export default function DashboardDetail() {
       };
       setLocalDashboardDefinition(updatedDefinition);
 
-      setHasUnsavedChanges(true);
       setTimeout(() => {
         saveDashboardChanges(updatedDefinition);
       }, 500);
@@ -259,7 +256,6 @@ export default function DashboardDetail() {
       };
       setLocalDashboardDefinition(updatedDefinition);
 
-      setHasUnsavedChanges(true);
       setTimeout(() => {
         saveDashboardChanges(updatedDefinition);
       }, 500);
