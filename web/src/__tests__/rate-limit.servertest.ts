@@ -111,8 +111,8 @@ describe("RateLimitService", () => {
     expect(result?.res).toEqual({
       scope: scope,
       resource: "public-api",
-      points: 20,
-      remainingPoints: 18,
+      points: 30,
+      remainingPoints: 28,
       msBeforeNext: expect.any(Number),
       consumedPoints: 2,
       isFirstInDuration: false,
