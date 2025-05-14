@@ -13,6 +13,7 @@ import {
   FilterList,
   createFilterFromFilterState,
 } from "@langfuse/shared/src/server";
+import { InvalidRequestError } from "@langfuse/shared";
 
 type AppliedDimensionType = {
   table: string;
@@ -56,7 +57,7 @@ export class QueryBuilder {
       default:
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const exhaustiveCheck: never = aggregation;
-        throw new Error(`Invalid aggregation: ${aggregation}`);
+        throw new InvalidRequestError(`Invalid aggregation: ${aggregation}`);
     }
   }
 
@@ -64,7 +65,7 @@ export class QueryBuilder {
     viewName: z.infer<typeof views>,
   ): ViewDeclarationType {
     if (!(viewName in viewDeclarations)) {
-      throw new Error(
+      throw new InvalidRequestError(
         `Invalid view. Must be one of ${Object.keys(viewDeclarations)}`,
       );
     }
@@ -77,7 +78,7 @@ export class QueryBuilder {
   ): AppliedDimensionType[] {
     return dimensions.map((dimension) => {
       if (!(dimension.field in view.dimensions)) {
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid dimension ${dimension.field}. Must be one of ${Object.keys(view.dimensions)}`,
         );
       }
@@ -95,7 +96,7 @@ export class QueryBuilder {
   ): AppliedMetricType[] {
     return metrics.map((metric) => {
       if (!(metric.measure in view.measures)) {
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid metric ${metric.measure}. Must be one of ${Object.keys(view.measures)}`,
         );
       }
@@ -138,7 +139,7 @@ export class QueryBuilder {
         clickhouseSelect = "metadata";
         type = "stringObject";
       } else {
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${view.timeDimension}`,
         );
       }
@@ -281,7 +282,7 @@ export class QueryBuilder {
     const relationJoins = [];
     for (const relationTableName of relationTables) {
       if (!(relationTableName in view.tableRelations)) {
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid relationTable: ${relationTableName}. Must be one of ${Object.keys(view.tableRelations)}`,
         );
       }
@@ -393,7 +394,7 @@ export class QueryBuilder {
       default:
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const exhaustiveCheck: never = granularity;
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid time granularity: ${granularity}. Must be one of minute, hour, day, week, month`,
         );
     }
@@ -659,7 +660,7 @@ export class QueryBuilder {
         }
       }
 
-      throw new Error(
+      throw new InvalidRequestError(
         `Invalid orderBy field: ${item.field}. Must be one of the dimension or metric fields.`,
       );
     });
@@ -709,7 +710,7 @@ export class QueryBuilder {
     // Run zod validation
     const parseResult = queryModel.safeParse(query);
     if (!parseResult.success) {
-      throw new Error(
+      throw new InvalidRequestError(
         `Invalid query: ${JSON.stringify(parseResult.error.errors)}`,
       );
     }
