@@ -570,7 +570,7 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
       traceIds,
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",
@@ -597,7 +597,7 @@ export const deleteTracesOlderThanDays = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",
@@ -619,7 +619,7 @@ export const deleteTracesByProjectId = async (projectId: string) => {
       projectId,
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",

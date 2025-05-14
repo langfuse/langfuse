@@ -82,7 +82,7 @@ export const ModelUsageChart = ({
       },
     ],
     timeDimension: {
-      granularity: "auto",
+      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),

@@ -173,9 +173,6 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
-    // Database exports
-    DB_EXPORT_PAGE_SIZE: z.number().optional(),
-
     TURNSTILE_SECRET_KEY: z.string().optional(),
 
     // Otel
@@ -495,8 +492,6 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE,
     LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS:
       process.env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS,
-    // Database exports
-    DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
     // Worker
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,

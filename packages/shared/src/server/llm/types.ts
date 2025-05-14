@@ -71,7 +71,13 @@ export const OpenAIToolCallSchema = z.object({
       z.record(z.string(), z.unknown()),
       z
         .string()
-        .transform((v) => JSON.parse(v))
+        .transform((v) => {
+          try {
+            return JSON.parse(v);
+          } catch {
+            return v;
+          }
+        })
         .pipe(z.record(z.string(), z.unknown())),
     ]),
   }),

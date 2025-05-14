@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -11,15 +11,19 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Trash } from "lucide-react";
-import { useState } from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { Copy, Edit } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { DeleteDashboardButton } from "@/src/components/deleteButton";
+import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 
 type DashboardTableRow = {
   id: string;
@@ -29,63 +33,96 @@ type DashboardTableRow = {
   updatedAt: Date;
 };
 
-function DeleteDashboard({ dashboardId }: { dashboardId: string }) {
-  const projectId = useProjectIdFromURL();
+function CloneDashboardButton({
+  dashboardId,
+  projectId,
+}: {
+  dashboardId: string;
+  projectId: string;
+}) {
   const utils = api.useUtils();
-  const [isOpen, setIsOpen] = useState(false);
   const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
   const capture = usePostHogClientCapture();
 
-  const mutDeleteDashboard = api.dashboard.delete.useMutation({
+  const mutCloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: () => {
       void utils.dashboard.invalidate();
-      capture("dashboard:delete_dashboard_form_open");
+      capture("dashboard:clone_dashboard");
+      showSuccessToast({
+        title: "Dashboard cloned",
+        description: "The dashboard has been cloned successfully",
+      });
     },
     onError: (e) => {
-      showErrorToast("Failed to delete dashboard", e.message);
+      showErrorToast("Failed to clone dashboard", e.message);
     },
   });
 
-  return (
-    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="xs" disabled={!hasAccess}>
-          <Trash className="h-4 w-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
-        <p className="mb-3 text-sm">
-          This action permanently deletes this dashboard and cannot be undone.
-        </p>
-        <div className="flex justify-end space-x-4">
-          <Button
-            type="button"
-            variant="destructive"
-            loading={mutDeleteDashboard.isLoading}
-            onClick={() => {
-              if (!projectId) {
-                console.error("Project ID is missing");
-                return;
-              }
+  const handleCloneDashboard = () => {
+    if (!projectId) {
+      console.error("Project ID is missing");
+      return;
+    }
 
-              void mutDeleteDashboard.mutateAsync({
-                projectId,
-                dashboardId,
-              });
-              setIsOpen(false);
-            }}
-          >
-            Delete Dashboard
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+    void mutCloneDashboard.mutateAsync({
+      projectId,
+      dashboardId,
+    });
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="default"
+      disabled={!hasAccess}
+      onClick={handleCloneDashboard}
+    >
+      <Copy className="mr-2 h-4 w-4" />
+      Clone
+    </Button>
+  );
+}
+
+function EditDashboardButton({
+  dashboardId,
+  projectId,
+  dashboardName,
+  dashboardDescription,
+}: {
+  dashboardId: string;
+  projectId: string;
+  dashboardName: string;
+  dashboardDescription: string;
+}) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="default"
+        disabled={!hasAccess}
+        onClick={() => setIsDialogOpen(true)}
+      >
+        <Edit className="mr-2 h-4 w-4" />
+        Edit
+      </Button>
+
+      <EditDashboardDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        projectId={projectId}
+        dashboardId={dashboardId}
+        initialName={dashboardName}
+        initialDescription={dashboardDescription}
+      />
+    </>
   );
 }
 
 export function DashboardTable() {
-  const projectId = useProjectIdFromURL();
+  const projectId = useProjectIdFromURL() as string;
   const { setDetailPageList } = useDetailPageLists();
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -175,7 +212,37 @@ export function DashboardTable() {
       size: 70,
       cell: (row) => {
         const id = row.row.original.id;
-        return <DeleteDashboard dashboardId={id} />;
+        const name = row.row.original.name;
+        const description = row.row.original.description;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+              <DropdownMenuItem asChild>
+                <EditDashboardButton
+                  dashboardId={id}
+                  projectId={projectId}
+                  dashboardName={name}
+                  dashboardDescription={description}
+                />
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <CloneDashboardButton dashboardId={id} projectId={projectId} />
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <DeleteDashboardButton
+                  itemId={id}
+                  projectId={projectId}
+                  isTableAction
+                />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
       },
     }),
   ] as LangfuseColumnDef<DashboardTableRow>[];

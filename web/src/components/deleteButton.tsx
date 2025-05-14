@@ -243,6 +243,49 @@ export function DeleteDatasetButton(props: DeleteButtonProps) {
   );
 }
 
+export function DeleteDashboardButton(props: DeleteButtonProps) {
+  const utils = api.useUtils();
+  const {
+    itemId,
+    projectId,
+    scope = "dashboards:CUD",
+    invalidateFunc = () => void utils.dashboard.invalidate(),
+  } = props;
+  const dashboardMutation = api.dashboard.delete.useMutation();
+  const executeDeleteMutation = async (onSuccess: () => void) => {
+    try {
+      await dashboardMutation.mutateAsync({
+        dashboardId: itemId,
+        projectId,
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    showSuccessToast({
+      title: "Dashboard deleted",
+      description: "The dashboard has been deleted successfully",
+    });
+    onSuccess();
+  };
+
+  return (
+    <DeleteButton
+      {...props}
+      scope={scope}
+      invalidateFunc={invalidateFunc}
+      captureDeleteOpen={(capture) =>
+        capture("dashboard:delete_dashboard_form_open")
+      }
+      captureDeleteSuccess={(capture) =>
+        capture("dashboard:delete_dashboard_button_click")
+      }
+      entityToDeleteName="dashboard"
+      executeDeleteMutation={executeDeleteMutation}
+      isDeleteMutationLoading={dashboardMutation.isLoading}
+    />
+  );
+}
+
 export function DeleteEvaluatorButton(props: DeleteButtonProps) {
   const utils = api.useUtils();
   const {

@@ -285,12 +285,14 @@ export const getObservationById = async ({
   fetchWithInputOutput = false,
   startTime,
   type,
+  traceId,
 }: {
   id: string;
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
   type?: ObservationType;
+  traceId?: string;
 }) => {
   const records = await getObservationByIdInternal({
     id,
@@ -298,6 +300,7 @@ export const getObservationById = async ({
     fetchWithInputOutput,
     startTime,
     type,
+    traceId,
   });
   const mapped = records.map(convertObservation);
 
@@ -369,12 +372,14 @@ const getObservationByIdInternal = async ({
   fetchWithInputOutput = false,
   startTime,
   type,
+  traceId,
 }: {
   id: string;
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
   type?: ObservationType;
+  traceId?: string;
 }) => {
   const query = `
   SELECT
@@ -412,6 +417,7 @@ const getObservationByIdInternal = async ({
   AND project_id = {projectId: String}
   ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
   ${type ? `AND type = {type: String}` : ""}
+  ${traceId ? `AND trace_id = {traceId: String}` : ""}
   ORDER BY event_ts desc
   LIMIT 1 by id, project_id`;
   return await queryClickhouse<ObservationRecordReadType>({
@@ -422,6 +428,7 @@ const getObservationByIdInternal = async ({
       ...(startTime
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
         : {}),
+      ...(traceId ? { traceId } : {}),
     },
     tags: {
       feature: "tracing",
@@ -1039,7 +1046,7 @@ export const deleteObservationsByTraceIds = async (
       traceIds,
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",
@@ -1061,7 +1068,7 @@ export const deleteObservationsByProjectId = async (projectId: string) => {
       projectId,
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",
@@ -1088,7 +1095,7 @@ export const deleteObservationsOlderThanDays = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",

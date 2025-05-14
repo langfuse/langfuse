@@ -6,7 +6,7 @@ import { DashboardWidget } from "@/src/features/widgets";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
@@ -31,9 +31,10 @@ interface WidgetPlacement {
 
 export default function DashboardDetail() {
   const router = useRouter();
-  const { projectId, dashboardId } = router.query as {
+  const { projectId, dashboardId, addWidgetId } = router.query as {
     projectId: string;
     dashboardId: string;
+    addWidgetId?: string;
   };
 
   const hasCUDAccess = useHasProjectAccess({
@@ -71,6 +72,50 @@ export default function DashboardDetail() {
         showErrorToast("Error updating dashboard", error.message);
       },
     });
+
+  // Helper function to add a widget to the dashboard
+  const addWidgetToDashboard = useCallback(
+    (widget: WidgetItem) => {
+      if (!localDashboardDefinition) return;
+
+      // Find the maximum y position to place the new widget at the bottom
+      const maxY =
+        localDashboardDefinition.widgets.length > 0
+          ? Math.max(
+              ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
+            )
+          : 0;
+
+      // Create a new widget placement
+      const newWidgetPlacement: WidgetPlacement = {
+        id: uuidv4(),
+        widgetId: widget.id,
+        x: 0, // Start at left
+        y: maxY, // Place below existing widgets
+        x_size: 6, // Default size (half of 12-column grid)
+        y_size: 2, // Default height of 2 rows
+        type: "widget",
+      };
+
+      // Add the widget to the local dashboard definition
+      setLocalDashboardDefinition({
+        ...localDashboardDefinition,
+        widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
+      });
+
+      setHasUnsavedChanges(true);
+
+      showSuccessToast({
+        title: "Widget added",
+        description: `"${widget.name}" has been added to the dashboard. Click Save to apply changes.`,
+      });
+    },
+    [
+      localDashboardDefinition,
+      setLocalDashboardDefinition,
+      setHasUnsavedChanges,
+    ],
+  );
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
@@ -186,11 +231,44 @@ export default function DashboardDetail() {
     },
   );
 
+  // Fetch widget data if addWidgetId is present
+  const widgetToAdd = api.dashboardWidgets.get.useQuery(
+    { projectId, widgetId: addWidgetId || "" },
+    {
+      enabled: Boolean(projectId) && Boolean(addWidgetId),
+    },
+  );
+
   useEffect(() => {
     if (dashboard.data && !localDashboardDefinition) {
       setLocalDashboardDefinition(dashboard.data.definition);
     }
   }, [dashboard.data, localDashboardDefinition]);
+
+  useEffect(() => {
+    if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
+      if (
+        !localDashboardDefinition.widgets.some(
+          (w) => w.widgetId === addWidgetId,
+        )
+      ) {
+        addWidgetToDashboard(widgetToAdd.data);
+      }
+      // Remove the addWidgetId query parameter
+      router.replace({
+        pathname: router.pathname,
+        query: { projectId, dashboardId },
+      });
+    }
+  }, [
+    widgetToAdd.data,
+    addWidgetId,
+    addWidgetToDashboard,
+    localDashboardDefinition,
+    projectId,
+    dashboardId,
+    router,
+  ]);
 
   // Handle deleting a widget
   const handleDeleteWidget = (tileId: string) => {
@@ -215,39 +293,7 @@ export default function DashboardDetail() {
 
   // Handle widget selection from dialog
   const handleSelectWidget = (widget: WidgetItem) => {
-    if (localDashboardDefinition) {
-      // Find the maximum y position to place the new widget at the bottom
-      const maxY =
-        localDashboardDefinition.widgets.length > 0
-          ? Math.max(
-              ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
-            )
-          : 0;
-
-      // Create a new widget placement
-      const newWidgetPlacement: WidgetPlacement = {
-        id: uuidv4(),
-        widgetId: widget.id,
-        x: 0, // Start at left
-        y: maxY, // Place below existing widgets
-        x_size: 6, // Default size (half of 12-column grid)
-        y_size: 2, // Default height of 2 rows
-        type: "widget",
-      };
-
-      // Add the widget to the local dashboard definition
-      setLocalDashboardDefinition({
-        ...localDashboardDefinition,
-        widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
-      });
-
-      setHasUnsavedChanges(true);
-
-      showSuccessToast({
-        title: "Widget added",
-        description: `"${widget.name}" has been added to the dashboard. Click Save to apply changes.`,
-      });
-    }
+    addWidgetToDashboard(widget);
   };
 
   // Handle saving the dashboard
@@ -268,6 +314,7 @@ export default function DashboardDetail() {
         onOpenChange={setIsWidgetDialogOpen}
         projectId={projectId}
         onSelectWidget={handleSelectWidget}
+        dashboardId={dashboardId}
       />
 
       <Page
