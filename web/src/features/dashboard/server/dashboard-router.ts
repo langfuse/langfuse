@@ -56,6 +56,12 @@ const CreateDashboardInput = z.object({
   description: z.string(),
 });
 
+// Clone dashboard input schema
+const CloneDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+});
+
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
     .input(
@@ -220,6 +226,40 @@ export const dashboardRouter = createTRPCRouter({
       );
 
       return dashboard;
+    }),
+
+  cloneDashboard: protectedProjectProcedure
+    .input(CloneDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      // Get the source dashboard
+      const sourceDashboard = await DashboardService.getDashboard(
+        input.dashboardId,
+        input.projectId,
+      );
+
+      if (!sourceDashboard) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Source dashboard not found",
+        });
+      }
+
+      // Create a new dashboard with the same data but modified name
+      const clonedDashboard = await DashboardService.createDashboard(
+        input.projectId,
+        `${sourceDashboard.name} (Clone)`,
+        sourceDashboard.description,
+        ctx.session.user.id,
+        sourceDashboard.definition,
+      );
+
+      return clonedDashboard;
     }),
 
   // Delete dashboard input schema

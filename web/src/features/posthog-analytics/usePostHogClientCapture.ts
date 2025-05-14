@@ -104,6 +104,7 @@ const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "clone_dashboard",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",

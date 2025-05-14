@@ -11,7 +11,7 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Trash } from "lucide-react";
+import { Copy, Trash } from "lucide-react";
 import { useState } from "react";
 import {
   Popover,
@@ -20,6 +20,7 @@ import {
 } from "@/src/components/ui/popover";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 type DashboardTableRow = {
   id: string;
@@ -81,6 +82,51 @@ function DeleteDashboard({ dashboardId }: { dashboardId: string }) {
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function CloneDashboard({ dashboardId }: { dashboardId: string }) {
+  const projectId = useProjectIdFromURL();
+  const utils = api.useUtils();
+  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+  const capture = usePostHogClientCapture();
+
+  const mutCloneDashboard = api.dashboard.cloneDashboard.useMutation({
+    onSuccess: () => {
+      void utils.dashboard.invalidate();
+      capture("dashboard:clone_dashboard");
+      showSuccessToast({
+        title: "Dashboard cloned",
+        description: "The dashboard has been cloned successfully",
+      });
+    },
+    onError: (e) => {
+      showErrorToast("Failed to clone dashboard", e.message);
+    },
+  });
+
+  const handleCloneDashboard = () => {
+    if (!projectId) {
+      console.error("Project ID is missing");
+      return;
+    }
+
+    void mutCloneDashboard.mutateAsync({
+      projectId,
+      dashboardId,
+    });
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="xs"
+      disabled={!hasAccess}
+      onClick={handleCloneDashboard}
+      title="Clone dashboard"
+    >
+      <Copy className="h-4 w-4" />
+    </Button>
   );
 }
 
@@ -175,7 +221,12 @@ export function DashboardTable() {
       size: 70,
       cell: (row) => {
         const id = row.row.original.id;
-        return <DeleteDashboard dashboardId={id} />;
+        return (
+          <div className="flex">
+            <CloneDashboard dashboardId={id} />
+            <DeleteDashboard dashboardId={id} />
+          </div>
+        );
       },
     }),
   ] as LangfuseColumnDef<DashboardTableRow>[];
