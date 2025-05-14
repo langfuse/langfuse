@@ -16,6 +16,15 @@ import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/ui/switch";
+import { Command, CommandInput } from "@/src/components/ui/command";
+import { Badge } from "@/src/components/ui/badge";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
+import {
+  SidePanel,
+  SidePanelContent,
+  SidePanelHeader,
+  SidePanelTitle,
+} from "@/src/components/ui/side-panel";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -23,6 +32,9 @@ export const EvalTemplateDetail = () => {
   const templateId = router.query.id as string;
 
   const [isEditing, setIsEditing] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<EvalTemplate | null>(
+    null,
+  );
 
   // get the current template by id
   const template = api.evals.templateById.useQuery({
@@ -44,12 +56,30 @@ export const EvalTemplateDetail = () => {
     },
   );
 
+  // Set the selected template when data is loaded
+  React.useEffect(() => {
+    if (template.data && !selectedTemplate) {
+      setSelectedTemplate(template.data);
+    }
+  }, [template.data, selectedTemplate]);
+
+  const handleTemplateSelect = (newTemplate: EvalTemplate) => {
+    setSelectedTemplate(newTemplate);
+    // Update URL without full page reload
+    router.push(
+      `/project/${projectId}/evals/templates/${newTemplate.id}`,
+      undefined,
+      { shallow: true },
+    );
+  };
+
+  // Get the appropriate template to display
+  const displayTemplate = selectedTemplate || template.data;
+
   return (
     <Page
-      withPadding
-      scrollable
       headerProps={{
-        title: `${template.data?.name}: ${templateId}`,
+        title: `${displayTemplate?.name || ""}`,
         itemType: "EVALUATOR",
         breadcrumb: [
           {
@@ -81,15 +111,82 @@ export const EvalTemplateDetail = () => {
         ),
       }}
     >
-      {allTemplates.isLoading || !allTemplates.data ? (
+      {allTemplates.isLoading || !allTemplates.data || !displayTemplate ? (
         <div className="p-3">Loading...</div>
+      ) : isEditing ? (
+        <div className="overflow-y-auto p-3 pt-1">
+          <EvalTemplateForm
+            projectId={projectId}
+            existingEvalTemplate={displayTemplate}
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
+          />
+        </div>
       ) : (
-        <EvalTemplateForm
-          projectId={projectId}
-          existingEvalTemplate={template.data ?? undefined}
-          isEditing={isEditing}
-          setIsEditing={setIsEditing}
-        />
+        <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden contain-layout">
+          <div className="flex max-h-full min-h-0 flex-col overflow-y-auto px-3 pt-1">
+            <EvalTemplateForm
+              projectId={projectId}
+              existingEvalTemplate={displayTemplate}
+              isEditing={isEditing}
+              setIsEditing={setIsEditing}
+            />
+          </div>
+          <SidePanel mobileTitle="Version history" id="version-history">
+            <SidePanelHeader>
+              <SidePanelTitle className="text-base font-semibold">
+                Version history
+              </SidePanelTitle>
+            </SidePanelHeader>
+            <SidePanelContent>
+              <Command className="flex flex-col gap-2 overflow-y-auto rounded-none font-medium focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 data-[focus]:ring-0">
+                <div className="flex items-center justify-between px-3">
+                  <CommandInput
+                    showBorder={false}
+                    placeholder="Search version history"
+                    className="h-fit border-none py-0 text-sm font-light text-muted-foreground focus:ring-0"
+                  />
+                </div>
+                <div className="flex flex-col overflow-y-auto">
+                  {allTemplates.data.templates.map((template, index) => (
+                    <div
+                      key={template.id}
+                      className={`flex cursor-pointer flex-col rounded-md px-2 py-1.5 hover:bg-accent ${
+                        template.id === displayTemplate.id ? "bg-accent" : ""
+                      }`}
+                      onClick={() => handleTemplateSelect(template)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Badge
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            variant="outline"
+                            className="h-6 shrink-0 bg-background/50"
+                            data-version-trigger="false"
+                          >
+                            # {template.version}
+                          </Badge>
+                          {index === 0 && (
+                            <StatusBadge
+                              type="active"
+                              key="active"
+                              className="break-all sm:break-normal"
+                            />
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {template.createdAt.toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Command>
+            </SidePanelContent>
+          </SidePanel>
+        </div>
       )}
     </Page>
   );
@@ -156,7 +253,7 @@ export function UpdateTemplate({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-medium">Enable Edits</span>
+      <span className="text-sm font-medium">Edit Mode</span>
       <Switch
         checked={isEditing}
         onCheckedChange={handlePromptEdit}

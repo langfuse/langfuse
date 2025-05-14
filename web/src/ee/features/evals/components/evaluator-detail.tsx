@@ -18,7 +18,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { CardDescription } from "@/src/components/ui/card";
 import { EvaluatorStatus } from "@/src/ee/features/evals/types";
 import { Switch } from "@/src/components/ui/switch";
-import { Edit } from "lucide-react";
+import { Edit, MoreVertical } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +38,12 @@ import {
   generateJobExecutionCounts,
 } from "@/src/ee/features/evals/utils/job-execution-utils";
 import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
+import {
+  DropdownMenuItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/ui/dropdown-menu";
 
 const JobExecutionCounts = ({
   jobExecutionsByState,
@@ -141,13 +147,53 @@ export const EvaluatorDetail = () => {
                 listKey="evals"
               />
             )}
-            <DeleteEvaluatorButton
-              itemId={evaluatorId}
-              projectId={projectId}
-              redirectUrl={`/project/${projectId}/evals`}
-              deleteConfirmation={evaluator.data?.scoreName}
-              icon
-            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {existingEvaluator && (
+                  <DropdownMenuItem>
+                    <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost">
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-screen-xl">
+                        <DialogTitle>Edit Configuration</DialogTitle>
+                        <div className="max-h-[80vh] overflow-y-auto">
+                          <EvaluatorForm
+                            key={existingEvaluator.id}
+                            projectId={projectId}
+                            evalTemplates={allTemplates.data?.templates}
+                            existingEvaluator={existingEvaluator}
+                            shouldWrapVariables={true}
+                            mode="edit"
+                            onFormSuccess={() => {
+                              setIsEditOpen(false);
+                              // Force a reload as the form state is not properly updated
+                              void router.reload();
+                            }}
+                          />
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem>
+                  <DeleteEvaluatorButton
+                    itemId={evaluatorId}
+                    projectId={projectId}
+                    redirectUrl={`/project/${projectId}/evals`}
+                    deleteConfirmation={evaluator.data?.scoreName}
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         ),
       }}
@@ -163,31 +209,6 @@ export const EvaluatorDetail = () => {
           <SidePanel mobileTitle="Configuration" id="evaluator-configuration">
             <SidePanelHeader>
               <SidePanelTitle>Configuration</SidePanelTitle>
-              <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-screen-xl">
-                  <DialogTitle>Edit Configuration</DialogTitle>
-                  <div className="max-h-[80vh] overflow-y-auto">
-                    <EvaluatorForm
-                      key={existingEvaluator.id}
-                      projectId={projectId}
-                      evalTemplates={allTemplates.data?.templates}
-                      existingEvaluator={existingEvaluator}
-                      shouldWrapVariables={true}
-                      mode="edit"
-                      onFormSuccess={() => {
-                        setIsEditOpen(false);
-                        // Force a reload as the form state is not properly updated
-                        void router.reload();
-                      }}
-                    />
-                  </div>
-                </DialogContent>
-              </Dialog>
             </SidePanelHeader>
             <SidePanelContent>
               <>

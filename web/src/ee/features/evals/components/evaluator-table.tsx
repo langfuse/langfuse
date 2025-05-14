@@ -30,7 +30,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Pen, MoreVertical, UserCircle2Icon } from "lucide-react";
+import {
+  Pen,
+  MoreVertical,
+  UserCircle2Icon,
+  Loader2,
+  ExternalLinkIcon,
+  Edit,
+} from "lucide-react";
 import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
 import { useRunningEvaluatorsPeekNavigation } from "@/src/components/table/peek/hooks/useRunningEvaluatorsPeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
@@ -45,6 +52,8 @@ import { Button } from "@/src/components/ui/button";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
+import { useRouter } from "next/router";
+import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -65,6 +74,7 @@ export type EvaluatorDataRow = {
     count: number;
     symbol: string;
   }[];
+  logs?: string;
   actions?: string;
 };
 
@@ -80,6 +90,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   );
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const utils = api.useUtils();
+  const router = useRouter();
 
   // Define default filter for target "trace"
   const defaultFilter: FilterState = [
@@ -178,6 +189,30 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       cell: (row) => {
         const result = row.getValue();
         return <LevelCountsDisplay counts={result} />;
+      },
+    }),
+    columnHelper.accessor("logs", {
+      header: "Logs",
+      id: "logs",
+      size: 150,
+      cell: ({ row }) => {
+        const id = row.original.id;
+        return (
+          <Button
+            variant="outline"
+            aria-label="view-logs"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(
+                `/project/${projectId}/evals/${encodeURIComponent(id)}`,
+              );
+            }}
+          >
+            <ExternalLinkIcon className="mr-1 h-3 w-3" />
+            View
+          </Button>
+        );
       },
     }),
     columnHelper.accessor("template", {
@@ -304,8 +339,17 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                   if (id) setEditConfigId(id);
                 }}
               >
-                <Pen className="mr-2 h-4 w-4" />
+                <Edit className="mr-2 h-4 w-4" />
                 Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <DeleteEvaluatorButton
+                  aria-label="delete"
+                  itemId={id}
+                  projectId={projectId}
+                  redirectUrl={`/project/${projectId}/evals`}
+                  deleteConfirmation={row.original.scoreName}
+                />
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -383,6 +427,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           onOpenChange: setPeekView,
           onExpand: expandPeek,
           shouldUpdateRowOnDetailPageNavigation: true,
+          peekEventOptions: {
+            ignoredSelectors: [
+              "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+            ],
+          },
           getNavigationPath,
           children: (row) => (
             <PeekViewEvaluatorConfigDetail projectId={projectId} row={row} />
@@ -424,31 +473,37 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       >
         <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
           <DialogTitle>Edit configuration</DialogTitle>
-          <EvaluatorForm
-            projectId={projectId}
-            evalTemplates={[]}
-            existingEvaluator={
-              existingEvaluator.data && existingEvaluator.data.evalTemplate
-                ? {
-                    ...existingEvaluator.data,
-                    evalTemplate: {
-                      ...existingEvaluator.data.evalTemplate,
-                    },
-                  }
-                : undefined
-            }
-            shouldWrapVariables={true}
-            mode="edit"
-            onFormSuccess={() => {
-              setEditConfigId(null);
-              void utils.evals.allConfigs.invalidate();
-              showSuccessToast({
-                title: "Evaluator updated successfully",
-                description:
-                  "Changes will automatically be reflected on production traces",
-              });
-            }}
-          />
+          {existingEvaluator.isLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : (
+            <EvaluatorForm
+              projectId={projectId}
+              evalTemplates={[]}
+              existingEvaluator={
+                existingEvaluator.data && existingEvaluator.data.evalTemplate
+                  ? {
+                      ...existingEvaluator.data,
+                      evalTemplate: {
+                        ...existingEvaluator.data.evalTemplate,
+                      },
+                    }
+                  : undefined
+              }
+              shouldWrapVariables={true}
+              mode="edit"
+              onFormSuccess={() => {
+                setEditConfigId(null);
+                void utils.evals.allConfigs.invalidate();
+                showSuccessToast({
+                  title: "Evaluator updated successfully",
+                  description:
+                    "Changes will automatically be reflected on production traces",
+                });
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </>

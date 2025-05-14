@@ -142,7 +142,7 @@ export default function EvalsTemplateTable({
       },
     }),
     columnHelper.accessor("apply", {
-      header: "Use",
+      header: "Configure",
       id: "apply",
       size: 100,
       cell: ({ row }) => {
@@ -161,7 +161,7 @@ export default function EvalsTemplateTable({
               }
             }}
           >
-            Apply
+            Run on data
           </Button>
         );
       },

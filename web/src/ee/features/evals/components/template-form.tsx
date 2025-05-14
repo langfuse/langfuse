@@ -31,6 +31,7 @@ import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModel
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { Card, CardContent } from "@/src/components/ui/card";
 
 // TODO: replace with default model from the database
 const DEFAULT_EVALUATION_MODEL = {
@@ -341,103 +342,99 @@ export const InnerEvalTemplateForm = (props: {
           </>
         ) : undefined}
 
-        <div className="flex flex-col gap-6">
-          <ModelParameters
-            {...{
-              modelParams,
-              availableModels,
-              availableProviders,
-              updateModelParamValue: updateModelParamValue,
-              setModelParamEnabled,
-              modelParamsDescription:
-                "Select a model which supports function calling.",
-            }}
-            formDisabled={!props.isEditing}
-          />
-        </div>
+        <Card className="mt-2 flex flex-col gap-6">
+          <CardContent>
+            <ModelParameters
+              {...{
+                modelParams,
+                availableModels,
+                availableProviders,
+                updateModelParamValue: updateModelParamValue,
+                setModelParamEnabled,
+                modelParamsDescription:
+                  "Select a model which supports function calling.",
+              }}
+              formDisabled={!props.isEditing}
+            />
+          </CardContent>
+        </Card>
 
-        <div className="col-span-1 flex flex-col gap-6 lg:col-span-2">
-          <FormField
-            control={form.control}
-            name="prompt"
-            render={({ field }) => (
-              <>
+        <Card>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <p className="my-2 font-semibold">Prompt</p>
+              <FormField
+                control={form.control}
+                name="prompt"
+                render={({ field }) => (
+                  <>
+                    <FormItem>
+                      <FormLabel>Evaluation prompt</FormLabel>
+                      <FormDescription>
+                        Define your llm-as-a-judge evaluation template. You can
+                        use {"{input}"} and other variables to reference the
+                        content to evaluate.
+                      </FormDescription>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          value={field.value}
+                          onChange={field.onChange}
+                          editable={props.isEditing}
+                          mode="prompt"
+                          minHeight={200}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <PromptVariableListPreview
+                        variables={extractedVariables ?? []}
+                      />
+                    </FormItem>
+                  </>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="outputReasoning"
+              render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Prompt</FormLabel>
+                  <FormLabel>Score reasoning prompt</FormLabel>
                   <FormDescription>
-                    Define your llm-as-a-judge evaluation template. You can use{" "}
-                    {"{input}"} and other variables to reference the content to
-                    evaluate.
+                    Define how the LLM should explain its evaluation. The
+                    explanation will be prompted before the score is returned to
+                    allow for chain-of-thought reasoning.
                   </FormDescription>
                   <FormControl>
-                    <CodeMirrorEditor
-                      value={field.value}
-                      onChange={field.onChange}
-                      editable={props.isEditing}
-                      mode="prompt"
-                      minHeight={200}
+                    <Input
+                      placeholder="One sentence reasoning for the score"
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
-                  <PromptVariableListPreview
-                    variables={extractedVariables ?? []}
-                  />
                 </FormItem>
-              </>
-            )}
-          />
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="outputReasoning"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Reasoning</FormLabel>
-                <FormDescription>
-                  Define how the LLM should explain its evaluation. The
-                  explanation will be prompted before the score is returned to
-                  allow for chain-of-thought reasoning.
-                </FormDescription>
-                <FormControl>
-                  <Input
-                    placeholder="One sentence reasoning for the score"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="outputScore"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Score</FormLabel>
-                <FormDescription>
-                  Define how the LLM should return the evaluation score in
-                  natural language. Needs to yield a numeric value.
-                </FormDescription>
-                <FormControl>
-                  <Input {...field} placeholder="Score between 0 and 1" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {!props.isEditing && (
-            <>
-              <FormLabel>Running evaluators</FormLabel>
-              <FormDescription>
-                This evaluator is currently used to power{" "}
-                {evaluatorsByTemplateNameQuery.data?.evaluators.length ?? 0}{" "}
-                running configurations.
-              </FormDescription>
-            </>
-          )}
-        </div>
+            <FormField
+              control={form.control}
+              name="outputScore"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Score range prompt</FormLabel>
+                  <FormDescription>
+                    Define how the LLM should return the evaluation score in
+                    natural language. Needs to yield a numeric value.
+                  </FormDescription>
+                  <FormControl>
+                    <Input {...field} placeholder="Score between 0 and 1" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+        </Card>
 
         {props.isEditing && (
           <Button
