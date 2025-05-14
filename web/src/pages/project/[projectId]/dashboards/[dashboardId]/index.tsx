@@ -6,7 +6,7 @@ import { DashboardWidget } from "@/src/features/widgets";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
@@ -61,7 +61,8 @@ export default function DashboardDetail() {
       onSuccess: () => {
         showSuccessToast({
           title: "Dashboard updated",
-          description: "Your changes have been saved successfully",
+          description: "Your changes have been saved automatically",
+          duration: 2000,
         });
         setHasUnsavedChanges(false);
         // Invalidate the dashboard query to refetch the data
@@ -192,6 +193,18 @@ export default function DashboardDetail() {
     }
   }, [dashboard.data, localDashboardDefinition]);
 
+  // Function to save dashboard changes
+  const saveDashboardChanges = useCallback(
+    (definition: { widgets: WidgetPlacement[] }) => {
+      updateDashboardDefinition.mutate({
+        projectId,
+        dashboardId,
+        definition,
+      });
+    },
+    [projectId, dashboardId, updateDashboardDefinition],
+  );
+
   // Handle deleting a widget
   const handleDeleteWidget = (tileId: string) => {
     if (localDashboardDefinition) {
@@ -199,12 +212,16 @@ export default function DashboardDetail() {
         (widget) => widget.id !== tileId,
       );
 
-      setLocalDashboardDefinition({
+      const updatedDefinition = {
         ...localDashboardDefinition,
         widgets: updatedWidgets,
-      });
+      };
+      setLocalDashboardDefinition(updatedDefinition);
 
       setHasUnsavedChanges(true);
+      setTimeout(() => {
+        saveDashboardChanges(updatedDefinition);
+      }, 500);
     }
   };
 
@@ -236,28 +253,16 @@ export default function DashboardDetail() {
       };
 
       // Add the widget to the local dashboard definition
-      setLocalDashboardDefinition({
+      const updatedDefinition = {
         ...localDashboardDefinition,
         widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
-      });
+      };
+      setLocalDashboardDefinition(updatedDefinition);
 
       setHasUnsavedChanges(true);
-
-      showSuccessToast({
-        title: "Widget added",
-        description: `"${widget.name}" has been added to the dashboard. Click Save to apply changes.`,
-      });
-    }
-  };
-
-  // Handle saving the dashboard
-  const handleSaveDashboard = () => {
-    if (localDashboardDefinition && hasUnsavedChanges) {
-      updateDashboardDefinition.mutate({
-        projectId,
-        dashboardId,
-        definition: localDashboardDefinition,
-      });
+      setTimeout(() => {
+        saveDashboardChanges(updatedDefinition);
+      }, 500);
     }
   };
 
@@ -284,17 +289,6 @@ export default function DashboardDetail() {
               <Button onClick={handleAddWidget} disabled={!hasCUDAccess}>
                 <PlusIcon size={16} />
                 Add Widget
-              </Button>
-              <Button
-                onClick={handleSaveDashboard}
-                disabled={
-                  !hasUnsavedChanges ||
-                  updateDashboardDefinition.isLoading ||
-                  !hasCUDAccess
-                }
-                loading={updateDashboardDefinition.isLoading}
-              >
-                Save
               </Button>
             </>
           ),
