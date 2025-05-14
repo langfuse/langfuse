@@ -14,22 +14,26 @@ export default function NewEvaluatorPage() {
     page: 0,
   });
 
+  const { evaluator } = router.query;
+
+  const currentTemplate = evalTemplates.data?.templates.find(
+    (t) => t.id === evaluator,
+  );
+
   return (
     <Page
       withPadding
       scrollable
       headerProps={{
-        title: "Create evaluator",
-        help: {
-          description:
-            "Select a template defining the evaluation prompt and a model as judge to evaluate incoming traces.",
-          href: "https://langfuse.com/docs/scores/model-based-evals",
-        },
+        title:
+          "Set up online evaluator" +
+          (currentTemplate?.name ? `: ${currentTemplate.name}` : ""),
       }}
     >
       <EvaluatorForm
         projectId={projectId}
         evalTemplates={evalTemplates.data?.templates ?? []}
+        templateId={evaluator as string}
       />
     </Page>
   );

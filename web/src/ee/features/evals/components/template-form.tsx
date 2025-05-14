@@ -25,19 +25,10 @@ import {
   ZodModelConfig,
 } from "@langfuse/shared";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 
@@ -51,90 +42,46 @@ const DEFAULT_EVALUATION_MODEL = {
 export const EvalTemplateForm = (props: {
   projectId: string;
   existingEvalTemplate?: EvalTemplate;
-  onFormSuccess?: () => void;
+  // TODO: check if this needs the template
+  onFormSuccess?: (template?: EvalTemplate) => void;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
   preventRedirect?: boolean;
 }) => {
-  const [langfuseTemplate, setLangfuseTemplate] = useState<string | null>(null);
-
-  const updateLangfuseTemplate = (name: string) => {
-    setLangfuseTemplate(name);
-  };
-
-  const currentTemplate = TEMPLATES.find(
-    (template) => template.name === langfuseTemplate,
-  );
-
   return (
     <div className="grid grid-cols-1 gap-6 gap-x-12 lg:grid-cols-3">
-      {props.isEditing ? (
-        <div className="col-span-1 lg:col-span-2">
-          <Select
-            value={langfuseTemplate ?? ""}
-            onValueChange={updateLangfuseTemplate}
-          >
-            <SelectTrigger className="text-primary ring-transparent focus:ring-0 focus:ring-offset-0">
-              <SelectValue
-                className="text-sm font-semibold text-primary"
-                placeholder={"Select a Langfuse managed template (optional)"}
-              />
-            </SelectTrigger>
-            <SelectContent className="max-h-60 max-w-80">
-              {TEMPLATES.sort((a, b) => a.name.localeCompare(b.name)).map(
-                (project) => (
-                  <SelectItem key={project.name} value={project.name}>
-                    {project.name}
-                  </SelectItem>
-                ),
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
       <div className="col-span-1 lg:col-span-3">
         <InnerEvalTemplateForm
-          key={langfuseTemplate ?? props.existingEvalTemplate?.id}
+          key={props.existingEvalTemplate?.id}
           {...props}
           existingEvalTemplateId={props.existingEvalTemplate?.id}
           existingEvalTemplateName={props.existingEvalTemplate?.name}
           preFilledFormValues={
             // if a langfuse template is selected, use that, else use the existing template
             // no langfuse template is selected if there is already an existing template
-            langfuseTemplate
+            props.existingEvalTemplate
               ? {
-                  name: langfuseTemplate.toLocaleLowerCase() ?? "",
-                  prompt: currentTemplate?.prompt.trim() ?? "",
-                  vars: [],
-                  outputSchema: {
-                    score: currentTemplate?.outputScore?.trim() ?? "",
-                    reasoning: currentTemplate?.outputReasoning?.trim() ?? "",
+                  name: props.existingEvalTemplate.name,
+                  prompt: props.existingEvalTemplate.prompt,
+                  vars: props.existingEvalTemplate.vars,
+                  outputSchema: props.existingEvalTemplate.outputSchema as {
+                    score: string;
+                    reasoning: string;
+                  },
+                  selectedModel: {
+                    provider:
+                      props.existingEvalTemplate.provider ??
+                      DEFAULT_EVALUATION_MODEL.provider,
+                    model:
+                      props.existingEvalTemplate.model ??
+                      DEFAULT_EVALUATION_MODEL.model,
+                    modelParams:
+                      (props.existingEvalTemplate.modelParams as ModelParams & {
+                        maxTemperature: number;
+                      }) ?? DEFAULT_EVALUATION_MODEL.modelParams,
                   },
                 }
-              : props.existingEvalTemplate
-                ? {
-                    name: props.existingEvalTemplate.name,
-                    prompt: props.existingEvalTemplate.prompt,
-                    vars: props.existingEvalTemplate.vars,
-                    outputSchema: props.existingEvalTemplate.outputSchema as {
-                      score: string;
-                      reasoning: string;
-                    },
-                    selectedModel: {
-                      provider:
-                        props.existingEvalTemplate.provider ??
-                        DEFAULT_EVALUATION_MODEL.provider,
-                      model:
-                        props.existingEvalTemplate.model ??
-                        DEFAULT_EVALUATION_MODEL.model,
-                      modelParams:
-                        (props.existingEvalTemplate
-                          .modelParams as ModelParams & {
-                          maxTemperature: number;
-                        }) ?? DEFAULT_EVALUATION_MODEL.modelParams,
-                    },
-                  }
-                : undefined
+              : undefined
           }
         />
       </div>
@@ -200,7 +147,7 @@ export const InnerEvalTemplateForm = (props: {
   // template to be updated
   existingEvalTemplateId?: string;
   existingEvalTemplateName?: string;
-  onFormSuccess?: () => void;
+  onFormSuccess?: (template?: EvalTemplate) => void;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
   preventRedirect?: boolean;
@@ -341,7 +288,7 @@ export const InnerEvalTemplateForm = (props: {
     createEvalTemplateMutation
       .mutateAsync(evalTemplate)
       .then((res) => {
-        props.onFormSuccess?.();
+        props.onFormSuccess?.(res);
         form.reset();
         props.setIsEditing?.(false);
         if (props.preventRedirect) {
@@ -368,7 +315,7 @@ export const InnerEvalTemplateForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="grid grid-cols-1 gap-6 gap-x-12 lg:grid-cols-3"
+        className="space-y-6"
       >
         {!props.existingEvalTemplateId ? (
           <>
@@ -395,6 +342,21 @@ export const InnerEvalTemplateForm = (props: {
             <div className="lg:col-span-0 col-span-1 row-span-1"></div>
           </>
         ) : undefined}
+
+        <div className="flex flex-col gap-6">
+          <ModelParameters
+            {...{
+              modelParams,
+              availableModels,
+              availableProviders,
+              updateModelParamValue: updateModelParamValue,
+              setModelParamEnabled,
+              modelParamsDescription:
+                "Select a model which supports function calling.",
+            }}
+            formDisabled={!props.isEditing}
+          />
+        </div>
 
         <div className="col-span-1 flex flex-col gap-6 lg:col-span-2">
           <FormField
@@ -467,63 +429,6 @@ export const InnerEvalTemplateForm = (props: {
             )}
           />
 
-          {props.isEditing && props.existingEvalTemplateId && (
-            <FormField
-              control={form.control}
-              name="referencedEvaluators"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Referenced evaluators</FormLabel>
-                  <FormDescription>
-                    {evaluatorsByTemplateNameQuery.data?.evaluators.length ?? 0}{" "}
-                    evaluator(s) are currently using this template.
-                    {Boolean(
-                      evaluatorsByTemplateNameQuery.data?.evaluators.length,
-                    )
-                      ? " Choose how to handle existing evaluators with this update."
-                      : " No evaluators to update."}
-                  </FormDescription>
-                  <FormControl>
-                    <RadioGroup
-                      {...field}
-                      onValueChange={field.onChange}
-                      defaultValue={
-                        Boolean(
-                          evaluatorsByTemplateNameQuery.data?.evaluators.length,
-                        )
-                          ? EvalReferencedEvaluators.UPDATE
-                          : EvalReferencedEvaluators.PERSIST
-                      }
-                      disabled={
-                        !Boolean(
-                          evaluatorsByTemplateNameQuery.data?.evaluators.length,
-                        )
-                      }
-                      className="flex flex-col space-y-1"
-                    >
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="update" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Update all to use new template version
-                        </FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="persist" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Persist existing template version
-                        </FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
           {!props.isEditing && (
             <>
               <FormLabel>Referenced evaluators</FormLabel>
@@ -533,22 +438,6 @@ export const InnerEvalTemplateForm = (props: {
               </FormDescription>
             </>
           )}
-        </div>
-        <div className="col-span-1 row-span-3">
-          <div className="flex flex-col gap-6">
-            <ModelParameters
-              {...{
-                modelParams,
-                availableModels,
-                availableProviders,
-                updateModelParamValue: updateModelParamValue,
-                setModelParamEnabled,
-                modelParamsDescription:
-                  "Select a model which supports function calling.",
-              }}
-              formDisabled={!props.isEditing}
-            />
-          </div>
         </div>
 
         {props.isEditing && (
