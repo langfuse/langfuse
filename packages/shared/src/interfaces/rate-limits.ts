@@ -7,6 +7,7 @@ export const RateLimitResource = z.enum([
   "public-api-metrics",
   "prompts",
   "legacy-ingestion",
+  "datasets",
 ]);
 
 // result of the rate limit check.
