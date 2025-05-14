@@ -49,6 +49,14 @@ const UpdateDashboardDefinitionInput = z.object({
   definition: DashboardDefinitionSchema,
 });
 
+// Update dashboard input schema
+const UpdateDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+  name: z.string().min(1, "Dashboard name is required"),
+  description: z.string(),
+});
+
 // Create dashboard input schema
 const CreateDashboardInput = z.object({
   projectId: z.string(),
@@ -222,6 +230,26 @@ export const dashboardRouter = createTRPCRouter({
         input.dashboardId,
         input.projectId,
         input.definition,
+        ctx.session.user.id,
+      );
+
+      return dashboard;
+    }),
+
+  updateDashboardMetadata: protectedProjectProcedure
+    .input(UpdateDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.updateDashboard(
+        input.dashboardId,
+        input.projectId,
+        input.name,
+        input.description,
         ctx.session.user.id,
       );
 

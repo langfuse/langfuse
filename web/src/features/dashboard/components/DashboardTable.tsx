@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -11,7 +11,7 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Copy } from "lucide-react";
+import { Copy, Edit } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteDashboardButton } from "@/src/components/deleteButton";
+import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 
 type DashboardTableRow = {
   id: string;
@@ -79,6 +80,44 @@ function CloneDashboardButton({
       <Copy className="mr-2 h-4 w-4" />
       Clone
     </Button>
+  );
+}
+
+function EditDashboardButton({
+  dashboardId,
+  projectId,
+  dashboardName,
+  dashboardDescription,
+}: {
+  dashboardId: string;
+  projectId: string;
+  dashboardName: string;
+  dashboardDescription: string;
+}) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="default"
+        disabled={!hasAccess}
+        onClick={() => setIsDialogOpen(true)}
+      >
+        <Edit className="mr-2 h-4 w-4" />
+        Edit
+      </Button>
+
+      <EditDashboardDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        projectId={projectId}
+        dashboardId={dashboardId}
+        initialName={dashboardName}
+        initialDescription={dashboardDescription}
+      />
+    </>
   );
 }
 
@@ -173,6 +212,8 @@ export function DashboardTable() {
       size: 70,
       cell: (row) => {
         const id = row.row.original.id;
+        const name = row.row.original.name;
+        const description = row.row.original.description;
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -181,6 +222,14 @@ export function DashboardTable() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+              <DropdownMenuItem asChild>
+                <EditDashboardButton
+                  dashboardId={id}
+                  projectId={projectId}
+                  dashboardName={name}
+                  dashboardDescription={description}
+                />
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <CloneDashboardButton dashboardId={id} projectId={projectId} />
               </DropdownMenuItem>
