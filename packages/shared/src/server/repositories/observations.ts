@@ -428,6 +428,7 @@ const getObservationByIdInternal = async ({
       ...(startTime
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
         : {}),
+      ...(traceId ? { traceId } : {}),
     },
     tags: {
       feature: "tracing",
