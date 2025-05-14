@@ -6,7 +6,7 @@ import { DashboardWidget } from "@/src/features/widgets";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
@@ -74,51 +74,48 @@ export default function DashboardDetail() {
     });
 
   // Helper function to add a widget to the dashboard
-  const addWidgetToDashboard = (widget: WidgetItem) => {
-    if (!localDashboardDefinition) return;
-    if (
-      localDashboardDefinition.widgets.some((w) => w.widgetId === widget.id)
-    ) {
-      showErrorToast(
-        "Widget already exists",
-        "The widget you are trying to add already exists on the dashboard.",
-        "WARNING",
-      );
-      return;
-    }
+  const addWidgetToDashboard = useCallback(
+    (widget: WidgetItem) => {
+      if (!localDashboardDefinition) return;
 
-    // Find the maximum y position to place the new widget at the bottom
-    const maxY =
-      localDashboardDefinition.widgets.length > 0
-        ? Math.max(
-            ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
-          )
-        : 0;
+      // Find the maximum y position to place the new widget at the bottom
+      const maxY =
+        localDashboardDefinition.widgets.length > 0
+          ? Math.max(
+              ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
+            )
+          : 0;
 
-    // Create a new widget placement
-    const newWidgetPlacement: WidgetPlacement = {
-      id: uuidv4(),
-      widgetId: widget.id,
-      x: 0, // Start at left
-      y: maxY, // Place below existing widgets
-      x_size: 6, // Default size (half of 12-column grid)
-      y_size: 2, // Default height of 2 rows
-      type: "widget",
-    };
+      // Create a new widget placement
+      const newWidgetPlacement: WidgetPlacement = {
+        id: uuidv4(),
+        widgetId: widget.id,
+        x: 0, // Start at left
+        y: maxY, // Place below existing widgets
+        x_size: 6, // Default size (half of 12-column grid)
+        y_size: 2, // Default height of 2 rows
+        type: "widget",
+      };
 
-    // Add the widget to the local dashboard definition
-    setLocalDashboardDefinition({
-      ...localDashboardDefinition,
-      widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
-    });
+      // Add the widget to the local dashboard definition
+      setLocalDashboardDefinition({
+        ...localDashboardDefinition,
+        widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
+      });
 
-    setHasUnsavedChanges(true);
+      setHasUnsavedChanges(true);
 
-    showSuccessToast({
-      title: "Widget added",
-      description: `"${widget.name}" has been added to the dashboard. Click Save to apply changes.`,
-    });
-  };
+      showSuccessToast({
+        title: "Widget added",
+        description: `"${widget.name}" has been added to the dashboard. Click Save to apply changes.`,
+      });
+    },
+    [
+      localDashboardDefinition,
+      setLocalDashboardDefinition,
+      setHasUnsavedChanges,
+    ],
+  );
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
@@ -249,10 +246,16 @@ export default function DashboardDetail() {
   }, [dashboard.data, localDashboardDefinition]);
 
   useEffect(() => {
-    if (widgetToAdd.data && addWidgetId) {
-      addWidgetToDashboard(widgetToAdd.data);
+    if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
+      if (
+        !localDashboardDefinition.widgets.some(
+          (w) => w.widgetId === addWidgetId,
+        )
+      ) {
+        addWidgetToDashboard(widgetToAdd.data);
+      }
       // Remove the addWidgetId query parameter
-      router.push({
+      router.replace({
         pathname: router.pathname,
         query: { projectId, dashboardId },
       });
@@ -260,6 +263,7 @@ export default function DashboardDetail() {
   }, [
     widgetToAdd.data,
     addWidgetId,
+    addWidgetToDashboard,
     localDashboardDefinition,
     projectId,
     dashboardId,
