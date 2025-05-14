@@ -28,6 +28,12 @@ export default function NewEvaluatorPage() {
         title:
           "Set up online evaluator" +
           (currentTemplate?.name ? `: ${currentTemplate.name}` : ""),
+        breadcrumb: [
+          {
+            name: "Running Evaluators",
+            href: `/project/${projectId}/evals`,
+          },
+        ],
       }}
     >
       <EvaluatorForm

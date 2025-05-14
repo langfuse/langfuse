@@ -228,16 +228,8 @@ export const EvaluatorForm = (props: {
     return null;
   }
 
-  const selectedTemplate = props.templateId ? (
-    <div className="mb-4 rounded-md border border-border bg-muted/50 p-4">
-      <h3 className="mb-1 text-sm font-medium">Selected Evaluator</h3>
-      <p className="text-sm text-muted-foreground">{currentTemplate.name}</p>
-    </div>
-  ) : null;
-
   return (
     <>
-      {selectedTemplate}
       <InnerEvaluatorForm
         key={currentTemplate.id}
         projectId={props.projectId}

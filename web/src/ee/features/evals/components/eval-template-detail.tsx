@@ -12,11 +12,10 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Button } from "@/src/components/ui/button";
-import { Plus } from "lucide-react";
 import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
+import { Switch } from "@/src/components/ui/switch";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -45,8 +44,6 @@ export const EvalTemplateDetail = () => {
     },
   );
 
-  // const utils = api.useUtils();
-
   return (
     <Page
       withPadding
@@ -62,23 +59,12 @@ export const EvalTemplateDetail = () => {
         ],
         actionButtonsRight: (
           <>
-            {!isEditing && (
-              <UpdateTemplate
-                projectId={projectId}
-                isLoading={template.isLoading}
-                setIsEditing={setIsEditing}
-              />
-            )}
-            <EvalVersionDropdown
-              disabled={allTemplates.isLoading}
-              options={allTemplates.data?.templates ?? []}
-              defaultOption={template.data ?? undefined}
-              onSelect={(template) => {
-                router.push(
-                  `/project/${projectId}/evals/templates/${template.id}`,
-                );
-              }}
+            <UpdateTemplate
+              projectId={projectId}
+              isEditing={isEditing}
+              setIsEditing={setIsEditing}
             />
+
             {/* TODO: moved to LFE-4573 */}
             {/* <DeleteEvaluatorTemplateButton
               itemId={templateId}
@@ -150,11 +136,11 @@ export function EvalVersionDropdown(props: {
 
 export function UpdateTemplate({
   projectId,
-  isLoading,
+  isEditing,
   setIsEditing,
 }: {
   projectId: string;
-  isLoading: boolean;
+  isEditing: boolean;
   setIsEditing: (isEditing: boolean) => void;
 }) {
   const hasAccess = useHasProjectAccess({
@@ -163,20 +149,19 @@ export function UpdateTemplate({
   });
   const capture = usePostHogClientCapture();
 
-  const handlePromptEdit = () => {
-    setIsEditing(true);
-    capture("eval_templates:update_form_open");
+  const handlePromptEdit = (checked: boolean) => {
+    setIsEditing(checked);
+    if (checked) capture("eval_templates:update_form_open");
   };
 
   return (
-    <Button
-      variant="outline"
-      onClick={() => handlePromptEdit()}
-      disabled={!hasAccess}
-      loading={isLoading}
-    >
-      <Plus className="h-4 w-4" />
-      New version
-    </Button>
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-medium">Enable Edits</span>
+      <Switch
+        checked={isEditing}
+        onCheckedChange={handlePromptEdit}
+        disabled={!hasAccess}
+      />
+    </div>
   );
 }

@@ -53,6 +53,7 @@ import {
   TimeScopeDescription,
   VariableMappingDescription,
 } from "@/src/ee/features/evals/components/eval-form-descriptions";
+import TracesTable from "@/src/components/table/use-cases/traces";
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -101,7 +102,7 @@ export const InnerEvaluatorForm = (props: {
         : 1,
       delay: props.existingEvaluator?.delay
         ? props.existingEvaluator.delay / 1000
-        : 10,
+        : 30,
       timeScope: (props.existingEvaluator?.timeScope ?? ["NEW"]).filter(
         (option): option is "NEW" | "EXISTING" =>
           ["NEW", "EXISTING"].includes(option),
@@ -327,61 +328,12 @@ export const InnerEvaluatorForm = (props: {
             )}
           />
           <Card className="flex max-w-full flex-col gap-6 overflow-y-auto p-4">
-            <FormField
-              control={form.control}
-              name="target"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Target object</FormLabel>
-                  <FormControl>
-                    <Tabs
-                      defaultValue="trace"
-                      value={field.value}
-                      onValueChange={(value) => {
-                        const isTrace = isTraceTarget(value);
-                        const langfuseObject: LangfuseObject = isTrace
-                          ? "trace"
-                          : "dataset_item";
-                        const newMapping = form
-                          .getValues("mapping")
-                          .map((field) => ({ ...field, langfuseObject }));
-                        form.setValue("mapping", newMapping);
-                        form.setValue("delay", isTrace ? 10 : 20);
-                        setAvailableVariables(
-                          isTrace
-                            ? availableTraceEvalVariables
-                            : availableDatasetEvalVariables,
-                        );
-                        field.onChange(value);
-                      }}
-                    >
-                      <TabsList>
-                        <TabsTrigger
-                          value="trace"
-                          disabled={props.disabled || props.mode === "edit"}
-                        >
-                          Trace
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="dataset"
-                          disabled={props.disabled || props.mode === "edit"}
-                        >
-                          Dataset
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="flex min-w-[300px]">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between md:gap-4">
               <FormField
                 control={form.control}
                 name="timeScope"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="flex-1">
                     <FormLabel>Evaluator runs on</FormLabel>
                     <FormControl>
                       <div className="flex flex-col gap-2">
@@ -452,6 +404,56 @@ export const InnerEvaluatorForm = (props: {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="target"
+                render={({ field }) => (
+                  <FormItem className="md:flex md:flex-col md:items-end">
+                    <div className="flex items-center gap-2">
+                      <FormLabel className="md:mb-0">Target:</FormLabel>
+                      <FormControl>
+                        <Tabs
+                          defaultValue="trace"
+                          value={field.value}
+                          onValueChange={(value) => {
+                            const isTrace = isTraceTarget(value);
+                            const langfuseObject: LangfuseObject = isTrace
+                              ? "trace"
+                              : "dataset_item";
+                            const newMapping = form
+                              .getValues("mapping")
+                              .map((field) => ({ ...field, langfuseObject }));
+                            form.setValue("mapping", newMapping);
+                            setAvailableVariables(
+                              isTrace
+                                ? availableTraceEvalVariables
+                                : availableDatasetEvalVariables,
+                            );
+                            field.onChange(value);
+                          }}
+                        >
+                          <TabsList>
+                            <TabsTrigger
+                              value="trace"
+                              disabled={props.disabled || props.mode === "edit"}
+                            >
+                              Live tracing data
+                            </TabsTrigger>
+                            <TabsTrigger
+                              value="dataset"
+                              disabled={props.disabled || props.mode === "edit"}
+                            >
+                              Experiment runs
+                            </TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </FormControl>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <FormField
@@ -506,6 +508,54 @@ export const InnerEvaluatorForm = (props: {
                       <FormMessage />
                     </>
                   )}
+                </FormItem>
+              )}
+            />
+
+            {form.watch("target") === "trace" && !props.disabled && (
+              <>
+                <span className="text-sm font-medium leading-none">
+                  Preview sample matched traces
+                </span>
+                <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
+                  <TracesTable
+                    projectId={props.projectId}
+                    hideControls
+                    externalFilterState={form.watch("filter") ?? []}
+                  />
+                </div>
+              </>
+            )}
+
+            <FormField
+              control={form.control}
+              name="sampling"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sampling</FormLabel>
+                  <FormControl>
+                    <Slider
+                      disabled={props.disabled}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={[field.value]}
+                      onValueChange={(value) => field.onChange(value[0])}
+                    />
+                  </FormControl>
+                  <div className="flex flex-col">
+                    <FormDescription className="flex justify-between">
+                      <span>0%</span>
+                      <span>100%</span>
+                    </FormDescription>
+                    <FormDescription className="mt-1 flex flex-row gap-1">
+                      <span>Percentage of traces to evaluate.</span>
+                      <span>
+                        Currently set to {(field.value * 100).toFixed(0)}%.
+                      </span>
+                    </FormDescription>
+                  </div>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -741,57 +791,6 @@ export const InnerEvaluatorForm = (props: {
                   </FormDescription>
                   <FormMessage />
                 </>
-              )}
-            />
-          </Card>
-          <Card className="flex flex-col gap-6 p-4">
-            <FormField
-              control={form.control}
-              name="sampling"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Sampling</FormLabel>
-                  <FormControl>
-                    <Slider
-                      disabled={props.disabled}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={[field.value]}
-                      onValueChange={(value) => field.onChange(value[0])}
-                    />
-                  </FormControl>
-                  <div className="flex flex-col">
-                    <FormDescription className="flex justify-between">
-                      <span>0%</span>
-                      <span>100%</span>
-                    </FormDescription>
-                    <FormDescription className="mt-1 flex flex-row gap-1">
-                      <span>Percentage of traces to evaluate.</span>
-                      <span>
-                        Currently set to {(field.value * 100).toFixed(0)}%.
-                      </span>
-                    </FormDescription>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="delay"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Delay (seconds)</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="number" />
-                  </FormControl>
-                  <FormDescription>
-                    Time between first Trace/Dataset run event and evaluation
-                    execution to ensure all data is available
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
               )}
             />
           </Card>
