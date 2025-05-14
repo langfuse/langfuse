@@ -69,6 +69,10 @@ describe("Clickhouse Observations Repository Test", () => {
       fetchWithInputOutput: true,
     });
 
+    if (!result) {
+      throw new Error("Observation not found");
+    }
+
     expect(result.id).toEqual(observation.id);
     expect(result.traceId).toEqual(observation.trace_id);
     expect(result.projectId).toEqual(observation.project_id);
