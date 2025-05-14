@@ -35,6 +35,7 @@ interface SelectWidgetDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   onSelectWidget: (widget: WidgetItem) => void;
+  dashboardId: string;
 }
 
 export function SelectWidgetDialog({
@@ -42,6 +43,7 @@ export function SelectWidgetDialog({
   onOpenChange,
   projectId,
   onSelectWidget,
+  dashboardId,
 }: SelectWidgetDialogProps) {
   const router = useRouter();
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function SelectWidgetDialog({
   );
 
   const handleNavigateToNewWidget = () => {
-    router.push(`/project/${projectId}/widgets/new`);
+    router.push(`/project/${projectId}/widgets/new?dashboardId=${dashboardId}`);
   };
 
   const handleAddWidget = () => {

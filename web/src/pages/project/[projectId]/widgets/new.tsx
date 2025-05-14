@@ -13,17 +13,28 @@ import { type z } from "zod";
 
 export default function NewWidget() {
   const router = useRouter();
-  const { projectId } = router.query as { projectId: string };
+  const { projectId, dashboardId } = router.query as {
+    projectId: string;
+    dashboardId?: string;
+  };
 
   // Save widget mutation
   const createWidgetMutation = api.dashboardWidgets.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       showSuccessToast({
         title: "Widget created successfully",
         description: "Your widget has been created.",
       });
-      // Navigate back to widgets list
-      void router.push(`/project/${projectId}/widgets`);
+
+      // If dashboardId is provided, redirect back to the dashboard with the new widget ID
+      if (dashboardId) {
+        void router.push(
+          `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${data.widget.id}`,
+        );
+      } else {
+        // Otherwise, navigate to widgets list
+        void router.push(`/project/${projectId}/widgets`);
+      }
     },
     onError: (error) => {
       showErrorToast("Failed to save widget", error.message);
