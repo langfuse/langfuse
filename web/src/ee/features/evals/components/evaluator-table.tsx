@@ -11,7 +11,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   useQueryParams,
   withDefault,
@@ -30,10 +30,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { UserCircle2Icon } from "lucide-react";
+import { Pen, MoreVertical, UserCircle2Icon } from "lucide-react";
 import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
 import { useRunningEvaluatorsPeekNavigation } from "@/src/components/table/peek/hooks/useRunningEvaluatorsPeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { Button } from "@/src/components/ui/button";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
+import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -54,6 +65,7 @@ export type EvaluatorDataRow = {
     count: number;
     symbol: string;
   }[];
+  actions?: string;
 };
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
@@ -66,6 +78,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     "search",
     withDefault(StringParam, null),
   );
+  const [editConfigId, setEditConfigId] = useState<string | null>(null);
+  const utils = api.useUtils();
 
   // Define default filter for target "trace"
   const defaultFilter: FilterState = [
@@ -109,6 +123,16 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     searchQuery: searchQuery,
   });
   const totalCount = evaluators.data?.totalCount ?? null;
+
+  const existingEvaluator = api.evals.configById.useQuery(
+    {
+      id: editConfigId as string,
+      projectId,
+    },
+    {
+      enabled: !!editConfigId,
+    },
+  );
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
@@ -251,7 +275,43 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         ) : undefined;
       },
     }),
-    // TODO: Add actions
+    columnHelper.accessor("actions", {
+      header: "Actions",
+      id: "actions",
+      size: 100,
+      cell: ({ row }) => {
+        const id = row.original.id;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                aria-label="actions"
+              >
+                <span className="sr-only [position:relative]">Open menu</span>
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem
+                key={id}
+                aria-label="edit"
+                // disabled={!hasAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (id) setEditConfigId(id);
+                }}
+              >
+                <Pen className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
+    }),
   ] as LangfuseColumnDef<EvaluatorDataRow>[];
 
   const [columnVisibility, setColumnVisibility] =
@@ -356,6 +416,41 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />
+      <Dialog
+        open={!!editConfigId && existingEvaluator.isSuccess}
+        onOpenChange={(open) => {
+          if (!open) setEditConfigId(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
+          <DialogTitle>Edit configuration</DialogTitle>
+          <EvaluatorForm
+            projectId={projectId}
+            evalTemplates={[]}
+            existingEvaluator={
+              existingEvaluator.data && existingEvaluator.data.evalTemplate
+                ? {
+                    ...existingEvaluator.data,
+                    evalTemplate: {
+                      ...existingEvaluator.data.evalTemplate,
+                    },
+                  }
+                : undefined
+            }
+            shouldWrapVariables={true}
+            mode="edit"
+            onFormSuccess={() => {
+              setEditConfigId(null);
+              void utils.evals.allConfigs.invalidate();
+              showSuccessToast({
+                title: "Evaluator updated successfully",
+                description:
+                  "Changes will automatically be reflected on production traces",
+              });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

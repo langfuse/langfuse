@@ -24,6 +24,7 @@ import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-fo
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { InnerEvaluatorForm } from "@/src/ee/features/evals/components/inner-evaluator-form";
 
+// TODO: use in datasets dropdown etc
 export const TemplateSelector = (props: {
   projectId: string;
   evalTemplates: EvalTemplate[];
@@ -208,6 +209,7 @@ export const TemplateSelector = (props: {
   );
 };
 
+// TODO: see which props can be removed due to no template selector
 export const EvaluatorForm = (props: {
   projectId: string;
   evalTemplates: EvalTemplate[];
@@ -218,52 +220,34 @@ export const EvaluatorForm = (props: {
   shouldWrapVariables?: boolean;
   templateId?: string;
 }) => {
-  const [evalTemplate, setEvalTemplate] = useState<string | undefined>(
-    props.existingEvaluator?.evalTemplate.id || props.templateId,
-  );
+  const currentTemplate =
+    props.existingEvaluator?.evalTemplate ??
+    props.evalTemplates.find((t) => t.id === props.templateId);
 
-  const currentTemplate = props.evalTemplates.find(
-    (t) => t.id === evalTemplate,
-  );
+  if (!currentTemplate) {
+    return null;
+  }
 
-  useEffect(() => {
-    if (props.templateId && !evalTemplate) {
-      setEvalTemplate(props.templateId);
-    } else if (props.existingEvaluator?.evalTemplate && !evalTemplate) {
-      setEvalTemplate(props.existingEvaluator.evalTemplate.id);
-    }
-  }, [
-    props.existingEvaluator,
-    props.templateId,
-    evalTemplate,
-    props.evalTemplates,
-  ]);
-
-  const selectedTemplate =
-    props.templateId && currentTemplate ? (
-      <div className="mb-4 rounded-md border border-border bg-muted/50 p-4">
-        <h3 className="mb-1 text-sm font-medium">Selected Evaluator</h3>
-        <p className="text-sm text-muted-foreground">{currentTemplate.name}</p>
-      </div>
-    ) : null;
+  const selectedTemplate = props.templateId ? (
+    <div className="mb-4 rounded-md border border-border bg-muted/50 p-4">
+      <h3 className="mb-1 text-sm font-medium">Selected Evaluator</h3>
+      <p className="text-sm text-muted-foreground">{currentTemplate.name}</p>
+    </div>
+  ) : null;
 
   return (
     <>
       {selectedTemplate}
-      {evalTemplate && currentTemplate ? (
-        <InnerEvaluatorForm
-          key={evalTemplate}
-          projectId={props.projectId}
-          disabled={props.disabled}
-          existingEvaluator={props.existingEvaluator}
-          evalTemplate={
-            props.existingEvaluator?.evalTemplate ?? currentTemplate
-          }
-          onFormSuccess={props.onFormSuccess}
-          shouldWrapVariables={props.shouldWrapVariables}
-          mode={props.mode}
-        />
-      ) : null}
+      <InnerEvaluatorForm
+        key={currentTemplate.id}
+        projectId={props.projectId}
+        disabled={props.disabled}
+        existingEvaluator={props.existingEvaluator}
+        evalTemplate={props.existingEvaluator?.evalTemplate ?? currentTemplate}
+        onFormSuccess={props.onFormSuccess}
+        shouldWrapVariables={props.shouldWrapVariables}
+        mode={props.mode}
+      />
     </>
   );
 };

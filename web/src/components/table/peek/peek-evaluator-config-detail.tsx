@@ -36,9 +36,7 @@ export const PeekViewEvaluatorConfigDetail = ({
   if (isMobile) {
     return (
       <div className="grid h-full flex-1 grid-rows-[auto,auto,1fr] gap-2 overflow-hidden p-1 contain-layout">
-        <span className="max-h-fit text-lg font-medium">
-          Running Evaluator Configuration
-        </span>
+        <span className="max-h-fit text-lg font-medium">Configuration</span>
         <CardDescription className="flex items-center justify-between text-sm">
           <span className="mr-2 text-sm font-medium">Referenced Evaluator</span>
           {row?.template && (
@@ -77,12 +75,9 @@ export const PeekViewEvaluatorConfigDetail = ({
       <div className="flex h-full flex-col overflow-hidden">
         <EvalLogTable projectId={projectId} jobConfigurationId={peekId} />
       </div>
-      <SidePanel
-        mobileTitle="Running Evaluator Configuration"
-        id="evaluator-configuration"
-      >
+      <SidePanel mobileTitle="Configuration" id="evaluator-configuration">
         <SidePanelHeader>
-          <SidePanelTitle>Running Evaluator Configuration</SidePanelTitle>
+          <SidePanelTitle>Configuration</SidePanelTitle>
         </SidePanelHeader>
         <SidePanelContent>
           <>

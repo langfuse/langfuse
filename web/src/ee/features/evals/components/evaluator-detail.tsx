@@ -160,12 +160,9 @@ export const EvaluatorDetail = () => {
               jobConfigurationId={existingEvaluator.id}
             />
           </div>
-          <SidePanel
-            mobileTitle="Running Evaluator Configuration"
-            id="evaluator-configuration"
-          >
+          <SidePanel mobileTitle="Configuration" id="evaluator-configuration">
             <SidePanelHeader>
-              <SidePanelTitle>Running Evaluator Configuration</SidePanelTitle>
+              <SidePanelTitle>Configuration</SidePanelTitle>
               <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="icon">
@@ -173,7 +170,7 @@ export const EvaluatorDetail = () => {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-screen-xl">
-                  <DialogTitle>Edit Evaluator</DialogTitle>
+                  <DialogTitle>Edit Configuration</DialogTitle>
                   <div className="max-h-[80vh] overflow-y-auto">
                     <EvaluatorForm
                       key={existingEvaluator.id}

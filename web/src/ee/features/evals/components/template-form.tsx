@@ -49,42 +49,40 @@ export const EvalTemplateForm = (props: {
   preventRedirect?: boolean;
 }) => {
   return (
-    <div className="grid grid-cols-1 gap-6 gap-x-12 lg:grid-cols-3">
-      <div className="col-span-1 lg:col-span-3">
-        <InnerEvalTemplateForm
-          key={props.existingEvalTemplate?.id}
-          {...props}
-          existingEvalTemplateId={props.existingEvalTemplate?.id}
-          existingEvalTemplateName={props.existingEvalTemplate?.name}
-          preFilledFormValues={
-            // if a langfuse template is selected, use that, else use the existing template
-            // no langfuse template is selected if there is already an existing template
-            props.existingEvalTemplate
-              ? {
-                  name: props.existingEvalTemplate.name,
-                  prompt: props.existingEvalTemplate.prompt,
-                  vars: props.existingEvalTemplate.vars,
-                  outputSchema: props.existingEvalTemplate.outputSchema as {
-                    score: string;
-                    reasoning: string;
-                  },
-                  selectedModel: {
-                    provider:
-                      props.existingEvalTemplate.provider ??
-                      DEFAULT_EVALUATION_MODEL.provider,
-                    model:
-                      props.existingEvalTemplate.model ??
-                      DEFAULT_EVALUATION_MODEL.model,
-                    modelParams:
-                      (props.existingEvalTemplate.modelParams as ModelParams & {
-                        maxTemperature: number;
-                      }) ?? DEFAULT_EVALUATION_MODEL.modelParams,
-                  },
-                }
-              : undefined
-          }
-        />
-      </div>
+    <div className="w-full">
+      <InnerEvalTemplateForm
+        key={props.existingEvalTemplate?.id}
+        {...props}
+        existingEvalTemplateId={props.existingEvalTemplate?.id}
+        existingEvalTemplateName={props.existingEvalTemplate?.name}
+        preFilledFormValues={
+          // if a langfuse template is selected, use that, else use the existing template
+          // no langfuse template is selected if there is already an existing template
+          props.existingEvalTemplate
+            ? {
+                name: props.existingEvalTemplate.name,
+                prompt: props.existingEvalTemplate.prompt,
+                vars: props.existingEvalTemplate.vars,
+                outputSchema: props.existingEvalTemplate.outputSchema as {
+                  score: string;
+                  reasoning: string;
+                },
+                selectedModel: {
+                  provider:
+                    props.existingEvalTemplate.provider ??
+                    DEFAULT_EVALUATION_MODEL.provider,
+                  model:
+                    props.existingEvalTemplate.model ??
+                    DEFAULT_EVALUATION_MODEL.model,
+                  modelParams:
+                    (props.existingEvalTemplate.modelParams as ModelParams & {
+                      maxTemperature: number;
+                    }) ?? DEFAULT_EVALUATION_MODEL.modelParams,
+                },
+              }
+            : undefined
+        }
+      />
     </div>
   );
 };
@@ -431,10 +429,11 @@ export const InnerEvalTemplateForm = (props: {
 
           {!props.isEditing && (
             <>
-              <FormLabel>Referenced evaluators</FormLabel>
+              <FormLabel>Running evaluators</FormLabel>
               <FormDescription>
+                This evaluator is currently used to power{" "}
                 {evaluatorsByTemplateNameQuery.data?.evaluators.length ?? 0}{" "}
-                evaluator(s) are currently using this template.
+                running configurations.
               </FormDescription>
             </>
           )}
