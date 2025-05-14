@@ -115,6 +115,31 @@ export class DashboardService {
   }
 
   /**
+   * Updates a dashboard's name and description.
+   */
+  public static async updateDashboard(
+    dashboardId: string,
+    projectId: string,
+    name: string,
+    description: string,
+    userId?: string,
+  ): Promise<DashboardDomain> {
+    const updatedDashboard = await prisma.dashboard.update({
+      where: {
+        id: dashboardId,
+        projectId,
+      },
+      data: {
+        name,
+        description,
+        updatedBy: userId,
+      },
+    });
+
+    return DashboardDomainSchema.parse(updatedDashboard);
+  }
+
+  /**
    * Gets a dashboard by ID.
    */
   public static async getDashboard(
