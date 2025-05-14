@@ -127,13 +127,20 @@ const convertKeyPathToNestedObject = (
 const extractInputAndOutput = (
   events: any[],
   attributes: Record<string, unknown>,
+  domain?: "trace" | "observation",
 ): { input: any; output: any } => {
   let input = null;
   let output = null;
 
   // Langfuse
-  input = attributes[LangfuseOtelSpanAttributes.OBSERVATION_INPUT];
-  output = attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT];
+  input =
+    domain === "trace"
+      ? attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]
+      : attributes[LangfuseOtelSpanAttributes.OBSERVATION_INPUT];
+  output =
+    domain === "trace"
+      ? attributes[LangfuseOtelSpanAttributes.TRACE_OUTPUT]
+      : attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT];
 
   if (input != null || output != null) {
     return { input, output };
@@ -667,7 +674,7 @@ export const convertOtelSpanToIngestionEvent = (
           environment: extractEnvironment(attributes, resourceAttributes),
 
           // Input and Output
-          ...extractInputAndOutput(span?.events ?? [], attributes),
+          ...extractInputAndOutput(span?.events ?? [], attributes, "trace"),
         };
         events.push({
           id: randomUUID(),
