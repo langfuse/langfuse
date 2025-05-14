@@ -276,6 +276,9 @@ export function DeleteDashboardButton(props: DeleteButtonProps) {
       captureDeleteOpen={(capture) =>
         capture("dashboard:delete_dashboard_form_open")
       }
+      captureDeleteSuccess={(capture) =>
+        capture("dashboard:delete_dashboard_button_click")
+      }
       entityToDeleteName="dashboard"
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={dashboardMutation.isLoading}

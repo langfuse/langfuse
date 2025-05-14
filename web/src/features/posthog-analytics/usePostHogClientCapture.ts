@@ -111,6 +111,7 @@ const events = {
     "new_dashboard_form_open",
     "delete_widget_form_open",
     "delete_dashboard_form_open",
+    "delete_dashboard_button_click",
   ],
   datasets: [
     "delete_form_open",
