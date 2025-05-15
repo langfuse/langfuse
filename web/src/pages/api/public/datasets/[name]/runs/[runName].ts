@@ -17,6 +17,7 @@ export default withMiddlewares({
     name: "get-dataset-run",
     querySchema: GetDatasetRunV1Query,
     responseSchema: GetDatasetRunV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const datasetRuns = await prisma.datasetRuns.findMany({
         where: {
@@ -62,6 +63,7 @@ export default withMiddlewares({
     name: "delete-dataset-run",
     querySchema: DeleteDatasetRunV1Query,
     responseSchema: DeleteDatasetRunV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       // First get the dataset run to check if it exists
       const datasetRuns = await prisma.datasetRuns.findMany({

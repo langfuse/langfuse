@@ -14,6 +14,7 @@ export default withMiddlewares({
     name: "Create Dataset",
     bodySchema: PostDatasetsV2Body,
     responseSchema: PostDatasetsV2Response,
+    rateLimitResource: "datasets",
     fn: async ({ body, auth }) => {
       const { name, description, metadata } = body;
 
@@ -53,6 +54,7 @@ export default withMiddlewares({
     name: "Get Datasets",
     querySchema: GetDatasetsV2Query,
     responseSchema: GetDatasetsV2Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const datasets = await prisma.dataset.findMany({
         select: {
