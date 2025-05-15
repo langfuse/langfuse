@@ -80,26 +80,20 @@ export const createDatasetRunsTableWithoutMetrics = async (
 // We need to create a temp table in CH, dump the data in there, and then join in CH.
 export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
   const tableName = `dataset_runs_${clickhouseCompliantRandomCharacters()}`;
-  const clickhouseSession = v4();
   try {
     const runs = await getDatasetRunsFromPostgres(input);
 
-    await createTempTableInClickhouse(tableName, clickhouseSession);
+    await createTempTableInClickhouse(tableName);
     await insertPostgresDatasetRunsIntoClickhouse(
       runs,
       tableName,
       input.projectId,
       input.datasetId,
-      clickhouseSession,
     );
 
     // these calls need to happen sequentially as there can be only one active session with
     // the same session_id at the time.
-    const traceScores = await getTraceScoresFromTempTable(
-      input,
-      tableName,
-      clickhouseSession,
-    );
+    const traceScores = await getTraceScoresFromTempTable(input, tableName);
 
     const runScores = await getScoresForDatasetRuns({
       projectId: input.projectId,
@@ -111,13 +105,8 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
     const obsAgg = await getObservationLatencyAndCostForDataset(
       input,
       tableName,
-      clickhouseSession,
     );
-    const traceAgg = await getTraceLatencyAndCostForDataset(
-      input,
-      tableName,
-      clickhouseSession,
-    );
+    const traceAgg = await getTraceLatencyAndCostForDataset(input, tableName);
 
     const enrichedRuns = runs.map(({ run_items, ...run }) => {
       const observation = obsAgg.find((o) => o.runId === run.run_id);
@@ -154,7 +143,7 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
     logger.error("Failed to fetch dataset runs from clickhouse", e);
     throw e;
   } finally {
-    await deleteTempTableInClickhouse(tableName, clickhouseSession);
+    await deleteTempTableInClickhouse(tableName);
   }
 };
 
@@ -163,7 +152,6 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
   tableName: string,
   projectId: string,
   datasetId: string,
-  clickhouseSession: string,
 ) => {
   const rows = runs.flatMap((run) =>
     run.run_items.map((item) => ({
@@ -176,7 +164,7 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
     })),
   );
 
-  await clickhouseClient({ session_id: clickhouseSession }).insert({
+  await clickhouseClient().insert({
     table: tableName,
     values: rows,
     format: "JSONEachRow",
@@ -186,10 +174,7 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
   });
 };
 
-export const createTempTableInClickhouse = async (
-  tableName: string,
-  clickhouseSession: string,
-) => {
+export const createTempTableInClickhouse = async (tableName: string) => {
   const query = `
       CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
       (
@@ -206,22 +191,19 @@ export const createTempTableInClickhouse = async (
   await commandClickhouse({
     query,
     params: { tableName },
-    clickhouseConfigs: { session_id: clickhouseSession },
+
     tags: { feature: "dataset" },
   });
 };
 
-export const deleteTempTableInClickhouse = async (
-  tableName: string,
-  sessionId: string,
-) => {
+export const deleteTempTableInClickhouse = async (tableName: string) => {
   const query = `
       DROP TABLE IF EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
   `;
   await commandClickhouse({
     query,
     params: { tableName },
-    clickhouseConfigs: { session_id: sessionId },
+
     tags: { feature: "dataset" },
   });
 };
@@ -263,7 +245,6 @@ export const getDatasetRunsFromPostgres = async (
 const getTraceScoresFromTempTable = async (
   input: DatasetRunsTableInput,
   tableName: string,
-  clickhouseSession: string,
 ) => {
   // adds a setting to read data once it is replicated from the writer node.
   // Only then, we can guarantee that the created mergetree before was replicated.
@@ -295,7 +276,7 @@ const getTraceScoresFromTempTable = async (
       projectId: input.projectId,
       datasetId: input.datasetId,
     },
-    clickhouseConfigs: { session_id: clickhouseSession },
+
     tags: { feature: "dataset", projectId: input.projectId },
   });
 
@@ -349,7 +330,7 @@ const getObservationLatencyAndCostForDataset = async (
       projectId: input.projectId,
       datasetId: input.datasetId,
     },
-    clickhouseConfigs: { session_id: clickhouseSession },
+
     tags: { feature: "dataset", projectId: input.projectId ?? "" },
   });
 
@@ -363,7 +344,6 @@ const getObservationLatencyAndCostForDataset = async (
 const getTraceLatencyAndCostForDataset = async (
   input: DatasetRunsTableInput,
   tableName: string,
-  clickhouseSession: string,
 ) => {
   const query = `
       WITH agg AS (
@@ -399,7 +379,7 @@ const getTraceLatencyAndCostForDataset = async (
       projectId: input.projectId,
       datasetId: input.datasetId,
     },
-    clickhouseConfigs: { session_id: clickhouseSession },
+
     tags: { feature: "dataset", projectId: input.projectId ?? "" },
   });
 
