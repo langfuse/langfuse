@@ -246,6 +246,12 @@ if (
         env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG && {
+          id_token_signed_response_alg: env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG
+        }),
+        ...(env.AUTH_AUTH0_AUTHORIZATION_SIGNED_RESPONSE_ALG && {
+          authorization_signed_response_alg: env.AUTH_AUTH0_AUTHORIZATION_SIGNED_RESPONSE_ALG
+        }),
       },
       checks: env.AUTH_AUTH0_CHECKS,
     }),
