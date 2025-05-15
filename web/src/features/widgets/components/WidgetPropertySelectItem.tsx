@@ -27,7 +27,7 @@ export const WidgetPropertySelectItem = ({
   className?: string;
 }) => {
   return (
-    <HoverCard openDelay={100} closeDelay={50}>
+    <HoverCard openDelay={0} closeDelay={0}>
       <HoverCardTrigger asChild>
         <SelectItem value={value} className={className ?? "max-w-56"}>
           {label}
