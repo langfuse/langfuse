@@ -18,6 +18,7 @@ import {
 } from "@/src/features/widgets/components/SelectWidgetDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 interface WidgetPlacement {
   id: string;
@@ -51,7 +52,6 @@ export default function DashboardDetail() {
   const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
     widgets: WidgetPlacement[];
   } | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // State for the widget selection dialog
   const [isWidgetDialogOpen, setIsWidgetDialogOpen] = useState(false);
@@ -62,9 +62,9 @@ export default function DashboardDetail() {
       onSuccess: () => {
         showSuccessToast({
           title: "Dashboard updated",
-          description: "Your changes have been saved successfully",
+          description: "Your changes have been saved automatically",
+          duration: 2000,
         });
-        setHasUnsavedChanges(false);
         // Invalidate the dashboard query to refetch the data
         dashboard.refetch();
       },
@@ -72,6 +72,18 @@ export default function DashboardDetail() {
         showErrorToast("Error updating dashboard", error.message);
       },
     });
+
+  const saveDashboardChanges = useDebounce(
+    (definition: { widgets: WidgetPlacement[] }) => {
+      updateDashboardDefinition.mutate({
+        projectId,
+        dashboardId,
+        definition,
+      });
+    },
+    600,
+    false,
+  );
 
   // Helper function to add a widget to the dashboard
   const addWidgetToDashboard = useCallback(
@@ -98,22 +110,17 @@ export default function DashboardDetail() {
       };
 
       // Add the widget to the local dashboard definition
-      setLocalDashboardDefinition({
+      const updatedDefinition = {
         ...localDashboardDefinition,
         widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
-      });
-
-      setHasUnsavedChanges(true);
-
-      showSuccessToast({
-        title: "Widget added",
-        description: `"${widget.name}" has been added to the dashboard. Click Save to apply changes.`,
-      });
+      };
+      setLocalDashboardDefinition(updatedDefinition);
+      saveDashboardChanges(updatedDefinition);
     },
     [
       localDashboardDefinition,
       setLocalDashboardDefinition,
-      setHasUnsavedChanges,
+      saveDashboardChanges,
     ],
   );
 
@@ -277,12 +284,12 @@ export default function DashboardDetail() {
         (widget) => widget.id !== tileId,
       );
 
-      setLocalDashboardDefinition({
+      const updatedDefinition = {
         ...localDashboardDefinition,
         widgets: updatedWidgets,
-      });
-
-      setHasUnsavedChanges(true);
+      };
+      setLocalDashboardDefinition(updatedDefinition);
+      saveDashboardChanges(updatedDefinition);
     }
   };
 
@@ -294,17 +301,6 @@ export default function DashboardDetail() {
   // Handle widget selection from dialog
   const handleSelectWidget = (widget: WidgetItem) => {
     addWidgetToDashboard(widget);
-  };
-
-  // Handle saving the dashboard
-  const handleSaveDashboard = () => {
-    if (localDashboardDefinition && hasUnsavedChanges) {
-      updateDashboardDefinition.mutate({
-        projectId,
-        dashboardId,
-        definition: localDashboardDefinition,
-      });
-    }
   };
 
   return (
@@ -331,17 +327,6 @@ export default function DashboardDetail() {
               <Button onClick={handleAddWidget} disabled={!hasCUDAccess}>
                 <PlusIcon size={16} />
                 Add Widget
-              </Button>
-              <Button
-                onClick={handleSaveDashboard}
-                disabled={
-                  !hasUnsavedChanges ||
-                  updateDashboardDefinition.isLoading ||
-                  !hasCUDAccess
-                }
-                loading={updateDashboardDefinition.isLoading}
-              >
-                Save
               </Button>
             </>
           ),
