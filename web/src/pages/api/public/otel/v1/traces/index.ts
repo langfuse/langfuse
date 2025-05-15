@@ -93,7 +93,7 @@ export default withMiddlewares({
         convertOtelSpanToIngestionEvent,
       );
       // We set a delay of 0 for OTel, as we never expect updates.
-      return processEventBatch(events, auth, 0);
+      return processEventBatch(events, auth, 0, false);
     },
   }),
 });
