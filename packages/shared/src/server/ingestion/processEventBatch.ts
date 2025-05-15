@@ -126,8 +126,8 @@ export const processEventBatch = async (
           validationErrors.push({
             id:
               typeof event === "object" && event && "id" in event
-                ? typeof (event as any).id === "string"
-                  ? (event as any).id
+                ? typeof event.id === "string"
+                  ? event.id
                   : "unknown"
                 : "unknown",
             error: new InvalidRequestError(parsed.error.message),
