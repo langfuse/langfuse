@@ -18,6 +18,7 @@ import {
 } from "@/src/features/widgets/components/SelectWidgetDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 interface WidgetPlacement {
   id: string;
@@ -192,7 +193,7 @@ export default function DashboardDetail() {
   }, [dashboard.data, localDashboardDefinition]);
 
   // Function to save dashboard changes
-  const saveDashboardChanges = useCallback(
+  const saveDashboardChanges = useDebounce(
     (definition: { widgets: WidgetPlacement[] }) => {
       updateDashboardDefinition.mutate({
         projectId,
@@ -200,7 +201,8 @@ export default function DashboardDetail() {
         definition,
       });
     },
-    [projectId, dashboardId, updateDashboardDefinition],
+    600,
+    false,
   );
 
   // Handle deleting a widget
@@ -215,10 +217,7 @@ export default function DashboardDetail() {
         widgets: updatedWidgets,
       };
       setLocalDashboardDefinition(updatedDefinition);
-
-      setTimeout(() => {
-        saveDashboardChanges(updatedDefinition);
-      }, 500);
+      saveDashboardChanges(updatedDefinition);
     }
   };
 
@@ -255,10 +254,7 @@ export default function DashboardDetail() {
         widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
       };
       setLocalDashboardDefinition(updatedDefinition);
-
-      setTimeout(() => {
-        saveDashboardChanges(updatedDefinition);
-      }, 500);
+      saveDashboardChanges(updatedDefinition);
     }
   };
 
