@@ -79,6 +79,7 @@ export const ROUTES: Route[] = [
     icon: LayoutDashboard,
     label: "Beta",
     entitlements: ["custom-dashboards"],
+    productModule: "dashboards",
   },
   {
     title: "Tracing",

@@ -4,6 +4,7 @@ import { z } from "zod";
  * All available product modules in Langfuse
  */
 export const PRODUCT_MODULES = [
+  "dashboards",
   "tracing",
   "evaluation",
   "prompt-management",
