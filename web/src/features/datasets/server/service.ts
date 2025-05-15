@@ -6,7 +6,6 @@ import {
   optionalPaginationZod,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { v4 } from "uuid";
 import { z } from "zod";
 import {
   clickhouseClient,
@@ -290,7 +289,6 @@ const getTraceScoresFromTempTable = async (
 const getObservationLatencyAndCostForDataset = async (
   input: DatasetRunsTableInput,
   tableName: string,
-  clickhouseSession: string,
 ) => {
   // the subquery here will improve performance as it allows clickhouse to use skip-indices on
   // the observations table
