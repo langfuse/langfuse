@@ -679,7 +679,7 @@ export const convertOtelSpanToIngestionEvent = (
         events.push({
           id: randomUUID(),
           type: "trace-create",
-          timestamp: new Date().toISOString(),
+          timestamp: new Date(startTimeISO).toISOString(),
           body: trace,
         });
       }
