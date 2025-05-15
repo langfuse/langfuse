@@ -56,7 +56,9 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
           />
         ))}
-        <ChartTooltip />
+        <ChartTooltip
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+        />
       </LineChart>
     </ChartContainer>
   );

@@ -55,7 +55,9 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />
         ))}
-        <ChartTooltip />
+        <ChartTooltip
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+        />
       </BarChart>
     </ChartContainer>
   );
