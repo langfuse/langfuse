@@ -191,11 +191,13 @@ export const observationsView: ViewDeclarationType = {
     },
     traceRelease: {
       sql: "release",
+      alias: "traceRelease",
       type: "string",
       relationTable: "traces",
     },
     traceVersion: {
       sql: "version",
+      alias: "traceVersion",
       type: "string",
       relationTable: "traces",
     },
@@ -310,11 +312,13 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   },
   traceRelease: {
     sql: "release",
+    alias: "traceRelease",
     type: "string",
     relationTable: "traces",
   },
   traceVersion: {
     sql: "version",
+    alias: "traceVersion",
     type: "string",
     relationTable: "traces",
   },
