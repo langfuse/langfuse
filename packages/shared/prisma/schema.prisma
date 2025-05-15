@@ -805,6 +805,7 @@ model EvalTemplate {
   vars             String[]           @default([])
   outputSchema     Json               @map("output_schema")
   JobConfiguration JobConfiguration[]
+  JobExecution     JobExecution[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -863,6 +864,9 @@ model JobExecution {
 
   jobConfigurationId String           @map("job_configuration_id")
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
+
+  jobTemplateId String?       @map("job_template_id")
+  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull)
 
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")

@@ -361,6 +361,7 @@ export type JobExecution = {
     updated_at: Generated<Timestamp>;
     project_id: string;
     job_configuration_id: string;
+    job_template_id: string | null;
     status: JobExecutionStatus;
     start_time: Timestamp | null;
     end_time: Timestamp | null;

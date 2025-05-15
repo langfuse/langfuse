@@ -329,6 +329,7 @@ export const createEvalJobs = async ({
           projectId: event.projectId,
           jobConfigurationId: config.id,
           jobInputTraceId: event.traceId,
+          jobTemplateId: config.eval_template_id,
           status: "PENDING",
           startTime: new Date(),
           ...(datasetItem
