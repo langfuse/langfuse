@@ -120,7 +120,7 @@ export class QueryBuilder {
       if (filter.column in view.dimensions) {
         const dimension = view.dimensions[filter.column];
         clickhouseSelect = dimension.sql;
-        type = dimension.type;
+        type = "string";
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
         }
@@ -138,6 +138,12 @@ export class QueryBuilder {
       } else if (filter.column === "metadata") {
         clickhouseSelect = "metadata";
         type = "stringObject";
+      } else if (filter.column.endsWith("Name")) {
+        // Sometimes, the filter does not update correctly and sends us scoreName instead of name for scores, etc.
+        // If this happens, none of the conditions above apply, and we use this fallback to avoid raising an error.
+        // As this is hard to catch, we include this workaround. (LFE-4838).
+        clickhouseSelect = "name";
+        type = "string";
       } else {
         throw new InvalidRequestError(
           `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${view.timeDimension}`,

@@ -51,7 +51,10 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           radius={[0, 4, 4, 0]}
           className="fill-[--color-metric]"
         />
-        <ChartTooltip />
+        <ChartTooltip
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
       </BarChart>
     </ChartContainer>
   );
