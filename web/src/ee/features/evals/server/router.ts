@@ -480,25 +480,43 @@ export const evalRouter = createTRPCRouter({
             projectId: string;
             version: number;
             latestCreatedAt: Date;
+            usageCount: number;
           }>
         >`
-          WITH latest_templates AS (
-            SELECT DISTINCT ON (project_id, name) *
-            FROM eval_templates
-            WHERE (project_id = ${input.projectId} OR project_id IS NULL)
-            ${searchCondition}
-            ORDER BY project_id, name, version DESC
-          )
+        WITH latest_templates AS (
+          SELECT DISTINCT ON (project_id, name) *
+          FROM eval_templates
+          WHERE (project_id = ${input.projectId} OR project_id IS NULL)
+          ${searchCondition}
+          ORDER BY project_id, name, version DESC
+        ),
+        template_usage AS (
           SELECT 
-            id as "latestId",
-            name,
-            project_id as "projectId",
-            version,
-            created_at as "latestCreatedAt"
-          FROM latest_templates
-          ORDER BY name
-          LIMIT ${input.limit}
-          OFFSET ${input.page * input.limit}
+            et.id,
+            COUNT(jc.id) as usage_count
+          FROM 
+            eval_templates et
+          LEFT JOIN 
+            job_configurations jc ON et.id = jc.eval_template_id
+          WHERE 
+            (et.project_id = ${input.projectId} OR et.project_id IS NULL)
+          GROUP BY 
+            et.id
+        )
+        SELECT 
+          lt.id as "latestId",
+          lt.name,
+          lt.project_id as "projectId",
+          lt.version,
+          lt.created_at as "latestCreatedAt",
+          COALESCE(tu.usage_count, 0)::int as "usageCount"
+        FROM 
+          latest_templates lt
+        LEFT JOIN 
+          template_usage tu ON lt.id = tu.id
+        ORDER BY lt.name
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
         `,
         ctx.prisma.$queryRaw<Array<{ count: bigint }>>`
           SELECT COUNT(*) as count
@@ -539,7 +557,7 @@ export const evalRouter = createTRPCRouter({
       const template = await ctx.prisma.evalTemplate.findUnique({
         where: {
           id: input.id,
-          projectId: input.projectId,
+          OR: [{ projectId: input.projectId }, { projectId: null }],
         },
       });
 
@@ -1165,17 +1183,13 @@ export const evalRouter = createTRPCRouter({
           updatedAt: true,
           projectId: true,
           jobConfigurationId: true,
+          jobTemplateId: true,
           status: true,
           startTime: true,
           endTime: true,
           error: true,
           jobInputTraceId: true,
           jobOutputScoreId: true,
-          jobConfiguration: {
-            select: {
-              evalTemplateId: true,
-            },
-          },
         },
         ...(input.limit !== undefined && input.page !== undefined
           ? { take: input.limit, skip: input.page * input.limit }

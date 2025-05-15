@@ -31,7 +31,6 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import {
-  Pen,
   MoreVertical,
   UserCircle2Icon,
   Loader2,
@@ -219,30 +218,25 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "template",
       header: "Referenced Evaluator",
       size: 200,
-      cell: (row) => {
-        const template = row.getValue();
+      cell: ({ row }) => {
+        const template = row.original.template;
+        const isLangfuse = row.original.maintainer.includes("Langfuse");
         if (!template) return "template not found";
-        return <TableIdOrName value={template.name} />;
-      },
-    }),
-    columnHelper.accessor("maintainer", {
-      id: "maintainer",
-      header: "Maintainer",
-      size: 150,
-      cell: (row) => {
-        const isLangfuse = row.getValue().includes("Langfuse");
         return (
-          <div className="flex justify-center">
-            <Tooltip>
-              <TooltipTrigger>
-                {isLangfuse ? (
-                  <LangfuseIcon size={16} />
-                ) : (
-                  <UserCircle2Icon className="h-4 w-4" />
-                )}
-              </TooltipTrigger>
-              <TooltipContent>{row.getValue()}</TooltipContent>
-            </Tooltip>
+          <div className="flex items-center gap-2">
+            <TableIdOrName value={template.name} />
+            <div className="flex justify-center">
+              <Tooltip>
+                <TooltipTrigger>
+                  {isLangfuse ? (
+                    <LangfuseIcon size={16} />
+                  ) : (
+                    <UserCircle2Icon className="h-4 w-4" />
+                  )}
+                </TooltipTrigger>
+                <TooltipContent>{row.original.maintainer}</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         );
       },
@@ -342,7 +336,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <DeleteEvaluatorButton
                   aria-label="delete"
                   itemId={id}

@@ -137,8 +137,10 @@ export default function EvalsTemplateTable({
     columnHelper.accessor("usageCount", {
       header: "Usage count",
       id: "usageCount",
+      enableHiding: true,
       cell: (row) => {
-        return row.getValue();
+        const count = row.getValue();
+        return !!count ? count : null;
       },
     }),
     columnHelper.accessor("apply", {
@@ -168,7 +170,7 @@ export default function EvalsTemplateTable({
     }),
     columnHelper.accessor("latestVersion", {
       header: "Latest Version",
-      id: "version",
+      id: "latestVersion",
       enableHiding: true,
       cell: (row) => {
         return row.getValue();
@@ -245,7 +247,7 @@ export default function EvalsTemplateTable({
       latestCreatedAt: template.latestCreatedAt,
       latestVersion: template.version,
       id: template.latestId,
-      // usageCount: template.usageCount,
+      usageCount: template.usageCount,
     };
   };
 
