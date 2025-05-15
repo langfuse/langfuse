@@ -73,6 +73,18 @@ export default function DashboardDetail() {
       },
     });
 
+  const saveDashboardChanges = useDebounce(
+    (definition: { widgets: WidgetPlacement[] }) => {
+      updateDashboardDefinition.mutate({
+        projectId,
+        dashboardId,
+        definition,
+      });
+    },
+    600,
+    false,
+  );
+
   // Helper function to add a widget to the dashboard
   const addWidgetToDashboard = useCallback(
     (widget: WidgetItem) => {
@@ -105,7 +117,11 @@ export default function DashboardDetail() {
       setLocalDashboardDefinition(updatedDefinition);
       saveDashboardChanges(updatedDefinition);
     },
-    [localDashboardDefinition, setLocalDashboardDefinition],
+    [
+      localDashboardDefinition,
+      setLocalDashboardDefinition,
+      saveDashboardChanges,
+    ],
   );
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
@@ -235,19 +251,6 @@ export default function DashboardDetail() {
       setLocalDashboardDefinition(dashboard.data.definition);
     }
   }, [dashboard.data, localDashboardDefinition]);
-
-  // Function to save dashboard changes
-  const saveDashboardChanges = useDebounce(
-    (definition: { widgets: WidgetPlacement[] }) => {
-      updateDashboardDefinition.mutate({
-        projectId,
-        dashboardId,
-        definition,
-      });
-    },
-    600,
-    false,
-  );
 
   useEffect(() => {
     if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
