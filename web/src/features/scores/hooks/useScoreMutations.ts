@@ -47,17 +47,24 @@ const onTraceScoreSettledUpsert =
 
     console.log("invalidating traces");
 
-    await Promise.all([
-      utils.scores.invalidate(),
-      utils.traces.byIdWithObservationsAndScores.invalidate(
-        { projectId, traceId },
-        {
-          type: "all",
-          refetchType: "all",
-        },
-      ),
-      utils.sessions.invalidate(),
-    ]);
+    try {
+      await Promise.all([
+        // Invalidate all scores data
+        utils.scores.invalidate(),
+
+        utils.traces.byIdWithObservationsAndScores.invalidate(
+          { projectId, traceId },
+          {
+            type: "all",
+            refetchType: "all",
+          },
+        ),
+        // Invalidate sessions in case they're affected
+        utils.sessions.invalidate(),
+      ]);
+    } catch (error) {
+      console.error("Error invalidating data after score update:", error);
+    }
 
     if (!isDrawerOpen) setShowSaving(false);
   };
@@ -71,6 +78,8 @@ const onScoreSettledDelete =
     remove,
     isDrawerOpen,
     setShowSaving,
+    projectId,
+    traceId,
   }: {
     utils: ReturnType<typeof api.useUtils>;
     fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
@@ -79,12 +88,21 @@ const onScoreSettledDelete =
     remove: ReturnType<typeof useFieldArray>["remove"];
     isDrawerOpen: boolean;
     setShowSaving: (showSaving: boolean) => void;
+    projectId: string;
+    traceId?: string;
   }) =>
   async (data?: APIScoreV2, error?: unknown) => {
     if (!data || error) return;
 
     const { id, name, dataType, configId } = data;
     const updatedScoreIndex = fields.findIndex((field) => field.scoreId === id);
+
+    // Skip if index not found - might have been removed already
+    if (updatedScoreIndex === -1) {
+      console.log("Score index not found in form data, skipping update");
+      if (!isDrawerOpen) setShowSaving(false);
+      return;
+    }
 
     const config = configs.find((config) => config.id === configId);
     if (config && config.isArchived) {
@@ -101,11 +119,27 @@ const onScoreSettledDelete =
       });
     }
 
-    await Promise.all([
-      utils.scores.invalidate(),
-      utils.traces.invalidate(),
-      utils.sessions.invalidate(),
-    ]);
+    try {
+      await Promise.all([
+        // Invalidate all scores data
+        utils.scores.invalidate(),
+
+        traceId
+          ? utils.traces.byIdWithObservationsAndScores.invalidate(
+              { projectId, traceId },
+              {
+                type: "all",
+                refetchType: "all",
+              },
+            )
+          : utils.traces.invalidate(),
+
+        // Invalidate sessions in case they're affected
+        utils.sessions.invalidate(),
+      ]);
+    } catch (error) {
+      console.error("Error invalidating data after score deletion:", error);
+    }
 
     if (!isDrawerOpen) setShowSaving(false);
   };
@@ -142,10 +176,19 @@ const onSessionScoreSettledUpsert =
       comment: comment ?? undefined,
     });
 
-    await Promise.all([
-      utils.scores.invalidate(),
-      utils.sessions.byIdWithScores.invalidate(),
-    ]);
+    try {
+      await Promise.all([
+        // Invalidate all scores data
+        utils.scores.invalidate(),
+        // Invalidate all sessions
+        utils.sessions.invalidate(),
+      ]);
+    } catch (error) {
+      console.error(
+        "Error invalidating data after session score update:",
+        error,
+      );
+    }
 
     if (!isDrawerOpen) setShowSaving(false);
   };
@@ -161,6 +204,7 @@ export function useScoreMutations(
   setShowSaving: (showSaving: boolean) => void,
 ) {
   const utils = api.useUtils();
+  const traceId = isTraceScore(scoreTarget) ? scoreTarget.traceId : undefined;
 
   const onSettledUpsert = isTraceScore(scoreTarget)
     ? onTraceScoreSettledUpsert({
@@ -188,6 +232,8 @@ export function useScoreMutations(
     configs,
     isDrawerOpen,
     setShowSaving,
+    projectId,
+    traceId,
   });
 
   // Create mutations with shared invalidation logic
@@ -200,7 +246,7 @@ export function useScoreMutations(
   });
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
-    onSuccess: onSettledDelete,
+    onSettled: onSettledDelete,
   });
 
   return {

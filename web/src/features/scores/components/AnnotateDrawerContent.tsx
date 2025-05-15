@@ -251,6 +251,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   }, [emptySelectedConfigIds, scores, configs, scoreTarget, form]);
 
   const pendingCreates = useRef(new Map<number, Promise<APIScoreV2>>());
+  // Track pending updates to prevent race conditions
+  const pendingUpdates = useRef(new Map<string, Promise<APIScoreV2>>());
+  // Track pending deletes to prevent race conditions
+  const pendingDeletes = useRef(new Set<string>());
   const description = formatAnnotateDescription(scoreTarget);
 
   async function handleScoreChange(
@@ -259,6 +263,11 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
     value: number,
     stringValue: string | null,
   ) {
+    // Skip updates for scores that are being deleted
+    if (score.scoreId && pendingDeletes.current.has(score.scoreId)) {
+      return;
+    }
+
     // Optimistically update the UI
     setOptimisticScore({
       index,
@@ -283,9 +292,17 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
           environment,
         });
 
-        await updateMutation.mutateAsync({
+        const updatePromise = updateMutation.mutateAsync({
           ...validatedScore,
         });
+
+        // Store the pending update
+        pendingUpdates.current.set(score.scoreId, updatePromise);
+
+        await updatePromise;
+
+        // Clear the pending update once completed
+        pendingUpdates.current.delete(score.scoreId);
 
         capture("score:update", {
           ...analyticsData,
@@ -311,9 +328,17 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
             environment,
           });
 
-          await updateMutation.mutateAsync({
+          const updatePromise = updateMutation.mutateAsync({
             ...validatedScore,
           });
+
+          // Store the pending update
+          pendingUpdates.current.set(createdScore.id, updatePromise);
+
+          await updatePromise;
+
+          // Clear the pending update
+          pendingUpdates.current.delete(createdScore.id);
 
           capture("score:update", {
             ...analyticsData,
@@ -531,6 +556,55 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
       }
     };
   }
+
+  // Check if a score operation is pending
+  const isPendingOperation = (scoreId?: string, index?: number) => {
+    if (!scoreId && index === undefined) return false;
+    if (scoreId && pendingDeletes.current.has(scoreId)) return true;
+    if (scoreId && pendingUpdates.current.has(scoreId)) return true;
+    if (index !== undefined && pendingCreates.current.has(index)) return true;
+    return false;
+  };
+
+  const handleDeleteScore = async (
+    score: AnnotationScoreSchemaType,
+    index: number,
+  ) => {
+    if (!score.scoreId || isPendingOperation(score.scoreId, index)) return;
+
+    try {
+      // Mark as pending delete to prevent concurrent operations
+      pendingDeletes.current.add(score.scoreId);
+
+      // Optimistically update the UI
+      setOptimisticScore({
+        index,
+        value: null,
+        stringValue: null,
+      });
+
+      await deleteMutation.mutateAsync({
+        id: score.scoreId,
+        projectId,
+      });
+
+      capture("score:delete", analyticsData);
+      form.clearErrors(`scoreData.${index}.value`);
+    } catch (error) {
+      console.error("Error deleting score:", error);
+      // Revert optimistic update on error
+      setOptimisticScore({
+        index,
+        value: score.value ?? null,
+        stringValue: score.stringValue ?? null,
+      });
+    } finally {
+      // Always clean up the pending delete
+      if (score.scoreId) {
+        pendingDeletes.current.delete(score.scoreId);
+      }
+    }
+  };
 
   return (
     <div className="mx-auto w-full overflow-y-auto md:max-h-full">
@@ -915,7 +989,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                   type="button"
                                   className="px-0 pl-1"
                                   title="Delete archived score"
-                                  disabled={isScoreUnsaved(score.scoreId)}
+                                  disabled={
+                                    isScoreUnsaved(score.scoreId) ||
+                                    isPendingOperation(score.scoreId, index)
+                                  }
                                 >
                                   <Archive className="h-4 w-4"></Archive>
                                 </Button>
@@ -932,24 +1009,15 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                   <Button
                                     type="button"
                                     variant="destructive"
-                                    loading={deleteMutation.isLoading}
-                                    onClick={async () => {
-                                      if (score.scoreId) {
-                                        setOptimisticScore({
-                                          index,
-                                          value: null,
-                                          stringValue: null,
-                                        });
-                                        await deleteMutation.mutateAsync({
-                                          id: score.scoreId,
-                                          projectId,
-                                        });
-                                        capture("score:delete", analyticsData);
-                                        form.clearErrors(
-                                          `scoreData.${index}.value`,
-                                        );
-                                      }
-                                    }}
+                                    loading={
+                                      deleteMutation.isLoading &&
+                                      pendingDeletes.current.has(
+                                        score.scoreId ?? "",
+                                      )
+                                    }
+                                    onClick={() =>
+                                      handleDeleteScore(score, index)
+                                    }
                                   >
                                     Delete
                                   </Button>
@@ -964,30 +1032,15 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                               title="Delete score from trace/observation"
                               disabled={
                                 isScoreUnsaved(score.scoreId) ||
-                                updateMutation.isLoading
+                                updateMutation.isLoading ||
+                                isPendingOperation(score.scoreId, index)
                               }
                               loading={
                                 deleteMutation.isLoading &&
-                                !optimisticScores.some(
-                                  (s) => s.scoreId === score.scoreId,
-                                ) &&
-                                !isScoreUnsaved(score.scoreId)
+                                !isScoreUnsaved(score.scoreId) &&
+                                pendingDeletes.current.has(score.scoreId ?? "")
                               }
-                              onClick={async () => {
-                                if (score.scoreId) {
-                                  setOptimisticScore({
-                                    index,
-                                    value: null,
-                                    stringValue: null,
-                                  });
-                                  await deleteMutation.mutateAsync({
-                                    id: score.scoreId,
-                                    projectId,
-                                  });
-                                  capture("score:delete", analyticsData);
-                                  form.clearErrors(`scoreData.${index}.value`);
-                                }
-                              }}
+                              onClick={() => handleDeleteScore(score, index)}
                             >
                               <X className="h-4 w-4" />
                             </Button>
