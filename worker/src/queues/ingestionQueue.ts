@@ -118,7 +118,7 @@ export const ingestionQueueProcessorBuilder = (
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
 
-      logger.info(
+      logger.debug(
         `Processing ingestion event ${
           enableRedirectToSecondaryQueue ? "" : "secondary"
         }`,
