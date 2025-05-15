@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import {
   Dialog,
@@ -22,7 +21,6 @@ export interface SelectDashboardDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
-  widgetId: string;
   onSelectDashboard: (dashboardId: string) => void;
   onSkip: () => void;
 }
@@ -37,7 +35,6 @@ export function SelectDashboardDialog({
   const [selectedDashboardId, setSelectedDashboardId] = useState<string | null>(
     null,
   );
-  const router = useRouter();
 
   const dashboards = api.dashboard.allDashboards.useQuery(
     {

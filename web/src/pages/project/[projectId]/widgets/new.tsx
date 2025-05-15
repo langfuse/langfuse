@@ -105,7 +105,6 @@ export default function NewWidget() {
           open={dashboardDialogOpen}
           onOpenChange={setDashboardDialogOpen}
           projectId={projectId}
-          widgetId={pendingWidgetId}
           onSelectDashboard={(dashboardId) => {
             router.push(
               `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${pendingWidgetId}`,
