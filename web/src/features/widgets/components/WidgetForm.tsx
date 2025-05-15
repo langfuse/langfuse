@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
 import { viewDeclarations } from "@/src/features/query/dataModel";
 import { type z } from "zod";
@@ -409,9 +410,12 @@ export function WidgetForm({
                   </SelectTrigger>
                   <SelectContent>
                     {views.options.map((view) => (
-                      <SelectItem key={view} value={view}>
-                        {startCase(view)}
-                      </SelectItem>
+                      <WidgetPropertySelectItem
+                        key={view}
+                        value={view}
+                        label={startCase(view)}
+                        description={viewDeclarations[view].description}
+                      />
                     ))}
                   </SelectContent>
                 </Select>
@@ -428,11 +432,22 @@ export function WidgetForm({
                     <SelectValue placeholder="Select metrics" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableMetrics.map((metric) => (
-                      <SelectItem key={metric.value} value={metric.value}>
-                        {metric.label}
-                      </SelectItem>
-                    ))}
+                    {availableMetrics.map((metric) => {
+                      const meta =
+                        viewDeclarations[selectedView]?.measures?.[
+                          metric.value
+                        ];
+                      return (
+                        <WidgetPropertySelectItem
+                          key={metric.value}
+                          value={metric.value}
+                          label={metric.label}
+                          description={meta?.description}
+                          unit={meta?.unit}
+                          type={meta?.type}
+                        />
+                      );
+                    })}
                   </SelectContent>
                 </Select>
                 {selectedMeasure !== "count" && (
@@ -484,11 +499,22 @@ export function WidgetForm({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    {availableDimensions.map((dimension) => (
-                      <SelectItem key={dimension.value} value={dimension.value}>
-                        {dimension.label}
-                      </SelectItem>
-                    ))}
+                    {availableDimensions.map((dimension) => {
+                      const meta =
+                        viewDeclarations[selectedView]?.dimensions?.[
+                          dimension.value
+                        ];
+                      return (
+                        <WidgetPropertySelectItem
+                          key={dimension.value}
+                          value={dimension.value}
+                          label={dimension.label}
+                          description={meta?.description}
+                          unit={meta?.unit}
+                          type={meta?.type}
+                        />
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
