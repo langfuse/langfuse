@@ -120,7 +120,7 @@ export class QueryBuilder {
       if (filter.column in view.dimensions) {
         const dimension = view.dimensions[filter.column];
         clickhouseSelect = dimension.sql;
-        type = dimension.type;
+        type = "string";
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
         }

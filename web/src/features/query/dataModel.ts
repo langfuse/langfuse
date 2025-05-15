@@ -10,89 +10,115 @@ import {
 
 export const traceView: ViewDeclarationType = {
   name: "traces",
+  description:
+    "Traces represent a group of observations and typically represent a single request or operation.",
   dimensions: {
     id: {
       sql: "id",
       type: "string",
+      description: "Unique identifier of the trace.",
     },
     name: {
       sql: "name",
       type: "string",
+      description:
+        "Name assigned to the trace (often the endpoint or operation).",
     },
     tags: {
       sql: "tags",
       type: "string[]",
+      description: "User-defined tags associated with the trace.",
     },
     userId: {
       sql: "user_id",
       alias: "userId",
       type: "string",
+      description: "Identifier of the user triggering the trace.",
     },
     sessionId: {
       sql: "session_id",
       alias: "sessionId",
       type: "string",
+      description: "Identifier of the session triggering the trace.",
     },
     release: {
       sql: "release",
       type: "string",
+      description: "Release version of the trace.",
     },
     version: {
       sql: "version",
       type: "string",
+      description: "Version of the trace.",
     },
     environment: {
       sql: "environment",
       type: "string",
+      description: "Deployment environment (e.g., production, staging).",
     },
     observationName: {
       sql: "name",
       alias: "observationName",
       type: "string",
       relationTable: "observations",
+      description: "Name of the observation.",
     },
     scoreName: {
       sql: "name",
       alias: "scoreName",
       type: "string",
       relationTable: "scores",
+      description: "Name of the score.",
     },
   },
   measures: {
     count: {
       sql: "count(*)",
       alias: "count",
-      type: "count",
+      type: "integer",
+      description: "Total number of traces.",
+      unit: "traces",
     },
     observationsCount: {
       sql: "uniq(observations.id)",
       alias: "observationsCount",
-      type: "count",
+      type: "integer",
       relationTable: "observations",
+      description: "Unique observations linked to the trace.",
+      unit: "observations",
     },
     scoresCount: {
       sql: "uniq(scores.id)",
       alias: "scoresCount",
-      type: "count",
+      type: "integer",
       relationTable: "scores",
+      description: "Unique scores attached to the trace.",
+      unit: "scores",
     },
     latency: {
       sql: "date_diff('millisecond', min(observations.start_time), max(observations.end_time))",
       alias: "latency",
-      type: "number",
+      type: "integer",
       relationTable: "observations",
+      description:
+        "Elapsed time between the first and last observation inside the trace.",
+      unit: "millisecond",
     },
     totalTokens: {
       sql: "sumMap(observations.usage_details)['total']",
       alias: "totalTokens",
-      type: "sum",
+      type: "integer",
       relationTable: "observations",
+      description: "Sum of tokens consumed by all observations in the trace.",
+      unit: "tokens",
     },
     totalCost: {
       sql: "sum(observations.total_cost)",
       alias: "totalCost",
-      type: "sum",
+      type: "decimal",
       relationTable: "observations",
+      description: "Total cost accumulated across observations in the trace.",
+      unit: "USD",
     },
   },
   tableRelations: {
@@ -116,129 +142,163 @@ export const traceView: ViewDeclarationType = {
 
 export const observationsView: ViewDeclarationType = {
   name: "observations",
+  description:
+    "Observations represent individual requests or operations within a trace. They are grouped into Spans, Generations, and Events.",
   dimensions: {
     id: {
       sql: "id",
       type: "string",
+      description: "Unique identifier for the observation.",
     },
     traceId: {
       sql: "trace_id",
       alias: "traceId",
       type: "string",
+      description: "Identifier linking the observation to its parent trace.",
     },
     traceName: {
       sql: "name",
       alias: "traceName",
       type: "string",
       relationTable: "traces",
+      description: "Name of the parent trace.",
     },
     environment: {
       sql: "environment",
       type: "string",
+      description: "Deployment environment (e.g., production, staging).",
     },
     parentObservationId: {
       sql: "parent_observation_id",
       alias: "parentObservationId",
       type: "string",
+      description:
+        "Identifier of the parent observation. Empty for the root span.",
     },
     type: {
       sql: "type",
       type: "string",
+      description:
+        "Type of the observation. Can be a SPAN, GENERATION, or EVENT.",
     },
     name: {
       sql: "name",
       type: "string",
+      description: "Name of the observation.",
     },
     level: {
       sql: "level",
       type: "string",
+      description: "Logging level of the observation.",
     },
     version: {
       sql: "version",
       type: "string",
+      description: "Version of the observation.",
     },
     tags: {
       sql: "tags",
       type: "string[]",
       relationTable: "traces",
+      description: "User-defined tags associated with the trace.",
     },
     providedModelName: {
       sql: "provided_model_name",
       alias: "providedModelName",
       type: "string",
+      description: "Name of the model used for the observation.",
     },
     promptName: {
       sql: "prompt_name",
       alias: "promptName",
       type: "string",
+      description: "Name of the prompt used for the observation.",
     },
     promptVersion: {
       sql: "prompt_version",
       alias: "promptVersion",
       type: "string",
+      description: "Version of the prompt used for the observation.",
     },
     userId: {
       sql: "user_id",
       alias: "userId",
       type: "string",
       relationTable: "traces",
+      description: "Identifier of the user triggering the observation.",
     },
     sessionId: {
       sql: "session_id",
       alias: "sessionId",
       type: "string",
       relationTable: "traces",
+      description: "Identifier of the session triggering the observation.",
     },
     traceRelease: {
       sql: "release",
       alias: "traceRelease",
       type: "string",
       relationTable: "traces",
+      description: "Release version of the parent trace.",
     },
     traceVersion: {
       sql: "version",
       alias: "traceVersion",
       type: "string",
       relationTable: "traces",
+      description: "Version of the parent trace.",
     },
     scoreName: {
       sql: "name",
       alias: "scoreName",
       type: "string",
       relationTable: "scores",
+      description: "Name of the score.",
     },
   },
   measures: {
     count: {
       sql: "count(*)",
       alias: "count",
-      type: "count",
+      type: "integer",
+      description: "Total number of observations.",
+      unit: "observations",
     },
     latency: {
       sql: "date_diff('millisecond', any(observations.start_time), any(observations.end_time))",
       alias: "latency",
-      type: "number",
+      type: "integer",
+      description: "Latency of an individual observation.",
+      unit: "ms",
     },
     totalTokens: {
       sql: "sumMap(usage_details)['total']",
       alias: "totalTokens",
-      type: "sum",
+      type: "integer",
+      description: "Sum of tokens consumed by the observation.",
+      unit: "tokens",
     },
     totalCost: {
       sql: "sum(total_cost)",
       alias: "totalCost",
-      type: "sum",
+      type: "decimal",
+      description: "Total cost accumulated by the observation.",
+      unit: "USD",
     },
     timeToFirstToken: {
       sql: "date_diff('millisecond', any(observations.start_time), any(observations.completion_start_time))",
       alias: "timeToFirstToken",
-      type: "number",
+      type: "integer",
+      description: "Time to first token for the observation.",
+      unit: "ms",
     },
     countScores: {
       sql: "uniq(scores.id)",
       alias: "countScores",
-      type: "count",
+      type: "integer",
       relationTable: "scores",
+      description: "Unique scores attached to the observation.",
+      unit: "scores",
     },
   },
   tableRelations: {
@@ -264,102 +324,123 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   id: {
     sql: "id",
     type: "string",
+    description: "Unique identifier of the score entry.",
   },
   environment: {
     sql: "environment",
     type: "string",
+    description: "Deployment environment (e.g., production, staging).",
   },
   name: {
     sql: "name",
     type: "string",
+    description: "Name of the score (e.g., accuracy, toxicity).",
   },
   source: {
     sql: "source",
     type: "string",
+    description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
   },
   dataType: {
     sql: "data_type",
     alias: "dataType",
     type: "string",
+    description:
+      "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
   },
   traceId: {
     sql: "trace_id",
     alias: "traceId",
     type: "string",
+    description: "Identifier of the parent trace.",
   },
   traceName: {
     sql: "name",
     alias: "traceName",
     type: "string",
     relationTable: "traces",
+    description: "Name of the parent trace.",
   },
   tags: {
     sql: "tags",
     type: "string[]",
     relationTable: "traces",
+    description: "User-defined tags associated with the trace.",
   },
   userId: {
     sql: "user_id",
     alias: "userId",
     type: "string",
     relationTable: "traces",
+    description: "Identifier of the user triggering the trace.",
   },
   sessionId: {
     sql: "session_id",
     alias: "sessionId",
     type: "string",
     relationTable: "traces",
+    description: "Identifier of the session triggering the trace.",
   },
   traceRelease: {
     sql: "release",
     alias: "traceRelease",
     type: "string",
     relationTable: "traces",
+    description: "Release version of the parent trace.",
   },
   traceVersion: {
     sql: "version",
     alias: "traceVersion",
     type: "string",
     relationTable: "traces",
+    description: "Version of the parent trace.",
   },
   observationId: {
     sql: "observation_id",
     alias: "observationId",
     type: "string",
+    description: "Identifier of the observation associated with the score.",
   },
   observationName: {
     sql: "name",
     alias: "observationName",
     type: "string",
     relationTable: "observations",
+    description: "Name of the observation associated with the score.",
   },
   observationModelName: {
     sql: "provided_model_name",
     alias: "observationModelName",
     type: "string",
     relationTable: "observations",
+    description: "Name of the model used for the observation.",
   },
   observationPromptName: {
     sql: "prompt_name",
     alias: "observationPromptName",
     type: "string",
     relationTable: "observations",
+    description: "Name of the prompt used for the observation.",
   },
   observationPromptVersion: {
     sql: "prompt_version",
     alias: "observationPromptVersion",
     type: "string",
     relationTable: "observations",
+    description: "Version of the prompt used for the observation.",
   },
   configId: {
     sql: "config_id",
     alias: "configId",
     type: "string",
+    description: "Identifier of the config associated with the score.",
   },
 };
 
 export const scoresNumericView: ViewDeclarationType = {
   name: "scores_numeric",
+  description:
+    "Scores are flexible objects that are used for evaluations. This view contains numeric scores.",
   dimensions: {
     ...scoreBaseDimensions,
   },
@@ -367,12 +448,15 @@ export const scoresNumericView: ViewDeclarationType = {
     count: {
       sql: "count(*)",
       alias: "count",
-      type: "count",
+      type: "integer",
+      description: "Total number of scores.",
+      unit: "scores",
     },
     value: {
       sql: "any(value)",
       alias: "value",
       type: "number",
+      description: "Value of the score.",
     },
   },
   tableRelations: {
@@ -404,19 +488,24 @@ export const scoresNumericView: ViewDeclarationType = {
 
 export const scoresCategoricalView: ViewDeclarationType = {
   name: "scores_categorical",
+  description:
+    "Scores are flexible objects that are used for evaluations. This view contains categorical scores.",
   dimensions: {
     ...scoreBaseDimensions,
     stringValue: {
       sql: "string_value",
       alias: "stringValue",
       type: "string",
+      description: "Value of the score.",
     },
   },
   measures: {
     count: {
       sql: "count(*)",
       alias: "count",
-      type: "count",
+      type: "integer",
+      description: "Total number of scores.",
+      unit: "scores",
     },
   },
   tableRelations: {
