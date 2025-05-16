@@ -631,6 +631,13 @@ export const convertOtelSpanToIngestionEvent = (
         !parentObservationId ||
         String(attributes[LangfuseOtelSpanAttributes.AS_ROOT]) === "true";
 
+      const spanAttributesInMetadata = Object.fromEntries(
+        Object.entries(attributes).map(([key, value]) => [
+          key,
+          typeof value === "string" ? value : JSON.stringify(value),
+        ]),
+      );
+
       const hasTraceUpdates = [
         LangfuseOtelSpanAttributes.TRACE_NAME,
         LangfuseOtelSpanAttributes.TRACE_INPUT,
@@ -653,7 +660,9 @@ export const convertOtelSpanToIngestionEvent = (
           metadata: {
             ...resourceAttributeMetadata,
             ...extractMetadata(attributes, "trace"),
-            ...(isLangfuseSDKSpans ? {} : { attributes }),
+            ...(isLangfuseSDKSpans
+              ? {}
+              : { attributes: spanAttributesInMetadata }),
             resourceAttributes,
             scope: { ...(scopeSpan.scope || {}), attributes: scopeAttributes },
           },
@@ -702,7 +711,9 @@ export const convertOtelSpanToIngestionEvent = (
         metadata: {
           ...resourceAttributeMetadata,
           ...spanAttributeMetadata,
-          ...(isLangfuseSDKSpans ? {} : { attributes }),
+          ...(isLangfuseSDKSpans
+            ? {}
+            : { attributes: spanAttributesInMetadata }),
           resourceAttributes,
           scope: { ...scopeSpan.scope, attributes: scopeAttributes },
         },
