@@ -191,7 +191,12 @@ export function DashboardWidget({
       className={`${getGridClasses(placement)} group flex flex-col overflow-hidden rounded-lg border bg-background p-4`}
     >
       <div className="mb-2 flex items-center justify-between">
-        <span className="font-medium">{widget.data.name}</span>
+        <span className="font-medium">
+          {widget.data.name}{" "}
+          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
+            ? " ( 🪢 )"
+            : null}
+        </span>
         {hasCUDAccess && (
           <div className="flex space-x-2">
             {widget.data.owner === "PROJECT" ? (
