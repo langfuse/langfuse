@@ -35,14 +35,14 @@ export function DashboardWidget({
   dateRange,
   filterState,
   onDeleteWidget,
-  owner,
+  dashboardOwner,
 }: {
   projectId: string;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
-  owner: "LANGFUSE" | "PROJECT";
+  dashboardOwner: "LANGFUSE" | "PROJECT";
 }) {
   const router = useRouter();
   const widget = api.dashboardWidgets.get.useQuery(
@@ -56,7 +56,7 @@ export function DashboardWidget({
   );
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
-    owner !== "LANGFUSE";
+    dashboardOwner !== "LANGFUSE";
 
   const fromTimestamp = dateRange
     ? dateRange.from

@@ -370,7 +370,7 @@ export default function DashboardDetail() {
                 dateRange={dateRange}
                 filterState={userFilterState}
                 onDeleteWidget={handleDeleteWidget}
-                owner={dashboard.data?.owner}
+                dashboardOwner={dashboard.data?.owner}
               />
             ))}
           </div>
