@@ -19,6 +19,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 interface WidgetPlacement {
   id: string;
@@ -42,6 +43,15 @@ export default function DashboardDetail() {
     projectId,
     scope: "dashboards:CUD",
   });
+
+  // Fetch dashboard data
+  const dashboard = api.dashboard.getDashboard.useQuery({
+    projectId,
+    dashboardId,
+  });
+
+  const isReadOnly = dashboard.data?.owner === "LANGFUSE";
+  const canEdit = hasCUDAccess && !isReadOnly;
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
@@ -75,6 +85,7 @@ export default function DashboardDetail() {
 
   const saveDashboardChanges = useDebounce(
     (definition: { widgets: WidgetPlacement[] }) => {
+      if (!canEdit) return;
       updateDashboardDefinition.mutate({
         projectId,
         dashboardId,
@@ -230,14 +241,6 @@ export default function DashboardDetail() {
     },
   ];
 
-  // Fetch dashboard data
-  const dashboard = api.dashboard.getDashboard.useQuery(
-    { projectId, dashboardId },
-    {
-      enabled: Boolean(projectId) && Boolean(dashboardId),
-    },
-  );
-
   // Fetch widget data if addWidgetId is present
   const widgetToAdd = api.dashboardWidgets.get.useQuery(
     { projectId, widgetId: addWidgetId || "" },
@@ -303,8 +306,39 @@ export default function DashboardDetail() {
     addWidgetToDashboard(widget);
   };
 
+  // Show read-only banner if Langfuse owned
+  const readOnlyBanner = isReadOnly ? (
+    <Alert variant="default" className="mb-4">
+      <AlertTitle>This dashboard is maintained by Langfuse</AlertTitle>
+      <AlertDescription>
+        Clone it in the Dashboard Overview to make changes.
+      </AlertDescription>
+    </Alert>
+  ) : null;
+
   return (
-    <>
+    <Page
+      withPadding
+      scrollable
+      headerProps={{
+        title: dashboard.data?.name || "Dashboard",
+        help: {
+          description:
+            dashboard.data?.description || "No description available",
+        },
+        actionButtonsRight: (
+          <>
+            {canEdit && (
+              <Button onClick={handleAddWidget}>
+                <PlusIcon size={16} />
+                Add Widget
+              </Button>
+            )}
+          </>
+        ),
+      }}
+    >
+      {readOnlyBanner}
       <SelectWidgetDialog
         open={isWidgetDialogOpen}
         onOpenChange={setIsWidgetDialogOpen}
@@ -312,66 +346,46 @@ export default function DashboardDetail() {
         onSelectWidget={handleSelectWidget}
         dashboardId={dashboardId}
       />
-
-      <Page
-        withPadding
-        scrollable
-        headerProps={{
-          title: dashboard.data?.name || "Dashboard",
-          help: {
-            description:
-              dashboard.data?.description || "No description available",
-          },
-          actionButtonsRight: (
-            <>
-              <Button onClick={handleAddWidget} disabled={!hasCUDAccess}>
-                <PlusIcon size={16} />
-                Add Widget
-              </Button>
-            </>
-          ),
-        }}
-      >
-        {dashboard.isLoading || !localDashboardDefinition ? (
-          <NoDataOrLoading isLoading={true} />
-        ) : dashboard.isError ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="text-destructive">
-              Error: {dashboard.error.message}
+      {dashboard.isLoading || !localDashboardDefinition ? (
+        <NoDataOrLoading isLoading={true} />
+      ) : dashboard.isError ? (
+        <div className="flex h-64 items-center justify-center">
+          <div className="text-destructive">
+            Error: {dashboard.error.message}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div className="my-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
+              <DatePickerWithRange
+                dateRange={dateRange}
+                setDateRangeAndOption={setDateRangeAndOption}
+                selectedOption={selectedOption}
+                className="my-0 max-w-full overflow-x-auto"
+              />
+              <PopoverFilterBuilder
+                columns={filterColumns}
+                filterState={userFilterState}
+                onChange={setUserFilterState}
+              />
             </div>
           </div>
-        ) : (
-          <div>
-            <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-                <DatePickerWithRange
-                  dateRange={dateRange}
-                  setDateRangeAndOption={setDateRangeAndOption}
-                  selectedOption={selectedOption}
-                  className="my-0 max-w-full overflow-x-auto"
-                />
-                <PopoverFilterBuilder
-                  columns={filterColumns}
-                  filterState={userFilterState}
-                  onChange={setUserFilterState}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-12 gap-4">
-              {localDashboardDefinition.widgets.map((widgetPlacement) => (
-                <DashboardWidget
-                  key={widgetPlacement.id}
-                  projectId={projectId}
-                  placement={widgetPlacement}
-                  dateRange={dateRange}
-                  filterState={userFilterState}
-                  onDeleteWidget={handleDeleteWidget}
-                />
-              ))}
-            </div>
+          <div className="grid grid-cols-12 gap-4">
+            {localDashboardDefinition.widgets.map((widgetPlacement) => (
+              <DashboardWidget
+                key={widgetPlacement.id}
+                projectId={projectId}
+                placement={widgetPlacement}
+                dateRange={dateRange}
+                filterState={userFilterState}
+                onDeleteWidget={handleDeleteWidget}
+                canEdit={canEdit}
+              />
+            ))}
           </div>
-        )}
-      </Page>
-    </>
+        </div>
+      )}
+    </Page>
   );
 }

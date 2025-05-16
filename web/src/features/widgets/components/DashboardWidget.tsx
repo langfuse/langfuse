@@ -11,7 +11,6 @@ import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { PencilIcon, TrashIcon } from "lucide-react";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { startCase } from "lodash";
 
 interface WidgetPlacement {
@@ -35,12 +34,14 @@ export function DashboardWidget({
   dateRange,
   filterState,
   onDeleteWidget,
+  canEdit,
 }: {
   projectId: string;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
+  canEdit: boolean;
 }) {
   const router = useRouter();
   const widget = api.dashboardWidgets.get.useQuery(
@@ -52,11 +53,6 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-
-  const hasCUDAccess = useHasProjectAccess({
-    projectId,
-    scope: "dashboards:CUD",
-  });
 
   const fromTimestamp = dateRange
     ? dateRange.from
@@ -165,24 +161,24 @@ export function DashboardWidget({
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">{widget.data.name}</span>
-        <div className="flex space-x-2">
-          <button
-            onClick={handleEdit}
-            className="hidden text-muted-foreground hover:text-foreground group-hover:block"
-            aria-label="Edit widget"
-            disabled={!hasCUDAccess}
-          >
-            <PencilIcon size={16} />
-          </button>
-          <button
-            onClick={handleDelete}
-            className="hidden text-muted-foreground hover:text-destructive group-hover:block"
-            aria-label="Delete widget"
-            disabled={!hasCUDAccess}
-          >
-            <TrashIcon size={16} />
-          </button>
-        </div>
+        {canEdit && (
+          <div className="flex space-x-2">
+            <button
+              onClick={handleEdit}
+              className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+              aria-label="Edit widget"
+            >
+              <PencilIcon size={16} />
+            </button>
+            <button
+              onClick={handleDelete}
+              className="hidden text-muted-foreground hover:text-destructive group-hover:block"
+              aria-label="Delete widget"
+            >
+              <TrashIcon size={16} />
+            </button>
+          </div>
+        )}
       </div>
       <div className="mb-4 text-sm text-muted-foreground">
         {widget.data.description}

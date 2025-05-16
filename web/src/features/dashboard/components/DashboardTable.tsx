@@ -24,6 +24,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
+import { User as UserIcon } from "lucide-react";
 
 type DashboardTableRow = {
   id: string;
@@ -31,6 +32,7 @@ type DashboardTableRow = {
   description: string;
   createdAt: Date;
   updatedAt: Date;
+  owner: "PROJECT" | "LANGFUSE";
 };
 
 function CloneDashboardButton({
@@ -186,6 +188,25 @@ export function DashboardTable() {
         return row.getValue();
       },
     }),
+    columnHelper.display({
+      id: "ownerTag",
+      header: "Owner",
+      size: 80,
+      cell: (row) => {
+        return row.row.original.owner === "LANGFUSE" ? (
+          <span className="flex gap-1 px-2 py-0.5 text-xs">
+            <span role="img" aria-label="Langfuse">
+              🪢
+            </span>
+            Langfuse
+          </span>
+        ) : (
+          <span className="flex gap-1 px-2 py-0.5 text-xs">
+            <UserIcon className="h-3 w-3" /> User
+          </span>
+        );
+      },
+    }),
     columnHelper.accessor("createdAt", {
       header: "Created At",
       id: "createdAt",
@@ -214,6 +235,7 @@ export function DashboardTable() {
         const id = row.row.original.id;
         const name = row.row.original.name;
         const description = row.row.original.description;
+        const owner = row.row.original.owner;
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -222,24 +244,28 @@ export function DashboardTable() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
-              <DropdownMenuItem asChild>
-                <EditDashboardButton
-                  dashboardId={id}
-                  projectId={projectId}
-                  dashboardName={name}
-                  dashboardDescription={description}
-                />
-              </DropdownMenuItem>
+              {owner === "PROJECT" && (
+                <DropdownMenuItem asChild>
+                  <EditDashboardButton
+                    dashboardId={id}
+                    projectId={projectId}
+                    dashboardName={name}
+                    dashboardDescription={description}
+                  />
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
                 <CloneDashboardButton dashboardId={id} projectId={projectId} />
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <DeleteDashboardButton
-                  itemId={id}
-                  projectId={projectId}
-                  isTableAction
-                />
-              </DropdownMenuItem>
+              {owner === "PROJECT" && (
+                <DropdownMenuItem asChild>
+                  <DeleteDashboardButton
+                    itemId={id}
+                    projectId={projectId}
+                    isTableAction
+                  />
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         );

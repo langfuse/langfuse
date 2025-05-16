@@ -30,10 +30,7 @@ export class DashboardService {
     const [dashboards, totalCount] = await Promise.all([
       prisma.dashboard.findMany({
         where: {
-          OR: [
-            { projectId },
-            { projectId: null },
-          ],
+          OR: [{ projectId }, { projectId: null }],
         },
         orderBy: orderBy
           ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
@@ -43,10 +40,7 @@ export class DashboardService {
       }),
       prisma.dashboard.count({
         where: {
-          OR: [
-            { projectId },
-            { projectId: null },
-          ],
+          OR: [{ projectId }, { projectId: null }],
         },
       }),
     ]);
@@ -167,10 +161,7 @@ export class DashboardService {
     const dashboard = await prisma.dashboard.findFirst({
       where: {
         id: dashboardId,
-        OR: [
-          { projectId },
-          { projectId: null },
-        ],
+        OR: [{ projectId }, { projectId: null }],
       },
     });
 
@@ -216,10 +207,7 @@ export class DashboardService {
     const [widgets, totalCount] = await Promise.all([
       prisma.dashboardWidget.findMany({
         where: {
-          OR: [
-            { projectId },
-            { projectId: null },
-          ],
+          OR: [{ projectId }, { projectId: null }],
         },
         orderBy: orderBy
           ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
@@ -229,10 +217,7 @@ export class DashboardService {
       }),
       prisma.dashboardWidget.count({
         where: {
-          OR: [
-            { projectId },
-            { projectId: null },
-          ],
+          OR: [{ projectId }, { projectId: null }],
         },
       }),
     ]);
@@ -290,10 +275,7 @@ export class DashboardService {
     const widget = await prisma.dashboardWidget.findFirst({
       where: {
         id: widgetId,
-        OR: [
-          { projectId },
-          { projectId: null },
-        ],
+        OR: [{ projectId }, { projectId: null }],
       },
     });
 
