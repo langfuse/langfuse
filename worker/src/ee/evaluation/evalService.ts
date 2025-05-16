@@ -15,8 +15,6 @@ import {
   EvalExecutionQueue,
   checkTraceExists,
   checkObservationExists,
-  getTraceById,
-  getObservationForTraceIdByName,
   DatasetRunItemUpsertEventType,
   TraceQueueEventType,
   StorageService,
@@ -25,7 +23,6 @@ import {
   ChatMessageType,
 } from "@langfuse/shared/src/server";
 import {
-  availableTraceEvalVariables,
   ChatMessageRole,
   ForbiddenError,
   LangfuseNotFoundError,
@@ -37,9 +34,9 @@ import {
   ZodModelConfig,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
-  variableMapping,
   JobTimeScope,
   ScoreSource,
+  availableTraceEvalVariables,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -47,8 +44,8 @@ import {
   callStructuredLLM,
   compileHandlebarString,
 } from "../../features/utilities";
-import { JSONPath } from "jsonpath-plus";
 import { env } from "../../env";
+import { WorkerEvaluationVariableService } from "./WorkerEvaluationVariableService";
 
 let s3StorageServiceClient: StorageService;
 
@@ -653,193 +650,84 @@ export async function extractVariablesFromTracingData({
         (m) => m.templateVariable === variable,
       );
 
+      // validation ensures that mapping is always defined for a variable
       if (!mapping) {
         logger.debug(`No mapping found for variable ${variable}`);
         return { var: variable, value: "" };
       }
+      const { targetId, targetEvalVariables } =
+        mapping.langfuseObject === "dataset_item"
+          ? {
+              targetId: datasetItemId,
+              targetEvalVariables: availableDatasetEvalVariables,
+            }
+          : {
+              targetId: traceId,
+              targetEvalVariables: availableTraceEvalVariables,
+            };
 
-      if (mapping.langfuseObject === "dataset_item") {
-        if (!datasetItemId) {
-          logger.error(
-            `No dataset item id found for variable ${variable}. Eval will succeed without dataset item input.`,
-          );
-          return { var: variable, value: "" };
-        }
-
-        // find the internal definitions of the column
-        const safeInternalColumn = availableDatasetEvalVariables
-          .find((o) => o.id === "dataset_item")
-          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
-
-        // if no column was found, we still process with an empty variable
-        if (!safeInternalColumn?.id) {
-          logger.error(
-            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-          );
-          return { var: variable, value: "" };
-        }
-
-        const datasetItem = await kyselyPrisma.$kysely
-          .selectFrom("dataset_items as d")
-          .select(
-            sql`${sql.raw(safeInternalColumn.internal)}`.as(
-              safeInternalColumn.id,
-            ),
-          ) // query the internal column name raw
-          .where("id", "=", datasetItemId)
-          .where("project_id", "=", projectId)
-          .executeTakeFirst();
-
-        // user facing errors
-        if (!datasetItem) {
-          logger.error(
-            `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
-          );
-          throw new LangfuseNotFoundError(
-            `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
-          );
-        }
-
-        return {
-          var: variable,
-          value: parseDatabaseRowToString(datasetItem, mapping),
-        };
+      // validation ensures that datasetItemId or traceId are defined if needed
+      if (!targetId) {
+        logger.warning(
+          `No parent id found for variable ${variable} and object ${mapping.langfuseObject}`,
+        );
+        return { var: variable, value: "" };
       }
 
-      if (mapping.langfuseObject === "trace") {
-        // find the internal definitions of the column
-        const safeInternalColumn = availableTraceEvalVariables
-          .find((o) => o.id === "trace")
-          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
-
-        // if no column was found, we still process with an empty variable
-        if (!safeInternalColumn?.id) {
-          logger.error(
-            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-          );
-          return { var: variable, value: "" };
-        }
-
-        const trace = await getTraceById({ traceId, projectId });
-
-        // user facing errors
-        if (!trace) {
-          logger.error(
-            `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
-          );
-          throw new LangfuseNotFoundError(
-            `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
-          );
-        }
-
-        return {
-          var: variable,
-          value: parseDatabaseRowToString(trace, mapping),
-          environment: trace.environment,
-        };
-      }
-
+      // validation ensures that objectName is always defined for observations
       if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
-        const safeInternalColumn = availableTraceEvalVariables
-          .find((o) => o.id === mapping.langfuseObject)
-          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
-
         if (!mapping.objectName) {
           logger.info(
             `No object name found for variable ${variable} and object ${mapping.langfuseObject}`,
           );
           return { var: variable, value: "" };
         }
-
-        if (!safeInternalColumn?.id) {
-          logger.warn(
-            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-          );
-          return { var: variable, value: "" };
-        }
-
-        const observation = (
-          await getObservationForTraceIdByName(
-            traceId,
-            projectId,
-            mapping.objectName,
-            undefined,
-            true,
-          )
-        ).shift(); // We only take the first match and ignore duplicate generation-names in a trace.
-
-        // user facing errors
-        if (!observation) {
-          logger.error(
-            `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
-          );
-          throw new LangfuseNotFoundError(
-            `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
-          );
-        }
-
-        return {
-          var: variable,
-          value: parseDatabaseRowToString(observation, mapping),
-          environment: observation.environment,
-        };
       }
 
-      throw new Error(`Unknown object type ${mapping.langfuseObject}`);
+      // find the internal definitions of the column
+      const safeInternalColumn =
+        WorkerEvaluationVariableService.findInternalColumn(
+          targetEvalVariables,
+          mapping,
+          mapping.langfuseObject,
+        );
+
+      // if no column was found, we still process with an empty variable
+      if (!safeInternalColumn?.id) {
+        logger.error(
+          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+        );
+        return { var: variable, value: "" };
+      }
+
+      const object = await WorkerEvaluationVariableService.fetchObject({
+        object: mapping.langfuseObject,
+        id: targetId,
+        projectId,
+        safeInternalColumn,
+        objectName: mapping.objectName ?? "", // validation ensures objectName is always a defined string for observations
+      });
+
+      // user facing errors
+      if (!object) {
+        const isObservation = ["generation", "span", "event"].includes(
+          mapping.langfuseObject,
+        );
+        logger.error(
+          `${mapping.langfuseObject} ${targetId} ${isObservation ? `observation ${mapping.objectName}` : ""} for project ${projectId} not found. Eval will succeed without ${mapping.langfuseObject} input. Please ensure the mapped data on the ${mapping.langfuseObject} exists and consider extending the job delay.`,
+        );
+        throw new LangfuseNotFoundError(
+          `${mapping.langfuseObject} ${targetId} ${isObservation ? `observation ${mapping.objectName}` : ""} for project ${projectId} not found. Eval will succeed without ${mapping.langfuseObject} input. Please ensure the mapped data on the ${mapping.langfuseObject} exists and consider extending the job delay.`,
+        );
+      }
+
+      return {
+        var: variable,
+        value: WorkerEvaluationVariableService.parseDatabaseRowToString(
+          object,
+          mapping,
+        ),
+      };
     }),
   );
 }
-
-export const parseDatabaseRowToString = (
-  dbRow: Record<string, unknown>,
-  mapping: z.infer<typeof variableMapping>,
-): string => {
-  const selectedColumn = dbRow[mapping.selectedColumnId];
-
-  let jsonSelectedColumn;
-  if (mapping.jsonSelector) {
-    logger.debug(
-      `Parsing JSON for json selector ${mapping.jsonSelector} from ${JSON.stringify(selectedColumn)}`,
-    );
-    try {
-      jsonSelectedColumn = JSONPath({
-        path: mapping.jsonSelector,
-        json:
-          typeof selectedColumn === "string"
-            ? JSON.parse(selectedColumn)
-            : selectedColumn,
-      });
-    } catch (error) {
-      logger.error(
-        `Error parsing JSON for json selector ${mapping.jsonSelector}. Falling back to original value.`,
-        error,
-      );
-      jsonSelectedColumn = selectedColumn;
-    }
-  } else {
-    jsonSelectedColumn = selectedColumn;
-  }
-
-  return parseUnknownToString(jsonSelectedColumn);
-};
-
-export const parseUnknownToString = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return value.toString();
-  }
-  if (typeof value === "object") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "symbol") {
-    return value.toString();
-  }
-
-  return String(value);
-};
