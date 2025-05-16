@@ -92,12 +92,22 @@ export const chatLoaded = () => {
   );
 };
 
-export const showChat = (): void => {
-  if (chatLoaded()) {
-    window.Plain.update({
-      hideLauncher: false,
-    });
+const runOrQueuePlainCallback = (cb: () => void) => {
+  if (isWidgetLoaded) {
+    cb();
+  } else {
+    metadataQueue.push(cb);
   }
+};
+
+export const showChat = (): void => {
+  runOrQueuePlainCallback(() => {
+    if (chatLoaded()) {
+      window.Plain.update({
+        hideLauncher: false,
+      });
+    }
+  });
 };
 
 export const hideChat = (): void => {
@@ -115,10 +125,12 @@ export const closeChat = (): void => {
 };
 
 export const openChat = (): void => {
-  if (chatLoaded()) {
-    showChat();
-    window.Plain.open();
-  }
+  runOrQueuePlainCallback(() => {
+    if (chatLoaded()) {
+      showChat();
+      window.Plain.open();
+    }
+  });
 };
 
 export const getUnreadMessageCount = (): number | null => {
@@ -134,24 +146,17 @@ export const chatSetCustomer = (customer: {
   emailHash?: string;
   chatAvatarUrl?: string;
 }) => {
-  const updateCustomer = () => {
+  runOrQueuePlainCallback(() => {
     if (chatLoaded()) {
       window.Plain.update({
         customerDetails: customer,
       });
     }
-  };
-
-  if (isWidgetLoaded) {
-    updateCustomer();
-  } else {
-    console.log("pushing updateCustomer to metadataQueue");
-    metadataQueue.push(updateCustomer);
-  }
+  });
 };
 
 export const chatSetThreadDetails = (p: { orgId?: string; plan?: Plan }) => {
-  const updateThread = () => {
+  runOrQueuePlainCallback(() => {
     if (chatLoaded()) {
       window.Plain.update({
         threadDetails: {
@@ -168,12 +173,5 @@ export const chatSetThreadDetails = (p: { orgId?: string; plan?: Plan }) => {
         },
       });
     }
-  };
-
-  if (isWidgetLoaded) {
-    updateThread();
-  } else {
-    console.log("pushing updateThread to metadataQueue");
-    metadataQueue.push(updateThread);
-  }
+  });
 };
