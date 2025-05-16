@@ -63,15 +63,15 @@ export function EvaluatorSelector({
     filteredTemplates.custom.length > 0;
 
   return (
-    <InputCommand className="border-none">
+    <InputCommand className="flex h-full flex-col border-none">
       <InputCommandInput
         placeholder="Search evaluators..."
-        className="h-9"
+        className="h-9 px-0"
         value={search}
         onValueChange={setSearch}
         variant="bottom"
       />
-      <InputCommandList className="max-h-[300px]">
+      <InputCommandList className="max-h-full flex-1 overflow-y-auto px-3">
         {!hasResults && (
           <InputCommandEmpty>No evaluator found.</InputCommandEmpty>
         )}

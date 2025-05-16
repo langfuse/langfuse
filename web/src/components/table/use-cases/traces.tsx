@@ -78,6 +78,7 @@ import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTra
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { type TableDateRange } from "@/src/utils/date-range-utils";
 
 export type TracesTableRow = {
   // Shown by default
@@ -128,6 +129,7 @@ export type TracesTableProps = {
   pinFirstColumn?: boolean;
   hideControls?: boolean;
   externalFilterState?: FilterState;
+  externalDateRange?: TableDateRange;
 };
 
 export default function TracesTable({
@@ -136,13 +138,18 @@ export default function TracesTable({
   omittedFilter = [],
   hideControls = false,
   externalFilterState,
+  externalDateRange,
 }: TracesTableProps) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
 
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
+  const {
+    selectedOption,
+    dateRange: tableDateRange,
+    setDateRangeAndOption,
+  } = useTableDateRange(projectId);
+  const dateRange = externalDateRange ?? tableDateRange;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],

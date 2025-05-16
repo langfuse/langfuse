@@ -27,7 +27,10 @@ export default function NewEvaluatorPage() {
       headerProps={{
         title:
           "Set up online evaluator" +
-          (currentTemplate?.name ? `: ${currentTemplate.name}` : ""),
+          (currentTemplate?.name ? `: ${currentTemplate.name}` : "") +
+          (currentTemplate?.projectId === null
+            ? " (Langfuse maintained)"
+            : " (User maintained)"),
         breadcrumb: [
           {
             name: "Running Evaluators",

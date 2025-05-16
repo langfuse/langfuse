@@ -5,7 +5,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { MoreVertical, Pen, UserCircle2Icon, Loader2 } from "lucide-react";
+import { MoreVertical, Pen, UserCircle2Icon } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,

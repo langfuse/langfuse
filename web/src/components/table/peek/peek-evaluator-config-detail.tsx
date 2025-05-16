@@ -5,7 +5,13 @@ import TableLink from "@/src/components/table/table-link";
 import { CardDescription } from "@/src/components/ui/card";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
-import { Switch } from "@/src/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { UserCircle2Icon } from "lucide-react";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -44,8 +50,20 @@ export const PeekViewEvaluatorConfigDetail = ({
           <TableLink
             path={`/project/${projectId}/evals/templates/${row?.template.id}`}
             value={row?.template.name}
-            className="flex min-h-6 items-center"
+            className="mr-1 flex min-h-6 items-center"
           />
+        )}
+        {row?.maintainer && (
+          <Tooltip>
+            <TooltipTrigger>
+              {row.maintainer.includes("Langfuse") ? (
+                <LangfuseIcon size={16} />
+              ) : (
+                <UserCircle2Icon className="h-4 w-4" />
+              )}
+            </TooltipTrigger>
+            <TooltipContent>{row.maintainer}</TooltipContent>
+          </Tooltip>
         )}
       </CardDescription>
       <div className="flex max-h-full w-full flex-col items-start justify-between space-y-2 overflow-y-auto pb-4">

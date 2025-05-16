@@ -66,12 +66,12 @@ export function SelectEvaluatorDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[800px]">
-          <DialogHeader>
+        <DialogContent className="grid max-h-[90vh] max-w-screen-md grid-rows-[auto_1fr_auto] overflow-hidden p-0">
+          <DialogHeader className="p-6 pb-0">
             <DialogTitle>Select evaluator</DialogTitle>
           </DialogHeader>
 
-          <div className="mt-2">
+          <div className="flex flex-col overflow-hidden">
             {templates.isLoading ? (
               <div className="py-8 text-center">Loading evaluators...</div>
             ) : templates.isError ? (
@@ -83,7 +83,7 @@ export function SelectEvaluatorDialog({
                 No evaluators found. Create a new evaluator to get started.
               </div>
             ) : (
-              <div>
+              <div className="flex-1 overflow-hidden">
                 <EvaluatorSelector
                   evalTemplates={templates.data?.templates || []}
                   selectedTemplateId={selectedTemplateId || undefined}
@@ -95,7 +95,7 @@ export function SelectEvaluatorDialog({
             )}
           </div>
 
-          <DialogFooter className="mt-4">
+          <DialogFooter className="border-t p-6">
             <div className="flex justify-end gap-2">
               <Button onClick={handleOpenCreateEvaluator} variant="outline">
                 <PlusIcon className="mr-2 h-4 w-4" />
