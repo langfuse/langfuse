@@ -38,6 +38,8 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
+  CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
