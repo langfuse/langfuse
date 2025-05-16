@@ -13,6 +13,7 @@ import { PencilIcon, TrashIcon, CopyIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { startCase } from "lodash";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 interface WidgetPlacement {
   id: string;
@@ -145,6 +146,9 @@ export function DashboardWidget({
           `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
         );
       });
+    },
+    onError: (e) => {
+      showErrorToast("Failed to clone widget", e.message);
     },
   });
   const handleCopy = () => {
