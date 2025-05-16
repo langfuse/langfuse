@@ -655,7 +655,7 @@ export const convertOtelSpanToIngestionEvent = (
             ...extractMetadata(attributes, "trace"),
             ...(isLangfuseSDKSpans ? {} : { attributes }),
             resourceAttributes,
-            scope: { ...scopeSpan.scope, attributes: scopeAttributes },
+            scope: { ...(scopeSpan.scope || {}), attributes: scopeAttributes },
           },
           version:
             attributes?.[LangfuseOtelSpanAttributes.VERSION] ??
