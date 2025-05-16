@@ -40,11 +40,7 @@ export type Route = {
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
   entitlements?: Entitlement[]; // entitlements required, array treated as OR
-  /**
-   * Product module this route belongs to. If specified, it will only be shown
-   * when the module is enabled in the LANGFUSE_UI_VISIBLE_PRODUCT_MODULES setting.
-   */
-  productModule?: ProductModule;
+  productModule?: ProductModule; // Product module this route belongs to. Used to show/hide modules via ui customization.
   show?: (p: {
     organization: User["organizations"][number] | undefined;
   }) => boolean;
