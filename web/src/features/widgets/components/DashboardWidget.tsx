@@ -32,6 +32,7 @@ const getGridClasses = (widget: WidgetPlacement) => {
 
 export function DashboardWidget({
   projectId,
+  dashboardId,
   placement,
   dateRange,
   filterState,
@@ -39,6 +40,7 @@ export function DashboardWidget({
   dashboardOwner,
 }: {
   projectId: string;
+  dashboardId: string;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
@@ -46,6 +48,7 @@ export function DashboardWidget({
   dashboardOwner: "LANGFUSE" | "PROJECT";
 }) {
   const router = useRouter();
+  const utils = api.useUtils();
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -131,12 +134,18 @@ export function DashboardWidget({
   }, [queryResult.data, widget.data]);
 
   const handleEdit = () => {
-    router.push(`/project/${projectId}/widgets/${placement.widgetId}`);
+    router.push(
+      `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
+    );
   };
 
   const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
     onSuccess: (data) => {
-      router.push(`/project/${projectId}/widgets/${data.widgetId}`);
+      utils.dashboard.getDashboard.invalidate().then(() => {
+        router.push(
+          `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
+        );
+      });
     },
   });
   const handleCopy = () => {

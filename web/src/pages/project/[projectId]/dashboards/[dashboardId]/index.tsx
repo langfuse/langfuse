@@ -365,6 +365,7 @@ export default function DashboardDetail() {
             {localDashboardDefinition.widgets.map((widgetPlacement) => (
               <DashboardWidget
                 key={widgetPlacement.id}
+                dashboardId={dashboardId}
                 projectId={projectId}
                 placement={widgetPlacement}
                 dateRange={dateRange}
