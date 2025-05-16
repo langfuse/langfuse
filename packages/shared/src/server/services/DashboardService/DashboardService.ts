@@ -30,7 +30,10 @@ export class DashboardService {
     const [dashboards, totalCount] = await Promise.all([
       prisma.dashboard.findMany({
         where: {
-          projectId,
+          OR: [
+            { projectId },
+            { projectId: null },
+          ],
         },
         orderBy: orderBy
           ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
@@ -40,13 +43,19 @@ export class DashboardService {
       }),
       prisma.dashboard.count({
         where: {
-          projectId,
+          OR: [
+            { projectId },
+            { projectId: null },
+          ],
         },
       }),
     ]);
 
     const domainDashboards = dashboards.map((dashboard) =>
-      DashboardDomainSchema.parse(dashboard),
+      DashboardDomainSchema.parse({
+        ...dashboard,
+        owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
+      }),
     );
 
     return {
@@ -78,7 +87,10 @@ export class DashboardService {
       },
     });
 
-    return DashboardDomainSchema.parse(newDashboard);
+    return DashboardDomainSchema.parse({
+      ...newDashboard,
+      owner: newDashboard.projectId ? "PROJECT" : "LANGFUSE",
+    });
   }
 
   /**
@@ -111,7 +123,10 @@ export class DashboardService {
       },
     });
 
-    return DashboardDomainSchema.parse(updatedDashboard);
+    return DashboardDomainSchema.parse({
+      ...updatedDashboard,
+      owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
+    });
   }
 
   /**
@@ -136,7 +151,10 @@ export class DashboardService {
       },
     });
 
-    return DashboardDomainSchema.parse(updatedDashboard);
+    return DashboardDomainSchema.parse({
+      ...updatedDashboard,
+      owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
+    });
   }
 
   /**
@@ -149,7 +167,10 @@ export class DashboardService {
     const dashboard = await prisma.dashboard.findFirst({
       where: {
         id: dashboardId,
-        projectId,
+        OR: [
+          { projectId },
+          { projectId: null },
+        ],
       },
     });
 
@@ -157,7 +178,10 @@ export class DashboardService {
       return null;
     }
 
-    return DashboardDomainSchema.parse(dashboard);
+    return DashboardDomainSchema.parse({
+      ...dashboard,
+      owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
+    });
   }
 
   /**
@@ -192,7 +216,10 @@ export class DashboardService {
     const [widgets, totalCount] = await Promise.all([
       prisma.dashboardWidget.findMany({
         where: {
-          projectId,
+          OR: [
+            { projectId },
+            { projectId: null },
+          ],
         },
         orderBy: orderBy
           ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
@@ -202,13 +229,19 @@ export class DashboardService {
       }),
       prisma.dashboardWidget.count({
         where: {
-          projectId,
+          OR: [
+            { projectId },
+            { projectId: null },
+          ],
         },
       }),
     ]);
 
     const domainWidgets = widgets.map((widget) =>
-      WidgetDomainSchema.parse(widget),
+      WidgetDomainSchema.parse({
+        ...widget,
+        owner: widget.projectId ? "PROJECT" : "LANGFUSE",
+      }),
     );
 
     return {
@@ -241,7 +274,10 @@ export class DashboardService {
       },
     });
 
-    return WidgetDomainSchema.parse(newWidget);
+    return WidgetDomainSchema.parse({
+      ...newWidget,
+      owner: newWidget.projectId ? "PROJECT" : "LANGFUSE",
+    });
   }
 
   /**
@@ -254,7 +290,10 @@ export class DashboardService {
     const widget = await prisma.dashboardWidget.findFirst({
       where: {
         id: widgetId,
-        projectId,
+        OR: [
+          { projectId },
+          { projectId: null },
+        ],
       },
     });
 
@@ -262,7 +301,10 @@ export class DashboardService {
       return null;
     }
 
-    return WidgetDomainSchema.parse(widget);
+    return WidgetDomainSchema.parse({
+      ...widget,
+      owner: widget.projectId ? "PROJECT" : "LANGFUSE",
+    });
   }
 
   /**
@@ -293,20 +335,8 @@ export class DashboardService {
     });
 
     return WidgetDomainSchema.parse({
-      id: widgetId,
-      projectId,
-      createdAt: updatedWidget.createdAt,
-      updatedAt: updatedWidget.updatedAt,
-      createdBy: updatedWidget.createdBy,
-      updatedBy: updatedWidget.updatedBy,
-      name: updatedWidget.name,
-      description: updatedWidget.description,
-      view: updatedWidget.view,
-      dimensions: updatedWidget.dimensions as WidgetDomain["dimensions"],
-      metrics: updatedWidget.metrics as WidgetDomain["metrics"],
-      filters: updatedWidget.filters as WidgetDomain["filters"],
-      chartType: updatedWidget.chartType,
-      chartConfig: updatedWidget.chartConfig as WidgetDomain["chartConfig"],
+      ...updatedWidget,
+      owner: updatedWidget.projectId ? "PROJECT" : "LANGFUSE",
     });
   }
 
