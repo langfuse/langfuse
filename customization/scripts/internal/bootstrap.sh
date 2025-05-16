@@ -8,7 +8,6 @@
 #    2. cd langfuse-fork
 #    3. make env && make up
 
-
 # ---------------------------------------------
 # Langfuse Fork Bootstrap Script
 # Author: Carlos Crespo
@@ -26,7 +25,7 @@ ENV_TEMPLATE_FILE=".env.local.example"
 
 # --- STEP 0: Check Docker & Docker Compose ---
 echo "🔍 Checking for Docker and Docker Compose..."
-if ! command -v docker &> /dev/null; then
+if ! command -v docker &>/dev/null; then
   echo "❌ Docker not found. Install Docker before continuing: https://docs.docker.com/get-docker/"
   exit 1
 fi
@@ -37,7 +36,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   echo "ℹ️  Log out and back in to apply docker group changes if needed."
 fi
 
-if ! docker compose version &> /dev/null; then
+if ! docker compose version &>/dev/null; then
   echo "🔧 Docker Compose v2 not found. Installing to ~/.docker/cli-plugins..."
   mkdir -p "$HOME/.docker/cli-plugins"
   curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
@@ -74,7 +73,7 @@ git push -u origin main || git push -u origin master
 
 # --- STEP 4: Generate .env.local.example with placeholders ---
 echo "📝 Creating .env.local.example..."
-cat > "$ENV_TEMPLATE_FILE" <<EOF
+cat >"$ENV_TEMPLATE_FILE" <<EOF
 DATABASE_URL=postgresql://postgres:yourpassword@postgres:5432/postgres
 CLICKHOUSE_PASSWORD=your-clickhouse-password
 LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY=your-minio-secret

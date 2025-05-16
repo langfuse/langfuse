@@ -11,7 +11,9 @@ git status
 echo
 
 LOCAL=$(git rev-parse @)
+# shellcheck disable=SC1083
 UPSTREAM=$(git rev-parse @{u})
+# shellcheck disable=SC1083
 BASE=$(git merge-base @ @{u})
 
 if [ "$LOCAL" = "$UPSTREAM" ]; then

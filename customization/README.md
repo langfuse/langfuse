@@ -1,22 +1,21 @@
-# 🚀 Langfuse Onboarding Setup
+# 🚀 Langfuse Onboarding Setup (User Guide)
 
-Welcome! This project helps you run a full Langfuse stack locally using Docker Compose. There are two roles:
-
-- 🧑‍💻 **Users** (teammates): run Langfuse locally with minimal setup.
-- 🔐 **Maintainer** (you): manage and update the fork from upstream.
+Welcome! This guide helps you run a full Langfuse stack locally with minimal setup.
 
 ---
 
-## 🧑‍💻 For Users (Daily Workflow)
+## 🧑‍💻 For Users
 
 ### ✅ Prerequisites
 - Docker + Docker Compose v2 ([Install Docker](https://docs.docker.com/get-docker/))
 - Git and Make installed
 
-Check everything with:
+Check your environment with:
 ```bash
 make check-prereqs
 ```
+
+---
 
 ### 📦 Setup & Run
 ```bash
@@ -27,6 +26,8 @@ make up          # Start the stack
 make health      # Check that everything is healthy
 ```
 
+---
+
 ### 🧹 Stop the stack
 ```bash
 make down
@@ -34,46 +35,14 @@ make down
 
 ---
 
-## 🔐 For Maintainers (One-Time Setup)
+## 🧠 Common Make Targets
 
-Run this **only once** to initialize your fork:
-```bash
-make bootstrap
-```
-
-This will:
-- Clone upstream Langfuse
-- Set up remotes (origin = your fork, upstream = readonly)
-- Generate `.env.local.example`
-- Copy the override file
-- Push everything to your personal repo
-
-### 🔁 Keeping the fork updated
-```bash
-make check      # Check if you're behind upstream
-make update     # Merge upstream/main into your fork
-```
-
-📁 Maintainer scripts live in: `customization/internal/`
-
----
-
-## 🧠 Available Make Targets
-
-### 🧑‍💻 User commands
 ```bash
 make check-prereqs   # Ensure Docker, Git, Make, etc. are installed
 make env             # Create .env from template
 make up              # Start Langfuse stack
 make down            # Stop the stack
 make health          # Check containers and endpoints
-```
-
-### 🔐 Maintainer commands
-```bash
-make bootstrap       # One-time setup of your fork
-make check           # Check for updates from upstream
-make update          # Merge latest changes from upstream
 ```
 
 ---
@@ -91,3 +60,13 @@ Once running, open:
 - `make install-linters`: Install shellcheck, shfmt for local checks
 
 Enjoy tracing! ✨
+
+---
+
+## 📄 License and Attribution
+
+This project is a customization layer on top of [Langfuse](https://github.com/langfuse/langfuse), which is licensed under the [Apache 2.0 License](LICENSE).
+
+All original code and configuration files belong to the Langfuse project. This repo adds onboarding utilities, override configuration, and scripting to simplify local setup and internal collaboration.
+
+Please retain this notice and the original license when redistributing.
