@@ -175,6 +175,33 @@ export const dashboardWidgetRouter = createTRPCRouter({
       };
     }),
 
+  copyToProject: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        widgetId: z.string(),
+        dashboardId: z.string(),
+        placementId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const newWidgetId = await DashboardService.copyWidgetToProject({
+        sourceWidgetId: input.widgetId,
+        projectId: input.projectId,
+        dashboardId: input.dashboardId,
+        placementId: input.placementId,
+        userId: ctx.session.user?.id,
+      });
+
+      return { widgetId: newWidgetId };
+    }),
+
   // Define delete widget input schema
   delete: protectedProjectProcedure
     .input(

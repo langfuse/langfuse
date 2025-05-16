@@ -9,10 +9,11 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { PencilIcon, TrashIcon } from "lucide-react";
+import { PencilIcon, TrashIcon, CopyIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { startCase } from "lodash";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 interface WidgetPlacement {
   id: string;
@@ -129,6 +130,30 @@ export function DashboardWidget({
     });
   }, [queryResult.data, widget.data]);
 
+  const handleEdit = () => {
+    router.push(`/project/${projectId}/widgets/${placement.widgetId}`);
+  };
+
+  const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
+    onSuccess: (data) => {
+      router.push(`/project/${projectId}/widgets/${data.widgetId}`);
+    },
+  });
+  const handleCopy = () => {
+    copyMutation.mutate({
+      projectId,
+      widgetId: placement.widgetId,
+      dashboardId: router.query.dashboardId as string,
+      placementId: placement.id,
+    });
+  };
+
+  const handleDelete = () => {
+    if (onDeleteWidget && confirm("Please confirm deletion")) {
+      onDeleteWidget(placement.id);
+    }
+  };
+
   if (widget.isLoading) {
     return (
       <div
@@ -149,16 +174,6 @@ export function DashboardWidget({
     );
   }
 
-  const handleEdit = () => {
-    router.push(`/project/${projectId}/widgets/${placement.widgetId}`);
-  };
-
-  const handleDelete = () => {
-    if (onDeleteWidget && confirm("Please confirm deletion")) {
-      onDeleteWidget(placement.id);
-    }
-  };
-
   return (
     <div
       className={`${getGridClasses(placement)} group flex flex-col overflow-hidden rounded-lg border bg-background p-4`}
@@ -167,13 +182,23 @@ export function DashboardWidget({
         <span className="font-medium">{widget.data.name}</span>
         {hasCUDAccess && (
           <div className="flex space-x-2">
-            <button
-              onClick={handleEdit}
-              className="hidden text-muted-foreground hover:text-foreground group-hover:block"
-              aria-label="Edit widget"
-            >
-              <PencilIcon size={16} />
-            </button>
+            {widget.data.owner === "PROJECT" ? (
+              <button
+                onClick={handleEdit}
+                className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                aria-label="Edit widget"
+              >
+                <PencilIcon size={16} />
+              </button>
+            ) : widget.data.owner === "LANGFUSE" ? (
+              <button
+                onClick={handleCopy}
+                className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                aria-label="Copy widget"
+              >
+                <CopyIcon size={16} />
+              </button>
+            ) : null}
             <button
               onClick={handleDelete}
               className="hidden text-muted-foreground hover:text-destructive group-hover:block"

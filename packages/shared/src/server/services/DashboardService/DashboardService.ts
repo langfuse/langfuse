@@ -1,5 +1,9 @@
 import { prisma } from "../../../db";
-import { LangfuseConflictError, type OrderByState } from "../../../";
+import {
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+  type OrderByState,
+} from "../../../";
 import {
   CreateWidgetInput,
   WidgetDomain,
@@ -361,6 +365,82 @@ export class DashboardService {
         id: widgetId,
         projectId,
       },
+    });
+  }
+
+  /**
+   * Copies a Langfuse-owned widget into the user project, rewires the specified dashboard placement to the new widget and returns the new widget id.
+   */
+  public static async copyWidgetToProject(props: {
+    sourceWidgetId: string;
+    projectId: string;
+    dashboardId: string;
+    placementId: string;
+    userId?: string;
+  }): Promise<string> {
+    const { sourceWidgetId, projectId, dashboardId, placementId, userId } =
+      props;
+
+    const sourceWidget = await prisma.dashboardWidget.findFirst({
+      where: {
+        id: sourceWidgetId,
+        projectId: null,
+      },
+    });
+
+    if (!sourceWidget) {
+      throw new LangfuseNotFoundError(
+        `Source widget ${sourceWidgetId} not found`,
+      );
+    }
+
+    // Duplicate widget and update dashboard definition atomically
+    return prisma.$transaction(async (tx) => {
+      // 1. create duplicate in project scope
+      const newWidget = await tx.dashboardWidget.create({
+        data: {
+          name: sourceWidget.name,
+          description: sourceWidget.description,
+          view: sourceWidget.view,
+          dimensions: sourceWidget.dimensions ?? [],
+          metrics: sourceWidget.metrics ?? [],
+          filters: sourceWidget.filters ?? [],
+          chartType: sourceWidget.chartType,
+          chartConfig: sourceWidget.chartConfig ?? {},
+          projectId, // project owned
+          createdBy: userId,
+          updatedBy: userId,
+        },
+      });
+
+      // 2. fetch dashboard to change reference
+      const dashboard = await tx.dashboard.findFirst({
+        where: { id: dashboardId, projectId },
+      });
+
+      if (!dashboard) {
+        throw new LangfuseNotFoundError(
+          `Dashboard ${dashboardId} not found in project ${projectId}`,
+        );
+      }
+
+      const definition = (dashboard.definition ?? {
+        widgets: [],
+      }) as z.infer<typeof DashboardDefinitionSchema>;
+      const updatedWidgets = (definition.widgets || []).map((w: any) =>
+        w.id === placementId ? { ...w, widgetId: newWidget.id } : w,
+      );
+
+      // 3. update dashboard with new widget reference
+      await tx.dashboard.update({
+        where: { id: dashboardId, projectId },
+        data: {
+          updatedBy: userId,
+          definition: { widgets: updatedWidgets },
+        },
+      });
+
+      return newWidget.id;
     });
   }
 }
