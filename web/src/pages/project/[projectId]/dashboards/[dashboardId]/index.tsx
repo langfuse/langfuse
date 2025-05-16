@@ -19,7 +19,6 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 interface WidgetPlacement {
   id: string;
@@ -39,19 +38,17 @@ export default function DashboardDetail() {
     addWidgetId?: string;
   };
 
-  const hasCUDAccess = useHasProjectAccess({
-    projectId,
-    scope: "dashboards:CUD",
-  });
-
   // Fetch dashboard data
   const dashboard = api.dashboard.getDashboard.useQuery({
     projectId,
     dashboardId,
   });
 
-  const isReadOnly = dashboard.data?.owner === "LANGFUSE";
-  const canEdit = hasCUDAccess && !isReadOnly;
+  const hasCUDAccess =
+    useHasProjectAccess({
+      projectId,
+      scope: "dashboards:CUD",
+    }) && dashboard.data?.owner !== "LANGFUSE";
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
@@ -85,7 +82,7 @@ export default function DashboardDetail() {
 
   const saveDashboardChanges = useDebounce(
     (definition: { widgets: WidgetPlacement[] }) => {
-      if (!canEdit) return;
+      if (!hasCUDAccess) return;
       updateDashboardDefinition.mutate({
         projectId,
         dashboardId,
@@ -306,29 +303,23 @@ export default function DashboardDetail() {
     addWidgetToDashboard(widget);
   };
 
-  // Show read-only banner if Langfuse owned
-  const readOnlyBanner = isReadOnly ? (
-    <Alert variant="default" className="mb-4">
-      <AlertTitle>This dashboard is maintained by Langfuse</AlertTitle>
-      <AlertDescription>
-        Clone it in the Dashboard Overview to make changes.
-      </AlertDescription>
-    </Alert>
-  ) : null;
-
   return (
     <Page
       withPadding
       scrollable
       headerProps={{
-        title: dashboard.data?.name || "Dashboard",
+        title:
+          (dashboard.data?.name || "Dashboard") +
+          (dashboard.data?.owner === "LANGFUSE"
+            ? " (Maintained by Langfuse 🪢)"
+            : ""),
         help: {
           description:
             dashboard.data?.description || "No description available",
         },
         actionButtonsRight: (
           <>
-            {canEdit && (
+            {hasCUDAccess && (
               <Button onClick={handleAddWidget}>
                 <PlusIcon size={16} />
                 Add Widget
@@ -338,7 +329,6 @@ export default function DashboardDetail() {
         ),
       }}
     >
-      {readOnlyBanner}
       <SelectWidgetDialog
         open={isWidgetDialogOpen}
         onOpenChange={setIsWidgetDialogOpen}
@@ -380,7 +370,7 @@ export default function DashboardDetail() {
                 dateRange={dateRange}
                 filterState={userFilterState}
                 onDeleteWidget={handleDeleteWidget}
-                canEdit={canEdit}
+                owner={dashboard.data?.owner}
               />
             ))}
           </div>

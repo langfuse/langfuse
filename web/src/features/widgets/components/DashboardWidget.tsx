@@ -12,6 +12,7 @@ import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { PencilIcon, TrashIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { startCase } from "lodash";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface WidgetPlacement {
   id: string;
@@ -34,14 +35,14 @@ export function DashboardWidget({
   dateRange,
   filterState,
   onDeleteWidget,
-  canEdit,
+  owner,
 }: {
   projectId: string;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
-  canEdit: boolean;
+  owner: "LANGFUSE" | "PROJECT";
 }) {
   const router = useRouter();
   const widget = api.dashboardWidgets.get.useQuery(
@@ -53,6 +54,9 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
+  const hasCUDAccess =
+    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
+    owner !== "LANGFUSE";
 
   const fromTimestamp = dateRange
     ? dateRange.from
@@ -161,7 +165,7 @@ export function DashboardWidget({
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">{widget.data.name}</span>
-        {canEdit && (
+        {hasCUDAccess && (
           <div className="flex space-x-2">
             <button
               onClick={handleEdit}

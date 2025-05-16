@@ -207,7 +207,7 @@ export class DashboardService {
     const [widgets, totalCount] = await Promise.all([
       prisma.dashboardWidget.findMany({
         where: {
-          OR: [{ projectId }, { projectId: null }],
+          projectId,
         },
         orderBy: orderBy
           ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
@@ -217,7 +217,7 @@ export class DashboardService {
       }),
       prisma.dashboardWidget.count({
         where: {
-          OR: [{ projectId }, { projectId: null }],
+          projectId,
         },
       }),
     ]);
@@ -266,7 +266,7 @@ export class DashboardService {
   }
 
   /**
-   * Gets a dashboard widget by ID.
+   * Gets a dashboard widget by ID. Look either in the current project or in the Langfuse managed widgets.
    */
   public static async getWidget(
     widgetId: string,

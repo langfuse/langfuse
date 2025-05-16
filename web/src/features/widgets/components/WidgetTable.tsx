@@ -30,13 +30,22 @@ type WidgetTableRow = {
   chartType: string;
   createdAt: Date;
   updatedAt: Date;
+  owner: "PROJECT" | "LANGFUSE";
 };
 
-export function DeleteWidget({ widgetId }: { widgetId: string }) {
+export function DeleteWidget({
+  widgetId,
+  owner,
+}: {
+  widgetId: string;
+  owner: "PROJECT" | "LANGFUSE";
+}) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+  const hasAccess =
+    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
+    owner !== "LANGFUSE";
   const capture = usePostHogClientCapture();
 
   const mutDeleteWidget = api.dashboardWidgets.delete.useMutation({
@@ -218,7 +227,7 @@ export function DashboardWidgetTable() {
       size: 70,
       cell: (row) => {
         const id = row.row.original.id;
-        return <DeleteWidget widgetId={id} />;
+        return <DeleteWidget widgetId={id} owner={row.row.original.owner} />;
       },
     }),
   ] as LangfuseColumnDef<WidgetTableRow>[];

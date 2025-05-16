@@ -127,4 +127,3 @@ export type DashboardListResponse = z.infer<typeof DashboardListResponseSchema>;
 export type WidgetDomain = z.infer<typeof WidgetDomainSchema>;
 export type CreateWidgetInput = z.infer<typeof CreateWidgetInputSchema>;
 export type WidgetListResponse = z.infer<typeof WidgetListResponseSchema>;
-export type Owner = z.infer<typeof OwnerEnum>;
