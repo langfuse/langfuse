@@ -8,6 +8,10 @@ declare global {
   }
 }
 
+// Add these at the top level
+let metadataQueue: Array<() => void> = [];
+let isWidgetLoaded = false;
+
 const PlainChat = () => {
   const scriptRef = useRef<HTMLScriptElement | null>(null);
 
@@ -51,6 +55,11 @@ const PlainChat = () => {
             },
           ],
         });
+
+        // Mark widget as loaded and process queued metadata updates
+        isWidgetLoaded = true;
+        metadataQueue.forEach((update) => update());
+        metadataQueue = [];
 
         // If URL parameter is present, open the chat immediately
         if (shouldShowChat) {
@@ -125,29 +134,46 @@ export const chatSetCustomer = (customer: {
   emailHash?: string;
   chatAvatarUrl?: string;
 }) => {
-  if (chatAvailable()) {
-    window.Plain.update({
-      customerDetails: customer,
-    });
+  const updateCustomer = () => {
+    if (chatAvailable()) {
+      window.Plain.update({
+        customerDetails: customer,
+      });
+    }
+  };
+
+  if (isWidgetLoaded) {
+    updateCustomer();
+  } else {
+    console.log("pushing updateCustomer to metadataQueue");
+    metadataQueue.push(updateCustomer);
   }
 };
 
 export const chatSetThreadDetails = (p: { orgId?: string; plan?: Plan }) => {
-  if (chatAvailable()) {
-    window.Plain.update({
-      threadDetails: {
-        ...(p.orgId && {
-          tenantIdentifier: {
-            externalId: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_org_${p.orgId}`,
-          },
-        }),
-        ...(p.plan && {
-          tierIdentifier: {
-            externalId: p.plan,
-          },
-        }),
-        // project_id: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_project_${project?.id}`,
-      },
-    });
+  const updateThread = () => {
+    if (chatAvailable()) {
+      window.Plain.update({
+        threadDetails: {
+          ...(p.orgId && {
+            tenantIdentifier: {
+              externalId: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_org_${p.orgId}`,
+            },
+          }),
+          ...(p.plan && {
+            tierIdentifier: {
+              externalId: p.plan,
+            },
+          }),
+        },
+      });
+    }
+  };
+
+  if (isWidgetLoaded) {
+    updateThread();
+  } else {
+    console.log("pushing updateThread to metadataQueue");
+    metadataQueue.push(updateThread);
   }
 };
