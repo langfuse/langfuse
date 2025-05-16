@@ -1,0 +1,87 @@
+{
+  "widgets": [
+    {
+      "id": "cmaqtboed0003mj4o2yrd2tao",
+      "createdAt": "2025-05-16T13:06:47.749Z",
+      "updatedAt": "2025-05-16T13:06:47.749Z",
+      "name": "Traces by Name",
+      "description": "Top-50 count of traces by name.",
+      "view": "TRACES",
+      "dimensions": [{ "field": "name" }],
+      "metrics": [{ "agg": "count", "measure": "count" }],
+      "filters": [],
+      "chart_type": "HORIZONTAL_BAR",
+      "chart_config": { "type": "HORIZONTAL_BAR", "row_limit": 50 }
+    },
+    {
+      "id": "cmaqtdfa00005mj4oo41hw8ri",
+      "createdAt": "2025-05-16T13:08:09.240Z",
+      "updatedAt": "2025-05-16T13:08:09.240Z",
+      "name": "Traces by Environment",
+      "description": "Number of traces by environment over time.",
+      "view": "TRACES",
+      "dimensions": [{ "field": "environment" }],
+      "metrics": [{ "agg": "count", "measure": "count" }],
+      "filters": [],
+      "chart_type": "LINE_TIME_SERIES",
+      "chart_config": { "type": "LINE_TIME_SERIES" }
+    },
+    {
+      "id": "cmaqtecri0007mj4osrjkfik2",
+      "createdAt": "2025-05-16T13:08:52.638Z",
+      "updatedAt": "2025-05-16T13:08:52.638Z",
+      "name": "Observations by Level",
+      "description": "Observations by Level over Time.",
+      "view": "OBSERVATIONS",
+      "dimensions": [{ "field": "level" }],
+      "metrics": [{ "agg": "count", "measure": "count" }],
+      "filters": [],
+      "chart_type": "BAR_TIME_SERIES",
+      "chart_config": { "type": "BAR_TIME_SERIES" }
+    },
+    {
+      "id": "cmaqtdfa00005mj4ocywsllk3",
+      "createdAt": "2025-05-16T13:10:28.737Z",
+      "updatedAt": "2025-05-16T13:10:28.737Z",
+      "name": "Top-20 Users",
+      "description": "Users with most traces.",
+      "view": "TRACES",
+      "dimensions": [{ "field": "userId" }],
+      "metrics": [{ "agg": "count", "measure": "count" }],
+      "filters": [],
+      "chart_type": "VERTICAL_BAR",
+      "chart_config": { "type": "VERTICAL_BAR", "row_limit": 20 }
+    },
+    {
+      "id": "cmaqthg20000bmj4ohboee84r",
+      "createdAt": "2025-05-16T13:11:16.872Z",
+      "updatedAt": "2025-05-16T13:11:16.872Z",
+      "name": "Top-20 Sessions",
+      "description": "Top-20 Sessions with most traces.",
+      "view": "TRACES",
+      "dimensions": [{ "field": "sessionId" }],
+      "metrics": [{ "agg": "count", "measure": "count" }],
+      "filters": [],
+      "chart_type": "PIE",
+      "chart_config": { "type": "PIE", "row_limit": 20 }
+    }
+  ],
+  "dashboards": [
+    {
+      "id": "cmaqt9fxc0001mj4ortmz295m",
+      "createdAt": "2025-05-16T13:05:03.456Z",
+      "updatedAt": "2025-05-16T13:11:17.629Z",
+      "name": "Tracing Usage",
+      "description": "Understand how much tracing gets ingested into Langfuse.",
+      "definition": {
+        "widgets": [
+          {"type": "widget", "id": "b6eeac3c-f29d-4438-9056-2bd66fc2d712", "widgetId": "cmaqtboed0003mj4o2yrd2tao", "x": 0, "y": 0, "x_size": 6, "y_size": 2},
+          {"type": "widget", "id": "68d84385-1e11-4c76-88d8-e647fd909ff0", "widgetId": "cmaqtdfa00005mj4oo41hw8ri", "x": 0, "y": 2, "x_size": 6, "y_size": 2},
+          {"type": "widget", "id": "bce3376d-5a4c-4b1e-a55e-7974d307c9ec", "widgetId": "cmaqtecri0007mj4osrjkfik2", "x": 0, "y": 4, "x_size": 6, "y_size": 2},
+          {"type": "widget", "id": "f6d00cee-1648-41b4-a6b3-8091a5791daf", "widgetId": "cmaqtdfa00005mj4ocywsllk3", "x": 0, "y": 6, "x_size": 6, "y_size": 2},
+          {"type": "widget", "id": "a80df33a-97a4-44a6-96db-8bfb8a748739", "widgetId": "cmaqthg20000bmj4ohboee84r", "x": 0, "y": 8, "x_size": 6, "y_size": 2}
+        ]
+      }
+    }
+  ]
+}
