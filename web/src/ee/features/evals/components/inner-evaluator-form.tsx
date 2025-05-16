@@ -60,7 +60,12 @@ import {
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
 import { useEvalConfigMappingData } from "@/src/ee/features/evals/hooks/useEvalConfigMappingData";
-import { VariablePreview } from "@/src/ee/features/evals/components/variable-preview";
+import { DialogTrigger } from "@/src/components/ui/dialog";
+import { Dialog } from "@/src/components/ui/dialog";
+import {
+  getVariableColor,
+  VariablePreviewDialog,
+} from "@/src/ee/features/evals/components/variable-preview-dialog";
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -80,6 +85,7 @@ export const InnerEvaluatorForm = (props: {
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const dateRange = useMemo(() => {
     return {
@@ -586,7 +592,27 @@ export const InnerEvaluatorForm = (props: {
             </div>
           </Card>
           <Card className="p-4">
-            <span className="text-lg font-medium">Variable mapping</span>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-lg font-medium">Variable mapping</span>
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={isLoading || props.disabled}
+                  >
+                    Preview evaluation prompt
+                  </Button>
+                </DialogTrigger>
+                {dialogOpen && (
+                  <VariablePreviewDialog
+                    evalTemplate={props.evalTemplate}
+                    trace={traceWithObservations}
+                    variableMapping={form.getValues("mapping")}
+                    isLoading={isLoading || !dialogOpen}
+                  />
+                )}
+              </Dialog>
+            </div>
             <FormDescription>
               Preview of the evaluation prompt with the variables replaced with
               the first matched trace data subject to the filters.
@@ -620,7 +646,12 @@ export const InnerEvaluatorForm = (props: {
                       >
                         {fields.map((mappingField, index) => (
                           <Card className="flex flex-col gap-2 p-4" key={index}>
-                            <div className="text-sm font-semibold">
+                            <div
+                              className={cn(
+                                "text-sm font-semibold",
+                                getVariableColor(index),
+                              )}
+                            >
                               {"{{"}
                               {mappingField.templateVariable}
                               {"}}"}
@@ -653,7 +684,13 @@ export const InnerEvaluatorForm = (props: {
                                       <Select
                                         disabled={props.disabled}
                                         defaultValue={field.value}
-                                        onValueChange={field.onChange}
+                                        onValueChange={(value) => {
+                                          field.onChange(value);
+                                          form.setValue(
+                                            `mapping.${index}.objectName`,
+                                            undefined,
+                                          );
+                                        }}
                                       >
                                         <SelectTrigger>
                                           <SelectValue />
@@ -897,10 +934,6 @@ export const InnerEvaluatorForm = (props: {
                       </div>
                     </div>
                     <FormMessage />
-                    <VariablePreview
-                      traceWithObservations={traceWithObservations}
-                      mapping={form.getValues("mapping")}
-                    />
                   </>
                 )}
               />
