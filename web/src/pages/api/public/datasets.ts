@@ -13,6 +13,7 @@ export default withMiddlewares({
     name: "Create or Update Dataset",
     bodySchema: PostDatasetsV1Body,
     responseSchema: PostDatasetsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ body, auth }) => {
       const { name, description, metadata } = body;
 
@@ -46,6 +47,7 @@ export default withMiddlewares({
     name: "Get Datasets",
     querySchema: GetDatasetsV1Query,
     responseSchema: GetDatasetsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { limit, page } = query;
 

@@ -6,7 +6,7 @@ import { DashboardWidget } from "@/src/features/widgets";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
@@ -18,6 +18,7 @@ import {
 } from "@/src/features/widgets/components/SelectWidgetDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 interface WidgetPlacement {
   id: string;
@@ -31,9 +32,10 @@ interface WidgetPlacement {
 
 export default function DashboardDetail() {
   const router = useRouter();
-  const { projectId, dashboardId } = router.query as {
+  const { projectId, dashboardId, addWidgetId } = router.query as {
     projectId: string;
     dashboardId: string;
+    addWidgetId?: string;
   };
 
   const hasCUDAccess = useHasProjectAccess({
@@ -43,14 +45,13 @@ export default function DashboardDetail() {
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange();
+    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
   const [userFilterState, setUserFilterState] = useState<FilterState>([]);
 
   // State for handling widget deletion and addition
   const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
     widgets: WidgetPlacement[];
   } | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // State for the widget selection dialog
   const [isWidgetDialogOpen, setIsWidgetDialogOpen] = useState(false);
@@ -61,9 +62,9 @@ export default function DashboardDetail() {
       onSuccess: () => {
         showSuccessToast({
           title: "Dashboard updated",
-          description: "Your changes have been saved successfully",
+          description: "Your changes have been saved automatically",
+          duration: 2000,
         });
-        setHasUnsavedChanges(false);
         // Invalidate the dashboard query to refetch the data
         dashboard.refetch();
       },
@@ -71,6 +72,57 @@ export default function DashboardDetail() {
         showErrorToast("Error updating dashboard", error.message);
       },
     });
+
+  const saveDashboardChanges = useDebounce(
+    (definition: { widgets: WidgetPlacement[] }) => {
+      updateDashboardDefinition.mutate({
+        projectId,
+        dashboardId,
+        definition,
+      });
+    },
+    600,
+    false,
+  );
+
+  // Helper function to add a widget to the dashboard
+  const addWidgetToDashboard = useCallback(
+    (widget: WidgetItem) => {
+      if (!localDashboardDefinition) return;
+
+      // Find the maximum y position to place the new widget at the bottom
+      const maxY =
+        localDashboardDefinition.widgets.length > 0
+          ? Math.max(
+              ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
+            )
+          : 0;
+
+      // Create a new widget placement
+      const newWidgetPlacement: WidgetPlacement = {
+        id: uuidv4(),
+        widgetId: widget.id,
+        x: 0, // Start at left
+        y: maxY, // Place below existing widgets
+        x_size: 6, // Default size (half of 12-column grid)
+        y_size: 2, // Default height of 2 rows
+        type: "widget",
+      };
+
+      // Add the widget to the local dashboard definition
+      const updatedDefinition = {
+        ...localDashboardDefinition,
+        widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
+      };
+      setLocalDashboardDefinition(updatedDefinition);
+      saveDashboardChanges(updatedDefinition);
+    },
+    [
+      localDashboardDefinition,
+      setLocalDashboardDefinition,
+      saveDashboardChanges,
+    ],
+  );
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
@@ -186,11 +238,44 @@ export default function DashboardDetail() {
     },
   );
 
+  // Fetch widget data if addWidgetId is present
+  const widgetToAdd = api.dashboardWidgets.get.useQuery(
+    { projectId, widgetId: addWidgetId || "" },
+    {
+      enabled: Boolean(projectId) && Boolean(addWidgetId),
+    },
+  );
+
   useEffect(() => {
     if (dashboard.data && !localDashboardDefinition) {
       setLocalDashboardDefinition(dashboard.data.definition);
     }
   }, [dashboard.data, localDashboardDefinition]);
+
+  useEffect(() => {
+    if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
+      if (
+        !localDashboardDefinition.widgets.some(
+          (w) => w.widgetId === addWidgetId,
+        )
+      ) {
+        addWidgetToDashboard(widgetToAdd.data);
+      }
+      // Remove the addWidgetId query parameter
+      router.replace({
+        pathname: router.pathname,
+        query: { projectId, dashboardId },
+      });
+    }
+  }, [
+    widgetToAdd.data,
+    addWidgetId,
+    addWidgetToDashboard,
+    localDashboardDefinition,
+    projectId,
+    dashboardId,
+    router,
+  ]);
 
   // Handle deleting a widget
   const handleDeleteWidget = (tileId: string) => {
@@ -199,12 +284,12 @@ export default function DashboardDetail() {
         (widget) => widget.id !== tileId,
       );
 
-      setLocalDashboardDefinition({
+      const updatedDefinition = {
         ...localDashboardDefinition,
         widgets: updatedWidgets,
-      });
-
-      setHasUnsavedChanges(true);
+      };
+      setLocalDashboardDefinition(updatedDefinition);
+      saveDashboardChanges(updatedDefinition);
     }
   };
 
@@ -215,50 +300,7 @@ export default function DashboardDetail() {
 
   // Handle widget selection from dialog
   const handleSelectWidget = (widget: WidgetItem) => {
-    if (localDashboardDefinition) {
-      // Find the maximum y position to place the new widget at the bottom
-      const maxY =
-        localDashboardDefinition.widgets.length > 0
-          ? Math.max(
-              ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
-            )
-          : 0;
-
-      // Create a new widget placement
-      const newWidgetPlacement: WidgetPlacement = {
-        id: uuidv4(),
-        widgetId: widget.id,
-        x: 0, // Start at left
-        y: maxY, // Place below existing widgets
-        x_size: 6, // Default size (half of 12-column grid)
-        y_size: 2, // Default height of 2 rows
-        type: "widget",
-      };
-
-      // Add the widget to the local dashboard definition
-      setLocalDashboardDefinition({
-        ...localDashboardDefinition,
-        widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
-      });
-
-      setHasUnsavedChanges(true);
-
-      showSuccessToast({
-        title: "Widget added",
-        description: `"${widget.name}" has been added to the dashboard. Click Save to apply changes.`,
-      });
-    }
-  };
-
-  // Handle saving the dashboard
-  const handleSaveDashboard = () => {
-    if (localDashboardDefinition && hasUnsavedChanges) {
-      updateDashboardDefinition.mutate({
-        projectId,
-        dashboardId,
-        definition: localDashboardDefinition,
-      });
-    }
+    addWidgetToDashboard(widget);
   };
 
   return (
@@ -268,6 +310,7 @@ export default function DashboardDetail() {
         onOpenChange={setIsWidgetDialogOpen}
         projectId={projectId}
         onSelectWidget={handleSelectWidget}
+        dashboardId={dashboardId}
       />
 
       <Page
@@ -284,17 +327,6 @@ export default function DashboardDetail() {
               <Button onClick={handleAddWidget} disabled={!hasCUDAccess}>
                 <PlusIcon size={16} />
                 Add Widget
-              </Button>
-              <Button
-                onClick={handleSaveDashboard}
-                disabled={
-                  !hasUnsavedChanges ||
-                  updateDashboardDefinition.isLoading ||
-                  !hasCUDAccess
-                }
-                loading={updateDashboardDefinition.isLoading}
-              >
-                Save
               </Button>
             </>
           ),

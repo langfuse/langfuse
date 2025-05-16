@@ -184,7 +184,10 @@ export const handleBatchActionJob = async (
     });
 
     if (!config) {
-      throw new Error("Eval config not found");
+      logger.error(
+        `Eval config ${configId} not found for project ${projectId}`,
+      );
+      return;
     }
 
     const dbReadStream = await getDatabaseReadStream({

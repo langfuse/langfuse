@@ -122,6 +122,14 @@ export default function Layout(props: PropsWithChildren) {
     if (!routerOrganizationId && route.pathname.includes("[organizationId]"))
       return null;
 
+    // UI customization – hide routes that belong to a disabled product module
+    if (
+      route.productModule &&
+      uiCustomization !== null &&
+      !uiCustomization.visibleModules.includes(route.productModule)
+    )
+      return null;
+
     // Feature Flags
     if (
       route.featureFlag !== undefined &&
@@ -176,21 +184,14 @@ export default function Layout(props: PropsWithChildren) {
     const items: (NavigationItem | null)[] =
       route.items?.map((item) => mapNavigation(item)).filter(Boolean) ?? [];
 
-    const url = (
-      route.customizableHref
-        ? (uiCustomization?.[route.customizableHref] ?? route.pathname)
-        : route.pathname
-    )
+    const url = route.pathname
+
       ?.replace("[projectId]", routerProjectId ?? "")
       .replace("[organizationId]", routerOrganizationId ?? "");
 
     return {
       ...route,
       url: url,
-      newTab:
-        route.customizableHref && uiCustomization?.[route.customizableHref]
-          ? true
-          : route.newTab,
       isActive: router.pathname === route.pathname,
       items:
         items.length > 0

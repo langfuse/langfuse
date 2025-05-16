@@ -1,9 +1,5 @@
 import React, { useMemo } from "react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
+import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Label, Pie, PieChart as PieChartComponent } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -43,8 +39,8 @@ export const PieChart: React.FC<ChartProps> = ({
     <ChartContainer config={config}>
       <PieChartComponent accessibilityLayer={accessibilityLayer}>
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          cursor={{ opacity: 0.8 }}
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
         />
         <Pie
           data={chartData}

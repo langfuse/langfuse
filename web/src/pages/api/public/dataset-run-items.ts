@@ -17,6 +17,7 @@ export default withMiddlewares({
     name: "Create Dataset Run Item",
     bodySchema: PostDatasetRunItemsV1Body,
     responseSchema: PostDatasetRunItemsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ body, auth }) => {
       const {
         datasetItemId,
@@ -123,6 +124,7 @@ export default withMiddlewares({
     name: "Get Dataset Run Items",
     querySchema: GetDatasetRunItemsV1Query,
     responseSchema: GetDatasetRunItemsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { datasetId, runName, ...pagination } = query;
 

@@ -189,7 +189,7 @@ const BillingPortalOrPricingPageButton = () => {
 
   // Do not show checkout or customer portal if manual plan is set in cloud config
   if (organization?.cloudConfig?.plan) {
-    if (chatAvailable())
+    if (chatAvailable)
       return (
         <Button
           variant="secondary"

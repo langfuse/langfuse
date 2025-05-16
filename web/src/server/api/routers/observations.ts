@@ -23,6 +23,7 @@ export const observationsRouter = createTRPCRouter({
           id: input.observationId,
           projectId: input.projectId,
           fetchWithInputOutput: true,
+          traceId: input.traceId,
           startTime: input.startTime ?? undefined,
         });
         if (!obs) {

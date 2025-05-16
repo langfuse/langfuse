@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { CardContent } from "@/src/components/ui/card";
 import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
@@ -22,20 +22,37 @@ export const Chart = ({
   const [forceRender, setForceRender] = useState(false);
   const shouldWarn = data.length > 2000 && !forceRender;
 
+  const renderedData = useMemo(() => {
+    return data.map((item) => {
+      return {
+        ...item,
+        time_dimension: item.time_dimension
+          ? new Date(item.time_dimension).toLocaleTimeString("en-US", {
+              year: "2-digit",
+              month: "numeric",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : undefined,
+      };
+    });
+  }, [data]);
+
   const renderChart = () => {
     switch (chartType) {
       case "LINE_TIME_SERIES":
-        return <LineChartTimeSeries data={data} />;
+        return <LineChartTimeSeries data={renderedData} />;
       case "BAR_TIME_SERIES":
-        return <VerticalBarChartTimeSeries data={data} />;
+        return <VerticalBarChartTimeSeries data={renderedData} />;
       case "HORIZONTAL_BAR":
-        return <HorizontalBarChart data={data.slice(0, rowLimit)} />;
+        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
       case "VERTICAL_BAR":
-        return <VerticalBarChart data={data.slice(0, rowLimit)} />;
+        return <VerticalBarChart data={renderedData.slice(0, rowLimit)} />;
       case "PIE":
-        return <PieChart data={data.slice(0, rowLimit)} />;
+        return <PieChart data={renderedData.slice(0, rowLimit)} />;
       default:
-        return <HorizontalBarChart data={data.slice(0, rowLimit)} />;
+        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
     }
   };
 

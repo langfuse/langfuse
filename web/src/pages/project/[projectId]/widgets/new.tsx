@@ -10,27 +10,37 @@ import {
   type metricAggregations,
 } from "@/src/features/query/types";
 import { type z } from "zod";
+import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
+import { useState } from "react";
 
 export default function NewWidget() {
   const router = useRouter();
-  const { projectId } = router.query as { projectId: string };
+  const { projectId, dashboardId } = router.query as {
+    projectId: string;
+    dashboardId?: string;
+  };
 
-  // Save widget mutation
   const createWidgetMutation = api.dashboardWidgets.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       showSuccessToast({
         title: "Widget created successfully",
         description: "Your widget has been created.",
       });
-      // Navigate back to widgets list
-      void router.push(`/project/${projectId}/widgets`);
+
+      if (dashboardId) {
+        void router.push(
+          `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${data.widget.id}`,
+        );
+      } else {
+        setPendingWidgetId(data.widget.id); // store for dialog
+        setDashboardDialogOpen(true);
+      }
     },
     onError: (error) => {
       showErrorToast("Failed to save widget", error.message);
     },
   });
 
-  // Handle save widget
   const handleSaveWidget = (widgetData: {
     name: string;
     description: string;
@@ -63,6 +73,9 @@ export default function NewWidget() {
     });
   };
 
+  const [dashboardDialogOpen, setDashboardDialogOpen] = useState(false);
+  const [pendingWidgetId, setPendingWidgetId] = useState<string | null>(null);
+
   return (
     <Page
       withPadding
@@ -87,6 +100,21 @@ export default function NewWidget() {
           chartType: "LINE_TIME_SERIES",
         }}
       />
+      {pendingWidgetId && (
+        <SelectDashboardDialog
+          open={dashboardDialogOpen}
+          onOpenChange={setDashboardDialogOpen}
+          projectId={projectId}
+          onSelectDashboard={(dashboardId) => {
+            router.push(
+              `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${pendingWidgetId}`,
+            );
+          }}
+          onSkip={() => {
+            router.push(`/project/${projectId}/widgets`);
+          }}
+        />
+      )}
     </Page>
   );
 }

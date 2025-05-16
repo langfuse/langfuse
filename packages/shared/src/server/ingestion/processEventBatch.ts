@@ -77,11 +77,13 @@ const getDelay = (delay: number | null) => {
  * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
  * @param authCheck - AuthHeaderValidVerificationResult
  * @param delay - (Optional) Delay in ms to wait before processing events in the batch.
+ * @param validateBatch - (Optional) Options to control validation.
  */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResult,
   delay: number | null = null,
+  validateBatch: boolean = true,
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -116,27 +118,36 @@ export const processEventBatch = async (
 
   const batch: z.infer<typeof ingestionEvent>[] = input
     .flatMap((event) => {
-      const parsed = ingestionEvent.safeParse(event);
-      if (!parsed.success) {
-        validationErrors.push({
-          id:
-            typeof event === "object" && event && "id" in event
-              ? typeof event.id === "string"
-                ? event.id
-                : "unknown"
-              : "unknown",
-          error: new InvalidRequestError(parsed.error.message),
-        });
-        return [];
+      let eventData: z.infer<typeof ingestionEvent> | null = null;
+
+      if (validateBatch) {
+        const parsed = ingestionEvent.safeParse(event);
+        if (!parsed.success) {
+          validationErrors.push({
+            id:
+              typeof event === "object" && event && "id" in event
+                ? typeof event.id === "string"
+                  ? event.id
+                  : "unknown"
+                : "unknown",
+            error: new InvalidRequestError(parsed.error.message),
+          });
+          return [];
+        }
+        eventData = parsed.data;
+      } else {
+        // Skip validation – assume input already conforms
+        eventData = event as z.infer<typeof ingestionEvent>;
       }
-      if (!isAuthorized(parsed.data, authCheck)) {
+
+      if (!isAuthorized(eventData, authCheck)) {
         authenticationErrors.push({
-          id: parsed.data.id,
+          id: eventData.id,
           error: new UnauthorizedError("Access Scope Denied"),
         });
         return [];
       }
-      return [parsed.data];
+      return [eventData];
     })
     .flatMap((event) => {
       if (event.type === eventTypes.SDK_LOG) {

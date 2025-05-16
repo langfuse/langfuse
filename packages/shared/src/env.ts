@@ -38,6 +38,8 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
+  CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -90,6 +92,7 @@ const EnvSchema = z.object({
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .default(80e6), // 80MB
+  LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(240_000), // 4 minutes
 });
 
 export const env: z.infer<typeof EnvSchema> =

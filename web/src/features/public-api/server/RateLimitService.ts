@@ -243,7 +243,13 @@ const getPlanBasedRateLimitConfig = (
         case "public-api":
           return {
             resource: "public-api",
-            points: 20,
+            points: 30,
+            durationInSec: 60,
+          };
+        case "datasets":
+          return {
+            resource: "datasets",
+            points: 100,
             durationInSec: 60,
           };
         case "public-api-metrics":
@@ -282,6 +288,12 @@ const getPlanBasedRateLimitConfig = (
             points: 100,
             durationInSec: 60,
           };
+        case "datasets":
+          return {
+            resource: "datasets",
+            points: 200,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
@@ -317,6 +329,12 @@ const getPlanBasedRateLimitConfig = (
         case "public-api":
           return {
             resource: "public-api",
+            points: 1000,
+            durationInSec: 60,
+          };
+        case "datasets":
+          return {
+            resource: "datasets",
             points: 1000,
             durationInSec: 60,
           };

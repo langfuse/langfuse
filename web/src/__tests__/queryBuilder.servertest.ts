@@ -2519,6 +2519,83 @@ describe("queryBuilder", () => {
         expect(result.data[0].name).toBe("score-premium");
         expect(parseFloat(result.data[0].avg_value)).toBeCloseTo(0.95);
       });
+
+      it("LFE-4838: should filter scores-numeric by scoreName (fallback handling) without errors", async () => {
+        // Setup
+        const projectId = randomUUID();
+
+        // Create trace
+        const trace = createTrace({
+          project_id: projectId,
+          name: "score-name-test-trace",
+          environment: "production",
+        });
+        await createTracesCh([trace]);
+
+        // Create scores with different names
+        const scores = [
+          {
+            name: "accuracy",
+            traceId: trace.id,
+            value: 0.9,
+            dataType: "NUMERIC" as const,
+          },
+          {
+            name: "relevance",
+            traceId: trace.id,
+            value: 0.85,
+            dataType: "NUMERIC" as const,
+          },
+        ];
+
+        await setupScores(projectId, scores);
+
+        // Define query with filter using "scoreName" instead of "name"
+        // This tests the fallback handling in queryBuilder.ts that handles column names ending with "Name"
+        const query: QueryType = {
+          view: "scores-numeric",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "scoreName", // Using scoreName instead of name to test the fallback logic
+              operator: "=",
+              value: "accuracy",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        // Verify the compiled query contains filtering on name
+        expect(compiledQuery).toContain("scores_numeric.name");
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - should only return scores with name "accuracy"
+        expect(result.data).toHaveLength(1);
+        expect(result.data[0].name).toBe("accuracy");
+        expect(result.data[0].count_count).toBe("1");
+      });
     });
 
     describe("scores-categorical view", () => {
