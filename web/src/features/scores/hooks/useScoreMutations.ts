@@ -11,16 +11,12 @@ import { isTraceScore } from "@/src/features/scores/lib/helpers";
 
 const onTraceScoreSettledUpsert =
   ({
-    projectId,
-    traceId,
     utils,
     fields,
     update,
     isDrawerOpen,
     setShowSaving,
   }: {
-    projectId: string;
-    traceId: string;
     utils: ReturnType<typeof api.useUtils>;
     fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
     update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
@@ -45,17 +41,9 @@ const onTraceScoreSettledUpsert =
       comment: comment ?? undefined,
     });
 
-    console.log("invalidating traces");
-
     await Promise.all([
       utils.scores.invalidate(),
-      utils.traces.byIdWithObservationsAndScores.invalidate(
-        { projectId, traceId },
-        {
-          type: "all",
-          refetchType: "all",
-        },
-      ),
+      utils.traces.byIdWithObservationsAndScores.invalidate(),
       utils.sessions.invalidate(),
     ]);
 
@@ -101,11 +89,13 @@ const onScoreSettledDelete =
       });
     }
 
-    await Promise.all([
-      utils.scores.invalidate(),
-      utils.traces.invalidate(),
-      utils.sessions.invalidate(),
-    ]);
+    await Promise.all(
+      [
+        utils.scores.invalidate(),
+        utils.traces.byIdWithObservationsAndScores.invalidate(),
+        utils.sessions.invalidate(),
+      ].filter(Boolean),
+    );
 
     if (!isDrawerOpen) setShowSaving(false);
   };
@@ -164,8 +154,6 @@ export function useScoreMutations(
 
   const onSettledUpsert = isTraceScore(scoreTarget)
     ? onTraceScoreSettledUpsert({
-        projectId,
-        traceId: scoreTarget.traceId,
         utils,
         fields,
         update,
@@ -200,7 +188,7 @@ export function useScoreMutations(
   });
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
-    onSuccess: onSettledDelete,
+    onSettled: onSettledDelete,
   });
 
   return {
