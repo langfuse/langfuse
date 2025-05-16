@@ -1,0 +1,21 @@
+name: Langfuse Upstream Release Watch
+
+on:
+  schedule:
+    - cron: '0 12 * * 1'  # every Monday at noon UTC
+  workflow_dispatch:
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get latest Langfuse release
+        id: latest
+        uses: pozetroninc/github-action-get-latest-release@v0.7.0
+        with:
+          repository: langfuse/langfuse
+
+      - name: Output latest release
+        run: |
+          echo "🔔 Latest Langfuse release: ${{ steps.latest.outputs.release }}"
