@@ -5,6 +5,7 @@ import { CheckIcon, CopyIcon, PlusIcon } from "@radix-ui/react-icons";
 import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
 import { BracesIcon } from "lucide-react";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
+import { copyToClipboard } from "@/src/utils/clipboard";
 
 export const GenerationOutput = () => {
   const [isCopied, setIsCopied] = useState(false);
@@ -16,7 +17,7 @@ export const GenerationOutput = () => {
 
   const handleCopy = () => {
     setIsCopied(true);
-    void navigator.clipboard.writeText(isJson ? outputJson : output);
+    void copyToClipboard(isJson ? outputJson : output);
     setTimeout(() => setIsCopied(false), 1000);
   };
 
