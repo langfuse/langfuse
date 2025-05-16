@@ -51,7 +51,7 @@ export const SupportMenuDropdown = () => {
         icon: LifeBuoy,
       });
     } else {
-      if (chatAvailable()) {
+      if (chatAvailable) {
         items.push({
           title: "Chat",
           pathname: "#",
