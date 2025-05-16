@@ -102,7 +102,7 @@ export function WidgetForm({
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange();
+    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
   const [userFilterState, setUserFilterState] = useState<FilterState>(
     initialValues.filters ?? [],
   );

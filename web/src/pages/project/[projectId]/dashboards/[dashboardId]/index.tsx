@@ -45,7 +45,7 @@ export default function DashboardDetail() {
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange();
+    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
   const [userFilterState, setUserFilterState] = useState<FilterState>([]);
 
   // State for handling widget deletion and addition
