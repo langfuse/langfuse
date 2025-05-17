@@ -45,6 +45,7 @@ import {
   PieChart,
   LineChart,
   BarChartHorizontal,
+  Table,
 } from "lucide-react";
 
 export function WidgetForm({
@@ -248,6 +249,12 @@ export function WidgetForm({
         icon: BarChart,
       },
       { group: "total-value", name: "Pie Chart", value: "PIE", icon: PieChart },
+      {
+        group: "total-value",
+        name: "Table Chart",
+        value: "TABLE",
+        icon: Table,
+      },
     ],
     [],
   );
