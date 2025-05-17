@@ -25,6 +25,7 @@ import {
 import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 import { User as UserIcon } from "lucide-react";
+import { useRouter } from "next/router";
 
 type DashboardTableRow = {
   id: string;
@@ -126,6 +127,7 @@ function EditDashboardButton({
 export function DashboardTable() {
   const projectId = useProjectIdFromURL() as string;
   const { setDetailPageList } = useDetailPageLists();
+  const router = useRouter();
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "updatedAt",
@@ -237,37 +239,39 @@ export function DashboardTable() {
         const description = row.row.original.description;
         const owner = row.row.original.owner;
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
-              {owner === "PROJECT" && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+                {owner === "PROJECT" && (
+                  <DropdownMenuItem asChild>
+                    <EditDashboardButton
+                      dashboardId={id}
+                      projectId={projectId}
+                      dashboardName={name}
+                      dashboardDescription={description}
+                    />
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
-                  <EditDashboardButton
-                    dashboardId={id}
-                    projectId={projectId}
-                    dashboardName={name}
-                    dashboardDescription={description}
-                  />
+                  <CloneDashboardButton dashboardId={id} projectId={projectId} />
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem asChild>
-                <CloneDashboardButton dashboardId={id} projectId={projectId} />
-              </DropdownMenuItem>
-              {owner === "PROJECT" && (
-                <DropdownMenuItem asChild>
-                  <DeleteDashboardButton
-                    itemId={id}
-                    projectId={projectId}
-                    isTableAction
-                  />
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {owner === "PROJECT" && (
+                  <DropdownMenuItem asChild>
+                    <DeleteDashboardButton
+                      itemId={id}
+                      projectId={projectId}
+                      isTableAction
+                    />
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         );
       },
     }),
@@ -297,6 +301,11 @@ export function DashboardTable() {
         totalCount: dashboards.data?.totalCount ?? null,
         onChange: setPaginationState,
         state: paginationState,
+      }}
+      onRowClick={(row) => {
+        router.push(
+          `/project/${projectId}/dashboards/${encodeURIComponent(row.id)}`,
+        );
       }}
     />
   );
