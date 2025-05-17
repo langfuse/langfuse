@@ -399,9 +399,7 @@ export function WidgetForm({
       view: selectedView,
     });
 
-    if (suggested !== widgetName) {
-      setWidgetName(suggested);
-    }
+    setWidgetName(suggested);
   }, [
     autoLocked,
     selectedAggregation,
@@ -422,9 +420,7 @@ export function WidgetForm({
       filters: userFilterState,
     });
 
-    if (suggested !== widgetDescription) {
-      setWidgetDescription(suggested);
-    }
+    setWidgetDescription(suggested);
   }, [
     autoLocked,
     selectedAggregation,

@@ -1,5 +1,5 @@
 import { startCase } from "lodash";
-import { FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 
 export function buildWidgetName({
   aggregation,
