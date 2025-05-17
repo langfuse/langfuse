@@ -9,7 +9,7 @@ import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useEffect, useState, useCallback } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, Copy } from "lucide-react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
@@ -19,6 +19,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface WidgetPlacement {
   id: string;
@@ -32,6 +33,9 @@ interface WidgetPlacement {
 
 export default function DashboardDetail() {
   const router = useRouter();
+  const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+
   const { projectId, dashboardId, addWidgetId } = router.query as {
     projectId: string;
     dashboardId: string;
@@ -49,6 +53,13 @@ export default function DashboardDetail() {
       projectId,
       scope: "dashboards:CUD",
     }) && dashboard.data?.owner !== "LANGFUSE";
+
+  // Access for cloning (independent of dashboard owner)
+  const hasCloneAccess =
+    useHasProjectAccess({
+      projectId,
+      scope: "dashboards:CUD",
+    }) && dashboard.data?.owner === "LANGFUSE";
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
@@ -303,6 +314,27 @@ export default function DashboardDetail() {
     addWidgetToDashboard(widget);
   };
 
+  const mutateCloneDashboard = api.dashboard.cloneDashboard.useMutation({
+    onSuccess: (data) => {
+      void utils.dashboard.invalidate();
+      capture("dashboard:clone_dashboard");
+      // Redirect to new dashboard
+      if (data?.id) {
+        router.replace(
+          `/project/${projectId}/dashboards/${encodeURIComponent(data.id)}`,
+        );
+      }
+    },
+    onError: (e) => {
+      showErrorToast("Failed to clone dashboard", e.message);
+    },
+  });
+
+  const handleCloneDashboard = () => {
+    if (!projectId || !dashboardId) return;
+    mutateCloneDashboard.mutate({ projectId, dashboardId });
+  };
+
   return (
     <Page
       withPadding
@@ -321,8 +353,17 @@ export default function DashboardDetail() {
           <>
             {hasCUDAccess && (
               <Button onClick={handleAddWidget}>
-                <PlusIcon size={16} />
+                <PlusIcon size={16} className="mr-1 h-4 w-4" />
                 Add Widget
+              </Button>
+            )}
+            {hasCloneAccess && (
+              <Button
+                onClick={handleCloneDashboard}
+                disabled={mutateCloneDashboard.isLoading}
+              >
+                <Copy size={16} className="mr-1 h-4 w-4" />
+                Clone
               </Button>
             )}
           </>
