@@ -92,6 +92,7 @@ export default function EditWidget() {
       {!isWidgetLoading && widgetData ? (
         <WidgetForm
           projectId={projectId}
+          widgetId={widgetId}
           onSave={handleUpdateWidget}
           initialValues={{
             name: widgetData.name,
