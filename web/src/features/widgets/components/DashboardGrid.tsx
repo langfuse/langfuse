@@ -4,6 +4,7 @@ import "react-resizable/css/styles.css";
 import { type WidgetPlacement } from "../components/DashboardWidget";
 import { DashboardWidget } from "@/src/features/widgets";
 import { type FilterState } from "@langfuse/shared";
+import { useState, useCallback } from "react";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -28,6 +29,22 @@ export function DashboardGrid({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT" | undefined;
 }) {
+  // Each grid unit should correspond to 100px.
+  // We keep the row height fixed at 100px and dynamically compute the number
+  // of columns based on the container width so that each column is ~100px.
+  const [cols, setCols] = useState(12);
+
+  // callback from react-grid-layout that gives us the current container width
+  const handleWidthChange = useCallback(
+    (containerWidth: number) => {
+      const calculatedCols = Math.max(1, Math.floor(containerWidth / 100));
+      if (calculatedCols !== cols) {
+        setCols(calculatedCols);
+      }
+    },
+    [cols],
+  );
+
   // Convert WidgetPlacement to react-grid-layout format
   const layout = widgets.map((w) => ({
     i: w.id,
@@ -62,13 +79,16 @@ export function DashboardGrid({
     <ResponsiveGridLayout
       className="layout"
       layouts={{ lg: layout }}
-      cols={{ lg: 12, md: 12, sm: 6, xs: 6, xxs: 6 }}
+      cols={{ lg: cols, md: cols, sm: cols, xs: cols, xxs: cols }}
       margin={[16, 16]}
+      rowHeight={200}
       isDraggable={canEdit}
       isResizable={false}
-      preventCollision={true} // Prevent widgets from overlapping
       onDragStop={handleLayoutChange} // Save immediately when drag stops
+      onWidthChange={handleWidthChange}
       draggableHandle=".drag-handle"
+      useCSSTransforms
+      preventCollision
     >
       {widgets.map((widget) => (
         <div key={widget.id}>
