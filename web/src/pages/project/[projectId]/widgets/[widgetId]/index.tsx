@@ -10,9 +10,10 @@ import { type z } from "zod";
 
 export default function EditWidget() {
   const router = useRouter();
-  const { projectId, widgetId } = router.query as {
+  const { projectId, widgetId, dashboardId } = router.query as {
     projectId: string;
     widgetId: string;
+    dashboardId?: string;
   };
 
   // Fetch the widget details
@@ -34,8 +35,14 @@ export default function EditWidget() {
         title: "Widget updated successfully",
         description: "Your widget has been updated.",
       });
-      // Navigate back to widgets list
-      void router.push(`/project/${projectId}/widgets`);
+      // Navigate back to dashboard if provided else widgets list
+      if (dashboardId) {
+        void router.push(
+          `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${widgetId}`,
+        );
+      } else {
+        void router.push(`/project/${projectId}/widgets`);
+      }
     },
     onError: (error) => {
       showErrorToast("Failed to update widget", error.message);
