@@ -89,23 +89,25 @@ export function SelectDashboardDialog({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dashboards.data?.dashboards.map((d) => (
-                  <TableRow
-                    key={d.id}
-                    onClick={() => setSelectedDashboardId(d.id)}
-                    className={`cursor-pointer hover:bg-muted ${
-                      selectedDashboardId === d.id ? "bg-muted" : ""
-                    }`}
-                  >
-                    <TableCell className="font-medium">{d.name}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {d.description}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(d.updatedAt).toLocaleString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {dashboards.data?.dashboards
+                  .filter((d) => d.owner === "PROJECT")
+                  .map((d) => (
+                    <TableRow
+                      key={d.id}
+                      onClick={() => setSelectedDashboardId(d.id)}
+                      className={`cursor-pointer hover:bg-muted ${
+                        selectedDashboardId === d.id ? "bg-muted" : ""
+                      }`}
+                    >
+                      <TableCell className="font-medium">{d.name}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">
+                        {d.description}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(d.updatedAt).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
           )}
