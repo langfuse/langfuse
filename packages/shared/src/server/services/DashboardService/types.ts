@@ -62,6 +62,8 @@ export const DashboardDefinitionSchema = z.object({
   widgets: z.array(DashboardDefinitionWidgetSchema),
 });
 
+export const OwnerEnum = z.enum(["PROJECT", "LANGFUSE"]);
+
 // Define the dashboard domain object
 export const DashboardDomainSchema = z.object({
   id: z.string(),
@@ -73,6 +75,7 @@ export const DashboardDomainSchema = z.object({
   name: z.string(),
   description: z.string(),
   definition: DashboardDefinitionSchema,
+  owner: OwnerEnum,
 });
 
 // Define the dashboard list response
@@ -97,6 +100,7 @@ export const WidgetDomainSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.nativeEnum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  owner: OwnerEnum,
 });
 
 // Define create widget input schema

@@ -9,10 +9,11 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { PencilIcon, TrashIcon } from "lucide-react";
+import { PencilIcon, TrashIcon, CopyIcon } from "lucide-react";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { startCase } from "lodash";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 interface WidgetPlacement {
   id: string;
@@ -31,18 +32,23 @@ const getGridClasses = (widget: WidgetPlacement) => {
 
 export function DashboardWidget({
   projectId,
+  dashboardId,
   placement,
   dateRange,
   filterState,
   onDeleteWidget,
+  dashboardOwner,
 }: {
   projectId: string;
+  dashboardId: string;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
+  dashboardOwner: "LANGFUSE" | "PROJECT";
 }) {
   const router = useRouter();
+  const utils = api.useUtils();
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -52,11 +58,9 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-
-  const hasCUDAccess = useHasProjectAccess({
-    projectId,
-    scope: "dashboards:CUD",
-  });
+  const hasCUDAccess =
+    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
+    dashboardOwner !== "LANGFUSE";
 
   const fromTimestamp = dateRange
     ? dateRange.from
@@ -129,6 +133,39 @@ export function DashboardWidget({
     });
   }, [queryResult.data, widget.data]);
 
+  const handleEdit = () => {
+    router.push(
+      `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
+    );
+  };
+
+  const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
+    onSuccess: (data) => {
+      utils.dashboard.getDashboard.invalidate().then(() => {
+        router.push(
+          `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
+        );
+      });
+    },
+    onError: (e) => {
+      showErrorToast("Failed to clone widget", e.message);
+    },
+  });
+  const handleCopy = () => {
+    copyMutation.mutate({
+      projectId,
+      widgetId: placement.widgetId,
+      dashboardId: router.query.dashboardId as string,
+      placementId: placement.id,
+    });
+  };
+
+  const handleDelete = () => {
+    if (onDeleteWidget && confirm("Please confirm deletion")) {
+      onDeleteWidget(placement.id);
+    }
+  };
+
   if (widget.isLoading) {
     return (
       <div
@@ -149,40 +186,45 @@ export function DashboardWidget({
     );
   }
 
-  const handleEdit = () => {
-    router.push(`/project/${projectId}/widgets/${placement.widgetId}`);
-  };
-
-  const handleDelete = () => {
-    if (onDeleteWidget && confirm("Please confirm deletion")) {
-      onDeleteWidget(placement.id);
-    }
-  };
-
   return (
     <div
       className={`${getGridClasses(placement)} group flex flex-col overflow-hidden rounded-lg border bg-background p-4`}
     >
       <div className="mb-2 flex items-center justify-between">
-        <span className="font-medium">{widget.data.name}</span>
-        <div className="flex space-x-2">
-          <button
-            onClick={handleEdit}
-            className="hidden text-muted-foreground hover:text-foreground group-hover:block"
-            aria-label="Edit widget"
-            disabled={!hasCUDAccess}
-          >
-            <PencilIcon size={16} />
-          </button>
-          <button
-            onClick={handleDelete}
-            className="hidden text-muted-foreground hover:text-destructive group-hover:block"
-            aria-label="Delete widget"
-            disabled={!hasCUDAccess}
-          >
-            <TrashIcon size={16} />
-          </button>
-        </div>
+        <span className="font-medium">
+          {widget.data.name}{" "}
+          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
+            ? " ( 🪢 )"
+            : null}
+        </span>
+        {hasCUDAccess && (
+          <div className="flex space-x-2">
+            {widget.data.owner === "PROJECT" ? (
+              <button
+                onClick={handleEdit}
+                className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                aria-label="Edit widget"
+              >
+                <PencilIcon size={16} />
+              </button>
+            ) : widget.data.owner === "LANGFUSE" ? (
+              <button
+                onClick={handleCopy}
+                className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                aria-label="Copy widget"
+              >
+                <CopyIcon size={16} />
+              </button>
+            ) : null}
+            <button
+              onClick={handleDelete}
+              className="hidden text-muted-foreground hover:text-destructive group-hover:block"
+              aria-label="Delete widget"
+            >
+              <TrashIcon size={16} />
+            </button>
+          </div>
+        )}
       </div>
       <div className="mb-4 text-sm text-muted-foreground">
         {widget.data.description}
