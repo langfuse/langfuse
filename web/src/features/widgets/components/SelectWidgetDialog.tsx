@@ -116,7 +116,7 @@ export function SelectWidgetDialog({
                     }`}
                   >
                     <TableCell className="font-medium">{widget.name}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">
+                    <TableCell className="truncate" title={widget.description}>
                       {widget.description}
                     </TableCell>
                     <TableCell>
