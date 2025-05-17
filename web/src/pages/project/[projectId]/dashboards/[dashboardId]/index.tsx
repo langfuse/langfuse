@@ -20,6 +20,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 
 interface WidgetPlacement {
   id: string;
@@ -402,20 +403,26 @@ export default function DashboardDetail() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-12 gap-4">
-            {localDashboardDefinition.widgets.map((widgetPlacement) => (
-              <DashboardWidget
-                key={widgetPlacement.id}
-                dashboardId={dashboardId}
-                projectId={projectId}
-                placement={widgetPlacement}
-                dateRange={dateRange}
-                filterState={userFilterState}
-                onDeleteWidget={handleDeleteWidget}
-                dashboardOwner={dashboard.data?.owner}
-              />
-            ))}
-          </div>
+          <DashboardGrid
+            widgets={localDashboardDefinition.widgets}
+            onChange={(updatedWidgets) => {
+              setLocalDashboardDefinition({
+                ...localDashboardDefinition,
+                widgets: updatedWidgets,
+              });
+              saveDashboardChanges({
+                ...localDashboardDefinition,
+                widgets: updatedWidgets,
+              });
+            }}
+            canEdit={hasCUDAccess}
+            dashboardId={dashboardId}
+            projectId={projectId}
+            dateRange={dateRange}
+            filterState={userFilterState}
+            onDeleteWidget={handleDeleteWidget}
+            dashboardOwner={dashboard.data?.owner}
+          />
         </div>
       )}
     </Page>
