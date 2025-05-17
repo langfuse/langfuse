@@ -100,7 +100,7 @@ export function SelectDashboardDialog({
                       }`}
                     >
                       <TableCell className="font-medium">{d.name}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">
+                      <TableCell className="truncate" title={d.description}>
                         {d.description}
                       </TableCell>
                       <TableCell>
