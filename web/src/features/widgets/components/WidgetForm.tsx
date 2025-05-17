@@ -46,11 +46,16 @@ import {
   LineChart,
   BarChartHorizontal,
 } from "lucide-react";
+import {
+  buildWidgetName,
+  buildWidgetDescription,
+} from "@/src/features/widgets/utils";
 
 export function WidgetForm({
   initialValues,
   projectId,
   onSave,
+  widgetId,
 }: {
   initialValues: {
     name: string;
@@ -74,12 +79,20 @@ export function WidgetForm({
     chartType: DashboardWidgetChartType;
     chartConfig: { type: DashboardWidgetChartType; row_limit?: number };
   }) => void;
+  widgetId?: string;
 }) {
   // State for form fields
   const [widgetName, setWidgetName] = useState<string>(initialValues.name);
   const [widgetDescription, setWidgetDescription] = useState<string>(
     initialValues.description,
   );
+
+  // Determine if this is an existing widget (editing mode)
+  const isExistingWidget = Boolean(widgetId);
+
+  // Disables further auto-updates once the user edits name or description
+  const [autoLocked, setAutoLocked] = useState<boolean>(isExistingWidget);
+
   const [selectedView, setSelectedView] = useState<z.infer<typeof views>>(
     initialValues.view,
   );
@@ -375,6 +388,48 @@ export function WidgetForm({
     });
   };
 
+  // Update widget name when selection changes, unless locked
+  useEffect(() => {
+    if (autoLocked) return;
+
+    const suggested = buildWidgetName({
+      aggregation: selectedAggregation,
+      measure: selectedMeasure,
+      dimension: selectedDimension,
+      view: selectedView,
+    });
+
+    setWidgetName(suggested);
+  }, [
+    autoLocked,
+    selectedAggregation,
+    selectedMeasure,
+    selectedDimension,
+    selectedView,
+  ]);
+
+  // Update widget description when selection or filters change, unless locked
+  useEffect(() => {
+    if (autoLocked) return;
+
+    const suggested = buildWidgetDescription({
+      aggregation: selectedAggregation,
+      measure: selectedMeasure,
+      dimension: selectedDimension,
+      view: selectedView,
+      filters: userFilterState,
+    });
+
+    setWidgetDescription(suggested);
+  }, [
+    autoLocked,
+    selectedAggregation,
+    selectedMeasure,
+    selectedDimension,
+    selectedView,
+    userFilterState,
+  ]);
+
   return (
     <div className="flex h-full gap-4">
       {/* Left column - Form */}
@@ -530,7 +585,10 @@ export function WidgetForm({
                 <Input
                   id="widget-name"
                   value={widgetName}
-                  onChange={(e) => setWidgetName(e.target.value)}
+                  onChange={(e) => {
+                    if (!autoLocked) setAutoLocked(true);
+                    setWidgetName(e.target.value);
+                  }}
                   placeholder="Enter widget name"
                 />
               </div>
@@ -541,7 +599,10 @@ export function WidgetForm({
                 <Input
                   id="widget-description"
                   value={widgetDescription}
-                  onChange={(e) => setWidgetDescription(e.target.value)}
+                  onChange={(e) => {
+                    if (!autoLocked) setAutoLocked(true);
+                    setWidgetDescription(e.target.value);
+                  }}
                   placeholder="Enter widget description"
                 />
               </div>

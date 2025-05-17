@@ -90,8 +90,8 @@ export default function NewWidget() {
         projectId={projectId}
         onSave={handleSaveWidget}
         initialValues={{
-          name: "Trace Chart",
-          description: "This is a new widget",
+          name: "",
+          description: "",
           view: "traces",
           dimension: "none",
           measure: "count",
@@ -99,6 +99,7 @@ export default function NewWidget() {
           filters: [],
           chartType: "LINE_TIME_SERIES",
         }}
+        widgetId={undefined}
       />
       {pendingWidgetId && (
         <SelectDashboardDialog
