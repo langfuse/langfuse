@@ -24,6 +24,7 @@ import GitHubProvider from "next-auth/providers/github";
 import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
 import EmailProvider from "next-auth/providers/email";
+import { randomInt } from "crypto";
 import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
@@ -169,7 +170,10 @@ if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
     EmailProvider({
       server: env.SMTP_CONNECTION_URL,
       from: env.EMAIL_FROM_ADDRESS,
-      maxAge: 60 * 10, // 10 minutes
+      maxAge: 3 * 60, // 3 minutes
+      async generateVerificationToken() {
+        return randomInt(100000, 1000000).toString();
+      },
       sendVerificationRequest: sendResetPasswordVerificationRequest,
     }),
   );
