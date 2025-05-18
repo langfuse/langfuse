@@ -135,7 +135,7 @@ export type Account = {
     refresh_token_expires_in: number | null;
     created_at: number | null;
 };
-export type ActionConfiguration = {
+export type Action = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
@@ -697,7 +697,7 @@ export type TraceSession = {
     public: Generated<boolean>;
     environment: Generated<string>;
 };
-export type TriggerConfiguration = {
+export type Trigger = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
@@ -705,11 +705,16 @@ export type TriggerConfiguration = {
     description: string | null;
     eventSource: string;
     filter: unknown | null;
-    action_id: string;
     status: Generated<JobConfigState>;
     last_fired_at: Timestamp | null;
     sampling: string;
     delay: number;
+};
+export type TriggersOnActions = {
+    trigger_id: string;
+    action_id: string;
+    created_at: Generated<Timestamp>;
+    project_id: string;
 };
 export type User = {
     id: string;
@@ -730,8 +735,8 @@ export type VerificationToken = {
 };
 export type DB = {
     Account: Account;
-    action_configurations: ActionConfiguration;
     action_executions: ActionExecution;
+    actions: Action;
     annotation_queue_items: AnnotationQueueItem;
     annotation_queues: AnnotationQueue;
     api_keys: ApiKey;
@@ -776,7 +781,8 @@ export type DB = {
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: LegacyPrismaTrace;
-    trigger_configurations: TriggerConfiguration;
+    triggers: Trigger;
+    triggers_on_actions: TriggersOnActions;
     users: User;
     verification_tokens: VerificationToken;
 };

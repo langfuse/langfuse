@@ -6,6 +6,7 @@ import {
   type LLMToolDefinition,
   type LlmTool,
   type LLMJSONSchema,
+  type ChatMessageWithId,
 } from "@langfuse/shared";
 
 export type PlaygroundTool = LLMToolDefinition & {
@@ -30,3 +31,15 @@ export type PlaygroundCache = {
   tools?: PlaygroundTool[];
   structuredOutputSchema?: PlaygroundSchema | null;
 } | null;
+
+// --------------------------------------------
+// A fully serialisable snapshot of a playground
+// --------------------------------------------
+export interface PlaygroundState {
+  id: string;
+  messages: ChatMessageWithId[];
+  modelParams: UIModelParams;
+  promptVariables: PromptVariable[];
+  tools: PlaygroundTool[];
+  structuredOutputSchema: PlaygroundSchema | null;
+}

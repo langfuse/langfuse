@@ -1,9 +1,11 @@
 import {
   ActionConfigurationDomain,
+  ActionDomain,
   JobConfigState,
   JobExecution,
   JobExecutionStatus,
   TriggerConfigurationDomain,
+  TriggerDomain,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -22,16 +24,12 @@ export enum TriggerEventSource {
 }
 
 export interface AutomationServiceDelegates<T> {
-  checkTriggerAppliesToEvent: (
-    trigger: TriggerConfigurationDomain,
-  ) => Promise<boolean>;
+  checkTriggerAppliesToEvent: (trigger: TriggerDomain) => Promise<boolean>;
   getExistingJobForTrigger: (
-    trigger: TriggerConfigurationDomain,
+    trigger: TriggerDomain,
   ) => Promise<JobExecution | null>;
   createEventId: () => string;
-  convertEventToActionInput: (
-    actionConfig: ActionConfigurationDomain,
-  ) => Promise<any>;
+  convertEventToActionInput: (actionConfig: ActionDomain) => Promise<any>;
 }
 
 export class AutomationService<T> {

@@ -1,7 +1,7 @@
 import { JobConfigState, prisma } from "../../db";
 import {
-  ActionConfigurationDomain,
-  TriggerConfigurationDomain,
+  ActionDomain,
+  TriggerDomain,
   TriggerEventSource,
   WebhookActionConfig,
 } from "../../domain/automations";
@@ -14,7 +14,7 @@ export const getActionConfigById = async ({
   projectId: string;
   actionId: string;
 }) => {
-  const actionConfig = await prisma.actionConfiguration.findFirst({
+  const actionConfig = await prisma.action.findFirst({
     where: {
       id: actionId,
       projectId,
@@ -25,7 +25,7 @@ export const getActionConfigById = async ({
     return null;
   }
 
-  const actionDomain: ActionConfigurationDomain = {
+  const actionDomain: ActionDomain = {
     ...actionConfig,
     config: JSON.parse(actionConfig.config as string) as WebhookActionConfig,
   };
@@ -41,8 +41,8 @@ export const getTriggerConfigurations = async ({
   projectId: string;
   eventSource: TriggerEventSource;
   status: JobConfigState;
-}): Promise<Array<TriggerConfigurationDomain>> => {
-  const triggers = await prisma.triggerConfiguration.findMany({
+}): Promise<Array<TriggerDomain>> => {
+  const triggers = await prisma.trigger.findMany({
     where: {
       projectId,
       eventSource,

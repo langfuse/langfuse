@@ -16,10 +16,10 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      const automations = await ctx.prisma.triggerConfiguration.findMany({
+      const automations = await ctx.prisma.trigger.findMany({
         where: { projectId: ctx.session.projectId },
         include: {
-          action: true,
+          actions: true,
         },
       });
 
@@ -52,7 +52,7 @@ export const automationsRouter = createTRPCRouter({
       });
 
       // First create the action
-      const action = await ctx.prisma.actionConfiguration.create({
+      const action = await ctx.prisma.action.create({
         data: {
           projectId: ctx.session.projectId,
           name: input.actionName,
@@ -63,7 +63,7 @@ export const automationsRouter = createTRPCRouter({
       });
 
       // Then create the trigger with the action ID
-      const trigger = await ctx.prisma.triggerConfiguration.create({
+      const trigger = await ctx.prisma.trigger.create({
         data: {
           projectId: ctx.session.projectId,
           description: input.description,
@@ -109,7 +109,7 @@ export const automationsRouter = createTRPCRouter({
       });
 
       // Update the action
-      const action = await ctx.prisma.actionConfiguration.update({
+      const action = await ctx.prisma.action.update({
         where: {
           id: input.actionId,
           projectId: ctx.session.projectId,
@@ -123,7 +123,7 @@ export const automationsRouter = createTRPCRouter({
       });
 
       // Update the trigger
-      const trigger = await ctx.prisma.triggerConfiguration.update({
+      const trigger = await ctx.prisma.trigger.update({
         where: {
           id: input.triggerId,
           projectId: ctx.session.projectId,
@@ -161,7 +161,7 @@ export const automationsRouter = createTRPCRouter({
       });
 
       // First find the trigger to get the actionId
-      const trigger = await ctx.prisma.triggerConfiguration.findUnique({
+      const trigger = await ctx.prisma.trigger.findUnique({
         where: {
           id: input.triggerId,
           projectId: ctx.session.projectId,
@@ -174,7 +174,7 @@ export const automationsRouter = createTRPCRouter({
       }
 
       // Delete the trigger
-      await ctx.prisma.triggerConfiguration.delete({
+      await ctx.prisma.trigger.delete({
         where: {
           id: input.triggerId,
           projectId: ctx.session.projectId,
@@ -182,7 +182,7 @@ export const automationsRouter = createTRPCRouter({
       });
 
       // Delete the associated action
-      await ctx.prisma.actionConfiguration.delete({
+      await ctx.prisma.action.delete({
         where: {
           id: trigger.actionId,
           projectId: ctx.session.projectId,
@@ -211,7 +211,7 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      return await ctx.prisma.actionConfiguration.create({
+      return await ctx.prisma.action.create({
         data: {
           projectId: ctx.session.projectId,
           name: input.name,
@@ -243,7 +243,7 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      return await ctx.prisma.triggerConfiguration.create({
+      return await ctx.prisma.trigger.create({
         data: {
           projectId: ctx.session.projectId,
           description: input.description,

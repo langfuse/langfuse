@@ -328,16 +328,6 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
   );
 }
 
-if (env.QUEUE_CONSUMER_OBSERVATION_UPSERT_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.ObservationUpsert,
-    observationUpsertProcessor,
-    {
-      concurrency: 1,
-    },
-  );
-}
-
 if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.WebhookQueue,

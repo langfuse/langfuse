@@ -157,9 +157,10 @@ model Project {
   Dashboard              Dashboard[]
   DashboardWidget        DashboardWidget[]
   TableViewPreset        TableViewPreset[]
-  actionConfigurations   ActionConfiguration[]
-  triggerConfigurations  TriggerConfiguration[]
+  actions                Action[]
+  triggers               Trigger[]
   ActionExecution        ActionExecution[]
+  TriggersOnActions      TriggersOnActions[]
 
   @@index([orgId])
   @@map("projects")
@@ -1184,7 +1185,7 @@ model TableViewPreset {
   @@map("table_view_presets")
 }
 
-model ActionConfiguration {
+model Action {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
@@ -1202,14 +1203,14 @@ model ActionConfiguration {
   // For ANNOTATION_QUEUE: { version: "1.0", queueId: "..." }
 
   // Relations
-  triggers        TriggerConfiguration[] // One action can be used by multiple triggers
+  triggers        TriggersOnActions[] // Changed to use the join table
   ActionExecution ActionExecution[]
 
   @@unique([projectId, name])
-  @@map("action_configurations")
+  @@map("actions")
 }
 
-model TriggerConfiguration {
+model Trigger {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
@@ -1223,9 +1224,8 @@ model TriggerConfiguration {
   eventSource String // trace.created, observation.created, etc.
   filter      Json? // Filter conditions (format: { field: "name", operator: "equals", value: "my_trace" })
 
-  // What action to perform when triggered
-  actionId String              @map("action_id")
-  action   ActionConfiguration @relation(fields: [actionId], references: [id], onDelete: Restrict)
+  // What action to perform when triggered - removed direct relation and added many-to-many
+  actions TriggersOnActions[]
 
   // Additional attributes
   status      JobConfigState @default(ACTIVE) @map("status")
@@ -1238,7 +1238,22 @@ model TriggerConfiguration {
   ActionExecution ActionExecution[]
 
   @@index([projectId, eventSource])
-  @@map("trigger_configurations")
+  @@map("triggers")
+}
+
+model TriggersOnActions {
+  trigger   Trigger  @relation(fields: [triggerId], references: [id], onDelete: Cascade)
+  triggerId String   @map("trigger_id")
+  action    Action   @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  actionId  String   @map("action_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  projectId String   @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([triggerId, actionId])
+  @@index([triggerId])
+  @@index([actionId])
+  @@map("triggers_on_actions")
 }
 
 enum ActionType {
@@ -1253,11 +1268,11 @@ model ActionExecution {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   sourceId  String   @map("source_id")
 
-  triggerId String               @map("trigger_id")
-  trigger   TriggerConfiguration @relation(fields: [triggerId], references: [id], onDelete: Cascade)
+  triggerId String  @map("trigger_id")
+  trigger   Trigger @relation(fields: [triggerId], references: [id], onDelete: Cascade)
 
-  actionId String              @map("action_id")
-  action   ActionConfiguration @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  actionId String @map("action_id")
+  action   Action @relation(fields: [actionId], references: [id], onDelete: Cascade)
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1269,5 +1284,8 @@ model ActionExecution {
   finishedAt DateTime?          @map("finished_at")
   error      String?            @map("error")
 
+  @@index([triggerId])
+  @@index([actionId])
+  @@index([projectId])
   @@map("action_executions")
 }

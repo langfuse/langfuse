@@ -1,4 +1,4 @@
-import { ActionConfiguration, TriggerConfiguration } from "@prisma/client";
+import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
 import { z } from "zod";
 
@@ -6,10 +6,7 @@ export declare enum TriggerEventSource {
   ObservationCreated = "observation.created",
 }
 
-export type TriggerConfigurationDomain = Omit<
-  TriggerConfiguration,
-  "filter" | "eventSource"
-> & {
+export type TriggerDomain = Omit<Trigger, "filter" | "eventSource"> & {
   filter: FilterState;
   eventSource: TriggerEventSource;
 };
@@ -21,6 +18,6 @@ export const WebhookActionConfigSchema = z.object({
 
 export type WebhookActionConfig = z.infer<typeof WebhookActionConfigSchema>;
 
-export type ActionConfigurationDomain = Omit<ActionConfiguration, "config"> & {
+export type ActionDomain = Omit<Action, "config"> & {
   config: WebhookActionConfig;
 };

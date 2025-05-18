@@ -1,4 +1,9 @@
-import { ColumnDefinition, type FilterState } from "@langfuse/shared";
+import {
+  ColumnDefinition,
+  UiColumnMappings,
+  type FilterState,
+} from "@langfuse/shared";
+import { logger } from "../../../../packages/shared/dist/src/server/logger";
 
 export function executeMemoryFilters({
   object,
@@ -7,7 +12,7 @@ export function executeMemoryFilters({
 }: {
   object: Record<string, unknown>;
   filters: FilterState;
-  columnMappings: ColumnDefinition[];
+  columnMappings: UiColumnMappings;
 }): boolean {
   // Return true if there are no filters
   if (filters.length === 0) {
@@ -17,19 +22,31 @@ export function executeMemoryFilters({
   // Check each filter condition
   for (const filter of filters) {
     // Find the column mapping that matches this filter
-    const mapping = columnMappings.find((m) => m.id === filter.column);
+    logger.info(
+      `filter ${JSON.stringify(filter.column)} ${JSON.stringify(
+        filter.operator,
+      )}`,
+    );
+    const mapping = columnMappings.find((m) => m.uiTableId === filter.column);
 
     if (!mapping) {
       throw new Error(`Column mapping not found for filter: ${filter.column}`);
     }
 
+    if (!mapping.memorySelect) {
+      throw new Error(`Column mapping not found for filter: ${filter.column}`);
+    }
+
     // Get the actual value from the object using the path
-    const actualValue = getValueByPath(object, filter.column);
+    const actualValue = getValueByPath(object, mapping.memorySelect);
 
     // If we can't find the value, skip this filter
     if (actualValue === undefined) {
-      throw new Error(`Value not found for filter: ${filter.column}`);
+      logger.info(`Value not found for filter: ${mapping.memorySelect} `);
+      continue;
     }
+
+    logger.info(`actualValue ${JSON.stringify(actualValue)}`);
 
     // Apply the appropriate filter based on type
     const passes = applyFilterCondition(filter, actualValue);
@@ -49,6 +66,9 @@ function getValueByPath(obj: Record<string, unknown>, path: string): unknown {
   if (obj === null || obj === undefined) {
     return undefined;
   }
+
+  logger.info(`obj ${JSON.stringify(obj)}`);
+  logger.info(`path ${path}`);
 
   return obj[path];
 }

@@ -10,6 +10,7 @@ import {
 } from "../automations/automationService";
 import { prisma } from "@langfuse/shared/src/db";
 import { executeMemoryFilters } from "../automations/memory-filter";
+import { observationsTableUiColumnDefinitions } from "@langfuse/shared";
 
 export const observationUpsertProcessor = async (
   observation: ObservationRecordInsertType,
@@ -22,7 +23,7 @@ export const observationUpsertProcessor = async (
       return executeMemoryFilters({
         object: observation,
         filters: trigger.filter,
-        columnMappings: [],
+        columnMappings: observationsTableUiColumnDefinitions,
       });
     },
     getExistingJobForTrigger: async (trigger) => {

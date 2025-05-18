@@ -37,36 +37,36 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "environment",
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."environment"',
+    memorySelect: "environment",
   },
   {
     uiTableName: "type",
     uiTableId: "type",
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."type"',
+    memorySelect: "type",
   },
   {
     uiTableName: "ID",
     uiTableId: "id",
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."id"',
+    memorySelect: "id",
   },
-  {
-    uiTableName: "Type",
-    uiTableId: "type",
-    clickhouseTableName: "observations",
-    clickhouseSelect: 'o."type"',
-  },
+
   {
     uiTableName: "Name",
     uiTableId: "name",
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."name"',
+    memorySelect: "name",
   },
   {
     uiTableName: "Trace ID",
     uiTableId: "traceId",
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."trace_id"',
+    memorySelect: "trace_id",
   },
 
   {
@@ -74,12 +74,14 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "startTime",
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."start_time"',
+    memorySelect: "start_time",
   },
   {
     uiTableName: "End Time",
     uiTableId: "endTime",
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."end_time"',
+    memorySelect: "end_time",
   },
   {
     uiTableName: "Time To First Token (s)",
@@ -132,6 +134,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "level",
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."level"',
+    memorySelect: "level",
   },
   {
     uiTableName: "Status Message",
