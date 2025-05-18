@@ -89,7 +89,7 @@ export function RequestResetPasswordEmailButton({
             minLength={6}
             maxLength={6}
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => setCode(e.target.value.trim())}
             placeholder="One time passcode"
             className="mb-8 w-full"
           />
