@@ -172,15 +172,11 @@ if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
       from: env.EMAIL_FROM_ADDRESS,
       maxAge: 3 * 60, // 3 minutes
       async generateVerificationToken() {
-        return generateOtp().toString();
+        return randomInt(100000, 1000000).toString();
       },
       sendVerificationRequest: sendResetPasswordVerificationRequest,
     }),
   );
-}
-
-function generateOtp() {
-  return randomInt(100000, 1000000);
 }
 
 if (
