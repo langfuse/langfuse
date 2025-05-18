@@ -58,8 +58,7 @@ export function RequestResetPasswordEmailButton({
     }
   };
 
-  const handleVerify = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleVerify = async (_e: React.MouseEvent<HTMLButtonElement>) => {
     if (!code) return;
     setIsLoading(true);
     setErrorMessage(null);
@@ -70,12 +69,8 @@ export function RequestResetPasswordEmailButton({
         `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
       );
       const url = `/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
-      const res = await fetch(url);
-      if (res.url.includes("/auth/reset-password")) {
-        router.reload();
-      } else {
-        setErrorMessage("Invalid code. Please try again.");
-      }
+      console.log("url", url);
+      window.location.href = url;
     } catch (error) {
       console.error("Error verifying code:", error);
       setErrorMessage("An unexpected error occurred. Please try again.");
@@ -87,9 +82,12 @@ export function RequestResetPasswordEmailButton({
   return (
     <>
       {isEmailSent ? (
-        <form onSubmit={handleVerify} className="flex flex-col space-y-2">
-          <span className="text-sm text-center">Check your inbox for the code</span>
+        <div className="flex flex-col space-y-2">
+          <label htmlFor="otp-code" className="text-sm font-medium">
+            Check your inbox for the code
+          </label>
           <Input
+            id="otp-code"
             type="number"
             minLength={6}
             maxLength={6}
@@ -99,7 +97,7 @@ export function RequestResetPasswordEmailButton({
             className="w-full"
           />
           <Button
-            type="submit"
+            onClick={handleVerify}
             className={className}
             loading={isLoading}
             disabled={!code || code.length !== 6}
@@ -107,7 +105,7 @@ export function RequestResetPasswordEmailButton({
           >
             Verify code
           </Button>
-        </form>
+        </div>
       ) : (
         <Button
           onClick={handleResetPassword}
