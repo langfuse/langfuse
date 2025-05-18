@@ -14,6 +14,8 @@ import {
   MULTILINE_VARIABLE_REGEX,
   MUSTACHE_REGEX,
   UNCLOSED_VARIABLE_REGEX,
+  CONDITIONAL_MUSTACHE_REGEX_START,
+  buildConditionalMustacheRegex,
   PromptDependencyRegex,
   parsePromptDependencyTags,
 } from "@langfuse/shared";
@@ -69,6 +71,27 @@ const promptLinter = linter((view) => {
       severity: "error",
       message: "Unclosed variable brackets",
     });
+  }
+
+  // Check for unclosed conditional variables
+  for (const match of content.matchAll(CONDITIONAL_MUSTACHE_REGEX_START)) {
+    const variable = match[1];
+    const allSameConditionalStarts = buildConditionalMustacheRegex(variable, "start");
+    const allSameConditionalEnds = buildConditionalMustacheRegex(variable, "end");
+
+    const numConditionalStarts = 
+      content.slice(match.index).match(allSameConditionalStarts)?.length || 0;
+    const numConditionalEnds = 
+      content.slice(match.index).match(allSameConditionalEnds)?.length || 0;
+
+    if (numConditionalStarts > numConditionalEnds) {
+      diagnostics.push({
+        from: match.index,
+        to: match.index + match[0].length,
+        severity: "error",
+        message: "Unclosed conditional variable",
+      });
+    }
   }
 
   // Check variable format

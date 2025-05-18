@@ -10,6 +10,16 @@ export const VARIABLE_REGEX = /^[a-zA-Z][a-zA-Z_]*$/;
 // Regex to find variables in mustache syntax
 export const MUSTACHE_REGEX = /{{([^{}]*)}}+/g;
 
+// Regex to find conditional variables (see https://mustache.github.io/mustache.5.html)
+export const CONDITIONAL_MUSTACHE_REGEX_START = /{{#([^{}]*)}}+/g;
+
+// Regex to find conditionals with a specific variable
+export const buildConditionalMustacheRegex = (variable: string, type: "start" | "end") => {
+  return type === "start"
+    ? new RegExp(`{{#${variable}}}+`, "g")
+    : new RegExp(`{{/${variable}}}+`, "g");
+};
+
 // Regex to find multiline variables
 export const MULTILINE_VARIABLE_REGEX = /{{[^}]*\n[^}]*}}/g;
 
@@ -17,7 +27,11 @@ export const MULTILINE_VARIABLE_REGEX = /{{[^}]*\n[^}]*}}/g;
 export const UNCLOSED_VARIABLE_REGEX = /{{(?![^{]*}})/g;
 
 export function isValidVariableName(variable: string): boolean {
-  return VARIABLE_REGEX.test(variable);
+  const normalizedVariable = variable.startsWith('#') || variable.startsWith('/') 
+    ? variable.slice(1) 
+    : variable;
+    
+  return VARIABLE_REGEX.test(normalizedVariable);
 }
 
 export function extractVariables(mustacheString: string): string[] {
@@ -25,7 +39,13 @@ export function extractVariables(mustacheString: string): string[] {
     .map((match) => match[1])
     .filter(isValidVariableName);
 
-  return [...new Set(matches)];
+  const conditionalMatches = Array.from(
+    mustacheString.matchAll(CONDITIONAL_MUSTACHE_REGEX_START)
+  )
+    .map((match) => match[1])
+    .filter(isValidVariableName);
+
+  return [...new Set([...matches, ...conditionalMatches])];
 }
 
 export function stringifyValue(value: unknown) {
