@@ -33,6 +33,7 @@ const PlainChat = () => {
           appId: env.NEXT_PUBLIC_PLAIN_APP_ID,
           hideLauncher: !shouldShowChat,
           hideBranding: true,
+          hideThreadRefs: true,
           logo: {
             url: "/icon256.png",
             alt: "Langfuse logo",
