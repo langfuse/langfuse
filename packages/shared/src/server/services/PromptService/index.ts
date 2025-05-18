@@ -34,7 +34,10 @@ export class PromptService {
     this.ttlSeconds = env.LANGFUSE_CACHE_PROMPT_TTL_SECONDS;
   }
 
-  public async getPrompt(params: PromptParams): Promise<PromptResult | null> {
+  public async getPrompt(
+    params: PromptParams,
+    suppressNotFoundLog: boolean = false,
+  ): Promise<PromptResult | null> {
     if (await this.shouldUseCache(params)) {
       const cachedPrompt = await this.getCachedPrompt(params);
 
@@ -51,7 +54,7 @@ export class PromptService {
       }
     }
 
-    const dbPrompt = await this.getDbPrompt(params);
+    const dbPrompt = await this.getDbPrompt(params, suppressNotFoundLog);
 
     if ((await this.shouldUseCache(params)) && dbPrompt) {
       await this.cachePrompt({ ...params, prompt: dbPrompt });
@@ -66,6 +69,7 @@ export class PromptService {
 
   private async getDbPrompt(
     params: PromptParams,
+    suppressNotFoundLog: boolean = false,
   ): Promise<PromptResult | null> {
     const { projectId, promptName, version, label } = params;
 
@@ -95,7 +99,9 @@ export class PromptService {
       return this.resolvePrompt(prompt);
     }
 
-    this.logError("Invalid prompt params", params);
+    if (!suppressNotFoundLog) {
+      this.logError("Invalid prompt params", params);
+    }
 
     return null;
   }
