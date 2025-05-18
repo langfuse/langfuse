@@ -180,7 +180,7 @@ if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
 }
 
 function generateOtp() {
-  return randomInt(100000, 999999);
+  return randomInt(100000, 1000000);
 }
 
 if (
