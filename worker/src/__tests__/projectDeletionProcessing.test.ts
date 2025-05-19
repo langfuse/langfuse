@@ -247,7 +247,7 @@ describe("ProjectDeletionProcessingJob", () => {
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { id: mediaId, projectId } },
     });
     expect(media).toBeNull();
 
