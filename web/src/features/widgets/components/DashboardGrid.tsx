@@ -88,7 +88,6 @@ export function DashboardGrid({
       onWidthChange={handleWidthChange}
       draggableHandle=".drag-handle"
       useCSSTransforms
-      preventCollision
     >
       {widgets.map((widget) => (
         <div key={widget.id}>
