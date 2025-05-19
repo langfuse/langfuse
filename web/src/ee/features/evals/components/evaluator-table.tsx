@@ -21,7 +21,6 @@ import {
 } from "use-query-params";
 import { z } from "zod";
 import { generateJobExecutionCounts } from "@/src/ee/features/evals/utils/job-execution-utils";
-import { evalConfigsTableColsWithOptions } from "@/src/server/api/definitions/evalConfigsTable";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
@@ -53,6 +52,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
+import { evalConfigsTableCols } from "@/src/server/api/definitions/evalConfigsTable";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -78,6 +78,7 @@ export type EvaluatorDataRow = {
 };
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -89,40 +90,42 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   );
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const utils = api.useUtils();
-  const router = useRouter();
 
-  // Define default filter for target "trace"
-  const defaultFilter: FilterState = [
-    {
-      column: "Target",
-      type: "stringOptions",
-      operator: "any of",
-      value: ["trace"],
-    },
-  ];
+  // Define default filter for target conditional on where user navigated from
+  // Filtering for trace level evaluators should be the default
+  const isDatasetTarget = router.query.target === "dataset";
 
   const [filterState, setFilterState] = useQueryFilterState(
-    defaultFilter,
+    [],
     "eval_configs",
     projectId,
   );
+
+  useEffect(() => {
+    // Check if there's already a target filter
+    const hasTargetFilter = filterState.some(
+      (filter) => filter.column === "Target",
+    );
+
+    if (!hasTargetFilter) {
+      // If there's no target filter, add it back
+      const newFilterState: FilterState = [
+        ...filterState,
+        {
+          column: "Target",
+          type: "stringOptions",
+          operator: "any of",
+          value: isDatasetTarget ? ["dataset"] : ["trace"],
+        },
+      ];
+      setFilterState(newFilterState);
+    }
+  }, [isDatasetTarget]);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
     order: "DESC",
   });
-
-  const evaluatorConfigFilterOptions = api.evals.configFilterOptions.useQuery(
-    {
-      projectId,
-    },
-    {
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
 
   const evaluators = api.evals.allConfigs.useQuery({
     page: paginationState.pageIndex,
@@ -396,9 +399,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     <>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={evalConfigsTableColsWithOptions(
-          evaluatorConfigFilterOptions.data,
-        )}
+        filterColumnDefinition={evalConfigsTableCols}
         filterState={filterState}
         setFilterState={setFilterState}
         columnVisibility={columnVisibility}

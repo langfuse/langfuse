@@ -489,7 +489,7 @@ export const evalRouter = createTRPCRouter({
             et.id,
             et.name,
             et.project_id,
-            et.version,
+          et.version,
             et.created_at,
             (
               SELECT COUNT(jc.id)
@@ -1319,34 +1319,6 @@ export const evalRouter = createTRPCRouter({
       `);
 
       return evaluators;
-    }),
-
-  configFilterOptions: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "evalJob:read",
-      });
-
-      const [targets] = await Promise.all([
-        ctx.prisma.jobConfiguration.groupBy({
-          where: {
-            projectId: input.projectId,
-          },
-          by: ["targetObject"],
-        }),
-      ]);
-
-      return {
-        target: targets.map((t) => ({ value: t.targetObject })),
-      };
     }),
 });
 

@@ -26,7 +26,7 @@ export default function NewEvaluatorPage() {
       scrollable
       headerProps={{
         title:
-          "Set up online evaluator" +
+          "Set up evaluator" +
           (currentTemplate?.name ? `: ${currentTemplate.name}` : "") +
           (currentTemplate?.projectId === null
             ? " (Langfuse maintained)"

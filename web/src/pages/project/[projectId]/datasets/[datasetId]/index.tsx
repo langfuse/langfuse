@@ -225,7 +225,7 @@ export default function Dataset() {
                 </DropdownMenuItem>
                 {hasReadAccess && hasEntitlement && (
                   <DropdownMenuItem asChild>
-                    <Link href={`/project/${projectId}/evals`}>
+                    <Link href={`/project/${projectId}/evals?target=dataset`}>
                       <Bot className="ml-1 mr-2 h-4 w-4" />
                       Manage Evaluators
                     </Link>

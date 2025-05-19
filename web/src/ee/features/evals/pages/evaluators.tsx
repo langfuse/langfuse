@@ -69,7 +69,7 @@ export default function EvaluatorsPage() {
     return (
       <Page
         headerProps={{
-          title: "Online Evaluation",
+          title: "LLM-as-a-Judge Evaluators",
           help: {
             description:
               "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
@@ -93,7 +93,7 @@ export default function EvaluatorsPage() {
       />
       <Page
         headerProps={{
-          title: "Online Evaluation",
+          title: "LLM-as-a-Judge Evaluators",
           help: {
             description:
               "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
@@ -125,7 +125,7 @@ export default function EvaluatorsPage() {
               limitValue={countsQuery.data?.configActiveCount ?? 0}
               limit={evaluatorLimit}
             >
-              Set up online evaluator
+              Set up evaluator
             </ActionButton>
           ),
         }}

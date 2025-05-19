@@ -1,9 +1,4 @@
-import {
-  type ColumnDefinition,
-  JobConfigState,
-  type SingleValueOption,
-  formatColumnOptions,
-} from "@langfuse/shared";
+import { type ColumnDefinition, JobConfigState } from "@langfuse/shared";
 
 export const evalConfigsTableCols: ColumnDefinition[] = [
   {
@@ -30,21 +25,6 @@ export const evalConfigsTableCols: ColumnDefinition[] = [
     id: "target",
     type: "stringOptions",
     internal: 'jc."target_object"',
-    options: [], // to be added at runtime
+    options: [{ value: "trace" }, { value: "dataset" }],
   },
 ];
-
-export type EvalConfigOptions = {
-  target: Array<SingleValueOption>;
-};
-
-export function evalConfigsTableColsWithOptions(
-  options?: EvalConfigOptions,
-): ColumnDefinition[] {
-  return evalConfigsTableCols.map((col) => {
-    if (col.id === "target") {
-      return formatColumnOptions(col, options?.target ?? []);
-    }
-    return col;
-  });
-}
