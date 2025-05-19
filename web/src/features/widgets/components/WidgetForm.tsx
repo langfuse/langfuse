@@ -275,19 +275,27 @@ export function WidgetForm({
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.measures).map(([key]) => ({
-      value: key,
-      label: startCase(key),
-    }));
+    return Object.entries(viewDeclaration.measures)
+      .map(([key]) => ({
+        value: key,
+        label: startCase(key),
+      }))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+      );
   }, [selectedView]);
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.dimensions).map(([key]) => ({
-      value: key,
-      label: startCase(key),
-    }));
+    return Object.entries(viewDeclaration.dimensions)
+      .map(([key]) => ({
+        value: key,
+        label: startCase(key),
+      }))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+      );
   }, [selectedView]);
 
   // Create a dynamic query based on the selected view
