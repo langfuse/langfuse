@@ -2,7 +2,9 @@
 WITH updated AS (
     SELECT
         id,
-        jsonb_set(
+        CASE
+            WHEN jsonb_array_length(definition->'widgets') = 0 THEN definition
+            ELSE jsonb_set(
                 definition,                             -- original JSON
                 '{widgets}',                            -- path to replace
                 (
@@ -21,9 +23,9 @@ WITH updated AS (
                     FROM jsonb_array_elements(definition->'widgets') AS widget
                 ),
                 true                                    -- create path if absent
-        ) AS new_def
+            )
+        END AS new_def
     FROM dashboards
-    WHERE definition ? 'widgets'                -- only rows that have widgets
 )
 UPDATE dashboards d
 SET    definition = u.new_def
