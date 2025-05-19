@@ -25,7 +25,6 @@ CREATE TABLE "triggers" (
     "eventSource" TEXT NOT NULL,
     "filter" JSONB,
     "status" "JobConfigState" NOT NULL DEFAULT 'ACTIVE',
-    "last_fired_at" TIMESTAMP(3),
     "sampling" DECIMAL(65,30) NOT NULL,
     "delay" INTEGER NOT NULL,
 

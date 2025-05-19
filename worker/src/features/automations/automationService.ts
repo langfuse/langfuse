@@ -1,10 +1,8 @@
 import {
-  ActionConfigurationDomain,
   ActionDomain,
   JobConfigState,
   JobExecution,
   JobExecutionStatus,
-  TriggerConfigurationDomain,
   TriggerDomain,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -17,7 +15,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { v4 } from "uuid";
-import { getCachedTriggerConfigs } from "./cached-automation-repo";
+import { getCachedTriggers } from "./cached-automation-repo";
 
 export enum TriggerEventSource {
   ObservationCreated = "observation.created",
@@ -47,13 +45,20 @@ export class AutomationService<T> {
     const { checkTriggerAppliesToEvent, getExistingJobForTrigger } =
       this.delegates;
 
-    const triggerConfigurations = await getCachedTriggerConfigs({
+    const triggerConfigurations = await getCachedTriggers({
       projectId: this.projectId,
       eventSource,
       status: JobConfigState.ACTIVE,
     });
 
+    logger.debug(
+      `Found ${triggerConfigurations.length} triggers for event source ${eventSource}`,
+    );
+
     for (const trigger of triggerConfigurations) {
+      logger.debug(
+        `Checking trigger ${JSON.stringify(trigger)} for event source ${eventSource}`,
+      );
       if (await checkTriggerAppliesToEvent(trigger)) {
         // if job exists already, we do not create a new one
         const existingJob = await getExistingJobForTrigger(trigger);
@@ -94,22 +99,22 @@ export class AutomationService<T> {
     }
   }
 
-  private async createAction(trigger: TriggerConfigurationDomain) {
+  private async createAction(trigger: TriggerDomain) {
     const { createEventId, convertEventToActionInput } = this.delegates;
 
     const actionConfig = await getActionConfigById({
       projectId: this.projectId,
-      actionId: trigger.actionId,
+      actionId: trigger.actionIds[0],
     });
 
     if (!actionConfig) {
-      throw new Error(`Action ${trigger.actionId} not found`);
+      throw new Error(`Action ${trigger.actionIds[0]} not found`);
     }
 
     const actionInput = await convertEventToActionInput(actionConfig);
 
     // create new execution. The body is used by the websocket
-    await prisma.actionExecution.create({
+    const actionExecution = await prisma.actionExecution.create({
       data: {
         projectId: this.projectId,
         triggerId: trigger.id,
@@ -119,6 +124,10 @@ export class AutomationService<T> {
         input: actionInput,
       },
     });
+
+    logger.debug(
+      `Created action execution ${actionExecution.id} for trigger ${trigger.id} and action ${actionConfig.id}`,
+    );
 
     await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
       timestamp: new Date(),

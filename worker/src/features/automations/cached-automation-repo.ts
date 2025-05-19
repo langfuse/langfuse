@@ -1,6 +1,6 @@
 import { JobConfigState } from "@langfuse/shared/src/db";
 import { TriggerEventSource } from "./automationService";
-import { TriggerConfigurationDomain } from "@langfuse/shared";
+import { FilterState, TriggerDomain } from "@langfuse/shared";
 import {
   redis,
   logger,
@@ -8,8 +8,9 @@ import {
   getTriggerConfigurations,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import Decimal from "decimal.js";
 
-export const getCachedTriggerConfigs = async ({
+export const getCachedTriggers = async ({
   projectId,
   eventSource,
   status,
@@ -17,16 +18,27 @@ export const getCachedTriggerConfigs = async ({
   projectId: string;
   eventSource: TriggerEventSource;
   status: JobConfigState;
-}): Promise<Array<TriggerConfigurationDomain>> => {
+}): Promise<Array<TriggerDomain>> => {
   // Try to get from Redis cache first
   if (redis && env.LANGFUSE_CACHE_AUTOMATIONS_ENABLED === "true") {
     try {
-      const key = getRedisAutomationKey(projectId, eventSource, status);
-      const cachedConfigs = await redis.get(key);
+      const key = getRedisAutomationKey(projectId, eventSource);
+      const cachedConfigsString = await redis.get(key);
 
-      if (cachedConfigs) {
+      if (cachedConfigsString) {
         recordIncrement("langfuse.automations.cache_hit", 1);
-        return JSON.parse(cachedConfigs) as Array<TriggerConfigurationDomain>;
+
+        // The entire array is stored as a single JSON string, so parse once
+        const parsedConfigs = JSON.parse(
+          cachedConfigsString,
+        ) as Array<TriggerDomain>;
+
+        return parsedConfigs.map((trigger) => ({
+          ...trigger,
+          filter: trigger.filter as FilterState,
+          // JSON.stringify serialises Decimal instances as strings – convert back
+          sampling: new Decimal(trigger.sampling),
+        })) as Array<TriggerDomain>;
       }
       recordIncrement("langfuse.automations.cache_miss", 1);
     } catch (error) {
@@ -48,7 +60,7 @@ export const getCachedTriggerConfigs = async ({
   // Store in Redis if available
   if (redis && env.LANGFUSE_CACHE_AUTOMATIONS_ENABLED === "true") {
     try {
-      const key = getRedisAutomationKey(projectId, eventSource, status);
+      const key = getRedisAutomationKey(projectId, eventSource);
       await redis.set(
         key,
         JSON.stringify(triggerConfigurations),
@@ -70,7 +82,6 @@ export const getCachedTriggerConfigs = async ({
 const getRedisAutomationKey = (
   projectId: string,
   eventSource: TriggerEventSource,
-  status: JobConfigState,
 ): string => {
-  return `automation-configs:${projectId}:${eventSource}:${status}`;
+  return `automation-configs:${projectId}:${eventSource}`;
 };

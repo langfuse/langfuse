@@ -1,11 +1,17 @@
-import { JobConfigState, prisma } from "../../db";
+import { Action, JobConfigState, prisma, Trigger } from "../../db";
 import {
-  ActionDomain,
-  TriggerDomain,
   TriggerEventSource,
   WebhookActionConfig,
+  ActionDomain,
+  TriggerDomain,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
+
+// Narrow versions of the domain types that exclude the relation ID arrays.
+type MinimalActionDomain = Omit<ActionDomain, "triggerIds">;
+type MinimalTriggerDomain = Omit<TriggerDomain, "actionIds">;
+
+type ActionConfigWithTriggers = ActionDomain & { triggerIds: string[] };
 
 export const getActionConfigById = async ({
   projectId,
@@ -13,11 +19,14 @@ export const getActionConfigById = async ({
 }: {
   projectId: string;
   actionId: string;
-}) => {
+}): Promise<ActionConfigWithTriggers | null> => {
   const actionConfig = await prisma.action.findFirst({
     where: {
       id: actionId,
       projectId,
+    },
+    include: {
+      triggers: true,
     },
   });
 
@@ -25,13 +34,15 @@ export const getActionConfigById = async ({
     return null;
   }
 
-  const actionDomain: ActionDomain = {
-    ...actionConfig,
-    config: JSON.parse(actionConfig.config as string) as WebhookActionConfig,
-  };
+  const actionDomain = convertActionToDomain(actionConfig);
 
-  return actionDomain;
+  return {
+    ...actionDomain,
+    triggerIds: actionConfig.triggers.map((trigger) => trigger.triggerId),
+  };
 };
+
+type TriggerConfigWithActions = TriggerDomain & { actionIds: string[] };
 
 export const getTriggerConfigurations = async ({
   projectId,
@@ -41,20 +52,67 @@ export const getTriggerConfigurations = async ({
   projectId: string;
   eventSource: TriggerEventSource;
   status: JobConfigState;
-}): Promise<Array<TriggerDomain>> => {
+}): Promise<TriggerConfigWithActions[]> => {
   const triggers = await prisma.trigger.findMany({
     where: {
       projectId,
       eventSource,
       status,
     },
+    include: {
+      actions: true,
+    },
   });
 
   const triggerConfigurations = triggers.map((trigger) => ({
-    ...trigger,
-    filter: JSON.parse(trigger.filter as string) as FilterState,
-    eventSource: trigger.eventSource as TriggerEventSource,
+    ...convertTriggerToDomain(trigger),
+    actionIds: trigger.actions.map((action) => action.actionId),
   }));
 
   return triggerConfigurations;
+};
+
+const convertTriggerToDomain = (trigger: Trigger): MinimalTriggerDomain => {
+  return {
+    ...trigger,
+    filter: trigger.filter as FilterState,
+    eventSource: trigger.eventSource as TriggerEventSource,
+  };
+};
+
+const convertActionToDomain = (action: Action): MinimalActionDomain => {
+  return {
+    ...action,
+    config: action.config as WebhookActionConfig,
+  };
+};
+
+// Local type for getActiveAutomations return value to avoid leaking prisma types
+export type ActiveAutomation = {
+  trigger: MinimalTriggerDomain;
+  action: MinimalActionDomain;
+};
+
+export const getActiveAutomations = async ({
+  projectId,
+}: {
+  projectId: string;
+}): Promise<ActiveAutomation[]> => {
+  const automations = await prisma.triggersOnActions.findMany({
+    where: {
+      projectId,
+      trigger: {
+        status: JobConfigState.ACTIVE,
+      },
+    },
+    include: {
+      action: true,
+      trigger: true,
+    },
+  });
+
+  return automations.map((automation) => ({
+    trigger: convertTriggerToDomain(automation.trigger),
+    action: convertActionToDomain(automation.action),
+  }));
 };

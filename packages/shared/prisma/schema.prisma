@@ -1228,8 +1228,7 @@ model Trigger {
   actions TriggersOnActions[]
 
   // Additional attributes
-  status      JobConfigState @default(ACTIVE) @map("status")
-  lastFiredAt DateTime?      @map("last_fired_at")
+  status JobConfigState @default(ACTIVE) @map("status")
 
   sampling Decimal // ratio of jobs that are executed for sampling (0..1)
   delay    Int // delay in milliseconds

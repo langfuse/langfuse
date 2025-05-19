@@ -19,7 +19,7 @@ import { Separator } from "@/src/components/ui/separator";
 import { Switch } from "@/src/components/ui/switch";
 import { useRouter } from "next/router";
 import { z } from "zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
@@ -37,7 +37,7 @@ import { type ColumnDefinition } from "@langfuse/shared";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { X, Plus } from "lucide-react";
+
 import {
   WebhookActionForm,
   webhookSchema,
@@ -47,6 +47,7 @@ import {
   AnnotationQueueActionForm,
   annotationQueueSchema,
 } from "./AnnotationQueueActionForm";
+import { type ActiveAutomation } from "@langfuse/shared/src/server";
 
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
@@ -137,7 +138,7 @@ interface AutomationFormProps {
   projectId: string;
   onSuccess?: () => void;
   onCancel?: () => void;
-  automation?: any; // The automation being edited
+  automation?: ActiveAutomation;
   isEditing?: boolean;
 }
 
@@ -154,26 +155,12 @@ export const AutomationForm = ({
     projectId,
     scope: "automations:CUD",
   });
-  const utils = api.useUtils();
 
   // Set up mutations
   const createAutomationMutation =
     api.automations.createAutomation.useMutation();
   const updateAutomationMutation =
     api.automations.updateAutomation.useMutation();
-
-  // Parse the filter if it exists for editing
-  const getInitialFilter = () => {
-    if (isEditing && automation?.filter) {
-      try {
-        return JSON.parse(automation.filter);
-      } catch (e) {
-        console.error("Failed to parse filter:", e);
-        return [];
-      }
-    }
-    return [];
-  };
 
   // Get the action type for the form when editing
   const getActionType = () => {
@@ -185,7 +172,12 @@ export const AutomationForm = ({
 
   // Parse existing headers if available
   const parseHeaders = (): HeaderPair[] => {
-    if (isEditing && automation?.action?.config?.headers) {
+    if (
+      isEditing &&
+      automation?.action?.config &&
+      "headers" in automation.action.config &&
+      automation.action.config.headers
+    ) {
       try {
         const headersObject = automation.action.config.headers;
         return Object.entries(headersObject).map(([name, value]) => ({
@@ -204,23 +196,31 @@ export const AutomationForm = ({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      description: isEditing ? automation?.description || "" : "",
+      description: isEditing ? automation?.trigger?.description || "" : "",
       eventSource: isEditing
-        ? automation?.eventSource
+        ? automation?.trigger?.eventSource
         : TriggerEventSource.ObservationCreated,
-      status: isEditing ? automation?.status : "ACTIVE",
+      status: isEditing ? automation?.trigger?.status : "ACTIVE",
       sampling: isEditing
-        ? Math.round(automation?.sampling.toNumber() * 100)
+        ? Math.round((automation?.trigger?.sampling?.toNumber() || 0) * 100)
         : 100,
-      delay: isEditing ? automation?.delay : 0,
-      filter: getInitialFilter(),
+      delay: isEditing ? automation?.trigger?.delay : 0,
+      filter: isEditing ? automation?.trigger?.filter : [],
       actionType: getActionType(),
       webhook: {
-        url: (isEditing && automation?.action?.config?.url) || "",
+        url:
+          (isEditing &&
+            automation?.action?.type === "WEBHOOK" &&
+            automation?.action?.config?.url) ||
+          "",
         headers: parseHeaders(),
       },
       annotationQueue: {
-        queueId: (isEditing && automation?.action?.config?.queueId) || "",
+        queueId:
+          (isEditing &&
+            automation?.action?.type === "ANNOTATION_QUEUE" &&
+            automation?.action?.config?.queueId) ||
+          "",
       },
     },
   });
@@ -318,7 +318,7 @@ export const AutomationForm = ({
         // Update existing automation
         await updateAutomationMutation.mutateAsync({
           projectId,
-          triggerId: automation.id,
+          triggerId: automation.trigger.id,
           actionId: automation.action.id,
           description: data.description,
           eventSource: data.eventSource,
@@ -609,11 +609,12 @@ export const AutomationForm = ({
         </Card>
 
         <div className="flex justify-between gap-3">
-          {isEditing && (
+          {isEditing && automation?.trigger.id && automation?.action.id && (
             <div>
               <DeleteAutomationButton
                 projectId={projectId}
-                triggerId={automation.id}
+                triggerId={automation.trigger.id}
+                actionId={automation.action.id}
                 variant="button"
                 onSuccess={() => {
                   if (onSuccess) {

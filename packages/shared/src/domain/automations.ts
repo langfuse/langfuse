@@ -9,6 +9,7 @@ export declare enum TriggerEventSource {
 export type TriggerDomain = Omit<Trigger, "filter" | "eventSource"> & {
   filter: FilterState;
   eventSource: TriggerEventSource;
+  actionIds: string[];
 };
 
 export const WebhookActionConfigSchema = z.object({
@@ -16,8 +17,19 @@ export const WebhookActionConfigSchema = z.object({
   headers: z.record(z.string(), z.string()),
 });
 
-export type WebhookActionConfig = z.infer<typeof WebhookActionConfigSchema>;
+export const AnnotationQueueActionConfigSchema = z.object({
+  queueId: z.string(),
+});
 
+export type WebhookActionConfig = z.infer<typeof WebhookActionConfigSchema>;
+export type AnnotationQueueActionConfig = z.infer<
+  typeof AnnotationQueueActionConfigSchema
+>;
 export type ActionDomain = Omit<Action, "config"> & {
-  config: WebhookActionConfig;
+  config: WebhookActionConfig | AnnotationQueueActionConfig;
+  triggerIds: string[];
+};
+export type AutomationIdentifier = {
+  triggerId: string;
+  actionId: string;
 };

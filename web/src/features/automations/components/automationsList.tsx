@@ -10,17 +10,16 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { formatDistanceToNow } from "date-fns";
 import { JobConfigState } from "@langfuse/shared";
-import { Edit, Share2 } from "lucide-react";
-import { type TriggerConfiguration } from "@prisma/client";
+import { Edit } from "lucide-react";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { observationFilterColumns } from "@/src/features/automations/components/automationForm";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { type ActiveAutomation } from "@langfuse/shared/src/server";
 
 interface AutomationsListProps {
   projectId: string;
-  onEditAutomation?: (automation: TriggerConfiguration) => void;
+  onEditAutomation?: (automation: ActiveAutomation) => void;
 }
 
 export const AutomationsList = ({
@@ -48,15 +47,15 @@ export const AutomationsList = ({
   return (
     <div className="space-y-4">
       {automations.map((automation) => (
-        <Card key={automation.id} className="relative">
+        <Card key={automation.trigger.id} className="relative">
           <CardHeader className="pb-2">
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle className="text-base">
-                  {automation.description || "Unnamed Automation"}
+                  {automation.trigger.description || "Unnamed Automation"}
                 </CardTitle>
                 <CardDescription className="mt-1 flex items-center gap-2 text-xs">
-                  {automation.status === JobConfigState.ACTIVE ? (
+                  {automation.trigger.status === JobConfigState.ACTIVE ? (
                     <Badge
                       variant="outline"
                       className="border-green-200 bg-green-50 text-green-700 hover:bg-green-50"
@@ -74,20 +73,12 @@ export const AutomationsList = ({
                   <span>
                     Event source:{" "}
                     <span className="font-mono text-xs">
-                      {automation.eventSource}
+                      {automation.trigger.eventSource}
                     </span>
                   </span>
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                {automation.lastFiredAt && (
-                  <div className="text-xs text-muted-foreground">
-                    Last triggered{" "}
-                    {formatDistanceToNow(new Date(automation.lastFiredAt), {
-                      addSuffix: true,
-                    })}
-                  </div>
-                )}
                 <div className="flex items-center gap-1">
                   {onEditAutomation && (
                     <Button
@@ -102,7 +93,8 @@ export const AutomationsList = ({
                   )}
                   <DeleteAutomationButton
                     projectId={projectId}
-                    triggerId={automation.id}
+                    triggerId={automation.trigger.id}
+                    actionId={automation.action.id}
                     variant="icon"
                   />
                 </div>
@@ -114,11 +106,11 @@ export const AutomationsList = ({
             <div className="text-sm">
               <p>
                 <strong>Filter:</strong>{" "}
-                {automation.filter ? (
+                {automation.trigger.filter ? (
                   <div className="mt-2">
                     <InlineFilterBuilder
                       columns={observationFilterColumns}
-                      filterState={JSON.parse(automation.filter as string)}
+                      filterState={automation.trigger.filter}
                       onChange={() => {}}
                       disabled={true}
                     />
@@ -129,7 +121,7 @@ export const AutomationsList = ({
               </p>
               <p className="mt-2">
                 <strong>Sampling:</strong>{" "}
-                {automation.sampling.toNumber() * 100}%
+                {automation.trigger.sampling.toNumber() * 100}%
               </p>
             </div>
           </CardContent>

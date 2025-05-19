@@ -706,7 +706,6 @@ export type Trigger = {
     eventSource: string;
     filter: unknown | null;
     status: Generated<JobConfigState>;
-    last_fired_at: Timestamp | null;
     sampling: string;
     delay: number;
 };

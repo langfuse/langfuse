@@ -8,6 +8,7 @@ import {
 import {
   getActionConfigById,
   getObservationById,
+  logger,
   WebhookInput,
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
@@ -62,9 +63,12 @@ const convertObservationToWebhookOutput = (
   return observation;
 };
 
+// TODO: Webhook outgoing API versioning
 export const executeWebhook = async (input: WebhookInput) => {
   const { observationId, projectId, startTime, observationType, actionId } =
     input;
+
+  logger.debug(`Executing webhook for action ${actionId}`);
 
   const observation = await getObservationById({
     id: observationId,

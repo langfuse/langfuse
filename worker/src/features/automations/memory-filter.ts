@@ -46,15 +46,11 @@ export function executeMemoryFilters({
       continue;
     }
 
-    logger.info(`actualValue ${JSON.stringify(actualValue)}`);
-
     // Apply the appropriate filter based on type
     const passes = applyFilterCondition(filter, actualValue);
 
     // If any filter fails, return false
-    if (!passes) {
-      return false;
-    }
+    return passes;
   }
 
   // If all filters pass, return true

@@ -10,16 +10,18 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Share2, Plus, X, ArrowLeft } from "lucide-react";
 import { AutomationsList } from "./automationsList";
-import { AutomationForm } from "./automationForm";
-import { type TriggerConfiguration } from "@prisma/client";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { type ActiveAutomation } from "@langfuse/shared/src/server";
 
 type ViewState = "list" | "create" | "edit";
+import { AutomationForm } from "@/src/features/automations/components/automationForm";
 
 export const AutomationsDrawer = ({ projectId }: { projectId: string }) => {
   const [view, setView] = useState<ViewState>("list");
+
   const [selectedAutomation, setSelectedAutomation] =
-    useState<TriggerConfiguration | null>(null);
+    useState<ActiveAutomation | null>(null);
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -33,7 +35,7 @@ export const AutomationsDrawer = ({ projectId }: { projectId: string }) => {
   };
 
   // Handle editing an automation
-  const handleEditAutomation = (automation: TriggerConfiguration) => {
+  const handleEditAutomation = (automation: ActiveAutomation) => {
     if (!hasAccess) return;
     setSelectedAutomation(automation);
     setView("edit");
@@ -96,7 +98,11 @@ export const AutomationsDrawer = ({ projectId }: { projectId: string }) => {
                 projectId={projectId}
                 onSuccess={handleReturnToList}
                 onCancel={handleReturnToList}
-                automation={view === "edit" ? selectedAutomation : undefined}
+                automation={
+                  view === "edit" && selectedAutomation
+                    ? selectedAutomation
+                    : undefined
+                }
                 isEditing={view === "edit"}
               />
             )}
