@@ -124,7 +124,7 @@ export default function DashboardDetail() {
         x: 0, // Start at left
         y: maxY, // Place below existing widgets
         x_size: 6, // Default size (half of 12-column grid)
-        y_size: 2, // Default height of 2 rows
+        y_size: 6, // Default height of 6 rows
         type: "widget",
       };
 
