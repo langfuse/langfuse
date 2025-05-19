@@ -188,7 +188,7 @@ export function DashboardWidget({
 
   return (
     <div
-      className={`group flex flex-col overflow-hidden rounded-lg border bg-background p-4`}
+      className={`group flex h-full w-full flex-col overflow-hidden rounded-lg border bg-background p-4`}
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">

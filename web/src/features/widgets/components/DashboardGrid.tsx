@@ -29,20 +29,16 @@ export function DashboardGrid({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT" | undefined;
 }) {
-  // Each grid unit should correspond to 100px.
-  // We keep the row height fixed at 100px and dynamically compute the number
-  // of columns based on the container width so that each column is ~100px.
-  const [cols, setCols] = useState(12);
+  const [rowHeight, setRowHeight] = useState(200);
 
-  // callback from react-grid-layout that gives us the current container width
   const handleWidthChange = useCallback(
     (containerWidth: number) => {
-      const calculatedCols = Math.max(1, Math.floor(containerWidth / 100));
-      if (calculatedCols !== cols) {
-        setCols(calculatedCols);
+      const calculatedRowHeight = ((containerWidth / 12) * 16) / 9;
+      if (calculatedRowHeight !== rowHeight) {
+        setRowHeight(calculatedRowHeight);
       }
     },
-    [cols],
+    [rowHeight],
   );
 
   // Convert WidgetPlacement to react-grid-layout format
@@ -79,9 +75,9 @@ export function DashboardGrid({
     <ResponsiveGridLayout
       className="layout"
       layouts={{ lg: layout }}
-      cols={{ lg: cols, md: cols, sm: cols, xs: cols, xxs: cols }}
+      cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
       margin={[16, 16]}
-      rowHeight={200}
+      rowHeight={rowHeight}
       isDraggable={canEdit}
       isResizable={false}
       onDragStop={handleLayoutChange} // Save immediately when drag stops
@@ -90,7 +86,7 @@ export function DashboardGrid({
       useCSSTransforms
     >
       {widgets.map((widget) => (
-        <div key={widget.id}>
+        <div key={widget.id} className="max-h-full max-w-full">
           <DashboardWidget
             dashboardId={dashboardId}
             projectId={projectId}
