@@ -55,7 +55,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
           </div>
         )}
 
-        {isError && chatAvailable() && (
+        {isError && chatAvailable && (
           <Button
             variant="errorNotification"
             size={"sm"}

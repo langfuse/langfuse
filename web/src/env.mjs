@@ -289,6 +289,11 @@ export const env = createEnv({
       .positive()
       .default(50_000),
     PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
+
+    // UI customization - comma-separated list of visible product modules
+    LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: z.string().optional(),
+    // UI customization - comma-separated list of hidden product modules
+    LANGFUSE_UI_HIDDEN_PRODUCT_MODULES: z.string().optional(),
   },
 
   /**
@@ -524,6 +529,8 @@ export const env = createEnv({
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
+    LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
+    LANGFUSE_UI_HIDDEN_PRODUCT_MODULES: process.env.LANGFUSE_UI_HIDDEN_PRODUCT_MODULES,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
