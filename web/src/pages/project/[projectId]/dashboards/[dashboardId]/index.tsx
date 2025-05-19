@@ -2,7 +2,6 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { DashboardWidget } from "@/src/features/widgets";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -20,6 +19,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 
 interface WidgetPlacement {
   id: string;
@@ -124,7 +124,7 @@ export default function DashboardDetail() {
         x: 0, // Start at left
         y: maxY, // Place below existing widgets
         x_size: 6, // Default size (half of 12-column grid)
-        y_size: 2, // Default height of 2 rows
+        y_size: 6, // Default height of 6 rows
         type: "widget",
       };
 
@@ -402,20 +402,26 @@ export default function DashboardDetail() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-12 gap-4">
-            {localDashboardDefinition.widgets.map((widgetPlacement) => (
-              <DashboardWidget
-                key={widgetPlacement.id}
-                dashboardId={dashboardId}
-                projectId={projectId}
-                placement={widgetPlacement}
-                dateRange={dateRange}
-                filterState={userFilterState}
-                onDeleteWidget={handleDeleteWidget}
-                dashboardOwner={dashboard.data?.owner}
-              />
-            ))}
-          </div>
+          <DashboardGrid
+            widgets={localDashboardDefinition.widgets}
+            onChange={(updatedWidgets) => {
+              setLocalDashboardDefinition({
+                ...localDashboardDefinition,
+                widgets: updatedWidgets,
+              });
+              saveDashboardChanges({
+                ...localDashboardDefinition,
+                widgets: updatedWidgets,
+              });
+            }}
+            canEdit={hasCUDAccess}
+            dashboardId={dashboardId}
+            projectId={projectId}
+            dateRange={dateRange}
+            filterState={userFilterState}
+            onDeleteWidget={handleDeleteWidget}
+            dashboardOwner={dashboard.data?.owner}
+          />
         </div>
       )}
     </Page>

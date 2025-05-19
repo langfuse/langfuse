@@ -9,13 +9,18 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { PencilIcon, TrashIcon, CopyIcon } from "lucide-react";
+import {
+  PencilIcon,
+  TrashIcon,
+  CopyIcon,
+  GripVerticalIcon,
+} from "lucide-react";
 import { useRouter } from "next/router";
 import { startCase } from "lodash";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
-interface WidgetPlacement {
+export interface WidgetPlacement {
   id: string;
   widgetId: string;
   x: number;
@@ -24,11 +29,6 @@ interface WidgetPlacement {
   y_size: number;
   type: "widget";
 }
-
-// Generate grid classes for each widget based on position and size
-const getGridClasses = (widget: WidgetPlacement) => {
-  return `col-start-${widget.x + 1} col-span-${widget.x_size} row-start-${widget.y + 1} row-span-${widget.y_size}`;
-};
 
 export function DashboardWidget({
   projectId,
@@ -169,7 +169,7 @@ export function DashboardWidget({
   if (widget.isLoading) {
     return (
       <div
-        className={`${getGridClasses(placement)} flex items-center justify-center rounded-lg border bg-background p-4`}
+        className={`flex items-center justify-center rounded-lg border bg-background p-4`}
       >
         <div className="text-muted-foreground">Loading...</div>
       </div>
@@ -179,7 +179,7 @@ export function DashboardWidget({
   if (!widget.data) {
     return (
       <div
-        className={`${getGridClasses(placement)} flex items-center justify-center rounded-lg border bg-background p-4`}
+        className={`flex items-center justify-center rounded-lg border bg-background p-4`}
       >
         <div className="text-muted-foreground">Widget not found</div>
       </div>
@@ -188,7 +188,7 @@ export function DashboardWidget({
 
   return (
     <div
-      className={`${getGridClasses(placement)} group flex flex-col overflow-hidden rounded-lg border bg-background p-4`}
+      className={`group flex h-full w-full flex-col overflow-hidden rounded-lg border bg-background p-4`}
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">
@@ -199,6 +199,10 @@ export function DashboardWidget({
         </span>
         {hasCUDAccess && (
           <div className="flex space-x-2">
+            <GripVerticalIcon
+              size={16}
+              className="drag-handle hidden cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing group-hover:block"
+            />
             {widget.data.owner === "PROJECT" ? (
               <button
                 onClick={handleEdit}

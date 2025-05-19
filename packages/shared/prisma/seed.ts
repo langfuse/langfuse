@@ -496,7 +496,7 @@ async function createDashboardsAndWidgets(projects: Project[]) {
               x: 0,
               y: 0,
               x_size: 6,
-              y_size: 2,
+              y_size: 6,
             },
             {
               type: "widget",
@@ -505,7 +505,7 @@ async function createDashboardsAndWidgets(projects: Project[]) {
               x: 6,
               y: 0,
               x_size: 6,
-              y_size: 2,
+              y_size: 6,
             },
           ],
         },

@@ -708,7 +708,7 @@ export function WidgetForm({
 
       {/* Right column - Chart */}
       <div className="w-2/3">
-        <Card>
+        <Card className={"aspect-video"}>
           <CardHeader>
             <CardTitle>{widgetName}</CardTitle>
             <CardDescription>{widgetDescription}</CardDescription>
