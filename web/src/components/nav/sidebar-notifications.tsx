@@ -12,10 +12,13 @@ import useLocalStorage from "../useLocalStorage";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
+const NOTIFICATION_TTL_MS = 14 * 24 * 60 * 60 * 1000; // two weeks
+
 type SidebarNotification = {
   id: string; // Add unique ID for each notification
   title: string;
   description: React.ReactNode;
+  createdAt?: string; // optional, used to expire the notification
   link?: string;
   // defaults to "Learn more" if no linkContent and no linkTitle
   linkTitle?: string;
@@ -30,6 +33,7 @@ const notifications: SidebarNotification[] = [
       "New full text search for trace and observation input/output.",
     link: "https://langfuse.com/blog/2025-05-19-launch-week-3",
     linkTitle: "Learn more",
+    createdAt: "2025-05-19",
   },
   {
     id: "github-star",
@@ -59,12 +63,21 @@ export function SidebarNotifications() {
     string[]
   >(STORAGE_KEY, []);
 
+  const isExpired = (notif: SidebarNotification) => {
+    if (!notif.createdAt) return false;
+    const created = new Date(notif.createdAt).getTime();
+    return Date.now() > created + NOTIFICATION_TTL_MS;
+  };
+
   // Find the oldest non-dismissed notification on mount or when dismissed list changes
   useEffect(() => {
     const lastAvailableIndex = notifications
       .slice()
       .reverse()
-      .findIndex((notif) => !dismissedNotifications.includes(notif.id));
+      .findIndex(
+        (notif) =>
+          !dismissedNotifications.includes(notif.id) && !isExpired(notif),
+      );
 
     setCurrentNotificationIndex(
       lastAvailableIndex === -1
