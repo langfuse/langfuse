@@ -45,6 +45,7 @@ import {
   PieChart,
   LineChart,
   BarChartHorizontal,
+  Search,
 } from "lucide-react";
 import {
   buildWidgetName,
@@ -86,6 +87,12 @@ export function WidgetForm({
   const [widgetDescription, setWidgetDescription] = useState<string>(
     initialValues.description,
   );
+
+  // Search state for dropdowns
+  const [metricSearch, setMetricSearch] = useState("");
+  const [dimensionSearch, setDimensionSearch] = useState("");
+  const [isMetricsOpen, setIsMetricsOpen] = useState(false);
+  const [isDimensionsOpen, setIsDimensionsOpen] = useState(false);
 
   // Determine if this is an existing widget (editing mode)
   const isExistingWidget = Boolean(widgetId);
@@ -275,20 +282,44 @@ export function WidgetForm({
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.measures).map(([key]) => ({
-      value: key,
-      label: startCase(key),
-    }));
+    return Object.entries(viewDeclaration.measures)
+      .map(([key]) => ({
+        value: key,
+        label: startCase(key),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }));
   }, [selectedView]);
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.dimensions).map(([key]) => ({
-      value: key,
-      label: startCase(key),
-    }));
+    return Object.entries(viewDeclaration.dimensions)
+      .map(([key]) => ({
+        value: key,
+        label: startCase(key),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }));
   }, [selectedView]);
+
+  // Filtered metrics based on search
+  const filteredMetrics = useMemo(() => {
+    if (!metricSearch.trim()) return availableMetrics;
+    const search = metricSearch.toLowerCase().trim();
+    return availableMetrics.filter(metric => 
+      metric.label.toLowerCase().includes(search) || 
+      metric.value.toLowerCase().includes(search)
+    );
+  }, [availableMetrics, metricSearch]);
+
+  // Filtered dimensions based on search
+  const filteredDimensions = useMemo(() => {
+    if (!dimensionSearch.trim()) return availableDimensions;
+    const search = dimensionSearch.toLowerCase().trim();
+    return availableDimensions.filter(dimension => 
+      dimension.label.toLowerCase().includes(search) ||
+      dimension.value.toLowerCase().includes(search)
+    );
+  }, [availableDimensions, dimensionSearch]);
 
   // Create a dynamic query based on the selected view
   const query = useMemo<QueryType>(() => {
@@ -482,12 +513,28 @@ export function WidgetForm({
                 <Select
                   value={selectedMeasure}
                   onValueChange={(value) => setSelectedMeasure(value)}
+                  open={isMetricsOpen}
+                  onOpenChange={(open) => {
+                    setIsMetricsOpen(open);
+                    if (!open) setMetricSearch("");
+                  }}
                 >
                   <SelectTrigger id="metrics-select">
                     <SelectValue placeholder="Select metrics" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableMetrics.map((metric) => {
+                    <div className="flex items-center px-3 pb-2">
+                      <Search className="h-4 w-4 mr-2 opacity-50" />
+                      <Input
+                        placeholder="Search metrics..."
+                        className="h-8"
+                        value={metricSearch}
+                        onChange={(e) => setMetricSearch(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    {filteredMetrics.map((metric) => {
                       const meta =
                         viewDeclarations[selectedView]?.measures?.[
                           metric.value
@@ -503,6 +550,9 @@ export function WidgetForm({
                         />
                       );
                     })}
+                    {filteredMetrics.length === 0 && (
+                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">No metrics found.</div>
+                    )}
                   </SelectContent>
                 </Select>
                 {selectedMeasure !== "count" && (
@@ -548,13 +598,29 @@ export function WidgetForm({
                 <Select
                   value={selectedDimension}
                   onValueChange={setSelectedDimension}
+                  open={isDimensionsOpen}
+                  onOpenChange={(open) => {
+                    setIsDimensionsOpen(open);
+                    if (!open) setDimensionSearch("");
+                  }}
                 >
                   <SelectTrigger id="dimension-select">
                     <SelectValue placeholder="Select a dimension" />
                   </SelectTrigger>
                   <SelectContent>
+                    <div className="flex items-center px-3 pb-2">
+                      <Search className="h-4 w-4 mr-2 opacity-50" />
+                      <Input
+                        placeholder="Search dimensions..."
+                        className="h-8"
+                        value={dimensionSearch}
+                        onChange={(e) => setDimensionSearch(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
                     <SelectItem value="none">None</SelectItem>
-                    {availableDimensions.map((dimension) => {
+                    {filteredDimensions.map((dimension) => {
                       const meta =
                         viewDeclarations[selectedView]?.dimensions?.[
                           dimension.value
@@ -570,6 +636,9 @@ export function WidgetForm({
                         />
                       );
                     })}
+                    {filteredDimensions.length === 0 && (
+                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">No dimensions found.</div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
