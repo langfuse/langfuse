@@ -1014,6 +1014,7 @@ model TraceMedia {
   field     String   @map("field")
 
   @@unique([projectId, traceId, mediaId, field])
+  @@index([projectId, mediaId])
   @@map("trace_media")
 }
 
@@ -1031,6 +1032,7 @@ model ObservationMedia {
 
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, observationId])
+  @@index([projectId, mediaId])
   @@map("observation_media")
 }
 
