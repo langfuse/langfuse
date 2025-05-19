@@ -96,6 +96,7 @@ export const CreateEvalTemplate = z.object({
     score: z.string(),
     reasoning: z.string(),
   }),
+  cloneSourceId: z.string().optional(),
   referencedEvaluators: z
     .nativeEnum(EvalReferencedEvaluators)
     .optional()
@@ -484,37 +485,40 @@ export const evalRouter = createTRPCRouter({
           }>
         >`
         WITH latest_templates AS (
-          SELECT DISTINCT ON (project_id, name) *
-          FROM eval_templates
-          WHERE (project_id = ${input.projectId} OR project_id IS NULL)
-          ${searchCondition}
-          ORDER BY project_id, name, version DESC
-        ),
-        template_usage AS (
           SELECT 
             et.id,
-            COUNT(jc.id) as usage_count
-          FROM 
-            eval_templates et
-          LEFT JOIN 
-            job_configurations jc ON et.id = jc.eval_template_id
-          WHERE 
-            (et.project_id = ${input.projectId} OR et.project_id IS NULL)
-          GROUP BY 
-            et.id
+            et.name,
+            et.project_id,
+            et.version,
+            et.created_at,
+            (
+              SELECT COUNT(jc.id)
+              FROM job_configurations jc
+              WHERE jc.eval_template_id IN (
+                SELECT id 
+                FROM eval_templates 
+                WHERE name = et.name AND 
+                      (project_id = et.project_id OR (project_id IS NULL AND et.project_id IS NULL))
+              )
+            ) as usage_count
+          FROM (
+            SELECT DISTINCT ON (project_id, name) *
+            FROM eval_templates
+            WHERE (project_id = ${input.projectId} OR project_id IS NULL)
+            ${searchCondition}
+            ORDER BY project_id, name, version DESC
+          ) et
         )
         SELECT 
-          lt.id as "latestId",
-          lt.name,
-          lt.project_id as "projectId",
-          lt.version,
-          lt.created_at as "latestCreatedAt",
-          COALESCE(tu.usage_count, 0)::int as "usageCount"
+          id as "latestId",
+          name,
+          project_id as "projectId",
+          version,
+          created_at as "latestCreatedAt",
+          COALESCE(usage_count, 0)::int as "usageCount"
         FROM 
-          latest_templates lt
-        LEFT JOIN 
-          template_usage tu ON lt.id = tu.id
-        ORDER BY lt.name
+          latest_templates
+        ORDER BY name
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
         `,
@@ -740,7 +744,7 @@ export const evalRouter = createTRPCRouter({
         const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
           where: {
             id: input.evalTemplateId,
-            projectId: input.projectId,
+            OR: [{ projectId: input.projectId }, { projectId: null }],
           },
         });
 
@@ -880,6 +884,8 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
+      // check if template already exists
+      // only checks for project-level templates only
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
           projectId: input.projectId,
@@ -891,6 +897,7 @@ export const evalRouter = createTRPCRouter({
           version: true,
         },
       });
+
       const latestTemplate = Boolean(templates.length)
         ? templates[0]
         : undefined;
@@ -909,18 +916,53 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      if (
-        input.referencedEvaluators === EvalReferencedEvaluators.UPDATE &&
-        Boolean(templates.length)
-      ) {
-        await ctx.prisma.jobConfiguration.updateMany({
-          where: {
-            evalTemplateId: { in: templates.map((t) => t.id) },
-          },
-          data: {
-            evalTemplateId: evalTemplate.id,
-          },
-        });
+      // update existing evaluators
+      if (input.referencedEvaluators === EvalReferencedEvaluators.UPDATE) {
+        // case 1: clone langfuse managed template to create project level template
+        if (input.cloneSourceId) {
+          const cloneSourceTemplate = await ctx.prisma.evalTemplate.findUnique({
+            where: {
+              id: input.cloneSourceId,
+              projectId: null,
+            },
+          });
+
+          if (!cloneSourceTemplate) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Langfuse managed template not found",
+            });
+          }
+
+          const cloneSourceTemplateList =
+            await ctx.prisma.evalTemplate.findMany({
+              where: {
+                projectId: null,
+                name: cloneSourceTemplate.name,
+              },
+            });
+
+          if (Boolean(cloneSourceTemplateList.length)) {
+            await ctx.prisma.jobConfiguration.updateMany({
+              where: {
+                evalTemplateId: {
+                  in: cloneSourceTemplateList.map((t) => t.id),
+                },
+              },
+              data: { evalTemplateId: evalTemplate.id },
+            });
+          }
+          // case 2: update project level template
+        } else if (Boolean(templates.length)) {
+          await ctx.prisma.jobConfiguration.updateMany({
+            where: {
+              evalTemplateId: { in: templates.map((t) => t.id) },
+            },
+            data: {
+              evalTemplateId: evalTemplate.id,
+            },
+          });
+        }
       }
 
       await auditLog({

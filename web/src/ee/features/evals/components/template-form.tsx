@@ -32,6 +32,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
+import { RouterInput } from "@/src/utils/types";
 
 // TODO: replace with default model from the database
 const DEFAULT_EVALUATION_MODEL = {
@@ -40,22 +41,32 @@ const DEFAULT_EVALUATION_MODEL = {
   modelParams: {},
 };
 
+type PartialEvalTemplate = Omit<
+  EvalTemplate,
+  "id" | "version" | "createdAt" | "updatedAt"
+> & { id?: string };
+
 export const EvalTemplateForm = (props: {
   projectId: string;
-  existingEvalTemplate?: EvalTemplate;
-  // TODO: check if this needs the template
+  existingEvalTemplate?: PartialEvalTemplate;
   onFormSuccess?: (template?: EvalTemplate) => void;
+  onBeforeSubmit?: (
+    template: RouterInput["evals"]["createTemplate"],
+  ) => boolean;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
   preventRedirect?: boolean;
+  cloneSourceId?: string | null;
 }) => {
   return (
     <div className="w-full">
       <InnerEvalTemplateForm
-        key={props.existingEvalTemplate?.id}
+        key={props.existingEvalTemplate?.id ?? "new"}
         {...props}
         existingEvalTemplateId={props.existingEvalTemplate?.id}
         existingEvalTemplateName={props.existingEvalTemplate?.name}
+        cloneSourceId={props.cloneSourceId}
+        onBeforeSubmit={props.onBeforeSubmit}
         preFilledFormValues={
           // if a langfuse template is selected, use that, else use the existing template
           // no langfuse template is selected if there is already an existing template
@@ -147,9 +158,11 @@ export const InnerEvalTemplateForm = (props: {
   existingEvalTemplateId?: string;
   existingEvalTemplateName?: string;
   onFormSuccess?: (template?: EvalTemplate) => void;
+  onBeforeSubmit?: (template: any) => boolean;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
   preventRedirect?: boolean;
+  cloneSourceId?: string | null;
 }) => {
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
@@ -273,6 +286,7 @@ export const InnerEvalTemplateForm = (props: {
         reasoning: values.outputReasoning,
       },
       referencedEvaluators: values.referencedEvaluators,
+      sourceTemplateId: props.cloneSourceId ?? undefined,
     };
 
     const parsedModel = selectedModelSchema.safeParse(evalTemplate);
@@ -282,6 +296,11 @@ export const InnerEvalTemplateForm = (props: {
         `${parsedModel.error.errors[0].path}: ${parsedModel.error.errors[0].message}`,
       );
       return;
+    }
+
+    // Check if we need to perform any pre-submission validation or confirmation
+    if (props.onBeforeSubmit && !props.onBeforeSubmit(evalTemplate)) {
+      return; // Stop submission - the parent will handle it
     }
 
     createEvalTemplateMutation

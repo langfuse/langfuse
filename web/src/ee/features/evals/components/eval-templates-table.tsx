@@ -6,6 +6,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, MoreVertical, Pen, UserCircle2Icon } from "lucide-react";
+import { type EvalTemplate } from "@langfuse/shared";
 import {
   Tooltip,
   TooltipContent,
@@ -33,9 +34,19 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { RouterInput } from "@/src/utils/types";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -64,6 +75,12 @@ export default function EvalsTemplateTable({
     withDefault(StringParam, null),
   );
   const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
+  const [cloneTemplateId, setCloneTemplateId] = useState<string | null>(null);
+  const [showReferenceUpdateDialog, setShowReferenceUpdateDialog] =
+    useState(false);
+  const [pendingCloneSubmission, setPendingCloneSubmission] = useState<
+    RouterInput["evals"]["createTemplate"] | null
+  >(null);
   const utils = api.useUtils();
   const templates = api.evals.templateNames.useQuery({
     projectId,
@@ -83,6 +100,33 @@ export default function EvalsTemplateTable({
       enabled: !!editTemplateId,
     },
   );
+
+  const cloneTemplate = api.evals.templateById.useQuery(
+    {
+      projectId: projectId,
+      id: cloneTemplateId as string,
+    },
+    {
+      enabled: !!cloneTemplateId,
+    },
+  );
+
+  const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
+    onSuccess: () => {
+      void utils.evals.templateNames.invalidate();
+      setCloneTemplateId(null);
+      setPendingCloneSubmission(null);
+      setShowReferenceUpdateDialog(false);
+      showSuccessToast({
+        title: "Evaluator cloned successfully",
+        description:
+          "This evaluator is now available and maintained on project level.",
+      });
+    },
+    onError: (error) => {
+      showErrorToast("Error cloning evaluator", error.message);
+    },
+  });
 
   useEffect(() => {
     if (templates.isSuccess) {
@@ -225,8 +269,7 @@ export default function EvalsTemplateTable({
                   // disabled={!hasAccess}
                   onClick={(e) => {
                     e.stopPropagation();
-                    // TODO: add clone functionality
-                    void router.push(`/project/${projectId}/evals/new`);
+                    setCloneTemplateId(id);
                   }}
                 >
                   <Copy className="mr-2 h-4 w-4" />
@@ -341,13 +384,129 @@ export default function EvalsTemplateTable({
             existingEvalTemplate={template.data ?? undefined}
             onFormSuccess={() => {
               setEditTemplateId(null);
-              void utils.evals.allTemplates.invalidate();
+              void utils.evals.templateNames.invalidate();
               showSuccessToast({
                 title: "Evaluator updated successfully",
                 description: "You can now use this evaluator.",
               });
             }}
           />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!cloneTemplateId && cloneTemplate.isSuccess}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCloneTemplateId(null);
+            setPendingCloneSubmission(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+          <DialogTitle>Clone evaluator</DialogTitle>
+          <EvalTemplateForm
+            projectId={projectId}
+            preventRedirect={true}
+            isEditing={true}
+            existingEvalTemplate={
+              cloneTemplate.data
+                ? {
+                    name: `${cloneTemplate.data.name} (project-level)`,
+                    prompt: cloneTemplate.data.prompt,
+                    vars: cloneTemplate.data.vars,
+                    outputSchema: cloneTemplate.data.outputSchema as {
+                      score: string;
+                      reasoning: string;
+                    },
+                    provider: cloneTemplate.data.provider,
+                    model: cloneTemplate.data.model,
+                    modelParams: cloneTemplate.data.modelParams as any,
+                    projectId,
+                  }
+                : undefined
+            }
+            cloneSourceId={cloneTemplateId}
+            onBeforeSubmit={(template) => {
+              // Only show reference dialog for Langfuse maintained templates
+              if (
+                cloneTemplateId &&
+                cloneTemplate.data &&
+                !cloneTemplate.data.projectId
+              ) {
+                setPendingCloneSubmission({
+                  ...template,
+                  cloneSourceId: cloneTemplateId,
+                });
+                setShowReferenceUpdateDialog(true);
+                return false; // Prevent immediate submission
+              }
+              return true; // Continue with submission
+            }}
+            onFormSuccess={() => {
+              setCloneTemplateId(null);
+              setPendingCloneSubmission(null);
+              void utils.evals.templateNames.invalidate();
+              showSuccessToast({
+                title: "Evaluator cloned successfully",
+                description:
+                  "This evaluator is now available and maintained on project level. ",
+              });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showReferenceUpdateDialog}
+        onOpenChange={(open) => {
+          if (!open && pendingCloneSubmission) {
+            // If dialog is closed without a decision, default to not updating references
+            pendingCloneSubmission.referencedEvaluators =
+              EvalReferencedEvaluators.PERSIST;
+            createEvalTemplateMutation.mutate(pendingCloneSubmission);
+          }
+          setShowReferenceUpdateDialog(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update running evaluators?</DialogTitle>
+            <DialogDescription>
+              Do you want all running evaluators attached to the original
+              Langfuse evaluator to reference your new project-level version?
+              <br />
+              <br />
+              <strong>Warning:</strong> This might break workflows if you've
+              changed variables or other critical aspects of the template.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (pendingCloneSubmission) {
+                  // Submit with PERSIST option
+                  pendingCloneSubmission.referencedEvaluators =
+                    EvalReferencedEvaluators.PERSIST;
+                  createEvalTemplateMutation.mutate(pendingCloneSubmission);
+                }
+              }}
+            >
+              No, keep as is
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingCloneSubmission) {
+                  // Submit with UPDATE option
+                  pendingCloneSubmission.referencedEvaluators =
+                    EvalReferencedEvaluators.UPDATE;
+                  createEvalTemplateMutation.mutate(pendingCloneSubmission);
+                }
+              }}
+            >
+              Yes, update all references
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
