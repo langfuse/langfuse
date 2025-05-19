@@ -29,11 +29,11 @@ export function DashboardGrid({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT" | undefined;
 }) {
-  const [rowHeight, setRowHeight] = useState(200);
+  const [rowHeight, setRowHeight] = useState(150);
 
   const handleWidthChange = useCallback(
     (containerWidth: number) => {
-      const calculatedRowHeight = ((containerWidth / 12) * 16) / 9;
+      const calculatedRowHeight = ((containerWidth / 12) * 9) / 16;
       if (calculatedRowHeight !== rowHeight) {
         setRowHeight(calculatedRowHeight);
       }
@@ -79,7 +79,7 @@ export function DashboardGrid({
       margin={[16, 16]}
       rowHeight={rowHeight}
       isDraggable={canEdit}
-      isResizable={false}
+      isResizable={canEdit}
       onDragStop={handleLayoutChange} // Save immediately when drag stops
       onWidthChange={handleWidthChange}
       draggableHandle=".drag-handle"

@@ -77,6 +77,8 @@ export const Chart = ({
   );
 
   return (
-    <CardContent>{shouldWarn ? renderWarning() : renderChart()}</CardContent>
+    <CardContent className={"h-full"}>
+      {shouldWarn ? renderWarning() : renderChart()}
+    </CardContent>
   );
 };
