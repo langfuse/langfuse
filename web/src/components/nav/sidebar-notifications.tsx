@@ -18,7 +18,7 @@ type SidebarNotification = {
   id: string; // Add unique ID for each notification
   title: string;
   description: React.ReactNode;
-  createdAt?: string;
+  createdAt?: string; // optional, used to expire the notication
   link?: string;
   // defaults to "Learn more" if no linkContent and no linkTitle
   linkTitle?: string;
