@@ -113,7 +113,7 @@ export function useExtractVariables({
           `Error extracting value for variable ${variable}:`,
           error,
         );
-        return { variable, value: "Error extracting value" };
+        return { variable, value: "" };
       }
     });
 
@@ -128,7 +128,7 @@ export function useExtractVariables({
         setExtractedVariables(
           variables.map((variable) => ({
             variable,
-            value: "Error extracting value",
+            value: "",
           })),
         );
         hasExtracted.current = true;

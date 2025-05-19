@@ -64,7 +64,6 @@ import {
   stringOptionsFilter,
   ZodModelConfig,
 } from "@langfuse/shared";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -77,9 +76,9 @@ import {
 } from "@/src/components/ui/dialog";
 import Link from "next/link";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
+import { TemplateSelector } from "@/src/ee/features/evals/components/template-selector";
 
 const CreateExperimentData = z.object({
   name: z
@@ -152,12 +151,6 @@ export const CreateExperimentsForm = ({
   const capture = usePostHogClientCapture();
   const hasPromptExperimentEntitlement =
     useHasEntitlement("prompt-experiments");
-  const [evaluatorOptions, setEvaluatorOptions] = useState<
-    { key: string; value: string }[]
-  >([]);
-  const [selectedEvaluators, setSelectedEvaluators] = useState<
-    { key: string; value: string }[]
-  >([]);
   const [selectedPromptName, setSelectedPromptName] = useState<string>(
     promptDefault?.name ?? "",
   );
@@ -254,39 +247,9 @@ export const CreateExperimentsForm = ({
     );
   }, [promptId, promptMeta.data]);
 
-  useEffect(() => {
-    if (evaluators.data) {
-      const isValidFilter = (filter: z.infer<typeof stringOptionsFilter>) => {
-        const filterIncludesId = filter.value.includes(datasetId);
-        if (filter.operator === "any of") {
-          return filterIncludesId;
-        } else {
-          return !filterIncludesId;
-        }
-      };
-
-      const initialEvaluators = evaluators.data.reduce<
-        { key: string; value: string }[]
-      >((acc, evaluator) => {
-        if (
-          isDatasetTarget(evaluator.filter, {
-            column: datasetCol,
-            schema: stringOptionsFilter,
-            isValid: isValidFilter,
-          })
-        ) {
-          acc.push({
-            key: evaluator.id,
-            value: evaluator.scoreName,
-          });
-        }
-        return acc;
-      }, []);
-
-      setEvaluatorOptions(initialEvaluators);
-      setSelectedEvaluators(initialEvaluators);
-    }
-  }, [evaluators.data, datasetId]);
+  const evalTemplates = api.evals.allTemplates.useQuery({
+    projectId,
+  });
 
   const validationResult = api.experiments.validateConfig.useQuery(
     {
@@ -309,8 +272,6 @@ export const CreateExperimentsForm = ({
     },
     onSettled: handleExperimentSettled ?? (() => {}),
   });
-
-  const archiveEvaluatorMutation = api.evals.updateEvalJob.useMutation();
 
   const runNamesByDatasetId = api.datasets.baseRunDataByDatasetId.useQuery(
     { projectId, datasetId },
@@ -348,44 +309,6 @@ export const CreateExperimentsForm = ({
     await experimentMutation.mutateAsync(experiment);
     form.reset();
     setFormOpen(false);
-  };
-
-  const handleOnValueChange = (
-    values: { key: string; value: string }[],
-    changedValueId?: string,
-  ) => {
-    if (!changedValueId) return;
-    const evaluator = evaluators.data?.find((e) => e.id === changedValueId);
-    if (!evaluator) return;
-
-    if (evaluator.status === "INACTIVE") {
-      const confirmed = window.confirm(
-        `Are you sure you want to activate "${evaluator.scoreName}"? You can always always archive the evaluator.`,
-      );
-      if (!confirmed) {
-        return;
-      }
-    } else {
-      const confirmed = window.confirm(
-        `Are you sure you want to archive "${evaluator.scoreName}"? You can always always re-activate the evaluator.`,
-      );
-      if (!confirmed) {
-        return;
-      }
-    }
-
-    archiveEvaluatorMutation.mutate({
-      projectId,
-      evalConfigId: changedValueId,
-      config: {
-        status:
-          evaluator.status === EvaluatorStatus.INACTIVE
-            ? EvaluatorStatus.ACTIVE
-            : EvaluatorStatus.INACTIVE,
-      },
-    });
-
-    setSelectedEvaluators(values);
   };
 
   const promptsByName = useMemo(
@@ -812,30 +735,12 @@ export const CreateExperimentsForm = ({
               <FormDescription>
                 Will run against your experiment results.
               </FormDescription>
-              <MultiSelectKeyValues
-                key={datasetId}
-                placeholder="Value"
-                align="end"
-                className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
-                disabled={!hasEvalWriteAccess}
-                onValueChange={handleOnValueChange}
-                options={evaluatorOptions}
-                values={
-                  selectedEvaluators as {
-                    value: string;
-                    key: string;
-                  }[]
-                }
-                hideClearButton
-                controlButtons={
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      window.open(`/project/${projectId}/evals`, "_blank");
-                    }}
-                  >
-                    Manage evaluators
-                  </DropdownMenuItem>
-                }
+              <TemplateSelector
+                projectId={projectId}
+                evalTemplates={evalTemplates.data?.templates ?? []}
+                onTemplateSelect={(templateId) => {
+                  console.log({ templateId });
+                }}
               />
             </FormItem>
           ) : (

@@ -41,7 +41,11 @@ const ColoredVariable = ({
 
   return (
     <span className={cn(color, "font-mono")}>
-      {isLarge ? valueStr.substring(0, 1000) + "..." : valueStr}
+      {isLarge
+        ? valueStr.substring(0, 1000) + "..."
+        : valueStr === ""
+          ? `""`
+          : valueStr}
     </span>
   );
 };

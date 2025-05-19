@@ -5,7 +5,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { MoreVertical, Pen, UserCircle2Icon } from "lucide-react";
+import { Copy, MoreVertical, Pen, UserCircle2Icon } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -207,7 +207,7 @@ export default function EvalsTemplateTable({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
-                key={id}
+                key={id + "-edit"}
                 aria-label="edit"
                 // disabled={!hasAccess}
                 onClick={(e) => {
@@ -218,6 +218,21 @@ export default function EvalsTemplateTable({
                 <Pen className="mr-2 h-4 w-4" />
                 Edit
               </DropdownMenuItem>
+              {row.original.maintainer.includes("Langfuse") && (
+                <DropdownMenuItem
+                  key={id + "-clone"}
+                  aria-label="clone"
+                  // disabled={!hasAccess}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // TODO: add clone functionality
+                    void router.push(`/project/${projectId}/evals/new`);
+                  }}
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  Clone
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         );
@@ -281,7 +296,7 @@ export default function EvalsTemplateTable({
           ),
           peekEventOptions: {
             ignoredSelectors: [
-              "[aria-label='apply'], [aria-label='actions'], [aria-label='edit']",
+              "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
             ],
           },
           tableDataUpdatedAt: templates.dataUpdatedAt,

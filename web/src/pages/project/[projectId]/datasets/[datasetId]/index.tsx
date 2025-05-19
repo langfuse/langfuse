@@ -14,6 +14,7 @@ import { DuplicateDatasetButton } from "@/src/features/datasets/components/Dupli
 import { useState } from "react";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import {
+  Bot,
   ChartLine,
   Cog,
   ExternalLink,
@@ -82,24 +83,6 @@ export default function Dataset() {
     scope: "promptExperiments:CUD",
   });
 
-  const evaluators = api.evals.jobConfigsByDatasetId.useQuery(
-    {
-      projectId,
-      datasetId,
-    },
-    {
-      enabled: hasReadAccess && hasEntitlement && dataset.isSuccess,
-    },
-  );
-
-  const evaluatorsOptions = useMemo(() => {
-    if (!evaluators.data) return [];
-    return evaluators.data?.map((evaluator) => ({
-      key: evaluator.id,
-      value: evaluator.scoreName,
-    }));
-  }, [evaluators.data]);
-
   const handleExperimentSuccess = async (data?: {
     success: boolean;
     datasetId: string;
@@ -155,7 +138,6 @@ export default function Dataset() {
             >
               <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
                 <Button
-                  variant="outline"
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
@@ -176,35 +158,6 @@ export default function Dataset() {
                 />
               </DialogContent>
             </Dialog>
-
-            {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
-              <MultiSelectKeyValues
-                variant="outline"
-                className="max-w-fit"
-                placeholder="Search..."
-                title="Evaluators"
-                hideClearButton
-                onValueChange={(_values, changedValue) => {
-                  if (changedValue)
-                    window.open(
-                      `/project/${projectId}/evals/${changedValue}`,
-                      "_blank",
-                    );
-                }}
-                values={evaluatorsOptions}
-                options={evaluatorsOptions}
-                controlButtons={
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      window.open(`/project/${projectId}/evals`, "_blank");
-                    }}
-                  >
-                    Manage evaluators
-                    <ExternalLink className="ml-auto h-4 w-4" />
-                  </DropdownMenuItem>
-                }
-              />
-            )}
 
             <Popover>
               <PopoverTrigger asChild>
@@ -270,6 +223,14 @@ export default function Dataset() {
                     deleteConfirmation={dataset.data?.name}
                   />
                 </DropdownMenuItem>
+                {hasReadAccess && hasEntitlement && (
+                  <DropdownMenuItem asChild>
+                    <Link href={`/project/${projectId}/evals`}>
+                      <Bot className="ml-1 mr-2 h-4 w-4" />
+                      Manage Evaluators
+                    </Link>
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </>
