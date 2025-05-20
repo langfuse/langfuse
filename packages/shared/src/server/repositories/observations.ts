@@ -35,6 +35,7 @@ import { env } from "../../env";
 import { TracingSearchType } from "../../interfaces/search";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { ObservationType } from "../../domain";
+import { recordDistribution } from "../instrumentation";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -208,9 +209,20 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     }
   }
 
-  return records.map((r) =>
-    convertObservation({ ...r, metadata: r.metadata ?? {} }),
-  );
+  return records.map((r) => {
+    const observation = convertObservation({
+      ...r,
+      metadata: r.metadata ?? {},
+    });
+    recordDistribution(
+      "langfuse.query_by_id_age",
+      new Date().getTime() - observation.startTime.getTime(),
+      {
+        table: "observations",
+      },
+    );
+    return observation;
+  });
 };
 
 export const getObservationForTraceIdByName = async (
@@ -304,6 +316,15 @@ export const getObservationById = async ({
   });
   const mapped = records.map(convertObservation);
 
+  mapped.forEach((observation) => {
+    recordDistribution(
+      "langfuse.query_by_id_age",
+      new Date().getTime() - observation.startTime.getTime(),
+      {
+        table: "observations",
+      },
+    );
+  });
   if (mapped.length === 0) {
     throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
   }
