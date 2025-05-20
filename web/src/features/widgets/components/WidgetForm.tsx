@@ -45,12 +45,12 @@ import {
   PieChart,
   LineChart,
   BarChartHorizontal,
+  Hash,
 } from "lucide-react";
 import {
   buildWidgetName,
   buildWidgetDescription,
 } from "@/src/features/widgets/utils";
-import { Info } from "lucide-react";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -65,7 +65,7 @@ const chartTypes: ChartType[] = [
     group: "total-value",
     name: "Big Number",
     value: "NUMBER",
-    icon: Info,
+    icon: Hash,
     supportsBreakdown: false,
   },
   {
