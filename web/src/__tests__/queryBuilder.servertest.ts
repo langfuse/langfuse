@@ -3046,6 +3046,152 @@ describe("queryBuilder", () => {
         );
       });
 
+      it("should return null streamingLatency and timeToFirstToken when completion_start_time is null", async () => {
+        const projectId = randomUUID();
+
+        // Create trace
+        const trace = createTrace({
+          project_id: projectId,
+          name: "null-completion-start-time-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        // Create observation with NULL completion_start_time
+        const startTime = new Date();
+        const endTime = new Date(startTime.getTime() + 1000);
+        const observation = createObservation({
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          name: "model-x",
+          provided_model_name: "model-x",
+          environment: "default",
+          start_time: startTime.getTime(),
+          completion_start_time: null, // explicitly null
+          end_time: endTime.getTime(),
+        });
+        await createObservationsCh([observation]);
+
+        // Build query selecting metrics per observation
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "name" }],
+          metrics: [
+            { measure: "timeToFirstToken", aggregation: "max" },
+            { measure: "streamingLatency", aggregation: "max" },
+          ],
+          filters: [
+            {
+              column: "type",
+              operator: "=",
+              value: "generation",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(1);
+        const row = result.data[0];
+        expect(row.max_timeToFirstToken).toBeNull();
+        expect(row.max_streamingLatency).toBeNull();
+      });
+
+      it("should return streamingLatency and timeToFirstToken when completion_start_time is present", async () => {
+        const projectId = randomUUID();
+
+        // Create trace
+        const trace = createTrace({
+          project_id: projectId,
+          name: "null-completion-start-time-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        // Create observation with NULL completion_start_time
+        const startTime = new Date();
+        const endTime = new Date(startTime.getTime() + 1000);
+        const observation = createObservation({
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          name: "model-x",
+          provided_model_name: "model-x",
+          environment: "default",
+          start_time: startTime.getTime(),
+          completion_start_time: startTime.getTime() + 200,
+          end_time: endTime.getTime(),
+        });
+        await createObservationsCh([observation]);
+
+        // Build query selecting metrics per observation
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "name" }],
+          metrics: [
+            { measure: "timeToFirstToken", aggregation: "max" },
+            { measure: "streamingLatency", aggregation: "max" },
+          ],
+          filters: [
+            {
+              column: "type",
+              operator: "=",
+              value: "generation",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(1);
+        const row = result.data[0];
+        expect(row.max_timeToFirstToken).toBe("200");
+        expect(row.max_streamingLatency).toBe("800");
+      });
+
       it("should filter observations by metadata correctly", async () => {
         // Setup
         const projectId = randomUUID();

@@ -270,19 +270,19 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of an individual observation (start time to end time).",
-      unit: "ms",
+      unit: "millisecond",
     },
-    // TODO: How do we handle the case where completionStartTime is null? Try to return null.
     streamingLatency: {
-      sql: "date_diff('millisecond', any(observations.completion_start_time), any(observations.end_time))",
+      // Return NULL if `completion_start_time` is NULL to avoid misleading latency values
+      sql: "if(isNull(any(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(observations.completion_start_time), any(observations.end_time)))",
       alias: "streamingLatency",
       type: "integer",
       description:
         "Latency of the generation step (completion start time to end time).",
-      unit: "ms",
+      unit: "millisecond",
     },
-    inputTokens: {},
-    outputTokens: {},
+    // inputTokens: {},
+    // outputTokens: {},
     totalTokens: {
       sql: "sumMap(usage_details)['total']",
       alias: "totalTokens",
@@ -290,9 +290,9 @@ export const observationsView: ViewDeclarationType = {
       description: "Sum of tokens consumed by the observation.",
       unit: "tokens",
     },
-    timePerOutputToken: {
-      // Streaming latency / output tokens
-    },
+    // timePerOutputToken: {
+    //   // Streaming latency / output tokens
+    // },
     tokensPerSecond: {
       sql: "sumMap(usage_details)['total'] / date_diff('second', any(observations.start_time), any(observations.end_time))",
       alias: "tokensPerSecond",
@@ -301,8 +301,8 @@ export const observationsView: ViewDeclarationType = {
         "Average number of tokens consumed per second by the observation.",
       unit: "tokens/s",
     },
-    inputCost: {},
-    outputCost: {},
+    // inputCost: {},
+    // outputCost: {},
     totalCost: {
       sql: "sum(total_cost)",
       alias: "totalCost",
@@ -310,13 +310,13 @@ export const observationsView: ViewDeclarationType = {
       description: "Total cost accumulated by the observation.",
       unit: "USD",
     },
-    // TODO: How do we handle the case where completionStartTime is null? Try to return null.
     timeToFirstToken: {
-      sql: "date_diff('millisecond', any(observations.start_time), any(observations.completion_start_time))",
+      // Return NULL if `completion_start_time` is NULL to represent unknown TTFT
+      sql: "if(isNull(any(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(observations.start_time), any(observations.completion_start_time)))",
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
-      unit: "ms",
+      unit: "millisecond",
     },
     countScores: {
       sql: "uniq(scores.id)",
