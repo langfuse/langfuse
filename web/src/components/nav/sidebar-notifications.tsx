@@ -27,7 +27,7 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
-    id: "lw3-1",
+    id: "lw3-2",
     title: "Launch Week #3: Day 2",
     description:
       "Saved table views let you reopen any filtered table view with one click.",
