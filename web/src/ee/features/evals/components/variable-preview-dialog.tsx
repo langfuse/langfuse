@@ -91,11 +91,13 @@ export const VariablePreviewDialog = ({
   trace,
   variableMapping,
   isLoading,
+  showControls = true,
 }: {
   evalTemplate: EvalTemplate;
   trace?: Record<string, unknown>;
   variableMapping: VariableMapping[];
   isLoading: boolean;
+  showControls?: boolean;
 }) => {
   const { extractedVariables, isExtracting } = useExtractVariables({
     variables: variableMapping.map(({ templateVariable }) => templateVariable),
@@ -105,10 +107,12 @@ export const VariablePreviewDialog = ({
   });
 
   if (isExtracting) {
-    return (
+    return showControls ? (
       <DialogContent className="max-w-4xl">
         <Skeleton className="h-[200px] w-full" />
       </DialogContent>
+    ) : (
+      <Skeleton className="h-[200px] w-full" />
     );
   }
 
@@ -162,6 +166,22 @@ export const VariablePreviewDialog = ({
     return fragments;
   };
 
+  const content = (
+    <div className="mt-4 max-h-[70vh] overflow-y-auto">
+      {isLoading ? (
+        <div className="flex items-center justify-center p-8">
+          <p>Loading variables...</p>
+        </div>
+      ) : (
+        <ColoredPromptView fragments={getPromptFragments()} />
+      )}
+    </div>
+  );
+
+  if (!showControls) {
+    return content;
+  }
+
   return (
     <DialogContent className="max-w-4xl">
       <DialogHeader>
@@ -171,15 +191,7 @@ export const VariablePreviewDialog = ({
           your configuration is correct, please feel free to proceed.
         </span>
       </DialogHeader>
-      <div className="mt-4 max-h-[70vh] overflow-y-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center p-8">
-            <p>Loading variables...</p>
-          </div>
-        ) : (
-          <ColoredPromptView fragments={getPromptFragments()} />
-        )}
-      </div>
+      {content}
     </DialogContent>
   );
 };

@@ -18,6 +18,7 @@ import {
   TimeScopeSchema,
   JobConfigState,
   orderBy,
+  jsonSchema,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -45,7 +46,7 @@ import { type PrismaClient } from "@prisma/client";
 import { type JobExecutionState } from "@/src/ee/features/evals/utils/job-execution-utils";
 import { evalConfigsTableCols } from "@/src/server/api/definitions/evalConfigsTable";
 
-const APIEvaluatorSchema = z.object({
+const ConfigWithTemplateSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   evalTemplateId: z.string(),
@@ -57,11 +58,28 @@ const APIEvaluatorSchema = z.object({
   delay: z.number(),
   status: z.nativeEnum(JobConfigState),
   jobType: z.nativeEnum(JobType),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  timeScope: TimeScopeSchema,
+  evalTemplate: z
+    .object({
+      name: z.string(),
+      id: z.string(),
+      createdAt: z.coerce.date(),
+      updatedAt: z.coerce.date(),
+      projectId: z.string().nullable(),
+      prompt: z.string(),
+      provider: z.string().nullable(),
+      model: z.string().nullable(),
+      modelParams: jsonSchema.nullable(),
+      vars: z.array(z.string()),
+      outputSchema: jsonSchema,
+      version: z.number(),
+    })
+    .nullish(),
 });
 
-type APIEvaluator = z.infer<typeof APIEvaluatorSchema>;
+type ConfigWithTemplate = z.infer<typeof ConfigWithTemplateSchema>;
 
 /**
  * Use this function when pulling a list of evaluators from the database before using in the application to ensure type safety.
@@ -72,9 +90,9 @@ type APIEvaluator = z.infer<typeof APIEvaluatorSchema>;
 const filterAndValidateDbEvaluatorList = (
   evaluators: JobConfiguration[],
   onParseError?: (error: z.ZodError) => void,
-): APIEvaluator[] =>
+): ConfigWithTemplate[] =>
   evaluators.reduce((acc, ts) => {
-    const result = APIEvaluatorSchema.safeParse(ts);
+    const result = ConfigWithTemplateSchema.safeParse(ts);
     if (result.success) {
       acc.push(result.data);
     } else {
@@ -82,7 +100,7 @@ const filterAndValidateDbEvaluatorList = (
       onParseError?.(result.error);
     }
     return acc;
-  }, [] as APIEvaluator[]);
+  }, [] as ConfigWithTemplate[]);
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
@@ -174,13 +192,6 @@ export const calculateEvaluatorFinalStatus = (
 
   return status;
 };
-
-const ConfigFilterOptions = z.object({
-  projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
-  orderBy: orderBy,
-  ...paginationZod,
-});
 
 export const evalRouter = createTRPCRouter({
   globalJobConfigs: protectedProjectProcedure
@@ -674,7 +685,9 @@ export const evalRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           targetObject: input.targetObject,
-          status: "ACTIVE",
+        },
+        include: {
+          evalTemplate: true,
         },
       });
 
@@ -973,6 +986,68 @@ export const evalRouter = createTRPCRouter({
       });
       return evalTemplate;
     }),
+
+  updateAllDatasetEvalJobStatusByTemplateId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evalTemplateId: z.string(),
+        datasetId: z.string(),
+        newStatus: z.nativeEnum(EvaluatorStatus),
+      }),
+    )
+    .mutation(
+      async ({
+        ctx,
+        input: { projectId, evalTemplateId, datasetId, newStatus },
+      }) => {
+        throwIfNoEntitlement({
+          entitlement: "model-based-evaluations",
+          projectId: projectId,
+          sessionUser: ctx.session.user,
+        });
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: projectId,
+          scope: "evalJob:CUD",
+        });
+
+        const oldStatus = newStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+        const evaluators = await ctx.prisma.jobConfiguration.findMany({
+          where: {
+            projectId: projectId,
+            evalTemplateId: evalTemplateId,
+            status: oldStatus,
+            targetObject: "dataset",
+          },
+        });
+
+        const filteredEvaluators =
+          evaluators?.filter(({ filter }) => {
+            const parsedFilter = z.array(singleFilter).safeParse(filter);
+            if (!parsedFilter.success) return false;
+            if (parsedFilter.data.length === 0) return true;
+            else
+              return parsedFilter.data.some(
+                ({ type, value }) =>
+                  type === "stringOptions" && value.includes(datasetId),
+              );
+          }) || [];
+
+        await ctx.prisma.jobConfiguration.updateMany({
+          where: {
+            id: { in: filteredEvaluators.map((e) => e.id) },
+          },
+          data: { status: newStatus },
+        });
+
+        return {
+          success: true,
+          message: `Updated ${filteredEvaluators.length} evaluators to ${newStatus}`,
+        };
+      },
+    ),
 
   updateEvalJob: protectedProjectProcedure
     .input(

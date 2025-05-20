@@ -60,12 +60,18 @@ import {
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
 import { useEvalConfigMappingData } from "@/src/ee/features/evals/hooks/useEvalConfigMappingData";
-import { DialogTrigger } from "@/src/components/ui/dialog";
+import {
+  DialogTrigger,
+  DialogContent,
+  DialogFooter,
+} from "@/src/components/ui/dialog";
 import { Dialog } from "@/src/components/ui/dialog";
 import {
   getVariableColor,
   VariablePreviewDialog,
 } from "@/src/ee/features/evals/components/variable-preview-dialog";
+import { DialogTitle } from "@/src/components/ui/dialog";
+import { type PartialConfig } from "@/src/ee/features/evals/types";
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -78,14 +84,19 @@ export const InnerEvaluatorForm = (props: {
   projectId: string;
   evalTemplate: EvalTemplate;
   disabled?: boolean;
-  existingEvaluator?: JobConfiguration;
+  existingEvaluator?: PartialConfig;
   onFormSuccess?: () => void;
   shouldWrapVariables?: boolean;
   mode?: "create" | "edit";
+  hideTargetSection?: boolean;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [formValues, setFormValues] = useState<z.infer<
+    typeof evalConfigFormSchema
+  > | null>(null);
 
   const dateRange = useMemo(() => {
     return {
@@ -231,24 +242,32 @@ export const InnerEvaluatorForm = (props: {
   );
 
   function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
+    setFormValues(values);
+    setConfirmDialogOpen(true);
+  }
+
+  function handleConfirmSubmit() {
+    if (!formValues) return;
+
     capture(
       props.mode === "edit"
         ? "eval_config:update"
         : "eval_config:new_form_submit",
     );
 
-    const validatedFilter = z.array(singleFilter).safeParse(values.filter);
+    const validatedFilter = z.array(singleFilter).safeParse(formValues.filter);
 
     if (
       props.existingEvaluator?.timeScope.includes("EXISTING") &&
       props.mode === "edit" &&
-      !values.timeScope.includes("EXISTING")
+      !formValues.timeScope.includes("EXISTING")
     ) {
       form.setError("timeScope", {
         type: "manual",
         message:
           "The evaluator ran on existing traces already. This cannot be changed anymore.",
       });
+      setConfirmDialogOpen(false);
       return;
     }
     if (form.getValues("timeScope").length === 0) {
@@ -256,6 +275,7 @@ export const InnerEvaluatorForm = (props: {
         type: "manual",
         message: "Please select at least one.",
       });
+      setConfirmDialogOpen(false);
       return;
     }
 
@@ -264,28 +284,30 @@ export const InnerEvaluatorForm = (props: {
         type: "manual",
         message: "Please fill out all filter fields",
       });
+      setConfirmDialogOpen(false);
       return;
     }
 
     const validatedVarMapping = z
       .array(variableMapping)
-      .safeParse(values.mapping);
+      .safeParse(formValues.mapping);
 
     if (validatedVarMapping.success === false) {
       form.setError("mapping", {
         type: "manual",
         message: "Please fill out all variable mappings",
       });
+      setConfirmDialogOpen(false);
       return;
     }
 
-    const delay = values.delay * 1000; // convert to ms
-    const sampling = values.sampling;
+    const delay = formValues.delay * 1000; // convert to ms
+    const sampling = formValues.sampling;
     const mapping = validatedVarMapping.data;
     const filter = validatedFilter.data;
-    const scoreName = values.scoreName;
+    const scoreName = formValues.scoreName;
 
-    (props.mode === "edit" && props.existingEvaluator
+    (props.mode === "edit" && props.existingEvaluator?.id
       ? updateJobMutation.mutateAsync({
           projectId: props.projectId,
           evalConfigId: props.existingEvaluator.id,
@@ -295,23 +317,24 @@ export const InnerEvaluatorForm = (props: {
             variableMapping: mapping,
             sampling,
             scoreName,
-            timeScope: values.timeScope,
+            timeScope: formValues.timeScope,
           },
         })
       : createJobMutation.mutateAsync({
           projectId: props.projectId,
-          target: values.target,
+          target: formValues.target,
           evalTemplateId: props.evalTemplate.id,
           scoreName,
           filter,
           mapping,
           sampling,
           delay,
-          timeScope: values.timeScope,
+          timeScope: formValues.timeScope,
         })
     )
       .then(() => {
         form.reset();
+        setConfirmDialogOpen(false);
         props.onFormSuccess?.();
 
         if (props.mode !== "edit") {
@@ -328,6 +351,7 @@ export const InnerEvaluatorForm = (props: {
           setFormError(JSON.stringify(error));
           console.error(error);
         }
+        setConfirmDialogOpen(false);
       });
   }
 
@@ -352,245 +376,256 @@ export const InnerEvaluatorForm = (props: {
               </FormItem>
             )}
           />
-          <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
-            <span className="text-lg font-medium">Target</span>
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between md:gap-4">
+          {!props.hideTargetSection && (
+            <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
+              <span className="text-lg font-medium">Target</span>
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between md:gap-4">
+                  <FormField
+                    control={form.control}
+                    name="timeScope"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormLabel>Evaluator runs on</FormLabel>
+                        <FormControl>
+                          <div className="flex flex-col gap-2">
+                            <div className="items-top flex space-x-2">
+                              <Checkbox
+                                id="newObjects"
+                                checked={field.value.includes("NEW")}
+                                onCheckedChange={(checked) => {
+                                  const newValue = checked
+                                    ? [...field.value, "NEW"]
+                                    : field.value.filter((v) => v !== "NEW");
+                                  field.onChange(newValue);
+                                }}
+                                disabled={props.disabled}
+                              />
+                              <div className="grid gap-1.5 leading-none">
+                                <label
+                                  htmlFor="newObjects"
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  New{" "}
+                                  {form.watch("target") === "trace"
+                                    ? "traces"
+                                    : "dataset run items"}
+                                </label>
+                              </div>
+                            </div>
+                            <div className="items-top flex space-x-2">
+                              <Checkbox
+                                id="existingObjects"
+                                checked={field.value.includes("EXISTING")}
+                                onCheckedChange={(checked) => {
+                                  const newValue = checked
+                                    ? [...field.value, "EXISTING"]
+                                    : field.value.filter(
+                                        (v) => v !== "EXISTING",
+                                      );
+                                  field.onChange(newValue);
+                                }}
+                                disabled={
+                                  props.disabled ||
+                                  (props.mode === "edit" &&
+                                    field.value.includes("EXISTING"))
+                                }
+                              />
+                              <div className="flex items-center gap-1.5 leading-none">
+                                <label
+                                  htmlFor="existingObjects"
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  Existing{" "}
+                                  {form.watch("target") === "trace"
+                                    ? "traces"
+                                    : "dataset run items"}
+                                </label>
+                                {field.value.includes("EXISTING") &&
+                                  props.mode !== "edit" &&
+                                  !props.disabled && (
+                                    <ExecutionCountTooltip
+                                      projectId={props.projectId}
+                                      item={form.watch("target")}
+                                      filter={form.watch("filter")}
+                                    />
+                                  )}
+                              </div>
+                            </div>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="target"
+                    render={({ field }) => (
+                      <FormItem className="md:flex md:flex-col md:items-end">
+                        <div className="flex items-center gap-2">
+                          <FormLabel className="md:mb-0">Target:</FormLabel>
+                          <FormControl>
+                            <Tabs
+                              defaultValue="trace"
+                              value={field.value}
+                              onValueChange={(value) => {
+                                const isTrace = isTraceTarget(value);
+                                const langfuseObject: LangfuseObject = isTrace
+                                  ? "trace"
+                                  : "dataset_item";
+                                const newMapping = form
+                                  .getValues("mapping")
+                                  .map((field) => ({
+                                    ...field,
+                                    langfuseObject,
+                                  }));
+                                form.setValue("mapping", newMapping);
+                                setAvailableVariables(
+                                  isTrace
+                                    ? availableTraceEvalVariables
+                                    : availableDatasetEvalVariables,
+                                );
+                                field.onChange(value);
+                              }}
+                            >
+                              <TabsList>
+                                <TabsTrigger
+                                  value="trace"
+                                  disabled={
+                                    props.disabled || props.mode === "edit"
+                                  }
+                                >
+                                  Live tracing data
+                                </TabsTrigger>
+                                <TabsTrigger
+                                  value="dataset"
+                                  disabled={
+                                    props.disabled || props.mode === "edit"
+                                  }
+                                >
+                                  Experiment runs
+                                </TabsTrigger>
+                              </TabsList>
+                            </Tabs>
+                          </FormControl>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 <FormField
                   control={form.control}
-                  name="timeScope"
+                  name="filter"
                   render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>Evaluator runs on</FormLabel>
-                      <FormControl>
-                        <div className="flex flex-col gap-2">
-                          <div className="items-top flex space-x-2">
-                            <Checkbox
-                              id="newObjects"
-                              checked={field.value.includes("NEW")}
-                              onCheckedChange={(checked) => {
-                                const newValue = checked
-                                  ? [...field.value, "NEW"]
-                                  : field.value.filter((v) => v !== "NEW");
-                                field.onChange(newValue);
-                              }}
+                    <FormItem>
+                      <FormLabel>Target filter</FormLabel>
+                      {isTraceTarget(form.watch("target")) ? (
+                        <>
+                          <FormControl>
+                            <InlineFilterBuilder
+                              columns={tracesTableColsWithOptions(
+                                traceFilterOptions,
+                                evalTraceTableCols,
+                              )}
+                              filterState={field.value ?? []}
+                              onChange={field.onChange}
+                              disabled={props.disabled}
+                              columnsWithCustomSelect={["tags"]}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </>
+                      ) : (
+                        <>
+                          <FormControl>
+                            <InlineFilterBuilder
+                              columns={datasetFormFilterColsWithOptions(
+                                datasetFilterOptions,
+                                evalDatasetFormFilterCols,
+                              )}
+                              filterState={field.value ?? []}
+                              onChange={field.onChange}
                               disabled={props.disabled}
                             />
-                            <div className="grid gap-1.5 leading-none">
-                              <label
-                                htmlFor="newObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                              >
-                                New{" "}
-                                {form.watch("target") === "trace"
-                                  ? "traces"
-                                  : "dataset run items"}
-                              </label>
-                            </div>
-                          </div>
-                          <div className="items-top flex space-x-2">
-                            <Checkbox
-                              id="existingObjects"
-                              checked={field.value.includes("EXISTING")}
-                              onCheckedChange={(checked) => {
-                                const newValue = checked
-                                  ? [...field.value, "EXISTING"]
-                                  : field.value.filter((v) => v !== "EXISTING");
-                                field.onChange(newValue);
-                              }}
-                              disabled={
-                                props.disabled ||
-                                (props.mode === "edit" &&
-                                  field.value.includes("EXISTING"))
-                              }
-                            />
-                            <div className="flex items-center gap-1.5 leading-none">
-                              <label
-                                htmlFor="existingObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                              >
-                                Existing{" "}
-                                {form.watch("target") === "trace"
-                                  ? "traces"
-                                  : "dataset run items"}
-                              </label>
-                              {field.value.includes("EXISTING") &&
-                                props.mode !== "edit" &&
-                                !props.disabled && (
-                                  <ExecutionCountTooltip
-                                    projectId={props.projectId}
-                                    item={form.watch("target")}
-                                    filter={form.watch("filter")}
-                                  />
-                                )}
-                            </div>
-                          </div>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
+                          </FormControl>
+                          <FormMessage />
+                        </>
+                      )}
                     </FormItem>
                   )}
                 />
 
+                {form.watch("target") === "trace" && !props.disabled && (
+                  <>
+                    <div className="flex flex-col items-start gap-1">
+                      <span className="text-sm font-medium leading-none">
+                        Preview sample matched traces
+                      </span>
+                      <FormDescription>
+                        Sample over the last 24 hours that match these filters
+                      </FormDescription>
+                    </div>
+                    <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
+                      <TracesTable
+                        projectId={props.projectId}
+                        hideControls
+                        externalFilterState={
+                          form.watch("target") === "trace"
+                            ? (form.watch("filter") ?? [])
+                            : []
+                        }
+                        externalDateRange={dateRange}
+                      />
+                    </div>
+                  </>
+                )}
+
                 <FormField
                   control={form.control}
-                  name="target"
+                  name="sampling"
                   render={({ field }) => (
-                    <FormItem className="md:flex md:flex-col md:items-end">
-                      <div className="flex items-center gap-2">
-                        <FormLabel className="md:mb-0">Target:</FormLabel>
-                        <FormControl>
-                          <Tabs
-                            defaultValue="trace"
-                            value={field.value}
-                            onValueChange={(value) => {
-                              const isTrace = isTraceTarget(value);
-                              const langfuseObject: LangfuseObject = isTrace
-                                ? "trace"
-                                : "dataset_item";
-                              const newMapping = form
-                                .getValues("mapping")
-                                .map((field) => ({ ...field, langfuseObject }));
-                              form.setValue("mapping", newMapping);
-                              setAvailableVariables(
-                                isTrace
-                                  ? availableTraceEvalVariables
-                                  : availableDatasetEvalVariables,
-                              );
-                              field.onChange(value);
-                            }}
-                          >
-                            <TabsList>
-                              <TabsTrigger
-                                value="trace"
-                                disabled={
-                                  props.disabled || props.mode === "edit"
-                                }
-                              >
-                                Live tracing data
-                              </TabsTrigger>
-                              <TabsTrigger
-                                value="dataset"
-                                disabled={
-                                  props.disabled || props.mode === "edit"
-                                }
-                              >
-                                Experiment runs
-                              </TabsTrigger>
-                            </TabsList>
-                          </Tabs>
-                        </FormControl>
+                    <FormItem>
+                      <FormLabel>Sampling</FormLabel>
+                      <FormControl>
+                        <Slider
+                          disabled={props.disabled}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={[field.value]}
+                          onValueChange={(value) => field.onChange(value[0])}
+                        />
+                      </FormControl>
+                      <div className="flex flex-col">
+                        <FormDescription className="flex justify-between">
+                          <span>0%</span>
+                          <span>100%</span>
+                        </FormDescription>
+                        <FormDescription className="mt-1 flex flex-row gap-1">
+                          <TimeScopeDescription
+                            projectId={props.projectId}
+                            timeScope={form.watch("timeScope")}
+                            target={
+                              form.watch("target") as "trace" | "dataset_item"
+                            }
+                          />
+                          <span>
+                            Sampling currently set to{" "}
+                            {(field.value * 100).toFixed(0)}%.
+                          </span>
+                        </FormDescription>
                       </div>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-
-              <FormField
-                control={form.control}
-                name="filter"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Target filter</FormLabel>
-                    {isTraceTarget(form.watch("target")) ? (
-                      <>
-                        <FormControl>
-                          <InlineFilterBuilder
-                            columns={tracesTableColsWithOptions(
-                              traceFilterOptions,
-                              evalTraceTableCols,
-                            )}
-                            filterState={field.value ?? []}
-                            onChange={field.onChange}
-                            disabled={props.disabled}
-                            columnsWithCustomSelect={["tags"]}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </>
-                    ) : (
-                      <>
-                        <FormControl>
-                          <InlineFilterBuilder
-                            columns={datasetFormFilterColsWithOptions(
-                              datasetFilterOptions,
-                              evalDatasetFormFilterCols,
-                            )}
-                            filterState={field.value ?? []}
-                            onChange={field.onChange}
-                            disabled={props.disabled}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </>
-                    )}
-                  </FormItem>
-                )}
-              />
-
-              {form.watch("target") === "trace" && !props.disabled && (
-                <>
-                  <div className="flex flex-col items-start gap-1">
-                    <span className="text-sm font-medium leading-none">
-                      Preview sample matched traces
-                    </span>
-                    <FormDescription>
-                      Sample over the last 24 hours that match these filters
-                    </FormDescription>
-                  </div>
-                  <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
-                    <TracesTable
-                      projectId={props.projectId}
-                      hideControls
-                      externalFilterState={form.watch("filter") ?? []}
-                      externalDateRange={dateRange}
-                    />
-                  </div>
-                </>
-              )}
-
-              <FormField
-                control={form.control}
-                name="sampling"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sampling</FormLabel>
-                    <FormControl>
-                      <Slider
-                        disabled={props.disabled}
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={[field.value]}
-                        onValueChange={(value) => field.onChange(value[0])}
-                      />
-                    </FormControl>
-                    <div className="flex flex-col">
-                      <FormDescription className="flex justify-between">
-                        <span>0%</span>
-                        <span>100%</span>
-                      </FormDescription>
-                      <FormDescription className="mt-1 flex flex-row gap-1">
-                        <TimeScopeDescription
-                          projectId={props.projectId}
-                          timeScope={form.watch("timeScope")}
-                          target={
-                            form.watch("target") as "trace" | "dataset_item"
-                          }
-                        />
-                        <span>
-                          Sampling currently set to{" "}
-                          {(field.value * 100).toFixed(0)}%.
-                        </span>
-                      </FormDescription>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </Card>
+            </Card>
+          )}
           <Card className="p-4">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-lg font-medium">Variable mapping</span>
@@ -637,6 +672,7 @@ export const InnerEvaluatorForm = (props: {
                           !props.shouldWrapVariables && "lg:w-2/3",
                         )}
                         codeClassName="flex-1"
+                        collapseStringsAfterLength={null}
                       />
                       <div
                         className={cn(
@@ -956,6 +992,42 @@ export const InnerEvaluatorForm = (props: {
           <span className="font-bold">Error:</span> {formError}
         </p>
       ) : null}
+
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+          <DialogTitle className="flex flex-col gap-2">
+            Confirm Evaluator Prompt
+            <span className="text-xs font-normal text-muted-foreground">
+              Preview based on sample trace data
+            </span>
+          </DialogTitle>
+          {confirmDialogOpen && (
+            <VariablePreviewDialog
+              evalTemplate={props.evalTemplate}
+              trace={traceWithObservations}
+              variableMapping={form.getValues("mapping")}
+              isLoading={isLoading}
+              showControls={false}
+            />
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmSubmit}
+              loading={
+                createJobMutation.isLoading || updateJobMutation.isLoading
+              }
+            >
+              Proceed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Form>
   );
 };

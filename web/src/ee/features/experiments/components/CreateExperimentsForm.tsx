@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   FormControl,
@@ -8,8 +8,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
 import { Form } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
 import { ModelParameters } from "@/src/components/ModelParameters";
@@ -28,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { z, type ZodSchema } from "zod";
 import { cn } from "@/src/utils/tailwind";
 import {
   Popover,
@@ -44,7 +41,7 @@ import {
   Code2,
   Wand2,
 } from "lucide-react";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   Card,
   CardDescription,
@@ -55,30 +52,37 @@ import {
 } from "@/src/components/ui/card";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
-import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import {
-  type ColumnDefinition,
-  datasetCol,
   extractVariables,
-  type FilterCondition,
-  stringOptionsFilter,
   ZodModelConfig,
+  type EvalTemplate,
 } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Input } from "@/src/components/ui/input";
-import { EvaluatorStatus } from "@/src/ee/features/evals/types";
 import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  Dialog,
+  DialogContent,
 } from "@/src/components/ui/dialog";
 import Link from "next/link";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  TemplateSelector,
+  type TemplateSelectorRef,
+} from "@/src/ee/features/evals/components/template-selector";
+import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
+import { useEvaluatorDefaults } from "@/src/ee/features/experiments/hooks/useEvaluatorDefaults";
+import { useEvaluatorData } from "@/src/ee/features/experiments/hooks/useEvaluatorData";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
-import { TemplateSelector } from "@/src/ee/features/evals/components/template-selector";
+import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 
 const CreateExperimentData = z.object({
   name: z
@@ -97,25 +101,6 @@ const CreateExperimentData = z.object({
 });
 
 export type CreateExperiment = z.infer<typeof CreateExperimentData>;
-
-const isDatasetTarget = <T extends ZodSchema>(
-  filters: FilterCondition[] | null,
-  condition: {
-    column: ColumnDefinition;
-    schema: T;
-    isValid: (filter: z.infer<T>) => boolean;
-  },
-): boolean => {
-  if (!filters) return true;
-
-  const { column, schema, isValid } = condition;
-  const datasetFilters = filters.filter(
-    (filter) =>
-      (filter.column === column.id || column.name) &&
-      schema.safeParse(filter).success,
-  );
-  return datasetFilters.every((filter): boolean => isValid(filter));
-};
 
 export const CreateExperimentsForm = ({
   projectId,
@@ -158,6 +143,9 @@ export const CreateExperimentsForm = ({
     number | null
   >(promptDefault?.version ?? null);
   const [showPromptForm, setShowPromptForm] = useState(false);
+
+  const { createDefaultEvaluator } = useEvaluatorDefaults();
+  const templateSelectorRef = useRef<TemplateSelectorRef>(null);
 
   const {
     modelParams,
@@ -225,16 +213,33 @@ export const CreateExperimentsForm = ({
     {
       enabled:
         hasEvalReadAccess && !!datasetId && hasPromptExperimentEntitlement,
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
     },
   );
+
+  const evalTemplates = api.evals.allTemplates.useQuery({
+    projectId,
+  });
+
+  // Using the hook to manage evaluator data
+  const {
+    activeEvaluators,
+    inActiveEvaluators,
+    pendingEvaluatorData,
+    showEvaluatorForm,
+    handlePendingTemplateSelect,
+    handleConfigureEvaluator,
+    handleCloseEvaluatorForm,
+    handleEvaluatorSuccess,
+    handleTemplateSelect,
+  } = useEvaluatorData({
+    projectId,
+    datasetId,
+    templateSelectorRef,
+    createDefaultEvaluator,
+    evaluatorsData: evaluators.data,
+    evalTemplatesData: evalTemplates.data,
+    refetchEvaluators: evaluators.refetch,
+  });
 
   const expectedColumns = useMemo(() => {
     const prompt = promptMeta.data?.find((p) => p.id === promptId);
@@ -246,10 +251,6 @@ export const CreateExperimentsForm = ({
         : JSON.stringify(prompt?.prompt),
     );
   }, [promptId, promptMeta.data]);
-
-  const evalTemplates = api.evals.allTemplates.useQuery({
-    projectId,
-  });
 
   const validationResult = api.experiments.validateConfig.useQuery(
     {
@@ -284,6 +285,20 @@ export const CreateExperimentsForm = ({
     }));
   }, [runNamesByDatasetId.data]);
 
+  const promptsByName = useMemo(
+    () =>
+      promptMeta.data?.reduce<
+        Record<string, Array<{ version: number; id: string }>>
+      >((acc, prompt) => {
+        if (!acc[prompt.name]) {
+          acc[prompt.name] = [];
+        }
+        acc[prompt.name].push({ version: prompt.version, id: prompt.id });
+        return acc;
+      }, {}),
+    [promptMeta.data],
+  );
+
   // Watch model config changes and update form
   useEffect(() => {
     form.setValue("modelConfig", {
@@ -311,19 +326,8 @@ export const CreateExperimentsForm = ({
     setFormOpen(false);
   };
 
-  const promptsByName = useMemo(
-    () =>
-      promptMeta.data?.reduce<
-        Record<string, Array<{ version: number; id: string }>>
-      >((acc, prompt) => {
-        if (!acc[prompt.name]) {
-          acc[prompt.name] = [];
-        }
-        acc[prompt.name].push({ version: prompt.version, id: prompt.id });
-        return acc;
-      }, {}),
-    [promptMeta.data],
-  );
+  // TODO: show a warning if someone has multiple configs defined for the same template that target this dataset. Do not let them submit the form to create experiment.
+  // Prompt them to delete duplicate running evaluators.
 
   if (!hasExperimentWriteAccess) {
     return null;
@@ -504,7 +508,6 @@ export const CreateExperimentsForm = ({
             render={() => (
               <FormItem>
                 <FormLabel>Prompt</FormLabel>
-                {/* FIX: I need the Inputcommand list in the popover to be scrollable, currently it's not */}
                 <div className="mb-2 flex gap-2">
                   <Popover open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild>
@@ -736,11 +739,16 @@ export const CreateExperimentsForm = ({
                 Will run against your experiment results.
               </FormDescription>
               <TemplateSelector
+                ref={templateSelectorRef}
                 projectId={projectId}
+                datasetId={datasetId}
                 evalTemplates={evalTemplates.data?.templates ?? []}
-                onTemplateSelect={(templateId) => {
-                  console.log({ templateId });
-                }}
+                onTemplateSelect={handleTemplateSelect}
+                onConfigureTemplate={handleConfigureEvaluator}
+                onPendingTemplateSelect={handlePendingTemplateSelect}
+                activeTemplateIds={activeEvaluators}
+                inactiveTemplateIds={inActiveEvaluators}
+                multiSelect
               />
             </FormItem>
           ) : (
@@ -778,7 +786,6 @@ export const CreateExperimentsForm = ({
                 <CardHeader className="p-2">
                   <CardTitle className="flex items-center justify-between text-sm text-dark-yellow">
                     <span>Invalid configuration</span>
-                    {/* TODO: add link to docs explaining error cases */}
                     <Info className="h-4 w-4" />
                   </CardTitle>
                   <CardDescription className="text-foreground">
@@ -831,6 +838,34 @@ export const CreateExperimentsForm = ({
           </div>
         </form>
       </Form>
+
+      {/* Dialog for configuring evaluators */}
+      {pendingEvaluatorData && (
+        <Dialog
+          open={showEvaluatorForm}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseEvaluatorForm();
+            }
+          }}
+        >
+          <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+            <DialogTitle>
+              {pendingEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
+              Evaluator
+            </DialogTitle>
+            <EvaluatorForm
+              projectId={projectId}
+              evalTemplates={evalTemplates.data?.templates ?? []}
+              templateId={pendingEvaluatorData.templateId}
+              existingEvaluator={pendingEvaluatorData.evaluator}
+              mode={pendingEvaluatorData.evaluator.id ? "edit" : "create"}
+              hideTargetSection={!pendingEvaluatorData.evaluator.id}
+              onFormSuccess={handleEvaluatorSuccess}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 };
