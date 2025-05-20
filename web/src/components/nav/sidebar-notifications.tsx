@@ -112,18 +112,13 @@ export function SidebarNotifications() {
 
   // Find the oldest non-dismissed notification on mount or when dismissed list changes
   useEffect(() => {
-    const lastAvailableIndex = notifications
-      .slice()
-      .reverse()
-      .findIndex(
-        (notif) =>
-          !dismissedNotifications.includes(notif.id) && !isExpired(notif),
-      );
+    const firstAvailableIndex = notifications.findIndex(
+      (notif) =>
+        !dismissedNotifications.includes(notif.id) && !isExpired(notif),
+    );
 
     setCurrentNotificationIndex(
-      lastAvailableIndex === -1
-        ? null
-        : notifications.length - 1 - lastAvailableIndex,
+      firstAvailableIndex === -1 ? null : firstAvailableIndex,
     );
   }, [dismissedNotifications]);
 
