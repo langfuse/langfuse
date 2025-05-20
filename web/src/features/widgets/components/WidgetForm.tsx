@@ -29,6 +29,7 @@ import { type z } from "zod";
 import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
 import { startCase } from "lodash";
+import { getMeasureMeta } from "@/src/features/query/measureMeta";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -752,6 +753,7 @@ export function WidgetForm({
               chartType={selectedChartType as DashboardWidgetChartType}
               data={transformedData}
               rowLimit={rowLimit}
+              unit={getMeasureMeta(selectedView, selectedMeasure).unit}
             />
           ) : (
             <CardContent>
