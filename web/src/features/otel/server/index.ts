@@ -271,6 +271,12 @@ const extractInputAndOutput = (
     };
   }
 
+  // Pipecat uses messages attribute
+  input = attributes["messages"];
+  if (input) {
+    return { input, output: null };
+  }
+
   return { input: null, output: null };
 };
 
@@ -469,7 +475,11 @@ const extractUsageDetails = (
   const usageDetails = Object.keys(attributes).filter(
     (key) =>
       (key.startsWith("gen_ai.usage.") && key !== "gen_ai.usage.cost") ||
-      key.startsWith("llm.token_count"),
+      key.startsWith("llm.token_count") ||
+      // pipecat logs usage metrics using llm.* attributes
+      key === "llm.prompt_tokens" ||
+      key === "llm.completion_tokens" ||
+      key === "llm.total_tokens",
   );
 
   const usageDetailKeyMapping: Record<string, string> = {
@@ -485,7 +495,8 @@ const extractUsageDetails = (
   return usageDetails.reduce((acc: any, key) => {
     const usageDetailKey = key
       .replace("gen_ai.usage.", "")
-      .replace("llm.token_count.", "");
+      .replace("llm.token_count.", "")
+      .replace("llm.", "");
     const mappedUsageDetailKey =
       usageDetailKeyMapping[usageDetailKey] ?? usageDetailKey;
     // Cast the respective key to a number
@@ -631,6 +642,13 @@ export const convertOtelSpanToIngestionEvent = (
         !parentObservationId ||
         String(attributes[LangfuseOtelSpanAttributes.AS_ROOT]) === "true";
 
+      const spanAttributesInMetadata = Object.fromEntries(
+        Object.entries(attributes).map(([key, value]) => [
+          key,
+          typeof value === "string" ? value : JSON.stringify(value),
+        ]),
+      );
+
       const hasTraceUpdates = [
         LangfuseOtelSpanAttributes.TRACE_NAME,
         LangfuseOtelSpanAttributes.TRACE_INPUT,
@@ -653,7 +671,9 @@ export const convertOtelSpanToIngestionEvent = (
           metadata: {
             ...resourceAttributeMetadata,
             ...extractMetadata(attributes, "trace"),
-            ...(isLangfuseSDKSpans ? {} : { attributes }),
+            ...(isLangfuseSDKSpans
+              ? {}
+              : { attributes: spanAttributesInMetadata }),
             resourceAttributes,
             scope: { ...(scopeSpan.scope || {}), attributes: scopeAttributes },
           },
@@ -702,7 +722,9 @@ export const convertOtelSpanToIngestionEvent = (
         metadata: {
           ...resourceAttributeMetadata,
           ...spanAttributeMetadata,
-          ...(isLangfuseSDKSpans ? {} : { attributes }),
+          ...(isLangfuseSDKSpans
+            ? {}
+            : { attributes: spanAttributesInMetadata }),
           resourceAttributes,
           scope: { ...scopeSpan.scope, attributes: scopeAttributes },
         },

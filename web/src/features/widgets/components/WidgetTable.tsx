@@ -21,6 +21,7 @@ import {
 } from "@/src/components/ui/popover";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useRouter } from "next/router";
 
 type WidgetTableRow = {
   id: string;
@@ -30,13 +31,22 @@ type WidgetTableRow = {
   chartType: string;
   createdAt: Date;
   updatedAt: Date;
+  owner: "PROJECT" | "LANGFUSE";
 };
 
-export function DeleteWidget({ widgetId }: { widgetId: string }) {
+export function DeleteWidget({
+  widgetId,
+  owner,
+}: {
+  widgetId: string;
+  owner: "PROJECT" | "LANGFUSE";
+}) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+  const hasAccess =
+    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
+    owner !== "LANGFUSE";
   const capture = usePostHogClientCapture();
 
   const mutDeleteWidget = api.dashboardWidgets.delete.useMutation({
@@ -99,6 +109,7 @@ export function DeleteWidget({ widgetId }: { widgetId: string }) {
 export function DashboardWidgetTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
+  const router = useRouter();
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "updatedAt",
@@ -218,7 +229,11 @@ export function DashboardWidgetTable() {
       size: 70,
       cell: (row) => {
         const id = row.row.original.id;
-        return <DeleteWidget widgetId={id} />;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <DeleteWidget widgetId={id} owner={row.row.original.owner} />
+          </div>
+        );
       },
     }),
   ] as LangfuseColumnDef<WidgetTableRow>[];
@@ -247,6 +262,11 @@ export function DashboardWidgetTable() {
         totalCount: widgets.data?.totalCount ?? null,
         onChange: setPaginationState,
         state: paginationState,
+      }}
+      onRowClick={(row) => {
+        router.push(
+          `/project/${projectId}/widgets/${encodeURIComponent(row.id)}`,
+        );
       }}
     />
   );

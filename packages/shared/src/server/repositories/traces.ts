@@ -27,6 +27,7 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { recordDistribution } from "../instrumentation";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -208,7 +209,16 @@ export const getTracesBySessionId = async (
     },
   });
 
-  return records.map(convertClickhouseToDomain);
+  const traces = records.map(convertClickhouseToDomain);
+
+  traces.forEach((trace) => {
+    recordDistribution(
+      "langfuse.traces_by_session_id_age",
+      new Date().getTime() - trace.timestamp.getTime(),
+    );
+  });
+
+  return traces;
 };
 
 export const hasAnyTrace = async (projectId: string) => {
@@ -352,6 +362,16 @@ export const getTraceById = async ({
   });
 
   const res = records.map(convertClickhouseToDomain);
+
+  res.forEach((trace) => {
+    recordDistribution(
+      "langfuse.query_by_id_age",
+      new Date().getTime() - trace.timestamp.getTime(),
+      {
+        table: "traces",
+      },
+    );
+  });
 
   return res.shift();
 };
