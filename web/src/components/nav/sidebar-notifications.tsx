@@ -28,12 +28,12 @@ type SidebarNotification = {
 const notifications: SidebarNotification[] = [
   {
     id: "lw3-1",
-    title: "Launch Week #3: Day 1",
+    title: "Launch Week #3: Day 2",
     description:
-      "New full text search for trace and observation input/output.",
+      "Saved Table Views: Store and reopen any filtered table view with one click.",
     link: "https://langfuse.com/blog/2025-05-19-launch-week-3",
     linkTitle: "Learn more",
-    createdAt: "2025-05-19",
+    createdAt: "2025-05-20",
   },
   {
     id: "github-star",
