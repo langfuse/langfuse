@@ -206,11 +206,10 @@ export const CreateExperimentsForm = ({
     },
   );
 
-  // Using the hook to manage evaluator data
   const {
     activeEvaluators,
     inActiveEvaluators,
-    pendingEvaluatorData,
+    pendingOrSelectedEvaluatorData,
     showEvaluatorForm,
     handlePendingTemplateSelect,
     handleConfigureEvaluator,
@@ -793,7 +792,7 @@ export const CreateExperimentsForm = ({
       </Form>
 
       {/* Dialog for configuring evaluators */}
-      {pendingEvaluatorData && (
+      {pendingOrSelectedEvaluatorData && (
         <Dialog
           open={showEvaluatorForm}
           onOpenChange={(open) => {
@@ -804,16 +803,20 @@ export const CreateExperimentsForm = ({
         >
           <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
             <DialogTitle>
-              {pendingEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
+              {pendingOrSelectedEvaluatorData.evaluator.id
+                ? "Edit"
+                : "Configure"}{" "}
               Evaluator
             </DialogTitle>
             <EvaluatorForm
               projectId={projectId}
               evalTemplates={evalTemplates.data?.templates ?? []}
-              templateId={pendingEvaluatorData.templateId}
-              existingEvaluator={pendingEvaluatorData.evaluator}
-              mode={pendingEvaluatorData.evaluator.id ? "edit" : "create"}
-              hideTargetSection={!pendingEvaluatorData.evaluator.id}
+              templateId={pendingOrSelectedEvaluatorData.templateId}
+              existingEvaluator={pendingOrSelectedEvaluatorData.evaluator}
+              mode={
+                pendingOrSelectedEvaluatorData.evaluator.id ? "edit" : "create"
+              }
+              hideTargetSection={!pendingOrSelectedEvaluatorData.evaluator.id}
               onFormSuccess={handleEvaluatorSuccess}
             />
           </DialogContent>

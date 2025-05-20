@@ -20,3 +20,5 @@ export type PartialConfig = Pick<
   | "delay"
   | "timeScope"
 > & { id?: string };
+
+export const RAGAS_TEMPLATE_PREFIX = "__ragas__";

@@ -529,7 +529,7 @@ export const evalRouter = createTRPCRouter({
           COALESCE(usage_count, 0)::int as "usageCount"
         FROM 
           latest_templates
-        ORDER BY name
+        ORDER BY project_id, name
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
         `,

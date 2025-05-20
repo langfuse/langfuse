@@ -56,7 +56,7 @@ export function useExperimentEvaluatorData({
   refetchEvaluators,
 }: UseExperimentEvaluatorDataProps) {
   // State for evaluator data management
-  const [pendingEvaluatorData, setPendingEvaluatorData] = useState<{
+  const [pendingOrSelectedEvaluatorData, setPendingEvaluatorData] = useState<{
     templateId: string;
     evaluator: PartialConfig & { evalTemplate: EvalTemplate };
   } | null>(null);
@@ -142,7 +142,7 @@ export function useExperimentEvaluatorData({
 
   return {
     // State
-    pendingEvaluatorData,
+    pendingOrSelectedEvaluatorData,
     showEvaluatorForm,
     activeEvaluators,
     inActiveEvaluators,

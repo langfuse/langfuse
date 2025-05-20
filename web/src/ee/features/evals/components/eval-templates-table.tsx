@@ -44,9 +44,13 @@ import {
 } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
+import {
+  EvalReferencedEvaluators,
+  RAGAS_TEMPLATE_PREFIX,
+} from "@/src/ee/features/evals/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { RouterInput } from "@/src/utils/types";
+import { RagasAndLangfuseIcon } from "@/src/ee/features/evals/components/ragas-logo";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -155,11 +159,14 @@ export default function EvalsTemplateTable({
       size: 150,
       cell: (row) => {
         const isLangfuse = row.getValue().includes("Langfuse");
+        const isRagas = row.getValue().includes("Ragas");
         return (
           <div className="flex justify-center">
             <Tooltip>
               <TooltipTrigger>
-                {isLangfuse ? (
+                {isRagas ? (
+                  <RagasAndLangfuseIcon />
+                ) : isLangfuse ? (
                   <LangfuseIcon size={16} />
                 ) : (
                   <UserCircle2Icon className="h-4 w-4" />
@@ -301,7 +308,9 @@ export default function EvalsTemplateTable({
       name: template.name,
       maintainer: !!template.projectId
         ? "User maintained"
-        : "Langfuse maintained",
+        : template.name.startsWith(RAGAS_TEMPLATE_PREFIX)
+          ? "Langfuse and Ragas maintained"
+          : "Langfuse maintained",
       latestCreatedAt: template.latestCreatedAt,
       latestVersion: template.version,
       id: template.latestId,
