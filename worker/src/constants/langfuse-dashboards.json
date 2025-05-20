@@ -497,24 +497,6 @@
           {"x": 4, "y": 0, "id": "f7d74d8d-09a5-4a5e-a8de-f48dc6ba6a4b", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawk5sik00igad07kjetg17j"}
         ]
       }
-    },
-    {
-      "id": "cm9a5ibqn000oad06sva31245",
-      "createdAt": "2025-04-09T16:36:06.000Z",
-      "updatedAt": "2025-05-20T07:27:35.370Z",
-      "createdBy": "cm167x5rh00018bk3mcnituff",
-      "updatedBy": "cm167x5rh00018bk3mcnituff",
-      "projectId": "clkpwwm0m000gmm094odg11gi",
-      "name": "Langfuse Demo Dashboard",
-      "description": "Showcase Langfuse Custom Dashboards",
-      "owner": "LANGFUSE",
-      "definition": {
-        "widgets": [
-          {"x": 0, "y": 0, "id": "c8641b8a-7c41-449d-b1e3-be022f217ad4", "type": "widget", "x_size": 8, "y_size": 6, "widgetId": "cm9a5eku10007ad06tp554hur"},
-          {"x": 8, "y": 0, "id": "8bddd1ff-fcfa-4729-8e64-fac42948ae12", "type": "widget", "x_size": 4, "y_size": 6, "widgetId": "cm9a5hvcu000cad079rsb2zm2"},
-          {"x": 0, "y": 6, "id": "f3114cdd-05c0-4e81-903c-f18c7bbd5544", "type": "widget", "x_size": 6, "y_size": 6, "widgetId": "cmapp0246002zad07pmomnir7"}
-        ]
-      }
     }
   ]
 }
