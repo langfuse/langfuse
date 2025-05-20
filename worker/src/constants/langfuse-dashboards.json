@@ -435,17 +435,15 @@
       "updatedBy": null,
       "projectId": null,
       "name": "Langfuse Latency Dashboard",
-      "description": "Track the latency and errors across your LLM data.",
+      "description": "Monitor latency metrics across traces and generations for performance optimization.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
-          {"x": 0, "y": 0, "id": "87a95184-aea5-4418-9447-2fe381c69414", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawk617300iiad07zaes6h3l"},
-          {"x": 6, "y": 0, "id": "62055994-0ae0-47c9-bef8-25dfbbe3dcb3", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawk6isp00kbad07t66dohjn"},
-          {"x": 0, "y": 5, "id": "7eb6d831-3e11-49e1-9855-7f28ea16f865", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawk94z800ldad07jjox8ugd"},
-          {"x": 6, "y": 5, "id": "b17fb429-41b5-4681-8271-cc8674608341", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawka1fk00kdad07vdipgz04"},
-          {"x": 0, "y": 10, "id": "61bf13ae-2e63-482b-97d6-168ce2097d15", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawksk8h00phad07s9c7v6d7"},
-          {"x": 4, "y": 10, "id": "b985686a-c509-4f25-9cc5-709efeecd80e", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawktot400pkad07m8gy30vq"},
-          {"x": 8, "y": 10, "id": "1a7667fe-29e4-4a4b-918d-cba6fdd5c016", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawl83ks001ead076pk2wcex"}
+          {"x": 0, "y": 0, "id": "3c67c2f0-d651-4264-9118-0bd5e0a0f169", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawk617300iiad07zaes6h3l"},
+          {"x": 4, "y": 0, "id": "f1c87b59-9aa8-448f-aebe-26eb0bfe7d45", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawla3k000kmad07t61y9mq1"},
+          {"x": 8, "y": 0, "id": "2c53a865-89c4-40ca-aa0d-55b5bbd10753", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawkzq2600kgad0796gvyg3t"},
+          {"x": 0, "y": 5, "id": "c15c5ae7-9d73-48d5-a9ce-7ea3c1fa9e56", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawkz65h00keac07k3kj00k4"},
+          {"x": 4, "y": 5, "id": "d97cd73d-4a57-4400-a21a-dc78e2bab69e", "type": "widget", "x_size": 8, "y_size": 5, "widgetId": "cmawl0g3n00h6ad07mh6e3yyh"}
         ]
       }
     },
@@ -475,25 +473,46 @@
       }
     },
     {
-      "id": "cmawmdn9r001aad07abcde164",
-      "createdAt": "2025-05-20T14:36:27.223Z",
-      "updatedAt": "2025-05-20T15:56:46.000Z",
-      "createdBy": null,
-      "updatedBy": null,
-      "projectId": null,
+      "id": "cmawoi7yd00aqad07f3why08w",
+      "createdAt": "2025-05-20T15:38:32.005Z",
+      "updatedAt": "2025-05-20T16:09:56.618Z",
+      "createdBy": "cm167x5rh00018bk3mcnituff",
+      "updatedBy": "cm167x5rh00018bk3mcnituff",
+      "projectId": "clkpwwm0m000gmm094odg11gi",
       "name": "Langfuse Cost Dashboard",
-      "description": "Monitor and analyze your costs across different models and environments.",
+      "description": "Review your LLM costs.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
-          {"x": 0, "y": 0, "id": "8a61ca51-9abe-4c2b-a3a0-1ff06c5e813e", "type": "widget", "x_size": 3, "y_size": 3, "widgetId": "cmawm5s3j00z2ad07abcde123"},
-          {"x": 3, "y": 0, "id": "2d364787-7809-4816-a54e-717b80ad83cd", "type": "widget", "x_size": 9, "y_size": 3, "widgetId": "cmawm6p2k00z3ad07abcde456"},
-          {"x": 0, "y": 3, "id": "c773a18e-330d-4dc1-abe4-33b0c5b25958", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawm7j3l00z4ad07abcde789"},
-          {"x": 6, "y": 3, "id": "2515aead-60a4-4e92-889e-a4b3131b7697", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawm8k4m00z5ad07abcde101"},
-          {"x": 0, "y": 8, "id": "9ddae41d-66b9-4701-7be6-0e84284d80c3", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawm9l5n00z6ad07abcde112"},
-          {"x": 6, "y": 8, "id": "e3946243-1568-450e-a13a-2109a3b7876c", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawmal6o00z7ad07abcde131"},
-          {"x": 0, "y": 13, "id": "aca6eb2c-83c6-4b32-8761-87827312db3a", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawmbl7p00z8ad07abcde142"},
-          {"x": 6, "y": 13, "id": "56e0cd42-032e-4ae2-98e0-264ecb3a47a9", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawmcm8q00z9ad07abcde153"}
+          {"x": 0, "y": 2, "id": "c1e456c3-9e4a-4693-99de-ea3996e15003", "type": "widget", "x_size": 4, "y_size": 3, "widgetId": "cma2f2ioc001had07f7810kg1"},
+          {"x": 0, "y": 5, "id": "6d03b598-7950-423b-8e22-25ab4ac98b75", "type": "widget", "x_size": 4, "y_size": 6, "widgetId": "cmawk9xbu00lfad07s9j1bxnx"},
+          {"x": 8, "y": 5, "id": "2f018002-f922-4d3f-8495-43cc3a951dc8", "type": "widget", "x_size": 4, "y_size": 6, "widgetId": "cmawkfg0m00kzad07jyofrnq2"},
+          {"x": 4, "y": 5, "id": "c630af4d-b2e8-48d2-bb03-5f20e6b16e8f", "type": "widget", "x_size": 4, "y_size": 6, "widgetId": "cmawk6nqs00jwad07hwpsj3z2"},
+          {"x": 8, "y": 0, "id": "1e322175-b1c6-467c-a743-28c47255874b", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawk7btd00khad07g625cqmp"},
+          {"x": 0, "y": 11, "id": "3587b86a-1dcc-4f51-b686-65e155615e76", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawle4zj0096ad0650rzeh0z"},
+          {"x": 8, "y": 11, "id": "0ec8d95a-cb7b-4cd1-99e0-223e26a67964", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawljmu100v7ad07pd3apnwe"},
+          {"x": 4, "y": 11, "id": "4754f821-7099-450c-89bc-db5e6ab2189e", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawlkgt300vsad06g69vqqej"},
+          {"x": 0, "y": 0, "id": "e91465b7-63fd-4e77-babc-8e64abdb5672", "type": "widget", "x_size": 2, "y_size": 2, "widgetId": "cmawlaqoa004kad07e2q0za6k"},
+          {"x": 2, "y": 0, "id": "2ad4931e-b91d-4ca1-9178-5ac8c3edd0a8", "type": "widget", "x_size": 2, "y_size": 2, "widgetId": "cmawlbdu2004nad07lks0j8lw"},
+          {"x": 4, "y": 0, "id": "f7d74d8d-09a5-4a5e-a8de-f48dc6ba6a4b", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawk5sik00igad07kjetg17j"}
+        ]
+      }
+    },
+    {
+      "id": "cm9a5ibqn000oad06sva31245",
+      "createdAt": "2025-04-09T16:36:06.000Z",
+      "updatedAt": "2025-05-20T07:27:35.370Z",
+      "createdBy": "cm167x5rh00018bk3mcnituff",
+      "updatedBy": "cm167x5rh00018bk3mcnituff",
+      "projectId": "clkpwwm0m000gmm094odg11gi",
+      "name": "Langfuse Demo Dashboard",
+      "description": "Showcase Langfuse Custom Dashboards",
+      "owner": "LANGFUSE",
+      "definition": {
+        "widgets": [
+          {"x": 0, "y": 0, "id": "c8641b8a-7c41-449d-b1e3-be022f217ad4", "type": "widget", "x_size": 8, "y_size": 6, "widgetId": "cm9a5eku10007ad06tp554hur"},
+          {"x": 8, "y": 0, "id": "8bddd1ff-fcfa-4729-8e64-fac42948ae12", "type": "widget", "x_size": 4, "y_size": 6, "widgetId": "cm9a5hvcu000cad079rsb2zm2"},
+          {"x": 0, "y": 6, "id": "f3114cdd-05c0-4e81-903c-f18c7bbd5544", "type": "widget", "x_size": 6, "y_size": 6, "widgetId": "cmapp0246002zad07pmomnir7"}
         ]
       }
     }
