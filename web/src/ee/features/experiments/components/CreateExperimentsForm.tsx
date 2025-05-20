@@ -41,7 +41,7 @@ import {
   Code2,
   Wand2,
 } from "lucide-react";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import {
   Card,
   CardDescription,
@@ -52,13 +52,8 @@ import {
 } from "@/src/components/ui/card";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
-import {
-  extractVariables,
-  ZodModelConfig,
-  type EvalTemplate,
-} from "@langfuse/shared";
+import { ZodModelConfig } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -77,12 +72,13 @@ import {
 } from "@/src/ee/features/evals/components/template-selector";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { useEvaluatorDefaults } from "@/src/ee/features/experiments/hooks/useEvaluatorDefaults";
-import { useEvaluatorData } from "@/src/ee/features/experiments/hooks/useEvaluatorData";
+import { useExperimentEvaluatorData } from "@/src/ee/features/experiments/hooks/useExperimentEvaluatorData";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
+import { useExperimentNameValidation } from "@/src/ee/features/experiments/hooks/useExperimentNameValidation";
+import { useExperimentPromptData } from "@/src/ee/features/experiments/hooks/useExperimentPromptData";
 
 const CreateExperimentData = z.object({
   name: z
@@ -180,14 +176,19 @@ export const CreateExperimentsForm = ({
     scope: "evalJob:CUD",
   });
 
-  const promptMeta = api.prompts.allPromptMeta.useQuery(
+  const datasetId = form.watch("datasetId");
+
+  const evaluators = api.evals.jobConfigsByTarget.useQuery(
+    { projectId, targetObject: "dataset" },
     {
-      projectId,
-    },
-    {
-      enabled: hasPromptExperimentEntitlement,
+      enabled:
+        hasEvalReadAccess && !!datasetId && hasPromptExperimentEntitlement,
     },
   );
+
+  const evalTemplates = api.evals.allTemplates.useQuery({
+    projectId,
+  });
 
   const datasets = api.datasets.allDatasetMeta.useQuery(
     { projectId },
@@ -205,21 +206,6 @@ export const CreateExperimentsForm = ({
     },
   );
 
-  const promptId = form.watch("promptId");
-  const datasetId = form.watch("datasetId");
-
-  const evaluators = api.evals.jobConfigsByTarget.useQuery(
-    { projectId, targetObject: "dataset" },
-    {
-      enabled:
-        hasEvalReadAccess && !!datasetId && hasPromptExperimentEntitlement,
-    },
-  );
-
-  const evalTemplates = api.evals.allTemplates.useQuery({
-    projectId,
-  });
-
   // Using the hook to manage evaluator data
   const {
     activeEvaluators,
@@ -231,8 +217,7 @@ export const CreateExperimentsForm = ({
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
     handleTemplateSelect,
-  } = useEvaluatorData({
-    projectId,
+  } = useExperimentEvaluatorData({
     datasetId,
     templateSelectorRef,
     createDefaultEvaluator,
@@ -241,16 +226,10 @@ export const CreateExperimentsForm = ({
     refetchEvaluators: evaluators.refetch,
   });
 
-  const expectedColumns = useMemo(() => {
-    const prompt = promptMeta.data?.find((p) => p.id === promptId);
-    if (!prompt) return [];
-
-    return extractVariables(
-      prompt.type === PromptType.Text
-        ? (prompt?.prompt?.toString() ?? "")
-        : JSON.stringify(prompt?.prompt),
-    );
-  }, [promptId, promptMeta.data]);
+  const { promptId, promptsByName, expectedColumns } = useExperimentPromptData({
+    projectId,
+    form,
+  });
 
   const validationResult = api.experiments.validateConfig.useQuery(
     {
@@ -274,30 +253,11 @@ export const CreateExperimentsForm = ({
     onSettled: handleExperimentSettled ?? (() => {}),
   });
 
-  const runNamesByDatasetId = api.datasets.baseRunDataByDatasetId.useQuery(
-    { projectId, datasetId },
-    { enabled: Boolean(datasetId) },
-  );
-
-  const allExperimentNames = useMemo(() => {
-    return runNamesByDatasetId.data?.map((experiment) => ({
-      value: experiment.name,
-    }));
-  }, [runNamesByDatasetId.data]);
-
-  const promptsByName = useMemo(
-    () =>
-      promptMeta.data?.reduce<
-        Record<string, Array<{ version: number; id: string }>>
-      >((acc, prompt) => {
-        if (!acc[prompt.name]) {
-          acc[prompt.name] = [];
-        }
-        acc[prompt.name].push({ version: prompt.version, id: prompt.id });
-        return acc;
-      }, {}),
-    [promptMeta.data],
-  );
+  useExperimentNameValidation({
+    projectId,
+    datasetId,
+    form,
+  });
 
   // Watch model config changes and update form
   useEffect(() => {
@@ -307,13 +267,6 @@ export const CreateExperimentsForm = ({
       modelParams: getFinalModelParams(modelParams),
     });
   }, [modelParams, form]);
-
-  useUniqueNameValidation({
-    currentName: form.watch("name"),
-    allNames: allExperimentNames ?? [],
-    form,
-    errorMessage: "Experiment name already exists for this dataset.",
-  });
 
   const onSubmit = async (data: CreateExperiment) => {
     capture("dataset_run:new_form_submit");
@@ -438,7 +391,7 @@ export const CreateExperimentsForm = ({
   }
 
   if (
-    !promptMeta.data ||
+    !promptsByName ||
     !datasets.data ||
     (hasEvalReadAccess && !!datasetId && !evaluators.data)
   ) {

@@ -33,8 +33,7 @@ const partitionEvaluators = (
   };
 };
 
-interface UseEvaluatorDataProps {
-  projectId: string;
+interface UseExperimentEvaluatorDataProps {
   datasetId: string;
   templateSelectorRef: RefObject<TemplateSelectorRef>;
   createDefaultEvaluator: (
@@ -48,15 +47,14 @@ interface UseEvaluatorDataProps {
   refetchEvaluators: () => Promise<unknown>;
 }
 
-export function useEvaluatorData({
-  projectId,
+export function useExperimentEvaluatorData({
   datasetId,
   templateSelectorRef,
   createDefaultEvaluator,
   evaluatorsData,
   evalTemplatesData,
   refetchEvaluators,
-}: UseEvaluatorDataProps) {
+}: UseExperimentEvaluatorDataProps) {
   // State for evaluator data management
   const [pendingEvaluatorData, setPendingEvaluatorData] = useState<{
     templateId: string;

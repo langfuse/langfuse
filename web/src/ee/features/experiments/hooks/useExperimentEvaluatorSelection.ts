@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import { useState, useCallback, useMemo } from "react";
 
-interface TemplateSelectionHookProps {
+type TemplateSelectionHookProps = {
   projectId: string;
   datasetId: string;
   initialActiveTemplateIds?: string[];
@@ -9,7 +9,7 @@ interface TemplateSelectionHookProps {
   multiSelect?: boolean;
   onTemplateSelect?: (templateId: string) => void;
   onPendingTemplateSelect?: (templateId: string) => void;
-}
+};
 
 /**
  * Hook to manage the entire template selection state and lifecycle
