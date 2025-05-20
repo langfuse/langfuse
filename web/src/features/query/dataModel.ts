@@ -281,8 +281,20 @@ export const observationsView: ViewDeclarationType = {
         "Latency of the generation step (completion start time to end time).",
       unit: "millisecond",
     },
-    // inputTokens: {},
-    // outputTokens: {},
+    inputTokens: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(usage_details))))",
+      alias: "inputTokens",
+      type: "integer",
+      description: "Sum of input tokens consumed by the observation.",
+      unit: "tokens",
+    },
+    outputTokens: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details))))",
+      alias: "outputTokens",
+      type: "integer",
+      description: "Sum of output tokens produced by the observation.",
+      unit: "tokens",
+    },
     totalTokens: {
       sql: "sumMap(usage_details)['total']",
       alias: "totalTokens",
