@@ -9,6 +9,7 @@ import PieChart from "@/src/features/widgets/chart-library/PieChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
+import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 
 export const Chart = ({
   chartType,
@@ -51,6 +52,14 @@ export const Chart = ({
         return <VerticalBarChart data={renderedData.slice(0, rowLimit)} />;
       case "PIE":
         return <PieChart data={renderedData.slice(0, rowLimit)} />;
+      case "NUMBER": {
+        // Show the sum of all metrics, or just the first metric if only one
+        const value =
+          renderedData.length === 1
+            ? renderedData[0].metric
+            : renderedData.reduce((acc, d) => acc + (d.metric || 0), 0);
+        return <BigNumber metric={value} />;
+      }
       default:
         return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
     }

@@ -50,6 +50,60 @@ import {
   buildWidgetName,
   buildWidgetDescription,
 } from "@/src/features/widgets/utils";
+import { Info } from "lucide-react";
+
+type ChartType = {
+  group: "time-series" | "total-value";
+  name: string;
+  value: DashboardWidgetChartType;
+  icon: React.ElementType;
+  supportsBreakdown: boolean;
+};
+
+const chartTypes: ChartType[] = [
+  {
+    group: "total-value",
+    name: "Big Number",
+    value: "NUMBER",
+    icon: Info,
+    supportsBreakdown: false,
+  },
+  {
+    group: "time-series",
+    name: "Line Chart",
+    value: "LINE_TIME_SERIES",
+    icon: LineChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "time-series",
+    name: "Vertical Bar Chart",
+    value: "BAR_TIME_SERIES",
+    icon: BarChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Horizontal Bar Chart",
+    value: "HORIZONTAL_BAR",
+    icon: BarChartHorizontal,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Vertical Bar Chart",
+    value: "VERTICAL_BAR",
+    icon: BarChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Pie Chart",
+    value: "PIE",
+    icon: PieChart,
+    supportsBreakdown: true,
+  },
+];
 
 export function WidgetForm({
   initialValues,
@@ -226,51 +280,23 @@ export function WidgetForm({
     },
   ];
 
-  // Chart type options
-  type ChartType = {
-    group: "time-series" | "total-value";
-    name: string;
-    value: DashboardWidgetChartType;
-    icon: React.ElementType;
-  };
-
-  const chartTypes: ChartType[] = useMemo(
-    () => [
-      {
-        group: "time-series",
-        name: "Line Chart",
-        value: "LINE_TIME_SERIES",
-        icon: LineChart,
-      },
-      {
-        group: "time-series",
-        name: "Vertical Bar Chart",
-        value: "BAR_TIME_SERIES",
-        icon: BarChart,
-      },
-      {
-        group: "total-value",
-        name: "Horizontal Bar Chart",
-        value: "HORIZONTAL_BAR",
-        icon: BarChartHorizontal,
-      },
-      {
-        group: "total-value",
-        name: "Vertical Bar Chart",
-        value: "VERTICAL_BAR",
-        icon: BarChart,
-      },
-      { group: "total-value", name: "Pie Chart", value: "PIE", icon: PieChart },
-    ],
-    [],
-  );
+  // When chart type does not support breakdown, wipe the breakdown dimension
+  useEffect(() => {
+    if (
+      chartTypes.find((c) => c.name === selectedChartType)
+        ?.supportsBreakdown === false &&
+      selectedDimension !== "none"
+    ) {
+      setSelectedDimension("none");
+    }
+  }, [selectedChartType, selectedDimension]);
 
   // Set aggregation to "count" when metric is "count"
   useEffect(() => {
-    if (selectedMeasure === "count") {
+    if (selectedMeasure === "count" && selectedAggregation !== "count") {
       setSelectedAggregation("count");
     }
-  }, [selectedMeasure]);
+  }, [selectedMeasure, selectedAggregation]);
 
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
@@ -549,38 +575,41 @@ export function WidgetForm({
               </div>
 
               {/* Dimension Selection (Breakdown) */}
-              <div className="space-y-2">
-                <Label htmlFor="dimension-select">
-                  Breakdown Dimension (Optional)
-                </Label>
-                <Select
-                  value={selectedDimension}
-                  onValueChange={setSelectedDimension}
-                >
-                  <SelectTrigger id="dimension-select">
-                    <SelectValue placeholder="Select a dimension" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {availableDimensions.map((dimension) => {
-                      const meta =
-                        viewDeclarations[selectedView]?.dimensions?.[
-                          dimension.value
-                        ];
-                      return (
-                        <WidgetPropertySelectItem
-                          key={dimension.value}
-                          value={dimension.value}
-                          label={dimension.label}
-                          description={meta?.description}
-                          unit={meta?.unit}
-                          type={meta?.type}
-                        />
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
+              {chartTypes.find((c) => c.name === selectedChartType)
+                ?.supportsBreakdown && (
+                <div className="space-y-2">
+                  <Label htmlFor="dimension-select">
+                    Breakdown Dimension (Optional)
+                  </Label>
+                  <Select
+                    value={selectedDimension}
+                    onValueChange={setSelectedDimension}
+                  >
+                    <SelectTrigger id="dimension-select">
+                      <SelectValue placeholder="Select a dimension" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {availableDimensions.map((dimension) => {
+                        const meta =
+                          viewDeclarations[selectedView]?.dimensions?.[
+                            dimension.value
+                          ];
+                        return (
+                          <WidgetPropertySelectItem
+                            key={dimension.value}
+                            value={dimension.value}
+                            label={dimension.label}
+                            description={meta?.description}
+                            unit={meta?.unit}
+                            type={meta?.type}
+                          />
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {/* Visualization Section */}
@@ -633,7 +662,6 @@ export function WidgetForm({
                         .map((chart) => (
                           <SelectItem key={chart.value} value={chart.value}>
                             <div className="flex items-center">
-                              {" "}
                               {React.createElement(chart.icon, {
                                 className: "mr-2 w-4",
                               })}
@@ -649,7 +677,6 @@ export function WidgetForm({
                         .map((chart) => (
                           <SelectItem key={chart.value} value={chart.value}>
                             <div className="flex items-center">
-                              {" "}
                               {React.createElement(chart.icon, {
                                 className: "mr-2 w-4",
                               })}
