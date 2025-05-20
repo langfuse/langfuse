@@ -268,8 +268,32 @@ export const observationsView: ViewDeclarationType = {
       sql: "date_diff('millisecond', any(observations.start_time), any(observations.end_time))",
       alias: "latency",
       type: "integer",
-      description: "Latency of an individual observation.",
-      unit: "ms",
+      description:
+        "Latency of an individual observation (start time to end time).",
+      unit: "millisecond",
+    },
+    streamingLatency: {
+      // Return NULL if `completion_start_time` is NULL to avoid misleading latency values
+      sql: "if(isNull(any(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(observations.completion_start_time), any(observations.end_time)))",
+      alias: "streamingLatency",
+      type: "integer",
+      description:
+        "Latency of the generation step (completion start time to end time).",
+      unit: "millisecond",
+    },
+    inputTokens: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(usage_details))))",
+      alias: "inputTokens",
+      type: "integer",
+      description: "Sum of input tokens consumed by the observation.",
+      unit: "tokens",
+    },
+    outputTokens: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details))))",
+      alias: "outputTokens",
+      type: "integer",
+      description: "Sum of output tokens produced by the observation.",
+      unit: "tokens",
     },
     totalTokens: {
       sql: "sumMap(usage_details)['total']",
@@ -278,19 +302,53 @@ export const observationsView: ViewDeclarationType = {
       description: "Sum of tokens consumed by the observation.",
       unit: "tokens",
     },
+    outputTokensPerSecond: {
+      // Calculate average output tokens per second. Denominator uses seconds to align
+      // with the `tokens/s` unit; NULL values avoided by guarding against a 0-second
+      // duration.
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details)))) / nullIf(date_diff('second', any(observations.completion_start_time), any(observations.end_time)), 0)",
+      alias: "outputTokensPerSecond",
+      type: "decimal",
+      description:
+        "Average number of output tokens produced per second between completion start time and span end time.",
+      unit: "tokens/s",
+    },
+    tokensPerSecond: {
+      sql: "sumMap(usage_details)['total'] / date_diff('second', any(observations.start_time), any(observations.end_time))",
+      alias: "tokensPerSecond",
+      type: "decimal",
+      description:
+        "Average number of tokens consumed per second by the observation.",
+      unit: "tokens/s",
+    },
+    inputCost: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(cost_details))))",
+      alias: "inputCost",
+      type: "decimal",
+      description: "Sum of input cost incurred by the observation.",
+      unit: "USD",
+    },
+    outputCost: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(cost_details))))",
+      alias: "outputCost",
+      type: "decimal",
+      description: "Sum of output cost incurred by the observation.",
+      unit: "USD",
+    },
     totalCost: {
       sql: "sum(total_cost)",
       alias: "totalCost",
       type: "decimal",
-      description: "Total cost accumulated by the observation.",
+      description: "Total cost incurred by the observation.",
       unit: "USD",
     },
     timeToFirstToken: {
-      sql: "date_diff('millisecond', any(observations.start_time), any(observations.completion_start_time))",
+      // Return NULL if `completion_start_time` is NULL to represent unknown TTFT
+      sql: "if(isNull(any(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(observations.start_time), any(observations.completion_start_time)))",
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
-      unit: "ms",
+      unit: "millisecond",
     },
     countScores: {
       sql: "uniq(scores.id)",
