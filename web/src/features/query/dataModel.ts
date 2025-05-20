@@ -268,9 +268,21 @@ export const observationsView: ViewDeclarationType = {
       sql: "date_diff('millisecond', any(observations.start_time), any(observations.end_time))",
       alias: "latency",
       type: "integer",
-      description: "Latency of an individual observation.",
+      description:
+        "Latency of an individual observation (start time to end time).",
       unit: "ms",
     },
+    // TODO: How do we handle the case where completionStartTime is null? Try to return null.
+    streamingLatency: {
+      sql: "date_diff('millisecond', any(observations.completion_start_time), any(observations.end_time))",
+      alias: "streamingLatency",
+      type: "integer",
+      description:
+        "Latency of the generation step (completion start time to end time).",
+      unit: "ms",
+    },
+    inputTokens: {},
+    outputTokens: {},
     totalTokens: {
       sql: "sumMap(usage_details)['total']",
       alias: "totalTokens",
@@ -278,6 +290,19 @@ export const observationsView: ViewDeclarationType = {
       description: "Sum of tokens consumed by the observation.",
       unit: "tokens",
     },
+    timePerOutputToken: {
+      // Streaming latency / output tokens
+    },
+    tokensPerSecond: {
+      sql: "sumMap(usage_details)['total'] / date_diff('second', any(observations.start_time), any(observations.end_time))",
+      alias: "tokensPerSecond",
+      type: "decimal",
+      description:
+        "Average number of tokens consumed per second by the observation.",
+      unit: "tokens/s",
+    },
+    inputCost: {},
+    outputCost: {},
     totalCost: {
       sql: "sum(total_cost)",
       alias: "totalCost",
@@ -285,6 +310,7 @@ export const observationsView: ViewDeclarationType = {
       description: "Total cost accumulated by the observation.",
       unit: "USD",
     },
+    // TODO: How do we handle the case where completionStartTime is null? Try to return null.
     timeToFirstToken: {
       sql: "date_diff('millisecond', any(observations.start_time), any(observations.completion_start_time))",
       alias: "timeToFirstToken",
