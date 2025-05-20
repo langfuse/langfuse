@@ -283,7 +283,7 @@ export function WidgetForm({
   // When chart type does not support breakdown, wipe the breakdown dimension
   useEffect(() => {
     if (
-      chartTypes.find((c) => c.name === selectedChartType)
+      chartTypes.find((c) => c.value === selectedChartType)
         ?.supportsBreakdown === false &&
       selectedDimension !== "none"
     ) {
