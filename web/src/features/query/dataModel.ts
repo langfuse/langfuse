@@ -302,9 +302,13 @@ export const observationsView: ViewDeclarationType = {
       description: "Sum of tokens consumed by the observation.",
       unit: "tokens",
     },
-    // timePerOutputToken: {
-    //   // Streaming latency / output tokens
-    // },
+    timePerOutputToken: {
+      sql: "nullIf(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details)))), 0) / date_diff('millisecond', any(observations.completion_start_time), any(observations.end_time))",
+      alias: "timePerOutputToken",
+      type: "decimal",
+      description: "Average time per output token for the observation.",
+      unit: "millisecond/token",
+    },
     tokensPerSecond: {
       sql: "sumMap(usage_details)['total'] / date_diff('second', any(observations.start_time), any(observations.end_time))",
       alias: "tokensPerSecond",
@@ -313,13 +317,25 @@ export const observationsView: ViewDeclarationType = {
         "Average number of tokens consumed per second by the observation.",
       unit: "tokens/s",
     },
-    // inputCost: {},
-    // outputCost: {},
+    inputCost: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(cost_details))))",
+      alias: "inputCost",
+      type: "decimal",
+      description: "Sum of input cost incurred by the observation.",
+      unit: "USD",
+    },
+    outputCost: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(cost_details))))",
+      alias: "outputCost",
+      type: "decimal",
+      description: "Sum of output cost incurred by the observation.",
+      unit: "USD",
+    },
     totalCost: {
       sql: "sum(total_cost)",
       alias: "totalCost",
       type: "decimal",
-      description: "Total cost accumulated by the observation.",
+      description: "Total cost incurred by the observation.",
       unit: "USD",
     },
     timeToFirstToken: {
