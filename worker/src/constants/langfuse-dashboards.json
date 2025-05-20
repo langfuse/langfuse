@@ -468,7 +468,7 @@
       "projectId": null,
       "name": "Total Observation Count (by env)",
       "description": "Distribution of observation count across different environments",
-      "view": "TRACES",
+      "view": "OBSERVATIONS",
       "dimensions": [{"field": "environment"}],
       "metrics": [{"agg": "count", "measure": "count"}],
       "filters": [],
