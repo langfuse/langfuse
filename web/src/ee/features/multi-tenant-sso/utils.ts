@@ -259,9 +259,9 @@ export const findMultiTenantSsoConfig = async ({
 > => {
   const allConfigs = await getSsoConfigs();
 
-  const config = allConfigs.find(
-    (c) => getAuthProviderIdForSsoConfig(c) === providerId,
-  );
+  const config = allConfigs
+    .filter((config) => Boolean(config.authConfig)) // exclude all that don't use custom credentials (enforcement of social login)
+    .find((c) => getAuthProviderIdForSsoConfig(c) === providerId);
 
   if (config) {
     return { isMultiTenantSsoProvider: true, domain: config.domain };
