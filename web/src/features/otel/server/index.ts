@@ -242,7 +242,7 @@ const extractInputAndOutput = (
     return { input, output };
   }
 
-  // Pydantic uses input and output
+  // Pydantic and Pipecat uses input and output
   input = attributes["input"];
   output = attributes["output"];
   if (input || output) {
@@ -269,12 +269,6 @@ const extractInputAndOutput = (
       input: convertKeyPathToNestedObject(input, "gen_ai.prompt"),
       output: convertKeyPathToNestedObject(output, "gen_ai.completion"),
     };
-  }
-
-  // Pipecat uses messages attribute
-  input = attributes["messages"];
-  if (input) {
-    return { input, output: null };
   }
 
   return { input: null, output: null };
@@ -475,11 +469,7 @@ const extractUsageDetails = (
   const usageDetails = Object.keys(attributes).filter(
     (key) =>
       (key.startsWith("gen_ai.usage.") && key !== "gen_ai.usage.cost") ||
-      key.startsWith("llm.token_count") ||
-      // pipecat logs usage metrics using llm.* attributes
-      key === "llm.prompt_tokens" ||
-      key === "llm.completion_tokens" ||
-      key === "llm.total_tokens",
+      key.startsWith("llm.token_count"),
   );
 
   const usageDetailKeyMapping: Record<string, string> = {
@@ -495,8 +485,7 @@ const extractUsageDetails = (
   return usageDetails.reduce((acc: any, key) => {
     const usageDetailKey = key
       .replace("gen_ai.usage.", "")
-      .replace("llm.token_count.", "")
-      .replace("llm.", "");
+      .replace("llm.token_count.", "");
     const mappedUsageDetailKey =
       usageDetailKeyMapping[usageDetailKey] ?? usageDetailKey;
     // Cast the respective key to a number
