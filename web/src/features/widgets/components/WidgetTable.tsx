@@ -198,6 +198,8 @@ export function DashboardWidgetTable() {
             return "Vertical Bar Chart (Total Value)";
           case "PIE":
             return "Pie Chart (Total Value)";
+          case "TABLE":
+            return "Table";
           default:
             return "Unknown Chart Type";
         }
