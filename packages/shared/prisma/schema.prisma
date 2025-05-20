@@ -1127,6 +1127,7 @@ enum DashboardWidgetChartType {
   HORIZONTAL_BAR
   VERTICAL_BAR
   PIE
+  NUMBER
 }
 
 model DashboardWidget {
