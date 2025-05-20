@@ -575,7 +575,7 @@ export function WidgetForm({
               </div>
 
               {/* Dimension Selection (Breakdown) */}
-              {chartTypes.find((c) => c.name === selectedChartType)
+              {chartTypes.find((c) => c.value === selectedChartType)
                 ?.supportsBreakdown && (
                 <div className="space-y-2">
                   <Label htmlFor="dimension-select">
@@ -699,30 +699,32 @@ export function WidgetForm({
                 />
               </div>
 
-              {/* Row Limit Selection - Only shown for non-time series charts */}
-              {!isTimeSeriesChart(
-                selectedChartType as DashboardWidgetChartType,
-              ) && (
-                <div className="space-y-2">
-                  <Label htmlFor="row-limit">
-                    Breakdown Row Limit (0-1000)
-                  </Label>
-                  <Input
-                    id="row-limit"
-                    type="number"
-                    min={0}
-                    max={1000}
-                    value={rowLimit}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      if (!isNaN(value) && value >= 0 && value <= 1000) {
-                        setRowLimit(value);
-                      }
-                    }}
-                    placeholder="Enter breakdown row limit (0-1000)"
-                  />
-                </div>
-              )}
+              {/* Row Limit Selection - Only shown for non-time series charts that support breakdown */}
+              {chartTypes.find((c) => c.value === selectedChartType)
+                ?.supportsBreakdown &&
+                !isTimeSeriesChart(
+                  selectedChartType as DashboardWidgetChartType,
+                ) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="row-limit">
+                      Breakdown Row Limit (0-1000)
+                    </Label>
+                    <Input
+                      id="row-limit"
+                      type="number"
+                      min={0}
+                      max={1000}
+                      value={rowLimit}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 0 && value <= 1000) {
+                          setRowLimit(value);
+                        }
+                      }}
+                      placeholder="Enter breakdown row limit (0-1000)"
+                    />
+                  </div>
+                )}
             </div>
           </CardContent>
           <CardFooter className="mt-auto">
