@@ -123,9 +123,15 @@ export function DashboardWidget({
       return {
         dimension:
           item[dimensionField] !== undefined
-            ? item[dimensionField]
-              ? (item[dimensionField] as string)
-              : "n/a"
+            ? (() => {
+                const val = item[dimensionField];
+                if (typeof val === "string") return val;
+                if (val === null || val === undefined || val === "")
+                  return "n/a";
+                if (Array.isArray(val)) return val.join(", ");
+                // Objects / numbers / booleans are stringified to avoid React key issues
+                return String(val);
+              })()
             : startCase(metricField === "count_count" ? "Count" : metricField),
         metric: Number(item[metricField] || 0),
         time_dimension: item["time_dimension"],

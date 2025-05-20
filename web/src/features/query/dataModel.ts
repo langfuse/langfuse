@@ -302,12 +302,16 @@ export const observationsView: ViewDeclarationType = {
       description: "Sum of tokens consumed by the observation.",
       unit: "tokens",
     },
-    timePerOutputToken: {
-      sql: "nullIf(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details)))), 0) / date_diff('millisecond', any(observations.completion_start_time), any(observations.end_time))",
-      alias: "timePerOutputToken",
+    outputTokensPerSecond: {
+      // Calculate average output tokens per second. Denominator uses seconds to align
+      // with the `tokens/s` unit; NULL values avoided by guarding against a 0-second
+      // duration.
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details)))) / nullIf(date_diff('second', any(observations.completion_start_time), any(observations.end_time)), 0)",
+      alias: "outputTokensPerSecond",
       type: "decimal",
-      description: "Average time per output token for the observation.",
-      unit: "millisecond/token",
+      description:
+        "Average number of output tokens produced per second between completion start time and span end time.",
+      unit: "tokens/s",
     },
     tokensPerSecond: {
       sql: "sumMap(usage_details)['total'] / date_diff('second', any(observations.start_time), any(observations.end_time))",

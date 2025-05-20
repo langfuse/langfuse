@@ -357,9 +357,14 @@ export function WidgetForm({
         return {
           dimension:
             item[dimensionField] !== undefined
-              ? item[dimensionField]
-                ? (item[dimensionField] as string)
-                : "n/a"
+              ? (() => {
+                  const val = item[dimensionField];
+                  if (typeof val === "string") return val;
+                  if (val === null || val === undefined || val === "")
+                    return "n/a";
+                  if (Array.isArray(val)) return val.join(", ");
+                  return String(val);
+                })()
               : startCase(
                   metricField === "count_count" ? "Count" : metricField,
                 ),
