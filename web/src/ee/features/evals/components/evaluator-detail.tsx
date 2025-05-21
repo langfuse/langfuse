@@ -10,12 +10,10 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
-import TableLink from "@/src/components/table/table-link";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { CardDescription } from "@/src/components/ui/card";
 import { EvaluatorStatus } from "@/src/ee/features/evals/types";
 import { Switch } from "@/src/components/ui/switch";
 import { Edit, MoreVertical } from "lucide-react";
@@ -26,12 +24,6 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import Page from "@/src/components/layouts/page";
-import {
-  SidePanel,
-  SidePanelHeader,
-  SidePanelTitle,
-} from "@/src/components/ui/side-panel";
-import { SidePanelContent } from "@/src/components/ui/side-panel";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import {
   type JobExecutionState,
@@ -206,35 +198,6 @@ export const EvaluatorDetail = () => {
               jobConfigurationId={existingEvaluator.id}
             />
           </div>
-          <SidePanel mobileTitle="Configuration" id="evaluator-configuration">
-            <SidePanelHeader>
-              <SidePanelTitle>Configuration</SidePanelTitle>
-            </SidePanelHeader>
-            <SidePanelContent>
-              <>
-                <CardDescription className="flex items-center justify-between text-sm">
-                  <span className="mr-2 text-sm font-medium">
-                    Referenced Evaluator
-                  </span>
-                  <TableLink
-                    path={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplateId}`}
-                    value={existingEvaluator.evalTemplate.name}
-                    className="flex min-h-6 items-center"
-                  />
-                </CardDescription>
-                <div className="flex max-h-[80dvh] w-full flex-col items-start justify-between space-y-2 overflow-y-auto pb-4">
-                  <EvaluatorForm
-                    key={existingEvaluator.id}
-                    projectId={projectId}
-                    evalTemplates={allTemplates.data?.templates}
-                    existingEvaluator={existingEvaluator}
-                    disabled={true}
-                    shouldWrapVariables={true}
-                  />
-                </div>
-              </>
-            </SidePanelContent>
-          </SidePanel>
         </div>
       )}
     </Page>

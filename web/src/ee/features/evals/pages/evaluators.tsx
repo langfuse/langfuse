@@ -2,7 +2,7 @@ import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Bot } from "lucide-react";
+import { Plus } from "lucide-react";
 import EvaluatorTable from "@/src/ee/features/evals/components/evaluator-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -116,7 +116,7 @@ export default function EvaluatorsPage() {
           actionButtonsRight: (
             <ActionButton
               hasAccess={hasWriteAccess}
-              icon={<Bot className="h-4 w-4" />}
+              icon={<Plus className="h-4 w-4" />}
               variant="default"
               onClick={() => {
                 capture("eval_config:new_form_open");

@@ -44,7 +44,10 @@ import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { type PrismaClient } from "@prisma/client";
 import { type JobExecutionState } from "@/src/ee/features/evals/utils/job-execution-utils";
-import { evalConfigsTableCols } from "@/src/server/api/definitions/evalConfigsTable";
+import {
+  evalConfigFilterColumns,
+  evalConfigsTableCols,
+} from "@/src/server/api/definitions/evalConfigsTable";
 
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
@@ -279,7 +282,7 @@ export const evalRouter = createTRPCRouter({
 
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter,
-        evalConfigsTableCols,
+        evalConfigFilterColumns,
         "job_configurations",
       );
 
@@ -431,6 +434,7 @@ export const evalRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string(),
+        isCustom: z.boolean().default(true),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -447,8 +451,10 @@ export const evalRouter = createTRPCRouter({
 
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
-          projectId: input.projectId,
           name: input.name,
+          ...(input.isCustom
+            ? { projectId: input.projectId }
+            : { projectId: null }),
         },
         orderBy: [{ version: "desc" }],
       });

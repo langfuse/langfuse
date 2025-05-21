@@ -245,47 +245,37 @@ export default function EvalsTemplateTable({
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <>
+            {row.original.maintainer.includes("Langfuse") ? (
               <Button
-                variant="ghost"
-                className="h-8 w-8 p-0"
-                aria-label="actions"
+                aria-label="clone"
+                variant="outline"
+                size="icon-xs"
+                title="Clone"
+                // disabled={!hasAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCloneTemplateId(id);
+                }}
               >
-                <span className="sr-only [position:relative]">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
+                <Copy className="h-3 w-3" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem
-                key={id + "-edit"}
+            ) : (
+              <Button
                 aria-label="edit"
+                variant="outline"
+                size="icon-xs"
+                title="Edit"
                 // disabled={!hasAccess}
                 onClick={(e) => {
                   e.stopPropagation();
                   setEditTemplateId(id);
                 }}
               >
-                <Pen className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              {row.original.maintainer.includes("Langfuse") && (
-                <DropdownMenuItem
-                  key={id + "-clone"}
-                  aria-label="clone"
-                  // disabled={!hasAccess}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCloneTemplateId(id);
-                  }}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Clone
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <Pen className="h-3 w-3" />
+              </Button>
+            )}
+          </>
         );
       },
     }),

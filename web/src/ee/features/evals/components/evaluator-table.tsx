@@ -52,7 +52,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
-import { evalConfigsTableCols } from "@/src/server/api/definitions/evalConfigsTable";
+import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/ee/features/evals/types";
 import { RagasAndLangfuseIcon } from "@/src/ee/features/evals/components/ragas-logo";
 
@@ -406,7 +406,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     <>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={evalConfigsTableCols}
+        filterColumnDefinition={evalConfigFilterColumns}
         filterState={filterState}
         setFilterState={setFilterState}
         columnVisibility={columnVisibility}

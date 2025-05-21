@@ -1000,7 +1000,7 @@ export const InnerEvaluatorForm = (props: {
             loading={createJobMutation.isLoading || updateJobMutation.isLoading}
             className="mt-3"
           >
-            Save
+            Execute
           </Button>
         ) : null}
       </form>

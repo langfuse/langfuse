@@ -25,6 +25,8 @@ import {
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
+import { cn } from "@/src/utils/tailwind";
+import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -47,6 +49,7 @@ export const EvalTemplateDetail = () => {
     {
       projectId: projectId,
       name: template.data?.name ?? "",
+      isCustom: template.data?.projectId !== null,
     },
     {
       enabled:
@@ -93,6 +96,7 @@ export const EvalTemplateDetail = () => {
               projectId={projectId}
               isEditing={isEditing}
               setIsEditing={setIsEditing}
+              isCustom={!!displayTemplate?.projectId}
             />
 
             {/* TODO: moved to LFE-4573 */}
@@ -235,10 +239,12 @@ export function UpdateTemplate({
   projectId,
   isEditing,
   setIsEditing,
+  isCustom,
 }: {
   projectId: string;
   isEditing: boolean;
   setIsEditing: (isEditing: boolean) => void;
+  isCustom: boolean;
 }) {
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -251,9 +257,20 @@ export function UpdateTemplate({
     if (checked) capture("eval_templates:update_form_open");
   };
 
+  if (!isCustom) {
+    return (
+      <div className="flex items-center gap-2">
+        <LangfuseIcon size={16} />
+        <span className="text-sm font-medium text-muted-foreground">
+          View only
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-medium">Edit Mode</span>
+      <span className="text-sm font-medium">Edit mode</span>
       <Switch
         checked={isEditing}
         onCheckedChange={handlePromptEdit}
