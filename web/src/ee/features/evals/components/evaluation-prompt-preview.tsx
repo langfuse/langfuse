@@ -122,7 +122,7 @@ export const EvaluationPromptPreview = ({
   className,
 }: {
   evalTemplate: EvalTemplate;
-  trace?: Record<string, unknown>;
+  trace: Record<string, unknown>;
   variableMapping: VariableMapping[];
   isLoading: boolean;
   showControls?: boolean;

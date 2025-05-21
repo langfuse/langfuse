@@ -35,7 +35,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type EvalTemplate, variableMapping } from "@langfuse/shared";
-import router from "next/router";
+import router, { useRouter } from "next/router";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -66,6 +66,8 @@ import {
   EvaluationPromptPreview,
   getVariableColor,
 } from "@/src/ee/features/evals/components/evaluation-prompt-preview";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 // Lazy load TracesTable
 const TracesTable = lazy(
@@ -106,11 +108,7 @@ const TracesPreview = ({
         </FormDescription>
       </div>
       <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
-        <Suspense
-          fallback={
-            <div className="p-4 text-center">Loading trace data...</div>
-          }
-        >
+        <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
           <TracesTable
             projectId={projectId}
             hideControls
@@ -136,6 +134,8 @@ export const InnerEvaluatorForm = (props: {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const [showPreview, setShowPreview] = useState(false);
+  const router = useRouter();
+  const traceId = router.query.traceId as string;
 
   const form = useForm<z.infer<typeof evalConfigFormSchema>>({
     resolver: zodResolver(evalConfigFormSchema),
@@ -223,7 +223,7 @@ export const InnerEvaluatorForm = (props: {
   );
 
   const { observationTypeToNames, traceWithObservations, isLoading } =
-    useEvalConfigMappingData(props.projectId, form);
+    useEvalConfigMappingData(props.projectId, form, traceId);
 
   const datasetFilterOptions = useMemo(() => {
     if (!datasets.data) return undefined;
@@ -241,7 +241,7 @@ export const InnerEvaluatorForm = (props: {
     } else if (form.getValues("target") === "dataset") {
       setShowPreview(false);
     }
-  }, [form]);
+  }, [form.watch("target"), props.disabled]);
 
   useEffect(() => {
     if (props.evalTemplate && form.getValues("mapping").length === 0) {
@@ -558,7 +558,23 @@ export const InnerEvaluatorForm = (props: {
                                 evalTraceTableCols,
                               )}
                               filterState={field.value ?? []}
-                              onChange={field.onChange}
+                              onChange={(
+                                value: z.infer<typeof singleFilter>[],
+                              ) => {
+                                field.onChange(value);
+                                if (router.query.traceId) {
+                                  const { traceId, ...otherParams } =
+                                    router.query;
+                                  router.replace(
+                                    {
+                                      pathname: router.pathname,
+                                      query: otherParams,
+                                    },
+                                    undefined,
+                                    { shallow: true },
+                                  );
+                                }
+                              }}
                               disabled={props.disabled}
                               columnsWithCustomSelect={["tags"]}
                             />
@@ -642,6 +658,15 @@ export const InnerEvaluatorForm = (props: {
                       onCheckedChange={setShowPreview}
                       disabled={props.disabled}
                     />
+                    {traceWithObservations && showPreview && (
+                      <DetailPageNav
+                        currentId={traceWithObservations.id}
+                        listKey="traces"
+                        path={(entry) =>
+                          `/project/${props.projectId}/evals/new?evaluator=${props.evalTemplate.id}&traceId=${entry.id}`
+                        }
+                      />
+                    )}
                   </>
                 )}
               </div>
@@ -665,16 +690,25 @@ export const InnerEvaluatorForm = (props: {
                       )}
                     >
                       {showPreview ? (
-                        <EvaluationPromptPreview
-                          evalTemplate={props.evalTemplate}
-                          trace={traceWithObservations}
-                          variableMapping={form.watch("mapping")}
-                          isLoading={isLoading}
-                          className={cn(
-                            "min-h-48",
-                            !props.shouldWrapVariables && "lg:w-2/3",
-                          )}
-                        />
+                        traceWithObservations ? (
+                          <EvaluationPromptPreview
+                            evalTemplate={props.evalTemplate}
+                            trace={traceWithObservations}
+                            variableMapping={form.watch("mapping")}
+                            isLoading={isLoading}
+                            className={cn(
+                              "min-h-48",
+                              !props.shouldWrapVariables && "lg:w-2/3",
+                            )}
+                          />
+                        ) : (
+                          <div className="flex h-[200px] w-full items-center justify-center rounded border lg:w-2/3">
+                            <p className="text-center text-sm text-muted-foreground">
+                              No trace data found, please adjust filters or
+                              switch to not show preview.
+                            </p>
+                          </div>
+                        )
                       ) : (
                         <JSONView
                           title={"Evaluation Prompt"}
@@ -706,7 +740,7 @@ export const InnerEvaluatorForm = (props: {
                               {"}}"}
                               <DocPopup
                                 description={
-                                  "Variable in the template to be replaced with the trace data."
+                                  "Variable in the template to be replaced with the mapped data."
                                 }
                                 href={
                                   "https://langfuse.com/docs/scores/model-based-evals"

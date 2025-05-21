@@ -25,7 +25,6 @@ export function useExtractVariables({
   variables,
   variableMapping,
   trace,
-  datasetItem,
   isLoading,
 }: {
   variables: string[];
@@ -33,7 +32,6 @@ export function useExtractVariables({
   trace?: Record<string, unknown> & {
     observations?: Record<string, unknown>[];
   };
-  datasetItem?: Record<string, unknown>;
   isLoading: boolean;
 }) {
   const utils = api.useUtils();
@@ -46,6 +44,10 @@ export function useExtractVariables({
   // Create a stable string representation of the current mapping for comparison
   const currentMappingString = JSON.stringify(variableMapping);
 
+  // Create a stable reference to the trace ID
+  const traceId = trace?.id;
+  const traceIdRef = useRef<string | undefined>(traceId as string | undefined);
+
   useEffect(() => {
     // Return early conditions
     if (isLoading || !variables.length) {
@@ -56,11 +58,26 @@ export function useExtractVariables({
     }
 
     // Check if the variableMapping has changed by comparing string representations
-    const shouldExtract = previousMappingRef.current !== currentMappingString;
+    // OR if the trace ID has changed
+    const mappingChanged = previousMappingRef.current !== currentMappingString;
+    const traceChanged = traceIdRef.current !== traceId;
+    const shouldExtract = mappingChanged || traceChanged;
+
+    // Update the trace ID reference
+    if (traceChanged) {
+      traceIdRef.current = traceId as string | undefined;
+    }
 
     // Exit if we don't need to extract
     if (!shouldExtract) {
       return;
+    }
+
+    // Clear existing variables immediately when trace changes to avoid showing stale data
+    if (traceChanged) {
+      setExtractedVariables(
+        variables.map((variable) => ({ variable, value: "n/a" })),
+      );
     }
 
     // Set loading state
@@ -79,8 +96,6 @@ export function useExtractVariables({
       let object;
       if (mapping.langfuseObject === "trace") {
         object = trace;
-      } else if (mapping.langfuseObject === "dataset_item") {
-        object = datasetItem;
       } else if (mapping.objectName) {
         // For observations, find them in the pre-loaded trace data
         const observation = getObservation(
@@ -148,8 +163,7 @@ export function useExtractVariables({
     variableMapping,
     currentMappingString,
     isLoading,
-    trace,
-    datasetItem,
+    traceId,
     utils.observations.byId,
   ]);
 

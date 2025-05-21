@@ -6,6 +6,7 @@ import { type UseFormReturn } from "react-hook-form";
 export function useEvalConfigMappingData(
   projectId: string,
   form: UseFormReturn<EvalFormType>,
+  traceId?: string,
   shouldFetch = true,
 ) {
   const latestTrace = api.traces.all.useQuery(
@@ -19,19 +20,21 @@ export function useEvalConfigMappingData(
       orderBy: { column: "timestamp", order: "DESC" },
     },
     {
-      enabled: shouldFetch,
+      enabled: !traceId && shouldFetch,
     },
   );
+
+  const relevantTraceId = traceId ?? latestTrace.data?.traces[0]?.id;
 
   // TODO: figure out timestamp logic here
   const traceWithObservations =
     api.traces.byIdWithObservationsAndScores.useQuery(
       {
         projectId,
-        traceId: latestTrace.data?.traces[0]?.id as string,
+        traceId: relevantTraceId as string,
       },
       {
-        enabled: !!latestTrace.data?.traces[0]?.id && shouldFetch,
+        enabled: !!relevantTraceId && shouldFetch,
       },
     );
 
