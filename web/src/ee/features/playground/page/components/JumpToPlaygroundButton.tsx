@@ -423,6 +423,29 @@ function parseStructuredOutputSchema(
           schema: parseStructuredOutputSchema.data.json_schema.schema,
         };
     }
+
+    // LiteLLM records response_format in model params
+    const modelParams = generation.modelParameters;
+
+    if (
+      modelParams &&
+      typeof modelParams === "object" &&
+      "response_format" in modelParams &&
+      typeof modelParams["response_format"] === "string"
+    ) {
+      const parsedResponseFormat = JSON.parse(modelParams["response_format"]);
+
+      const parseStructuredOutputSchema =
+        OpenAIResponseFormatSchema.safeParse(parsedResponseFormat);
+
+      if (parseStructuredOutputSchema.success)
+        return {
+          id: Math.random().toString(36).substring(2),
+          name: parseStructuredOutputSchema.data.json_schema.name,
+          description: "Schema parsed from generation",
+          schema: parseStructuredOutputSchema.data.json_schema.schema,
+        };
+    }
   } catch {}
   return null;
 }
