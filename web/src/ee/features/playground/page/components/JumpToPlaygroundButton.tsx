@@ -71,23 +71,23 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   );
 
   const modelToProviderMap = useMemo(() => {
-    const modelToProviderMap: Record<string, string> = {};
+    const modelProviderMap: Record<string, string> = {};
 
     (apiKeys.data?.data ?? []).forEach((apiKey) => {
       const { provider, customModels, withDefaultModels, adapter } = apiKey;
       // add default models if enabled
       if (withDefaultModels) {
         (playgroundSupportedModels[adapter] ?? []).forEach((model) => {
-          modelToProviderMap[model] = provider;
+          modelProviderMap[model] = provider;
         });
       }
 
       // add custom models if set
       customModels.forEach((customModel) => {
-        modelToProviderMap[customModel] = provider;
+        modelProviderMap[customModel] = provider;
       });
     });
-    return modelToProviderMap;
+    return modelProviderMap;
   }, [apiKeys.data]);
 
   useEffect(() => {
