@@ -54,24 +54,23 @@ import {
   TimeScopeDescription,
   VariableMappingDescription,
 } from "@/src/ee/features/evals/components/eval-form-descriptions";
-import TracesTable from "@/src/components/table/use-cases/traces";
+import { Suspense, lazy } from "react";
 import {
   getDateFromOption,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
 import { useEvalConfigMappingData } from "@/src/ee/features/evals/hooks/useEvalConfigMappingData";
-import {
-  DialogTrigger,
-  DialogContent,
-  DialogFooter,
-} from "@/src/components/ui/dialog";
-import { Dialog } from "@/src/components/ui/dialog";
-import {
-  getVariableColor,
-  VariablePreviewDialog,
-} from "@/src/ee/features/evals/components/variable-preview-dialog";
-import { DialogTitle } from "@/src/components/ui/dialog";
 import { type PartialConfig } from "@/src/ee/features/evals/types";
+import { Switch } from "@/src/components/ui/switch";
+import {
+  EvaluationPromptPreview,
+  getVariableColor,
+} from "@/src/ee/features/evals/components/evaluation-prompt-preview";
+
+// Lazy load TracesTable
+const TracesTable = lazy(
+  () => import("@/src/components/table/use-cases/traces"),
+);
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -79,6 +78,50 @@ const fieldHasJsonSelectorOption = (
   selectedColumnId === "input" ||
   selectedColumnId === "output" ||
   selectedColumnId === "expected_output";
+
+const TracesPreview = ({
+  projectId,
+  filterState,
+}: {
+  projectId: string;
+  filterState: z.infer<typeof singleFilter>[];
+}) => {
+  const dateRange = useMemo(() => {
+    return {
+      from: getDateFromOption({
+        filterSource: "TABLE",
+        option: "24 hours",
+      }),
+    } as TableDateRange;
+  }, []);
+
+  return (
+    <>
+      <div className="flex flex-col items-start gap-1">
+        <span className="text-sm font-medium leading-none">
+          Preview sample matched traces
+        </span>
+        <FormDescription>
+          Sample over the last 24 hours that match these filters
+        </FormDescription>
+      </div>
+      <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
+        <Suspense
+          fallback={
+            <div className="p-4 text-center">Loading trace data...</div>
+          }
+        >
+          <TracesTable
+            projectId={projectId}
+            hideControls
+            externalFilterState={filterState}
+            externalDateRange={dateRange}
+          />
+        </Suspense>
+      </div>
+    </>
+  );
+};
 
 export const InnerEvaluatorForm = (props: {
   projectId: string;
@@ -92,20 +135,7 @@ export const InnerEvaluatorForm = (props: {
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-  const [formValues, setFormValues] = useState<z.infer<
-    typeof evalConfigFormSchema
-  > | null>(null);
-
-  const dateRange = useMemo(() => {
-    return {
-      from: getDateFromOption({
-        filterSource: "TABLE",
-        option: "24 hours",
-      }),
-    } as TableDateRange;
-  }, []);
+  const [showPreview, setShowPreview] = useState(false);
 
   const form = useForm<z.infer<typeof evalConfigFormSchema>>({
     resolver: zodResolver(evalConfigFormSchema),
@@ -206,6 +236,14 @@ export const InnerEvaluatorForm = (props: {
   }, [datasets.data]);
 
   useEffect(() => {
+    if (form.getValues("target") === "trace") {
+      setShowPreview(true);
+    } else if (form.getValues("target") === "dataset") {
+      setShowPreview(false);
+    }
+  }, [form]);
+
+  useEffect(() => {
     if (props.evalTemplate && form.getValues("mapping").length === 0) {
       form.setValue(
         "mapping",
@@ -242,32 +280,24 @@ export const InnerEvaluatorForm = (props: {
   );
 
   function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
-    setFormValues(values);
-    setConfirmDialogOpen(true);
-  }
-
-  function handleConfirmSubmit() {
-    if (!formValues) return;
-
     capture(
       props.mode === "edit"
         ? "eval_config:update"
         : "eval_config:new_form_submit",
     );
 
-    const validatedFilter = z.array(singleFilter).safeParse(formValues.filter);
+    const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
     if (
       props.existingEvaluator?.timeScope.includes("EXISTING") &&
       props.mode === "edit" &&
-      !formValues.timeScope.includes("EXISTING")
+      !values.timeScope.includes("EXISTING")
     ) {
       form.setError("timeScope", {
         type: "manual",
         message:
           "The evaluator ran on existing traces already. This cannot be changed anymore.",
       });
-      setConfirmDialogOpen(false);
       return;
     }
     if (form.getValues("timeScope").length === 0) {
@@ -275,7 +305,6 @@ export const InnerEvaluatorForm = (props: {
         type: "manual",
         message: "Please select at least one.",
       });
-      setConfirmDialogOpen(false);
       return;
     }
 
@@ -284,28 +313,26 @@ export const InnerEvaluatorForm = (props: {
         type: "manual",
         message: "Please fill out all filter fields",
       });
-      setConfirmDialogOpen(false);
       return;
     }
 
     const validatedVarMapping = z
       .array(variableMapping)
-      .safeParse(formValues.mapping);
+      .safeParse(values.mapping);
 
     if (validatedVarMapping.success === false) {
       form.setError("mapping", {
         type: "manual",
         message: "Please fill out all variable mappings",
       });
-      setConfirmDialogOpen(false);
       return;
     }
 
-    const delay = formValues.delay * 1000; // convert to ms
-    const sampling = formValues.sampling;
+    const delay = values.delay * 1000; // convert to ms
+    const sampling = values.sampling;
     const mapping = validatedVarMapping.data;
     const filter = validatedFilter.data;
-    const scoreName = formValues.scoreName;
+    const scoreName = values.scoreName;
 
     (props.mode === "edit" && props.existingEvaluator?.id
       ? updateJobMutation.mutateAsync({
@@ -317,24 +344,23 @@ export const InnerEvaluatorForm = (props: {
             variableMapping: mapping,
             sampling,
             scoreName,
-            timeScope: formValues.timeScope,
+            timeScope: values.timeScope,
           },
         })
       : createJobMutation.mutateAsync({
           projectId: props.projectId,
-          target: formValues.target,
+          target: values.target,
           evalTemplateId: props.evalTemplate.id,
           scoreName,
           filter,
           mapping,
           sampling,
           delay,
-          timeScope: formValues.timeScope,
+          timeScope: values.timeScope,
         })
     )
       .then(() => {
         form.reset();
-        setConfirmDialogOpen(false);
         props.onFormSuccess?.();
 
         if (props.mode !== "edit") {
@@ -351,7 +377,6 @@ export const InnerEvaluatorForm = (props: {
           setFormError(JSON.stringify(error));
           console.error(error);
         }
-        setConfirmDialogOpen(false);
       });
   }
 
@@ -481,6 +506,7 @@ export const InnerEvaluatorForm = (props: {
                                     ...field,
                                     langfuseObject,
                                   }));
+                                form.setValue("filter", []);
                                 form.setValue("mapping", newMapping);
                                 setAvailableVariables(
                                   isTrace
@@ -560,28 +586,10 @@ export const InnerEvaluatorForm = (props: {
                 />
 
                 {form.watch("target") === "trace" && !props.disabled && (
-                  <>
-                    <div className="flex flex-col items-start gap-1">
-                      <span className="text-sm font-medium leading-none">
-                        Preview sample matched traces
-                      </span>
-                      <FormDescription>
-                        Sample over the last 24 hours that match these filters
-                      </FormDescription>
-                    </div>
-                    <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
-                      <TracesTable
-                        projectId={props.projectId}
-                        hideControls
-                        externalFilterState={
-                          form.watch("target") === "trace"
-                            ? (form.watch("filter") ?? [])
-                            : []
-                        }
-                        externalDateRange={dateRange}
-                      />
-                    </div>
-                  </>
+                  <TracesPreview
+                    projectId={props.projectId}
+                    filterState={form.watch("filter") ?? []}
+                  />
                 )}
 
                 <FormField
@@ -626,33 +634,29 @@ export const InnerEvaluatorForm = (props: {
               </div>
             </Card>
           )}
-          <Card className="p-4">
+          <Card className="min-w-0 max-w-full p-4">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-lg font-medium">Variable mapping</span>
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    disabled={isLoading || props.disabled}
-                  >
-                    Preview evaluation prompt
-                  </Button>
-                </DialogTrigger>
-                {dialogOpen && (
-                  <VariablePreviewDialog
-                    evalTemplate={props.evalTemplate}
-                    trace={traceWithObservations}
-                    variableMapping={form.getValues("mapping")}
-                    isLoading={isLoading || !dialogOpen}
-                  />
+              <div className="flex items-center gap-2">
+                {form.watch("target") === "trace" && (
+                  <>
+                    <span className="text-sm text-muted-foreground">
+                      Show preview
+                    </span>
+                    <Switch
+                      checked={showPreview}
+                      onCheckedChange={setShowPreview}
+                      disabled={props.disabled}
+                    />
+                  </>
                 )}
-              </Dialog>
+              </div>
             </div>
             <FormDescription>
               Preview of the evaluation prompt with the variables replaced with
               the first matched trace data subject to the filters.
             </FormDescription>
-            <div className="flex flex-col gap-6">
+            <div className="flex max-w-full flex-col gap-6">
               <FormField
                 control={form.control}
                 name="mapping"
@@ -660,20 +664,33 @@ export const InnerEvaluatorForm = (props: {
                   <>
                     <div
                       className={cn(
-                        "my-2 flex flex-col gap-2",
+                        "my-2 flex max-w-full flex-col gap-2",
                         !props.shouldWrapVariables && "lg:flex-row",
                       )}
                     >
-                      <JSONView
-                        title={"Evaluation Prompt"}
-                        json={props.evalTemplate.prompt ?? null}
-                        className={cn(
-                          "min-h-48",
-                          !props.shouldWrapVariables && "lg:w-2/3",
-                        )}
-                        codeClassName="flex-1"
-                        collapseStringsAfterLength={null}
-                      />
+                      {showPreview ? (
+                        <EvaluationPromptPreview
+                          evalTemplate={props.evalTemplate}
+                          trace={traceWithObservations}
+                          variableMapping={form.watch("mapping")}
+                          isLoading={isLoading}
+                          className={cn(
+                            "min-h-48",
+                            !props.shouldWrapVariables && "lg:w-2/3",
+                          )}
+                        />
+                      ) : (
+                        <JSONView
+                          title={"Evaluation Prompt"}
+                          json={props.evalTemplate.prompt ?? null}
+                          className={cn(
+                            "min-h-48",
+                            !props.shouldWrapVariables && "lg:w-2/3",
+                          )}
+                          codeClassName="flex-1"
+                          collapseStringsAfterLength={null}
+                        />
+                      )}
                       <div
                         className={cn(
                           "flex flex-col gap-2",
@@ -992,42 +1009,6 @@ export const InnerEvaluatorForm = (props: {
           <span className="font-bold">Error:</span> {formError}
         </p>
       ) : null}
-
-      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
-          <DialogTitle className="flex flex-col gap-2">
-            Confirm Evaluator Prompt
-            <span className="text-xs font-normal text-muted-foreground">
-              Preview based on sample trace data
-            </span>
-          </DialogTitle>
-          {confirmDialogOpen && (
-            <VariablePreviewDialog
-              evalTemplate={props.evalTemplate}
-              trace={traceWithObservations}
-              variableMapping={form.getValues("mapping")}
-              isLoading={isLoading}
-              showControls={false}
-            />
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfirmDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmSubmit}
-              loading={
-                createJobMutation.isLoading || updateJobMutation.isLoading
-              }
-            >
-              Proceed
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Form>
   );
 };

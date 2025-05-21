@@ -41,7 +41,10 @@ export function useExtractVariables({
     ExtractedVariable[]
   >([]);
   const [isExtracting, setIsExtracting] = useState(false);
-  const hasExtracted = useRef(false);
+  const previousMappingRef = useRef<string>("");
+
+  // Create a stable string representation of the current mapping for comparison
+  const currentMappingString = JSON.stringify(variableMapping);
 
   useEffect(() => {
     // Return early conditions
@@ -52,8 +55,11 @@ export function useExtractVariables({
       return;
     }
 
-    // Only run extraction once
-    if (hasExtracted.current) {
+    // Check if the variableMapping has changed by comparing string representations
+    const shouldExtract = previousMappingRef.current !== currentMappingString;
+
+    // Exit if we don't need to extract
+    if (!shouldExtract) {
       return;
     }
 
@@ -121,7 +127,8 @@ export function useExtractVariables({
     Promise.all(extractPromises)
       .then((results) => {
         setExtractedVariables(results);
-        hasExtracted.current = true;
+        // Update the ref to the current mapping string to track changes
+        previousMappingRef.current = currentMappingString;
       })
       .catch((error) => {
         console.error("Error extracting variables:", error);
@@ -131,13 +138,20 @@ export function useExtractVariables({
             value: "",
           })),
         );
-        hasExtracted.current = true;
       })
       .finally(() => {
         setIsExtracting(false);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variables.length, isLoading]);
+    // Include all dependencies that should trigger a re-extraction
+  }, [
+    variables,
+    variableMapping,
+    currentMappingString,
+    isLoading,
+    trace,
+    datasetItem,
+    utils.observations.byId,
+  ]);
 
   return { extractedVariables, isExtracting };
 }

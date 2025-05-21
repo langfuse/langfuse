@@ -86,18 +86,20 @@ const ColoredPromptView = ({
   );
 };
 
-export const VariablePreviewDialog = ({
+export const EvaluationPromptPreview = ({
   evalTemplate,
   trace,
   variableMapping,
   isLoading,
   showControls = true,
+  className,
 }: {
   evalTemplate: EvalTemplate;
   trace?: Record<string, unknown>;
   variableMapping: VariableMapping[];
   isLoading: boolean;
   showControls?: boolean;
+  className?: string;
 }) => {
   const { extractedVariables, isExtracting } = useExtractVariables({
     variables: variableMapping.map(({ templateVariable }) => templateVariable),
@@ -107,13 +109,7 @@ export const VariablePreviewDialog = ({
   });
 
   if (isExtracting) {
-    return showControls ? (
-      <DialogContent className="max-w-4xl">
-        <Skeleton className="h-[200px] w-full" />
-      </DialogContent>
-    ) : (
-      <Skeleton className="h-[200px] w-full" />
-    );
+    return <Skeleton className="h-[200px] w-full" />;
   }
 
   // Helper function for prompt rendering
@@ -167,7 +163,7 @@ export const VariablePreviewDialog = ({
   };
 
   const content = (
-    <div className="mt-4 max-h-[70vh] overflow-y-auto">
+    <div className="max-h-full overflow-y-auto">
       {isLoading ? (
         <div className="flex items-center justify-center p-8">
           <p>Loading variables...</p>
@@ -183,15 +179,11 @@ export const VariablePreviewDialog = ({
   }
 
   return (
-    <DialogContent className="max-w-4xl">
-      <DialogHeader>
-        <DialogTitle>Evaluation Prompt with Variables</DialogTitle>
-        <span className="text-sm text-muted-foreground">
-          Please note that this a mocked up preview only. If you are certain
-          your configuration is correct, please feel free to proceed.
-        </span>
-      </DialogHeader>
+    <div className={cn("mt-0.5 flex flex-col gap-2", className)}>
+      <span className="flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize">
+        Evaluation Prompt
+      </span>
       {content}
-    </DialogContent>
+    </div>
   );
 };

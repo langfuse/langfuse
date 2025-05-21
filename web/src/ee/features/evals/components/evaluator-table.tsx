@@ -53,6 +53,8 @@ import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form
 import { useRouter } from "next/router";
 import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
 import { evalConfigsTableCols } from "@/src/server/api/definitions/evalConfigsTable";
+import { RAGAS_TEMPLATE_PREFIX } from "@/src/ee/features/evals/types";
+import { RagasAndLangfuseIcon } from "@/src/ee/features/evals/components/ragas-logo";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -224,6 +226,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       cell: ({ row }) => {
         const template = row.original.template;
         const isLangfuse = row.original.maintainer.includes("Langfuse");
+        const isRagas = row.original.maintainer.includes("Ragas");
         if (!template) return "template not found";
         return (
           <div className="flex items-center gap-2">
@@ -231,7 +234,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <div className="flex justify-center">
               <Tooltip>
                 <TooltipTrigger>
-                  {isLangfuse ? (
+                  {isRagas ? (
+                    <RagasAndLangfuseIcon />
+                  ) : isLangfuse ? (
                     <LangfuseIcon size={16} />
                   ) : (
                     <UserCircle2Icon className="h-4 w-4" />
@@ -390,7 +395,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       maintainer: jobConfig.evalTemplate
         ? jobConfig.evalTemplate.projectId
           ? "User maintained"
-          : "Langfuse maintained"
+          : jobConfig.evalTemplate.name.startsWith(RAGAS_TEMPLATE_PREFIX)
+            ? "Langfuse and Ragas maintained"
+            : "Langfuse maintained"
         : "Not available",
     };
   };

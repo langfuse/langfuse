@@ -163,7 +163,7 @@ export default function EvalsTemplateTable({
         return (
           <div className="flex justify-center">
             <Tooltip>
-              <TooltipTrigger>
+              <TooltipTrigger className="flex flex-row items-center gap-2">
                 {isRagas ? (
                   <RagasAndLangfuseIcon />
                 ) : isLangfuse ? (
@@ -171,6 +171,7 @@ export default function EvalsTemplateTable({
                 ) : (
                   <UserCircle2Icon className="h-4 w-4" />
                 )}
+                <span>{isLangfuse ? "Langfuse" : "User"}</span>
               </TooltipTrigger>
               <TooltipContent>{row.getValue()}</TooltipContent>
             </Tooltip>

@@ -157,6 +157,67 @@ export const TemplateSelector = forwardRef<
                   <InputCommandEmpty>No evaluator found.</InputCommandEmpty>
                 )}
 
+                {filteredTemplates.custom.length > 0 && (
+                  <InputCommandGroup
+                    heading="Custom evaluators"
+                    className="max-h-full"
+                  >
+                    {filteredTemplates.custom.map(([name, templateData]) => {
+                      const latestTemplate =
+                        templateData[templateData.length - 1];
+                      const isActive = isTemplateActive(latestTemplate.id);
+                      const isPending = isTemplatePending(latestTemplate.id);
+                      const isInactive = isTemplateInactive(latestTemplate.id);
+
+                      return (
+                        <InputCommandItem
+                          key={`custom-${name}`}
+                          onSelect={() => {
+                            handleRowClick(latestTemplate.id);
+                          }}
+                          className={
+                            isPending ? "bg-amber-50 dark:bg-amber-950" : ""
+                          }
+                        >
+                          {isActive ? (
+                            <CheckIcon className="mr-2 h-4 w-4" />
+                          ) : isPending ? (
+                            <div className="mr-2 h-4 w-4 rounded-full border-2 border-amber-500" />
+                          ) : (
+                            <div className="mr-2 h-4 w-4" />
+                          )}
+                          {name}
+                          {(isInactive || isPending) && (
+                            <div
+                              title={
+                                isInactive
+                                  ? "Configured to run by default on datasets for this experiment. Skipped for this run"
+                                  : "Pending confirmation"
+                              }
+                              className="ml-2 text-xs text-muted-foreground"
+                            >
+                              {isInactive ? "Default" : "Pending"}
+                            </div>
+                          )}
+                          {isActive && (
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={(e) =>
+                                handleConfigureTemplate(e, latestTemplate.id)
+                              }
+                              className="ml-auto"
+                              title="Configure evaluator"
+                            >
+                              <Cog className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </InputCommandItem>
+                      );
+                    })}
+                  </InputCommandGroup>
+                )}
+
                 {filteredTemplates.langfuse.length > 0 && (
                   <>
                     <InputCommandGroup
@@ -230,67 +291,6 @@ export const TemplateSelector = forwardRef<
                       <InputCommandSeparator />
                     )}
                   </>
-                )}
-
-                {filteredTemplates.custom.length > 0 && (
-                  <InputCommandGroup
-                    heading="Custom evaluators"
-                    className="max-h-full"
-                  >
-                    {filteredTemplates.custom.map(([name, templateData]) => {
-                      const latestTemplate =
-                        templateData[templateData.length - 1];
-                      const isActive = isTemplateActive(latestTemplate.id);
-                      const isPending = isTemplatePending(latestTemplate.id);
-                      const isInactive = isTemplateInactive(latestTemplate.id);
-
-                      return (
-                        <InputCommandItem
-                          key={`custom-${name}`}
-                          onSelect={() => {
-                            handleRowClick(latestTemplate.id);
-                          }}
-                          className={
-                            isPending ? "bg-amber-50 dark:bg-amber-950" : ""
-                          }
-                        >
-                          {isActive ? (
-                            <CheckIcon className="mr-2 h-4 w-4" />
-                          ) : isPending ? (
-                            <div className="mr-2 h-4 w-4 rounded-full border-2 border-amber-500" />
-                          ) : (
-                            <div className="mr-2 h-4 w-4" />
-                          )}
-                          {name}
-                          {(isInactive || isPending) && (
-                            <div
-                              title={
-                                isInactive
-                                  ? "Configured to run by default on datasets for this experiment. Skipped for this run"
-                                  : "Pending confirmation"
-                              }
-                              className="ml-2 text-xs text-muted-foreground"
-                            >
-                              {isInactive ? "Default" : "Pending"}
-                            </div>
-                          )}
-                          {isActive && (
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              onClick={(e) =>
-                                handleConfigureTemplate(e, latestTemplate.id)
-                              }
-                              className="ml-auto"
-                              title="Configure evaluator"
-                            >
-                              <Cog className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </InputCommandItem>
-                      );
-                    })}
-                  </InputCommandGroup>
                 )}
 
                 <InputCommandSeparator alwaysRender />

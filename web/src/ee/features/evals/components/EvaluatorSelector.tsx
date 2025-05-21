@@ -76,6 +76,38 @@ export function EvaluatorSelector({
           <InputCommandEmpty>No evaluator found.</InputCommandEmpty>
         )}
 
+        {filteredTemplates.custom.length > 0 && (
+          <InputCommandGroup heading="Custom evaluators">
+            {filteredTemplates.custom.map(([name, templateData]) => (
+              <InputCommandItem
+                key={`custom-${name}`}
+                onSelect={() => {
+                  const latestVersion = templateData[templateData.length - 1];
+                  onTemplateSelect(
+                    latestVersion.id,
+                    name,
+                    latestVersion.version,
+                  );
+                }}
+                className={cn(
+                  templateData.some((t) => t.id === selectedTemplateId) &&
+                    "bg-secondary",
+                )}
+              >
+                {name}
+                <CheckIcon
+                  className={cn(
+                    "ml-auto h-4 w-4",
+                    templateData.some((t) => t.id === selectedTemplateId)
+                      ? "opacity-100"
+                      : "opacity-0",
+                  )}
+                />
+              </InputCommandItem>
+            ))}
+          </InputCommandGroup>
+        )}
+
         {filteredTemplates.langfuse.length > 0 && (
           <>
             <InputCommandGroup heading="Langfuse managed evaluators">
@@ -109,38 +141,6 @@ export function EvaluatorSelector({
             </InputCommandGroup>
             {filteredTemplates.custom.length > 0 && <InputCommandSeparator />}
           </>
-        )}
-
-        {filteredTemplates.custom.length > 0 && (
-          <InputCommandGroup heading="Custom evaluators">
-            {filteredTemplates.custom.map(([name, templateData]) => (
-              <InputCommandItem
-                key={`custom-${name}`}
-                onSelect={() => {
-                  const latestVersion = templateData[templateData.length - 1];
-                  onTemplateSelect(
-                    latestVersion.id,
-                    name,
-                    latestVersion.version,
-                  );
-                }}
-                className={cn(
-                  templateData.some((t) => t.id === selectedTemplateId) &&
-                    "bg-secondary",
-                )}
-              >
-                {name}
-                <CheckIcon
-                  className={cn(
-                    "ml-auto h-4 w-4",
-                    templateData.some((t) => t.id === selectedTemplateId)
-                      ? "opacity-100"
-                      : "opacity-0",
-                  )}
-                />
-              </InputCommandItem>
-            ))}
-          </InputCommandGroup>
         )}
 
         {onCreateNew && (
