@@ -33,19 +33,46 @@ const ColoredVariable = ({
   // Rotate through colors
   const color = getVariableColor(index);
 
-  // Convert value to string safely
-  const valueStr = typeof value === "string" ? value : JSON.stringify(value);
+  // Format the value based on its type
+  const renderValue = () => {
+    if (value === null || value === undefined) {
+      return "";
+    }
 
-  // For very large strings, render a preview and truncate
-  const isLarge = valueStr.length > 1000;
+    if (typeof value === "string") {
+      // Check if the string is a JSON stringified string (starts and ends with quotes)
+      if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+        try {
+          // Attempt to parse it as JSON
+          const parsed = JSON.parse(value);
+          if (typeof parsed === "string") {
+            // If it was a string, return the unquoted version
+            return parsed;
+          }
+        } catch {
+          // If parsing fails, it's not a JSON string literal, so return as-is
+        }
+      }
+      // Display strings directly
+      return value === "" ? "" : value;
+    }
+
+    if (typeof value === "object") {
+      // Pretty print objects and arrays
+      return JSON.stringify(value, null, 2);
+    }
+
+    // For other primitives (numbers, booleans)
+    return String(value);
+  };
+
+  const displayValue = renderValue();
+  const isLarge =
+    typeof displayValue === "string" && displayValue.length > 1000;
 
   return (
     <span className={cn(color, "font-mono")}>
-      {isLarge
-        ? valueStr.substring(0, 1000) + "..."
-        : valueStr === ""
-          ? `""`
-          : valueStr}
+      {isLarge ? displayValue.substring(0, 1000) + "..." : displayValue}
     </span>
   );
 };
