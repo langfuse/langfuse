@@ -603,16 +603,14 @@ export const InnerEvaluatorForm = (props: {
                           disabled={props.disabled}
                           min={0}
                           max={1}
-                          step={0.01}
+                          step={0.0001}
                           value={[field.value]}
                           onValueChange={(value) => field.onChange(value[0])}
+                          showInput={true}
+                          displayAsPercentage={true}
                         />
                       </FormControl>
                       <div className="flex flex-col">
-                        <FormDescription className="flex justify-between">
-                          <span>0%</span>
-                          <span>100%</span>
-                        </FormDescription>
                         <FormDescription className="mt-1 flex flex-row gap-1">
                           <TimeScopeDescription
                             projectId={props.projectId}
@@ -621,10 +619,6 @@ export const InnerEvaluatorForm = (props: {
                               form.watch("target") as "trace" | "dataset_item"
                             }
                           />
-                          <span>
-                            Sampling currently set to{" "}
-                            {(field.value * 100).toFixed(0)}%.
-                          </span>
                         </FormDescription>
                       </div>
                       <FormMessage />
