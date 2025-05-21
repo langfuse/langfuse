@@ -96,7 +96,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     } else if (props.source === "generation") {
       setCapturedState(parseGeneration(props.generation, modelToProviderMap));
     }
-  }, [props]);
+  }, [props, modelToProviderMap]);
 
   useEffect(() => {
     if (capturedState) {
