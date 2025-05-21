@@ -26,7 +26,7 @@ service:
               docs: Optional metadata for the project
             retention:
               type: integer
-              docs: Number of days to retain data. Must be 0 or at least 7 days. Requires data-retention entitlement for non-zero values. Optional.
+              docs: Number of days to retain data. Must be 0 or at least 3 days. Requires data-retention entitlement for non-zero values. Optional.
       response: Project
     
     update:
@@ -45,7 +45,7 @@ service:
               docs: Optional metadata for the project
             retention:
               type: integer
-              docs: Number of days to retain data. Must be 0 or at least 7 days. Requires data-retention entitlement for non-zero values. Optional.
+              docs: Number of days to retain data. Must be 0 or at least 3 days. Requires data-retention entitlement for non-zero values. Optional.
       response: Project
     
     delete:
