@@ -276,7 +276,7 @@ export const env = createEnv({
     LANGFUSE_INIT_ORG_CLOUD_PLAN: z.string().optional(), // for use in CI
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
     LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(7).optional(),
+    LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(3).optional(),
     LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
     LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
     LANGFUSE_INIT_USER_EMAIL: z
@@ -529,8 +529,10 @@ export const env = createEnv({
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
-    LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
-    LANGFUSE_UI_HIDDEN_PRODUCT_MODULES: process.env.LANGFUSE_UI_HIDDEN_PRODUCT_MODULES,
+    LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
+      process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
+    LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:
+      process.env.LANGFUSE_UI_HIDDEN_PRODUCT_MODULES,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
