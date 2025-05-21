@@ -5,6 +5,7 @@ export const RateLimitResource = z.enum([
   "ingestion",
   "public-api",
   "public-api-metrics",
+  "public-api-daily-metrics-legacy",
   "prompts",
   "legacy-ingestion",
   "datasets",
