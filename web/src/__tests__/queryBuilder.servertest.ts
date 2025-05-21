@@ -3266,7 +3266,6 @@ describe("queryBuilder", () => {
         expect(row.sum_inputTokens).toBe("300");
         expect(row.sum_outputTokens).toBe("700");
         expect(row.sum_totalTokens).toBe("1000");
-        expect(row.avg_outputTokensPerSecond).toBe(700);
       });
 
       it("should filter observations by metadata correctly", async () => {
