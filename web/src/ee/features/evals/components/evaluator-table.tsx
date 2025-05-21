@@ -367,8 +367,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     );
 
   const urlPathname = `/project/${projectId}/evals`;
-  const { getNavigationPath, expandPeek } =
-    useRunningEvaluatorsPeekNavigation(urlPathname);
+  const { getNavigationPath } = useRunningEvaluatorsPeekNavigation(urlPathname);
   const { setPeekView } = usePeekState(urlPathname);
 
   const convertToTableRow = (
@@ -427,7 +426,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           listKey: "evals",
           urlPathname,
           onOpenChange: setPeekView,
-          onExpand: expandPeek,
           shouldUpdateRowOnDetailPageNavigation: true,
           peekEventOptions: {
             ignoredSelectors: [

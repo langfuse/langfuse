@@ -236,7 +236,7 @@ export const InnerEvaluatorForm = (props: {
   }, [datasets.data]);
 
   useEffect(() => {
-    if (form.getValues("target") === "trace") {
+    if (form.getValues("target") === "trace" && !props.disabled) {
       setShowPreview(true);
     } else if (form.getValues("target") === "dataset") {
       setShowPreview(false);
@@ -632,7 +632,7 @@ export const InnerEvaluatorForm = (props: {
             <div className="mb-2 flex items-center justify-between">
               <span className="text-lg font-medium">Variable mapping</span>
               <div className="flex items-center gap-2">
-                {form.watch("target") === "trace" && (
+                {form.watch("target") === "trace" && !props.disabled && (
                   <>
                     <span className="text-sm text-muted-foreground">
                       Show preview
@@ -646,10 +646,12 @@ export const InnerEvaluatorForm = (props: {
                 )}
               </div>
             </div>
-            <FormDescription>
-              Preview of the evaluation prompt with the variables replaced with
-              the first matched trace data subject to the filters.
-            </FormDescription>
+            {form.watch("target") === "trace" && !props.disabled && (
+              <FormDescription>
+                Preview of the evaluation prompt with the variables replaced
+                with the first matched trace data subject to the filters.
+              </FormDescription>
+            )}
             <div className="flex max-w-full flex-col gap-6">
               <FormField
                 control={form.control}

@@ -12,6 +12,8 @@ import {
 } from "@/src/components/ui/tooltip";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { UserCircle2Icon } from "lucide-react";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { DeactivateEvalConfig } from "@/src/ee/features/evals/components/deactivate-config";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -36,12 +38,18 @@ export const PeekViewEvaluatorConfigDetail = ({
       <div className="flex items-center justify-between">
         <span className="max-h-fit text-lg font-medium">Configuration</span>
         <div className="flex items-center gap-2">
-          <span
-            className="text-sm text-muted-foreground"
-            title="Expand to full page to edit"
-          >
-            View Only
-          </span>
+          <div className="flex items-center gap-2">
+            <StatusBadge
+              type={evalConfig.status.toLowerCase()}
+              isLive
+              className="max-h-8"
+            />
+            <DeactivateEvalConfig
+              projectId={projectId}
+              evalConfig={evalConfig}
+            />
+          </div>
+          <span className="text-sm text-muted-foreground">View Only</span>
         </div>
       </div>
       <CardDescription className="flex items-center text-sm">
