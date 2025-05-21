@@ -11,6 +11,9 @@ import { X } from "lucide-react";
 import useLocalStorage from "../useLocalStorage";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import ProductHuntBadgeLight from "../images/product_hunt_badge_light.svg";
+import ProductHuntBadgeDark from "../images/product_hunt_badge_dark.svg";
+import Image from "next/image";
 
 const NOTIFICATION_TTL_MS = 14 * 24 * 60 * 60 * 1000; // two weeks
 
@@ -26,6 +29,37 @@ type SidebarNotification = {
 };
 
 const notifications: SidebarNotification[] = [
+  {
+    id: "lw3-3-producthunt",
+    title: "Launch Week #3: Day 3",
+    createdAt: "2025-05-21",
+    description: (
+      <span>
+        We are launching <strong>Custom Dashboards</strong> on Product Hunt
+        today.
+        <br />
+        Support the launch to help grow the community!
+      </span>
+    ),
+    link: "https://langfuse.com/ph",
+    linkTitle: "Product Hunt",
+    linkContent: (
+      <>
+        <Image
+          src={ProductHuntBadgeDark}
+          alt="Product Hunt"
+          width={160}
+          className="mt-1 hidden dark:block"
+        />
+        <Image
+          src={ProductHuntBadgeLight}
+          alt="Product Hunt"
+          width={160}
+          className="mt-1 dark:hidden"
+        />
+      </>
+    ),
+  },
   {
     id: "lw3-2",
     title: "Launch Week #3: Day 2",
@@ -79,18 +113,13 @@ export function SidebarNotifications() {
 
   // Find the oldest non-dismissed notification on mount or when dismissed list changes
   useEffect(() => {
-    const lastAvailableIndex = notifications
-      .slice()
-      .reverse()
-      .findIndex(
-        (notif) =>
-          !dismissedNotifications.includes(notif.id) && !isExpired(notif),
-      );
+    const firstAvailableIndex = notifications.findIndex(
+      (notif) =>
+        !dismissedNotifications.includes(notif.id) && !isExpired(notif),
+    );
 
     setCurrentNotificationIndex(
-      lastAvailableIndex === -1
-        ? null
-        : notifications.length - 1 - lastAvailableIndex,
+      firstAvailableIndex === -1 ? null : firstAvailableIndex,
     );
   }, [dismissedNotifications]);
 
