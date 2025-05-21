@@ -32,6 +32,7 @@ const notifications: SidebarNotification[] = [
   {
     id: "lw3-3-producthunt",
     title: "Launch Week #3: Day 3",
+    createdAt: "2025-05-21",
     description: (
       <span>
         We are launching <strong>Custom Dashboards</strong> on Product Hunt
