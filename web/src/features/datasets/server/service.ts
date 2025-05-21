@@ -169,6 +169,8 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
     format: "JSONEachRow",
     clickhouse_settings: {
       log_comment: JSON.stringify({ feature: "dataset", projectId }),
+      insert_quorum_parallel: 0,
+      insert_quorum: "auto",
     },
   });
 };
@@ -190,7 +192,6 @@ export const createTempTableInClickhouse = async (tableName: string) => {
   await commandClickhouse({
     query,
     params: { tableName },
-
     tags: { feature: "dataset" },
   });
 };
@@ -202,7 +203,6 @@ export const deleteTempTableInClickhouse = async (tableName: string) => {
   await commandClickhouse({
     query,
     params: { tableName },
-
     tags: { feature: "dataset" },
   });
 };
@@ -260,7 +260,6 @@ const getTraceScoresFromTempTable = async (
       AND tmp.dataset_id = {datasetId: String}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id, tmp.run_id
-      SETTINGS select_sequential_consistency = 1;
   `;
 
   const rows = await queryClickhouse<
@@ -275,7 +274,11 @@ const getTraceScoresFromTempTable = async (
       projectId: input.projectId,
       datasetId: input.datasetId,
     },
-
+    clickhouseConfigs: {
+      clickhouse_settings: {
+        select_sequential_consistency: "1",
+      },
+    },
     tags: { feature: "dataset", projectId: input.projectId },
   });
 
@@ -328,7 +331,11 @@ const getObservationLatencyAndCostForDataset = async (
       projectId: input.projectId,
       datasetId: input.datasetId,
     },
-
+    clickhouseConfigs: {
+      clickhouse_settings: {
+        select_sequential_consistency: "1",
+      },
+    },
     tags: { feature: "dataset", projectId: input.projectId ?? "" },
   });
 
@@ -377,7 +384,11 @@ const getTraceLatencyAndCostForDataset = async (
       projectId: input.projectId,
       datasetId: input.datasetId,
     },
-
+    clickhouseConfigs: {
+      clickhouse_settings: {
+        select_sequential_consistency: "1",
+      },
+    },
     tags: { feature: "dataset", projectId: input.projectId ?? "" },
   });
 
