@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Bot, ChartLine, Cog, FlaskConical, MoreVertical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -138,6 +138,21 @@ export default function Dataset() {
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
   });
+
+  // This function will be passed to the EvaluatorForm to modify form values before submission
+  const preprocessFormValues = useCallback((values: any) => {
+    // Ask the user if they want to run on historic data
+    const shouldRunOnHistoric = confirm(
+      "Do you also want to execute this evaluator on historic data?",
+    );
+
+    // If the user confirms, include EXISTING in the timeScope
+    if (shouldRunOnHistoric && !values.timeScope.includes("EXISTING")) {
+      values.timeScope = [...values.timeScope, "EXISTING"];
+    }
+
+    return values;
+  }, []);
 
   return (
     <Page
@@ -316,6 +331,7 @@ export default function Dataset() {
               mode={selectedEvaluatorData.evaluator.id ? "edit" : "create"}
               hideTargetSection={!selectedEvaluatorData.evaluator.id}
               onFormSuccess={handleEvaluatorSuccess}
+              preprocessFormValues={preprocessFormValues}
             />
           </DialogContent>
         </Dialog>

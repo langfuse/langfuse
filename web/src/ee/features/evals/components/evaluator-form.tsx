@@ -13,6 +13,7 @@ export const EvaluatorForm = (props: {
   templateId?: string;
   hideTargetSection?: boolean;
   preventRedirect?: boolean;
+  preprocessFormValues?: (values: any) => any;
 }) => {
   const currentTemplate =
     props.existingEvaluator?.evalTemplate ??
@@ -34,6 +35,7 @@ export const EvaluatorForm = (props: {
         hideTargetSection={props.hideTargetSection}
         mode={props.mode}
         preventRedirect={props.preventRedirect ?? true}
+        preprocessFormValues={props.preprocessFormValues}
       />
     </>
   );

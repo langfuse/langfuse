@@ -131,6 +131,7 @@ export const InnerEvaluatorForm = (props: {
   mode?: "create" | "edit";
   hideTargetSection?: boolean;
   preventRedirect?: boolean;
+  preprocessFormValues?: (values: any) => any;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
@@ -289,6 +290,11 @@ export const InnerEvaluatorForm = (props: {
         : "eval_config:new_form_submit",
     );
 
+    // Apply preprocessFormValues if it exists
+    if (props.preprocessFormValues) {
+      values = props.preprocessFormValues(values);
+    }
+
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
     if (
@@ -363,8 +369,8 @@ export const InnerEvaluatorForm = (props: {
         })
     )
       .then(() => {
-        form.reset();
         props.onFormSuccess?.();
+        form.reset();
 
         if (props.mode !== "edit" && !props.preventRedirect) {
           void router.push(`/project/${props.projectId}/evals`);
