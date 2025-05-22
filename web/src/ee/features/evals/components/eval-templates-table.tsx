@@ -5,8 +5,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, MoreVertical, Pen, UserCircle2Icon } from "lucide-react";
-import { type EvalTemplate } from "@langfuse/shared";
+import { Copy, Pen, UserCircle2Icon } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -28,13 +27,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -49,7 +41,7 @@ import {
   RAGAS_TEMPLATE_PREFIX,
 } from "@/src/ee/features/evals/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { RouterInput } from "@/src/utils/types";
+import { type RouterInput } from "@/src/utils/types";
 import { RagasAndLangfuseIcon } from "@/src/ee/features/evals/components/ragas-logo";
 
 export type EvalsTemplateRow = {

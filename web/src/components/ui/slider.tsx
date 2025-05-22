@@ -73,6 +73,13 @@ const Slider = React.forwardRef<
       }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleInputBlur();
+      }
+    };
+
     return (
       <div className={cn("flex items-center gap-4", className)}>
         <SliderPrimitive.Root
@@ -103,6 +110,7 @@ const Slider = React.forwardRef<
               value={inputValue}
               onChange={handleInputChange}
               onBlur={handleInputBlur}
+              onKeyDown={handleKeyDown}
               className="w-20 text-right"
               disabled={props.disabled}
               min={

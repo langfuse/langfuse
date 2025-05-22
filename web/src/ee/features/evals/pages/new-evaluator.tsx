@@ -43,6 +43,7 @@ export default function NewEvaluatorPage() {
         projectId={projectId}
         evalTemplates={evalTemplates.data?.templates ?? []}
         templateId={evaluator as string}
+        preventRedirect={false}
       />
     </Page>
   );

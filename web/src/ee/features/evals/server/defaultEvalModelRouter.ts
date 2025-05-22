@@ -80,6 +80,8 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
+      // TODO: we could think about setting all evaluators to inactive when the default model is deleted (through user action or by deleting llm api key)
+
       return DefaultEvalModelService.deleteDefaultModel(input.projectId);
     }),
 });

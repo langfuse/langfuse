@@ -309,12 +309,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       cell: (row) => {
         const id = row.getValue();
-        return id ? (
-          <TableLink
-            path={`/project/${projectId}/evals/${encodeURIComponent(id)}`}
-            value={id}
-          />
-        ) : undefined;
+        return id ? <TableIdOrName value={id} /> : undefined;
       },
     }),
     columnHelper.accessor("actions", {

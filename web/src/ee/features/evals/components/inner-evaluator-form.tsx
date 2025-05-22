@@ -407,144 +407,134 @@ export const InnerEvaluatorForm = (props: {
           {!props.hideTargetSection && (
             <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
               <span className="text-lg font-medium">Target</span>
-              <div className="flex flex-col gap-6">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between md:gap-4">
-                  <FormField
-                    control={form.control}
-                    name="timeScope"
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormLabel>Evaluator runs on</FormLabel>
-                        <FormControl>
-                          <div className="flex flex-col gap-2">
-                            <div className="items-top flex space-x-2">
-                              <Checkbox
-                                id="newObjects"
-                                checked={field.value.includes("NEW")}
-                                onCheckedChange={(checked) => {
-                                  const newValue = checked
-                                    ? [...field.value, "NEW"]
-                                    : field.value.filter((v) => v !== "NEW");
-                                  field.onChange(newValue);
-                                }}
-                                disabled={props.disabled}
-                              />
-                              <div className="grid gap-1.5 leading-none">
-                                <label
-                                  htmlFor="newObjects"
-                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                >
-                                  New{" "}
-                                  {form.watch("target") === "trace"
-                                    ? "traces"
-                                    : "dataset run items"}
-                                </label>
-                              </div>
-                            </div>
-                            <div className="items-top flex space-x-2">
-                              <Checkbox
-                                id="existingObjects"
-                                checked={field.value.includes("EXISTING")}
-                                onCheckedChange={(checked) => {
-                                  const newValue = checked
-                                    ? [...field.value, "EXISTING"]
-                                    : field.value.filter(
-                                        (v) => v !== "EXISTING",
-                                      );
-                                  field.onChange(newValue);
-                                }}
-                                disabled={
-                                  props.disabled ||
-                                  (props.mode === "edit" &&
-                                    field.value.includes("EXISTING"))
-                                }
-                              />
-                              <div className="flex items-center gap-1.5 leading-none">
-                                <label
-                                  htmlFor="existingObjects"
-                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                >
-                                  Existing{" "}
-                                  {form.watch("target") === "trace"
-                                    ? "traces"
-                                    : "dataset run items"}
-                                </label>
-                                {field.value.includes("EXISTING") &&
-                                  props.mode !== "edit" &&
-                                  !props.disabled && (
-                                    <ExecutionCountTooltip
-                                      projectId={props.projectId}
-                                      item={form.watch("target")}
-                                      filter={form.watch("filter")}
-                                    />
-                                  )}
-                              </div>
+              <div className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="timeScope"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>Evaluator runs on</FormLabel>
+                      <FormControl>
+                        <div className="flex flex-col gap-2">
+                          <div className="items-top flex space-x-2">
+                            <Checkbox
+                              id="newObjects"
+                              checked={field.value.includes("NEW")}
+                              onCheckedChange={(checked) => {
+                                const newValue = checked
+                                  ? [...field.value, "NEW"]
+                                  : field.value.filter((v) => v !== "NEW");
+                                field.onChange(newValue);
+                              }}
+                              disabled={props.disabled}
+                            />
+                            <div className="grid gap-1.5 leading-none">
+                              <label
+                                htmlFor="newObjects"
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                New{" "}
+                                {form.watch("target") === "trace"
+                                  ? "traces"
+                                  : "dataset run items"}
+                              </label>
                             </div>
                           </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="target"
-                    render={({ field }) => (
-                      <FormItem className="md:flex md:flex-col md:items-end">
-                        <div className="flex items-center gap-2">
-                          <FormLabel className="md:mb-0">Target:</FormLabel>
-                          <FormControl>
-                            <Tabs
-                              defaultValue="trace"
-                              value={field.value}
-                              onValueChange={(value) => {
-                                const isTrace = isTraceTarget(value);
-                                const langfuseObject: LangfuseObject = isTrace
-                                  ? "trace"
-                                  : "dataset_item";
-                                const newMapping = form
-                                  .getValues("mapping")
-                                  .map((field) => ({
-                                    ...field,
-                                    langfuseObject,
-                                  }));
-                                form.setValue("filter", []);
-                                form.setValue("mapping", newMapping);
-                                setAvailableVariables(
-                                  isTrace
-                                    ? availableTraceEvalVariables
-                                    : availableDatasetEvalVariables,
-                                );
-                                field.onChange(value);
+                          <div className="items-top flex space-x-2">
+                            <Checkbox
+                              id="existingObjects"
+                              checked={field.value.includes("EXISTING")}
+                              onCheckedChange={(checked) => {
+                                const newValue = checked
+                                  ? [...field.value, "EXISTING"]
+                                  : field.value.filter((v) => v !== "EXISTING");
+                                field.onChange(newValue);
                               }}
-                            >
-                              <TabsList>
-                                <TabsTrigger
-                                  value="trace"
-                                  disabled={
-                                    props.disabled || props.mode === "edit"
-                                  }
-                                >
-                                  Live tracing data
-                                </TabsTrigger>
-                                <TabsTrigger
-                                  value="dataset"
-                                  disabled={
-                                    props.disabled || props.mode === "edit"
-                                  }
-                                >
-                                  Experiment runs
-                                </TabsTrigger>
-                              </TabsList>
-                            </Tabs>
-                          </FormControl>
+                              disabled={
+                                props.disabled ||
+                                (props.mode === "edit" &&
+                                  field.value.includes("EXISTING"))
+                              }
+                            />
+                            <div className="flex items-center gap-1.5 leading-none">
+                              <label
+                                htmlFor="existingObjects"
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                Existing{" "}
+                                {form.watch("target") === "trace"
+                                  ? "traces"
+                                  : "dataset run items"}
+                              </label>
+                              {field.value.includes("EXISTING") &&
+                                props.mode !== "edit" &&
+                                !props.disabled && (
+                                  <ExecutionCountTooltip
+                                    projectId={props.projectId}
+                                    item={form.watch("target")}
+                                    filter={form.watch("filter")}
+                                  />
+                                )}
+                            </div>
+                          </div>
                         </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="target"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Target data</FormLabel>
+                      <FormControl>
+                        <Tabs
+                          defaultValue="trace"
+                          value={field.value}
+                          onValueChange={(value) => {
+                            const isTrace = isTraceTarget(value);
+                            const langfuseObject: LangfuseObject = isTrace
+                              ? "trace"
+                              : "dataset_item";
+                            const newMapping = form
+                              .getValues("mapping")
+                              .map((field) => ({
+                                ...field,
+                                langfuseObject,
+                              }));
+                            form.setValue("filter", []);
+                            form.setValue("mapping", newMapping);
+                            setAvailableVariables(
+                              isTrace
+                                ? availableTraceEvalVariables
+                                : availableDatasetEvalVariables,
+                            );
+                            field.onChange(value);
+                          }}
+                        >
+                          <TabsList>
+                            <TabsTrigger
+                              value="trace"
+                              disabled={props.disabled || props.mode === "edit"}
+                            >
+                              Live tracing data
+                            </TabsTrigger>
+                            <TabsTrigger
+                              value="dataset"
+                              disabled={props.disabled || props.mode === "edit"}
+                            >
+                              Experiment runs
+                            </TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
@@ -555,33 +545,35 @@ export const InnerEvaluatorForm = (props: {
                       {isTraceTarget(form.watch("target")) ? (
                         <>
                           <FormControl>
-                            <InlineFilterBuilder
-                              columns={tracesTableColsWithOptions(
-                                traceFilterOptions,
-                                evalTraceTableCols,
-                              )}
-                              filterState={field.value ?? []}
-                              onChange={(
-                                value: z.infer<typeof singleFilter>[],
-                              ) => {
-                                field.onChange(value);
-                                if (router.query.traceId) {
-                                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                                  const { traceId, ...otherParams } =
-                                    router.query;
-                                  router.replace(
-                                    {
-                                      pathname: router.pathname,
-                                      query: otherParams,
-                                    },
-                                    undefined,
-                                    { shallow: true },
-                                  );
-                                }
-                              }}
-                              disabled={props.disabled}
-                              columnsWithCustomSelect={["tags"]}
-                            />
+                            <div className="max-w-[500px]">
+                              <InlineFilterBuilder
+                                columns={tracesTableColsWithOptions(
+                                  traceFilterOptions,
+                                  evalTraceTableCols,
+                                )}
+                                filterState={field.value ?? []}
+                                onChange={(
+                                  value: z.infer<typeof singleFilter>[],
+                                ) => {
+                                  field.onChange(value);
+                                  if (router.query.traceId) {
+                                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                    const { traceId, ...otherParams } =
+                                      router.query;
+                                    router.replace(
+                                      {
+                                        pathname: router.pathname,
+                                        query: otherParams,
+                                      },
+                                      undefined,
+                                      { shallow: true },
+                                    );
+                                  }
+                                }}
+                                disabled={props.disabled}
+                                columnsWithCustomSelect={["tags"]}
+                              />
+                            </div>
                           </FormControl>
                           <FormMessage />
                         </>
@@ -619,16 +611,18 @@ export const InnerEvaluatorForm = (props: {
                     <FormItem>
                       <FormLabel>Sampling</FormLabel>
                       <FormControl>
-                        <Slider
-                          disabled={props.disabled}
-                          min={0}
-                          max={1}
-                          step={0.0001}
-                          value={[field.value]}
-                          onValueChange={(value) => field.onChange(value[0])}
-                          showInput={true}
-                          displayAsPercentage={true}
-                        />
+                        <div className="max-w-[500px]">
+                          <Slider
+                            disabled={props.disabled}
+                            min={0}
+                            max={1}
+                            step={0.0001}
+                            value={[field.value]}
+                            onValueChange={(value) => field.onChange(value[0])}
+                            showInput={true}
+                            displayAsPercentage={true}
+                          />
+                        </div>
                       </FormControl>
                       <div className="flex flex-col">
                         <FormDescription className="mt-1 flex flex-row gap-1">
@@ -681,7 +675,7 @@ export const InnerEvaluatorForm = (props: {
                 with the first matched trace data subject to the filters.
               </FormDescription>
             )}
-            <div className="flex max-w-full flex-col gap-6">
+            <div className="flex max-w-full flex-col gap-4">
               <FormField
                 control={form.control}
                 name="mapping"
