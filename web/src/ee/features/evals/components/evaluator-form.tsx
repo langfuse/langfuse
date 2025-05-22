@@ -2,7 +2,6 @@ import { type EvalTemplate } from "@langfuse/shared";
 import { InnerEvaluatorForm } from "@/src/ee/features/evals/components/inner-evaluator-form";
 import { type PartialConfig } from "@/src/ee/features/evals/types";
 
-// TODO: see which props can be removed due to no template selector
 export const EvaluatorForm = (props: {
   projectId: string;
   evalTemplates: EvalTemplate[];

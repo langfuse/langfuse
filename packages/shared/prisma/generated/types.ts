@@ -325,6 +325,17 @@ export type DatasetRuns = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
+export type DefaultEvalModel = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    llm_api_key_id: string;
+    provider: string;
+    adapter: string;
+    model: string;
+    model_params: unknown | null;
+};
 export type EvalTemplate = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -703,6 +714,7 @@ export type DB = {
     dataset_run_items: DatasetRunItems;
     dataset_runs: DatasetRuns;
     datasets: Dataset;
+    default_eval_models: DefaultEvalModel;
     eval_templates: EvalTemplate;
     job_configurations: JobConfiguration;
     job_executions: JobExecution;

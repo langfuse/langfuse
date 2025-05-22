@@ -20,6 +20,7 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/Suppo
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { SelectEvaluatorDialog } from "@/src/ee/features/evals/components/SelectEvaluatorDialog";
 import { useState } from "react";
+
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -32,6 +33,11 @@ export default function EvaluatorsPage() {
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
+  });
+
+  const hasDefaultModelReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalDefaultModel:read",
   });
 
   const hasReadAccess = useHasProjectAccess({
@@ -114,19 +120,30 @@ export default function EvaluatorsPage() {
             </TabsBar>
           ),
           actionButtonsRight: (
-            <ActionButton
-              hasAccess={hasWriteAccess}
-              icon={<Plus className="h-4 w-4" />}
-              variant="default"
-              onClick={() => {
-                capture("eval_config:new_form_open");
-                setIsEvaluatorDialogOpen(true);
-              }}
-              limitValue={countsQuery.data?.configActiveCount ?? 0}
-              limit={evaluatorLimit}
-            >
-              Set up evaluator
-            </ActionButton>
+            <>
+              <ActionButton
+                hasAccess={hasDefaultModelReadAccess}
+                variant="outline"
+                onClick={() => {
+                  router.push(`/project/${projectId}/evals/default-model`);
+                }}
+              >
+                Default Evaluation Model
+              </ActionButton>
+              <ActionButton
+                hasAccess={hasWriteAccess}
+                icon={<Plus className="h-4 w-4" />}
+                variant="default"
+                onClick={() => {
+                  capture("eval_config:new_form_open");
+                  setIsEvaluatorDialogOpen(true);
+                }}
+                limitValue={countsQuery.data?.configActiveCount ?? 0}
+                limit={evaluatorLimit}
+              >
+                Set up evaluator
+              </ActionButton>
+            </>
           ),
         }}
       >

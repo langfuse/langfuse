@@ -34,6 +34,7 @@ import {
   ChatMessageType,
   tableColumnsToSqlFilterAndPrefix,
   orderByToPrismaSql,
+  DefaultEvalModelService,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
@@ -109,9 +110,9 @@ export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
   projectId: z.string(),
   prompt: z.string(),
-  provider: z.string(),
-  model: z.string(),
-  modelParams: ZodModelConfig,
+  provider: z.string().nullish(),
+  model: z.string().nullish(),
+  modelParams: ZodModelConfig.nullish(),
   vars: z.array(z.string()),
   outputSchema: z.object({
     score: z.string(),
@@ -850,29 +851,32 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:CUD",
       });
 
-      const matchingLLMKey = await ctx.prisma.llmApiKeys.findFirst({
-        where: {
-          projectId: input.projectId,
-          provider: input.provider,
-        },
-      });
+      const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+        input.projectId,
+        input.provider ?? undefined,
+        input.model ?? undefined,
+        input.modelParams,
+      );
 
-      const parsedKey = LLMApiKeySchema.safeParse(matchingLLMKey);
-
-      if (!matchingLLMKey || !parsedKey.success) {
-        throw new Error("No matching LLM key found for provider");
+      if (!modelConfig.valid) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No matching LLM key found for provider",
+        });
       }
+
+      const matchingLLMKey = modelConfig.config.apiKey;
 
       // Make a test structured output call to validate the LLM key
       try {
         (
           await fetchLLMCompletion({
             streaming: false,
-            apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
+            apiKey: decrypt(matchingLLMKey.secretKey), // decrypt the secret key
             extraHeaders: decryptAndParseExtraHeaders(
-              parsedKey.data.extraHeaders,
+              matchingLLMKey.extraHeaders,
             ),
-            baseURL: parsedKey.data.baseURL ?? undefined,
+            baseURL: matchingLLMKey.baseURL ?? undefined,
             messages: [
               {
                 role: ChatMessageRole.User,
@@ -881,16 +885,16 @@ export const evalRouter = createTRPCRouter({
               },
             ],
             modelParams: {
-              provider: input.provider,
-              model: input.model,
-              adapter: parsedKey.data.adapter,
+              provider: modelConfig.config.provider,
+              model: modelConfig.config.model,
+              adapter: matchingLLMKey.adapter,
               ...input.modelParams,
             },
             structuredOutputSchema: z.object({
               score: z.string(),
               reasoning: z.string(),
             }),
-            config: parsedKey.data.config,
+            config: matchingLLMKey.config,
           })
         ).completion;
       } catch (err) {
@@ -927,8 +931,10 @@ export const evalRouter = createTRPCRouter({
           name: input.name,
           projectId: input.projectId,
           prompt: input.prompt,
+          // if using default model, leave model, provider and modelParams empty
+          // otherwise we will not pull the most recent default evaluation model
           model: input.model,
-          modelParams: input.modelParams,
+          modelParams: input.modelParams ?? undefined,
           vars: input.vars,
           outputSchema: input.outputSchema,
           provider: input.provider,

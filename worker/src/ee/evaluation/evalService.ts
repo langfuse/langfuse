@@ -21,6 +21,7 @@ import {
   StorageServiceFactory,
   CreateEvalQueueEventType,
   ChatMessageType,
+  DefaultEvalModelService,
 } from "@langfuse/shared/src/server";
 import {
   ChatMessageRole,
@@ -61,14 +62,6 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
     });
   }
   return s3StorageServiceClient;
-};
-
-// TODO: replace with default model from the database
-const DEFAULT_EVALUATION_MODEL = {
-  provider: "openai",
-  model: "gpt-4o",
-  model_params: {},
-  project_id: null,
 };
 
 /**
@@ -500,27 +493,18 @@ export const evaluate = async ({
     score: z.number().describe(parsedOutputSchema.score),
   });
 
-  const modelParams = ZodModelConfig.parse(
-    template.modelParams ?? DEFAULT_EVALUATION_MODEL.model_params,
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    event.projectId,
+    template.provider ?? undefined,
+    template.model ?? undefined,
+    template.modelParams as Record<string, unknown> | null,
   );
 
-  // the apiKey.secret_key must never be printed to the console or returned to the client.
-  const apiKey = await prisma.llmApiKeys.findFirst({
-    where: {
-      projectId: event.projectId,
-      provider: template.provider ?? DEFAULT_EVALUATION_MODEL.provider,
-    },
-  });
-  const parsedKey = LLMApiKeySchema.safeParse(apiKey);
-
-  if (!parsedKey.success) {
-    // this will fail the eval execution if a user deletes the API key.
+  if (!modelConfig.valid) {
     logger.error(
-      `Evaluating job ${event.jobExecutionId} did not find API key for provider ${template.provider ?? DEFAULT_EVALUATION_MODEL.provider} and project ${event.projectId}. Eval will fail. ${parsedKey.error}`,
+      `Evaluating job ${event.jobExecutionId} will fail. ${modelConfig.error}`,
     );
-    throw new LangfuseNotFoundError(
-      `API key for provider ${template.provider ?? DEFAULT_EVALUATION_MODEL.provider} and project ${event.projectId} not found.`,
-    );
+    throw new LangfuseNotFoundError(modelConfig.error);
   }
 
   const messages = [
@@ -535,11 +519,11 @@ export const evaluate = async ({
     async () =>
       await callStructuredLLM(
         event.jobExecutionId,
-        parsedKey.data,
+        modelConfig.config.apiKey,
         messages,
-        modelParams,
-        template.provider ?? DEFAULT_EVALUATION_MODEL.provider,
-        template.model ?? DEFAULT_EVALUATION_MODEL.model,
+        modelConfig.config.modelParams ?? {},
+        modelConfig.config.provider,
+        modelConfig.config.model,
         evalScoreSchema,
       ),
     {

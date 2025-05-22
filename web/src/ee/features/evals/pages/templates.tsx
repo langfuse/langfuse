@@ -11,6 +11,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
+import { ActionButton } from "@/src/components/ActionButton";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -24,6 +25,11 @@ export default function TemplatesPage() {
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalTemplate:read",
+  });
+
+  const hasDefaultModelReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalDefaultModel:read",
   });
 
   if (!hasReadAccess) {
@@ -53,27 +59,38 @@ export default function TemplatesPage() {
           </TabsBar>
         ),
         actionButtonsRight: (
-          <Button
-            disabled={!hasWriteAccess}
-            onClick={() => capture("eval_templates:new_form_open")}
-            asChild
-            variant="default"
-          >
-            <Link
-              href={
-                hasWriteAccess
-                  ? `/project/${projectId}/evals/templates/new`
-                  : "#"
-              }
+          <>
+            <ActionButton
+              hasAccess={hasDefaultModelReadAccess}
+              variant="outline"
+              onClick={() => {
+                router.push(`/project/${projectId}/evals/default-model`);
+              }}
             >
-              {hasWriteAccess ? (
-                <Plus className="mr-2 h-4 w-4" />
-              ) : (
-                <Lock className="mr-2 h-4 w-4" />
-              )}
-              Custom Evaluator
-            </Link>
-          </Button>
+              Default Evaluation Model
+            </ActionButton>
+            <Button
+              disabled={!hasWriteAccess}
+              onClick={() => capture("eval_templates:new_form_open")}
+              asChild
+              variant="default"
+            >
+              <Link
+                href={
+                  hasWriteAccess
+                    ? `/project/${projectId}/evals/templates/new`
+                    : "#"
+                }
+              >
+                {hasWriteAccess ? (
+                  <Plus className="mr-2 h-4 w-4" />
+                ) : (
+                  <Lock className="mr-2 h-4 w-4" />
+                )}
+                Custom Evaluator
+              </Link>
+            </Button>
+          </>
         ),
       }}
     >

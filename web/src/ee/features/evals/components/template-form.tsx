@@ -20,7 +20,6 @@ import { type EvalTemplate } from "@langfuse/shared";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import {
   OutputSchema,
-  type UIModelParams,
   type ModelParams,
   ZodModelConfig,
 } from "@langfuse/shared";
@@ -32,14 +31,11 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { RouterInput } from "@/src/utils/types";
-
-// TODO: replace with default model from the database
-const DEFAULT_EVALUATION_MODEL = {
-  provider: "openai",
-  model: "gpt-4o",
-  modelParams: {},
-};
+import { type RouterInput } from "@/src/utils/types";
+import Link from "next/link";
+import { useEvaluationModel } from "@/src/ee/features/evals/hooks/useEvaluationModel";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { ExternalLink } from "lucide-react";
 
 type PartialEvalTemplate = Omit<
   EvalTemplate,
@@ -79,18 +75,16 @@ export const EvalTemplateForm = (props: {
                   score: string;
                   reasoning: string;
                 },
-                selectedModel: {
-                  provider:
-                    props.existingEvalTemplate.provider ??
-                    DEFAULT_EVALUATION_MODEL.provider,
-                  model:
-                    props.existingEvalTemplate.model ??
-                    DEFAULT_EVALUATION_MODEL.model,
-                  modelParams:
-                    (props.existingEvalTemplate.modelParams as ModelParams & {
-                      maxTemperature: number;
-                    }) ?? DEFAULT_EVALUATION_MODEL.modelParams,
-                },
+                selectedModel: props.existingEvalTemplate.provider
+                  ? {
+                      provider: props.existingEvalTemplate.provider as string,
+                      model: props.existingEvalTemplate.model as string,
+                      modelParams: props.existingEvalTemplate
+                        .modelParams as ModelParams & {
+                        maxTemperature: number;
+                      },
+                    }
+                  : undefined,
               }
             : undefined
         }
@@ -131,6 +125,7 @@ const formSchema = z.object({
     .nativeEnum(EvalReferencedEvaluators)
     .optional()
     .default(EvalReferencedEvaluators.PERSIST),
+  shouldUseDefaultModel: z.boolean().default(true),
 });
 
 export type EvalTemplateFormPreFill = {
@@ -167,6 +162,17 @@ export const InnerEvalTemplateForm = (props: {
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Determine if we should use default model or custom model
+  // If existing template has no provider, it was using default model
+  const isExistingUsingDefault = props.preFilledFormValues?.selectedModel
+    ? false
+    : true;
+
+  const { data: defaultModel } = api.defaultEvalModel.getDefaultModel.useQuery(
+    { projectId: props.projectId },
+    { enabled: !!props.projectId },
+  );
+
   // updates the model params based on the pre-filled data
   // either form update or from langfuse-generated template
   const {
@@ -178,29 +184,11 @@ export const InnerEvalTemplateForm = (props: {
     availableProviders,
   } = useModelParams();
 
-  useEffect(() => {
-    if (props.preFilledFormValues?.selectedModel) {
-      const { provider, model, modelParams } =
-        props.preFilledFormValues.selectedModel;
-
-      const modelConfig = Object.entries(modelParams).reduce(
-        (acc, [key, value]) => {
-          return {
-            ...acc,
-            [key]: { value, enabled: true },
-          };
-        },
-        {} as UIModelParams,
-      );
-
-      setModelParams((prev) => ({
-        ...prev,
-        ...modelConfig,
-        provider: { value: provider, enabled: true },
-        model: { value: model, enabled: true },
-      }));
-    }
-  }, [props.preFilledFormValues?.selectedModel, setModelParams]);
+  const { selectedModel } = useEvaluationModel(
+    props.projectId,
+    setModelParams,
+    props.preFilledFormValues?.selectedModel,
+  );
 
   // updates the form based on the pre-filled data
   // either form update or from langfuse-generated template
@@ -218,8 +206,11 @@ export const InnerEvalTemplateForm = (props: {
       outputScore: props.preFilledFormValues
         ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).score
         : undefined,
+      shouldUseDefaultModel: isExistingUsingDefault,
     },
   });
+
+  const useDefaultModel = form.watch("shouldUseDefaultModel");
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -277,9 +268,14 @@ export const InnerEvalTemplateForm = (props: {
       name: values.name,
       projectId: props.projectId,
       prompt: values.prompt,
-      provider: modelParams.provider.value,
-      model: modelParams.model.value,
-      modelParams: getFinalModelParams(modelParams),
+      // Only include model details if not using default model
+      provider: values.shouldUseDefaultModel
+        ? undefined
+        : modelParams.provider.value,
+      model: values.shouldUseDefaultModel ? undefined : modelParams.model.value,
+      modelParams: values.shouldUseDefaultModel
+        ? undefined
+        : getFinalModelParams(modelParams),
       vars: extractedVariables ?? [],
       outputSchema: {
         score: values.outputScore,
@@ -289,13 +285,20 @@ export const InnerEvalTemplateForm = (props: {
       sourceTemplateId: props.cloneSourceId ?? undefined,
     };
 
-    const parsedModel = selectedModelSchema.safeParse(evalTemplate);
+    // Only validate model if not using default
+    if (!values.shouldUseDefaultModel) {
+      const parsedModel = selectedModelSchema.safeParse({
+        provider: evalTemplate.provider,
+        model: evalTemplate.model,
+        modelParams: evalTemplate.modelParams,
+      });
 
-    if (!parsedModel.success) {
-      setFormError(
-        `${parsedModel.error.errors[0].path}: ${parsedModel.error.errors[0].message}`,
-      );
-      return;
+      if (!parsedModel.success) {
+        setFormError(
+          `${parsedModel.error.errors[0].path}: ${parsedModel.error.errors[0].message}`,
+        );
+        return;
+      }
     }
 
     // Check if we need to perform any pre-submission validation or confirmation
@@ -333,7 +336,7 @@ export const InnerEvalTemplateForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-6"
+        className="mt-2 space-y-4"
       >
         {!props.existingEvalTemplateId ? (
           <>
@@ -361,22 +364,102 @@ export const InnerEvalTemplateForm = (props: {
           </>
         ) : undefined}
 
-        <Card className="mt-2 flex flex-col gap-6">
-          <CardContent>
-            <ModelParameters
-              {...{
-                modelParams,
-                availableModels,
-                availableProviders,
-                updateModelParamValue: updateModelParamValue,
-                setModelParamEnabled,
-                modelParamsDescription:
-                  "Select a model which supports function calling.",
-              }}
-              formDisabled={!props.isEditing}
-            />
-          </CardContent>
-        </Card>
+        {/* Model Selection Section */}
+        {props.isEditing && (
+          <FormField
+            control={form.control}
+            name="shouldUseDefaultModel"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={!props.isEditing || !defaultModel}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Use default evaluation model</FormLabel>
+                  <FormDescription className="text-xs">
+                    Use the project's default evaluation model for this template
+                  </FormDescription>
+                </div>
+              </FormItem>
+            )}
+          />
+        )}
+
+        {useDefaultModel ? (
+          defaultModel ? (
+            <Card className="mt-2 border-dark-green bg-light-green">
+              <CardContent className="flex flex-col gap-1">
+                <p className="mt-2 text-sm font-semibold">
+                  Default evaluation model selected
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  This template will use the default evaluation model for your
+                  project:
+                  <span className="font-medium">
+                    {" "}
+                    {defaultModel.provider} / {defaultModel.model}
+                  </span>
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="mt-2 border-dark-yellow bg-light-yellow">
+              <CardContent className="flex flex-col gap-1">
+                <p className="mt-2 text-sm font-semibold">
+                  No default evaluation model found
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Please set up a default evaluation model for your project.
+                </p>
+                <Link
+                  href={`/project/${props.projectId}/evals/default-model`}
+                  className="mt-2 flex items-center text-sm text-blue-500 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Configure default model{" "}
+                  <ExternalLink className="ml-1" size={14} />
+                </Link>
+              </CardContent>
+            </Card>
+          )
+        ) : (
+          <Card className="mt-2 border-dark-blue bg-light-blue">
+            <CardContent className="flex flex-col gap-1">
+              <p className="mt-2 text-sm font-semibold">
+                Custom evaluation model selected
+              </p>
+              <p className="text-xs text-muted-foreground">
+                This template will use a custom model configuration instead of
+                the project default.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Only show model parameters if using custom model */}
+        {!useDefaultModel && selectedModel && (
+          <Card className="mt-2 flex flex-col gap-6">
+            <CardContent>
+              <ModelParameters
+                {...{
+                  modelParams,
+                  availableModels,
+                  availableProviders,
+                  updateModelParamValue: updateModelParamValue,
+                  setModelParamEnabled,
+                  modelParamsDescription:
+                    "Select a model which supports function calling.",
+                }}
+                formDisabled={!props.isEditing}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="space-y-6">
@@ -459,7 +542,7 @@ export const InnerEvalTemplateForm = (props: {
           <Button
             type="submit"
             loading={createEvalTemplateMutation.isLoading}
-            className="col-span-1 lg:col-span-3"
+            className="w-full"
           >
             Save
           </Button>
