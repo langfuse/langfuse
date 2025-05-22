@@ -84,7 +84,7 @@ export default function DefaultEvaluationModelPage() {
         }}
       >
         {selectedModel ? (
-          <div className="mt-2 flex flex-col gap-6">
+          <div className="flex flex-col gap-6">
             <Card className="border-dark-green bg-light-green">
               <CardContent className="flex flex-col gap-1">
                 <p className="mt-2 text-sm font-semibold">
@@ -101,7 +101,7 @@ export default function DefaultEvaluationModelPage() {
             </Card>
           </div>
         ) : (
-          <div className="mt-2 flex flex-col gap-6">
+          <div className="flex flex-col gap-6">
             <Card className="border-dark-yellow bg-light-yellow">
               <CardContent className="flex flex-col gap-1">
                 <p className="mt-2 text-sm font-semibold">
@@ -115,7 +115,7 @@ export default function DefaultEvaluationModelPage() {
             </Card>
           </div>
         )}
-        <Card className="mt-2 flex flex-col gap-6">
+        <Card className="mt-3 flex flex-col gap-6">
           <CardContent>
             <ModelParameters
               {...{
@@ -158,7 +158,7 @@ export default function DefaultEvaluationModelPage() {
             </Button>
           </div>
         ) : (
-          <div className="mt-2 flex justify-end">
+          <div className="mt-3 flex justify-end">
             <Button
               disabled={!hasWriteAccess || !modelParams.provider.value}
               onClick={() => {

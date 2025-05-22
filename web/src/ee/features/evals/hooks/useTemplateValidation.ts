@@ -16,12 +16,12 @@ export function useTemplateValidation({ projectId }: { projectId: string }) {
   // validate that either a default eval model is set or the selected eval has a custom model
   useEffect(() => {
     if (selectedTemplate) {
-      if (!selectedTemplate.provider || defaultModel.data?.provider) {
+      if (!(selectedTemplate.provider || defaultModel.data?.provider)) {
         setIsSelectionValid(false);
         return;
       }
 
-      if (!selectedTemplate.model || defaultModel.data?.model) {
+      if (!(selectedTemplate.model || defaultModel.data?.model)) {
         setIsSelectionValid(false);
         return;
       }
