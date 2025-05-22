@@ -762,9 +762,16 @@ export const convertOtelSpanToIngestionEvent = (
         ("openinference.span.kind" in attributes &&
           attributes["openinference.span.kind"] === "LLM");
 
+      const isEvent =
+        attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] === "event";
+
       events.push({
         id: randomUUID(),
-        type: isGeneration ? "generation-create" : "span-create",
+        type: isGeneration
+          ? "generation-create"
+          : isEvent
+            ? "event-create"
+            : "span-create",
         timestamp: new Date().toISOString(),
         body: observation,
       });
