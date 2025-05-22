@@ -38,7 +38,7 @@ export const observationRecordBaseSchema = z.object({
   parent_observation_id: z.string().nullish(),
   environment: z.string().default("default"),
   name: z.string().nullish(),
-  metadata: z.record(z.string()),
+  metadata: z.record(z.string(), z.string()), // updated here
   level: z.string().nullish(),
   status_message: z.string().nullish(),
   version: z.string().nullish(),
