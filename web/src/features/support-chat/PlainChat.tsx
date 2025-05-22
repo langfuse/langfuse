@@ -8,6 +8,10 @@ declare global {
   }
 }
 
+// Add these at the top level
+let metadataQueue: Array<() => void> = [];
+let isWidgetLoaded = false;
+
 const PlainChat = () => {
   const scriptRef = useRef<HTMLScriptElement | null>(null);
 
@@ -53,6 +57,17 @@ const PlainChat = () => {
           ],
         });
 
+        // Mark widget as loaded and process queued metadata updates
+        isWidgetLoaded = true;
+        for (const metadataUpdate of metadataQueue) {
+          try {
+            metadataUpdate();
+          } catch (error) {
+            console.error("Error updating Plain metadata", error);
+          }
+        }
+        metadataQueue = [];
+
         // If URL parameter is present, open the chat immediately
         if (shouldShowChat) {
           window.Plain.open();
@@ -84,12 +99,22 @@ export const chatLoaded = () => {
   );
 };
 
-export const showChat = (): void => {
-  if (chatLoaded()) {
-    window.Plain.update({
-      hideLauncher: false,
-    });
+const runOrQueuePlainCallback = (cb: () => void) => {
+  if (isWidgetLoaded) {
+    cb();
+  } else {
+    metadataQueue.push(cb);
   }
+};
+
+export const showChat = (): void => {
+  runOrQueuePlainCallback(() => {
+    if (chatLoaded()) {
+      window.Plain.update({
+        hideLauncher: false,
+      });
+    }
+  });
 };
 
 export const hideChat = (): void => {
@@ -107,10 +132,12 @@ export const closeChat = (): void => {
 };
 
 export const openChat = (): void => {
-  if (chatLoaded()) {
-    showChat();
-    window.Plain.open();
-  }
+  runOrQueuePlainCallback(() => {
+    if (chatLoaded()) {
+      showChat();
+      window.Plain.open();
+    }
+  });
 };
 
 export const getUnreadMessageCount = (): number | null => {
@@ -126,29 +153,33 @@ export const chatSetCustomer = (customer: {
   emailHash?: string;
   chatAvatarUrl?: string;
 }) => {
-  if (chatLoaded()) {
-    window.Plain.update({
-      customerDetails: customer,
-    });
-  }
+  runOrQueuePlainCallback(() => {
+    if (chatLoaded()) {
+      window.Plain.update({
+        customerDetails: customer,
+      });
+    }
+  });
 };
 
 export const chatSetThreadDetails = (p: { orgId?: string; plan?: Plan }) => {
-  if (chatLoaded()) {
-    window.Plain.update({
-      threadDetails: {
-        ...(p.orgId && {
-          tenantIdentifier: {
-            externalId: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_org_${p.orgId}`,
-          },
-        }),
-        ...(p.plan && {
-          tierIdentifier: {
-            externalId: p.plan,
-          },
-        }),
-        // project_id: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_project_${project?.id}`,
-      },
-    });
-  }
+  runOrQueuePlainCallback(() => {
+    if (chatLoaded()) {
+      window.Plain.update({
+        threadDetails: {
+          ...(p.orgId && {
+            tenantIdentifier: {
+              externalId: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_org_${p.orgId}`,
+            },
+          }),
+          ...(p.plan && {
+            tierIdentifier: {
+              externalId: p.plan,
+            },
+          }),
+          // project_id: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_project_${project?.id}`,
+        },
+      });
+    }
+  });
 };
