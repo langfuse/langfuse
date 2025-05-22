@@ -335,6 +335,14 @@ export default function ObservationsTable({
       header: "Name",
       size: 150,
       enableSorting: true,
+      cell: ({ row }) => {
+        const value: ObservationsTableRow["name"] = row.getValue("name");
+        return value ? (
+          <span className="truncate" title={value}>
+            {value}
+          </span>
+        ) : undefined;
+      },
     },
     {
       accessorKey: "input",

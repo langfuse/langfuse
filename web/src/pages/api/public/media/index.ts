@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import crypto from "node:crypto";
 
 import { env } from "@/src/env.mjs";
 import { getFileExtensionFromContentType } from "@/src/features/media/server/getFileExtensionFromContentType";
@@ -92,8 +91,7 @@ export default withMiddlewares({
               };
             }
 
-            const mediaId =
-              existingMedia?.id ?? getMediaId({ projectId, sha256Hash });
+            const mediaId = existingMedia?.id ?? getMediaId({ sha256Hash });
 
             span.setAttribute("mediaId", mediaId);
 
@@ -215,12 +213,12 @@ function getBucketPath(params: {
   return `${prefix}${projectId}/${mediaId}.${fileExtension}`;
 }
 
-function getMediaId(params: { projectId: string; sha256Hash: string }) {
-  const { projectId, sha256Hash } = params;
+function getMediaId(params: { sha256Hash: string }) {
+  const { sha256Hash } = params;
 
-  return crypto
-    .createHash("sha256")
-    .update(projectId + sha256Hash, "utf8")
-    .digest("base64url")
-    .slice(0, 22);
+  // Make hash URL safe
+  const urlSafeHash = sha256Hash.replaceAll("+", "-").replaceAll("/", "_");
+
+  // Get first 132 bits, i.e. first 22 base64Url chars
+  return urlSafeHash.slice(0, 22);
 }

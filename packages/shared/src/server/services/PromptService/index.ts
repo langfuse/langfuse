@@ -100,7 +100,7 @@ export class PromptService {
     return null;
   }
 
-  private async resolvePrompt(
+  public async resolvePrompt(
     prompt: Prompt | null,
   ): Promise<PromptResult | null> {
     if (!prompt) return prompt;

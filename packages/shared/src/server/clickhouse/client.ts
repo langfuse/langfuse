@@ -83,6 +83,10 @@ export class ClickHouseClientManager {
         password: env.CLICKHOUSE_PASSWORD,
         database: env.CLICKHOUSE_DB,
         http_headers: headers,
+        keep_alive: {
+          idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
+        },
+        max_open_connections: env.CLICKHOUSE_MAX_OPEN_CONNECTIONS,
         clickhouse_settings: {
           ...cloudOptions,
           ...opts.clickhouse_settings,

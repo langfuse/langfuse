@@ -35,7 +35,7 @@ export const WidgetPropertySelectItem = ({
       </HoverCardTrigger>
       <HoverCardPortal>
         <HoverCardContent hideWhenDetached align="start" side="right">
-          <div className="mb-1 font-bold">{label}</div>
+          <div className="mb-1 font-bold text-sm">{label}</div>
           {(unit || type) && (
             <div className="mb-2 flex flex-wrap gap-2 text-xs">
               {unit && (

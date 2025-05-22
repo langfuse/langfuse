@@ -38,6 +38,8 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
       endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
+      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
     });
   }
   return s3StorageServiceClient;
@@ -77,13 +79,11 @@ const getDelay = (delay: number | null) => {
  * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
  * @param authCheck - AuthHeaderValidVerificationResult
  * @param delay - (Optional) Delay in ms to wait before processing events in the batch.
- * @param validateBatch - (Optional) Options to control validation.
  */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResult,
   delay: number | null = null,
-  validateBatch: boolean = true,
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -118,36 +118,27 @@ export const processEventBatch = async (
 
   const batch: z.infer<typeof ingestionEvent>[] = input
     .flatMap((event) => {
-      let eventData: z.infer<typeof ingestionEvent> | null = null;
-
-      if (validateBatch) {
-        const parsed = ingestionEvent.safeParse(event);
-        if (!parsed.success) {
-          validationErrors.push({
-            id:
-              typeof event === "object" && event && "id" in event
-                ? typeof event.id === "string"
-                  ? event.id
-                  : "unknown"
-                : "unknown",
-            error: new InvalidRequestError(parsed.error.message),
-          });
-          return [];
-        }
-        eventData = parsed.data;
-      } else {
-        // Skip validation – assume input already conforms
-        eventData = event as z.infer<typeof ingestionEvent>;
+      const parsed = ingestionEvent.safeParse(event);
+      if (!parsed.success) {
+        validationErrors.push({
+          id:
+            typeof event === "object" && event && "id" in event
+              ? typeof event.id === "string"
+                ? event.id
+                : "unknown"
+              : "unknown",
+          error: new InvalidRequestError(parsed.error.message),
+        });
+        return [];
       }
-
-      if (!isAuthorized(eventData, authCheck)) {
+      if (!isAuthorized(parsed.data, authCheck)) {
         authenticationErrors.push({
-          id: eventData.id,
+          id: parsed.data.id,
           error: new UnauthorizedError("Access Scope Denied"),
         });
         return [];
       }
-      return [eventData];
+      return [parsed.data];
     })
     .flatMap((event) => {
       if (event.type === eventTypes.SDK_LOG) {

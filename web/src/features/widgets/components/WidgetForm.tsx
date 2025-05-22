@@ -45,12 +45,71 @@ import {
   PieChart,
   LineChart,
   BarChartHorizontal,
+  Hash,
 } from "lucide-react";
+import {
+  buildWidgetName,
+  buildWidgetDescription,
+} from "@/src/features/widgets/utils";
+
+type ChartType = {
+  group: "time-series" | "total-value";
+  name: string;
+  value: DashboardWidgetChartType;
+  icon: React.ElementType;
+  supportsBreakdown: boolean;
+};
+
+const chartTypes: ChartType[] = [
+  {
+    group: "total-value",
+    name: "Big Number",
+    value: "NUMBER",
+    icon: Hash,
+    supportsBreakdown: false,
+  },
+  {
+    group: "time-series",
+    name: "Line Chart",
+    value: "LINE_TIME_SERIES",
+    icon: LineChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "time-series",
+    name: "Vertical Bar Chart",
+    value: "BAR_TIME_SERIES",
+    icon: BarChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Horizontal Bar Chart",
+    value: "HORIZONTAL_BAR",
+    icon: BarChartHorizontal,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Vertical Bar Chart",
+    value: "VERTICAL_BAR",
+    icon: BarChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Pie Chart",
+    value: "PIE",
+    icon: PieChart,
+    supportsBreakdown: true,
+  },
+];
 
 export function WidgetForm({
   initialValues,
   projectId,
   onSave,
+  widgetId,
 }: {
   initialValues: {
     name: string;
@@ -74,12 +133,20 @@ export function WidgetForm({
     chartType: DashboardWidgetChartType;
     chartConfig: { type: DashboardWidgetChartType; row_limit?: number };
   }) => void;
+  widgetId?: string;
 }) {
   // State for form fields
   const [widgetName, setWidgetName] = useState<string>(initialValues.name);
   const [widgetDescription, setWidgetDescription] = useState<string>(
     initialValues.description,
   );
+
+  // Determine if this is an existing widget (editing mode)
+  const isExistingWidget = Boolean(widgetId);
+
+  // Disables further auto-updates once the user edits name or description
+  const [autoLocked, setAutoLocked] = useState<boolean>(isExistingWidget);
+
   const [selectedView, setSelectedView] = useState<z.infer<typeof views>>(
     initialValues.view,
   );
@@ -102,7 +169,7 @@ export function WidgetForm({
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange();
+    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
   const [userFilterState, setUserFilterState] = useState<FilterState>(
     initialValues.filters ?? [],
   );
@@ -213,68 +280,48 @@ export function WidgetForm({
     },
   ];
 
-  // Chart type options
-  type ChartType = {
-    group: "time-series" | "total-value";
-    name: string;
-    value: DashboardWidgetChartType;
-    icon: React.ElementType;
-  };
-
-  const chartTypes: ChartType[] = useMemo(
-    () => [
-      {
-        group: "time-series",
-        name: "Line Chart",
-        value: "LINE_TIME_SERIES",
-        icon: LineChart,
-      },
-      {
-        group: "time-series",
-        name: "Vertical Bar Chart",
-        value: "BAR_TIME_SERIES",
-        icon: BarChart,
-      },
-      {
-        group: "total-value",
-        name: "Horizontal Bar Chart",
-        value: "HORIZONTAL_BAR",
-        icon: BarChartHorizontal,
-      },
-      {
-        group: "total-value",
-        name: "Vertical Bar Chart",
-        value: "VERTICAL_BAR",
-        icon: BarChart,
-      },
-      { group: "total-value", name: "Pie Chart", value: "PIE", icon: PieChart },
-    ],
-    [],
-  );
+  // When chart type does not support breakdown, wipe the breakdown dimension
+  useEffect(() => {
+    if (
+      chartTypes.find((c) => c.value === selectedChartType)
+        ?.supportsBreakdown === false &&
+      selectedDimension !== "none"
+    ) {
+      setSelectedDimension("none");
+    }
+  }, [selectedChartType, selectedDimension]);
 
   // Set aggregation to "count" when metric is "count"
   useEffect(() => {
-    if (selectedMeasure === "count") {
+    if (selectedMeasure === "count" && selectedAggregation !== "count") {
       setSelectedAggregation("count");
     }
-  }, [selectedMeasure]);
+  }, [selectedMeasure, selectedAggregation]);
 
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.measures).map(([key]) => ({
-      value: key,
-      label: startCase(key),
-    }));
+    return Object.entries(viewDeclaration.measures)
+      .map(([key]) => ({
+        value: key,
+        label: startCase(key),
+      }))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+      );
   }, [selectedView]);
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.dimensions).map(([key]) => ({
-      value: key,
-      label: startCase(key),
-    }));
+    return Object.entries(viewDeclaration.dimensions)
+      .map(([key]) => ({
+        value: key,
+        label: startCase(key),
+      }))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+      );
   }, [selectedView]);
 
   // Create a dynamic query based on the selected view
@@ -336,9 +383,14 @@ export function WidgetForm({
         return {
           dimension:
             item[dimensionField] !== undefined
-              ? item[dimensionField]
-                ? (item[dimensionField] as string)
-                : "n/a"
+              ? (() => {
+                  const val = item[dimensionField];
+                  if (typeof val === "string") return val;
+                  if (val === null || val === undefined || val === "")
+                    return "n/a";
+                  if (Array.isArray(val)) return val.join(", ");
+                  return String(val);
+                })()
               : startCase(
                   metricField === "count_count" ? "Count" : metricField,
                 ),
@@ -374,6 +426,48 @@ export function WidgetForm({
           },
     });
   };
+
+  // Update widget name when selection changes, unless locked
+  useEffect(() => {
+    if (autoLocked) return;
+
+    const suggested = buildWidgetName({
+      aggregation: selectedAggregation,
+      measure: selectedMeasure,
+      dimension: selectedDimension,
+      view: selectedView,
+    });
+
+    setWidgetName(suggested);
+  }, [
+    autoLocked,
+    selectedAggregation,
+    selectedMeasure,
+    selectedDimension,
+    selectedView,
+  ]);
+
+  // Update widget description when selection or filters change, unless locked
+  useEffect(() => {
+    if (autoLocked) return;
+
+    const suggested = buildWidgetDescription({
+      aggregation: selectedAggregation,
+      measure: selectedMeasure,
+      dimension: selectedDimension,
+      view: selectedView,
+      filters: userFilterState,
+    });
+
+    setWidgetDescription(suggested);
+  }, [
+    autoLocked,
+    selectedAggregation,
+    selectedMeasure,
+    selectedDimension,
+    selectedView,
+    userFilterState,
+  ]);
 
   return (
     <div className="flex h-full gap-4">
@@ -486,38 +580,41 @@ export function WidgetForm({
               </div>
 
               {/* Dimension Selection (Breakdown) */}
-              <div className="space-y-2">
-                <Label htmlFor="dimension-select">
-                  Breakdown Dimension (Optional)
-                </Label>
-                <Select
-                  value={selectedDimension}
-                  onValueChange={setSelectedDimension}
-                >
-                  <SelectTrigger id="dimension-select">
-                    <SelectValue placeholder="Select a dimension" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {availableDimensions.map((dimension) => {
-                      const meta =
-                        viewDeclarations[selectedView]?.dimensions?.[
-                          dimension.value
-                        ];
-                      return (
-                        <WidgetPropertySelectItem
-                          key={dimension.value}
-                          value={dimension.value}
-                          label={dimension.label}
-                          description={meta?.description}
-                          unit={meta?.unit}
-                          type={meta?.type}
-                        />
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
+              {chartTypes.find((c) => c.value === selectedChartType)
+                ?.supportsBreakdown && (
+                <div className="space-y-2">
+                  <Label htmlFor="dimension-select">
+                    Breakdown Dimension (Optional)
+                  </Label>
+                  <Select
+                    value={selectedDimension}
+                    onValueChange={setSelectedDimension}
+                  >
+                    <SelectTrigger id="dimension-select">
+                      <SelectValue placeholder="Select a dimension" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {availableDimensions.map((dimension) => {
+                        const meta =
+                          viewDeclarations[selectedView]?.dimensions?.[
+                            dimension.value
+                          ];
+                        return (
+                          <WidgetPropertySelectItem
+                            key={dimension.value}
+                            value={dimension.value}
+                            label={dimension.label}
+                            description={meta?.description}
+                            unit={meta?.unit}
+                            type={meta?.type}
+                          />
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {/* Visualization Section */}
@@ -530,7 +627,10 @@ export function WidgetForm({
                 <Input
                   id="widget-name"
                   value={widgetName}
-                  onChange={(e) => setWidgetName(e.target.value)}
+                  onChange={(e) => {
+                    if (!autoLocked) setAutoLocked(true);
+                    setWidgetName(e.target.value);
+                  }}
                   placeholder="Enter widget name"
                 />
               </div>
@@ -541,7 +641,10 @@ export function WidgetForm({
                 <Input
                   id="widget-description"
                   value={widgetDescription}
-                  onChange={(e) => setWidgetDescription(e.target.value)}
+                  onChange={(e) => {
+                    if (!autoLocked) setAutoLocked(true);
+                    setWidgetDescription(e.target.value);
+                  }}
                   placeholder="Enter widget description"
                 />
               </div>
@@ -564,7 +667,6 @@ export function WidgetForm({
                         .map((chart) => (
                           <SelectItem key={chart.value} value={chart.value}>
                             <div className="flex items-center">
-                              {" "}
                               {React.createElement(chart.icon, {
                                 className: "mr-2 w-4",
                               })}
@@ -580,7 +682,6 @@ export function WidgetForm({
                         .map((chart) => (
                           <SelectItem key={chart.value} value={chart.value}>
                             <div className="flex items-center">
-                              {" "}
                               {React.createElement(chart.icon, {
                                 className: "mr-2 w-4",
                               })}
@@ -603,30 +704,32 @@ export function WidgetForm({
                 />
               </div>
 
-              {/* Row Limit Selection - Only shown for non-time series charts */}
-              {!isTimeSeriesChart(
-                selectedChartType as DashboardWidgetChartType,
-              ) && (
-                <div className="space-y-2">
-                  <Label htmlFor="row-limit">
-                    Breakdown Row Limit (0-1000)
-                  </Label>
-                  <Input
-                    id="row-limit"
-                    type="number"
-                    min={0}
-                    max={1000}
-                    value={rowLimit}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      if (!isNaN(value) && value >= 0 && value <= 1000) {
-                        setRowLimit(value);
-                      }
-                    }}
-                    placeholder="Enter breakdown row limit (0-1000)"
-                  />
-                </div>
-              )}
+              {/* Row Limit Selection - Only shown for non-time series charts that support breakdown */}
+              {chartTypes.find((c) => c.value === selectedChartType)
+                ?.supportsBreakdown &&
+                !isTimeSeriesChart(
+                  selectedChartType as DashboardWidgetChartType,
+                ) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="row-limit">
+                      Breakdown Row Limit (0-1000)
+                    </Label>
+                    <Input
+                      id="row-limit"
+                      type="number"
+                      min={0}
+                      max={1000}
+                      value={rowLimit}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 0 && value <= 1000) {
+                          setRowLimit(value);
+                        }
+                      }}
+                      placeholder="Enter breakdown row limit (0-1000)"
+                    />
+                  </div>
+                )}
             </div>
           </CardContent>
           <CardFooter className="mt-auto">
@@ -639,7 +742,7 @@ export function WidgetForm({
 
       {/* Right column - Chart */}
       <div className="w-2/3">
-        <Card>
+        <Card className={"aspect-video"}>
           <CardHeader>
             <CardTitle>{widgetName}</CardTitle>
             <CardDescription>{widgetDescription}</CardDescription>

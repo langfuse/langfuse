@@ -62,6 +62,7 @@ const processBlobStorageExport = async (config: {
   );
 
   // Initialize the storage service
+  // KMS SSE is not supported for this integration.
   const storageService: StorageService = StorageServiceFactory.getInstance({
     accessKeyId: config.accessKeyId,
     secretAccessKey: config.secretAccessKey,
@@ -69,6 +70,8 @@ const processBlobStorageExport = async (config: {
     endpoint: config.endpoint ?? undefined,
     region: config.region,
     forcePathStyle: config.forcePathStyle ?? false,
+    awsSse: undefined,
+    awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
   });
 

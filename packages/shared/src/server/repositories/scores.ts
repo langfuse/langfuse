@@ -30,6 +30,7 @@ import { env } from "../../env";
 import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { recordDistribution } from "../instrumentation";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -347,6 +348,14 @@ export const getScoresForTraces = async <
       ...row,
       metadata: excludeMetadata ? {} : row.metadata,
     });
+
+    recordDistribution(
+      "langfuse.query_by_id_age",
+      new Date().getTime() - score.timestamp.getTime(),
+      {
+        table: "scores",
+      },
+    );
 
     if (includeHasMetadata) {
       Object.assign(score, { hasMetadata: !!row.has_metadata });

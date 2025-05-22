@@ -239,13 +239,13 @@ describe("Projects API", () => {
     it("should validate retention days", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
-      // Test with invalid retention days (less than 7 and not 0)
+      // Test with invalid retention days (less than 3 and not 0)
       const invalidResult = await makeAPICall(
         "POST",
         "/api/public/projects",
         {
           name: uniqueProjectName,
-          retention: 5, // Invalid: less than 7 and not 0
+          retention: 2, // Invalid: less than 3 and not 0
         },
         createBasicAuthHeader(orgApiKey, orgSecretKey),
       );
@@ -390,13 +390,13 @@ describe("Projects API", () => {
     });
 
     it("should validate retention days on update", async () => {
-      // Test with invalid retention days (less than 7 and not 0)
+      // Test with invalid retention days (less than 3 and not 0)
       const invalidResult = await makeAPICall(
         "PUT",
         `/api/public/projects/${testProjectId}`,
         {
           name: "Updated Project Name",
-          retention: 5, // Invalid: less than 7 and not 0
+          retention: 2, // Invalid: less than 3 and not 0
         },
         createBasicAuthHeader(orgApiKey, orgSecretKey),
       );

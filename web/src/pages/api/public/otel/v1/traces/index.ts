@@ -90,10 +90,11 @@ export default withMiddlewares({
       }
 
       const events: IngestionEventType[] = resourceSpans.flatMap(
-        convertOtelSpanToIngestionEvent,
+        (span: unknown) =>
+          convertOtelSpanToIngestionEvent(span, auth.scope.publicKey),
       );
       // We set a delay of 0 for OTel, as we never expect updates.
-      return processEventBatch(events, auth, 0, false);
+      return processEventBatch(events, auth, 0);
     },
   }),
 });

@@ -225,6 +225,13 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (!ctx.trace) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Trace not found",
+        });
+      }
+
       const [observations, scores] = await Promise.all([
         getObservationsForTrace({
           traceId: input.traceId,
@@ -238,13 +245,6 @@ export const traceRouter = createTRPCRouter({
           timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
         }),
       ]);
-
-      if (!ctx.trace) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Trace not found",
-        });
-      }
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
