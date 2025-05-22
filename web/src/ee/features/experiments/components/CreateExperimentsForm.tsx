@@ -66,10 +66,7 @@ import {
 import Link from "next/link";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  TemplateSelector,
-  type TemplateSelectorRef,
-} from "@/src/ee/features/evals/components/template-selector";
+import { TemplateSelector } from "@/src/ee/features/evals/components/template-selector";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { useEvaluatorDefaults } from "@/src/ee/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/ee/features/experiments/hooks/useExperimentEvaluatorData";
@@ -141,7 +138,6 @@ export const CreateExperimentsForm = ({
   const [showPromptForm, setShowPromptForm] = useState(false);
 
   const { createDefaultEvaluator } = useEvaluatorDefaults();
-  const templateSelectorRef = useRef<TemplateSelectorRef>(null);
 
   const {
     modelParams,
@@ -209,16 +205,13 @@ export const CreateExperimentsForm = ({
   const {
     activeEvaluators,
     inActiveEvaluators,
-    pendingOrSelectedEvaluatorData,
+    selectedEvaluatorData,
     showEvaluatorForm,
-    handlePendingTemplateSelect,
     handleConfigureEvaluator,
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
-    handleTemplateSelect,
   } = useExperimentEvaluatorData({
     datasetId,
-    templateSelectorRef,
     createDefaultEvaluator,
     evaluatorsData: evaluators.data,
     evalTemplatesData: evalTemplates.data,
@@ -691,16 +684,12 @@ export const CreateExperimentsForm = ({
                 Will run against your experiment results.
               </FormDescription>
               <TemplateSelector
-                ref={templateSelectorRef}
                 projectId={projectId}
                 datasetId={datasetId}
                 evalTemplates={evalTemplates.data?.templates ?? []}
-                onTemplateSelect={handleTemplateSelect}
                 onConfigureTemplate={handleConfigureEvaluator}
-                onPendingTemplateSelect={handlePendingTemplateSelect}
                 activeTemplateIds={activeEvaluators}
                 inactiveTemplateIds={inActiveEvaluators}
-                multiSelect
               />
             </FormItem>
           ) : (
@@ -792,7 +781,7 @@ export const CreateExperimentsForm = ({
       </Form>
 
       {/* Dialog for configuring evaluators */}
-      {pendingOrSelectedEvaluatorData && (
+      {selectedEvaluatorData && (
         <Dialog
           open={showEvaluatorForm}
           onOpenChange={(open) => {
@@ -803,20 +792,16 @@ export const CreateExperimentsForm = ({
         >
           <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
             <DialogTitle>
-              {pendingOrSelectedEvaluatorData.evaluator.id
-                ? "Edit"
-                : "Configure"}{" "}
+              {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
               Evaluator
             </DialogTitle>
             <EvaluatorForm
               projectId={projectId}
               evalTemplates={evalTemplates.data?.templates ?? []}
-              templateId={pendingOrSelectedEvaluatorData.templateId}
-              existingEvaluator={pendingOrSelectedEvaluatorData.evaluator}
-              mode={
-                pendingOrSelectedEvaluatorData.evaluator.id ? "edit" : "create"
-              }
-              hideTargetSection={!pendingOrSelectedEvaluatorData.evaluator.id}
+              templateId={selectedEvaluatorData.templateId}
+              existingEvaluator={selectedEvaluatorData.evaluator}
+              mode={selectedEvaluatorData.evaluator.id ? "edit" : "create"}
+              hideTargetSection={!selectedEvaluatorData.evaluator.id}
               onFormSuccess={handleEvaluatorSuccess}
             />
           </DialogContent>

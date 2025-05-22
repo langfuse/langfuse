@@ -1,5 +1,5 @@
 import { type EvalTemplate } from "@langfuse/shared";
-import { CheckIcon, ExternalLink } from "lucide-react";
+import { AlertCircle, CheckIcon, ExternalLink } from "lucide-react";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -11,8 +11,15 @@ import {
 } from "@/src/components/ui/input-command";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-
+import { type RouterOutputs } from "@/src/utils/api";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
 interface EvaluatorSelectorProps {
+  projectId: string;
   evalTemplates: EvalTemplate[];
   selectedTemplateId?: string;
   onTemplateSelect: (
@@ -24,6 +31,7 @@ interface EvaluatorSelectorProps {
 }
 
 export function EvaluatorSelector({
+  projectId,
   evalTemplates,
   selectedTemplateId,
   onTemplateSelect,
@@ -62,6 +70,10 @@ export function EvaluatorSelector({
     filteredTemplates.langfuse.length > 0 ||
     filteredTemplates.custom.length > 0;
 
+  const { isTemplateInvalid } = useSingleTemplateValidation({
+    projectId,
+  });
+
   return (
     <InputCommand className="flex h-full flex-col border-none">
       <InputCommandInput
@@ -79,11 +91,64 @@ export function EvaluatorSelector({
         {filteredTemplates.custom.length > 0 && (
           <>
             <InputCommandGroup heading="Custom evaluators">
-              {filteredTemplates.custom.map(([name, templateData]) => (
+              {filteredTemplates.custom.map(([name, templateData]) => {
+                const latestVersion = templateData[templateData.length - 1];
+                const isInvalid = isTemplateInvalid(latestVersion);
+
+                return (
+                  <InputCommandItem
+                    key={`custom-${name}`}
+                    disabled={isInvalid}
+                    onSelect={() => {
+                      onTemplateSelect(
+                        latestVersion.id,
+                        name,
+                        latestVersion.version,
+                      );
+                    }}
+                    className={cn(
+                      templateData.some((t) => t.id === selectedTemplateId) &&
+                        "bg-secondary",
+                    )}
+                  >
+                    {name}
+                    {isInvalid && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Requires project-level evaluation model
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                    <CheckIcon
+                      className={cn(
+                        "ml-auto h-4 w-4",
+                        templateData.some((t) => t.id === selectedTemplateId)
+                          ? "opacity-100"
+                          : "opacity-0",
+                      )}
+                    />
+                  </InputCommandItem>
+                );
+              })}
+            </InputCommandGroup>
+            {filteredTemplates.custom.length > 0 && <InputCommandSeparator />}
+          </>
+        )}
+
+        {filteredTemplates.langfuse.length > 0 && (
+          <InputCommandGroup heading="Langfuse managed evaluators">
+            {filteredTemplates.langfuse.map(([name, templateData]) => {
+              const latestVersion = templateData[templateData.length - 1];
+              const isInvalid = isTemplateInvalid(latestVersion);
+
+              return (
                 <InputCommandItem
-                  key={`custom-${name}`}
+                  key={`langfuse-${name}`}
+                  disabled={isInvalid}
                   onSelect={() => {
-                    const latestVersion = templateData[templateData.length - 1];
                     onTemplateSelect(
                       latestVersion.id,
                       name,
@@ -96,6 +161,16 @@ export function EvaluatorSelector({
                   )}
                 >
                   {name}
+                  {isInvalid && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Requires project-level evaluation model
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                   <CheckIcon
                     className={cn(
                       "ml-auto h-4 w-4",
@@ -105,41 +180,8 @@ export function EvaluatorSelector({
                     )}
                   />
                 </InputCommandItem>
-              ))}
-            </InputCommandGroup>
-            {filteredTemplates.custom.length > 0 && <InputCommandSeparator />}
-          </>
-        )}
-
-        {filteredTemplates.langfuse.length > 0 && (
-          <InputCommandGroup heading="Langfuse managed evaluators">
-            {filteredTemplates.langfuse.map(([name, templateData]) => (
-              <InputCommandItem
-                key={`langfuse-${name}`}
-                onSelect={() => {
-                  const latestVersion = templateData[templateData.length - 1];
-                  onTemplateSelect(
-                    latestVersion.id,
-                    name,
-                    latestVersion.version,
-                  );
-                }}
-                className={cn(
-                  templateData.some((t) => t.id === selectedTemplateId) &&
-                    "bg-secondary",
-                )}
-              >
-                {name}
-                <CheckIcon
-                  className={cn(
-                    "ml-auto h-4 w-4",
-                    templateData.some((t) => t.id === selectedTemplateId)
-                      ? "opacity-100"
-                      : "opacity-0",
-                  )}
-                />
-              </InputCommandItem>
-            ))}
+              );
+            })}
           </InputCommandGroup>
         )}
 

@@ -43,6 +43,7 @@ import {
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import { RagasAndLangfuseIcon } from "@/src/ee/features/evals/components/ragas-logo";
+import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -51,8 +52,9 @@ export type EvalsTemplateRow = {
   latestVersion?: number;
   id?: string;
   usageCount?: number;
-  apply?: string;
   actions?: string;
+  provider?: string;
+  model?: string;
 };
 
 export default function EvalsTemplateTable({
@@ -106,6 +108,10 @@ export default function EvalsTemplateTable({
       enabled: !!cloneTemplateId,
     },
   );
+
+  const { isTemplateInvalid } = useSingleTemplateValidation({
+    projectId,
+  });
 
   const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
     onSuccess: () => {
@@ -187,31 +193,6 @@ export default function EvalsTemplateTable({
         return !!count ? count : null;
       },
     }),
-    columnHelper.accessor("apply", {
-      header: "Configure",
-      id: "apply",
-      size: 100,
-      cell: ({ row }) => {
-        const templateId = row.original.id;
-        return (
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="apply"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (templateId) {
-                void router.push(
-                  `/project/${projectId}/evals/new?evaluator=${templateId}`,
-                );
-              }
-            }}
-          >
-            Run on data
-          </Button>
-        );
-      },
-    }),
     columnHelper.accessor("latestVersion", {
       header: "Latest Version",
       id: "latestVersion",
@@ -235,9 +216,34 @@ export default function EvalsTemplateTable({
       id: "actions",
       size: 100,
       cell: ({ row }) => {
-        const id: string = row.getValue("id");
+        const id = row.original.id;
+        const provider = row.original.provider ?? null;
+        const model = row.original.model ?? null;
+        const isInvalid = isTemplateInvalid({ provider, model });
+
         return (
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="apply"
+              disabled={isInvalid}
+              title={
+                isInvalid
+                  ? "Evaluator requires project-level evaluation model. Set it up and start running evaluations."
+                  : undefined
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                if (id) {
+                  void router.push(
+                    `/project/${projectId}/evals/new?evaluator=${id}`,
+                  );
+                }
+              }}
+            >
+              Run on data
+            </Button>
             {row.original.maintainer.includes("Langfuse") ? (
               <Button
                 aria-label="clone"
@@ -247,7 +253,7 @@ export default function EvalsTemplateTable({
                 // disabled={!hasAccess}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setCloneTemplateId(id);
+                  if (id) setCloneTemplateId(id);
                 }}
               >
                 <Copy className="h-3 w-3" />
@@ -261,7 +267,7 @@ export default function EvalsTemplateTable({
                 // disabled={!hasAccess}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setEditTemplateId(id);
+                  if (id) setEditTemplateId(id);
                 }}
               >
                 <Pen className="h-3 w-3" />
@@ -298,6 +304,8 @@ export default function EvalsTemplateTable({
       latestVersion: template.version,
       id: template.latestId,
       usageCount: template.usageCount,
+      provider: template.provider,
+      model: template.model,
     };
   };
 

@@ -71,6 +71,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
           ) : (
             <div className="flex-1 overflow-hidden">
               <EvaluatorSelector
+                projectId={projectId}
                 evalTemplates={templates.data?.templates || []}
                 selectedTemplateId={selectedTemplate?.id || undefined}
                 onTemplateSelect={(templateId) =>

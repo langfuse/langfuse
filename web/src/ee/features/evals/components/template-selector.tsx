@@ -23,7 +23,7 @@ import {
 } from "@/src/components/ui/input-command";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
-import { useImperativeHandle, forwardRef, useState } from "react";
+import { useState } from "react";
 import { useExperimentEvaluatorSelection } from "@/src/ee/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { useTemplatesValidation } from "@/src/ee/features/evals/hooks/useTemplatesValidation";
 import {
@@ -31,63 +31,54 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
 
-// Define a ref interface for external control of the component
-export interface TemplateSelectorRef {
-  getPendingTemplate: () => string | null;
-  confirmPendingSelection: () => void;
-  clearPendingSelection: () => void;
-}
+type TemplateSelectorProps = {
+  projectId: string;
+  datasetId: string;
+  evalTemplates: EvalTemplate[];
+  disabled?: boolean;
+  mode?: "create" | "edit";
+  activeTemplateIds?: string[];
+  inactiveTemplateIds?: string[];
+  onConfigureTemplate?: (templateId: string) => void;
+  className?: string;
+};
 
-export const TemplateSelector = forwardRef<
-  TemplateSelectorRef,
-  {
-    projectId: string;
-    datasetId: string;
-    evalTemplates: EvalTemplate[];
-    disabled?: boolean;
-    mode?: "create" | "edit";
-    activeTemplateIds?: string[];
-    inactiveTemplateIds?: string[];
-    onTemplateSelect: (templateId: string) => void;
-    onConfigureTemplate?: (templateId: string) => void;
-    onPendingTemplateSelect?: (templateId: string) => void;
-    className?: string;
-    multiSelect?: boolean;
-  }
->((props, ref) => {
+export const TemplateSelector = ({
+  projectId,
+  datasetId,
+  evalTemplates,
+  disabled,
+  mode,
+  activeTemplateIds,
+  inactiveTemplateIds,
+  onConfigureTemplate,
+  className,
+}: TemplateSelectorProps) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [search, setSearch] = useState("");
   const {
-    pendingTemplate,
     activeTemplates,
-    imperativeMethods,
     isTemplateActive,
     isTemplateInactive,
-    isTemplatePending,
     handleRowClick,
     isLoading,
   } = useExperimentEvaluatorSelection({
-    projectId: props.projectId,
-    datasetId: props.datasetId,
-    initialActiveTemplateIds: props.activeTemplateIds,
-    initialInactiveTemplateIds: props.inactiveTemplateIds,
-    multiSelect: props.multiSelect,
-    onTemplateSelect: props.onTemplateSelect,
-    onPendingTemplateSelect: props.onPendingTemplateSelect,
+    projectId: projectId,
+    datasetId: datasetId,
+    initialActiveTemplateIds: activeTemplateIds,
+    initialInactiveTemplateIds: inactiveTemplateIds,
   });
 
   // Validation for templates requiring default model
   const { isTemplateValid, hasDefaultModel } = useTemplatesValidation({
-    projectId: props.projectId,
+    projectId: projectId,
     selectedTemplateIds: activeTemplates,
   });
 
-  // Expose methods to the parent component via ref
-  useImperativeHandle(ref, () => imperativeMethods);
-
   // Group templates by name and whether they are managed by Langfuse
-  const groupedTemplates = props.evalTemplates.reduce(
+  const groupedTemplates = evalTemplates.reduce(
     (acc, template) => {
       const group = template.projectId ? "custom" : "langfuse";
       if (!acc[group][template.name]) {
@@ -126,41 +117,32 @@ export const TemplateSelector = forwardRef<
       return;
     }
 
-    if (props.onConfigureTemplate) {
-      props.onConfigureTemplate(templateId);
+    if (onConfigureTemplate) {
+      onConfigureTemplate(templateId);
     }
   };
 
-  // Check if a template requires a default model
-  const templateRequiresDefaultModel = (template: EvalTemplate): boolean => {
-    return !template.provider || !template.model;
-  };
+  const { isTemplateInvalid } = useSingleTemplateValidation({
+    projectId: projectId,
+  });
 
   return (
     <>
       <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
         <PopoverTrigger asChild>
           <Button
-            disabled={props.disabled || props.mode === "edit"}
+            disabled={disabled || mode === "edit"}
             variant="outline"
             role="combobox"
             aria-expanded={isPopoverOpen}
-            className={cn(
-              "w-full justify-between px-2 font-normal",
-              props.className,
-            )}
+            className={cn("w-full justify-between px-2 font-normal", className)}
           >
             <div className="flex items-center gap-1 overflow-hidden">
               <span className="mr-1 truncate">
                 {activeTemplates.length > 0
                   ? `${activeTemplates.length} evaluators selected`
-                  : pendingTemplate
-                    ? "1 evaluator pending confirmation"
-                    : "Select evaluators"}
+                  : "Select evaluators"}
               </span>
-              {pendingTemplate && (
-                <span className="inline-flex h-2 w-2 rounded-full bg-amber-500" />
-              )}
             </div>
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -188,39 +170,102 @@ export const TemplateSelector = forwardRef<
                 )}
 
                 {filteredTemplates.custom.length > 0 && (
+                  <>
+                    <InputCommandGroup
+                      heading="Custom evaluators"
+                      className="max-h-full"
+                    >
+                      {filteredTemplates.custom.map(([name, templateData]) => {
+                        const latestTemplate =
+                          templateData[templateData.length - 1];
+                        const isActive = isTemplateActive(latestTemplate.id);
+                        const isInactive = isTemplateInactive(
+                          latestTemplate.id,
+                        );
+                        const isInvalid = isTemplateInvalid(latestTemplate);
+
+                        return (
+                          <InputCommandItem
+                            key={`custom-${name}`}
+                            onSelect={() => {
+                              handleRowClick(latestTemplate.id);
+                            }}
+                            disabled={isInvalid}
+                          >
+                            {isActive ? (
+                              <CheckIcon className="mr-2 h-4 w-4" />
+                            ) : (
+                              <div className="mr-2 h-4 w-4" />
+                            )}
+                            {name}
+                            {isInvalid && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  Requires project-level evaluation model
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            {isInactive && (
+                              <div
+                                title="The evaluator has been used in the past but is currently paused. It will not run in this experiment. You can reactivate it if you wish"
+                                className="ml-2 text-xs text-muted-foreground"
+                              >
+                                Paused
+                              </div>
+                            )}
+                            {isActive && (
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                onClick={(e) =>
+                                  handleConfigureTemplate(e, latestTemplate.id)
+                                }
+                                className="ml-auto"
+                                title={
+                                  isInvalid
+                                    ? "Configure default model first"
+                                    : "Configure evaluator"
+                                }
+                                disabled={isInvalid}
+                              >
+                                <Cog className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </InputCommandItem>
+                        );
+                      })}
+                    </InputCommandGroup>
+                    {filteredTemplates.custom.length > 0 && (
+                      <InputCommandSeparator />
+                    )}
+                  </>
+                )}
+
+                {filteredTemplates.langfuse.length > 0 && (
                   <InputCommandGroup
-                    heading="Custom evaluators"
-                    className="max-h-full"
+                    heading="Langfuse managed evaluators"
+                    className="max-h-full min-h-0"
                   >
-                    {filteredTemplates.custom.map(([name, templateData]) => {
+                    {filteredTemplates.langfuse.map(([name, templateData]) => {
                       const latestTemplate =
                         templateData[templateData.length - 1];
                       const isActive = isTemplateActive(latestTemplate.id);
-                      const isPending = isTemplatePending(latestTemplate.id);
                       const isInactive = isTemplateInactive(latestTemplate.id);
-                      const requiresDefaultModel =
-                        templateRequiresDefaultModel(latestTemplate);
-                      const isInvalid =
-                        requiresDefaultModel && !hasDefaultModel;
+                      const isInvalid = isTemplateInvalid(latestTemplate);
 
                       return (
                         <InputCommandItem
-                          key={`custom-${name}`}
+                          key={`langfuse-${name}`}
                           onSelect={() => {
                             handleRowClick(latestTemplate.id);
                           }}
                           disabled={isInvalid}
-                          className={cn(
-                            isPending ? "bg-amber-50 dark:bg-amber-950" : "",
-                            isInvalid
-                              ? "text-amber-700 dark:text-amber-400"
-                              : "",
-                          )}
                         >
                           {isActive ? (
                             <CheckIcon className="mr-2 h-4 w-4" />
-                          ) : isPending ? (
-                            <div className="mr-2 h-4 w-4 rounded-full border-2 border-amber-500" />
                           ) : (
                             <div className="mr-2 h-4 w-4" />
                           )}
@@ -228,33 +273,29 @@ export const TemplateSelector = forwardRef<
                           {isInvalid && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <AlertCircle className="ml-1 h-4 w-4 text-amber-500" />
+                                <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
                               </TooltipTrigger>
                               <TooltipContent>
                                 Requires project-level evaluation model
                               </TooltipContent>
                             </Tooltip>
                           )}
-                          {(isInactive || isPending) && (
+                          {isInactive && (
                             <div
-                              title={
-                                isInactive
-                                  ? "Configured to run by default on datasets for this experiment. Skipped for this run"
-                                  : "Pending confirmation"
-                              }
+                              title="The evaluator has been used in the past but is currently paused. It will not run in this experiment. You can reactivate it if you wish"
                               className="ml-2 text-xs text-muted-foreground"
                             >
-                              {isInactive ? "Default" : "Pending"}
+                              Paused
                             </div>
                           )}
                           {isActive && (
                             <Button
                               variant="ghost"
                               size="icon-xs"
+                              className="ml-auto"
                               onClick={(e) =>
                                 handleConfigureTemplate(e, latestTemplate.id)
                               }
-                              className="ml-auto"
                               title={
                                 isInvalid
                                   ? "Configure default model first"
@@ -271,112 +312,12 @@ export const TemplateSelector = forwardRef<
                   </InputCommandGroup>
                 )}
 
-                {filteredTemplates.langfuse.length > 0 && (
-                  <>
-                    <InputCommandGroup
-                      heading="Langfuse managed evaluators"
-                      className="max-h-full min-h-0"
-                    >
-                      {filteredTemplates.langfuse.map(
-                        ([name, templateData]) => {
-                          const latestTemplate =
-                            templateData[templateData.length - 1];
-                          const isActive = isTemplateActive(latestTemplate.id);
-                          const isPending = isTemplatePending(
-                            latestTemplate.id,
-                          );
-                          const isInactive = isTemplateInactive(
-                            latestTemplate.id,
-                          );
-                          const requiresDefaultModel =
-                            templateRequiresDefaultModel(latestTemplate);
-                          const isInvalid =
-                            requiresDefaultModel && !hasDefaultModel;
-
-                          return (
-                            <InputCommandItem
-                              key={`langfuse-${name}`}
-                              onSelect={() => {
-                                handleRowClick(latestTemplate.id);
-                              }}
-                              disabled={isInvalid}
-                              className={cn(
-                                isPending
-                                  ? "bg-amber-50 dark:bg-amber-950"
-                                  : "",
-                                isInvalid
-                                  ? "text-amber-700 dark:text-amber-400"
-                                  : "",
-                              )}
-                            >
-                              {isActive ? (
-                                <CheckIcon className="mr-2 h-4 w-4" />
-                              ) : isPending ? (
-                                <div className="mr-2 h-4 w-4 rounded-full border-2 border-amber-500" />
-                              ) : (
-                                <div className="mr-2 h-4 w-4" />
-                              )}
-                              {name}
-                              {isInvalid && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <AlertCircle className="ml-1 h-4 w-4 text-amber-500" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    Requires project-level evaluation model
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                              {(isInactive || isPending) && (
-                                <div
-                                  title={
-                                    isInactive
-                                      ? "Configured to run by default on datasets for this experiment. Skipped for this run"
-                                      : "Pending confirmation"
-                                  }
-                                  className="ml-2 text-xs text-muted-foreground"
-                                >
-                                  {isInactive ? "Default" : "Pending"}
-                                </div>
-                              )}
-                              {isActive && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon-xs"
-                                  className="ml-auto"
-                                  onClick={(e) =>
-                                    handleConfigureTemplate(
-                                      e,
-                                      latestTemplate.id,
-                                    )
-                                  }
-                                  title={
-                                    isInvalid
-                                      ? "Configure default model first"
-                                      : "Configure evaluator"
-                                  }
-                                  disabled={isInvalid}
-                                >
-                                  <Cog className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </InputCommandItem>
-                          );
-                        },
-                      )}
-                    </InputCommandGroup>
-                    {filteredTemplates.custom.length > 0 && (
-                      <InputCommandSeparator />
-                    )}
-                  </>
-                )}
-
                 <InputCommandSeparator alwaysRender />
                 <InputCommandGroup forceMount>
                   <InputCommandItem
                     onSelect={() => {
                       window.open(
-                        `/project/${props.projectId}/evals/templates/new`,
+                        `/project/${projectId}/evals/templates/new`,
                         "_blank",
                       );
                     }}
@@ -388,11 +329,10 @@ export const TemplateSelector = forwardRef<
                     <InputCommandItem
                       onSelect={() => {
                         window.open(
-                          `/project/${props.projectId}/evals/default-model`,
+                          `/project/${projectId}/evals/default-model`,
                           "_blank",
                         );
                       }}
-                      className="text-amber-700 dark:text-amber-400"
                     >
                       Configure default model
                       <ExternalLink className="ml-auto h-4 w-4" />
@@ -406,6 +346,6 @@ export const TemplateSelector = forwardRef<
       </Popover>
     </>
   );
-});
+};
 
 TemplateSelector.displayName = "TemplateSelector";

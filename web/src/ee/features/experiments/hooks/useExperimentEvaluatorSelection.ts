@@ -1,14 +1,11 @@
 import { api } from "@/src/utils/api";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 
 type TemplateSelectionHookProps = {
   projectId: string;
   datasetId: string;
   initialActiveTemplateIds?: string[];
   initialInactiveTemplateIds?: string[];
-  multiSelect?: boolean;
-  onTemplateSelect?: (templateId: string) => void;
-  onPendingTemplateSelect?: (templateId: string) => void;
 };
 
 /**
@@ -20,13 +17,7 @@ export function useExperimentEvaluatorSelection({
   datasetId,
   initialActiveTemplateIds = [],
   initialInactiveTemplateIds = [],
-  multiSelect = false,
-  onTemplateSelect,
-  onPendingTemplateSelect,
 }: TemplateSelectionHookProps) {
-  // Track pending template (awaiting configuration)
-  const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
-
   // Track confirmed selections
   const [activeTemplates, setActiveTemplates] = useState<string[]>(
     initialActiveTemplateIds,
@@ -53,70 +44,15 @@ export function useExperimentEvaluatorSelection({
       },
     });
 
-  // Mark a template as pending configuration
-  const markTemplateAsPending = useCallback(
-    (templateId: string) => {
-      setPendingTemplate(templateId);
-      // Notify parent that a template was marked as pending
-      if (onPendingTemplateSelect) {
-        onPendingTemplateSelect(templateId);
-      }
-    },
-    [onPendingTemplateSelect],
-  );
-
-  // Clear the pending template selection
-  const clearPendingTemplate = useCallback(() => {
-    setPendingTemplate(null);
-  }, []);
-
-  // Confirm the pending template selection and add it to confirmed selections
-  const confirmPendingTemplate = useCallback(() => {
-    if (pendingTemplate) {
-      // Add to confirmed selections
-      const newSelection = multiSelect
-        ? [
-            ...activeTemplates.filter((id) => id !== pendingTemplate),
-            pendingTemplate,
-          ]
-        : [pendingTemplate];
-
-      setActiveTemplates(newSelection);
-
-      // Notify parent of the confirmed selection
-      if (onTemplateSelect) {
-        onTemplateSelect(pendingTemplate);
-      }
-
-      // Clear pending state
-      setPendingTemplate(null);
-    }
-  }, [pendingTemplate, multiSelect, activeTemplates, onTemplateSelect]);
-
   // Selection status methods
   const isTemplateActive = useCallback(
     (templateId: string) => activeTemplates.includes(templateId),
     [activeTemplates],
   );
 
-  const isTemplatePending = useCallback(
-    (templateId: string) => pendingTemplate === templateId,
-    [pendingTemplate],
-  );
-
   const isTemplateInactive = useCallback(
     (templateId: string) => inactiveTemplates.includes(templateId),
     [inactiveTemplates],
-  );
-
-  // Helper methods for imperative handle
-  const imperativeMethods = useMemo(
-    () => ({
-      getPendingTemplate: () => pendingTemplate,
-      confirmPendingSelection: confirmPendingTemplate,
-      clearPendingSelection: clearPendingTemplate,
-    }),
-    [pendingTemplate, confirmPendingTemplate, clearPendingTemplate],
   );
 
   const handleRowClick = (templateId: string) => {
@@ -134,18 +70,11 @@ export function useExperimentEvaluatorSelection({
         datasetId,
         newStatus: "ACTIVE",
       });
-    } else if (isTemplatePending(templateId)) {
-      if (onPendingTemplateSelect) {
-        onPendingTemplateSelect(templateId);
-      }
-    } else {
-      markTemplateAsPending(templateId);
     }
   };
 
   return {
     // State
-    pendingTemplate,
     activeTemplates,
 
     // Action
@@ -153,13 +82,9 @@ export function useExperimentEvaluatorSelection({
 
     // Status checks
     isTemplateActive,
-    isTemplatePending,
     isTemplateInactive,
 
     // Loading
     isLoading: updateStatus.isLoading,
-
-    // For useImperativeHandle
-    imperativeMethods,
   };
 }

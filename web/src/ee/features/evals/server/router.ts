@@ -500,6 +500,8 @@ export const evalRouter = createTRPCRouter({
             version: number;
             latestCreatedAt: Date;
             usageCount: number;
+            provider?: string;
+            model?: string;
           }>
         >`
         WITH latest_templates AS (
@@ -507,7 +509,9 @@ export const evalRouter = createTRPCRouter({
             et.id,
             et.name,
             et.project_id,
-          et.version,
+            et.provider,
+            et.model,
+            et.version,
             et.created_at,
             (
               SELECT COUNT(jc.id)
@@ -530,6 +534,8 @@ export const evalRouter = createTRPCRouter({
         SELECT 
           id as "latestId",
           name,
+          provider,
+          model,
           project_id as "projectId",
           version,
           created_at as "latestCreatedAt",
