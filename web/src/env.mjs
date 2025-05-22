@@ -235,7 +235,7 @@ export const env = createEnv({
       .number()
       .nonnegative()
       .default(3600),
-    LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.string().optional(),
+    LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
 
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
