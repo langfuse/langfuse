@@ -307,7 +307,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "id",
       size: 100,
       enableHiding: true,
-      defaultHidden: true,
       cell: (row) => {
         const id = row.getValue();
         return id ? (
