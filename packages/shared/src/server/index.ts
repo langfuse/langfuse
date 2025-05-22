@@ -48,6 +48,7 @@ export * from "./orderByToPrisma";
 export * from "./filterToPrisma";
 export * from "./instrumentation";
 export * from "./logger";
+export * from "./headerPropagation";
 export * from "./queries";
 export * from "./repositories";
 export * from "./redis/evalExecutionQueue";
