@@ -12,21 +12,13 @@ import {
 import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { useState } from "react";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import {
-  Bot,
-  ChartLine,
-  Cog,
-  ExternalLink,
-  FlaskConical,
-  MoreVertical,
-} from "lucide-react";
+import { Bot, ChartLine, Cog, FlaskConical, MoreVertical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useMemo } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
@@ -48,6 +40,10 @@ import {
   TabsBar,
 } from "@/src/components/ui/tabs-bar";
 import { Separator } from "@/src/components/ui/separator";
+import { TemplateSelector } from "@/src/ee/features/evals/components/template-selector";
+import { useEvaluatorDefaults } from "@/src/ee/features/experiments/hooks/useEvaluatorDefaults";
+import { useExperimentEvaluatorData } from "@/src/ee/features/experiments/hooks/useExperimentEvaluatorData";
+import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 
 export default function Dataset() {
   const router = useRouter();
@@ -102,6 +98,46 @@ export default function Dataset() {
       },
     });
   };
+
+  const hasEvalReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJob:read",
+  });
+
+  const hasPromptExperimentEntitlement = useHasEntitlement(
+    "model-based-evaluations",
+  );
+
+  const evalTemplates = api.evals.allTemplates.useQuery({
+    projectId,
+  });
+
+  const evaluators = api.evals.jobConfigsByTarget.useQuery(
+    { projectId, targetObject: "dataset" },
+    {
+      enabled:
+        hasEvalReadAccess && !!datasetId && hasPromptExperimentEntitlement,
+    },
+  );
+
+  const { createDefaultEvaluator } = useEvaluatorDefaults();
+
+  const {
+    activeEvaluators,
+    inActiveEvaluators,
+    selectedEvaluatorData,
+    showEvaluatorForm,
+    handleConfigureEvaluator,
+    handleCloseEvaluatorForm,
+    handleEvaluatorSuccess,
+    handleSelectEvaluator,
+  } = useExperimentEvaluatorData({
+    datasetId,
+    createDefaultEvaluator,
+    evaluatorsData: evaluators.data,
+    evalTemplatesData: evalTemplates.data,
+    refetchEvaluators: evaluators.refetch,
+  });
 
   return (
     <Page
@@ -158,6 +194,20 @@ export default function Dataset() {
                 />
               </DialogContent>
             </Dialog>
+
+            {hasEvalReadAccess && hasEntitlement && (
+              <div className="w-fit">
+                <TemplateSelector
+                  projectId={projectId}
+                  datasetId={datasetId}
+                  evalTemplates={evalTemplates.data?.templates ?? []}
+                  onConfigureTemplate={handleConfigureEvaluator}
+                  onSelectEvaluator={handleSelectEvaluator}
+                  activeTemplateIds={activeEvaluators}
+                  inactiveTemplateIds={inActiveEvaluators}
+                />
+              </div>
+            )}
 
             <Popover>
               <PopoverTrigger asChild>
@@ -243,6 +293,33 @@ export default function Dataset() {
         selectedMetrics={selectedMetrics}
         setScoreOptions={setScoreOptions}
       />
+      {/* Dialog for configuring evaluators */}
+      {selectedEvaluatorData && (
+        <Dialog
+          open={showEvaluatorForm}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseEvaluatorForm();
+            }
+          }}
+        >
+          <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+            <DialogTitle>
+              {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
+              Evaluator
+            </DialogTitle>
+            <EvaluatorForm
+              projectId={projectId}
+              evalTemplates={evalTemplates.data?.templates ?? []}
+              templateId={selectedEvaluatorData.templateId}
+              existingEvaluator={selectedEvaluatorData.evaluator}
+              mode={selectedEvaluatorData.evaluator.id ? "edit" : "create"}
+              hideTargetSection={!selectedEvaluatorData.evaluator.id}
+              onFormSuccess={handleEvaluatorSuccess}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </Page>
   );
 }
