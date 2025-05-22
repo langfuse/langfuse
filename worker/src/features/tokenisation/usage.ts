@@ -9,7 +9,7 @@ import {
   encoding_for_model,
 } from "tiktoken";
 
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   instrumentSync,
   logger,

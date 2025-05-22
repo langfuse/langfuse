@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { JobConfigState } from "@langfuse/shared";
 
 export enum EvalReferencedEvaluators {

@@ -1,7 +1,7 @@
 import { isPrismaException } from "@/src/utils/exceptions";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type ZodError } from "zod/v4";
+import { type ZodError } from "zod";
 import { BaseError, MethodNotAllowedError } from "@langfuse/shared";
 import { logger, traceException } from "@langfuse/shared/src/server";
 

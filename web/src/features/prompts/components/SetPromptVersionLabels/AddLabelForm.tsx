@@ -1,7 +1,7 @@
 import React from "react";
 import { PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   Form,
   FormControl,

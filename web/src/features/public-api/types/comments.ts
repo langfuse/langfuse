@@ -3,7 +3,7 @@ import {
   CreateCommentData,
   publicApiPaginationZod,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Objects

@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { sql } from "kysely";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { JobConfigState } from "@prisma/client";
 import {
   QueueJobs,

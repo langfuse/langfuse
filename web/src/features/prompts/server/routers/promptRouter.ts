@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {

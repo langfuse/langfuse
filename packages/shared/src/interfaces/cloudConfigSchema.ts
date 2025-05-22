@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { CloudConfigRateLimit } from "./rate-limits";
 import { cloudConfigPlans } from "../features/entitlements/plans";
 

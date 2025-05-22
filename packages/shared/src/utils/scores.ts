@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 
 export const applyScoreValidation = <T extends z.ZodType<any, any>>(
   schema: T,

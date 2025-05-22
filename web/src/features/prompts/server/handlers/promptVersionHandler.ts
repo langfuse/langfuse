@@ -1,5 +1,5 @@
 import { logger } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";

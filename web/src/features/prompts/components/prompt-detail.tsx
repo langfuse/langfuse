@@ -6,7 +6,7 @@ import {
   useQueryParam,
   withDefault,
 } from "use-query-params";
-import type { z } from "zod/v4";
+import type { z } from "zod";
 import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
 import {
   TabsBar,

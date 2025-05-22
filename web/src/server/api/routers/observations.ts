@@ -5,7 +5,7 @@ import {
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const observationsRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure

@@ -10,7 +10,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { BsMarkdown } from "react-icons/bs";
 import { cn } from "@/src/utils/tailwind";
 

@@ -29,7 +29,7 @@ import {
   datasetFormFilterColsWithOptions,
   availableDatasetEvalVariables,
 } from "@langfuse/shared";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";

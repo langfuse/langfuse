@@ -1,5 +1,5 @@
 import { paginationZod, parseJsonPrioritised } from "@langfuse/shared";
-import { ZodError } from "zod/v4";
+import { ZodError } from "zod";
 
 // Create test cases
 describe("Pagination Zod Schema", () => {

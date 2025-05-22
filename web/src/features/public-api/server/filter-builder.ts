@@ -9,7 +9,7 @@ import {
   NumberFilter,
   type ClickhouseOperator,
 } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export type ApiColumnMapping = {
   id: string;

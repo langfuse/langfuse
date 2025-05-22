@@ -6,7 +6,7 @@ import {
   optionalPaginationZod,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   clickhouseClient,
   clickhouseCompliantRandomCharacters,

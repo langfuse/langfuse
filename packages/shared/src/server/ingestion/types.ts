@@ -1,5 +1,5 @@
 import lodash from "lodash";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";

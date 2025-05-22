@@ -15,7 +15,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { PromptLabelSchema } from "@/src/features/prompts/server/utils/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { XIcon, Check, ChevronsUpDown } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";

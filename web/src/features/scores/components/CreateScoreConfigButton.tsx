@@ -37,7 +37,7 @@ import {
 } from "@/src/features/scores/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const Category = z.object({
   label: z.string().min(1),

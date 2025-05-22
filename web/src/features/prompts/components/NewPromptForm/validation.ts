@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   PromptChatMessageListSchema,

@@ -1,5 +1,5 @@
 import { ScoreDataType } from "@prisma/client";
-import z from "zod/v4";
+import z from "zod";
 import { MetadataDomain } from "./traces";
 
 export const ScoreSource = {

@@ -24,7 +24,7 @@ import { useSession } from "next-auth/react";
 import React, { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { BsMarkdown } from "react-icons/bs";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 export function CommentList({
   projectId,

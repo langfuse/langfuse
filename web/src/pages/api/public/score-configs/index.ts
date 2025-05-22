@@ -1,5 +1,5 @@
 import { v4 } from "uuid";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const MAX_COMMENT_LENGTH = 3000;
 

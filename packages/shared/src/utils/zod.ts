@@ -1,4 +1,4 @@
-import * as z from "zod/v4";
+import * as z from "zod";
 
 // to be used for Prisma JSON type
 // @see: https://github.com/colinhacks/zod#json-type
