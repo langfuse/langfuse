@@ -17,6 +17,8 @@
 import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
+import { context } from "@opentelemetry/api";
+import { contextWithHeaders } from "@langfuse/shared/src/server";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma, Role } from "@langfuse/shared/src/db";
@@ -53,16 +55,19 @@ export const createInnerTRPCContext = (opts: CreateContextOptions) => {
 export const createTRPCContext = async (opts: CreateNextContextOptions) => {
   const { req, res } = opts;
 
-  // Get the session from the server using the getServerSession wrapper function
-  const session = await getServerAuthSession({ req, res });
+  const baggageCtx = contextWithHeaders(req.headers);
+  return context.with(baggageCtx, async () => {
+    // Get the session from the server using the getServerSession wrapper function
+    const session = await getServerAuthSession({ req, res });
 
-  addUserToSpan({
-    userId: session?.user?.id,
-    email: session?.user?.email ?? undefined,
-  });
+    addUserToSpan({
+      userId: session?.user?.id,
+      email: session?.user?.email ?? undefined,
+    });
 
-  return createInnerTRPCContext({
-    session,
+    return createInnerTRPCContext({
+      session,
+    });
   });
 };
 

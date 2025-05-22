@@ -44,9 +44,13 @@ export async function instrumentAsync<T>(
     activeContext,
     async (span) => {
       // attach baggage entries as attributes on the span
-      const baggage = opentelemetry.propagation.getBaggage(opentelemetry.context.active());
+      const baggage = opentelemetry.propagation.getBaggage(
+        opentelemetry.context.active(),
+      );
       if (baggage) {
-        baggage.getAllEntries().forEach(([k, v]) => span.setAttribute(`http.header.${k}`, v.value));
+        baggage
+          .getAllEntries()
+          .forEach(([k, v]) => span.setAttribute(k, v.value));
       }
       try {
         const result = await callback(span);
@@ -83,9 +87,13 @@ export function instrumentSync<T>(
     activeContext,
     (span) => {
       // attach baggage entries to sync span as well
-      const baggage = opentelemetry.propagation.getBaggage(opentelemetry.context.active());
+      const baggage = opentelemetry.propagation.getBaggage(
+        opentelemetry.context.active(),
+      );
       if (baggage) {
-        baggage.getAllEntries().forEach(([k, v]) => span.setAttribute(`http.header.${k}`, v.value));
+        baggage
+          .getAllEntries()
+          .forEach(([k, v]) => span.setAttribute(k, v.value));
       }
       try {
         const result = callback(span);
