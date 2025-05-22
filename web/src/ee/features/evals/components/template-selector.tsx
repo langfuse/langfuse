@@ -65,7 +65,6 @@ export const TemplateSelector = ({
     isTemplateActive,
     isTemplateInactive,
     handleRowClick,
-    isLoading,
   } = useExperimentEvaluatorSelection({
     projectId: projectId,
     datasetId: datasetId,

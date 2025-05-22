@@ -1,16 +1,10 @@
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, Pen, UserCircle2Icon } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Copy, Pen } from "lucide-react";
 import {
   useQueryParams,
   withDefault,
@@ -314,8 +308,8 @@ export default function EvalsTemplateTable({
           onExpand: expandPeek,
           shouldUpdateRowOnDetailPageNavigation: true,
           getNavigationPath,
-          children: (row) => (
-            <PeekViewEvaluatorTemplateDetail projectId={projectId} row={row} />
+          children: () => (
+            <PeekViewEvaluatorTemplateDetail projectId={projectId} />
           ),
           peekEventOptions: {
             ignoredSelectors: [

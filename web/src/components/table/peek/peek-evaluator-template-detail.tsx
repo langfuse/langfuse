@@ -1,5 +1,4 @@
 import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
-import { type EvalsTemplateRow } from "@/src/ee/features/evals/components/eval-templates-table";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePeekEvalTemplateData } from "@/src/components/table/peek/hooks/usePeekEvalTemplateData";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
@@ -13,10 +12,8 @@ import {
 
 export const PeekViewEvaluatorTemplateDetail = ({
   projectId,
-  row,
 }: {
   projectId: string;
-  row?: EvalsTemplateRow;
 }) => {
   const { peekId } = usePeekState("eval-templates");
 

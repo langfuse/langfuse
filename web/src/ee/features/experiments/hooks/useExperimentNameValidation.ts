@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
-import { UseFormReturn } from "react-hook-form";
+import { type UseFormReturn } from "react-hook-form";
 import { useMemo } from "react";
 
 type ExperimentNameValidationProps = {

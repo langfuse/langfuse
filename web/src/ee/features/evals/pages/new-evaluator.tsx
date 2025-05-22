@@ -12,7 +12,6 @@ import { RunEvaluatorForm } from "@/src/ee/features/evals/components/run-evaluat
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { Tooltip, TooltipTrigger } from "@/src/components/ui/tooltip";
 import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
 

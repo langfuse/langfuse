@@ -30,7 +30,6 @@ import {
   logger,
   QueueName,
   QueueJobs,
-  LLMApiKeySchema,
   ChatMessageType,
   tableColumnsToSqlFilterAndPrefix,
   orderByToPrismaSql,
@@ -68,6 +67,7 @@ const ConfigWithTemplateSchema = z.object({
   evalTemplate: z
     .object({
       name: z.string(),
+      partner: z.string().nullable(),
       id: z.string(),
       createdAt: z.coerce.date(),
       updatedAt: z.coerce.date(),

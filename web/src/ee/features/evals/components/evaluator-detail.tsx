@@ -1,7 +1,6 @@
 import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { useState } from "react";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -29,8 +28,6 @@ export const EvaluatorDetail = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluatorId as string;
-
-  const [isEditOpen, setIsEditOpen] = useState(false);
 
   // get the current template by id
   const evaluator = api.evals.configById.useQuery({

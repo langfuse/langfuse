@@ -18,8 +18,7 @@ import {
 } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
-import { useState } from "react";
-// import { SelectEvaluatorDialog } from "@/src/ee/features/evals/components/select-evaluator-dialog";
+
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -43,9 +42,6 @@ export default function EvaluatorsPage() {
     projectId,
     scope: "evalJob:read",
   });
-
-  // State for the widget selection dialog
-  const [isEvaluatorDialogOpen, setIsEvaluatorDialogOpen] = useState(false);
 
   // Fetch counts of evaluator configs and templates
   const countsQuery = api.evals.counts.useQuery(
@@ -90,12 +86,6 @@ export default function EvaluatorsPage() {
 
   return (
     <>
-      {/* <SelectEvaluatorDialog
-        open={isEvaluatorDialogOpen}
-        onOpenChange={setIsEvaluatorDialogOpen}
-        projectId={projectId}
-        onSelectEvaluator={() => {}}
-      /> */}
       <Page
         headerProps={{
           title: "LLM-as-a-Judge Evaluators",

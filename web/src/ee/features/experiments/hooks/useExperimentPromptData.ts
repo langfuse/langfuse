@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
-import { UseFormReturn } from "react-hook-form";
+import { type UseFormReturn } from "react-hook-form";
 import { extractVariables } from "@langfuse/shared";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";

@@ -3,9 +3,10 @@ import { prisma } from "../../../db";
 import { LangfuseNotFoundError } from "../../../errors";
 import { LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 
-export type ValidationResult = {
-  valid: boolean;
-  errors?: string[];
+type ValidConfig = {
+  provider: string;
+  model: string;
+  modelParams: z.infer<typeof ZodModelConfig>;
 };
 
 export class DefaultEvalModelService {
@@ -84,34 +85,31 @@ export class DefaultEvalModelService {
    * Simple validation that can also be used client side
    * Validates if the provider, model, and model parameters are valid
    */
-  public static validateModelConfig(
-    provider?: string,
-    model?: string,
-    modelParams?: unknown,
-  ): ValidationResult {
+  public static validateModelConfig(config: {
+    provider?: string;
+    model?: string;
+    modelParams?: unknown;
+  }): config is ValidConfig {
     const errors: string[] = [];
 
-    if (!provider || !model) {
-      return {
-        valid: false,
-        errors: ["Provider and model are required"],
-      };
+    if (!config.provider || !config.model) {
+      return false;
     }
 
     // Validate model parameters
-    if (modelParams) {
-      const result = ZodModelConfig.safeParse(modelParams);
+    if (config.modelParams) {
+      const result = ZodModelConfig.safeParse(config.modelParams);
       if (!result.success) {
         errors.push(
           ...result.error.errors.map(
             (err) => `Model parameter error: ${err.message}`,
           ),
         );
-        return { valid: false, errors };
+        return false;
       }
     }
 
-    return { valid: true };
+    return true;
   }
 
   /**
@@ -138,30 +136,31 @@ export class DefaultEvalModelService {
         error: string;
       }
   > {
-    let selectedModel = null;
+    let selectedModel: ValidConfig | null = null;
     // Basic validation first
-    const basicValidation = this.validateModelConfig(
+    const config = {
       provider,
       model,
-      modelParams ?? {},
-    );
-    if (basicValidation.valid) {
-      selectedModel = {
-        provider: provider,
-        model: model,
-        modelParams: modelParams,
-      };
+      modelParams,
+    };
+    const basicValidation = this.validateModelConfig(config);
+
+    if (basicValidation) {
+      selectedModel = config;
     }
 
     if (!selectedModel) {
       // fetch default model
       const defaultModel = await this.fetchDefaultModel(projectId);
-      if (defaultModel) {
-        selectedModel = {
-          provider: defaultModel.provider,
-          model: defaultModel.model,
-          modelParams: defaultModel.modelParams,
-        };
+      const defaultConfig = {
+        provider: defaultModel?.provider,
+        model: defaultModel?.model,
+        modelParams: defaultModel?.modelParams,
+      };
+      const basicValidation = this.validateModelConfig(defaultConfig);
+
+      if (basicValidation) {
+        selectedModel = defaultConfig;
       }
     }
 

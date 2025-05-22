@@ -16,7 +16,7 @@ import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/ui/switch";
-import { Command, CommandInput } from "@/src/components/ui/command";
+import { Command } from "@/src/components/ui/command";
 import { Badge } from "@/src/components/ui/badge";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import {
@@ -25,7 +25,6 @@ import {
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
-import { cn } from "@/src/utils/tailwind";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 
 export const EvalTemplateDetail = () => {

@@ -1,7 +1,7 @@
 import { EvaluatorStatus } from "@/src/ee/features/evals/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api, RouterOutputs } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { useState } from "react";
 import {
   Popover,

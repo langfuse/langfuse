@@ -11,7 +11,6 @@ import {
   FlaskConical,
   ListTodo,
   WandSparkles,
-  Cog,
   TestTubeDiagonal,
   Clock,
   Bot,

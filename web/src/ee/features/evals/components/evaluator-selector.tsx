@@ -11,13 +11,13 @@ import {
 } from "@/src/components/ui/input-command";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { type RouterOutputs } from "@/src/utils/api";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
+
 interface EvaluatorSelectorProps {
   projectId: string;
   evalTemplates: EvalTemplate[];
