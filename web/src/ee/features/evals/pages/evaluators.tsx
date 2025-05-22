@@ -18,9 +18,8 @@ import {
 } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
-import { SelectEvaluatorDialog } from "@/src/ee/features/evals/components/SelectEvaluatorDialog";
 import { useState } from "react";
-
+import { SelectEvaluatorDialog } from "@/src/ee/features/evals/components/select-evaluator-dialog";
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;

@@ -356,7 +356,7 @@ export function DeleteEvaluationModelButton(
           description:
             "The default evaluation model has been deleted. Any evals will fail.",
         });
-        utils.defaultEvalModel.getDefaultModel.invalidate({ projectId });
+        utils.defaultEvalModel.fetchDefaultModel.invalidate({ projectId });
       },
     });
 

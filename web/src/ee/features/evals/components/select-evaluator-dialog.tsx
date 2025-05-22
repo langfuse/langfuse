@@ -13,6 +13,8 @@ import { PlusIcon } from "lucide-react";
 import { EvaluatorSelector } from "./EvaluatorSelector";
 import { EvalTemplateForm } from "./template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { SetupDefaultEvalModelCard } from "@/src/ee/features/evals/components/set-up-default-eval-model-card";
+import { useTemplateValidation } from "@/src/ee/features/evals/hooks/useTemplateValidation";
 
 interface SelectEvaluatorDialogProps {
   open: boolean;
@@ -28,10 +30,10 @@ export function SelectEvaluatorDialog({
   onSelectEvaluator,
 }: SelectEvaluatorDialogProps) {
   const router = useRouter();
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
-    null,
-  );
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
+
+  const { isSelectionValid, selectedTemplate, setSelectedTemplate } =
+    useTemplateValidation({ projectId });
 
   // Fetch templates
   const templates = api.evals.allTemplates.useQuery(
@@ -50,17 +52,20 @@ export function SelectEvaluatorDialog({
   };
 
   const handleSelectEvaluator = () => {
-    if (selectedTemplateId) {
-      onSelectEvaluator(selectedTemplateId);
+    if (selectedTemplate) {
+      onSelectEvaluator(selectedTemplate.id);
       onOpenChange(false);
       router.push(
-        `/project/${projectId}/evals/new?evaluator=${selectedTemplateId}`,
+        `/project/${projectId}/evals/new?evaluator=${selectedTemplate.id}`,
       );
     }
   };
 
   const handleTemplateSelect = (templateId: string) => {
-    setSelectedTemplateId(templateId);
+    const template = templates.data?.templates.find((t) => t.id === templateId);
+    if (template) {
+      setSelectedTemplate(template);
+    }
   };
 
   return (
@@ -86,7 +91,7 @@ export function SelectEvaluatorDialog({
               <div className="flex-1 overflow-hidden">
                 <EvaluatorSelector
                   evalTemplates={templates.data?.templates || []}
-                  selectedTemplateId={selectedTemplateId || undefined}
+                  selectedTemplateId={selectedTemplate?.id || undefined}
                   onTemplateSelect={(templateId) =>
                     handleTemplateSelect(templateId)
                   }
@@ -94,6 +99,12 @@ export function SelectEvaluatorDialog({
               </div>
             )}
           </div>
+
+          {!isSelectionValid && (
+            <div className="px-4">
+              <SetupDefaultEvalModelCard projectId={projectId} />
+            </div>
+          )}
 
           <DialogFooter className="border-t p-6">
             <div className="flex justify-end gap-2">
@@ -103,7 +114,7 @@ export function SelectEvaluatorDialog({
               </Button>
               <Button
                 onClick={handleSelectEvaluator}
-                disabled={!selectedTemplateId}
+                disabled={!selectedTemplate || !isSelectionValid}
               >
                 Use Selected Evaluator
               </Button>
@@ -126,7 +137,7 @@ export function SelectEvaluatorDialog({
               setIsCreateTemplateOpen(false);
               void utils.evals.allTemplates.invalidate();
               if (newTemplate) {
-                setSelectedTemplateId(newTemplate.id);
+                setSelectedTemplate(newTemplate);
               }
               showSuccessToast({
                 title: "Evaluator created successfully",

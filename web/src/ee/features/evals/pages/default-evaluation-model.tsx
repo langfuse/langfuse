@@ -52,7 +52,7 @@ export default function DefaultEvaluationModelPage() {
           description: "All running evaluators will use the new model.",
         });
 
-        utils.defaultEvalModel.getDefaultModel.invalidate({ projectId });
+        utils.defaultEvalModel.fetchDefaultModel.invalidate({ projectId });
       },
     });
 
@@ -91,8 +91,11 @@ export default function DefaultEvaluationModelPage() {
                   Default evaluation model selected
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  This model will be used as the default evaluation model for
-                  your project.
+                  This project will use the default evaluation model:
+                  <span className="font-medium">
+                    {" "}
+                    {selectedModel.provider} / {selectedModel.model}
+                  </span>
                 </p>
               </CardContent>
             </Card>

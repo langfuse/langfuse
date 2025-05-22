@@ -14,7 +14,7 @@ import { DefaultEvalModelService } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
-  getDefaultModel: protectedProjectProcedure
+  fetchDefaultModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({

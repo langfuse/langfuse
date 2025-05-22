@@ -93,13 +93,6 @@ export function useExperimentEvaluatorSelection({
     }
   }, [pendingTemplate, multiSelect, activeTemplates, onTemplateSelect]);
 
-  // Remove a template from selections
-  const removeTemplate = useCallback((templateId: string) => {
-    setActiveTemplates((prev) => prev.filter((id) => id !== templateId));
-    // need to actual perform the update in backend
-    setInactiveTemplates((prev) => [...prev, templateId]);
-  }, []);
-
   // Selection status methods
   const isTemplateActive = useCallback(
     (templateId: string) => activeTemplates.includes(templateId),

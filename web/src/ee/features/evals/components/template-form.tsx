@@ -32,10 +32,9 @@ import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
-import Link from "next/link";
 import { useEvaluationModel } from "@/src/ee/features/evals/hooks/useEvaluationModel";
 import { Checkbox } from "@/src/components/ui/checkbox";
-import { ExternalLink } from "lucide-react";
+import { SetupDefaultEvalModelCard } from "@/src/ee/features/evals/components/set-up-default-eval-model-card";
 
 type PartialEvalTemplate = Omit<
   EvalTemplate,
@@ -168,10 +167,11 @@ export const InnerEvalTemplateForm = (props: {
     ? false
     : true;
 
-  const { data: defaultModel } = api.defaultEvalModel.getDefaultModel.useQuery(
-    { projectId: props.projectId },
-    { enabled: !!props.projectId },
-  );
+  const { data: defaultModel } =
+    api.defaultEvalModel.fetchDefaultModel.useQuery(
+      { projectId: props.projectId },
+      { enabled: !!props.projectId },
+    );
 
   // updates the model params based on the pre-filled data
   // either form update or from langfuse-generated template
@@ -407,25 +407,7 @@ export const InnerEvalTemplateForm = (props: {
               </CardContent>
             </Card>
           ) : (
-            <Card className="mt-2 border-dark-yellow bg-light-yellow">
-              <CardContent className="flex flex-col gap-1">
-                <p className="mt-2 text-sm font-semibold">
-                  No default evaluation model found
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Please set up a default evaluation model for your project.
-                </p>
-                <Link
-                  href={`/project/${props.projectId}/evals/default-model`}
-                  className="mt-2 flex items-center text-sm text-blue-500 hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Configure default model{" "}
-                  <ExternalLink className="ml-1" size={14} />
-                </Link>
-              </CardContent>
-            </Card>
+            <SetupDefaultEvalModelCard projectId={props.projectId} />
           )
         ) : (
           <Card className="mt-2 border-dark-blue bg-light-blue">

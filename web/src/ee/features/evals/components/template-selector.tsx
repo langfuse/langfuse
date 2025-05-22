@@ -1,6 +1,12 @@
 import { type EvalTemplate } from "@langfuse/shared";
 
-import { CheckIcon, ChevronDown, Cog, ExternalLink, X } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronDown,
+  Cog,
+  ExternalLink,
+  AlertCircle,
+} from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -19,6 +25,12 @@ import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { useImperativeHandle, forwardRef, useState } from "react";
 import { useExperimentEvaluatorSelection } from "@/src/ee/features/experiments/hooks/useExperimentEvaluatorSelection";
+import { useTemplatesValidation } from "@/src/ee/features/evals/hooks/useTemplatesValidation";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 // Define a ref interface for external control of the component
 export interface TemplateSelectorRef {
@@ -65,6 +77,12 @@ export const TemplateSelector = forwardRef<
     onPendingTemplateSelect: props.onPendingTemplateSelect,
   });
 
+  // Validation for templates requiring default model
+  const { isTemplateValid, hasDefaultModel } = useTemplatesValidation({
+    projectId: props.projectId,
+    selectedTemplateIds: activeTemplates,
+  });
+
   // Expose methods to the parent component via ref
   useImperativeHandle(ref, () => imperativeMethods);
 
@@ -101,9 +119,21 @@ export const TemplateSelector = forwardRef<
   // Handle cog button click - configure template
   const handleConfigureTemplate = (e: React.MouseEvent, templateId: string) => {
     e.stopPropagation();
+
+    // Check if this template requires a default model
+    if (!isTemplateValid(templateId)) {
+      // If it requires a default model and none is set, show a warning instead
+      return;
+    }
+
     if (props.onConfigureTemplate) {
       props.onConfigureTemplate(templateId);
     }
+  };
+
+  // Check if a template requires a default model
+  const templateRequiresDefaultModel = (template: EvalTemplate): boolean => {
+    return !template.provider || !template.model;
   };
 
   return (
@@ -168,6 +198,10 @@ export const TemplateSelector = forwardRef<
                       const isActive = isTemplateActive(latestTemplate.id);
                       const isPending = isTemplatePending(latestTemplate.id);
                       const isInactive = isTemplateInactive(latestTemplate.id);
+                      const requiresDefaultModel =
+                        templateRequiresDefaultModel(latestTemplate);
+                      const isInvalid =
+                        requiresDefaultModel && !hasDefaultModel;
 
                       return (
                         <InputCommandItem
@@ -175,9 +209,13 @@ export const TemplateSelector = forwardRef<
                           onSelect={() => {
                             handleRowClick(latestTemplate.id);
                           }}
-                          className={
-                            isPending ? "bg-amber-50 dark:bg-amber-950" : ""
-                          }
+                          disabled={isInvalid}
+                          className={cn(
+                            isPending ? "bg-amber-50 dark:bg-amber-950" : "",
+                            isInvalid
+                              ? "text-amber-700 dark:text-amber-400"
+                              : "",
+                          )}
                         >
                           {isActive ? (
                             <CheckIcon className="mr-2 h-4 w-4" />
@@ -187,6 +225,16 @@ export const TemplateSelector = forwardRef<
                             <div className="mr-2 h-4 w-4" />
                           )}
                           {name}
+                          {isInvalid && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertCircle className="ml-1 h-4 w-4 text-amber-500" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                Requires project-level evaluation model
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                           {(isInactive || isPending) && (
                             <div
                               title={
@@ -207,7 +255,12 @@ export const TemplateSelector = forwardRef<
                                 handleConfigureTemplate(e, latestTemplate.id)
                               }
                               className="ml-auto"
-                              title="Configure evaluator"
+                              title={
+                                isInvalid
+                                  ? "Configure default model first"
+                                  : "Configure evaluator"
+                              }
+                              disabled={isInvalid}
                             >
                               <Cog className="h-4 w-4" />
                             </Button>
@@ -235,6 +288,10 @@ export const TemplateSelector = forwardRef<
                           const isInactive = isTemplateInactive(
                             latestTemplate.id,
                           );
+                          const requiresDefaultModel =
+                            templateRequiresDefaultModel(latestTemplate);
+                          const isInvalid =
+                            requiresDefaultModel && !hasDefaultModel;
 
                           return (
                             <InputCommandItem
@@ -242,9 +299,15 @@ export const TemplateSelector = forwardRef<
                               onSelect={() => {
                                 handleRowClick(latestTemplate.id);
                               }}
-                              className={
-                                isPending ? "bg-amber-50 dark:bg-amber-950" : ""
-                              }
+                              disabled={isInvalid}
+                              className={cn(
+                                isPending
+                                  ? "bg-amber-50 dark:bg-amber-950"
+                                  : "",
+                                isInvalid
+                                  ? "text-amber-700 dark:text-amber-400"
+                                  : "",
+                              )}
                             >
                               {isActive ? (
                                 <CheckIcon className="mr-2 h-4 w-4" />
@@ -254,6 +317,16 @@ export const TemplateSelector = forwardRef<
                                 <div className="mr-2 h-4 w-4" />
                               )}
                               {name}
+                              {isInvalid && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <AlertCircle className="ml-1 h-4 w-4 text-amber-500" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Requires project-level evaluation model
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
                               {(isInactive || isPending) && (
                                 <div
                                   title={
@@ -277,7 +350,12 @@ export const TemplateSelector = forwardRef<
                                       latestTemplate.id,
                                     )
                                   }
-                                  title="Configure evaluator"
+                                  title={
+                                    isInvalid
+                                      ? "Configure default model first"
+                                      : "Configure evaluator"
+                                  }
+                                  disabled={isInvalid}
                                 >
                                   <Cog className="h-4 w-4" />
                                 </Button>
@@ -297,12 +375,29 @@ export const TemplateSelector = forwardRef<
                 <InputCommandGroup forceMount>
                   <InputCommandItem
                     onSelect={() => {
-                      // TODO: open link to create new evaluator
+                      window.open(
+                        `/project/${props.projectId}/evals/templates/new`,
+                        "_blank",
+                      );
                     }}
                   >
                     Create custom evaluator
                     <ExternalLink className="ml-auto h-4 w-4" />
                   </InputCommandItem>
+                  {!hasDefaultModel && (
+                    <InputCommandItem
+                      onSelect={() => {
+                        window.open(
+                          `/project/${props.projectId}/evals/default-model`,
+                          "_blank",
+                        );
+                      }}
+                      className="text-amber-700 dark:text-amber-400"
+                    >
+                      Configure default model
+                      <ExternalLink className="ml-auto h-4 w-4" />
+                    </InputCommandItem>
+                  )}
                 </InputCommandGroup>
               </InputCommandList>
             </div>

@@ -3,7 +3,6 @@ import { prisma } from "../../../db";
 import { InvalidRequestError, LangfuseNotFoundError } from "../../../errors";
 import { LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 
-// Define return types for validation functions
 export type ValidationResult = {
   valid: boolean;
   errors?: string[];
@@ -94,7 +93,7 @@ export class DefaultEvalModelService {
   }
 
   /**
-   * Simple validation
+   * Simple validation that can also be used client side
    * Validates if the provider, model, and model parameters are valid
    */
   public static validateModelConfig(
