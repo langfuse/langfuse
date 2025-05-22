@@ -435,7 +435,7 @@ export const evalRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string(),
-        isCustom: z.boolean().default(true),
+        isUserManaged: z.boolean().default(true),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -453,7 +453,7 @@ export const evalRouter = createTRPCRouter({
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
           name: input.name,
-          ...(input.isCustom
+          ...(input.isUserManaged
             ? { projectId: input.projectId }
             : { projectId: null }),
         },
@@ -870,7 +870,7 @@ export const evalRouter = createTRPCRouter({
       if (!modelConfig.valid) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "No matching LLM key found for provider",
+          message: "No valid llm model found for this project",
         });
       }
 
@@ -1431,7 +1431,7 @@ const generateConfigsQuery = (
   SELECT
    ${select}
    FROM job_configurations jc
-   LEFT JOIN eval_templates et ON jc.eval_template_id = et.id
+   LEFT JOIN eval_templates et ON jc.eval_template_id = et.id AND (jc.project_id = et.project_id OR et.project_id IS NULL)
    WHERE jc.project_id = ${projectId}
    AND jc.job_type = 'EVAL'
    ${filterCondition}

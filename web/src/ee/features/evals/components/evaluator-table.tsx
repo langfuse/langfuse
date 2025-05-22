@@ -81,41 +81,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const utils = api.useUtils();
 
-  // Define default filter for target conditional on where user navigated from
-  // Filtering for trace level evaluators should be the default
-  const isDatasetTarget = router.query.target === "dataset";
-
   const [filterState, setFilterState] = useQueryFilterState(
     [],
     "eval_configs",
     projectId,
   );
-
-  useEffect(() => {
-    const target = isDatasetTarget ? "dataset" : "trace";
-    const hasTargetFilter = filterState.some(
-      (filter) =>
-        filter.column === "Target" &&
-        (filter.value as string[]).includes(target),
-    );
-
-    if (!hasTargetFilter) {
-      // Remove any existing Target filters and add the new one
-      const filteredState = filterState.filter(
-        (filter) => filter.column !== "Target",
-      );
-      const newFilterState: FilterState = [
-        ...filteredState,
-        {
-          column: "Target",
-          type: "stringOptions",
-          operator: "any of",
-          value: [target],
-        },
-      ];
-      setFilterState(newFilterState);
-    }
-  }, [isDatasetTarget, filterState, setFilterState]);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",

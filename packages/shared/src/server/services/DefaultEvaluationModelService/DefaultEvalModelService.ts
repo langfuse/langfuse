@@ -1,6 +1,6 @@
 import z from "zod";
 import { prisma } from "../../../db";
-import { InvalidRequestError, LangfuseNotFoundError } from "../../../errors";
+import { LangfuseNotFoundError } from "../../../errors";
 import { LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 
 export type ValidationResult = {
@@ -31,18 +31,6 @@ export class DefaultEvalModelService {
     modelParams?: z.infer<typeof ZodModelConfig>;
   }) {
     const { projectId, provider, adapter, model, modelParams } = params;
-
-    // Validate the provider and model
-    const validationResult = this.validateModelConfig(
-      provider,
-      model,
-      modelParams,
-    );
-    if (!validationResult.valid) {
-      throw new InvalidRequestError(
-        `Invalid model configuration: ${validationResult.errors?.join(", ")}`,
-      );
-    }
 
     // Find the LLM API key for the provider
     const llmApiKey = await prisma.llmApiKeys.findFirst({
@@ -99,7 +87,7 @@ export class DefaultEvalModelService {
   public static validateModelConfig(
     provider?: string,
     model?: string,
-    modelParams?: Record<string, unknown>,
+    modelParams?: unknown,
   ): ValidationResult {
     const errors: string[] = [];
 
@@ -134,7 +122,7 @@ export class DefaultEvalModelService {
     projectId: string,
     provider?: string,
     model?: string,
-    modelParams?: Record<string, unknown> | null,
+    modelParams?: unknown,
   ): Promise<
     | {
         valid: true;
@@ -159,9 +147,9 @@ export class DefaultEvalModelService {
     );
     if (basicValidation.valid) {
       selectedModel = {
-        provider: provider as string,
-        model: model as string,
-        modelParams: modelParams as z.infer<typeof ZodModelConfig>,
+        provider: provider,
+        model: model,
+        modelParams: modelParams,
       };
     }
 
@@ -172,9 +160,7 @@ export class DefaultEvalModelService {
         selectedModel = {
           provider: defaultModel.provider,
           model: defaultModel.model,
-          modelParams: defaultModel.modelParams as z.infer<
-            typeof ZodModelConfig
-          >,
+          modelParams: defaultModel.modelParams,
         };
       }
     }

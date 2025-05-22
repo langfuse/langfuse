@@ -49,7 +49,7 @@ export const EvalTemplateDetail = () => {
     {
       projectId: projectId,
       name: template.data?.name ?? "",
-      isCustom: template.data?.projectId !== null,
+      isUserManaged: template.data?.projectId !== null,
     },
     {
       enabled:

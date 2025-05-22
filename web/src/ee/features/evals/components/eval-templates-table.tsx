@@ -401,6 +401,7 @@ export default function EvalsTemplateTable({
                     provider: cloneTemplate.data.provider,
                     model: cloneTemplate.data.model,
                     modelParams: cloneTemplate.data.modelParams as any,
+                    partner: cloneTemplate.data.partner,
                     projectId,
                   }
                 : undefined

@@ -79,13 +79,18 @@ export function useExperimentEvaluatorData({
           return null;
         }
 
-        // TODO: fix typing
+        const evaluator: PartialConfig & { evalTemplate: EvalTemplate } = {
+          ...config,
+          evalTemplate: {
+            ...config.evalTemplate,
+            outputSchema: config.evalTemplate
+              .outputSchema as EvalTemplate["outputSchema"],
+          },
+        };
+
         return {
           templateId,
-          evaluator: {
-            ...config,
-            evalTemplate: config.evalTemplate,
-          } as unknown as PartialConfig & { evalTemplate: EvalTemplate },
+          evaluator,
         };
       }
 
