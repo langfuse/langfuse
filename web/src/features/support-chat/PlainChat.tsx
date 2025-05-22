@@ -59,7 +59,9 @@ const PlainChat = () => {
 
         // Mark widget as loaded and process queued metadata updates
         isWidgetLoaded = true;
-        metadataQueue.forEach((update) => update());
+        for (const metadataUpdate of metadataQueue) {
+          metadataUpdate();
+        }
         metadataQueue = [];
 
         // If URL parameter is present, open the chat immediately
@@ -171,6 +173,7 @@ export const chatSetThreadDetails = (p: { orgId?: string; plan?: Plan }) => {
               externalId: p.plan,
             },
           }),
+          // project_id: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_project_${project?.id}`,
         },
       });
     }
