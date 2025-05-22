@@ -12,7 +12,7 @@ import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { generateJobExecutionCounts } from "@/src/ee/features/evals/utils/job-execution-utils";
 
 export type EvaluatorDataRow = {

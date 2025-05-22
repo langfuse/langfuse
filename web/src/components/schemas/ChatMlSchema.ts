@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 // OpenAI API Content Schema defined as per https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages, 28.04.2025
 const OpenAITextContentPart = z.object({

@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { jsonSchema } from "../utils/zod";
 import { MetadataDomain } from "./traces";
 

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const UsageTypeSchema = z.string().regex(/^[a-zA-Z0-9_-]+$/);
 export const PriceSchema = z.number().nonnegative();

@@ -162,8 +162,8 @@ function validateConfigAgainstBody(
   });
 
   if (!rangeValidation.success) {
-    const errorDetails = rangeValidation.error.errors
-      .map((error) => `${error.path.join(".")} - ${error.message}`)
+    const errorDetails = rangeValidation.error.issues
+      .map((issue) => `${issue.path.join(".")} - ${issue.message}`)
       .join(", ");
 
     throw new InvalidRequestError(

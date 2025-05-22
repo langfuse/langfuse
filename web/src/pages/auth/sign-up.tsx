@@ -14,7 +14,7 @@ import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
-import type * as z from "zod";
+import type * as z from "zod/v4";
 import { env } from "@/src/env.mjs";
 import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";

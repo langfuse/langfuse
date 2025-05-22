@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";

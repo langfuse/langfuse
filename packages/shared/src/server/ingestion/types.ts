@@ -1,5 +1,5 @@
 import lodash from "lodash";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
@@ -127,7 +127,7 @@ const OpenAICompletionUsageSchema = z
       }
     }
 
-    return result;
+    return result as z.infer<typeof RawUsageDetails>;
   })
   .pipe(RawUsageDetails);
 
@@ -183,7 +183,7 @@ const OpenAIResponseUsageSchema = z
       }
     }
 
-    return result;
+    return result as z.infer<typeof RawUsageDetails>;
   })
   .pipe(RawUsageDetails);
 
@@ -266,7 +266,7 @@ export const CreateGenerationBody = CreateSpanBody.extend({
           z.number(),
           z.boolean(),
           z.array(z.string()),
-          z.record(z.string()),
+          z.record(z.string(), z.string()),
         ])
         .nullish(),
     )
@@ -296,7 +296,7 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
           z.number(),
           z.boolean(),
           z.array(z.string()),
-          z.record(z.string()),
+          z.record(z.string(), z.string()),
         ])
         .nullish(),
     )

@@ -4,7 +4,7 @@ import {
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import * as z from "zod";
+import * as z from "zod/v4";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,

@@ -1,4 +1,4 @@
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { convertDateToClickhouseDateTime } from "@langfuse/shared/src/server";
 import {
   type QueryType,

@@ -4,7 +4,7 @@ import {
   clickhouseClient,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {

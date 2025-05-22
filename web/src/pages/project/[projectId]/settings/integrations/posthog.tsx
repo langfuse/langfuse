@@ -27,7 +27,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 
 export default function PosthogIntegrationSettings() {
   const router = useRouter();

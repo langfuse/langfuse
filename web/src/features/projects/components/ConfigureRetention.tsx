@@ -1,7 +1,7 @@
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import type * as z from "zod";
+import type * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -66,8 +66,8 @@ export default function ConfigureRetention() {
       <Card className="mb-4 p-3">
         <p className="mb-4 text-sm text-primary">
           Data retention automatically deletes events older than the specified
-          number of days. The value must be 0 or at least 3 days. Set to 0
-          to retain data indefinitely. The deletion happens asynchronously, i.e.
+          number of days. The value must be 0 or at least 3 days. Set to 0 to
+          retain data indefinitely. The deletion happens asynchronously, i.e.
           event may be available for a while after they expired.
         </p>
         {Boolean(form.getValues().retention) &&

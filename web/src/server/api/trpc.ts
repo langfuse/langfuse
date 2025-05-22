@@ -20,7 +20,7 @@ import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import * as z from "zod";
+import * as z from "zod/v4";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -75,7 +75,7 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
  */
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import { ZodError } from "zod";
+import { ZodError } from "zod/v4";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
 import {

@@ -1,5 +1,5 @@
 import { LlmApiKeys } from "@prisma/client";
-import z from "zod";
+import z from "zod/v4";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
 import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
@@ -28,7 +28,7 @@ export const JSONSchemaFormSchema = z
     z
       .object({
         type: z.literal("object"),
-        properties: z.record(z.any()),
+        properties: z.record(z.string(), z.any()),
         required: z.array(z.string()).optional(),
         additionalProperties: z.boolean().optional(),
       })

@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { z, type ZodSchema } from "zod";
+import { z, type ZodSchema } from "zod/v4";
 import { cn } from "@/src/utils/tailwind";
 import {
   Popover,

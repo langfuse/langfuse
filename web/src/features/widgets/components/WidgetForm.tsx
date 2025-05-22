@@ -25,7 +25,7 @@ import {
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
 import { viewDeclarations } from "@/src/features/query/dataModel";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
 import { startCase } from "lodash";

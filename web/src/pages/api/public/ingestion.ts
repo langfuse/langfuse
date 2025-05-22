@@ -1,6 +1,6 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   traceException,
   redis,

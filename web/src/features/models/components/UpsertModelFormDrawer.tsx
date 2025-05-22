@@ -2,7 +2,7 @@ import { MinusCircle, PlusCircle, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import * as z from "zod";
+import * as z from "zod/v4";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Button } from "@/src/components/ui/button";

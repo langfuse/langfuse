@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { createEnv } from "@t3-oss/env-nextjs";
 
 const zAuthMethod = z

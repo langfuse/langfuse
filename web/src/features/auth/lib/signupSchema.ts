@@ -1,5 +1,5 @@
 import { noHtmlCheck, noUrlCheck } from "@langfuse/shared";
-import * as z from "zod";
+import * as z from "zod/v4";
 
 export const passwordSchema = z
   .string()

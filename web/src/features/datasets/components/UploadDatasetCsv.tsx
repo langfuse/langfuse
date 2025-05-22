@@ -9,7 +9,7 @@ import { Input } from "@/src/components/ui/input";
 import { UploadIcon } from "lucide-react";
 import { useRef } from "react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   type CsvPreviewResult,
   parseCsvClient,
