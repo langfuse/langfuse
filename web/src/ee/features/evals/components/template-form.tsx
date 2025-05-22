@@ -167,11 +167,10 @@ export const InnerEvalTemplateForm = (props: {
     ? false
     : true;
 
-  const { data: defaultModel } =
-    api.defaultEvalModel.fetchDefaultModel.useQuery(
-      { projectId: props.projectId },
-      { enabled: !!props.projectId },
-    );
+  const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
+    { projectId: props.projectId },
+    { enabled: !!props.projectId },
+  );
 
   // updates the model params based on the pre-filled data
   // either form update or from langfuse-generated template

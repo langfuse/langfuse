@@ -345,18 +345,18 @@ export function DeleteEvaluationModelButton(
   const {
     projectId,
     scope = "evalDefaultModel:CUD",
-    invalidateFunc = () => void utils.defaultEvalModel.invalidate(),
+    invalidateFunc = () => void utils.defaultLlmModel.invalidate(),
   } = props;
 
   const { mutateAsync: deleteDefaultModel, isLoading } =
-    api.defaultEvalModel.deleteDefaultModel.useMutation({
+    api.defaultLlmModel.deleteDefaultModel.useMutation({
       onSuccess: () => {
         showSuccessToast({
           title: "Default evaluation model deleted",
           description:
             "The default evaluation model has been deleted. Any evals will fail.",
         });
-        utils.defaultEvalModel.fetchDefaultModel.invalidate({ projectId });
+        utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
       },
     });
 

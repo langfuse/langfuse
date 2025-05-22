@@ -13,7 +13,7 @@ export class DefaultEvalModelService {
    * Gets the default evaluation model for a project
    */
   public static async fetchDefaultModel(projectId: string) {
-    return prisma.defaultEvalModel.findUnique({
+    return prisma.defaultLlmModel.findUnique({
       where: {
         projectId,
       },
@@ -59,7 +59,7 @@ export class DefaultEvalModelService {
     }
 
     // Create or update the default model
-    return prisma.defaultEvalModel.upsert({
+    return prisma.defaultLlmModel.upsert({
       where: {
         projectId,
       },
@@ -85,7 +85,7 @@ export class DefaultEvalModelService {
    * Deletes the default evaluation model for a project
    */
   public static async deleteDefaultModel(projectId: string) {
-    return prisma.defaultEvalModel.delete({
+    return prisma.defaultLlmModel.delete({
       where: {
         projectId,
       },

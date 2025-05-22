@@ -13,9 +13,6 @@ CREATE TABLE "default_llm_models" (
     CONSTRAINT "default_llm_models_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "default_eval_models_project_id_id_key" ON "default_llm_models"("project_id", "id");
-
 -- AddForeignKey
 ALTER TABLE "default_llm_models" ADD CONSTRAINT "default_llm_models_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

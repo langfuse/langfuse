@@ -12,7 +12,7 @@ export function useTemplatesValidation({
 
   // Fetch default model
   const { data: defaultModel, isLoading: isLoadingDefaultModel } =
-    api.defaultEvalModel.fetchDefaultModel.useQuery(
+    api.defaultLlmModel.fetchDefaultModel.useQuery(
       { projectId },
       { enabled: !!projectId },
     );

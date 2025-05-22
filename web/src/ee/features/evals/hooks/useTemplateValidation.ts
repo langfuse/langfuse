@@ -9,7 +9,7 @@ export function useTemplateValidation({ projectId }: { projectId: string }) {
   );
   const [isSelectionValid, setIsSelectionValid] = useState(true);
 
-  const defaultModel = api.defaultEvalModel.fetchDefaultModel.useQuery({
+  const defaultModel = api.defaultLlmModel.fetchDefaultModel.useQuery({
     projectId,
   });
 

@@ -45,14 +45,14 @@ export default function DefaultEvaluationModelPage() {
   );
 
   const { mutate: upsertDefaultModel } =
-    api.defaultEvalModel.upsertDefaultModel.useMutation({
+    api.defaultLlmModel.upsertDefaultModel.useMutation({
       onSuccess: () => {
         showSuccessToast({
           title: "Default evaluation model updated",
           description: "All running evaluators will use the new model.",
         });
 
-        utils.defaultEvalModel.fetchDefaultModel.invalidate({ projectId });
+        utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
       },
     });
 

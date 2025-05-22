@@ -18,7 +18,7 @@ export function useEvaluationModel(
   },
 ) {
   const { data: defaultModel, isLoading: isDefaultModelLoading } =
-    api.defaultEvalModel.fetchDefaultModel.useQuery({
+    api.defaultLlmModel.fetchDefaultModel.useQuery({
       projectId,
     });
 

@@ -67,7 +67,7 @@ export const appRouter = createTRPCRouter({
   prompts: promptRouter,
   models: modelRouter,
   evals: evalRouter,
-  defaultEvalModel: defaultEvalModelRouter,
+  defaultLlmModel: defaultEvalModelRouter,
   experiments: experimentsRouter,
   posthogIntegration: posthogIntegrationRouter,
   blobStorageIntegration: blobStorageIntegrationRouter,
