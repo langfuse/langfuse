@@ -24,7 +24,6 @@ import {
   evalTraceTableCols,
   evalDatasetFormFilterCols,
   singleFilter,
-  type JobConfiguration,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
   availableDatasetEvalVariables,
@@ -35,7 +34,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type EvalTemplate, variableMapping } from "@langfuse/shared";
-import router, { useRouter } from "next/router";
+import { useRouter } from "next/router";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -130,6 +129,7 @@ export const InnerEvaluatorForm = (props: {
   shouldWrapVariables?: boolean;
   mode?: "create" | "edit";
   hideTargetSection?: boolean;
+  preventRedirect?: boolean;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
@@ -222,8 +222,9 @@ export const InnerEvaluatorForm = (props: {
     },
   );
 
+  const shouldFetch = !props.disabled && form.watch("target") === "trace";
   const { observationTypeToNames, traceWithObservations, isLoading } =
-    useEvalConfigMappingData(props.projectId, form, traceId);
+    useEvalConfigMappingData(props.projectId, form, traceId, shouldFetch);
 
   const datasetFilterOptions = useMemo(() => {
     if (!datasets.data) return undefined;
@@ -241,6 +242,7 @@ export const InnerEvaluatorForm = (props: {
     } else if (form.getValues("target") === "dataset") {
       setShowPreview(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.watch("target"), props.disabled]);
 
   useEffect(() => {
@@ -363,7 +365,7 @@ export const InnerEvaluatorForm = (props: {
         form.reset();
         props.onFormSuccess?.();
 
-        if (props.mode !== "edit") {
+        if (props.mode !== "edit" && !props.preventRedirect) {
           void router.push(`/project/${props.projectId}/evals`);
         }
       })
@@ -563,6 +565,7 @@ export const InnerEvaluatorForm = (props: {
                               ) => {
                                 field.onChange(value);
                                 if (router.query.traceId) {
+                                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
                                   const { traceId, ...otherParams } =
                                     router.query;
                                   router.replace(

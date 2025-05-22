@@ -29,7 +29,7 @@ export class DefaultEvalModelService {
     provider: string;
     adapter: string;
     model: string;
-    modelParams?: Record<string, unknown>;
+    modelParams?: z.infer<typeof ZodModelConfig>;
   }) {
     const { projectId, provider, adapter, model, modelParams } = params;
 
@@ -69,7 +69,7 @@ export class DefaultEvalModelService {
         provider,
         adapter,
         model,
-        modelParams: modelParams ? (modelParams as any) : {},
+        modelParams: modelParams ? modelParams : undefined,
       },
       create: {
         projectId,
@@ -77,7 +77,7 @@ export class DefaultEvalModelService {
         provider,
         adapter,
         model,
-        modelParams: modelParams ? (modelParams as any) : {},
+        modelParams: modelParams ? modelParams : undefined,
       },
     });
   }

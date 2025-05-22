@@ -51,13 +51,21 @@ export class WorkerEvaluationVariableService {
     mapping: z.infer<typeof variableMapping>,
   ): string {
     const parseJson = (selectedColumn: unknown, jsonSelector: string) => {
-      return JSONPath({
-        path: jsonSelector,
-        json:
-          typeof selectedColumn === "string"
-            ? JSON.parse(selectedColumn)
-            : selectedColumn,
-      });
+      if (typeof selectedColumn === "string") {
+        try {
+          selectedColumn = JSON.parse(selectedColumn);
+          return JSONPath({
+            path: jsonSelector,
+            json:
+              typeof selectedColumn === "string"
+                ? JSON.parse(selectedColumn)
+                : selectedColumn,
+          });
+        } catch (error) {
+          // return empty string if the json is not valid
+          return "";
+        }
+      }
     };
     return extractValueFromObject(dbRow, mapping, parseJson);
   }

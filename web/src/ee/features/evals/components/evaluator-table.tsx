@@ -104,25 +104,30 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   );
 
   useEffect(() => {
-    // Check if there's already a target filter
+    const target = isDatasetTarget ? "dataset" : "trace";
     const hasTargetFilter = filterState.some(
-      (filter) => filter.column === "Target",
+      (filter) =>
+        filter.column === "Target" &&
+        (filter.value as string[]).includes(target),
     );
 
     if (!hasTargetFilter) {
-      // If there's no target filter, add it back
+      // Remove any existing Target filters and add the new one
+      const filteredState = filterState.filter(
+        (filter) => filter.column !== "Target",
+      );
       const newFilterState: FilterState = [
-        ...filterState,
+        ...filteredState,
         {
           column: "Target",
           type: "stringOptions",
           operator: "any of",
-          value: isDatasetTarget ? ["dataset"] : ["trace"],
+          value: [target],
         },
       ];
       setFilterState(newFilterState);
     }
-  }, [isDatasetTarget]);
+  }, [isDatasetTarget, filterState, setFilterState]);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
@@ -499,7 +504,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 showSuccessToast({
                   title: "Evaluator updated successfully",
                   description:
-                    "Changes will automatically be reflected on production traces",
+                    "Changes will automatically be reflected future evaluator runs",
                 });
               }}
             />

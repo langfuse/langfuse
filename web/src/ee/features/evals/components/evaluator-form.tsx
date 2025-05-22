@@ -12,6 +12,7 @@ export const EvaluatorForm = (props: {
   shouldWrapVariables?: boolean;
   templateId?: string;
   hideTargetSection?: boolean;
+  preventRedirect?: boolean;
 }) => {
   const currentTemplate =
     props.existingEvaluator?.evalTemplate ??
@@ -32,6 +33,7 @@ export const EvaluatorForm = (props: {
         shouldWrapVariables={props.shouldWrapVariables}
         hideTargetSection={props.hideTargetSection}
         mode={props.mode}
+        preventRedirect={props.preventRedirect ?? true}
       />
     </>
   );

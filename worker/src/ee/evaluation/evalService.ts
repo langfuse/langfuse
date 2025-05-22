@@ -27,12 +27,10 @@ import {
   ChatMessageRole,
   ForbiddenError,
   LangfuseNotFoundError,
-  LLMApiKeySchema,
   Prisma,
   singleFilter,
   InvalidRequestError,
   variableMappingList,
-  ZodModelConfig,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
   JobTimeScope,
@@ -428,7 +426,7 @@ export const evaluate = async ({
   const template = await prisma.evalTemplate.findFirstOrThrow({
     where: {
       id: config.eval_template_id,
-      projectId: event.projectId,
+      OR: [{ projectId: event.projectId }, { projectId: null }],
     },
   });
 

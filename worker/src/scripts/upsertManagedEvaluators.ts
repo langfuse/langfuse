@@ -49,7 +49,7 @@ const ExistingManagedEvaluatorSchema = z.object({
 export const upsertManagedEvaluators = async (force = false) => {
   const startTime = Date.now();
   try {
-    logger.debug(`Starting upsert of default model prices (force = ${force})`);
+    logger.debug(`Starting upsert of managed evaluators (force = ${force})`);
 
     const parsedManagedEvaluators = z
       .array(ManagedEvaluatorSchema)
