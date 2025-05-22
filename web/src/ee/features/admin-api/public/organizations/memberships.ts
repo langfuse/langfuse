@@ -50,7 +50,7 @@ export async function handleUpdateMembership(
   if (!validatedBody.success) {
     return res.status(400).json({
       error: "Invalid request body",
-      details: validatedBody.error.errors,
+      details: validatedBody.error.issues,
     });
   }
 

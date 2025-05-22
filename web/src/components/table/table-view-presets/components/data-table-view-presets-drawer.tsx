@@ -72,7 +72,7 @@ import {
 } from "@/src/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod/v4";
+import { z } from "zod"; // Use old version of zod to be compatible with zodResolver
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

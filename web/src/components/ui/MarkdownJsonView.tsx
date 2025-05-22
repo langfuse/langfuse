@@ -74,10 +74,7 @@ export function MarkdownJsonViewHeader({
 
 const isSupportedMarkdownFormat = (
   content: unknown,
-  contentValidation: z.SafeParseReturnType<
-    string,
-    z.infer<typeof OpenAIContentSchema>
-  >,
+  contentValidation: z.ZodSafeParseResult<z.infer<typeof OpenAIContentSchema>>,
 ): content is z.infer<typeof OpenAIContentSchema> => contentValidation.success;
 
 // MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown

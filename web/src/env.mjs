@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod"; // Sticking with zod 3 here as @t3-oss below does not support zod 4. Tracked in https://github.com/t3-oss/t3-env/issues/347.
 import { createEnv } from "@t3-oss/env-nextjs";
 
 const zAuthMethod = z

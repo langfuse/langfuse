@@ -9,7 +9,6 @@ const OpenAITextContentPart = z.object({
   ]),
   text: z.string(),
 });
-export type OpenAITextContentPartType = z.infer<typeof OpenAITextContentPart>;
 
 export const OpenAIUrlImageUrl = z.string().regex(/^https?:/);
 
@@ -76,7 +75,6 @@ const OpenAIImageContentPart = z.object({
     detail: z.enum(["low", "high", "auto"]).optional(), // Controls how the model processes the image. Defaults to "auto". [https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding]
   }),
 });
-export type OpenAIImageContentPartType = z.infer<typeof OpenAIImageContentPart>;
 
 const OpenAIInputAudioContentPart = z.object({
   type: z.literal("input_audio"),
@@ -105,21 +103,20 @@ export const OpenAIContentSchema = z
 export type OpenAIContentSchema = z.infer<typeof OpenAIContentSchema>;
 
 export const ChatMlMessageSchema = z
-  .object({
+  .looseObject({
     role: z.string().optional(),
     name: z.string().optional(),
     content: z
       .union([
-        z.record(z.any()),
+        z.record(z.string(), z.any()),
         z.string(),
         z.array(z.any()),
         OpenAIContentSchema,
       ])
       .nullish(),
     audio: OpenAIOutputAudioSchema.optional(),
-    additional_kwargs: z.record(z.any()).optional(),
+    additional_kwargs: z.record(z.string(), z.any()).optional(),
   })
-  .passthrough()
   .refine((value) => value.content !== null || value.role !== undefined)
   .transform(({ additional_kwargs, ...other }) => ({
     ...other,
