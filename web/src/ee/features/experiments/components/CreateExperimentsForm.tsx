@@ -210,6 +210,7 @@ export const CreateExperimentsForm = ({
     handleConfigureEvaluator,
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
+    handleSelectEvaluator,
   } = useExperimentEvaluatorData({
     datasetId,
     createDefaultEvaluator,
@@ -688,6 +689,7 @@ export const CreateExperimentsForm = ({
                 datasetId={datasetId}
                 evalTemplates={evalTemplates.data?.templates ?? []}
                 onConfigureTemplate={handleConfigureEvaluator}
+                onSelectEvaluator={handleSelectEvaluator}
                 activeTemplateIds={activeEvaluators}
                 inactiveTemplateIds={inActiveEvaluators}
               />

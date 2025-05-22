@@ -42,6 +42,7 @@ type TemplateSelectorProps = {
   activeTemplateIds?: string[];
   inactiveTemplateIds?: string[];
   onConfigureTemplate?: (templateId: string) => void;
+  onSelectEvaluator?: (templateId: string) => void;
   className?: string;
 };
 
@@ -54,6 +55,7 @@ export const TemplateSelector = ({
   activeTemplateIds,
   inactiveTemplateIds,
   onConfigureTemplate,
+  onSelectEvaluator,
   className,
 }: TemplateSelectorProps) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -69,6 +71,7 @@ export const TemplateSelector = ({
     datasetId: datasetId,
     initialActiveTemplateIds: activeTemplateIds,
     initialInactiveTemplateIds: inactiveTemplateIds,
+    onSelectEvaluator,
   });
 
   // Validation for templates requiring default model

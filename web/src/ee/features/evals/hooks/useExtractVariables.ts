@@ -165,6 +165,7 @@ export function useExtractVariables({
     isLoading,
     traceId,
     utils.observations.byId,
+    trace,
   ]);
 
   return { extractedVariables, isExtracting };

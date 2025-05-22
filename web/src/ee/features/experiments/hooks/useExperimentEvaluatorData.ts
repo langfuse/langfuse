@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { type EvalTemplate } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type PartialConfig } from "@/src/ee/features/evals/types";
@@ -22,13 +22,16 @@ const partitionEvaluators = (
     (evaluator) => evaluator.status === "ACTIVE",
   );
 
+  const activeIds = activeEvaluators.map(
+    (evaluator) => evaluator.evalTemplateId,
+  );
+  const inactiveIds = inActiveEvaluators.map(
+    (evaluator) => evaluator.evalTemplateId,
+  );
+
   return {
-    activeEvaluators: activeEvaluators.map(
-      (evaluator) => evaluator.evalTemplateId,
-    ),
-    inActiveEvaluators: inActiveEvaluators.map(
-      (evaluator) => evaluator.evalTemplateId,
-    ),
+    activeEvaluators: activeIds,
+    inActiveEvaluators: inactiveIds,
   };
 };
 
@@ -68,14 +71,21 @@ export function useExperimentEvaluatorData({
           (config) => config.evalTemplateId === templateId,
         );
 
-        if (!config || !config.evalTemplate) return null;
+        if (!config || !config.evalTemplate) {
+          console.log(
+            "Config or evalTemplate not found for editing:",
+            templateId,
+          );
+          return null;
+        }
 
+        // TODO: fix typing
         return {
           templateId,
           evaluator: {
             ...config,
             evalTemplate: config.evalTemplate,
-          } as PartialConfig & { evalTemplate: EvalTemplate },
+          } as unknown as PartialConfig & { evalTemplate: EvalTemplate },
         };
       }
 
@@ -84,11 +94,15 @@ export function useExperimentEvaluatorData({
         (t) => t.id === templateId,
       );
 
-      if (!template) return null;
+      if (!template) {
+        return null;
+      }
+
+      const evaluator = createDefaultEvaluator(template, datasetId);
 
       return {
         templateId,
-        evaluator: createDefaultEvaluator(template, datasetId),
+        evaluator,
       };
     },
     [datasetId, evaluatorsData, evalTemplatesData, createDefaultEvaluator],
@@ -119,6 +133,19 @@ export function useExperimentEvaluatorData({
     void refetchEvaluators();
   }, [refetchEvaluators]);
 
+  // Handle when a user selects an evaluator from the template selector
+  const handleSelectEvaluator = useCallback(
+    (templateId: string) => {
+      const preparedData = prepareEvaluatorData(templateId, false);
+
+      if (preparedData) {
+        setSelectedEvaluatorData(preparedData);
+        setShowEvaluatorForm(true);
+      }
+    },
+    [prepareEvaluatorData],
+  );
+
   const { activeEvaluators, inActiveEvaluators } = useMemo(() => {
     return partitionEvaluators(evaluatorsData, datasetId);
   }, [evaluatorsData, datasetId]);
@@ -134,6 +161,7 @@ export function useExperimentEvaluatorData({
     handleConfigureEvaluator,
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
+    handleSelectEvaluator,
 
     // UI state management
     setShowEvaluatorForm,

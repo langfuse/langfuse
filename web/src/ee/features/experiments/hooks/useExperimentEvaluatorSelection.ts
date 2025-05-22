@@ -1,11 +1,12 @@
 import { api } from "@/src/utils/api";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 type TemplateSelectionHookProps = {
   projectId: string;
   datasetId: string;
   initialActiveTemplateIds?: string[];
   initialInactiveTemplateIds?: string[];
+  onSelectEvaluator?: (templateId: string) => void;
 };
 
 /**
@@ -17,6 +18,7 @@ export function useExperimentEvaluatorSelection({
   datasetId,
   initialActiveTemplateIds = [],
   initialInactiveTemplateIds = [],
+  onSelectEvaluator,
 }: TemplateSelectionHookProps) {
   // Track confirmed selections
   const [activeTemplates, setActiveTemplates] = useState<string[]>(
@@ -26,6 +28,15 @@ export function useExperimentEvaluatorSelection({
   const [inactiveTemplates, setInactiveTemplates] = useState<string[]>(
     initialInactiveTemplateIds,
   );
+  // Keep the active templates in sync with the initialActiveTemplateIds prop
+  useEffect(() => {
+    setActiveTemplates(initialActiveTemplateIds);
+  }, [initialActiveTemplateIds]);
+
+  // Keep the inactive templates in sync with the initialInactiveTemplateIds prop
+  useEffect(() => {
+    setInactiveTemplates(initialInactiveTemplateIds);
+  }, [initialInactiveTemplateIds]);
 
   const updateStatus =
     api.evals.updateAllDatasetEvalJobStatusByTemplateId.useMutation({
@@ -44,9 +55,22 @@ export function useExperimentEvaluatorSelection({
       },
     });
 
+  const setTemplateSelected = useCallback(
+    (templateId: string) => {
+      templateId;
+      // Notify parent that a template was marked as pending
+      if (onSelectEvaluator) {
+        onSelectEvaluator(templateId);
+      }
+    },
+    [onSelectEvaluator],
+  );
+
   // Selection status methods
   const isTemplateActive = useCallback(
-    (templateId: string) => activeTemplates.includes(templateId),
+    (templateId: string) => {
+      return activeTemplates.includes(templateId);
+    },
     [activeTemplates],
   );
 
@@ -70,6 +94,8 @@ export function useExperimentEvaluatorSelection({
         datasetId,
         newStatus: "ACTIVE",
       });
+    } else {
+      setTemplateSelected(templateId);
     }
   };
 
