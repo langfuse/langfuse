@@ -20,8 +20,7 @@ export const contextWithHeaders = (
   headerNames.forEach((name) => {
     const value = headers[name];
     if (!value) return;
-    // If multiple values, take the first one.
-    const strValue = Array.isArray(value) ? value[0] : value;
+    const strValue = Array.isArray(value) ? JSON.stringify(value) : value;
     baggage = baggage.setEntry(`langfuse.header.${name}`, {
       value: strValue,
     });
