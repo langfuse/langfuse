@@ -1,6 +1,6 @@
 import z from "zod/v4";
 
-export const applyScoreValidation = <T extends z.ZodType<any, any, any>>(
+export const applyScoreValidation = <T extends z.ZodType<any, any>>(
   schema: T,
 ) => {
   return schema.refine(

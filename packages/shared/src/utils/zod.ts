@@ -24,7 +24,7 @@ type Json = Root | { [key: string]: JsonNested } | JsonNested[];
 export const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
   z.union([
     z.array(jsonSchemaNullable),
-    z.record(jsonSchemaNullable),
+    z.record(z.string(), jsonSchemaNullable),
     nestedLiteralSchema,
   ]),
 );
@@ -33,7 +33,7 @@ export const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
 export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   z.union([
     z.array(jsonSchemaNullable),
-    z.record(jsonSchemaNullable),
+    z.record(z.string(), jsonSchemaNullable),
     rootLiteralSchema,
   ]),
 );
