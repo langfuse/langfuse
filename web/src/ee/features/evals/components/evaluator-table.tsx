@@ -55,6 +55,7 @@ import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/ee/features/evals/types";
 import { RagasAndLangfuseIcon } from "@/src/ee/features/evals/components/ragas-logo";
+import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -230,25 +231,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       size: 200,
       cell: ({ row }) => {
         const template = row.original.template;
-        const isLangfuse = row.original.maintainer.includes("Langfuse");
-        const isRagas = row.original.maintainer.includes("Ragas");
         if (!template) return "template not found";
         return (
           <div className="flex items-center gap-2">
             <TableIdOrName value={template.name} />
             <div className="flex justify-center">
-              <Tooltip>
-                <TooltipTrigger>
-                  {isRagas ? (
-                    <RagasAndLangfuseIcon />
-                  ) : isLangfuse ? (
-                    <LangfuseIcon size={16} />
-                  ) : (
-                    <UserCircle2Icon className="h-4 w-4" />
-                  )}
-                </TooltipTrigger>
-                <TooltipContent>{row.original.maintainer}</TooltipContent>
-              </Tooltip>
+              <MaintainerTooltip maintainer={row.original.maintainer} />
             </div>
           </div>
         );

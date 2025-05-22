@@ -19,7 +19,7 @@ import {
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { useState } from "react";
-import { SelectEvaluatorDialog } from "@/src/ee/features/evals/components/select-evaluator-dialog";
+// import { SelectEvaluatorDialog } from "@/src/ee/features/evals/components/select-evaluator-dialog";
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -90,12 +90,12 @@ export default function EvaluatorsPage() {
 
   return (
     <>
-      <SelectEvaluatorDialog
+      {/* <SelectEvaluatorDialog
         open={isEvaluatorDialogOpen}
         onOpenChange={setIsEvaluatorDialogOpen}
         projectId={projectId}
         onSelectEvaluator={() => {}}
-      />
+      /> */}
       <Page
         headerProps={{
           title: "LLM-as-a-Judge Evaluators",
@@ -135,7 +135,7 @@ export default function EvaluatorsPage() {
                 variant="default"
                 onClick={() => {
                   capture("eval_config:new_form_open");
-                  setIsEvaluatorDialogOpen(true);
+                  router.push(`/project/${projectId}/evals/new`);
                 }}
                 limitValue={countsQuery.data?.configActiveCount ?? 0}
                 limit={evaluatorLimit}
