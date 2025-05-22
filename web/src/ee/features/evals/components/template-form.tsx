@@ -380,7 +380,7 @@ export const InnerEvalTemplateForm = (props: {
                 <div className="space-y-1 leading-none">
                   <FormLabel>Use default evaluation model</FormLabel>
                   <FormDescription className="text-xs">
-                    Use the project's default evaluation model for this template
+                    Use the projects default evaluation model for this template
                   </FormDescription>
                 </div>
               </FormItem>

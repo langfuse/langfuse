@@ -129,6 +129,7 @@ export const CreateExperimentsForm = ({
   const capture = usePostHogClientCapture();
   const hasPromptExperimentEntitlement =
     useHasEntitlement("prompt-experiments");
+  const hasEvalEntitlement = useHasEntitlement("model-based-evaluations");
   const [selectedPromptName, setSelectedPromptName] = useState<string>(
     promptDefault?.name ?? "",
   );
@@ -167,24 +168,21 @@ export const CreateExperimentsForm = ({
     scope: "evalJob:read",
   });
 
-  const hasEvalWriteAccess = useHasProjectAccess({
-    projectId,
-    scope: "evalJob:CUD",
-  });
-
   const datasetId = form.watch("datasetId");
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: "dataset" },
     {
-      enabled:
-        hasEvalReadAccess && !!datasetId && hasPromptExperimentEntitlement,
+      enabled: hasEvalReadAccess && !!datasetId && hasEvalEntitlement,
     },
   );
 
-  const evalTemplates = api.evals.allTemplates.useQuery({
-    projectId,
-  });
+  const evalTemplates = api.evals.allTemplates.useQuery(
+    { projectId },
+    {
+      enabled: hasEvalReadAccess && hasEvalEntitlement,
+    },
+  );
 
   const datasets = api.datasets.allDatasetMeta.useQuery(
     { projectId },

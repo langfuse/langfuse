@@ -1062,6 +1062,8 @@ export default function TracesTable({
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
 
+  const setFilterState = useDebounce(setUserFilterState);
+
   return (
     <>
       {!hideControls && (
@@ -1082,7 +1084,7 @@ export default function TracesTable({
             searchType,
           }}
           filterState={userFilterState}
-          setFilterState={useDebounce(setUserFilterState)}
+          setFilterState={setFilterState}
           columnsWithCustomSelect={["name", "tags"]}
           actionButtons={[
             Object.keys(selectedRows).filter((traceId) =>

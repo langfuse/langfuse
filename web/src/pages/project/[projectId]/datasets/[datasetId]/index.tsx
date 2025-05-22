@@ -104,6 +104,11 @@ export default function Dataset() {
     scope: "evalJob:read",
   });
 
+  const hasEvalWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJob:CUD",
+  });
+
   const hasPromptExperimentEntitlement = useHasEntitlement(
     "model-based-evaluations",
   );
@@ -220,6 +225,7 @@ export default function Dataset() {
                   onSelectEvaluator={handleSelectEvaluator}
                   activeTemplateIds={activeEvaluators}
                   inactiveTemplateIds={inActiveEvaluators}
+                  disabled={!hasEvalWriteAccess}
                 />
               </div>
             )}

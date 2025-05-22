@@ -36,6 +36,9 @@ import { type RouterInput } from "@/src/utils/types";
 import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
+import { ActionButton } from "@/src/components/ActionButton";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -78,6 +81,9 @@ export default function EvalsTemplateTable({
     limit: paginationState.pageSize,
     searchQuery: searchQuery,
   });
+
+  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasEntitlement = useHasEntitlement("model-based-evaluations");
 
   const totalCount = templates.data?.totalCount ?? null;
 
@@ -201,7 +207,7 @@ export default function EvalsTemplateTable({
 
         return (
           <>
-            <Button
+            <ActionButton
               variant="outline"
               size="sm"
               aria-label="apply"
@@ -211,6 +217,8 @@ export default function EvalsTemplateTable({
                   ? "Evaluator requires project-level evaluation model. Set it up and start running evaluations."
                   : undefined
               }
+              hasAccess={hasAccess}
+              hasEntitlement={hasEntitlement}
               onClick={(e) => {
                 e.stopPropagation();
                 if (id) {
@@ -220,15 +228,15 @@ export default function EvalsTemplateTable({
                 }
               }}
             >
-              Run on data
-            </Button>
+              Use Evaluator
+            </ActionButton>
             {row.original.maintainer.includes("Langfuse") ? (
               <Button
                 aria-label="clone"
                 variant="outline"
                 size="icon-xs"
                 title="Clone"
-                // disabled={!hasAccess}
+                disabled={!hasAccess || !hasEntitlement}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (id) setCloneTemplateId(id);
@@ -242,7 +250,7 @@ export default function EvalsTemplateTable({
                 variant="outline"
                 size="icon-xs"
                 title="Edit"
-                // disabled={!hasAccess}
+                disabled={!hasAccess || !hasEntitlement}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (id) setEditTemplateId(id);
@@ -451,7 +459,7 @@ export default function EvalsTemplateTable({
               Langfuse evaluator to reference your new project-level version?
               <br />
               <br />
-              <strong>Warning:</strong> This might break workflows if you've
+              <strong>Warning:</strong> This might break workflows if you have
               changed variables or other critical aspects of the template.
             </DialogDescription>
           </DialogHeader>

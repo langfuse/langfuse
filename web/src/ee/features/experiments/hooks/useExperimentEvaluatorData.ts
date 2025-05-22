@@ -79,14 +79,14 @@ export function useExperimentEvaluatorData({
           return null;
         }
 
-        const evaluator: PartialConfig & { evalTemplate: EvalTemplate } = {
+        const evaluator = {
           ...config,
           evalTemplate: {
             ...config.evalTemplate,
             outputSchema: config.evalTemplate
               .outputSchema as EvalTemplate["outputSchema"],
           },
-        };
+        } as PartialConfig & { evalTemplate: EvalTemplate };
 
         return {
           templateId,

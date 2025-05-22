@@ -42,6 +42,7 @@ import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/ee/features/evals/types";
 import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -110,6 +111,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enabled: !!editConfigId,
     },
   );
+
+  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
@@ -279,7 +282,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               <DropdownMenuItem
                 key={id}
                 aria-label="edit"
-                // disabled={!hasAccess}
+                disabled={!hasAccess}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (id) setEditConfigId(id);

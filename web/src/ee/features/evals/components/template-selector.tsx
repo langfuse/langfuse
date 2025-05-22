@@ -50,13 +50,13 @@ export const TemplateSelector = ({
   projectId,
   datasetId,
   evalTemplates,
-  disabled,
   mode,
   activeTemplateIds,
   inactiveTemplateIds,
   onConfigureTemplate,
   onSelectEvaluator,
   className,
+  disabled = false,
 }: TemplateSelectorProps) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -133,7 +133,6 @@ export const TemplateSelector = ({
       <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
         <PopoverTrigger asChild>
           <Button
-            disabled={disabled || mode === "edit"}
             variant="outline"
             role="combobox"
             aria-expanded={isPopoverOpen}
@@ -192,7 +191,7 @@ export const TemplateSelector = ({
                             onSelect={() => {
                               handleRowClick(latestTemplate.id);
                             }}
-                            disabled={isInvalid}
+                            disabled={isInvalid || disabled}
                           >
                             {isActive ? (
                               <CheckIcon className="mr-2 h-4 w-4" />
@@ -231,7 +230,7 @@ export const TemplateSelector = ({
                                     ? "Configure default model first"
                                     : "Configure evaluator"
                                 }
-                                disabled={isInvalid}
+                                disabled={isInvalid || disabled}
                               >
                                 <Cog className="h-4 w-4" />
                               </Button>
@@ -264,7 +263,7 @@ export const TemplateSelector = ({
                           onSelect={() => {
                             handleRowClick(latestTemplate.id);
                           }}
-                          disabled={isInvalid}
+                          disabled={isInvalid || disabled}
                         >
                           {isActive ? (
                             <CheckIcon className="mr-2 h-4 w-4" />
@@ -303,7 +302,7 @@ export const TemplateSelector = ({
                                   ? "Configure default model first"
                                   : "Configure evaluator"
                               }
-                              disabled={isInvalid}
+                              disabled={isInvalid || disabled}
                             >
                               <Cog className="h-4 w-4" />
                             </Button>
@@ -318,6 +317,7 @@ export const TemplateSelector = ({
                 <InputCommandGroup forceMount>
                   <InputCommandItem
                     onSelect={() => {
+                      if (disabled) return;
                       window.open(
                         `/project/${projectId}/evals/templates/new`,
                         "_blank",
@@ -330,6 +330,7 @@ export const TemplateSelector = ({
                   {!hasDefaultModel && (
                     <InputCommandItem
                       onSelect={() => {
+                        if (disabled) return;
                         window.open(
                           `/project/${projectId}/evals/default-model`,
                           "_blank",
