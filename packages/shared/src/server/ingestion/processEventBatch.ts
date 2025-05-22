@@ -38,6 +38,8 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
       endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
+      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
     });
   }
   return s3StorageServiceClient;
