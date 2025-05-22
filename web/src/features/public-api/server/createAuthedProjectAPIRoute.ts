@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type RateLimitResource } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { contextWithHeaders } from "@langfuse/shared/src/server";
+import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 
@@ -91,7 +91,10 @@ export const createAuthedProjectAPIRoute = <
       ? routeConfig.bodySchema.parse(req.body)
       : {};
 
-    const ctx = contextWithHeaders(req.headers);
+    const ctx = contextWithLangfuseProps({
+      headers: req.headers,
+      projectId: auth.scope.projectId,
+    });
     return opentelemetry.context.with(ctx, async () => {
       const response = await routeConfig.fn({
         query,

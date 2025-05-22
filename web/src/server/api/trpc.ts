@@ -18,7 +18,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { context } from "@opentelemetry/api";
-import { contextWithHeaders } from "@langfuse/shared/src/server";
+import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma, Role } from "@langfuse/shared/src/db";
@@ -55,20 +55,26 @@ export const createInnerTRPCContext = (opts: CreateContextOptions) => {
 export const createTRPCContext = async (opts: CreateNextContextOptions) => {
   const { req, res } = opts;
 
-  const baggageCtx = contextWithHeaders(req.headers);
-  return context.with(baggageCtx, async () => {
-    // Get the session from the server using the getServerSession wrapper function
-    const session = await getServerAuthSession({ req, res });
+  // Get the session from the server using the getServerSession wrapper function
+  const session = await getServerAuthSession({ req, res });
 
-    addUserToSpan({
-      userId: session?.user?.id,
-      email: session?.user?.email ?? undefined,
-    });
-
-    return createInnerTRPCContext({
-      session,
-    });
+  addUserToSpan({
+    userId: session?.user?.id,
+    email: session?.user?.email ?? undefined,
   });
+
+  const projectId = Array.isArray(req.query.projectId)
+    ? req.query.projectId[0]
+    : (req.query.projectId as string | undefined);
+
+  const baggageCtx = contextWithLangfuseProps({
+    headers: req.headers,
+    projectId,
+    userId: session?.user?.id,
+  });
+  console.log("projectId", projectId);
+  console.log("userId", session?.user?.id);
+  return context.with(baggageCtx, () => createInnerTRPCContext({ session }));
 };
 
 /**

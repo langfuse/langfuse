@@ -87,11 +87,6 @@ export default withMiddlewares({
       ]);
 
       const finalCount = count || 0;
-      logger.info("Get traces", {
-        count: finalCount,
-        page: query.page,
-        limit: query.limit,
-      });
       return {
         data: items.map((item) => ({
           ...item,

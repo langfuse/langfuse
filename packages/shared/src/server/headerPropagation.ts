@@ -2,32 +2,43 @@ import * as opentelemetry from "@opentelemetry/api";
 import type { IncomingHttpHeaders } from "http";
 import { env } from "../env";
 
-/**
- * Creates/extends the current active OTel context with a baggage object
- * containing the configured headers that are present on the request.
- * The returned context MUST be activated via opentelemetry.context.with(ctx, fn)
- * for downstream code to see the baggage.
- */
-export const contextWithHeaders = (
-  headers: IncomingHttpHeaders,
-): opentelemetry.Context => {
-  const headerNames = env.LANGFUSE_PROPAGATED_HEADERS as string[];
+export type LangfuseContextProps = {
+  headers?: IncomingHttpHeaders;
+  userId?: string;
+  projectId?: string;
+};
 
+/**
+ * Returns a new context containing baggage entries composed from
+ * the supplied props (headers, userId, projectId). Existing baggage
+ * entries are preserved.
+ */
+export const contextWithLangfuseProps = (
+  props: LangfuseContextProps,
+): opentelemetry.Context => {
+  const ctx = opentelemetry.context.active();
   let baggage =
-    opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
+    opentelemetry.propagation.getBaggage(ctx) ??
     opentelemetry.propagation.createBaggage();
 
-  headerNames.forEach((name) => {
-    const value = headers[name];
-    if (!value) return;
-    const strValue = Array.isArray(value) ? JSON.stringify(value) : value;
-    baggage = baggage.setEntry(`langfuse.header.${name}`, {
-      value: strValue,
+  if (props.headers) {
+    (env.LANGFUSE_PROPAGATED_HEADERS as string[]).forEach((name) => {
+      const value = props.headers![name];
+      if (!value) return;
+      const strValue = Array.isArray(value) ? JSON.stringify(value) : value;
+      baggage = baggage.setEntry(`langfuse.header.${name}`, {
+        value: strValue,
+      });
     });
-  });
+  }
+  if (props.userId) {
+    baggage = baggage.setEntry("langfuse.user.id", { value: props.userId });
+  }
+  if (props.projectId) {
+    baggage = baggage.setEntry("langfuse.project.id", {
+      value: props.projectId,
+    });
+  }
 
-  return opentelemetry.propagation.setBaggage(
-    opentelemetry.context.active(),
-    baggage,
-  );
+  return opentelemetry.propagation.setBaggage(ctx, baggage);
 };
