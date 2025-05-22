@@ -99,7 +99,8 @@
     "id": "cmal6wart010lynrdtpv6olaa",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Answer Correctness",
+    "name": "Answer Correctness",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1",
@@ -111,7 +112,8 @@
     "id": "cmal6wart010lynrdtpv6olab",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Answer Relevance",
+    "name": "Answer Relevance",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1",
@@ -123,7 +125,8 @@
     "id": "cmal6wart010lynrdtpv6olac",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Answer Critic",
+    "name": "Answer Critic",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1",
@@ -135,7 +138,8 @@
     "id": "cmal6wart010lynrdtpv6olad",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Context Precision",
+    "name": "Context Precision",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Give verdict as '1' if useful and '0' if not",
@@ -147,7 +151,8 @@
     "id": "cmal6wart010lynrdtpv6olae",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Context Recall",
+    "name": "Context Recall",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1",
@@ -159,7 +164,8 @@
     "id": "cmal6wart010lynrdtpv6olaf",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Faithfulness",
+    "name": "Faithfulness",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1",
@@ -171,7 +177,8 @@
     "id": "cmal6wart010lynrdtpv6olag",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Goal Accuracy",
+    "name": "Goal Accuracy",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1",
@@ -183,7 +190,8 @@
     "id": "cmal6wart010lynrdtpv6olah",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Simple Criteria",
+    "name": "Simple Criteria",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1",
@@ -195,7 +203,8 @@
     "id": "cmal6wart010lynrdtpv6olai",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__SQL Semantic Equivalence",
+    "name": "SQL Semantic Equivalence",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1 based on the equivalence of the two SQL queries",
@@ -207,7 +216,8 @@
     "id": "cmal6wart010lynrdtpv6olaj",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Topic Adherence Classification",
+    "name": "Topic Adherence Classification",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1, 1 if the topic falls into any of the given reference topics, 0 otherwise",
@@ -219,7 +229,8 @@
     "id": "cmal6wart010lynrdtpv6olak",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
-    "name": "__ragas__Topic Adherence Refusal",
+    "name": "Topic Adherence Refusal",
+    "partner": "ragas",
     "version": 1,
     "outputSchema": {
       "score": "Score between 0 and 1. 1 if the AI refused to answer the question about the topic, 0 otherwise",

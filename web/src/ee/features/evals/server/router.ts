@@ -500,6 +500,7 @@ export const evalRouter = createTRPCRouter({
             version: number;
             latestCreatedAt: Date;
             usageCount: number;
+            partner?: string;
             provider?: string;
             model?: string;
           }>
@@ -511,6 +512,7 @@ export const evalRouter = createTRPCRouter({
             et.project_id,
             et.provider,
             et.model,
+            et.partner,
             et.version,
             et.created_at,
             (
@@ -536,6 +538,7 @@ export const evalRouter = createTRPCRouter({
           name,
           provider,
           model,
+          partner,
           project_id as "projectId",
           version,
           created_at as "latestCreatedAt",

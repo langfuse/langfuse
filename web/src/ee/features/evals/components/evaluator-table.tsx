@@ -23,19 +23,7 @@ import { z } from "zod";
 import { generateJobExecutionCounts } from "@/src/ee/features/evals/utils/job-execution-utils";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import {
-  MoreVertical,
-  UserCircle2Icon,
-  Loader2,
-  ExternalLinkIcon,
-  Edit,
-} from "lucide-react";
+import { MoreVertical, Loader2, ExternalLinkIcon, Edit } from "lucide-react";
 import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
 import { useRunningEvaluatorsPeekNavigation } from "@/src/components/table/peek/hooks/useRunningEvaluatorsPeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
@@ -54,7 +42,6 @@ import { useRouter } from "next/router";
 import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/ee/features/evals/types";
-import { RagasAndLangfuseIcon } from "@/src/ee/features/evals/components/ragas-logo";
 import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
 
 export type EvaluatorDataRow = {

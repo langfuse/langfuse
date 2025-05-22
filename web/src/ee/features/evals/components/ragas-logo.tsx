@@ -1,7 +1,4 @@
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import { PlusIcon } from "lucide-react";
-
-const RagasLogoIcon = () => {
+export const RagasLogoIcon = () => {
   return (
     <div className="flex items-center">
       <img
@@ -10,16 +7,6 @@ const RagasLogoIcon = () => {
         width={12}
         height={12}
       />
-    </div>
-  );
-};
-
-export const RagasAndLangfuseIcon = () => {
-  return (
-    <div className="flex items-center">
-      <LangfuseIcon size={16} />
-      <PlusIcon size={8} />
-      <RagasLogoIcon />
     </div>
   );
 };

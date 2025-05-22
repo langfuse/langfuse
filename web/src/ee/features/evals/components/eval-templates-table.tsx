@@ -36,14 +36,12 @@ import {
 } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import {
-  EvalReferencedEvaluators,
-  RAGAS_TEMPLATE_PREFIX,
-} from "@/src/ee/features/evals/types";
+import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type RouterInput } from "@/src/utils/types";
-import { RagasAndLangfuseIcon } from "@/src/ee/features/evals/components/ragas-logo";
 import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
+import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
+import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -156,23 +154,9 @@ export default function EvalsTemplateTable({
       header: "Maintainer",
       size: 150,
       cell: (row) => {
-        const isLangfuse = row.getValue().includes("Langfuse");
-        const isRagas = row.getValue().includes("Ragas");
         return (
           <div className="flex justify-center">
-            <Tooltip>
-              <TooltipTrigger className="flex flex-row items-center gap-2">
-                {isRagas ? (
-                  <RagasAndLangfuseIcon />
-                ) : isLangfuse ? (
-                  <LangfuseIcon size={16} />
-                ) : (
-                  <UserCircle2Icon className="h-4 w-4" />
-                )}
-                <span>{isLangfuse ? "Langfuse" : "User"}</span>
-              </TooltipTrigger>
-              <TooltipContent>{row.getValue()}</TooltipContent>
-            </Tooltip>
+            <MaintainerTooltip maintainer={row.getValue()} />
           </div>
         );
       },
@@ -295,11 +279,7 @@ export default function EvalsTemplateTable({
   ): EvalsTemplateRow => {
     return {
       name: template.name,
-      maintainer: !!template.projectId
-        ? "User maintained"
-        : template.name.startsWith(RAGAS_TEMPLATE_PREFIX)
-          ? "Langfuse and Ragas maintained"
-          : "Langfuse maintained",
+      maintainer: getMaintainer(template),
       latestCreatedAt: template.latestCreatedAt,
       latestVersion: template.version,
       id: template.latestId,

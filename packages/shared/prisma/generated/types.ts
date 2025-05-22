@@ -345,6 +345,7 @@ export type EvalTemplate = {
     name: string;
     version: number;
     prompt: string;
+    partner: string | null;
     model: string | null;
     provider: string | null;
     model_params: unknown | null;
