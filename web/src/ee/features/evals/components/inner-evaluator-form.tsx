@@ -383,6 +383,30 @@ export const InnerEvaluatorForm = (props: {
       });
   }
 
+  const mappingControlButtons = (
+    <div className="flex items-center gap-2">
+      {form.watch("target") === "trace" && !props.disabled && (
+        <>
+          <span className="text-xs text-muted-foreground">Show preview</span>
+          <Switch
+            checked={showPreview}
+            onCheckedChange={setShowPreview}
+            disabled={props.disabled}
+          />
+          {traceWithObservations && showPreview && (
+            <DetailPageNav
+              currentId={traceWithObservations.id}
+              listKey="traces"
+              path={(entry) =>
+                `/project/${props.projectId}/evals/new?evaluator=${props.evalTemplate.id}&traceId=${entry.id}`
+              }
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+
   return (
     <Form {...form}>
       <form
@@ -645,29 +669,6 @@ export const InnerEvaluatorForm = (props: {
           <Card className="min-w-0 max-w-full p-4">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-lg font-medium">Variable mapping</span>
-              <div className="flex items-center gap-2">
-                {form.watch("target") === "trace" && !props.disabled && (
-                  <>
-                    <span className="text-sm text-muted-foreground">
-                      Show preview
-                    </span>
-                    <Switch
-                      checked={showPreview}
-                      onCheckedChange={setShowPreview}
-                      disabled={props.disabled}
-                    />
-                    {traceWithObservations && showPreview && (
-                      <DetailPageNav
-                        currentId={traceWithObservations.id}
-                        listKey="traces"
-                        path={(entry) =>
-                          `/project/${props.projectId}/evals/new?evaluator=${props.evalTemplate.id}&traceId=${entry.id}`
-                        }
-                      />
-                    )}
-                  </>
-                )}
-              </div>
             </div>
             {form.watch("target") === "trace" && !props.disabled && (
               <FormDescription>
@@ -698,6 +699,7 @@ export const InnerEvaluatorForm = (props: {
                               "min-h-48",
                               !props.shouldWrapVariables && "lg:w-2/3",
                             )}
+                            controlButtons={mappingControlButtons}
                           />
                         ) : (
                           <div className="flex h-[200px] w-full items-center justify-center rounded border lg:w-2/3">
@@ -717,6 +719,7 @@ export const InnerEvaluatorForm = (props: {
                           )}
                           codeClassName="flex-1"
                           collapseStringsAfterLength={null}
+                          controlButtons={mappingControlButtons}
                         />
                       )}
                       <div

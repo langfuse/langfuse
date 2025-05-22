@@ -1,13 +1,11 @@
-import {
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
+import { ItemBadge } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useExtractVariables } from "@/src/ee/features/evals/hooks/useExtractVariables";
 import { type VariableMapping } from "@/src/ee/features/evals/utils/evaluator-form-utils";
 import { cn } from "@/src/utils/tailwind";
+import { type RouterOutput } from "@/src/utils/types";
 import { type EvalTemplate } from "@langfuse/shared";
+import Link from "next/link";
 import { Fragment } from "react";
 
 const VARIABLE_COLORS = [
@@ -93,7 +91,7 @@ const ColoredPromptView = ({
 }) => {
   return (
     <div className={cn("flex flex-col", className)}>
-      <div className="relative flex flex-col gap-2 rounded-md border">
+      <div className="relative flex flex-col gap-2">
         <pre className="flex-1 whitespace-pre-wrap break-words p-3 font-mono text-xs">
           {fragments.map((fragment, idx) => (
             <Fragment key={idx}>
@@ -120,13 +118,15 @@ export const EvaluationPromptPreview = ({
   isLoading,
   showControls = true,
   className,
+  controlButtons,
 }: {
   evalTemplate: EvalTemplate;
-  trace: Record<string, unknown>;
+  trace: RouterOutput["traces"]["byIdWithObservationsAndScores"];
   variableMapping: VariableMapping[];
   isLoading: boolean;
   showControls?: boolean;
   className?: string;
+  controlButtons?: React.ReactNode;
 }) => {
   const { extractedVariables, isExtracting } = useExtractVariables({
     variables: variableMapping.map(({ templateVariable }) => templateVariable),
@@ -190,7 +190,7 @@ export const EvaluationPromptPreview = ({
   };
 
   const content = (
-    <div className="max-h-full overflow-y-auto">
+    <div className="max-h-full min-h-0 flex-1 overflow-y-auto rounded-md border">
       {isLoading ? (
         <div className="flex items-center justify-center p-8">
           <p>Loading variables...</p>
@@ -206,9 +206,20 @@ export const EvaluationPromptPreview = ({
   }
 
   return (
-    <div className={cn("mt-0.5 flex flex-col gap-2", className)}>
-      <span className="flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize">
-        Evaluation Prompt
+    <div className={cn("flex flex-col", className)}>
+      <span className="mb-1 flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
+        <div className="flex flex-row items-center gap-2">
+          Evaluation Prompt Preview
+          <Link
+            href={`/project/${trace.projectId}/traces/${trace.id}`}
+            className="hover:cursor-pointer"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ItemBadge type="TRACE" showLabel />
+          </Link>
+        </div>
+        {controlButtons}
       </span>
       {content}
     </div>

@@ -9,7 +9,7 @@ const ManagedEvaluatorSchema = z.object({
   created_at: z.coerce.date(),
   updated_at: z.coerce.date(),
   name: z.string(),
-  partner: z.string().nullable(),
+  partner: z.string().nullish(),
   version: z.number(),
   outputSchema: z.object({
     score: z.string(),

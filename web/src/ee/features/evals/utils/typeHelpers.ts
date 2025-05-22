@@ -8,7 +8,7 @@ const getPartnerName = (partner: string) => {
 
 export const getMaintainer = (
   evalTemplate: Partial<EvalTemplate> & {
-    partner?: string;
+    partner?: string | null;
     projectId: string | null;
   },
 ) => {

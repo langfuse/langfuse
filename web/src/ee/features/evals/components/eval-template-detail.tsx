@@ -136,21 +136,14 @@ export const EvalTemplateDetail = () => {
               setIsEditing={setIsEditing}
             />
           </div>
-          <SidePanel mobileTitle="Version history" id="version-history">
+          <SidePanel mobileTitle="Change history" id="change-history">
             <SidePanelHeader>
               <SidePanelTitle className="text-base font-semibold">
-                Version history
+                Change history
               </SidePanelTitle>
             </SidePanelHeader>
             <SidePanelContent>
               <Command className="flex flex-col gap-2 overflow-y-auto rounded-none font-medium focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 data-[focus]:ring-0">
-                <div className="flex items-center justify-between px-3">
-                  <CommandInput
-                    showBorder={false}
-                    placeholder="Search version history"
-                    className="h-fit border-none py-0 text-sm font-light text-muted-foreground focus:ring-0"
-                  />
-                </div>
                 <div className="flex flex-col overflow-y-auto">
                   {allTemplates.data.templates.map((template, index) => (
                     <div

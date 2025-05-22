@@ -19,6 +19,7 @@ type MarkdownJsonViewHeaderProps = {
   handleOnValueChange: () => void;
   handleOnCopy: () => void;
   canEnableMarkdown?: boolean;
+  controlButtons?: React.ReactNode;
 };
 
 export function MarkdownJsonViewHeader({
@@ -26,6 +27,7 @@ export function MarkdownJsonViewHeader({
   handleOnValueChange,
   handleOnCopy,
   canEnableMarkdown = true,
+  controlButtons,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
   const { isMarkdownEnabled } = useMarkdownContext();
@@ -34,6 +36,7 @@ export function MarkdownJsonViewHeader({
     <div className="flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize">
       {title}
       <div className="mr-1 flex min-w-0 flex-shrink flex-row items-center gap-1">
+        {controlButtons}
         {canEnableMarkdown && (
           <Button
             title={isMarkdownEnabled ? "Disable Markdown" : "Enable Markdown"}

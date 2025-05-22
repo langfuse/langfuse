@@ -201,10 +201,10 @@ export const InnerEvalTemplateForm = (props: {
       variables: props.preFilledFormValues?.vars ?? [],
       outputReasoning: props.preFilledFormValues
         ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).reasoning
-        : undefined,
+        : "One sentence reasoning for the score",
       outputScore: props.preFilledFormValues
         ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).score
-        : undefined,
+        : "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
       shouldUseDefaultModel: isExistingUsingDefault,
     },
   });
@@ -489,10 +489,7 @@ export const InnerEvalTemplateForm = (props: {
                     allow for chain-of-thought reasoning.
                   </FormDescription>
                   <FormControl>
-                    <Input
-                      placeholder="One sentence reasoning for the score"
-                      {...field}
-                    />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -510,7 +507,7 @@ export const InnerEvalTemplateForm = (props: {
                     natural language. Needs to yield a numeric value.
                   </FormDescription>
                   <FormControl>
-                    <Input {...field} placeholder="Score between 0 and 1" />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
