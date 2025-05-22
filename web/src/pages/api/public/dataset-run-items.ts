@@ -2,6 +2,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
+  GetDatasetRunItemsV1Query,
+  GetDatasetRunItemsV1Response,
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
   transformDbDatasetRunItemToAPIDatasetRunItem,
@@ -15,6 +17,7 @@ export default withMiddlewares({
     name: "Create Dataset Run Item",
     bodySchema: PostDatasetRunItemsV1Body,
     responseSchema: PostDatasetRunItemsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ body, auth }) => {
       const {
         datasetItemId,
@@ -115,6 +118,77 @@ export default withMiddlewares({
         ...runItem,
         datasetRunName: run.name,
       });
+    },
+  }),
+  GET: createAuthedProjectAPIRoute({
+    name: "Get Dataset Run Items",
+    querySchema: GetDatasetRunItemsV1Query,
+    responseSchema: GetDatasetRunItemsV1Response,
+    rateLimitResource: "datasets",
+    fn: async ({ query, auth }) => {
+      const { datasetId, runName, ...pagination } = query;
+
+      /**************
+       * VALIDATION *
+       **************/
+
+      const datasetRun = await prisma.datasetRuns.findUnique({
+        where: {
+          datasetId_projectId_name: {
+            datasetId,
+            name: runName,
+            projectId: auth.scope.projectId,
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      if (!datasetRun) {
+        throw new LangfuseNotFoundError(
+          "Dataset run not found for the given project and dataset id",
+        );
+      }
+
+      const datasetRunItems = await prisma.datasetRunItems.findMany({
+        where: {
+          datasetRunId: datasetRun.id,
+          projectId: auth.scope.projectId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: pagination.limit,
+        skip: (pagination.page - 1) * pagination.limit,
+      });
+
+      const totalItems = await prisma.datasetRunItems.count({
+        where: {
+          datasetRunId: datasetRun.id,
+          projectId: auth.scope.projectId,
+        },
+      });
+
+      /**************
+       * RESPONSE *
+       **************/
+
+      return {
+        data: datasetRunItems.map((runItem) =>
+          transformDbDatasetRunItemToAPIDatasetRunItem({
+            ...runItem,
+            datasetRunName: datasetRun.name,
+          }),
+        ),
+        meta: {
+          page: pagination.page,
+          limit: pagination.limit,
+          totalItems,
+          totalPages: Math.ceil(totalItems / pagination.limit),
+        },
+      };
     },
   }),
 });

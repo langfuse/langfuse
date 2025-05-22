@@ -47,7 +47,7 @@ export async function handleUpdateProject(
         projectRetentionSchema.parse({ retention });
       } catch (error) {
         return res.status(400).json({
-          message: "Invalid retention value. Must be 0 or at least 7 days.",
+          message: "Invalid retention value. Must be 0 or at least 3 days.",
         });
       }
 

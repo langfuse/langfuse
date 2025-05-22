@@ -25,17 +25,22 @@ function isDashboardDateRangeAggregationOption(
   return !!dateRange && dateRange in dashboardDateRangeAggregationSettings;
 }
 
-export function useDashboardDateRange(): UseDashboardDateRangeOutput {
+export function useDashboardDateRange(
+  options: {
+    defaultRelativeAggregation?: DashboardDateRangeAggregationOption;
+  } = {},
+): UseDashboardDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
     dateRange: withDefault(StringParam, "Select a date range"),
     from: StringParam,
     to: StringParam,
   });
 
+  const fallbackAggregation = options.defaultRelativeAggregation ?? "24 hours";
   const initialRangeOption: DashboardDateRangeAggregationOption =
     isDashboardDateRangeAggregationOption(queryParams.dateRange)
       ? queryParams.dateRange
-      : "24 hours";
+      : fallbackAggregation;
 
   const initialRange: DashboardDateRange | undefined =
     queryParams.dateRange !== "Select a date range" &&

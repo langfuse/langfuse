@@ -13,6 +13,7 @@ export default withMiddlewares({
     name: "get-dataset-runs",
     querySchema: GetDatasetRunsV1Query,
     responseSchema: GetDatasetRunsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const dataset = await prisma.dataset.findFirst({
         where: {

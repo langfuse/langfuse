@@ -78,6 +78,7 @@ const fieldHasJsonSelectorOption = (
 ): boolean =>
   selectedColumnId === "input" ||
   selectedColumnId === "output" ||
+  selectedColumnId === "metadata" ||
   selectedColumnId === "expected_output";
 
 const TracesPreview = ({

@@ -30,6 +30,7 @@ import { env } from "../../env";
 import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { recordDistribution } from "../instrumentation";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -347,6 +348,14 @@ export const getScoresForTraces = async <
       ...row,
       metadata: excludeMetadata ? {} : row.metadata,
     });
+
+    recordDistribution(
+      "langfuse.query_by_id_age",
+      new Date().getTime() - score.timestamp.getTime(),
+      {
+        table: "scores",
+      },
+    );
 
     if (includeHasMetadata) {
       Object.assign(score, { hasMetadata: !!row.has_metadata });
@@ -922,6 +931,9 @@ export const deleteScores = async (projectId: string, scoreIds: string[]) => {
       projectId,
       scoreIds,
     },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
     tags: {
       feature: "tracing",
       type: "score",
@@ -969,7 +981,7 @@ export const deleteScoresByProjectId = async (projectId: string) => {
       projectId,
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",
@@ -996,7 +1008,7 @@ export const deleteScoresOlderThanDays = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",

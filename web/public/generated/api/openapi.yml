@@ -845,6 +845,71 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
+    get:
+      description: List dataset run items
+      operationId: datasetRunItems_list
+      tags:
+        - DatasetRunItems
+      parameters:
+        - name: datasetId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: runName
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: response
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/PaginatedDatasetRunItems'
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/v2/datasets:
     get:
       description: Get all datasets
@@ -1692,88 +1757,67 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MembershipRequest'
-  /api/public/metrics/daily:
+  /api/public/metrics:
     get:
-      description: Get daily metrics of the Langfuse project
-      operationId: metrics_daily
+      description: Get metrics from the Langfuse project using a query object
+      operationId: metrics_metrics
       tags:
         - Metrics
       parameters:
-        - name: page
-          in: query
-          description: page number, starts at 1
-          required: false
-          schema:
-            type: integer
-            nullable: true
-        - name: limit
-          in: query
-          description: limit of items per page
-          required: false
-          schema:
-            type: integer
-            nullable: true
-        - name: traceName
-          in: query
-          description: Optional filter by the name of the trace
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: userId
-          in: query
-          description: Optional filter by the userId associated with the trace
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: tags
-          in: query
-          description: Optional filter for metrics where traces include all of these tags
-          required: false
-          schema:
-            type: array
-            items:
-              type: string
-              nullable: true
-        - name: environment
+        - name: query
           in: query
           description: >-
-            Optional filter for metrics where events include any of these
-            environments
-          required: false
-          schema:
-            type: array
-            items:
-              type: string
-              nullable: true
-        - name: fromTimestamp
-          in: query
-          description: >-
-            Optional filter to only include traces and observations on or after
-            a certain datetime (ISO 8601)
-          required: false
+            JSON string containing the query parameters with the following
+            structure:
+
+            ```json
+
+            {
+              "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
+              "dimensions": [           // Optional. Default: []
+                {
+                  "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
+                }
+              ],
+              "metrics": [              // Required. At least one metric must be provided
+                {
+                  "measure": string,    // What to measure, e.g. "count", "latency", "value"
+                  "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95"
+                }
+              ],
+              "filters": [              // Optional. Default: []
+                {
+                  "column": string,     // Column to filter on
+                  "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
+                  "value": any,         // Value to compare against
+                  "type": string,       // Data type, e.g. "string", "number", "stringObject"
+                  "key": string         // Required only when filtering on metadata
+                }
+              ],
+              "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                "granularity": string   // One of "minute", "hour", "day", "week", "month", "auto"
+              },
+              "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+              "toTimestamp": string,    // Required. ISO datetime string for end of time range
+              "orderBy": [              // Optional. Default: null
+                {
+                  "field": string,      // Field to order by
+                  "direction": string   // "asc" or "desc"
+                }
+              ]
+            }
+
+            ```
+          required: true
           schema:
             type: string
-            format: date-time
-            nullable: true
-        - name: toTimestamp
-          in: query
-          description: >-
-            Optional filter to only include traces and observations before a
-            certain datetime (ISO 8601)
-          required: false
-          schema:
-            type: string
-            format: date-time
-            nullable: true
       responses:
         '200':
           description: ''
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DailyMetrics'
+                $ref: '#/components/schemas/MetricsResponse'
         '400':
           description: ''
           content:
@@ -2264,7 +2308,7 @@ paths:
                 retention:
                   type: integer
                   description: >-
-                    Number of days to retain data. Must be 0 or at least 7 days.
+                    Number of days to retain data. Must be 0 or at least 3 days.
                     Requires data-retention entitlement for non-zero values.
                     Optional.
               required:
@@ -2333,7 +2377,7 @@ paths:
                 retention:
                   type: integer
                   description: >-
-                    Number of days to retain data. Must be 0 or at least 7 days.
+                    Number of days to retain data. Must be 0 or at least 3 days.
                     Requires data-retention entitlement for non-zero values.
                     Optional.
               required:
@@ -5351,6 +5395,19 @@ components:
       required:
         - runName
         - datasetItemId
+    PaginatedDatasetRunItems:
+      title: PaginatedDatasetRunItems
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetRunItem'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
     PaginatedDatasets:
       title: PaginatedDatasets
       type: object
@@ -6266,79 +6323,22 @@ components:
             $ref: '#/components/schemas/MembershipResponse'
       required:
         - memberships
-    DailyMetrics:
-      title: DailyMetrics
+    MetricsResponse:
+      title: MetricsResponse
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/DailyMetricsDetails'
-          description: A list of daily metrics, only days with ingested data are included.
-        meta:
-          $ref: '#/components/schemas/utilsMetaResponse'
+            type: object
+            additionalProperties: true
+          description: >-
+            The metrics data. Each item in the list contains the metric values
+            and dimensions requested in the query.
+
+            Format varies based on the query parameters.
       required:
         - data
-        - meta
-    DailyMetricsDetails:
-      title: DailyMetricsDetails
-      type: object
-      properties:
-        date:
-          type: string
-          format: date
-        countTraces:
-          type: integer
-        countObservations:
-          type: integer
-        totalCost:
-          type: number
-          format: double
-          description: Total model cost in USD
-        usage:
-          type: array
-          items:
-            $ref: '#/components/schemas/UsageByModel'
-      required:
-        - date
-        - countTraces
-        - countObservations
-        - totalCost
-        - usage
-    UsageByModel:
-      title: UsageByModel
-      type: object
-      description: >-
-        Daily usage of a given model. Usage corresponds to the unit set for the
-        specific model (e.g. tokens).
-      properties:
-        model:
-          type: string
-          nullable: true
-        inputUsage:
-          type: integer
-          description: Total number of generation input units (e.g. tokens)
-        outputUsage:
-          type: integer
-          description: Total number of generation output units (e.g. tokens)
-        totalUsage:
-          type: integer
-          description: Total number of generation total units (e.g. tokens)
-        countTraces:
-          type: integer
-        countObservations:
-          type: integer
-        totalCost:
-          type: number
-          format: double
-          description: Total model cost in USD
-      required:
-        - inputUsage
-        - outputUsage
-        - totalUsage
-        - countTraces
-        - countObservations
-        - totalCost
     PaginatedModels:
       title: PaginatedModels
       type: object

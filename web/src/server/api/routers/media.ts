@@ -21,10 +21,12 @@ export const mediaRouter = createTRPCRouter({
       try {
         const { projectId, mediaId } = input;
 
-        const media = await ctx.prisma.media.findFirst({
+        const media = await ctx.prisma.media.findUnique({
           where: {
-            projectId,
-            id: mediaId,
+            projectId_id: {
+              projectId,
+              id: mediaId,
+            },
           },
         });
 
@@ -118,7 +120,9 @@ export const mediaRouter = createTRPCRouter({
               m.content_length
             FROM
               trace_media tm
-              LEFT JOIN media m ON tm.media_id = m.id
+              LEFT JOIN media m 
+                ON tm.media_id = m.id 
+                AND tm.project_id = m.project_id
             WHERE
               tm.project_id = ${projectId}
               AND tm.trace_id = ${traceId}
@@ -143,7 +147,9 @@ export const mediaRouter = createTRPCRouter({
               m.content_length
             FROM
               observation_media om
-              LEFT JOIN media m ON om.media_id = m.id
+              LEFT JOIN media m 
+                ON om.media_id = m.id 
+                AND om.project_id = m.project_id
             WHERE
               om.project_id = ${projectId}
               AND om.trace_id = ${traceId}

@@ -21,7 +21,7 @@ import {
   DataTableRowHeightSwitch,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { Search } from "lucide-react";
+import { Search, ChevronDown } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TableDateRangeDropdown } from "@/src/components/date-range-dropdowns";
 import {
@@ -33,6 +33,13 @@ import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -129,11 +136,19 @@ export function DataTableToolbar<TData, TValue>({
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
-          <div className="flex w-full max-w-xl items-center justify-between rounded-md border">
-            <div className="flex flex-1 items-center">
+          <div className="flex w-full max-w-sm items-stretch">
+            <div
+              className={cn(
+                "flex h-8 flex-1 items-center border border-input bg-background pl-2",
+                searchConfig.setSearchType
+                  ? "rounded-l-md rounded-r-none border-r-0"
+                  : "rounded-l-md rounded-r-md",
+              )}
+            >
               <Button
                 variant="ghost"
                 size="icon"
+                className="mr-1"
                 onClick={() => {
                   capture("table:search_submit");
                   searchConfig.updateQuery(searchString);
@@ -156,26 +171,20 @@ export function DataTableToolbar<TData, TValue>({
                     searchConfig.updateQuery(searchString);
                   }
                 }}
-                className="w-full border-none px-0"
+                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:outline-none focus-visible:ring-0"
               />
             </div>
-            {searchConfig.tableAllowsFullTextSearch &&
-              searchConfig.setSearchType && (
-                <div className="border-l px-2">
+            {searchConfig.setSearchType && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
-                    variant="tertiary"
-                    size="sm"
-                    className="flex items-center gap-1"
-                    onClick={() => {
-                      const newSearchType =
-                        (searchConfig.searchType ?? []).indexOf("content") >= 0
-                          ? ["id" as const]
-                          : ["id" as const, "content" as const];
-                      searchConfig?.setSearchType?.(newSearchType);
-                    }}
+                    variant="outline"
+                    size="default"
+                    className="flex w-auto min-w-[130px] items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
-                    <>
-                      {(searchConfig.searchType ?? []).indexOf("content") >= 0
+                    <span className="flex items-center gap-1">
+                      {searchConfig.tableAllowsFullTextSearch &&
+                      (searchConfig.searchType ?? []).includes("content")
                         ? "Metadata + Full Text"
                         : "Metadata"}
                       <DocPopup
@@ -185,21 +194,66 @@ export function DataTableToolbar<TData, TValue>({
                               <strong>Metadata search:</strong>{" "}
                               {searchConfig.metadataSearchFields.join(", ")}
                             </p>
-                            <p className="text-xs font-normal text-primary">
-                              <strong>Full text search:</strong> Input, Output
-                            </p>
-                            <br />
-                            <p className="text-xs font-normal text-primary">
-                              For improved performance, filter the table before
-                              searching.
-                            </p>
+                            {searchConfig.tableAllowsFullTextSearch ? (
+                              <>
+                                <p className="text-xs font-normal text-primary">
+                                  <strong>Full text search:</strong> Input,
+                                  Output
+                                </p>
+                                <br />
+                                <p className="text-xs font-normal text-primary">
+                                  For improved performance, filter the table
+                                  before searching.
+                                </p>
+                              </>
+                            ) : (
+                              <p className="mt-2 text-xs font-normal text-primary">
+                                Full text search (Input, Output) is not
+                                available for this table.
+                              </p>
+                            )}
                           </>
                         }
                       />
-                    </>
+                    </span>
+                    <ChevronDown className="h-4 w-4 opacity-50" />
                   </Button>
-                </div>
-              )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuRadioGroup
+                    value={
+                      searchConfig.tableAllowsFullTextSearch &&
+                      (searchConfig.searchType ?? []).includes("content")
+                        ? "metadata_fulltext"
+                        : "metadata"
+                    }
+                    onValueChange={(value) => {
+                      if (
+                        !searchConfig.tableAllowsFullTextSearch &&
+                        value === "metadata_fulltext"
+                      )
+                        return;
+
+                      const newSearchType =
+                        value === "metadata_fulltext"
+                          ? ["id" as const, "content" as const]
+                          : ["id" as const];
+                      searchConfig.setSearchType?.(newSearchType);
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="metadata">
+                      Metadata
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="metadata_fulltext"
+                      disabled={!searchConfig.tableAllowsFullTextSearch}
+                    >
+                      Metadata + Full Text
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         )}
         {selectedOption && setDateRangeAndOption && (

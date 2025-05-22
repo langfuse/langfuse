@@ -173,9 +173,6 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
-    // Database exports
-    DB_EXPORT_PAGE_SIZE: z.number().optional(),
-
     TURNSTILE_SECRET_KEY: z.string().optional(),
 
     // Otel
@@ -279,7 +276,7 @@ export const env = createEnv({
     LANGFUSE_INIT_ORG_CLOUD_PLAN: z.string().optional(), // for use in CI
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
     LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(7).optional(),
+    LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(3).optional(),
     LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
     LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
     LANGFUSE_INIT_USER_EMAIL: z
@@ -292,6 +289,11 @@ export const env = createEnv({
       .positive()
       .default(50_000),
     PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
+
+    // UI customization - comma-separated list of visible product modules
+    LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: z.string().optional(),
+    // UI customization - comma-separated list of hidden product modules
+    LANGFUSE_UI_HIDDEN_PRODUCT_MODULES: z.string().optional(),
   },
 
   /**
@@ -495,8 +497,6 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE,
     LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS:
       process.env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS,
-    // Database exports
-    DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
     // Worker
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
@@ -529,6 +529,10 @@ export const env = createEnv({
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
+    LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
+      process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
+    LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:
+      process.env.LANGFUSE_UI_HIDDEN_PRODUCT_MODULES,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,

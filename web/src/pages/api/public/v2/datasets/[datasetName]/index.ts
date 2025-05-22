@@ -12,6 +12,7 @@ export default withMiddlewares({
     name: "get-dataset",
     querySchema: GetDatasetV2Query,
     responseSchema: GetDatasetV2Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { datasetName } = query;
 

@@ -33,6 +33,7 @@ const PlainChat = () => {
           appId: env.NEXT_PUBLIC_PLAIN_APP_ID,
           hideLauncher: !shouldShowChat,
           hideBranding: true,
+          hideThreadRefs: true,
           logo: {
             url: "/icon256.png",
             alt: "Langfuse logo",
@@ -75,16 +76,16 @@ const PlainChat = () => {
 
 export default PlainChat;
 
-export const chatAvailable = () => {
+export const chatAvailable = !!env.NEXT_PUBLIC_PLAIN_APP_ID;
+
+export const chatLoaded = () => {
   return (
-    !!env.NEXT_PUBLIC_PLAIN_APP_ID &&
-    typeof window !== "undefined" &&
-    window.Plain !== undefined
+    chatAvailable && typeof window !== "undefined" && window.Plain !== undefined
   );
 };
 
 export const showChat = (): void => {
-  if (chatAvailable()) {
+  if (chatLoaded()) {
     window.Plain.update({
       hideLauncher: false,
     });
@@ -92,7 +93,7 @@ export const showChat = (): void => {
 };
 
 export const hideChat = (): void => {
-  if (chatAvailable()) {
+  if (chatLoaded()) {
     window.Plain.update({
       hideLauncher: true,
     });
@@ -100,20 +101,20 @@ export const hideChat = (): void => {
 };
 
 export const closeChat = (): void => {
-  if (chatAvailable()) {
+  if (chatLoaded()) {
     window.Plain.close();
   }
 };
 
 export const openChat = (): void => {
-  if (chatAvailable()) {
+  if (chatLoaded()) {
     showChat();
     window.Plain.open();
   }
 };
 
 export const getUnreadMessageCount = (): number | null => {
-  if (chatAvailable()) {
+  if (chatLoaded()) {
     return window.Plain.getUnreadMessageCount();
   }
   return null;
@@ -125,7 +126,7 @@ export const chatSetCustomer = (customer: {
   emailHash?: string;
   chatAvatarUrl?: string;
 }) => {
-  if (chatAvailable()) {
+  if (chatLoaded()) {
     window.Plain.update({
       customerDetails: customer,
     });
@@ -133,7 +134,7 @@ export const chatSetCustomer = (customer: {
 };
 
 export const chatSetThreadDetails = (p: { orgId?: string; plan?: Plan }) => {
-  if (chatAvailable()) {
+  if (chatLoaded()) {
     window.Plain.update({
       threadDetails: {
         ...(p.orgId && {
