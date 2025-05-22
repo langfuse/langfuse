@@ -60,7 +60,11 @@ const PlainChat = () => {
         // Mark widget as loaded and process queued metadata updates
         isWidgetLoaded = true;
         for (const metadataUpdate of metadataQueue) {
-          metadataUpdate();
+          try {
+            metadataUpdate();
+          } catch (error) {
+            console.error("Error updating Plain metadata", error);
+          }
         }
         metadataQueue = [];
 
