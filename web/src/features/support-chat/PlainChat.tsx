@@ -107,7 +107,8 @@ const PlainChat = () => {
     if (
       isNotUnauthenticated &&
       isWidgetLoaded &&
-      session.status === "authenticated"
+      session.status === "authenticated" &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
       updatePlainDataMut.mutate();
     }
