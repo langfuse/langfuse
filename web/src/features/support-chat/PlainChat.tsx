@@ -1,6 +1,8 @@
 import { env } from "@/src/env.mjs";
+import { api } from "@/src/utils/api";
 import { type Plan } from "@langfuse/shared";
-import { useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
+import { useEffect, useRef, useState } from "react";
 
 declare global {
   interface Window {
@@ -14,6 +16,16 @@ let isWidgetLoaded = false;
 
 const PlainChat = () => {
   const scriptRef = useRef<HTMLScriptElement | null>(null);
+  const updatePlainDataMut = api.plain.updatePlainData.useMutation({
+    onError: () => {}, // Don't show default error toast
+  });
+  const session = useSession();
+  const [isWidgetLoadedState, setIsWidgetLoadedState] = useState(false);
+
+  const updateIsWidgetLoaded = (value: boolean) => {
+    setIsWidgetLoadedState(value); // for use in useEffect
+    isWidgetLoaded = value; // for use in global functions
+  };
 
   useEffect(() => {
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return;
@@ -58,7 +70,7 @@ const PlainChat = () => {
         });
 
         // Mark widget as loaded and process queued metadata updates
-        isWidgetLoaded = true;
+        updateIsWidgetLoaded(true);
         for (const metadataUpdate of metadataQueue) {
           try {
             metadataUpdate();
@@ -84,7 +96,24 @@ const PlainChat = () => {
         }
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Update Plain.com data when user is authenticated and chat is loaded
+  // Trigger not be authenticated to prevent trigger on every auth session refresh (status=loading)
+  const isNotUnauthenticated = session.status !== "unauthenticated";
+
+  useEffect(() => {
+    if (
+      isNotUnauthenticated &&
+      isWidgetLoaded &&
+      session.status === "authenticated" &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+    ) {
+      updatePlainDataMut.mutate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNotUnauthenticated, isWidgetLoadedState]);
 
   return null;
 };
@@ -172,12 +201,6 @@ export const chatSetThreadDetails = (p: { orgId?: string; plan?: Plan }) => {
               externalId: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_org_${p.orgId}`,
             },
           }),
-          ...(p.plan && {
-            tierIdentifier: {
-              externalId: p.plan,
-            },
-          }),
-          // project_id: `cloud_${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}_project_${project?.id}`,
         },
       });
     }
