@@ -277,6 +277,7 @@ export const env = createEnv({
       .default(50_000),
     PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
     PLAIN_API_KEY: z.string().optional(),
+    PLAIN_CARDS_API_TOKEN: z.string().optional(),
 
     // UI customization - comma-separated list of visible product modules
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: z.string().optional(),
@@ -477,6 +478,7 @@ export const env = createEnv({
     NEXT_PUBLIC_PLAIN_APP_ID: process.env.NEXT_PUBLIC_PLAIN_APP_ID,
     PLAIN_AUTHENTICATION_SECRET: process.env.PLAIN_AUTHENTICATION_SECRET,
     PLAIN_API_KEY: process.env.PLAIN_API_KEY,
+    PLAIN_CARDS_API_TOKEN: process.env.PLAIN_CARDS_API_TOKEN,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_CLUSTER_NAME: process.env.CLICKHOUSE_CLUSTER_NAME,
