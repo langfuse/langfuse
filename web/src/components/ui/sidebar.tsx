@@ -19,9 +19,11 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Portal } from "@radix-ui/react-tooltip";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+const SIDEBAR_LOCAL_STORAGE_KEY = "sidebar:state";
 const SIDEBAR_WIDTH = "13rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
@@ -73,22 +75,26 @@ const SidebarProvider = React.forwardRef<
 
     // This is the internal state of the sidebar.
     // We use openProp and setOpenProp for control from outside the component.
-    const [_open, _setOpen] = React.useState(defaultOpen);
+    // Persist the state in localStorage so it is retained across sessions.
+    const [_open, _setOpen] = useLocalStorage<boolean>(
+      SIDEBAR_LOCAL_STORAGE_KEY,
+      defaultOpen,
+    );
     const open = openProp ?? _open;
     const setOpen = React.useCallback(
       (value: boolean | ((value: boolean) => boolean)) => {
+        const newValue = typeof value === "function" ? value(open) : value;
+
         if (setOpenProp) {
-          return setOpenProp?.(
-            typeof value === "function" ? value(open) : value,
-          );
+          return setOpenProp?.(newValue);
         }
 
-        _setOpen(value);
+        _setOpen(newValue);
 
-        // This sets the cookie to keep the sidebar state.
-        document.cookie = `${SIDEBAR_COOKIE_NAME}=${open}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+        // Keep previous cookie behaviour for backwards compatibility.
+        document.cookie = `${SIDEBAR_COOKIE_NAME}=${newValue}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
       },
-      [setOpenProp, open],
+      [setOpenProp, open, _setOpen],
     );
 
     // Helper to toggle the sidebar.
