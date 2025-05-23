@@ -4,6 +4,7 @@ import {
   TimeFilter,
   BatchExportQueryType,
   ScoreDomain,
+  evalDatasetFormFilterCols,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -19,6 +20,7 @@ import {
   getTracesTableMetrics,
   getTracesByIds,
   getScoresForTraces,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -375,6 +377,12 @@ export const getDatabaseReadStream = async ({
     case "dataset_run_items": {
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
+          const condition = tableColumnsToSqlFilterAndPrefix(
+            filter ?? [],
+            evalDatasetFormFilterCols,
+            "dataset_items",
+          );
+
           const items = await prisma.$queryRaw<
             Array<{
               id: string;
@@ -394,7 +402,7 @@ export const getDatabaseReadStream = async ({
               JOIN datasets d ON di.dataset_id = d.id AND d.project_id = dri.project_id
             WHERE dri.project_id = ${projectId}
             AND dri.created_at < ${cutoffCreatedAt}
-
+            ${condition}
             ORDER BY dri.created_at DESC
             LIMIT ${pageSize}
             OFFSET ${offset}

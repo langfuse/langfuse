@@ -42,12 +42,19 @@ import { recordDistribution } from "../instrumentation";
  * • Filters within ±2 day window
  * • Used for validating trace references before eval job creation
  */
-export const checkTraceExists = async (
-  projectId: string,
-  traceId: string,
-  timestamp: Date,
-  filter: FilterState,
-): Promise<boolean> => {
+export const checkTraceExists = async ({
+  projectId,
+  traceId,
+  timestamp,
+  filter,
+  maxTimeStamp,
+}: {
+  projectId: string;
+  traceId: string;
+  timestamp: Date;
+  filter: FilterState;
+  maxTimeStamp: Date | undefined;
+}): Promise<boolean> => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
   });
@@ -102,7 +109,8 @@ export const checkTraceExists = async (
     WHERE ${tracesFilterRes.query}
     AND t.project_id = {projectId: String}
     AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-    AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY
+    ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
+    ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
     GROUP BY t.id, t.project_id
   `;
 
@@ -114,6 +122,9 @@ export const checkTraceExists = async (
       ...(observationFilterRes ? observationFilterRes.params : {}),
       ...(timestamp
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+      ...(maxTimeStamp
+        ? { maxTimeStamp: convertDateToClickhouseDateTime(maxTimeStamp) }
         : {}),
     },
     tags: {
