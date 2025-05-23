@@ -37,6 +37,12 @@ service:
       request: MembershipRequest
       response: MembershipResponse
 
+    getOrganizationProjects:
+      docs: Get all projects for the organization associated with the API key (requires organization-scoped API key)
+      method: GET
+      path: /organizations/projects
+      response: OrganizationProjectsResponse
+
 types:
   MembershipRole:
     enum:
@@ -60,3 +66,15 @@ types:
   MembershipsResponse:
     properties:
       memberships: list<MembershipResponse>
+
+  OrganizationProject:
+    properties:
+      id: string
+      name: string
+      metadata: optional<map<string, unknown>>
+      createdAt: datetime
+      updatedAt: datetime
+
+  OrganizationProjectsResponse:
+    properties:
+      projects: list<OrganizationProject>

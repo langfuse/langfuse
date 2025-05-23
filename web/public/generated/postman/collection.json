@@ -1249,147 +1249,6 @@
     {
       "_type": "container",
       "description": null,
-      "name": "Memberships",
-      "item": [
-        {
-          "_type": "endpoint",
-          "name": "Get Organization Memberships",
-          "request": {
-            "description": "Get all memberships for the organization associated with the API key (requires organization-scoped API key)",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/organizations/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "organizations",
-                "memberships"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "GET",
-            "auth": null,
-            "body": null
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Update Organization Membership",
-          "request": {
-            "description": "Create or update a membership for the organization associated with the API key (requires organization-scoped API key)",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/organizations/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "organizations",
-                "memberships"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "PUT",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Get Project Memberships",
-          "request": {
-            "description": "Get all memberships for a specific project (requires organization-scoped API key)",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "projects",
-                ":projectId",
-                "memberships"
-              ],
-              "query": [],
-              "variable": [
-                {
-                  "key": "projectId",
-                  "value": "",
-                  "description": null
-                }
-              ]
-            },
-            "header": [],
-            "method": "GET",
-            "auth": null,
-            "body": null
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Update Project Membership",
-          "request": {
-            "description": "Create or update a membership for a specific project (requires organization-scoped API key). The user must already be a member of the organization.",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "projects",
-                ":projectId",
-                "memberships"
-              ],
-              "query": [],
-              "variable": [
-                {
-                  "key": "projectId",
-                  "value": "",
-                  "description": null
-                }
-              ]
-            },
-            "header": [],
-            "method": "PUT",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "_type": "container",
-      "description": null,
       "name": "Metrics",
       "item": [
         {
@@ -1661,7 +1520,7 @@
                 {
                   "key": "fromStartTime",
                   "value": "",
-                  "description": "Retrieve only observations with a start_time or or after this datetime (ISO 8601)."
+                  "description": "Retrieve only observations with a start_time on or after this datetime (ISO 8601)."
                 },
                 {
                   "key": "toStartTime",
@@ -1674,6 +1533,173 @@
                   "description": "Optional filter to only include observations with a certain version."
                 }
               ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Organizations",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get Organization Memberships",
+          "request": {
+            "description": "Get all memberships for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Organization Membership",
+          "request": {
+            "description": "Create or update a membership for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Project Memberships",
+          "request": {
+            "description": "Get all memberships for a specific project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Project Membership",
+          "request": {
+            "description": "Create or update a membership for a specific project (requires organization-scoped API key). The user must already be a member of the organization.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Organization Projects",
+          "request": {
+            "description": "Get all projects for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "projects"
+              ],
+              "query": [],
               "variable": []
             },
             "header": [],
