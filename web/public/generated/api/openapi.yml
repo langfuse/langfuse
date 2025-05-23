@@ -1959,7 +1959,7 @@ paths:
         - name: fromStartTime
           in: query
           description: >-
-            Retrieve only observations with a start_time or or after this
+            Retrieve only observations with a start_time on or after this
             datetime (ISO 8601).
           required: false
           schema:

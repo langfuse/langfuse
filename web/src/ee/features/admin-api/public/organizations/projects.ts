@@ -9,7 +9,7 @@ export async function handleGetProjects(
 ) {
   const projects = await prisma.project.findMany({
     where: {
-      orgId: orgId,
+      orgId,
     },
     select: {
       id: true,

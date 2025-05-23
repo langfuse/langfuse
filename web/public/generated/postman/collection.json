@@ -1520,7 +1520,7 @@
                 {
                   "key": "fromStartTime",
                   "value": "",
-                  "description": "Retrieve only observations with a start_time or or after this datetime (ISO 8601)."
+                  "description": "Retrieve only observations with a start_time on or after this datetime (ISO 8601)."
                 },
                 {
                   "key": "toStartTime",
