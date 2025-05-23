@@ -65,7 +65,7 @@ export const plainRouter = createTRPCRouter({
       const tenantIdentifier = (orgId: string) =>
         `cloud_${CLOUD_REGION}_org_${orgId}`;
       const isTenantInRegion = (plainTenantId: string) =>
-        plainTenantId.startsWith(CLOUD_REGION);
+        plainTenantId.startsWith(`cloud_${CLOUD_REGION}_org_`);
       const tenantPromises = user.organizations.map(async (org) => {
         await plainClient.upsertTenant({
           identifier: {
