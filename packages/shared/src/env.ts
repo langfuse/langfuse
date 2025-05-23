@@ -44,7 +44,7 @@ const EnvSchema = z.object({
   LANGFUSE_PROPAGATED_HEADERS: z
     .string()
     .optional()
-    .transform((s) => s?.split(",").map((s) => s.toLowerCase().trim())),
+    .transform((s) => s ? s.split(",").map((s) => s.toLowerCase().trim()) : []),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
