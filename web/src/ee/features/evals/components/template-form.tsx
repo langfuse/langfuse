@@ -374,7 +374,7 @@ export const InnerEvalTemplateForm = (props: {
                   <Checkbox
                     checked={field.value}
                     onCheckedChange={field.onChange}
-                    disabled={!props.isEditing || !defaultModel}
+                    disabled={!props.isEditing}
                   />
                 </FormControl>
                 <div className="space-y-1 leading-none">
@@ -423,7 +423,7 @@ export const InnerEvalTemplateForm = (props: {
         )}
 
         {/* Only show model parameters if using custom model */}
-        {!useDefaultModel && selectedModel && (
+        {!useDefaultModel && (
           <Card className="mt-2 flex flex-col gap-6">
             <CardContent>
               <ModelParameters
