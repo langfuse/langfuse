@@ -194,6 +194,7 @@ export const handleBatchActionJob = async (
       projectId: projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
       ...convertDatesInQuery(query),
+      // filter: config.filter as FilterCondition[], // assuming that this is a valid filter for traces / dataset run items
       tableName:
         targetObject === "trace"
           ? BatchExportTableName.Traces

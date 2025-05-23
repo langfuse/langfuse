@@ -251,6 +251,8 @@ describe("select all test suite", () => {
 
     await handleBatchActionJob(payload);
 
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
     await waitForExpect(async () => {
       try {
         const queue = getQueue(QueueName.CreateEvalQueue);
