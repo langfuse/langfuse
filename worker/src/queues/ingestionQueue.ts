@@ -141,20 +141,18 @@ export const ingestionQueueProcessorBuilder = (
       const shouldSkipS3List =
         job.data.payload.data.skipS3List && job.data.payload.data.fileKey;
 
+      const s3Prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`;
+
       if (shouldSkipS3List) {
         // Direct file download - skip S3 list operation
-        const filePath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/${job.data.payload.data.fileKey}.json`;
+        const filePath = `${s3Prefix}${job.data.payload.data.fileKey}.json`;
+        eventFiles = [{ file: filePath, createdAt: new Date() }];
 
         const file = await s3Client.download(filePath);
         const parsedFile = JSON.parse(file);
         events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
-
-        // Create a single eventFiles entry for consistency with existing logic
-        eventFiles = [{ file: filePath, createdAt: new Date() }];
       } else {
-        eventFiles = await s3Client.listFiles(
-          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
-        );
+        eventFiles = await s3Client.listFiles(s3Prefix);
 
         // Process files in batches
         // If a user has 5k events, this will likely take 100 seconds.
