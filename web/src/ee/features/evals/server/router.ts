@@ -916,96 +916,140 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
-      // check if template already exists
-      // only checks for project-level templates only
-      const templates = await ctx.prisma.evalTemplate.findMany({
-        where: {
-          projectId: input.projectId,
-          name: input.name,
-        },
-        orderBy: [{ version: "desc" }],
-        select: {
-          id: true,
-          version: true,
-        },
-      });
+      /**
+       * CREATION OF PROJECT-LEVEL TEMPLATE
+       *
+       * Option 1: Create a new project-level template
+       * - Find existing project-level templates, templates are unique by [name, projectId]
+       * - If a template already exists, we will create a new version of the template
+       * - Otherwise, we will create a new template with version 1
+       *
+       * Option 2: Clone a langfuse managed template
+       * - Find the langfuse managed template
+       * - Clone the langfuse managed template by creating a new project-level template from the cloned langfuse managed template
+       */
 
-      const latestTemplate = Boolean(templates.length)
-        ? templates[0]
-        : undefined;
+      // find all versions of the project-level template, should return null if input.cloneSourceId is provided
+      return ctx.prisma.$transaction(async (tx) => {
+        const templates = await tx.evalTemplate.findMany({
+          where: {
+            projectId: input.projectId,
+            name: input.name,
+          },
+          orderBy: [{ version: "desc" }],
+          select: {
+            id: true,
+            version: true,
+          },
+        });
 
-      const evalTemplate = await ctx.prisma.evalTemplate.create({
-        data: {
-          version: (latestTemplate?.version ?? 0) + 1,
-          name: input.name,
-          projectId: input.projectId,
-          prompt: input.prompt,
-          // if using default model, leave model, provider and modelParams empty
-          // otherwise we will not pull the most recent default evaluation model
-          model: input.model,
-          modelParams: input.modelParams ?? undefined,
-          vars: input.vars,
-          outputSchema: input.outputSchema,
-          provider: input.provider,
-        },
-      });
+        // find the latest user managed template, should be null if input.cloneSourceId is provided
+        const latestTemplate = Boolean(templates.length)
+          ? templates[0]
+          : undefined;
 
-      // update existing evaluators
-      if (input.referencedEvaluators === EvalReferencedEvaluators.UPDATE) {
-        // case 1: clone langfuse managed template to create project level template
-        if (input.cloneSourceId) {
-          const cloneSourceTemplate = await ctx.prisma.evalTemplate.findUnique({
-            where: {
-              id: input.cloneSourceId,
-              projectId: null,
-            },
-          });
+        // Create a new project-level template either by cloning a langfuse managed template or by creating a new project-level template
+        const evalTemplate = await tx.evalTemplate.create({
+          data: {
+            version: (latestTemplate?.version ?? 0) + 1,
+            name: input.name,
+            projectId: input.projectId,
+            prompt: input.prompt,
+            // if using default model, leave model, provider and modelParams empty
+            // otherwise we will not pull the most recent default evaluation model
+            provider: input.provider,
+            model: input.model,
+            modelParams: input.modelParams ?? undefined,
+            vars: input.vars,
+            outputSchema: input.outputSchema,
+          },
+        });
 
-          if (!cloneSourceTemplate) {
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "Langfuse managed template not found",
+        /**
+         * END OF CREATION OF PROJECT-LEVEL TEMPLATE
+         * - Net new project-level template has been created, or
+         * - New version of existing project-level template has been created
+         */
+
+        /**
+         * UPDATE OF JOB CONFIGS REFERENCING THE NEW/UPDATED TEMPLATE
+         */
+        if (input.referencedEvaluators === EvalReferencedEvaluators.UPDATE) {
+          /**
+           * Option 2: Clone a langfuse managed template
+           *
+           * - Find the langfuse managed template
+           * - Create a new project-level template from the cloned langfuse managed template
+           * - Update all job configs that had referenced the langfuse managed template to now reference the cloned project-level template
+           */
+          if (input.cloneSourceId) {
+            // find the langfuse managed template to clone
+            const cloneSourceTemplate = await tx.evalTemplate.findUnique({
+              where: {
+                id: input.cloneSourceId,
+                projectId: null,
+              },
             });
-          }
 
-          const cloneSourceTemplateList =
-            await ctx.prisma.evalTemplate.findMany({
+            if (!cloneSourceTemplate) {
+              throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Langfuse managed template not found",
+              });
+            }
+
+            // find all versions of the langfuse managed template
+            const cloneSourceTemplateList = await tx.evalTemplate.findMany({
               where: {
                 projectId: null,
                 name: cloneSourceTemplate.name,
               },
             });
 
-          if (Boolean(cloneSourceTemplateList.length)) {
-            await ctx.prisma.jobConfiguration.updateMany({
-              where: {
-                evalTemplateId: {
-                  in: cloneSourceTemplateList.map((t) => t.id),
+            if (Boolean(cloneSourceTemplateList.length)) {
+              // update all job configs that had referenced any version of the langfuse managed template to now reference the cloned user managed template
+              await tx.jobConfiguration.updateMany({
+                where: {
+                  evalTemplateId: {
+                    in: cloneSourceTemplateList.map((t) => t.id),
+                  },
+                  projectId: input.projectId,
                 },
+                data: { evalTemplateId: evalTemplate.id },
+              });
+            }
+            /**
+             * Option 1: Create a new project-level template
+             *
+             * - Use previously found versions of the project-level template
+             * - Update all job configs that had referenced any version of the project-level template to now reference the new project-level template
+             */
+          } else if (Boolean(templates.length)) {
+            await tx.jobConfiguration.updateMany({
+              where: {
+                evalTemplateId: { in: templates.map((t) => t.id) },
+                projectId: input.projectId,
               },
-              data: { evalTemplateId: evalTemplate.id },
+              data: {
+                evalTemplateId: evalTemplate.id,
+              },
             });
           }
-          // case 2: update project level template
-        } else if (Boolean(templates.length)) {
-          await ctx.prisma.jobConfiguration.updateMany({
-            where: {
-              evalTemplateId: { in: templates.map((t) => t.id) },
-            },
-            data: {
-              evalTemplateId: evalTemplate.id,
-            },
-          });
         }
-      }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "evalTemplate",
-        resourceId: evalTemplate.id,
-        action: "create",
+        /**
+         * END OF UPDATE OF JOB CONFIGS REFERENCING THE NEW/UPDATED TEMPLATE
+         */
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "evalTemplate",
+          resourceId: evalTemplate.id,
+          action: "create",
+        });
+
+        return evalTemplate;
       });
-      return evalTemplate;
     }),
 
   updateAllDatasetEvalJobStatusByTemplateId: protectedProjectProcedure

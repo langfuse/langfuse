@@ -71,17 +71,6 @@ export class DefaultEvalModelService {
   }
 
   /**
-   * Deletes the default evaluation model for a project
-   */
-  public static async deleteDefaultModel(projectId: string) {
-    return prisma.defaultLlmModel.delete({
-      where: {
-        projectId,
-      },
-    });
-  }
-
-  /**
    * Simple validation that can also be used client side
    * Validates if the provider, model, and model parameters are valid
    */

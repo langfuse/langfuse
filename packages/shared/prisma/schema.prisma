@@ -802,7 +802,7 @@ model EvalTemplate {
   version Int
   prompt  String
 
-  partner String?
+  partner String? // e.g. "ragas", describes the partner that created the template
 
   model            String?
   provider         String?

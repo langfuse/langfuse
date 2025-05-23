@@ -81,23 +81,34 @@ export const defaultEvalModelRouter = createTRPCRouter({
       });
 
       // Invalidate all eval jobs that rely on the default model
-      const evalTemplates = await ctx.prisma.evalTemplate.findMany({
-        where: {
-          OR: [{ projectId: input.projectId }, { projectId: null }],
-          provider: null,
-          model: null,
-        },
-      });
+      return ctx.prisma.$transaction(async (tx) => {
+        const evalTemplates = await tx.evalTemplate.findMany({
+          where: {
+            OR: [{ projectId: input.projectId }, { projectId: null }],
+            provider: null,
+            model: null,
+          },
+        });
 
-      await ctx.prisma.jobConfiguration.updateMany({
-        where: {
-          evalTemplateId: { in: evalTemplates.map((et) => et.id) },
-        },
-        data: {
-          status: "INACTIVE",
-        },
-      });
+        await tx.jobConfiguration.updateMany({
+          where: {
+            evalTemplateId: { in: evalTemplates.map((et) => et.id) },
+            projectId: input.projectId,
+          },
+          data: {
+            status: "INACTIVE",
+          },
+        });
 
-      return DefaultEvalModelService.deleteDefaultModel(input.projectId);
+        // Delete the default model within the transaction
+        await tx.defaultLlmModel.delete({
+          // unique constraint on projectId
+          where: {
+            projectId: input.projectId,
+          },
+        });
+
+        return { success: true };
+      });
     }),
 });

@@ -91,47 +91,52 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
       });
 
-      // Check if the llm api key is used for the default evaluation model
-      // If so, it will be deleted and we must invalidate all eval jobs that rely on it
-      const defaultModel = await ctx.prisma.defaultLlmModel.findFirst({
-        where: {
-          projectId: input.projectId,
-        },
-      });
-
-      if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
-        // Invalidate all eval jobs that rely on the default model
-        const evalTemplates = await ctx.prisma.evalTemplate.findMany({
+      return ctx.prisma.$transaction(async (tx) => {
+        // Check if the llm api key is used for the default evaluation model
+        // If so, it will be deleted and we must invalidate all eval jobs that rely on it
+        const defaultModel = await tx.defaultLlmModel.findFirst({
           where: {
-            OR: [{ projectId: input.projectId }, { projectId: null }],
-            provider: null,
-            model: null,
+            projectId: input.projectId,
           },
         });
 
-        await ctx.prisma.jobConfiguration.updateMany({
+        if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
+          // Invalidate all eval jobs that rely on the default model
+          const evalTemplates = await tx.evalTemplate.findMany({
+            where: {
+              OR: [{ projectId: input.projectId }, { projectId: null }],
+              provider: null,
+              model: null,
+            },
+          });
+
+          await tx.jobConfiguration.updateMany({
+            where: {
+              evalTemplateId: { in: evalTemplates.map((et) => et.id) },
+              projectId: input.projectId,
+            },
+            data: {
+              status: "INACTIVE",
+            },
+          });
+        }
+
+        await tx.llmApiKeys.delete({
           where: {
-            evalTemplateId: { in: evalTemplates.map((et) => et.id) },
-          },
-          data: {
-            status: "INACTIVE",
+            id: input.id,
+            projectId: input.projectId,
           },
         });
-      }
 
-      await ctx.prisma.llmApiKeys.delete({
-        where: {
-          id: input.id,
-          projectId: input.projectId,
-        },
-      });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "llmApiKey",
+          resourceId: input.id,
+          before: llmApiKey,
+          action: "delete",
+        });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "llmApiKey",
-        resourceId: input.id,
-        before: llmApiKey,
-        action: "delete",
+        return { success: true };
       });
     }),
   all: protectedProjectProcedure
