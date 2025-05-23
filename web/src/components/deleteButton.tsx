@@ -354,7 +354,7 @@ export function DeleteEvaluationModelButton(
         showSuccessToast({
           title: "Default evaluation model deleted",
           description:
-            "The default evaluation model has been deleted. Any evals will fail.",
+            "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",
         });
         utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
       },
