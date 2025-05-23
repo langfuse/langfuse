@@ -38,7 +38,6 @@ type TemplateSelectorProps = {
   datasetId: string;
   evalTemplates: EvalTemplate[];
   disabled?: boolean;
-  mode?: "create" | "edit";
   activeTemplateIds?: string[];
   inactiveTemplateIds?: string[];
   onConfigureTemplate?: (templateId: string) => void;
@@ -50,7 +49,6 @@ export const TemplateSelector = ({
   projectId,
   datasetId,
   evalTemplates,
-  mode,
   activeTemplateIds,
   inactiveTemplateIds,
   onConfigureTemplate,

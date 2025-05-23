@@ -1,6 +1,7 @@
 export const RagasLogoIcon = () => {
   return (
     <div className="flex items-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/assets/ragas-logo.png"
         alt="Ragas Logo"
