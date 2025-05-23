@@ -99,7 +99,18 @@ export const TemplateSelector = ({
   const filteredTemplates = {
     langfuse: Object.entries(groupedTemplates.langfuse)
       .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
-      .sort(([a], [b]) => a.localeCompare(b)),
+      .sort(([nameA, templatesA], [nameB, templatesB]) => {
+        // Get partners
+        const partnerA = templatesA[0]?.partner;
+        const partnerB = templatesB[0]?.partner;
+
+        // No partner comes before partner
+        if (!partnerA && partnerB) return -1;
+        if (partnerA && !partnerB) return 1;
+
+        // Sort by name within each group
+        return nameA.localeCompare(nameB);
+      }),
     custom: Object.entries(groupedTemplates.custom)
       .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
       .sort(([a], [b]) => a.localeCompare(b)),
