@@ -183,7 +183,7 @@ export const InnerEvalTemplateForm = (props: {
     availableProviders,
   } = useModelParams();
 
-  const { selectedModel } = useEvaluationModel(
+  useEvaluationModel(
     props.projectId,
     setModelParams,
     props.preFilledFormValues?.selectedModel,
