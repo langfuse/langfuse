@@ -274,7 +274,7 @@ describe("select all test suite", () => {
         throw e;
       }
     });
-  }, 10000);
+  });
 
   it("should create eval jobs for historic datasets", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
