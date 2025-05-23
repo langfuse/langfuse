@@ -94,7 +94,8 @@ export default withMiddlewares({
           convertOtelSpanToIngestionEvent(span, auth.scope.publicKey),
       );
       // We set a delay of 0 for OTel, as we never expect updates.
-      return processEventBatch(events, auth, 0);
+      // We also set the source to "otel" which helps us with metric tracking and skipping list calls for S3.
+      return processEventBatch(events, auth, 0, "otel");
     },
   }),
 });
