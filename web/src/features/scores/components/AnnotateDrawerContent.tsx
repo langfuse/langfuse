@@ -251,6 +251,9 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   }, [emptySelectedConfigIds, scores, configs, scoreTarget, form]);
 
   const pendingCreates = useRef(new Map<number, Promise<APIScoreV2>>());
+  const pendingDeletes = useRef(new Set<string>());
+  // Track when deletion was initiated for each score ID
+  const deletionTimestamps = useRef(new Map<string, number>());
   const description = formatAnnotateDescription(scoreTarget);
 
   async function handleScoreChange(
@@ -259,6 +262,24 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
     value: number,
     stringValue: string | null,
   ) {
+    // Check if this score is currently being deleted
+    if (score.scoreId && pendingDeletes.current.has(score.scoreId)) {
+      // Skip updates for scores that are being deleted
+      return;
+    }
+
+    // Check if there was a recent deletion request for this score
+    if (score.scoreId && deletionTimestamps.current.has(score.scoreId)) {
+      const deleteTime = deletionTimestamps.current.get(score.scoreId) || 0;
+      const now = Date.now();
+      // If deletion was requested in the last 5 seconds, ignore updates
+      if (now - deleteTime < 5000) {
+        return;
+      }
+      // Otherwise clear the old timestamp
+      deletionTimestamps.current.delete(score.scoreId);
+    }
+
     // Optimistically update the UI
     setOptimisticScore({
       index,
@@ -450,6 +471,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
         index: fields.length,
         value: null,
         stringValue: null,
+        scoreId: null,
         name,
         dataType,
         configId: id,
@@ -800,6 +822,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                           index,
                                           value: numValue,
                                           stringValue: null,
+                                          scoreId: null,
                                         });
                                         field.onChange(numValue);
                                       }}
@@ -935,19 +958,50 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                     loading={deleteMutation.isLoading}
                                     onClick={async () => {
                                       if (score.scoreId) {
+                                        // Record deletion timestamp
+                                        deletionTimestamps.current.set(
+                                          score.scoreId,
+                                          Date.now(),
+                                        );
+
                                         setOptimisticScore({
                                           index,
                                           value: null,
                                           stringValue: null,
+                                          scoreId: null,
                                         });
-                                        await deleteMutation.mutateAsync({
-                                          id: score.scoreId,
-                                          projectId,
-                                        });
-                                        capture("score:delete", analyticsData);
-                                        form.clearErrors(
-                                          `scoreData.${index}.value`,
+
+                                        // Track pending delete
+                                        pendingDeletes.current.add(
+                                          score.scoreId,
                                         );
+
+                                        try {
+                                          await deleteMutation.mutateAsync({
+                                            id: score.scoreId,
+                                            projectId,
+                                          });
+                                          capture(
+                                            "score:delete",
+                                            analyticsData,
+                                          );
+                                          form.clearErrors(
+                                            `scoreData.${index}.value`,
+                                          );
+
+                                          // Update the form with the new ID
+                                          update(index, {
+                                            ...score,
+                                            scoreId: undefined,
+                                            value: null,
+                                            stringValue: undefined,
+                                          });
+                                        } finally {
+                                          // Clean up pending delete tracking
+                                          pendingDeletes.current.delete(
+                                            score.scoreId,
+                                          );
+                                        }
                                       }
                                     }}
                                   >
@@ -975,17 +1029,45 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                               }
                               onClick={async () => {
                                 if (score.scoreId) {
+                                  // Record deletion timestamp
+                                  deletionTimestamps.current.set(
+                                    score.scoreId,
+                                    Date.now(),
+                                  );
+
                                   setOptimisticScore({
                                     index,
                                     value: null,
                                     stringValue: null,
+                                    scoreId: null,
                                   });
-                                  await deleteMutation.mutateAsync({
-                                    id: score.scoreId,
-                                    projectId,
-                                  });
-                                  capture("score:delete", analyticsData);
-                                  form.clearErrors(`scoreData.${index}.value`);
+
+                                  // Track pending delete
+                                  pendingDeletes.current.add(score.scoreId);
+
+                                  try {
+                                    await deleteMutation.mutateAsync({
+                                      id: score.scoreId,
+                                      projectId,
+                                    });
+                                    capture("score:delete", analyticsData);
+                                    form.clearErrors(
+                                      `scoreData.${index}.value`,
+                                    );
+
+                                    // Update the form with the new ID
+                                    update(index, {
+                                      ...score,
+                                      scoreId: undefined,
+                                      value: null,
+                                      stringValue: undefined,
+                                    });
+                                  } finally {
+                                    // Clean up pending delete tracking
+                                    pendingDeletes.current.delete(
+                                      score.scoreId,
+                                    );
+                                  }
                                 }
                               }}
                             >
