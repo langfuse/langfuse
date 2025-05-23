@@ -71,8 +71,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
+import { z } from "zod/v4";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -120,7 +120,7 @@ export function TableViewPresetsDrawer({
   const capture = usePostHogClientCapture();
 
   const form = useForm<{ name: string }>({
-    resolver: zodResolver(z.object({ name: z.string().min(1) })),
+    resolver: standardSchemaResolver(z.object({ name: z.string().min(1) })),
     defaultValues: {
       name: "",
     },
