@@ -8,6 +8,7 @@ export interface DataPoint {
 
 export interface ChartProps {
   data: DataPoint[];
+  unit?: string;
   config?: ChartConfig;
   accessibilityLayer?: boolean;
 }

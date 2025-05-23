@@ -15,10 +15,12 @@ export const Chart = ({
   chartType,
   data,
   rowLimit,
+  unit,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
   rowLimit: number;
+  unit?: string;
 }) => {
   const [forceRender, setForceRender] = useState(false);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -43,25 +45,25 @@ export const Chart = ({
   const renderChart = () => {
     switch (chartType) {
       case "LINE_TIME_SERIES":
-        return <LineChartTimeSeries data={renderedData} />;
+        return <LineChartTimeSeries data={renderedData} unit={unit} />;
       case "BAR_TIME_SERIES":
-        return <VerticalBarChartTimeSeries data={renderedData} />;
+        return <VerticalBarChartTimeSeries data={renderedData} unit={unit} />;
       case "HORIZONTAL_BAR":
-        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
+        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} unit={unit} />;
       case "VERTICAL_BAR":
-        return <VerticalBarChart data={renderedData.slice(0, rowLimit)} />;
+        return <VerticalBarChart data={renderedData.slice(0, rowLimit)} unit={unit} />;
       case "PIE":
-        return <PieChart data={renderedData.slice(0, rowLimit)} />;
+        return <PieChart data={renderedData.slice(0, rowLimit)} unit={unit} />;
       case "NUMBER": {
         // Show the sum of all metrics, or just the first metric if only one
         const value =
           renderedData.length === 1
             ? renderedData[0].metric
             : renderedData.reduce((acc, d) => acc + (d.metric || 0), 0);
-        return <BigNumber metric={value} />;
+        return <BigNumber metric={value} unit={unit} />;
       }
       default:
-        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
+        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} unit={unit} />;
     }
   };
 

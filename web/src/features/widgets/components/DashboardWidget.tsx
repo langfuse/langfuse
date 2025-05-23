@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { startCase } from "lodash";
+import { getMeasureMeta } from "@/src/features/query/measureMeta";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
@@ -249,6 +250,10 @@ export function DashboardWidget({
               ? 100
               : (widget.data.chartConfig.row_limit ?? 100)
           }
+          unit={getMeasureMeta(
+            (widget.data?.view as z.infer<typeof views>) ?? "traces",
+            widget.data?.metrics?.[0]?.measure ?? "count",
+          ).unit}
         />
       </div>
     </div>
