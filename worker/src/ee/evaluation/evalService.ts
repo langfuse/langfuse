@@ -177,8 +177,6 @@ export const createEvalJobs = async ({
 
   const configs = await configsQuery.execute();
 
-  logger.info(`configs ${JSON.stringify(configs)}`);
-
   if (configs.length === 0) {
     logger.debug("No evaluation jobs found for project", event.projectId);
     return;
@@ -216,22 +214,6 @@ export const createEvalJobs = async ({
       maxTimeStamp,
     });
 
-    logger.info(
-      `validatedFilter ${JSON.stringify({
-        projectId: event.projectId,
-        id: event.traceId,
-        // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
-        timestamp:
-          "timestamp" in event
-            ? new Date(event.timestamp)
-            : new Date(jobTimestamp),
-        validatedFilter:
-          config.target_object === "trace" ? validatedFilter : [],
-      })}`,
-    );
-
-    logger.info(`traceExists ${JSON.stringify(traceExists)}`);
-
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem: { id: string } | undefined;
     if (isDatasetConfig) {
@@ -252,7 +234,6 @@ export const createEvalJobs = async ({
             AND id = ${event.datasetItemId}
             ${condition}
         `);
-        logger.info(`datasetItems ${JSON.stringify(datasetItems)}`);
         datasetItem = datasetItems.shift();
       } else {
         // Otherwise, try to find the dataset item id from datasetRunItems.
@@ -267,7 +248,6 @@ export const createEvalJobs = async ({
             AND dri.trace_id = ${event.traceId}
             ${condition}
         `);
-        logger.info(`datasetItems2 ${JSON.stringify(datasetItems)}`);
         datasetItem = datasetItems.shift();
       }
     }
@@ -347,7 +327,7 @@ export const createEvalJobs = async ({
         `Creating eval job execution for config ${config.id} and trace ${event.traceId}`,
       );
 
-      const a = await prisma.jobExecution.create({
+      await prisma.jobExecution.create({
         data: {
           id: jobExecutionId,
           projectId: event.projectId,
@@ -363,8 +343,6 @@ export const createEvalJobs = async ({
             : {}),
         },
       });
-
-      logger.info(`jobExecution ${a}`);
 
       // add the job to the next queue so that eval can be executed
       await EvalExecutionQueue.getInstance()?.add(
