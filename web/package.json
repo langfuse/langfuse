@@ -35,7 +35,7 @@
     "@headlessui/react": "2.1.9",
     "@headlessui/tailwindcss": "0.2.1",
     "@heroicons/react": "^2.1.5",
-    "@hookform/resolvers": "^3.3.4",
+    "@hookform/resolvers": "^5.0.1",
     "@langchain/anthropic": "^0.3.8",
     "@langchain/core": "^0.3.18",
     "@langchain/openai": "^0.3.14",
@@ -137,7 +137,7 @@
     "react-day-picker": "^8.10.1",
     "react-dom": "18.2.0",
     "react-grid-layout": "^1.5.1",
-    "react-hook-form": "^7.51.5",
+    "react-hook-form": "^7.55.0",
     "react-icons": "^5.2.1",
     "react-markdown": "^9.0.1",
     "react-resizable-panels": "^2.1.1",
@@ -160,7 +160,7 @@
     "uuid": "^9.0.1",
     "vaul": "^1.1.2",
     "vis-network": "^9.1.9",
-    "zod": "^3.24.4"
+    "zod": "^3.25.23"
   },
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
