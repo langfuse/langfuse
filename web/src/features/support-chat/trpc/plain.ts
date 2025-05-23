@@ -112,7 +112,7 @@ export const plainRouter = createTRPCRouter({
       }
       // Remove tenants from this region that are not in the user's organizations anymore
       const tenantIdsOfUserInRegion = plainCustomerTenantMemberships
-        .map((tenant) => tenant.tenant.id)
+        .map((tenant) => tenant.tenant.externalId)
         .filter((id) => isTenantInRegion(id));
       const tenantIdsOfUserInRegionToRemove = tenantIdsOfUserInRegion.filter(
         (tenantId) =>
