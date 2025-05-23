@@ -205,7 +205,6 @@ export const handleBatchActionJob = async (
 
     let count = 0;
     for await (const record of dbReadStream) {
-      logger.info(`record ${record}`);
       if (targetObject === "trace" && assertIsTracesTableRecord(record)) {
         const payload = {
           projectId: record.projectId,
