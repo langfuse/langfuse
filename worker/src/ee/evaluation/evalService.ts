@@ -197,7 +197,7 @@ export const createEvalJobs = async ({
 
     const maxTimeStamp =
       "timestamp" in event &&
-      new Date(event.timestamp).getTime() === new Date("2020-01-01").getTime()
+      new Date(event.timestamp).getTime() === new Date("2020-01-01").getTime() // min time for hostoric evals
         ? new Date()
         : undefined;
 
