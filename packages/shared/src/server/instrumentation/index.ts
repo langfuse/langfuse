@@ -157,30 +157,6 @@ export const traceException = (
   });
 };
 
-export const addUserToSpan = (
-  attributes: {
-    userId?: string;
-    projectId?: string;
-    email?: string;
-    orgId?: string;
-    plan?: string;
-  },
-  span?: opentelemetry.Span,
-) => {
-  const activeSpan = span ?? getCurrentSpan();
-
-  if (!activeSpan) {
-    return;
-  }
-
-  attributes.userId && activeSpan.setAttribute("user.id", attributes.userId);
-  attributes.email && activeSpan.setAttribute("user.email", attributes.email);
-  attributes.projectId &&
-    activeSpan.setAttribute("project.id", attributes.projectId);
-  attributes.orgId && activeSpan.setAttribute("org.id", attributes.orgId);
-  attributes.plan && activeSpan.setAttribute("org.plan", attributes.plan);
-};
-
 export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
 
 const cloudWatchClient = new CloudWatchClient();
