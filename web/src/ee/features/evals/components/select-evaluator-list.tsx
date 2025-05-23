@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { ExternalLink, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { EvaluatorSelector } from "./evaluator-selector";
 import { EvalTemplateForm } from "./template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
