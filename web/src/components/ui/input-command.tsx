@@ -45,9 +45,18 @@ const InputCommandDialog = ({
 
 const InputCommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
->(({ className, ...props }, ref) => (
-  <div className="flex items-center rounded border px-3" cmdk-input-wrapper="">
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
+    variant?: "default" | "bottom";
+  }
+>(({ className, variant = "default", ...props }, ref) => (
+  <div
+    className={cn(
+      "flex items-center px-3",
+      variant === "default" && "rounded border",
+      variant === "bottom" && "border-b",
+      "cmdk-input-wrapper",
+    )}
+  >
     <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
