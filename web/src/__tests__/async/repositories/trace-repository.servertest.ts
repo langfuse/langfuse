@@ -73,7 +73,7 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(result.userId).toEqual(trace.user_id);
     expect(result.sessionId).toEqual(trace.session_id);
     expect(result.public).toEqual(trace.public);
-    expect(result.input).toEqual(JSON.parse(trace.input));
+    expect(result.input).toEqual(JSON.parse(trace.input ?? "{}"));
     expect(result.output).toEqual("regular string");
     expect(result.metadata).toEqual(trace.metadata);
     expect(result.createdAt).toEqual(new Date(trace.created_at));
