@@ -1063,7 +1063,7 @@ describe("eval service tests", () => {
 
       await expect(evaluate({ event: payload })).rejects.toThrowError(
         new LangfuseNotFoundError(
-          "API key for provider openai and project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a not found.",
+          `No API key found for provider "openai" in project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a.`,
         ),
       );
 

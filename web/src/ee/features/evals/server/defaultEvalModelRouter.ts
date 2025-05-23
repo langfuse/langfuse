@@ -80,7 +80,23 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      // TODO: we could think about setting all evaluators to inactive when the default model is deleted (through user action or by deleting llm api key)
+      // Invalidate all eval jobs that rely on the default model
+      const evalTemplates = await ctx.prisma.evalTemplate.findMany({
+        where: {
+          OR: [{ projectId: input.projectId }, { projectId: null }],
+          provider: null,
+          model: null,
+        },
+      });
+
+      await ctx.prisma.jobConfiguration.updateMany({
+        where: {
+          evalTemplateId: { in: evalTemplates.map((et) => et.id) },
+        },
+        data: {
+          status: "INACTIVE",
+        },
+      });
 
       return DefaultEvalModelService.deleteDefaultModel(input.projectId);
     }),

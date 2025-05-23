@@ -84,6 +84,41 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:delete",
       });
 
+      const llmApiKey = await ctx.prisma.llmApiKeys.findUnique({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+
+      // Check if the llm api key is used for the default evaluation model
+      // If so, it will be deleted and we must invalidate all eval jobs that rely on it
+      const defaultModel = await ctx.prisma.defaultLlmModel.findFirst({
+        where: {
+          projectId: input.projectId,
+        },
+      });
+
+      if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
+        // Invalidate all eval jobs that rely on the default model
+        const evalTemplates = await ctx.prisma.evalTemplate.findMany({
+          where: {
+            OR: [{ projectId: input.projectId }, { projectId: null }],
+            provider: null,
+            model: null,
+          },
+        });
+
+        await ctx.prisma.jobConfiguration.updateMany({
+          where: {
+            evalTemplateId: { in: evalTemplates.map((et) => et.id) },
+          },
+          data: {
+            status: "INACTIVE",
+          },
+        });
+      }
+
       await ctx.prisma.llmApiKeys.delete({
         where: {
           id: input.id,
@@ -95,6 +130,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "llmApiKey",
         resourceId: input.id,
+        before: llmApiKey,
         action: "delete",
       });
     }),
