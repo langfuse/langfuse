@@ -17,6 +17,9 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
+import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
+import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
+import Link from "next/link";
 
 interface EvaluatorSelectorProps {
   projectId: string;
@@ -107,6 +110,7 @@ export function EvaluatorSelector({
                       );
                     }}
                     className={cn(
+                      "group",
                       templateData.some((t) => t.id === selectedTemplateId) &&
                         "bg-secondary",
                     )}
@@ -122,14 +126,32 @@ export function EvaluatorSelector({
                         </TooltipContent>
                       </Tooltip>
                     )}
-                    <CheckIcon
-                      className={cn(
-                        "ml-auto h-4 w-4",
-                        templateData.some((t) => t.id === selectedTemplateId)
-                          ? "opacity-100"
-                          : "opacity-0",
-                      )}
-                    />
+                    {templateData.some((t) => t.id === selectedTemplateId) ? (
+                      <>
+                        <Link
+                          href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
+                          target="_blank"
+                          className="ml-auto opacity-0 hover:opacity-100 group-hover:opacity-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Link>
+                        <CheckIcon className={cn("ml-2 h-4 w-4")} />
+                      </>
+                    ) : (
+                      <Link
+                        href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
+                        target="_blank"
+                        className="ml-auto opacity-0 hover:opacity-100 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    )}
                   </InputCommandItem>
                 );
               })}
@@ -139,51 +161,90 @@ export function EvaluatorSelector({
         )}
 
         {filteredTemplates.langfuse.length > 0 && (
-          <InputCommandGroup heading="Langfuse managed evaluators">
-            {filteredTemplates.langfuse.map(([name, templateData]) => {
-              const latestVersion = templateData[templateData.length - 1];
-              const isInvalid = isTemplateInvalid(latestVersion);
+          <>
+            <InputCommandGroup heading="Langfuse managed evaluators">
+              {filteredTemplates.langfuse.map(([name, templateData]) => {
+                const latestVersion = templateData[templateData.length - 1];
+                const isInvalid = isTemplateInvalid(latestVersion);
 
-              return (
-                <InputCommandItem
-                  key={`langfuse-${name}`}
-                  disabled={isInvalid}
-                  onSelect={() => {
-                    onTemplateSelect(
-                      latestVersion.id,
-                      name,
-                      latestVersion.version,
-                    );
-                  }}
-                  className={cn(
-                    templateData.some((t) => t.id === selectedTemplateId) &&
-                      "bg-secondary",
-                  )}
-                >
-                  {name}
-                  {isInvalid && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        Requires project-level evaluation model
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                  <CheckIcon
+                return (
+                  <InputCommandItem
+                    key={`langfuse-${name}`}
+                    disabled={isInvalid}
+                    onSelect={() => {
+                      onTemplateSelect(
+                        latestVersion.id,
+                        name,
+                        latestVersion.version,
+                      );
+                    }}
                     className={cn(
-                      "ml-auto h-4 w-4",
-                      templateData.some((t) => t.id === selectedTemplateId)
-                        ? "opacity-100"
-                        : "opacity-0",
+                      "group",
+                      templateData.some((t) => t.id === selectedTemplateId) &&
+                        "bg-secondary",
                     )}
-                  />
-                </InputCommandItem>
-              );
-            })}
-          </InputCommandGroup>
+                  >
+                    <div className="mr-1">{name}</div>
+                    <MaintainerTooltip
+                      maintainer={getMaintainer(latestVersion)}
+                    />
+                    {isInvalid && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Requires project-level evaluation model
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                    {templateData.some((t) => t.id === selectedTemplateId) ? (
+                      <>
+                        <Link
+                          href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
+                          target="_blank"
+                          className="ml-auto opacity-0 hover:opacity-100 group-hover:opacity-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Link>
+                        <CheckIcon className={cn("ml-2 h-4 w-4")} />
+                      </>
+                    ) : (
+                      <Link
+                        href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
+                        target="_blank"
+                        className="ml-auto opacity-0 hover:opacity-100 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    )}
+                  </InputCommandItem>
+                );
+              })}
+            </InputCommandGroup>
+            {filteredTemplates.langfuse.length > 0 && <InputCommandSeparator />}
+          </>
         )}
+
+        <InputCommandGroup forceMount>
+          <InputCommandItem
+            onSelect={() => {
+              window.open(
+                `/project/${projectId}/evals/default-model`,
+                "_blank",
+              );
+            }}
+          >
+            Manage default evaluation model
+            <ExternalLink className="ml-auto h-4 w-4" />
+          </InputCommandItem>
+        </InputCommandGroup>
 
         {onCreateNew && (
           <>

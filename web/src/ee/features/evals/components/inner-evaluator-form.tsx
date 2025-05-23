@@ -708,11 +708,21 @@ export const InnerEvaluatorForm = (props: {
                             controlButtons={mappingControlButtons}
                           />
                         ) : (
-                          <div className="flex h-[200px] w-full items-center justify-center rounded border lg:w-2/3">
-                            <p className="text-center text-sm text-muted-foreground">
-                              No trace data found, please adjust filters or
-                              switch to not show preview.
-                            </p>
+                          <div className="flex max-h-full min-h-[200px] w-full flex-col gap-1 lg:w-2/3">
+                            <div className="flex flex-row items-end justify-between">
+                              <span className="h-fit px-1 text-start text-sm font-medium">
+                                Evaluation Prompt
+                              </span>
+                              <div className="flex justify-end">
+                                {mappingControlButtons}
+                              </div>
+                            </div>
+                            <div className="flex h-full w-full flex-1 items-center justify-center rounded border">
+                              <p className="text-center text-sm text-muted-foreground">
+                                No trace data found, please adjust filters or
+                                switch to not show preview.
+                              </p>
+                            </div>
                           </div>
                         )
                       ) : (

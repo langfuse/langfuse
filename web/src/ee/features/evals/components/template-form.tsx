@@ -455,7 +455,7 @@ export const InnerEvalTemplateForm = (props: {
                       <FormLabel>Evaluation prompt</FormLabel>
                       <FormDescription>
                         Define your llm-as-a-judge evaluation template. You can
-                        use {"{input}"} and other variables to reference the
+                        use {"{{input}}"} and other variables to reference the
                         content to evaluate.
                       </FormDescription>
                       <FormControl>

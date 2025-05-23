@@ -32,6 +32,8 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
+import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
+import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
 
 type TemplateSelectorProps = {
   projectId: string;
@@ -268,7 +270,10 @@ export const TemplateSelector = ({
                           ) : (
                             <div className="mr-2 h-4 w-4" />
                           )}
-                          {name}
+                          <div className="mr-1">{name}</div>
+                          <MaintainerTooltip
+                            maintainer={getMaintainer(latestTemplate)}
+                          />
                           {isInvalid && (
                             <Tooltip>
                               <TooltipTrigger asChild>

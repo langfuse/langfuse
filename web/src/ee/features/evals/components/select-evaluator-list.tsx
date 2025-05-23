@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon } from "lucide-react";
+import { ExternalLink, PlusIcon } from "lucide-react";
 import { EvaluatorSelector } from "./evaluator-selector";
 import { EvalTemplateForm } from "./template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -89,7 +89,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         )}
       </Card>
 
-      <div className="mt-4">
+      <div className="mt-2 flex flex-row justify-end">
         <div className="flex justify-end gap-2">
           <Button onClick={handleOpenCreateEvaluator} variant="outline">
             <PlusIcon className="mr-2 h-4 w-4" />

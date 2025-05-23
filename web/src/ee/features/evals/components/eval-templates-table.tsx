@@ -37,7 +37,10 @@ import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSi
 import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import {
+  useEntitlementLimit,
+  useHasEntitlement,
+} from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type EvalsTemplateRow = {
@@ -104,6 +107,25 @@ export default function EvalsTemplateTable({
     },
     {
       enabled: !!cloneTemplateId,
+    },
+  );
+
+  const evaluatorLimit = useEntitlementLimit(
+    "model-based-evaluations-count-evaluators",
+  );
+
+  // Fetch counts of evaluator configs and templates
+  const countsQuery = api.evals.counts.useQuery(
+    {
+      projectId,
+    },
+    {
+      enabled: !!projectId && hasEntitlement,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
     },
   );
 
@@ -206,7 +228,7 @@ export default function EvalsTemplateTable({
         const isInvalid = isTemplateInvalid({ provider, model });
 
         return (
-          <>
+          <div className="flex flex-row gap-2">
             <ActionButton
               variant="outline"
               size="sm"
@@ -219,6 +241,8 @@ export default function EvalsTemplateTable({
               }
               hasAccess={hasAccess}
               hasEntitlement={hasEntitlement}
+              limitValue={countsQuery.data?.configActiveCount ?? 0}
+              limit={evaluatorLimit}
               onClick={(e) => {
                 e.stopPropagation();
                 if (id) {
@@ -230,7 +254,7 @@ export default function EvalsTemplateTable({
             >
               Use Evaluator
             </ActionButton>
-            {row.original.maintainer.includes("Langfuse") ? (
+            {!row.original.maintainer.includes("User") ? (
               <Button
                 aria-label="clone"
                 variant="outline"
@@ -259,7 +283,7 @@ export default function EvalsTemplateTable({
                 <Pen className="h-3 w-3" />
               </Button>
             )}
-          </>
+          </div>
         );
       },
     }),

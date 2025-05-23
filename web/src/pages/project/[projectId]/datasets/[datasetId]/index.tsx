@@ -148,7 +148,7 @@ export default function Dataset() {
   const preprocessFormValues = useCallback((values: any) => {
     // Ask the user if they want to run on historic data
     const shouldRunOnHistoric = confirm(
-      "Do you also want to execute this evaluator on historic data?",
+      "Do you also want to execute this evaluator on historic data? If not, click cancel.",
     );
 
     // If the user confirms, include EXISTING in the timeScope
