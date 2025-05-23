@@ -132,9 +132,47 @@ export const ingestionQueueProcessorBuilder = (
       const clickhouseEntityType = getClickhouseEntityType(
         job.data.payload.data.type,
       );
-      const eventFiles = await s3Client.listFiles(
-        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
-      );
+
+      let eventFiles: { file: string; createdAt: Date }[] = [];
+      const events: IngestionEventType[] = [];
+
+      // Check if we should skip S3 list operation
+      // The producer sets skipS3List to true if it's an OTel observation
+      const shouldSkipS3List =
+        job.data.payload.data.skipS3List && job.data.payload.data.fileKey;
+
+      if (shouldSkipS3List) {
+        // Direct file download - skip S3 list operation
+        const filePath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/${job.data.payload.data.fileKey}.json`;
+
+        const file = await s3Client.download(filePath);
+        const parsedFile = JSON.parse(file);
+        events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
+
+        // Create a single eventFiles entry for consistency with existing logic
+        eventFiles = [{ file: filePath, createdAt: new Date() }];
+      } else {
+        eventFiles = await s3Client.listFiles(
+          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
+        );
+
+        // Process files in batches
+        // If a user has 5k events, this will likely take 100 seconds.
+        const downloadAndParseFile = async (fileRef: { file: string }) => {
+          const file = await s3Client.download(fileRef.file);
+          const parsedFile = JSON.parse(file);
+          return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
+        };
+
+        const S3_CONCURRENT_READS = env.LANGFUSE_S3_CONCURRENT_READS;
+        const batches = chunk(eventFiles, S3_CONCURRENT_READS);
+        for (const batch of batches) {
+          const batchEvents = await Promise.all(
+            batch.map(downloadAndParseFile),
+          );
+          events.push(...batchEvents.flat());
+        }
+      }
 
       recordDistribution(
         "langfuse.ingestion.count_files_distribution",
@@ -154,23 +192,6 @@ export const ingestionQueueProcessorBuilder = (
           .map((fileRef) => fileRef.createdAt)
           .sort()
           .shift() ?? new Date();
-
-      const S3_CONCURRENT_READS = env.LANGFUSE_S3_CONCURRENT_READS;
-      const events: IngestionEventType[] = [];
-
-      // Process files in batches
-      // If a user has 5k events, this will likely take 100 seconds.
-      const downloadAndParseFile = async (fileRef: { file: string }) => {
-        const file = await s3Client.download(fileRef.file);
-        const parsedFile = JSON.parse(file);
-        return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
-      };
-
-      const batches = chunk(eventFiles, S3_CONCURRENT_READS);
-      for (const batch of batches) {
-        const batchEvents = await Promise.all(batch.map(downloadAndParseFile));
-        events.push(...batchEvents.flat());
-      }
 
       if (events.length === 0) {
         logger.warn(
