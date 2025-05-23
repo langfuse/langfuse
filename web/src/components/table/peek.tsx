@@ -12,7 +12,10 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 
-type PeekViewItemType = Extract<LangfuseItemType, "TRACE" | "DATASET_ITEM">;
+type PeekViewItemType = Extract<
+  LangfuseItemType,
+  "TRACE" | "DATASET_ITEM" | "RUNNING_EVALUATOR" | "EVALUATOR"
+>;
 
 /**
  * Options to control peek event behavior.

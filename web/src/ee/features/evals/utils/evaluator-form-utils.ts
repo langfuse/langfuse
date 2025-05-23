@@ -23,3 +23,5 @@ export const evalConfigFormSchema = z.object({
 export type EvalFormType = z.infer<typeof evalConfigFormSchema>;
 
 export type LangfuseObject = (typeof langfuseObjects)[number];
+
+export type VariableMapping = z.infer<typeof wipVariableMapping>;

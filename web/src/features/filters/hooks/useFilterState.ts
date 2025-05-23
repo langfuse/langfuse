@@ -16,6 +16,7 @@ import {
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -137,6 +138,7 @@ const tableCols = {
   scores: scoresTableCols,
   prompts: promptsTableCols,
   users: usersTableCols,
+  eval_configs: evalConfigFilterColumns,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },

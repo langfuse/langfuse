@@ -602,7 +602,7 @@ function FilterBuilderForm({
           onClick={() => addNewFilter()}
           type="button" // required as it will otherwise submit forms where this component is used
           className="mt-2"
-          variant="ghost"
+          variant="outline"
           size="sm"
         >
           <Plus className="mr-2 h-4 w-4" />

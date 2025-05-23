@@ -21,7 +21,7 @@ export default function NewTemplatesPage() {
       withPadding
       scrollable
       headerProps={{
-        title: "Create eval template",
+        title: "Create custom evaluator",
         help: {
           description:
             "Create an evaluation template. Choose from one of the pre-defined templates or create your own.",

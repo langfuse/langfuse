@@ -17,6 +17,8 @@ import {
   Prisma,
   TimeScopeSchema,
   JobConfigState,
+  orderBy,
+  jsonSchema,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -28,8 +30,10 @@ import {
   logger,
   QueueName,
   QueueJobs,
-  LLMApiKeySchema,
   ChatMessageType,
+  tableColumnsToSqlFilterAndPrefix,
+  orderByToPrismaSql,
+  DefaultEvalModelService,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
@@ -40,8 +44,12 @@ import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { type PrismaClient } from "@prisma/client";
 import { type JobExecutionState } from "@/src/ee/features/evals/utils/job-execution-utils";
+import {
+  evalConfigFilterColumns,
+  evalConfigsTableCols,
+} from "@/src/server/api/definitions/evalConfigsTable";
 
-const APIEvaluatorSchema = z.object({
+const ConfigWithTemplateSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   evalTemplateId: z.string(),
@@ -53,11 +61,29 @@ const APIEvaluatorSchema = z.object({
   delay: z.number(),
   status: z.nativeEnum(JobConfigState),
   jobType: z.nativeEnum(JobType),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  timeScope: TimeScopeSchema,
+  evalTemplate: z
+    .object({
+      name: z.string(),
+      partner: z.string().nullable(),
+      id: z.string(),
+      createdAt: z.coerce.date(),
+      updatedAt: z.coerce.date(),
+      projectId: z.string().nullable(),
+      prompt: z.string(),
+      provider: z.string().nullable(),
+      model: z.string().nullable(),
+      modelParams: jsonSchema.nullable(),
+      vars: z.array(z.string()),
+      outputSchema: jsonSchema,
+      version: z.number(),
+    })
+    .nullish(),
 });
 
-type APIEvaluator = z.infer<typeof APIEvaluatorSchema>;
+type ConfigWithTemplate = z.infer<typeof ConfigWithTemplateSchema>;
 
 /**
  * Use this function when pulling a list of evaluators from the database before using in the application to ensure type safety.
@@ -68,9 +94,9 @@ type APIEvaluator = z.infer<typeof APIEvaluatorSchema>;
 const filterAndValidateDbEvaluatorList = (
   evaluators: JobConfiguration[],
   onParseError?: (error: z.ZodError) => void,
-): APIEvaluator[] =>
+): ConfigWithTemplate[] =>
   evaluators.reduce((acc, ts) => {
-    const result = APIEvaluatorSchema.safeParse(ts);
+    const result = ConfigWithTemplateSchema.safeParse(ts);
     if (result.success) {
       acc.push(result.data);
     } else {
@@ -78,20 +104,21 @@ const filterAndValidateDbEvaluatorList = (
       onParseError?.(result.error);
     }
     return acc;
-  }, [] as APIEvaluator[]);
+  }, [] as ConfigWithTemplate[]);
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
   projectId: z.string(),
   prompt: z.string(),
-  provider: z.string(),
-  model: z.string(),
-  modelParams: ZodModelConfig,
+  provider: z.string().nullish(),
+  model: z.string().nullish(),
+  modelParams: ZodModelConfig.nullish(),
   vars: z.array(z.string()),
   outputSchema: z.object({
     score: z.string(),
     reasoning: z.string(),
   }),
+  cloneSourceId: z.string().optional(),
   referencedEvaluators: z
     .nativeEnum(EvalReferencedEvaluators)
     .optional()
@@ -234,7 +261,10 @@ export const evalRouter = createTRPCRouter({
   allConfigs: protectedProjectProcedure
     .input(
       z.object({
-        projectId: z.string(),
+        projectId: z.string(), // Required for protectedProjectProcedure
+        filter: z.array(singleFilter),
+        orderBy: orderBy,
+        searchQuery: z.string().nullish(),
         ...paginationZod,
       }),
     )
@@ -251,27 +281,71 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const configs = await ctx.prisma.jobConfiguration.findMany({
-        where: {
-          projectId: input.projectId,
-          jobType: "EVAL",
-        },
-        include: {
-          evalTemplate: true,
-        },
-        orderBy: {
-          status: "asc",
-        },
-        take: input.limit,
-        skip: input.page * input.limit,
-      });
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter,
+        evalConfigFilterColumns,
+        "job_configurations",
+      );
 
-      const count = await ctx.prisma.jobConfiguration.count({
-        where: {
-          projectId: input.projectId,
-          jobType: "EVAL",
-        },
-      });
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy,
+        evalConfigsTableCols,
+      );
+
+      const searchCondition =
+        input.searchQuery && input.searchQuery.trim() !== ""
+          ? Prisma.sql`AND jc.score_name ILIKE ${`%${input.searchQuery}%`}`
+          : Prisma.empty;
+
+      const [configs, configsCount] = await Promise.all([
+        // job configs with their templates
+        ctx.prisma.$queryRaw<
+          Array<
+            Omit<
+              JobConfiguration,
+              "projectId" | "jobType" | "variableMapping" | "sampling" | "delay"
+            > & {
+              templateName: string;
+              templateVersion: number;
+              templateProjectId: string;
+            }
+          >
+        >(
+          generateConfigsQuery(
+            Prisma.sql`
+            jc.id,
+            jc.status,
+            jc.created_at as "createdAt",
+            jc.updated_at as "updatedAt",
+            jc.score_name as "scoreName",
+            jc.target_object as "targetObject",
+            jc.filter as "filter",
+            jc.time_scope as "timeScope",
+            et.id as "evalTemplateId",
+            et.name as "templateName",
+            et.version as "templateVersion",
+            et.project_id as "templateProjectId"`,
+            input.projectId,
+            filterCondition,
+            searchCondition,
+            orderByCondition,
+            input.limit,
+            input.page,
+          ),
+        ),
+        // count
+        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+          generateConfigsQuery(
+            Prisma.sql`count(*) AS "totalCount"`,
+            input.projectId,
+            filterCondition,
+            searchCondition,
+            Prisma.empty,
+            1, // limit
+            0, // page
+          ),
+        ),
+      ]);
 
       const jobExecutionsByState = await fetchJobExecutionsByState({
         prisma: ctx.prisma,
@@ -282,6 +356,14 @@ export const evalRouter = createTRPCRouter({
       return {
         configs: configs.map((config) => ({
           ...config,
+          evalTemplate: config.evalTemplateId
+            ? {
+                id: config.evalTemplateId,
+                name: config.templateName,
+                version: config.templateVersion,
+                projectId: config.templateProjectId,
+              }
+            : null,
           jobExecutionsByState: jobExecutionsByState.filter(
             (je) => je.jobConfigurationId === config.id,
           ),
@@ -293,7 +375,8 @@ export const evalRouter = createTRPCRouter({
             ),
           ),
         })),
-        totalCount: count,
+        totalCount:
+          configsCount.length > 0 ? Number(configsCount[0]?.totalCount) : 0,
       };
     }),
 
@@ -352,6 +435,7 @@ export const evalRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string(),
+        isUserManaged: z.boolean().default(true),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -368,8 +452,10 @@ export const evalRouter = createTRPCRouter({
 
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
-          projectId: input.projectId,
           name: input.name,
+          ...(input.isUserManaged
+            ? { projectId: input.projectId }
+            : { projectId: null }),
         },
         orderBy: [{ version: "desc" }],
       });
@@ -381,7 +467,12 @@ export const evalRouter = createTRPCRouter({
 
   templateNames: protectedProjectProcedure
     .input(
-      z.object({ projectId: z.string(), page: z.number(), limit: z.number() }),
+      z.object({
+        projectId: z.string(),
+        page: z.number(),
+        limit: z.number(),
+        searchQuery: z.string().nullish(),
+      }),
     )
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
@@ -395,29 +486,83 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:read",
       });
 
-      const templates = await ctx.prisma.$queryRaw<
-        Array<{
-          name: string;
-          version: number;
-          latestCreatedAt: Date;
-          latestId: string;
-        }>
-      >`
-        SELECT
+      const searchCondition =
+        input.searchQuery && input.searchQuery.trim() !== ""
+          ? Prisma.sql`AND name ILIKE ${`%${input.searchQuery}%`}`
+          : Prisma.empty;
+
+      const [templates, count] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          Array<{
+            latestId: string;
+            name: string;
+            projectId: string;
+            version: number;
+            latestCreatedAt: Date;
+            usageCount: number;
+            partner?: string;
+            provider?: string;
+            model?: string;
+          }>
+        >`
+        WITH latest_templates AS (
+          SELECT 
+            et.id,
+            et.name,
+            et.project_id,
+            et.provider,
+            et.model,
+            et.partner,
+            et.version,
+            et.created_at,
+            (
+              SELECT COUNT(jc.id)
+              FROM job_configurations jc
+              WHERE jc.eval_template_id IN (
+                SELECT id 
+                FROM eval_templates 
+                WHERE name = et.name AND 
+                      (project_id = et.project_id OR (project_id IS NULL AND et.project_id IS NULL))
+              )
+            ) as usage_count
+          FROM (
+            SELECT DISTINCT ON (project_id, name) *
+            FROM eval_templates
+            WHERE (project_id = ${input.projectId} OR project_id IS NULL)
+            ${searchCondition}
+            ORDER BY project_id, name, version DESC
+          ) et
+        )
+        SELECT 
+          id as "latestId",
           name,
-          MAX(version) as version,
-          MAX(created_at) as "latestCreatedAt",
-          (SELECT id FROM "eval_templates" WHERE "project_id" = ${input.projectId} AND name = et.name ORDER BY version DESC LIMIT 1) as "latestId"
-        FROM "eval_templates" as et
-        WHERE "project_id" = ${input.projectId}
-        GROUP BY name
-        ORDER BY name
+          provider,
+          model,
+          partner,
+          project_id as "projectId",
+          version,
+          created_at as "latestCreatedAt",
+          COALESCE(usage_count, 0)::int as "usageCount"
+        FROM 
+          latest_templates
+        ORDER BY project_id, partner, name
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
-      `;
+        `,
+        ctx.prisma.$queryRaw<Array<{ count: bigint }>>`
+          SELECT COUNT(*) as count
+          FROM (
+            SELECT DISTINCT project_id, name
+            FROM eval_templates
+            WHERE (project_id = ${input.projectId} OR project_id IS NULL)
+            ${searchCondition}
+          ) t
+        `,
+      ]);
+
       return {
-        templates: templates,
-        totalCount: templates.length,
+        templates,
+        totalCount: Number(count[0]?.count) || 0,
       };
     }),
 
@@ -443,7 +588,7 @@ export const evalRouter = createTRPCRouter({
       const template = await ctx.prisma.evalTemplate.findUnique({
         where: {
           id: input.id,
-          projectId: input.projectId,
+          OR: [{ projectId: input.projectId }, { projectId: null }],
         },
       });
 
@@ -472,7 +617,7 @@ export const evalRouter = createTRPCRouter({
 
       const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
-          projectId: input.projectId,
+          OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
         },
         ...(input.limit && input.page
@@ -482,7 +627,7 @@ export const evalRouter = createTRPCRouter({
 
       const count = await ctx.prisma.evalTemplate.count({
         where: {
-          projectId: input.projectId,
+          OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
         },
       });
@@ -556,7 +701,9 @@ export const evalRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           targetObject: input.targetObject,
-          status: "ACTIVE",
+        },
+        include: {
+          evalTemplate: true,
         },
       });
 
@@ -626,7 +773,7 @@ export const evalRouter = createTRPCRouter({
         const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
           where: {
             id: input.evalTemplateId,
-            projectId: input.projectId,
+            OR: [{ projectId: input.projectId }, { projectId: null }],
           },
         });
 
@@ -713,29 +860,32 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:CUD",
       });
 
-      const matchingLLMKey = await ctx.prisma.llmApiKeys.findFirst({
-        where: {
-          projectId: input.projectId,
-          provider: input.provider,
-        },
-      });
+      const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+        input.projectId,
+        input.provider ?? undefined,
+        input.model ?? undefined,
+        input.modelParams,
+      );
 
-      const parsedKey = LLMApiKeySchema.safeParse(matchingLLMKey);
-
-      if (!matchingLLMKey || !parsedKey.success) {
-        throw new Error("No matching LLM key found for provider");
+      if (!modelConfig.valid) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No valid llm model found for this project",
+        });
       }
+
+      const matchingLLMKey = modelConfig.config.apiKey;
 
       // Make a test structured output call to validate the LLM key
       try {
         (
           await fetchLLMCompletion({
             streaming: false,
-            apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
+            apiKey: decrypt(matchingLLMKey.secretKey), // decrypt the secret key
             extraHeaders: decryptAndParseExtraHeaders(
-              parsedKey.data.extraHeaders,
+              matchingLLMKey.extraHeaders,
             ),
-            baseURL: parsedKey.data.baseURL ?? undefined,
+            baseURL: matchingLLMKey.baseURL ?? undefined,
             messages: [
               {
                 role: ChatMessageRole.User,
@@ -744,16 +894,16 @@ export const evalRouter = createTRPCRouter({
               },
             ],
             modelParams: {
-              provider: input.provider,
-              model: input.model,
-              adapter: parsedKey.data.adapter,
+              provider: modelConfig.config.provider,
+              model: modelConfig.config.model,
+              adapter: matchingLLMKey.adapter,
               ...input.modelParams,
             },
             structuredOutputSchema: z.object({
               score: z.string(),
               reasoning: z.string(),
             }),
-            config: parsedKey.data.config,
+            config: matchingLLMKey.config,
           })
         ).completion;
       } catch (err) {
@@ -766,57 +916,203 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
-      const templates = await ctx.prisma.evalTemplate.findMany({
-        where: {
-          projectId: input.projectId,
-          name: input.name,
-        },
-        orderBy: [{ version: "desc" }],
-        select: {
-          id: true,
-          version: true,
-        },
-      });
-      const latestTemplate = Boolean(templates.length)
-        ? templates[0]
-        : undefined;
+      /**
+       * CREATION OF PROJECT-LEVEL TEMPLATE
+       *
+       * Option 1: Create a new project-level template
+       * - Find existing project-level templates, templates are unique by [name, projectId]
+       * - If a template already exists, we will create a new version of the template
+       * - Otherwise, we will create a new template with version 1
+       *
+       * Option 2: Clone a langfuse managed template
+       * - Find the langfuse managed template
+       * - Clone the langfuse managed template by creating a new project-level template from the cloned langfuse managed template
+       */
 
-      const evalTemplate = await ctx.prisma.evalTemplate.create({
-        data: {
-          version: (latestTemplate?.version ?? 0) + 1,
-          name: input.name,
-          projectId: input.projectId,
-          prompt: input.prompt,
-          model: input.model,
-          modelParams: input.modelParams,
-          vars: input.vars,
-          outputSchema: input.outputSchema,
-          provider: input.provider,
-        },
-      });
-
-      if (
-        input.referencedEvaluators === EvalReferencedEvaluators.UPDATE &&
-        Boolean(templates.length)
-      ) {
-        await ctx.prisma.jobConfiguration.updateMany({
+      // find all versions of the project-level template, should return null if input.cloneSourceId is provided
+      return ctx.prisma.$transaction(async (tx) => {
+        const templates = await tx.evalTemplate.findMany({
           where: {
-            evalTemplateId: { in: templates.map((t) => t.id) },
+            projectId: input.projectId,
+            name: input.name,
           },
-          data: {
-            evalTemplateId: evalTemplate.id,
+          orderBy: [{ version: "desc" }],
+          select: {
+            id: true,
+            version: true,
           },
         });
-      }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "evalTemplate",
-        resourceId: evalTemplate.id,
-        action: "create",
+        // find the latest user managed template, should be null if input.cloneSourceId is provided
+        const latestTemplate = Boolean(templates.length)
+          ? templates[0]
+          : undefined;
+
+        // Create a new project-level template either by cloning a langfuse managed template or by creating a new project-level template
+        const evalTemplate = await tx.evalTemplate.create({
+          data: {
+            version: (latestTemplate?.version ?? 0) + 1,
+            name: input.name,
+            projectId: input.projectId,
+            prompt: input.prompt,
+            // if using default model, leave model, provider and modelParams empty
+            // otherwise we will not pull the most recent default evaluation model
+            provider: input.provider,
+            model: input.model,
+            modelParams: input.modelParams ?? undefined,
+            vars: input.vars,
+            outputSchema: input.outputSchema,
+          },
+        });
+
+        /**
+         * END OF CREATION OF PROJECT-LEVEL TEMPLATE
+         * - Net new project-level template has been created, or
+         * - New version of existing project-level template has been created
+         */
+
+        /**
+         * UPDATE OF JOB CONFIGS REFERENCING THE NEW/UPDATED TEMPLATE
+         */
+        if (input.referencedEvaluators === EvalReferencedEvaluators.UPDATE) {
+          /**
+           * Option 2: Clone a langfuse managed template
+           *
+           * - Find the langfuse managed template
+           * - Create a new project-level template from the cloned langfuse managed template
+           * - Update all job configs that had referenced the langfuse managed template to now reference the cloned project-level template
+           */
+          if (input.cloneSourceId) {
+            // find the langfuse managed template to clone
+            const cloneSourceTemplate = await tx.evalTemplate.findUnique({
+              where: {
+                id: input.cloneSourceId,
+                projectId: null,
+              },
+            });
+
+            if (!cloneSourceTemplate) {
+              throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Langfuse managed template not found",
+              });
+            }
+
+            // find all versions of the langfuse managed template
+            const cloneSourceTemplateList = await tx.evalTemplate.findMany({
+              where: {
+                projectId: null,
+                name: cloneSourceTemplate.name,
+              },
+            });
+
+            if (Boolean(cloneSourceTemplateList.length)) {
+              // update all job configs that had referenced any version of the langfuse managed template to now reference the cloned user managed template
+              await tx.jobConfiguration.updateMany({
+                where: {
+                  evalTemplateId: {
+                    in: cloneSourceTemplateList.map((t) => t.id),
+                  },
+                  projectId: input.projectId,
+                },
+                data: { evalTemplateId: evalTemplate.id },
+              });
+            }
+            /**
+             * Option 1: Create a new project-level template
+             *
+             * - Use previously found versions of the project-level template
+             * - Update all job configs that had referenced any version of the project-level template to now reference the new project-level template
+             */
+          } else if (Boolean(templates.length)) {
+            await tx.jobConfiguration.updateMany({
+              where: {
+                evalTemplateId: { in: templates.map((t) => t.id) },
+                projectId: input.projectId,
+              },
+              data: {
+                evalTemplateId: evalTemplate.id,
+              },
+            });
+          }
+        }
+
+        /**
+         * END OF UPDATE OF JOB CONFIGS REFERENCING THE NEW/UPDATED TEMPLATE
+         */
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "evalTemplate",
+          resourceId: evalTemplate.id,
+          action: "create",
+        });
+
+        return evalTemplate;
       });
-      return evalTemplate;
     }),
+
+  updateAllDatasetEvalJobStatusByTemplateId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evalTemplateId: z.string(),
+        datasetId: z.string(),
+        newStatus: z.nativeEnum(EvaluatorStatus),
+      }),
+    )
+    .mutation(
+      async ({
+        ctx,
+        input: { projectId, evalTemplateId, datasetId, newStatus },
+      }) => {
+        throwIfNoEntitlement({
+          entitlement: "model-based-evaluations",
+          projectId: projectId,
+          sessionUser: ctx.session.user,
+        });
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: projectId,
+          scope: "evalJob:CUD",
+        });
+
+        const oldStatus = newStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+        const evaluators = await ctx.prisma.jobConfiguration.findMany({
+          where: {
+            projectId: projectId,
+            evalTemplateId: evalTemplateId,
+            status: oldStatus,
+            targetObject: "dataset",
+          },
+        });
+
+        const filteredEvaluators =
+          evaluators?.filter(({ filter }) => {
+            const parsedFilter = z.array(singleFilter).safeParse(filter);
+            if (!parsedFilter.success) return false;
+            if (parsedFilter.data.length === 0) return true;
+            else
+              return parsedFilter.data.some(
+                ({ type, value }) =>
+                  type === "stringOptions" && value.includes(datasetId),
+              );
+          }) || [];
+
+        await ctx.prisma.jobConfiguration.updateMany({
+          where: {
+            id: { in: filteredEvaluators.map((e) => e.id) },
+          },
+          data: { status: newStatus },
+        });
+
+        return {
+          success: true,
+          message: `Updated ${filteredEvaluators.length} evaluators to ${newStatus}`,
+        };
+      },
+    ),
 
   updateEvalJob: protectedProjectProcedure
     .input(
@@ -1069,17 +1365,13 @@ export const evalRouter = createTRPCRouter({
           updatedAt: true,
           projectId: true,
           jobConfigurationId: true,
+          jobTemplateId: true,
           status: true,
           startTime: true,
           endTime: true,
           error: true,
           jobInputTraceId: true,
           jobOutputScoreId: true,
-          jobConfiguration: {
-            select: {
-              evalTemplateId: true,
-            },
-          },
         },
         ...(input.limit !== undefined && input.page !== undefined
           ? { take: input.limit, skip: input.page * input.limit }
@@ -1169,3 +1461,26 @@ export const evalRouter = createTRPCRouter({
       return evaluators;
     }),
 });
+
+const generateConfigsQuery = (
+  select: Prisma.Sql,
+  projectId: string,
+  filterCondition: Prisma.Sql,
+  searchCondition: Prisma.Sql,
+  orderCondition: Prisma.Sql,
+  limit: number,
+  page: number,
+) => {
+  return Prisma.sql`
+  SELECT
+   ${select}
+   FROM job_configurations jc
+   LEFT JOIN eval_templates et ON jc.eval_template_id = et.id AND (jc.project_id = et.project_id OR et.project_id IS NULL)
+   WHERE jc.project_id = ${projectId}
+   AND jc.job_type = 'EVAL'
+   ${filterCondition}
+   ${searchCondition}
+   ${orderCondition}
+   LIMIT ${limit} OFFSET ${page * limit};
+  `;
+};
