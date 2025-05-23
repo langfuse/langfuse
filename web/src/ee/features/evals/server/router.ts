@@ -830,7 +830,7 @@ export const evalRouter = createTRPCRouter({
                 cutoffCreatedAt: new Date(),
                 targetObject: input.target,
                 query: {
-                  where: input.filter ?? [],
+                  filter: input.filter ?? [],
                   orderBy: {
                     column: "timestamp",
                     order: "DESC",

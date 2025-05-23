@@ -194,14 +194,24 @@ export const createEvalJobs = async ({
     logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
+    const maxTimeStamp =
+      "timestamp" in event &&
+      new Date(event.timestamp).getTime() === new Date("2020-01-01").getTime() // min time for historic evals
+        ? new Date()
+        : undefined;
+
     // Check whether the trace already exists in the database.
-    const traceExists = await checkTraceExists(
-      event.projectId,
-      event.traceId,
+    const traceExists = await checkTraceExists({
+      projectId: event.projectId,
+      traceId: event.traceId,
       // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
-      "timestamp" in event ? new Date(event.timestamp) : new Date(jobTimestamp),
-      config.target_object === "trace" ? validatedFilter : [],
-    );
+      timestamp:
+        "timestamp" in event
+          ? new Date(event.timestamp)
+          : new Date(jobTimestamp),
+      filter: config.target_object === "trace" ? validatedFilter : [],
+      maxTimeStamp,
+    });
 
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem: { id: string } | undefined;
@@ -313,7 +323,7 @@ export const createEvalJobs = async ({
       }
 
       logger.debug(
-        `Creating eval job for config ${config.id} and trace ${event.traceId}`,
+        `Creating eval job execution for config ${config.id} and trace ${event.traceId}`,
       );
 
       await prisma.jobExecution.create({
