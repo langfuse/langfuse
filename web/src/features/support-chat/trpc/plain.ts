@@ -135,7 +135,7 @@ export const plainRouter = createTRPCRouter({
         .map((org) => tenantIdentifier(org.id))
         .filter((tenantId) => !tenantIdsOfUserInRegion.includes(tenantId));
       if (tenantIdsOfUserInRegionToAdd.length > 0) {
-        plainClient.addCustomerToTenants({
+        await plainClient.addCustomerToTenants({
           customerIdentifier: {
             emailAddress: email,
           },
