@@ -158,21 +158,6 @@ export const env = createEnv({
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
 
-    // S3 Batch Export
-    LANGFUSE_S3_BATCH_EXPORT_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
-    LANGFUSE_S3_BATCH_EXPORT_REGION: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
-      .enum(["true", "false"])
-      .default("false"),
-
     TURNSTILE_SECRET_KEY: z.string().optional(),
 
     // Otel
@@ -250,6 +235,8 @@ export const env = createEnv({
       .number()
       .nonnegative()
       .default(3600),
+    LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
+    LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
 
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
@@ -458,26 +445,6 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
 
-    // S3 Batch Export
-    LANGFUSE_S3_BATCH_EXPORT_ENABLED:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_ENABLED,
-    LANGFUSE_S3_BATCH_EXPORT_BUCKET:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_BUCKET,
-    LANGFUSE_S3_BATCH_EXPORT_PREFIX:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_PREFIX,
-    LANGFUSE_S3_BATCH_EXPORT_REGION:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_REGION,
-    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
-    LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT,
-    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
-    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
-    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE,
-
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
       process.env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH,
@@ -497,6 +464,9 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE,
     LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS:
       process.env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS,
+    LANGFUSE_S3_MEDIA_UPLOAD_SSE: process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
+    LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
     // Worker
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,

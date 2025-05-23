@@ -30,6 +30,22 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "lw3-5",
+    title: "Launch Week #3: Day 5",
+    description: "New OpenTelemetry based Python SDK.",
+    link: "https://langfuse.com/changelog/2025-05-23-otel-based-python-sdk",
+    linkTitle: "Learn more",
+    createdAt: "2025-05-23",
+  },
+  {
+    id: "lw3-4",
+    title: "Launch Week #3: Day 4",
+    description: "Terraform Modules for AWS, Azure and GCP.",
+    link: "https://langfuse.com/changelog/2025-05-22-terraform-modules",
+    linkTitle: "Learn more",
+    createdAt: "2025-05-22",
+  },
+  {
     id: "lw3-3-producthunt",
     title: "Launch Week #3: Day 3",
     createdAt: "2025-05-21",

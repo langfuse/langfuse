@@ -1061,7 +1061,6 @@ model ObservationMedia {
   field         String   @map("field")
 
   @@unique([projectId, traceId, observationId, mediaId, field])
-  @@index([projectId, observationId])
   @@index([projectId, mediaId])
   @@map("observation_media")
 }

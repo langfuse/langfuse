@@ -28,6 +28,8 @@ const EnvSchema = z.object({
   LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_BATCH_EXPORT_SSE: z.enum(["AES256", "aws:kms"]).optional(),
+  LANGFUSE_S3_BATCH_EXPORT_SSE_KMS_KEY_ID: z.string().optional(),
 
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
     required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
@@ -40,6 +42,8 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
 
   BATCH_EXPORT_PAGE_SIZE: z.coerce.number().positive().default(500),
   BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(1_500_000),
@@ -207,6 +211,8 @@ const EnvSchema = z.object({
   LANGFUSE_S3_CORE_DATA_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
 
   // Media upload
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
@@ -218,6 +224,8 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
 
   // Metering data Postgres export - Langfuse Cloud
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
