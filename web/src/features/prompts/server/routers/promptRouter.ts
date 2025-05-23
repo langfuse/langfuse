@@ -3,6 +3,8 @@ import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   CreatePromptTRPCSchema,
+  CreatePromptSchema,
+  LegacyValidatedPrompt,
   PromptLabelSchema,
   PromptType,
 } from "@/src/features/prompts/server/utils/validation";
@@ -1190,6 +1192,52 @@ export const promptRouter = createTRPCRouter({
       );
 
       return { success: true };
+    }),
+  exportAll: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const { projectId } = input;
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "prompts:read",
+      });
+
+      const prompts = await ctx.prisma.prompt.findMany({
+        where: { projectId },
+        orderBy: [{ name: "asc" }, { version: "asc" }],
+      });
+
+      return prompts;
+    }),
+  importMany: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        prompts: z.array(CreatePromptSchema),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { projectId, prompts } = input;
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "prompts:CUD",
+      });
+
+      for (const prompt of prompts) {
+        await createPrompt({
+          ...prompt,
+          projectId,
+          prisma: ctx.prisma,
+          createdBy: ctx.session.user.id,
+          config: prompt.config ?? {},
+        });
+      }
+
+      return { count: prompts.length };
     }),
 });
 
