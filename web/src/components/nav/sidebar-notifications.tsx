@@ -30,6 +30,15 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "lw3-6",
+    title: "Launch Week #3: Day 6",
+    description:
+      "Langfuse Evaluator Library with built-in RAGAS modules for LLM-as-a-Judge evaluations.",
+    link: "https://langfuse.com/changelog/2025-05-24-langfuse-evaluation-library",
+    linkTitle: "Learn more",
+    createdAt: "2025-05-23",
+  },
+  {
     id: "lw3-5",
     title: "Launch Week #3: Day 5",
     description: "New OpenTelemetry based Python SDK.",
