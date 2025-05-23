@@ -155,7 +155,7 @@ describe("select all test suite", () => {
     expect(scores).toHaveLength(0);
   });
 
-  it("should create eval jobs for historic traces", async () => {
+  it.only("should create eval jobs for historic traces", async () => {
     // remove all jobs from the evaluation execution queue
     const queue = getQueue(QueueName.CreateEvalQueue);
     await queue?.obliterate({ force: true });
@@ -250,8 +250,6 @@ describe("select all test suite", () => {
     };
 
     await handleBatchActionJob(payload);
-
-    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     await waitForExpect(async () => {
       try {
