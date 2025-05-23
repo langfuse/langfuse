@@ -50,6 +50,12 @@ const EnvSchema = z.object({
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .optional(),
   LANGFUSE_LOG_FORMAT: z.enum(["text", "json"]).default("text"),
+  LANGFUSE_LOG_PROPAGATED_HEADERS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
     .enum(["true", "false"])
     .default("false"),

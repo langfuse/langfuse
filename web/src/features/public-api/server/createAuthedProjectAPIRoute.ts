@@ -10,6 +10,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { type RateLimitResource } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
+import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 
 type RouteConfig<
@@ -89,26 +91,32 @@ export const createAuthedProjectAPIRoute = <
       ? routeConfig.bodySchema.parse(req.body)
       : {};
 
-    const response = await routeConfig.fn({
-      query,
-      body,
-      req,
-      res,
-      auth: auth as AuthHeaderValidVerificationResult & {
-        scope: { projectId: string; accessLevel: "project" };
-      },
+    const ctx = contextWithLangfuseProps({
+      headers: req.headers,
+      projectId: auth.scope.projectId,
     });
+    return opentelemetry.context.with(ctx, async () => {
+      const response = await routeConfig.fn({
+        query,
+        body,
+        req,
+        res,
+        auth: auth as AuthHeaderValidVerificationResult & {
+          scope: { projectId: string; accessLevel: "project" };
+        },
+      });
 
-    if (env.NODE_ENV === "development" && routeConfig.responseSchema) {
-      const parsingResult = routeConfig.responseSchema.safeParse(response);
-      if (!parsingResult.success) {
-        logger.error("Response validation failed:", parsingResult.error);
-        traceException(parsingResult.error);
+      if (env.NODE_ENV === "development" && routeConfig.responseSchema) {
+        const parsingResult = routeConfig.responseSchema.safeParse(response);
+        if (!parsingResult.success) {
+          logger.error("Response validation failed:", parsingResult.error);
+          traceException(parsingResult.error);
+        }
       }
-    }
 
-    res
-      .status(routeConfig.successStatusCode || 200)
-      .json(response || { message: "OK" });
+      res
+        .status(routeConfig.successStatusCode || 200)
+        .json(response || { message: "OK" });
+    });
   };
 };
