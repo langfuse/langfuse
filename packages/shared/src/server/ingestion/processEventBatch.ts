@@ -79,11 +79,13 @@ const getDelay = (delay: number | null) => {
  * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
  * @param authCheck - AuthHeaderValidVerificationResult
  * @param delay - (Optional) Delay in ms to wait before processing events in the batch.
+ * @param source - (Optional) Source of the events for metrics tracking (e.g., "otel", "api").
  */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResult,
   delay: number | null = null,
+  source: "api" | "otel" = "api",
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -95,8 +97,10 @@ export const processEventBatch = async (
 }> => {
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
-  recordIncrement("langfuse.ingestion.event", input.length);
-  recordDistribution("langfuse.ingestion.event_distribution", input.length);
+  recordIncrement("langfuse.ingestion.event", input.length, { source });
+  recordDistribution("langfuse.ingestion.event_distribution", input.length, {
+    source,
+  });
 
   currentSpan?.setAttribute("langfuse.ingestion.batch_size", input.length);
   currentSpan?.setAttribute(
@@ -240,6 +244,11 @@ export const processEventBatch = async (
                   type: sortedBatchByEventBodyId[id].type,
                   eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
                   fileKey: sortedBatchByEventBodyId[id].key,
+                  skipS3List:
+                    source === "otel" &&
+                    getClickhouseEntityType(
+                      sortedBatchByEventBodyId[id].type,
+                    ) === "observation",
                 },
                 authCheck: authCheck as {
                   validKey: true;
