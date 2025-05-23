@@ -41,11 +41,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
 
-  LANGFUSE_PROPAGATED_HEADERS: z
-    .string()
-    .optional()
-    .transform((s) => s ? s.split(",").map((s) => s.toLowerCase().trim()) : []),
-
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
@@ -55,6 +50,12 @@ const EnvSchema = z.object({
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .optional(),
   LANGFUSE_LOG_FORMAT: z.enum(["text", "json"]).default("text"),
+  LANGFUSE_LOG_PROPAGATED_HEADERS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
     .enum(["true", "false"])
     .default("false"),
