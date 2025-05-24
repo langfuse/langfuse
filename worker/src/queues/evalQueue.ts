@@ -143,6 +143,10 @@ export const evalJobExecutorQueueProcessor = async (
     // do not log expected errors (api failures + missing api keys not provided by the user)
     if (
       (e instanceof BaseError && e.message.includes("API key for provider")) || // api key not provided
+      (e instanceof BaseError &&
+        e.message.includes(
+          "`No default model or custom model found for project",
+        )) || // api key not provided
       (e instanceof ApiError && e.httpCode >= 400 && e.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
       (e instanceof ApiError && e.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
       (e instanceof ApiError &&
