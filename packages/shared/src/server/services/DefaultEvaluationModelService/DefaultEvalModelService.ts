@@ -43,7 +43,7 @@ export class DefaultEvalModelService {
 
     if (!llmApiKey) {
       throw new LangfuseNotFoundError(
-        `No API key found for provider ${provider} in project ${projectId}`,
+        `API key for provider ${provider} in project ${projectId} not found`,
       );
     }
 
