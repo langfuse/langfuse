@@ -173,7 +173,7 @@ export class DefaultEvalModelService {
     if (!parsedKey.success) {
       return {
         valid: false,
-        error: `No API key found for provider "${selectedModel.provider}" in project ${projectId}.`,
+        error: `API key for provider "${selectedModel.provider}" not found in project ${projectId}.`,
       };
     }
 
