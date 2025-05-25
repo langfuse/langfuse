@@ -32,6 +32,7 @@ import {
   type RowSelectionState,
   type VisibilityState,
   type Row,
+  type ColumnSizingState,
 } from "@tanstack/react-table";
 import { TablePeekView } from "@/src/components/table/peek";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
@@ -53,6 +54,8 @@ interface DataTableProps<TData, TValue> {
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
+  columnSizing?: ColumnSizingState;
+  onColumnSizingChange?: OnChangeFn<ColumnSizingState>;
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
@@ -110,6 +113,8 @@ export function DataTable<TData extends object, TValue>({
   onColumnVisibilityChange,
   columnOrder,
   onColumnOrderChange,
+  columnSizing,
+  onColumnSizingChange,
   help,
   orderBy,
   setOrderBy,
@@ -142,6 +147,7 @@ export function DataTable<TData extends object, TValue>({
     columns,
     onColumnFiltersChange: setColumnFilters,
     onColumnOrderChange: onColumnOrderChange,
+    onColumnSizingChange: onColumnSizingChange,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
     manualPagination: pagination !== undefined,
@@ -170,6 +176,7 @@ export function DataTable<TData extends object, TValue>({
         ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
         : undefined,
       rowSelection,
+      columnSizing,
     },
     manualFiltering: true,
     defaultColumn: {
