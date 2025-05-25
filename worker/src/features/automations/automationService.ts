@@ -15,6 +15,7 @@ import {
 
 import { v4 } from "uuid";
 import { getCachedTriggers } from "./cached-automation-repo";
+import { processAddToQueue } from "../batchAction/processAddToQueue";
 
 export enum TriggerEventSource {
   ObservationCreated = "observation.created",
@@ -84,7 +85,7 @@ export class AutomationService<T> {
           }
         }
 
-        await this.createAction(trigger);
+        await this.executeAction(trigger);
       } else {
         logger.debug(`Trigger ${trigger.id} does not apply to event`);
         // if action execution exists already, we cancel it
@@ -106,7 +107,7 @@ export class AutomationService<T> {
     }
   }
 
-  private async createAction(trigger: TriggerDomain) {
+  private async executeAction(trigger: TriggerDomain) {
     const { createEventId, convertEventToActionInput } = this.delegates;
 
     const actionConfig = await getActionConfigById({
@@ -137,12 +138,21 @@ export class AutomationService<T> {
       },
     });
 
-    await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
-      timestamp: new Date(),
-      id: v4(),
-      payload: actionInput,
-      name: QueueJobs.WebhookJob,
-    });
+    switch (actionConfig.type) {
+      case "WEBHOOK":
+        await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
+          timestamp: new Date(),
+          id: v4(),
+          payload: actionInput,
+          name: QueueJobs.WebhookJob,
+        });
+        break;
+      case "ANNOTATION_QUEUE":
+        break;
+      default:
+        const _exhaustiveCheck: never = actionConfig.type;
+        throw new Error(`Unhandled action type: ${_exhaustiveCheck}`);
+    }
 
     logger.debug(
       `Created action execution ${actionExecution.id} for trigger ${trigger.id} and action ${actionConfig.id}`,

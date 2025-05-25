@@ -72,11 +72,9 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                   onClick={() => onAutomationSelect(automation)}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      <h4 className="truncate text-sm font-medium">
-                        {automation.trigger.description || "Unnamed Automation"}
-                      </h4>
-                      <div className="mt-1 flex items-center gap-2">
+                    <div className="min-w-0 flex-1 pr-16">
+                      {/* Status - most prominent */}
+                      <div className="mb-2 flex items-center gap-2">
                         {automation.trigger.status === JobConfigState.ACTIVE ? (
                           <Badge
                             variant="outline"
@@ -93,11 +91,20 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                           </Badge>
                         )}
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
+
+                      {/* Title/Description */}
+                      <h4 className="mb-2 truncate text-sm font-medium leading-tight">
+                        {automation.trigger.description || "Unnamed Automation"}
+                      </h4>
+
+                      {/* Event source */}
+                      <p className="mb-1 text-xs text-muted-foreground">
                         <span className="font-mono">
                           {automation.trigger.eventSource}
                         </span>
                       </p>
+
+                      {/* Action type and sampling */}
                       <p className="text-xs text-muted-foreground">
                         {automation.action.type === "WEBHOOK"
                           ? "Webhook"
@@ -120,13 +127,13 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0"
+                      className="h-8 w-8 p-0"
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditAutomation(automation);
                       }}
                     >
-                      <Edit className="h-3 w-3" />
+                      <Edit className="h-4 w-4" />
                       <span className="sr-only">Edit</span>
                     </Button>
                   )}
