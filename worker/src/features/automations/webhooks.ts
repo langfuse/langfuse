@@ -1,16 +1,21 @@
 import {
+  JobExecutionStatus,
   jsonSchema,
   MetadataDomain,
   Observation,
   ObservationLevelDomain,
   ObservationTypeDomain,
 } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   getActionConfigById,
   getObservationById,
   logger,
+  QueueJobs,
+  WEBHOOK_ATTEMPTS,
   WebhookInput,
 } from "@langfuse/shared/src/server";
+import { Processor } from "bullmq";
 import { z } from "zod";
 
 export const ObservationWebhookOutputSchema = z.object({
@@ -63,39 +68,94 @@ const convertObservationToWebhookOutput = (
   return observation;
 };
 
+export const webhookProcessor: Processor = async (job) => {
+  if (job.name === QueueJobs.WebhookJob) {
+    try {
+      return await executeWebhook(job.data);
+    } catch (error) {
+      logger.error("Error executing DataRetentionProcessingJob", error);
+      throw error;
+    }
+  }
+};
+
 // TODO: Webhook outgoing API versioning
-export const executeWebhook = async (input: WebhookInput) => {
-  const { observationId, projectId, startTime, observationType, actionId } =
-    input;
-
-  logger.debug(`Executing webhook for action ${actionId}`);
-
-  const observation = await getObservationById({
-    id: observationId,
+export const executeWebhook = async (input: WebhookInput, attempt: number) => {
+  const {
+    observationId,
     projectId,
-    fetchWithInputOutput: true,
     startTime,
-    type: observationType,
-  });
-
-  if (!observation) {
-    throw new Error("Observation not found");
-  }
-
-  const reqBody = convertObservationToWebhookOutput(observation);
-
-  const actionConfig = await getActionConfigById({
-    projectId,
+    observationType,
     actionId,
-  });
+    triggerId,
+    executionId,
+  } = input;
+  try {
+    logger.debug(`Executing webhook for action ${actionId}`);
 
-  if (!actionConfig) {
-    throw new Error("Action config not found");
+    const observation = await getObservationById({
+      id: observationId,
+      projectId,
+      fetchWithInputOutput: true,
+      startTime,
+      type: observationType,
+    });
+
+    if (!observation) {
+      throw new Error("Observation not found");
+    }
+
+    const reqBody = convertObservationToWebhookOutput(observation);
+
+    const actionConfig = await getActionConfigById({
+      projectId,
+      actionId,
+    });
+
+    if (!actionConfig) {
+      throw new Error("Action config not found");
+    }
+
+    if (actionConfig.config.type !== "webhook") {
+      throw new Error("Action config is not a webhook");
+    }
+
+    await fetch(actionConfig.config.url, {
+      method: "POST",
+      body: JSON.stringify(reqBody),
+      headers: actionConfig.config.headers,
+    });
+
+    // Update action execution status
+    await prisma.actionExecution.update({
+      where: {
+        projectId,
+        triggerId,
+        actionId,
+        id: executionId,
+      },
+      data: {
+        status: JobExecutionStatus.COMPLETED,
+        finishedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    logger.error("Error executing webhook", error);
+    await prisma.actionExecution.update({
+      where: {
+        projectId,
+        triggerId,
+        actionId,
+        id: executionId,
+      },
+      data: {
+        status:
+          attempt >= WEBHOOK_ATTEMPTS
+            ? JobExecutionStatus.ERROR
+            : JobExecutionStatus.PENDING,
+        finishedAt: attempt >= WEBHOOK_ATTEMPTS ? new Date() : null,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+    });
   }
-
-  await fetch(actionConfig.config.url, {
-    method: "POST",
-    body: JSON.stringify(reqBody),
-    headers: actionConfig.config.headers,
-  });
 };

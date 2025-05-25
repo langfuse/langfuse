@@ -26,19 +26,24 @@ export const observationUpsertProcessor = async (
         columnMappings: observationsTableUiColumnDefinitions,
       });
     },
-    getExistingJobForTrigger: async (trigger) => {
-      return await prisma.jobExecution.findFirst({
+    getExistingActionExecutionForTrigger: async (trigger) => {
+      const actionExecution = await prisma.actionExecution.findFirst({
         where: {
           projectId: observation.project_id,
-          jobConfigurationId: trigger.id,
-          jobInputObservationId: observation.id,
+          triggerId: trigger.id,
+          sourceId: observation.id,
+        },
+        select: {
+          id: true,
+          status: true,
         },
       });
+      return actionExecution;
     },
     createEventId: () => {
       return observation.id;
     },
-    convertEventToActionInput: async (actionConfig) => {
+    convertEventToActionInput: async (actionConfig, executionId) => {
       if (!observation.trace_id || !observation.start_time) {
         throw new Error(
           `Observation ${observation.id} has no trace_id or start_time for webhook.`,
@@ -52,6 +57,8 @@ export const observationUpsertProcessor = async (
         traceId: observation.trace_id ?? "",
         observationType: observation.type as "SPAN" | "EVENT" | "GENERATION",
         actionId: actionConfig.id,
+        triggerId: actionConfig.triggerIds[0],
+        executionId,
       };
       return webhookInputSchema;
     },

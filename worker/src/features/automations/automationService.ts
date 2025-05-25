@@ -1,7 +1,6 @@
 import {
   ActionDomain,
   JobConfigState,
-  JobExecution,
   JobExecutionStatus,
   TriggerDomain,
 } from "@langfuse/shared";
@@ -23,11 +22,14 @@ export enum TriggerEventSource {
 
 export interface AutomationServiceDelegates<T> {
   checkTriggerAppliesToEvent: (trigger: TriggerDomain) => Promise<boolean>;
-  getExistingJobForTrigger: (
+  getExistingActionExecutionForTrigger: (
     trigger: TriggerDomain,
-  ) => Promise<JobExecution | null>;
+  ) => Promise<{ id: string; status: JobExecutionStatus } | null>;
   createEventId: () => string;
-  convertEventToActionInput: (actionConfig: ActionDomain) => Promise<any>;
+  convertEventToActionInput: (
+    actionConfig: ActionDomain,
+    executionId: string,
+  ) => Promise<any>;
 }
 
 export class AutomationService<T> {
@@ -42,7 +44,7 @@ export class AutomationService<T> {
   async triggerAction(p: { eventSource: TriggerEventSource }) {
     const { eventSource } = p;
 
-    const { checkTriggerAppliesToEvent, getExistingJobForTrigger } =
+    const { checkTriggerAppliesToEvent, getExistingActionExecutionForTrigger } =
       this.delegates;
 
     const triggerConfigurations = await getCachedTriggers({
@@ -60,18 +62,19 @@ export class AutomationService<T> {
         `Checking trigger ${JSON.stringify(trigger)} for event source ${eventSource}`,
       );
       if (await checkTriggerAppliesToEvent(trigger)) {
-        // if job exists already, we do not create a new one
-        const existingJob = await getExistingJobForTrigger(trigger);
+        // if action execution exists already, we do not create a new one
+        const existingActionExecution =
+          await getExistingActionExecutionForTrigger(trigger);
 
-        if (existingJob) {
+        if (existingActionExecution) {
           logger.info(
-            `Job ${trigger.id} already exists, skipping creation`,
-            existingJob,
+            `Action execution for trigger ${trigger.id} already exists, skipping creation`,
+            existingActionExecution,
           );
           continue;
         }
 
-        // apply sampling. Only if the job is sampled, we create a job
+        // apply sampling. Only if the action is sampled, we create an action execution
         // user supplies a number between 0 and 1, which is the probability of sampling
         if (trigger.sampling.gt(0) && trigger.sampling.lt(1)) {
           const random = Math.random();
@@ -84,14 +87,18 @@ export class AutomationService<T> {
         await this.createAction(trigger);
       } else {
         logger.debug(`Trigger ${trigger.id} does not apply to event`);
-        // if job exists already, we cancel the job
-        const existingJob = await getExistingJobForTrigger(trigger);
-        if (existingJob) {
+        // if action execution exists already, we cancel it
+        const existingActionExecution =
+          await getExistingActionExecutionForTrigger(trigger);
+        if (existingActionExecution) {
           logger.debug(
-            `Cancelling job ${trigger.id} because trigger does not apply`,
+            `Cancelling action execution for trigger ${trigger.id} because trigger does not apply`,
           );
-          await prisma.jobExecution.update({
-            where: { id: existingJob.id, projectId: this.projectId },
+          await prisma.actionExecution.update({
+            where: {
+              id: existingActionExecution.id,
+              projectId: this.projectId,
+            },
             data: { status: JobExecutionStatus.CANCELLED },
           });
         }
@@ -111,11 +118,16 @@ export class AutomationService<T> {
       throw new Error(`Action ${trigger.actionIds[0]} not found`);
     }
 
-    const actionInput = await convertEventToActionInput(actionConfig);
+    const executionId = v4();
+    const actionInput = await convertEventToActionInput(
+      actionConfig,
+      executionId,
+    );
 
     // create new execution. The body is used by the websocket
     const actionExecution = await prisma.actionExecution.create({
       data: {
+        id: executionId,
         projectId: this.projectId,
         triggerId: trigger.id,
         actionId: actionConfig.id,

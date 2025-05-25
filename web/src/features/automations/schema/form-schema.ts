@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { webhookSchema } from "../components/WebhookActionForm";
-import { annotationQueueSchema } from "../components/AnnotationQueueActionForm";
+import { webhookSchema } from "../components/actions/WebhookActionForm";
+import { annotationQueueSchema } from "../components/actions/AnnotationQueueActionForm";
 import { type JobConfigState, type ActionType } from "@langfuse/shared";
 
 // Define the trigger schema

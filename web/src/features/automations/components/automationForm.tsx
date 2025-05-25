@@ -37,17 +37,11 @@ import { type ColumnDefinition } from "@langfuse/shared";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-
-import {
-  WebhookActionForm,
-  webhookSchema,
-  formatWebhookHeaders,
-} from "./WebhookActionForm";
-import {
-  AnnotationQueueActionForm,
-  annotationQueueSchema,
-} from "./AnnotationQueueActionForm";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
+import { ActionHandlerRegistry } from "./actions";
+
+import { webhookSchema } from "./actions/WebhookActionForm";
+import { annotationQueueSchema } from "./actions/AnnotationQueueActionForm";
 
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
@@ -98,41 +92,27 @@ export const observationFilterColumns: ColumnDefinition[] = [
 ];
 
 // Define schemas for form validation
-const formSchema = z
-  .object({
-    description: z.string().min(1, "Description is required").max(100),
-    eventSource: z.string().min(1, "Event source is required"),
-    status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
-    sampling: z.coerce.number().min(0).max(100).default(100),
-    delay: z.coerce.number().min(0).default(0),
-    filter: z.array(z.any()).optional(),
-    actionType: z.enum(["WEBHOOK", "ANNOTATION_QUEUE"]),
-    webhook: webhookSchema.optional(),
-    annotationQueue: annotationQueueSchema.optional(),
-  })
-  .refine(
-    (data) => {
-      // Make sure proper fields are filled based on action type
-      if (data.actionType === "WEBHOOK") {
-        return !!data.webhook?.url;
-      } else if (data.actionType === "ANNOTATION_QUEUE") {
-        return !!data.annotationQueue?.queueId;
-      }
-      return false;
-    },
-    {
-      message: "Required fields for the selected action type are missing",
-      path: ["actionType"],
-    },
-  );
+const baseFormSchema = z.object({
+  description: z.string().min(1, "Description is required").max(100),
+  eventSource: z.string().min(1, "Event source is required"),
+  status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
+  sampling: z.coerce.number().min(0).max(100).default(100),
+  delay: z.coerce.number().min(0).default(0),
+  filter: z.array(z.any()).optional(),
+});
+
+const formSchema = z.discriminatedUnion("actionType", [
+  baseFormSchema.extend({
+    actionType: z.literal("WEBHOOK"),
+    webhook: webhookSchema,
+  }),
+  baseFormSchema.extend({
+    actionType: z.literal("ANNOTATION_QUEUE"),
+    annotationQueue: annotationQueueSchema,
+  }),
+]);
 
 type FormValues = z.infer<typeof formSchema>;
-
-// Define a type for header pairs
-type HeaderPair = {
-  name: string;
-  value: string;
-};
 
 interface AutomationFormProps {
   projectId: string;
@@ -156,11 +136,25 @@ export const AutomationForm = ({
     scope: "automations:CUD",
   });
 
+  const utils = api.useUtils();
+
   // Set up mutations
-  const createAutomationMutation =
-    api.automations.createAutomation.useMutation();
-  const updateAutomationMutation =
-    api.automations.updateAutomation.useMutation();
+  const createAutomationMutation = api.automations.createAutomation.useMutation(
+    {
+      onSuccess: async () => {
+        // Invalidate automations queries
+        await utils.automations.invalidate();
+      },
+    },
+  );
+  const updateAutomationMutation = api.automations.updateAutomation.useMutation(
+    {
+      onSuccess: async () => {
+        // Invalidate automations queries
+        await utils.automations.invalidate();
+      },
+    },
+  );
 
   // Get the action type for the form when editing
   const getActionType = () => {
@@ -170,32 +164,10 @@ export const AutomationForm = ({
     return "WEBHOOK";
   };
 
-  // Parse existing headers if available
-  const parseHeaders = (): HeaderPair[] => {
-    if (
-      isEditing &&
-      automation?.action?.config &&
-      "headers" in automation.action.config &&
-      automation.action.config.headers
-    ) {
-      try {
-        const headersObject = automation.action.config.headers;
-        return Object.entries(headersObject).map(([name, value]) => ({
-          name,
-          value: value as string,
-        }));
-      } catch (e) {
-        console.error("Failed to parse headers:", e);
-        return [];
-      }
-    }
-    return [];
-  };
-
-  // Initialize form with default values or values from existing automation
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
+  // Get default values based on action type
+  const getDefaultValues = (): Partial<FormValues> => {
+    const actionType = getActionType();
+    const baseValues = {
       description: isEditing ? automation?.trigger?.description || "" : "",
       eventSource: isEditing
         ? automation?.trigger?.eventSource
@@ -206,23 +178,37 @@ export const AutomationForm = ({
         : 100,
       delay: isEditing ? automation?.trigger?.delay : 0,
       filter: isEditing ? automation?.trigger?.filter : [],
-      actionType: getActionType(),
-      webhook: {
-        url:
-          (isEditing &&
-            automation?.action?.type === "WEBHOOK" &&
-            automation?.action?.config?.url) ||
-          "",
-        headers: parseHeaders(),
-      },
-      annotationQueue: {
-        queueId:
-          (isEditing &&
-            automation?.action?.type === "ANNOTATION_QUEUE" &&
-            automation?.action?.config?.queueId) ||
-          "",
-      },
-    },
+      actionType,
+    };
+
+    if (actionType === "WEBHOOK") {
+      return {
+        ...baseValues,
+        webhook:
+          isEditing && automation?.action?.config
+            ? {
+                url: (automation.action.config as any)?.url || "",
+                headers: (automation.action.config as any)?.headers || [],
+              }
+            : { url: "", headers: [] },
+      };
+    } else {
+      return {
+        ...baseValues,
+        annotationQueue:
+          isEditing && automation?.action?.config
+            ? {
+                queueId: (automation.action.config as any)?.queueId || "",
+              }
+            : { queueId: "" },
+      };
+    }
+  };
+
+  // Initialize form with default values or values from existing automation
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: getDefaultValues(),
   });
 
   // Set the active tab based on the action type
@@ -242,77 +228,22 @@ export const AutomationForm = ({
       return;
     }
 
-    // Additional validation for required fields based on action type
-    let validationError = false;
-
-    if (data.actionType === "WEBHOOK") {
-      if (!data.webhook?.url) {
-        validationError = true;
-      }
-    } else if (data.actionType === "ANNOTATION_QUEUE") {
-      if (!data.annotationQueue?.queueId) {
-        validationError = true;
-      }
-    }
-
-    if (validationError) {
-      showSuccessToast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-      });
-      return;
-    }
-
     try {
-      // Convert headers array to object and perform validation
-      let headersObject: Record<string, string> = {};
+      // Use action handler to validate and build config
+      const handler = ActionHandlerRegistry.getHandler(data.actionType);
+      const validation = handler.validateFormData(data);
 
-      if (data.actionType === "WEBHOOK" && data.webhook?.headers) {
-        let hasEmptyField = false;
-        data.webhook.headers.forEach(
-          (header: { name: string; value: string }, index: number) => {
-            // Only validate non-empty headers
-            if (header.name.trim() || header.value.trim()) {
-              // If one field is filled but not the other, show an error
-              if (!header.name.trim()) {
-                form.setError(`webhook.headers.${index}.name`, {
-                  type: "manual",
-                  message: "Name cannot be empty",
-                });
-                hasEmptyField = true;
-              }
-              if (!header.value.trim()) {
-                form.setError(`webhook.headers.${index}.value`, {
-                  type: "manual",
-                  message: "Value cannot be empty",
-                });
-                hasEmptyField = true;
-              }
-            }
-          },
-        );
-
-        if (hasEmptyField) {
-          return;
-        }
-
-        // Use the helper function to format headers
-        headersObject = formatWebhookHeaders(data.webhook.headers);
+      if (!validation.isValid) {
+        showSuccessToast({
+          title: "Validation Error",
+          description:
+            validation.errors?.join(", ") ||
+            "Please fill in all required fields",
+        });
+        return;
       }
 
-      // Format the data for the API
-      const actionConfig =
-        data.actionType === "WEBHOOK"
-          ? {
-              version: "1.0",
-              url: data.webhook?.url,
-              method: "POST", // Always POST
-              headers: headersObject,
-            }
-          : {
-              version: "1.0",
-              queueId: data.annotationQueue?.queueId,
-            };
+      const actionConfig = handler.buildActionConfig(data);
 
       if (isEditing && automation) {
         // Update existing automation
@@ -369,6 +300,17 @@ export const AutomationForm = ({
   const handleActionTypeChange = (value: string) => {
     setActiveTab(value.toLowerCase());
     form.setValue("actionType", value as "WEBHOOK" | "ANNOTATION_QUEUE");
+
+    // Clear the fields for the action type we're switching away from and set defaults for the new type
+    if (value === "WEBHOOK") {
+      // Clear annotation queue fields and set webhook defaults
+      form.unregister("annotationQueue");
+      form.setValue("webhook", { url: "", headers: [] });
+    } else if (value === "ANNOTATION_QUEUE") {
+      // Clear webhook fields and set annotation queue defaults
+      form.unregister("webhook");
+      form.setValue("annotationQueue", { queueId: "" });
+    }
   };
 
   // Handle cancel button click
@@ -379,6 +321,19 @@ export const AutomationForm = ({
       router.push(`/project/${projectId}/automations/list`);
     }
   };
+
+  // Get current action handler for rendering
+  const getCurrentActionHandler = () => {
+    try {
+      const actionType = form.watch("actionType");
+      return ActionHandlerRegistry.getHandler(actionType);
+    } catch (error) {
+      console.error("Failed to get action handler:", error);
+      return null;
+    }
+  };
+
+  const currentActionHandler = getCurrentActionHandler();
 
   return (
     <Form {...form}>
@@ -578,10 +533,15 @@ export const AutomationForm = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="WEBHOOK">Webhook</SelectItem>
-                      <SelectItem value="ANNOTATION_QUEUE">
-                        Annotation Queue
-                      </SelectItem>
+                      {ActionHandlerRegistry.getAllActionTypes().map(
+                        (actionType) => (
+                          <SelectItem key={actionType} value={actionType}>
+                            {actionType === "WEBHOOK"
+                              ? "Webhook"
+                              : "Annotation Queue"}
+                          </SelectItem>
+                        ),
+                      )}
                     </SelectContent>
                   </Select>
                   <FormDescription>
@@ -594,17 +554,12 @@ export const AutomationForm = ({
 
             <Separator className="my-4" />
 
-            {activeTab === "webhook" && (
-              <WebhookActionForm form={form} disabled={!hasAccess} />
-            )}
-
-            {activeTab === "annotation_queue" && (
-              <AnnotationQueueActionForm
-                form={form}
-                disabled={!hasAccess}
-                projectId={projectId}
-              />
-            )}
+            {currentActionHandler &&
+              currentActionHandler.renderForm({
+                form,
+                disabled: !hasAccess,
+                projectId,
+              })}
           </CardContent>
         </Card>
 

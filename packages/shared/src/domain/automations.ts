@@ -13,11 +13,13 @@ export type TriggerDomain = Omit<Trigger, "filter" | "eventSource"> & {
 };
 
 export const WebhookActionConfigSchema = z.object({
+  type: z.literal("webhook"),
   url: z.string().url(),
   headers: z.record(z.string(), z.string()),
 });
 
 export const AnnotationQueueActionConfigSchema = z.object({
+  type: z.literal("annotation-queue"),
   queueId: z.string(),
 });
 

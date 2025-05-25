@@ -15,6 +15,7 @@ import {
   FileJson,
   Search,
   Home,
+  Zap,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -147,6 +148,12 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
     productModule: "datasets",
+  },
+  {
+    title: "Automations",
+    pathname: `/project/[projectId]/automations`,
+    icon: Zap,
+    projectRbacScopes: ["automations:read"],
   },
   {
     title: "Upgrade",

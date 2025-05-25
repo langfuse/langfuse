@@ -1,8 +1,4 @@
-import {
-  ColumnDefinition,
-  UiColumnMappings,
-  type FilterState,
-} from "@langfuse/shared";
+import { UiColumnMappings, type FilterState } from "@langfuse/shared";
 import { logger } from "../../../../packages/shared/dist/src/server/logger";
 
 export function executeMemoryFilters({

@@ -53,7 +53,7 @@ import {
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlxRetryService } from "./services/dlx/dlxRetryService";
-import { executeWebhook } from "./features/automations/webhooks";
+import { webhookProcessor } from "./features/automations/webhooks";
 
 const app = express();
 
@@ -329,22 +329,9 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
 }
 
 if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.WebhookQueue,
-    async (job) => {
-      const { input } = job.data;
-      try {
-        await executeWebhook(input);
-        return { success: true };
-      } catch (error) {
-        logger.error("Error executing webhook", { error, input });
-        throw error;
-      }
-    },
-    {
-      concurrency: 5,
-    },
-  );
+  WorkerManager.register(QueueName.WebhookQueue, webhookProcessor, {
+    concurrency: 5,
+  });
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

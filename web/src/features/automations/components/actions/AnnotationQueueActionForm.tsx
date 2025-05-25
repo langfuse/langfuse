@@ -18,7 +18,7 @@ import { z } from "zod";
 import { api } from "@/src/utils/api";
 
 export const annotationQueueSchema = z.object({
-  queueId: z.string(),
+  queueId: z.string().min(1, "Annotation Queue is required"),
 });
 
 export type AnnotationQueueFormValues = z.infer<typeof annotationQueueSchema>;
@@ -52,7 +52,7 @@ export const AnnotationQueueActionForm: React.FC<
             </FormLabel>
             <Select
               onValueChange={field.onChange}
-              value={field.value || ""}
+              value={field.value || undefined}
               disabled={disabled || isLoading}
             >
               <FormControl>
@@ -62,7 +62,7 @@ export const AnnotationQueueActionForm: React.FC<
               </FormControl>
               <SelectContent>
                 {isLoading ? (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="__loading__" disabled>
                     Loading queues...
                   </SelectItem>
                 ) : annotationQueues && annotationQueues.length > 0 ? (
@@ -72,7 +72,7 @@ export const AnnotationQueueActionForm: React.FC<
                     </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="__no_queues__" disabled>
                     No annotation queues available
                   </SelectItem>
                 )}

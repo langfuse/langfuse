@@ -151,6 +151,8 @@ export const WebhookInputSchema = z
     z.object({
       projectId: z.string(),
       actionId: z.string(),
+      triggerId: z.string(),
+      executionId: z.string(),
     }),
   );
 

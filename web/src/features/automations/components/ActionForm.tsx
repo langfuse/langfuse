@@ -23,8 +23,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { type UseFormReturn } from "react-hook-form";
-import { WebhookActionForm } from "./WebhookActionForm";
-import { AnnotationQueueActionForm } from "./AnnotationQueueActionForm";
+import { WebhookActionForm } from "./actions/WebhookActionForm";
+import { AnnotationQueueActionForm } from "./actions/AnnotationQueueActionForm";
 
 interface ActionFormProps {
   form: UseFormReturn<any>;

@@ -20,11 +20,13 @@ import { type ActiveAutomation } from "@langfuse/shared/src/server";
 interface AutomationsListProps {
   projectId: string;
   onEditAutomation?: (automation: ActiveAutomation) => void;
+  onAutomationClick?: (automation: ActiveAutomation) => void;
 }
 
 export const AutomationsList = ({
   projectId,
   onEditAutomation,
+  onAutomationClick,
 }: AutomationsListProps) => {
   const { data: automations, isLoading } =
     api.automations.getAutomations.useQuery({
@@ -51,7 +53,10 @@ export const AutomationsList = ({
           <CardHeader className="pb-2">
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle className="text-base">
+                <CardTitle
+                  className={`text-base ${onAutomationClick ? "cursor-pointer transition-colors hover:text-primary" : ""}`}
+                  onClick={() => onAutomationClick?.(automation)}
+                >
                   {automation.trigger.description || "Unnamed Automation"}
                 </CardTitle>
                 <CardDescription className="mt-1 flex items-center gap-2 text-xs">

@@ -95,15 +95,18 @@ export type ActiveAutomation = {
 
 export const getActiveAutomations = async ({
   projectId,
+  triggerId,
+  actionId,
 }: {
   projectId: string;
+  triggerId?: string;
+  actionId?: string;
 }): Promise<ActiveAutomation[]> => {
   const automations = await prisma.triggersOnActions.findMany({
     where: {
       projectId,
-      trigger: {
-        status: JobConfigState.ACTIVE,
-      },
+      ...(triggerId ? { triggerId } : {}),
+      ...(actionId ? { actionId } : {}),
     },
     include: {
       action: true,
