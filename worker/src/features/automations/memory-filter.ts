@@ -21,7 +21,7 @@ export function executeMemoryFilters({
     logger.info(
       `filter ${JSON.stringify(filter.column)} ${JSON.stringify(
         filter.operator,
-      )}`,
+      )} ${JSON.stringify(filter.value)}`,
     );
     const mapping = columnMappings.find((m) => m.uiTableId === filter.column);
 
@@ -240,9 +240,16 @@ function applyStringFilter(
   filterValue: string,
   operator: string,
 ): boolean {
+  logger.info(`actualValue ${JSON.stringify(actualValue)}`);
+  logger.info(`filterValue ${JSON.stringify(filterValue)}`);
+  logger.info(`operator ${JSON.stringify(operator)}`);
   if (typeof actualValue !== "string") {
     return true;
   }
+
+  logger.info(
+    `applyStringFilter contains ${JSON.stringify(actualValue.includes(filterValue))}`,
+  );
 
   switch (operator) {
     case "=":

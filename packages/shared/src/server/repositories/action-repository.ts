@@ -14,7 +14,7 @@ type MinimalTriggerDomain = Omit<TriggerDomain, "actionIds">;
 
 type ActionConfigWithTriggers = ActionDomain & { triggerIds: string[] };
 
-export const getActionConfigById = async ({
+export const getActionById = async ({
   projectId,
   actionId,
 }: {

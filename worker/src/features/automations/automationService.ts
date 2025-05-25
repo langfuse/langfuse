@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getActionConfigById,
+  getActionById,
   logger,
   QueueJobs,
   QueueName,
@@ -63,7 +63,10 @@ export class AutomationService<T> {
         `Checking trigger ${JSON.stringify(trigger)} for event source ${eventSource}`,
       );
       if (await checkTriggerAppliesToEvent(trigger)) {
-        // if action execution exists already, we do not create a new one
+        logger.info(
+          `Trigger ${trigger.id} applies to event ${JSON.stringify(eventSource)}`,
+        );
+
         const existingActionExecution =
           await getExistingActionExecutionForTrigger(trigger);
 
@@ -110,7 +113,7 @@ export class AutomationService<T> {
   private async executeAction(trigger: TriggerDomain) {
     const { createEventId, convertEventToActionInput } = this.delegates;
 
-    const actionConfig = await getActionConfigById({
+    const actionConfig = await getActionById({
       projectId: this.projectId,
       actionId: trigger.actionIds[0],
     });
@@ -118,6 +121,10 @@ export class AutomationService<T> {
     if (!actionConfig) {
       throw new Error(`Action ${trigger.actionIds[0]} not found`);
     }
+
+    logger.debug(
+      `Action config ${JSON.stringify(actionConfig)} for trigger ${trigger.id}`,
+    );
 
     const executionId = v4();
     const actionInput = await convertEventToActionInput(

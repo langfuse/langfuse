@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getActionConfigById,
+  getActionById,
   getObservationById,
   logger,
   QueueName,
@@ -115,7 +115,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
 
     const reqBody = convertObservationToWebhookOutput(observation);
 
-    const actionConfig = await getActionConfigById({
+    const actionConfig = await getActionById({
       projectId,
       actionId,
     });
