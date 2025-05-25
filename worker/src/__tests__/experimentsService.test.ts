@@ -1,6 +1,6 @@
 import { expect, test, describe, vi, beforeEach } from "vitest";
 import { createExperimentJob } from "../ee/experiments/experimentService";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import { Prompt, kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";
 import { LLMAdapter } from "@langfuse/shared";
@@ -361,6 +361,10 @@ describe("create experiment job calls with langfuse server side tracing", async 
             }),
           }),
         }) as any,
+    );
+
+    vi.spyOn(prisma.prompt, "findUnique").mockResolvedValue(
+      mockPromptResponse as Prompt,
     );
 
     vi.spyOn(prisma.datasetItem, "findMany").mockResolvedValue([

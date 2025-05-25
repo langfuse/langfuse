@@ -9,6 +9,7 @@ import {
   DatasetRunItemUpsertQueue,
   ChatMessageType,
   ChatMessage,
+  PromptService,
 } from "@langfuse/shared/src/server";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
@@ -114,12 +115,13 @@ const fetchDatasetRun = async (datasetRunId: string, projectId: string) => {
 };
 
 const fetchPrompt = async (promptId: string, projectId: string) => {
-  return await kyselyPrisma.$kysely
-    .selectFrom("prompts")
-    .selectAll()
-    .where("id", "=", promptId)
-    .where("project_id", "=", projectId)
-    .executeTakeFirst();
+  const promptService = new PromptService(prisma, redis);
+
+  const rawPrompt = await prisma.prompt.findUnique({
+    where: { id: promptId, projectId },
+  });
+
+  return promptService.resolvePrompt(rawPrompt);
 };
 
 export const createExperimentJob = async ({

@@ -389,7 +389,7 @@ const signInErrors = [
   {
     code: "OAuthAccountNotLinked",
     description:
-      "Please sign in with the same provider that you used to create this account.",
+      "Please sign in with the same provider (e.g. Google, GitHub, Azure AD, etc.) that you used to create this account.",
   },
 ];
 

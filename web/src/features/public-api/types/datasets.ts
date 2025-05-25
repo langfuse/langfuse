@@ -198,6 +198,19 @@ export const PostDatasetRunItemsV1Body = z
   });
 export const PostDatasetRunItemsV1Response = APIDatasetRunItem.strict();
 
+// GET /dataset-run-items
+export const GetDatasetRunItemsV1Query = z.object({
+  datasetId: z.string(),
+  runName: z.string(),
+  ...publicApiPaginationZod,
+});
+export const GetDatasetRunItemsV1Response = z
+  .object({
+    data: z.array(APIDatasetRunItem),
+    meta: paginationMetaResponseZod,
+  })
+  .strict();
+
 /**
  * Deprecated endpoints replaced with v2, available for backward compatibility
  */

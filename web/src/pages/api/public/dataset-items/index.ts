@@ -22,6 +22,7 @@ export default withMiddlewares({
     name: "Create Dataset Item",
     bodySchema: PostDatasetItemsV1Body,
     responseSchema: PostDatasetItemsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ body, auth }) => {
       const {
         datasetName,
@@ -115,6 +116,7 @@ export default withMiddlewares({
     name: "Get Dataset Items",
     querySchema: GetDatasetItemsV1Query,
     responseSchema: GetDatasetItemsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { datasetName, sourceTraceId, sourceObservationId, page, limit } =
         query;

@@ -63,6 +63,7 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void;
   peekView?: PeekViewProps<TData>;
   pinFirstColumn?: boolean;
+  hidePagination?: boolean;
 }
 
 export interface AsyncTableData<T> {
@@ -119,6 +120,7 @@ export function DataTable<TData extends object, TValue>({
   onRowClick,
   peekView,
   pinFirstColumn = false,
+  hidePagination = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -384,7 +386,7 @@ export function DataTable<TData extends object, TValue>({
         <div className="grow"></div>
       </div>
       {inflatedPeekView && <TablePeekView {...inflatedPeekView} />}
-      {pagination !== undefined ? (
+      {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(
             "sticky bottom-0 z-10 flex w-full justify-end border-t bg-background py-2 pr-2 font-medium",

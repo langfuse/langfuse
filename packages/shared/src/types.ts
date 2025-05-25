@@ -34,4 +34,5 @@ export type TableName =
   | "prompts"
   | "dashboard"
   | "widgets"
-  | "users";
+  | "users"
+  | "eval_configs";

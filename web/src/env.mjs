@@ -158,24 +158,6 @@ export const env = createEnv({
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
 
-    // S3 Batch Export
-    LANGFUSE_S3_BATCH_EXPORT_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
-    LANGFUSE_S3_BATCH_EXPORT_REGION: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: z.string().optional(),
-    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
-      .enum(["true", "false"])
-      .default("false"),
-
-    // Database exports
-    DB_EXPORT_PAGE_SIZE: z.number().optional(),
-
     TURNSTILE_SECRET_KEY: z.string().optional(),
 
     // Otel
@@ -253,6 +235,8 @@ export const env = createEnv({
       .number()
       .nonnegative()
       .default(3600),
+    LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
+    LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
 
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
@@ -279,7 +263,7 @@ export const env = createEnv({
     LANGFUSE_INIT_ORG_CLOUD_PLAN: z.string().optional(), // for use in CI
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
     LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(7).optional(),
+    LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(3).optional(),
     LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
     LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
     LANGFUSE_INIT_USER_EMAIL: z
@@ -292,6 +276,13 @@ export const env = createEnv({
       .positive()
       .default(50_000),
     PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
+    PLAIN_API_KEY: z.string().optional(),
+    PLAIN_CARDS_API_TOKEN: z.string().optional(),
+
+    // UI customization - comma-separated list of visible product modules
+    LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: z.string().optional(),
+    // UI customization - comma-separated list of hidden product modules
+    LANGFUSE_UI_HIDDEN_PRODUCT_MODULES: z.string().optional(),
   },
 
   /**
@@ -456,26 +447,6 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
 
-    // S3 Batch Export
-    LANGFUSE_S3_BATCH_EXPORT_ENABLED:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_ENABLED,
-    LANGFUSE_S3_BATCH_EXPORT_BUCKET:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_BUCKET,
-    LANGFUSE_S3_BATCH_EXPORT_PREFIX:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_PREFIX,
-    LANGFUSE_S3_BATCH_EXPORT_REGION:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_REGION,
-    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
-    LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT,
-    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
-    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
-    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE:
-      process.env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE,
-
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
       process.env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH,
@@ -495,8 +466,9 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE,
     LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS:
       process.env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS,
-    // Database exports
-    DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
+    LANGFUSE_S3_MEDIA_UPLOAD_SSE: process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
+    LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
     // Worker
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
@@ -505,6 +477,8 @@ export const env = createEnv({
     // Other
     NEXT_PUBLIC_PLAIN_APP_ID: process.env.NEXT_PUBLIC_PLAIN_APP_ID,
     PLAIN_AUTHENTICATION_SECRET: process.env.PLAIN_AUTHENTICATION_SECRET,
+    PLAIN_API_KEY: process.env.PLAIN_API_KEY,
+    PLAIN_CARDS_API_TOKEN: process.env.PLAIN_CARDS_API_TOKEN,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_CLUSTER_NAME: process.env.CLICKHOUSE_CLUSTER_NAME,
@@ -529,6 +503,10 @@ export const env = createEnv({
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
+    LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
+      process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
+    LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:
+      process.env.LANGFUSE_UI_HIDDEN_PRODUCT_MODULES,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,

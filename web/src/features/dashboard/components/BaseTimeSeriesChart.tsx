@@ -7,6 +7,7 @@ import {
   dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
+import { useMemo } from "react";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
@@ -77,6 +78,27 @@ export function BaseTimeSeriesChart(props: {
   );
   const colors = getColorsForCategories(Array.from(labels));
 
+  // Calculate dynamic maxValue based on the maximum value in the data plus 10%
+  const dynamicMaxValue = useMemo(() => {
+    if (props.data.length === 0) return undefined;
+
+    const maxValue = Math.max(
+      ...props.data.flatMap((point) => point.values.map((v) => v.value ?? 0)),
+    );
+
+    if (maxValue <= 0) return undefined;
+
+    // Add 10% buffer
+    const bufferedValue = maxValue * 1.1;
+
+    // Get order of magnitude and rounding goal
+    const magnitude = Math.floor(Math.log10(bufferedValue));
+    const roundTo = Math.max(1, Math.pow(10, magnitude) / 5);
+
+    // Round up to the next multiple of roundTo
+    return Math.ceil(bufferedValue / roundTo) * roundTo;
+  }, [props.data]);
+
   return (
     <ChartComponent
       className={cn("mt-4", props.className)}
@@ -92,6 +114,7 @@ export function BaseTimeSeriesChart(props: {
       onValueChange={() => {}}
       enableLegendSlider={true}
       customTooltip={TooltipComponent}
+      maxValue={dynamicMaxValue}
     />
   );
 }

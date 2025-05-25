@@ -1,49 +1,24 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
-import type { APIScoreV2, TraceDomain } from "@langfuse/shared";
-import type { ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
 import {
   type GraphCanvasData,
-  LANGGRAPH_STEP_TAG,
-  LANGGRAPH_NODE_TAG,
   LANGGRAPH_END_NODE_NAME,
-  LanggraphMetadataSchema,
+  type AgentGraphDataResponse,
 } from "../types";
 
 type TraceGraphViewProps = {
-  observations: ObservationReturnTypeWithMetadata[];
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
-    input: string | null;
-    output: string | null;
-    metadata: string | null;
-  };
-  scores: APIScoreV2[];
-  projectId: string;
+  agentGraphData: AgentGraphDataResponse[];
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
-  const { observations: rawObservations } = props;
-  const observations = rawObservations.map((o) => {
-    let parsedMetadata = o.metadata;
-
-    try {
-      parsedMetadata =
-        o.metadata && typeof o.metadata === "string"
-          ? JSON.parse(o.metadata)
-          : o.metadata;
-    } catch {
-      return o;
-    }
-
-    return { ...o, metadata: parsedMetadata };
-  });
+  const { agentGraphData } = props;
 
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const { graph, nodeToParentObservationMap } = useMemo(
-    () => parseGraph({ observations }),
-    [observations],
+    () => parseGraph({ agentGraphData }),
+    [agentGraphData],
   );
 
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -52,17 +27,12 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
   );
 
   useEffect(() => {
-    const currentObservation = observations.find(
+    const nodeName = agentGraphData.find(
       (o) => o.id === currentObservationId,
-    );
-    const nodeName =
-      currentObservation &&
-      LanggraphMetadataSchema.safeParse(currentObservation.metadata).data?.[
-        LANGGRAPH_NODE_TAG
-      ];
+    )?.node;
 
     setSelectedNodeName(nodeName ?? null);
-  }, [currentObservationId, observations]);
+  }, [currentObservationId, agentGraphData]);
 
   const onCanvasNodeNameChange = useCallback(
     (nodeName: string | null) => {
@@ -89,44 +59,35 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
   );
 };
 
-function parseGraph(params: {
-  observations: TraceGraphViewProps["observations"];
-}): {
+function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
   graph: GraphCanvasData;
   nodeToParentObservationMap: Record<string, string>;
 } {
-  const { observations } = params;
+  const { agentGraphData } = params;
 
   const stepToNodeMap = new Map<number, string>();
   const nodeToParentObservationMap = new Map<string, string>();
 
-  observations?.forEach((o) => {
-    const parsedMetadata = LanggraphMetadataSchema.safeParse(o.metadata);
-
-    if (!parsedMetadata.success) return;
-
-    const { [LANGGRAPH_NODE_TAG]: node, [LANGGRAPH_STEP_TAG]: step } =
-      parsedMetadata.data;
+  agentGraphData.forEach((o) => {
+    const { node, step } = o;
 
     stepToNodeMap.set(step, node);
 
-    // Check if parent is in the same node. If not, observation must be top-most observation of the node
     if (o.parentObservationId) {
-      const parent = observations.find(
+      const parent = agentGraphData.find(
         (obs) => obs.id === o.parentObservationId,
       );
-      const parsedParentMetadata = LanggraphMetadataSchema.safeParse(
-        parent?.metadata,
-      );
 
-      if (parent && !parsedParentMetadata.success) {
-        nodeToParentObservationMap.set(LANGGRAPH_END_NODE_NAME, parent.id);
+      // initialize the end node to point to the top-most langgraph span
+      if (!parent) {
+        nodeToParentObservationMap.set(
+          LANGGRAPH_END_NODE_NAME,
+          o.parentObservationId,
+        );
       }
 
-      if (
-        !parsedParentMetadata.success ||
-        parsedParentMetadata.data[LANGGRAPH_NODE_TAG] !== node
-      ) {
+      // Only register id if it is top-most to allow navigation on node click in graph
+      if (o.node !== parent?.node) {
         nodeToParentObservationMap.set(node, o.id);
       }
     } else {

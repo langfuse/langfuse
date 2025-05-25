@@ -35,6 +35,7 @@ interface SelectWidgetDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   onSelectWidget: (widget: WidgetItem) => void;
+  dashboardId: string;
 }
 
 export function SelectWidgetDialog({
@@ -42,6 +43,7 @@ export function SelectWidgetDialog({
   onOpenChange,
   projectId,
   onSelectWidget,
+  dashboardId,
 }: SelectWidgetDialogProps) {
   const router = useRouter();
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function SelectWidgetDialog({
   );
 
   const handleNavigateToNewWidget = () => {
-    router.push(`/project/${projectId}/widgets/new`);
+    router.push(`/project/${projectId}/widgets/new?dashboardId=${dashboardId}`);
   };
 
   const handleAddWidget = () => {
@@ -114,7 +116,7 @@ export function SelectWidgetDialog({
                     }`}
                   >
                     <TableCell className="font-medium">{widget.name}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">
+                    <TableCell className="truncate" title={widget.description}>
                       {widget.description}
                     </TableCell>
                     <TableCell>
@@ -133,6 +135,8 @@ export function SelectWidgetDialog({
                             return "Vertical Bar Chart (Total Value)";
                           case "PIE":
                             return "Pie Chart (Total Value)";
+                          case "NUMBER":
+                            return "Big Number (Total Value)";
                           default:
                             return widget.chartType;
                         }

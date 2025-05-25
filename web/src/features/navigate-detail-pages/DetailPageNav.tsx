@@ -72,6 +72,7 @@ export const DetailPageNav = (props: {
           <TooltipTrigger asChild>
             <Button
               variant="outline"
+              type="button"
               className="p-2"
               disabled={!previousPageEntry}
               onClick={() => {
@@ -104,6 +105,7 @@ export const DetailPageNav = (props: {
           <TooltipTrigger asChild>
             <Button
               variant="outline"
+              type="button"
               className="p-2"
               disabled={!nextPageEntry}
               onClick={() => {

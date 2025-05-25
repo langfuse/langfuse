@@ -1,36 +1,127 @@
 import Page from "@/src/components/layouts/page";
-import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
-import { api } from "@/src/utils/api";
-
+import { BreadcrumbSeparator } from "@/src/components/ui/breadcrumb";
+import { BreadcrumbPage } from "@/src/components/ui/breadcrumb";
+import { BreadcrumbItem } from "@/src/components/ui/breadcrumb";
+import { Check } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+import { BreadcrumbList } from "@/src/components/ui/breadcrumb";
+import { Breadcrumb } from "@/src/components/ui/breadcrumb";
 import { useRouter } from "next/router";
+import { SelectEvaluatorList } from "@/src/ee/features/evals/components/select-evaluator-list";
+import { RunEvaluatorForm } from "@/src/ee/features/evals/components/run-evaluator-form";
+import { api } from "@/src/utils/api";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
+import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
 
+// Multi-step setup process
+// 1. Select Evaluator: /project/:projectId/evals/new
+// 2. Configure Evaluator: /project/:projectId/evals/new?evaluator=:evaluatorId
 export default function NewEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const evaluatorId = router.query.evaluator as string | undefined;
+  // starts at 1 to align with breadcrumb
+  const stepInt = !evaluatorId ? 1 : 2;
 
-  const evalTemplates = api.evals.allTemplates.useQuery({
+  const hasAccess = useHasProjectAccess({
     projectId,
-    limit: 500,
-    page: 0,
+    scope: "evalTemplate:CUD",
   });
+  const hasEntityAccess = useHasEntitlement("model-based-evaluations");
+
+  const evalTemplates = api.evals.allTemplates.useQuery(
+    {
+      projectId,
+      limit: 500,
+      page: 0,
+    },
+    {
+      enabled: hasAccess && hasEntityAccess,
+    },
+  );
+
+  const currentTemplate = evalTemplates.data?.templates.find(
+    (t) => t.id === evaluatorId,
+  );
+
+  if (!hasAccess || !hasEntityAccess) {
+    return <div>You do not have access to this page.</div>;
+  }
 
   return (
     <Page
       withPadding
-      scrollable
       headerProps={{
-        title: "Create evaluator",
-        help: {
-          description:
-            "Select a template defining the evaluation prompt and a model as judge to evaluate incoming traces.",
-          href: "https://langfuse.com/docs/scores/model-based-evals",
-        },
+        title: "Set up evaluator",
+        breadcrumb: [
+          {
+            name: "Running Evaluators",
+            href: `/project/${projectId}/evals`,
+          },
+        ],
       }}
     >
-      <EvaluatorForm
-        projectId={projectId}
-        evalTemplates={evalTemplates.data?.templates ?? []}
-      />
+      <Breadcrumb className="mb-3">
+        <BreadcrumbList>
+          <BreadcrumbItem
+            className="hover:cursor-pointer"
+            onClick={() => router.push(`/project/${projectId}/evals/new`)}
+          >
+            <BreadcrumbPage
+              className={cn(
+                stepInt !== 1
+                  ? "text-muted-foreground"
+                  : "font-semibold text-foreground",
+              )}
+            >
+              1. Select Evaluator
+              {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage
+              className={cn(
+                stepInt !== 2
+                  ? "text-muted-foreground"
+                  : "font-semibold text-foreground",
+              )}
+            >
+              <div className="flex flex-row">
+                2. Run Evaluator
+                {currentTemplate && (
+                  <div className="flex flex-row gap-2">
+                    <span>
+                      {currentTemplate.name ? `: ${currentTemplate.name}` : ""}
+                    </span>
+                    <MaintainerTooltip
+                      maintainer={getMaintainer(currentTemplate)}
+                    />
+                  </div>
+                )}
+              </div>
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      {
+        // 1. Create Org
+        stepInt === 1 && projectId && (
+          <SelectEvaluatorList projectId={projectId} />
+        )
+      }
+      {
+        // 2. Run Evaluator
+        stepInt === 2 && evaluatorId && projectId && (
+          <RunEvaluatorForm
+            projectId={projectId}
+            evaluatorId={evaluatorId}
+            evalTemplates={evalTemplates.data?.templates ?? []}
+          />
+        )
+      }
     </Page>
   );
 }

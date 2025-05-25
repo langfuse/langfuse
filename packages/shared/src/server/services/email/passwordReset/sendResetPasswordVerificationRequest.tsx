@@ -5,7 +5,6 @@
 import * as React from "react";
 import {
   Body,
-  Button,
   Container,
   Head,
   Heading,
@@ -21,11 +20,11 @@ import { render } from "@react-email/render";
 import { type SendVerificationRequestParams } from "next-auth/providers/email";
 
 interface ResetPasswordTemplateProps {
-  url: string;
+  token: string;
 }
 
-const ResetPasswordTemplate = ({ url }: ResetPasswordTemplateProps) => {
-  const previewText = "Reset your Langfuse password";
+const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
+  const previewText = "Your Langfuse reset code";
   return (
     <Html>
       <Head />
@@ -48,17 +47,14 @@ const ResetPasswordTemplate = ({ url }: ResetPasswordTemplateProps) => {
               It happens to the best of us.
             </Heading>
             <Section className="mb-8 mt-8 text-center">
-              <Button
-                className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
-                href={url}
-              >
-                Reset your password
-              </Button>
+              <Text className="text-center text-sm font-semibold">
+                Your one time passcode:
+              </Text>
+              <Heading className="text-3xl mt-2">{token}</Heading>
             </Section>
             <Text className="text-center text-xs leading-6 text-[#666666]">
-              The link is valid for 10 minutes. If you do not want to change
-              your password or didn&apos;t request a reset, you can ignore and
-              delete this email.
+              This code is valid for 3 minutes. If you did not request a reset,
+              you can ignore this email.
             </Text>
           </Container>
         </Body>
@@ -68,16 +64,16 @@ const ResetPasswordTemplate = ({ url }: ResetPasswordTemplateProps) => {
 };
 
 export async function sendResetPasswordVerificationRequest(
-  params: SendVerificationRequestParams
+  params: SendVerificationRequestParams,
 ) {
-  const { identifier, url, provider } = params;
+  const { identifier, token, provider } = params as SendVerificationRequestParams & { token: string };
   const transport = createTransport(provider.server);
-  const htmlTemplate = render(<ResetPasswordTemplate url={url} />);
+  const htmlTemplate = render(<ResetPasswordTemplate token={token} />);
   const result = await transport.sendMail({
     to: identifier,
     from: provider.from,
-    subject: `Forgot your password?`,
-    text: `To reset your Langfuse password, please confirm your email:\n${url}\n\nThe link is valid for 10 minutes. If you do not want to change your password or didn't request a reset, you can ignore and delete this email.`,
+    subject: `Your Langfuse password reset code`,
+    text: `Use the following code to reset your Langfuse password: ${token}\n\nThis code will expire in 3 minutes. If you did not request a reset, you can ignore this email.`,
     html: htmlTemplate,
   });
   const failed = result.rejected.concat(result.pending).filter(Boolean);

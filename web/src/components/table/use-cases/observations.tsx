@@ -44,7 +44,7 @@ import {
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
 import { type Row } from "@tanstack/react-table";
-import TableId from "@/src/components/table/table-id";
+import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
@@ -336,6 +336,14 @@ export default function ObservationsTable({
       header: "Name",
       size: 150,
       enableSorting: true,
+      cell: ({ row }) => {
+        const value: ObservationsTableRow["name"] = row.getValue("name");
+        return value ? (
+          <span className="truncate" title={value}>
+            {value}
+          </span>
+        ) : undefined;
+      },
     },
     {
       accessorKey: "input",
@@ -513,7 +521,7 @@ export default function ObservationsTable({
         if (!model) return null;
 
         return modelId ? (
-          <TableId value={model} />
+          <TableIdOrName value={model} />
         ) : (
           <UpsertModelFormDrawer
             action="create"
@@ -558,7 +566,7 @@ export default function ObservationsTable({
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
         const value = `${promptName} (v${promptVersion})`;
-        return promptName && promptVersion && <TableId value={value} />;
+        return promptName && promptVersion && <TableIdOrName value={value} />;
       },
     },
     {
@@ -653,7 +661,7 @@ export default function ObservationsTable({
         const traceId = row.getValue("traceId");
         return typeof observationId === "string" &&
           typeof traceId === "string" ? (
-          <TableId value={observationId} />
+          <TableIdOrName value={observationId} />
         ) : null;
       },
     },
@@ -674,7 +682,7 @@ export default function ObservationsTable({
       cell: ({ row }) => {
         const value = row.getValue("traceId");
         return typeof value === "string" ? (
-          <TableId value={value} />
+          <TableIdOrName value={value} />
         ) : undefined;
       },
       enableSorting: true,
@@ -966,7 +974,7 @@ export default function ObservationsTable({
       <DataTable
         columns={columns}
         peekView={{
-          itemType: "TRACE",
+          itemType: "RUNNING_EVALUATOR",
           customTitlePrefix: "Observation ID:",
           listKey: "observations",
           urlPathname,

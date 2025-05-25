@@ -38,6 +38,8 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
+  CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -63,6 +65,8 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
@@ -72,6 +76,8 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_USE_GOOGLE_CLOUD_STORAGE: z.enum(["true", "false"]).default("false"),
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
@@ -80,6 +86,8 @@ const EnvSchema = z.object({
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_CORE_DATA_EXPORT_SSE: z.enum(["AES256", "aws:kms"]).optional(),
+  LANGFUSE_S3_CORE_DATA_EXPORT_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -90,6 +98,7 @@ const EnvSchema = z.object({
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .default(80e6), // 80MB
+  LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(240_000), // 4 minutes
 });
 
 export const env: z.infer<typeof EnvSchema> =

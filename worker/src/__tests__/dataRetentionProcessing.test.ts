@@ -181,7 +181,7 @@ describe("DataRetentionProcessingJob", () => {
     expect(files.map((file) => file.file)).toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { projectId, id: mediaId } },
     });
     expect(media).toBeDefined();
 
@@ -239,7 +239,7 @@ describe("DataRetentionProcessingJob", () => {
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { projectId, id: mediaId } },
     });
     expect(media).toBeNull();
 

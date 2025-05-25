@@ -49,11 +49,25 @@ const UpdateDashboardDefinitionInput = z.object({
   definition: DashboardDefinitionSchema,
 });
 
+// Update dashboard input schema
+const UpdateDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+  name: z.string().min(1, "Dashboard name is required"),
+  description: z.string(),
+});
+
 // Create dashboard input schema
 const CreateDashboardInput = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Dashboard name is required"),
   description: z.string(),
+});
+
+// Clone dashboard input schema
+const CloneDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
 });
 
 export const dashboardRouter = createTRPCRouter({
@@ -220,6 +234,60 @@ export const dashboardRouter = createTRPCRouter({
       );
 
       return dashboard;
+    }),
+
+  updateDashboardMetadata: protectedProjectProcedure
+    .input(UpdateDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.updateDashboard(
+        input.dashboardId,
+        input.projectId,
+        input.name,
+        input.description,
+        ctx.session.user.id,
+      );
+
+      return dashboard;
+    }),
+
+  cloneDashboard: protectedProjectProcedure
+    .input(CloneDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      // Get the source dashboard
+      const sourceDashboard = await DashboardService.getDashboard(
+        input.dashboardId,
+        input.projectId,
+      );
+
+      if (!sourceDashboard) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Source dashboard not found",
+        });
+      }
+
+      // Create a new dashboard with the same data but modified name
+      const clonedDashboard = await DashboardService.createDashboard(
+        input.projectId,
+        `${sourceDashboard.name} (Clone)`,
+        sourceDashboard.description,
+        ctx.session.user.id,
+        sourceDashboard.definition,
+      );
+
+      return clonedDashboard;
     }),
 
   // Delete dashboard input schema

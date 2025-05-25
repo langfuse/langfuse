@@ -18,6 +18,7 @@ import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvide
 import { useProjectSettingsPages } from "@/src/pages/project/[projectId]/settings";
 import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { api } from "@/src/utils/api";
 
 export function CommandMenu({
   mainNavigation,
@@ -80,6 +81,32 @@ export function CommandMenu({
         Boolean(item.url) && // no empty urls
         !item.url.includes("["), // no dynamic routes without inserted values
     );
+
+  const dashboardsQuery = api.dashboard.allDashboards.useQuery(
+    {
+      projectId: project?.id ?? "",
+      orderBy: {
+        column: "updatedAt",
+        order: "DESC",
+      },
+      limit: 100,
+    },
+    {
+      enabled: open && Boolean(project?.id),
+    },
+  );
+
+  const dashboardItems =
+    dashboardsQuery.data?.dashboards.map((d) => ({
+      title: `Dashboard > ${d.name}`,
+      url: `/project/${project?.id}/dashboards/${d.id}`,
+      keywords: [
+        "dashboard",
+        d.name.toLowerCase(),
+        (d.description ?? "").toLowerCase(),
+      ],
+      active: router.query.dashboardId === d.id,
+    })) ?? [];
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -152,6 +179,32 @@ export function CommandMenu({
                     router.push(item.url);
                     capture("cmd_k_menu:navigated", {
                       type: "project",
+                      title: item.title,
+                      url: item.url,
+                    });
+                    setOpen(false);
+                  }}
+                >
+                  {item.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+        {dashboardItems.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Dashboards">
+              {dashboardItems.map((item) => (
+                <CommandItem
+                  key={item.url}
+                  value={item.title}
+                  keywords={item.keywords}
+                  disabled={item.active}
+                  onSelect={() => {
+                    router.push(item.url);
+                    capture("cmd_k_menu:navigated", {
+                      type: "dashboard",
                       title: item.title,
                       url: item.url,
                     });
