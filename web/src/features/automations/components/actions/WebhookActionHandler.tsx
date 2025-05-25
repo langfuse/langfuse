@@ -2,7 +2,30 @@ import React from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import { type BaseActionHandler } from "./BaseActionHandler";
-import { WebhookActionForm, formatWebhookHeaders } from "./WebhookActionForm";
+import {
+  WebhookActionForm,
+  formatWebhookHeaders,
+  type WebhookFormValues,
+} from "./WebhookActionForm";
+import { type WebhookActionConfig } from "@langfuse/shared";
+import { z } from "zod";
+
+// Define the form schema for webhook actions
+const WebhookActionFormSchema = z.object({
+  webhook: z.object({
+    url: z.string().url("Invalid URL"),
+    headers: z
+      .array(
+        z.object({
+          name: z.string(),
+          value: z.string(),
+        }),
+      )
+      .default([]),
+  }),
+});
+
+type WebhookActionFormData = z.infer<typeof WebhookActionFormSchema>;
 
 // Define a type for header pairs
 type HeaderPair = {
@@ -10,7 +33,9 @@ type HeaderPair = {
   value: string;
 };
 
-export class WebhookActionHandler implements BaseActionHandler {
+export class WebhookActionHandler
+  implements BaseActionHandler<WebhookActionFormData>
+{
   actionType = "WEBHOOK" as const;
 
   // Parse existing headers if available
@@ -35,7 +60,7 @@ export class WebhookActionHandler implements BaseActionHandler {
     return [];
   }
 
-  getDefaultValues(automation?: ActiveAutomation) {
+  getDefaultValues(automation?: ActiveAutomation): WebhookActionFormData {
     return {
       webhook: {
         url:
@@ -49,7 +74,10 @@ export class WebhookActionHandler implements BaseActionHandler {
     };
   }
 
-  validateFormData(formData: any): { isValid: boolean; errors?: string[] } {
+  validateFormData(formData: WebhookActionFormData): {
+    isValid: boolean;
+    errors?: string[];
+  } {
     const errors: string[] = [];
 
     if (!formData.webhook?.url) {
@@ -77,7 +105,7 @@ export class WebhookActionHandler implements BaseActionHandler {
     };
   }
 
-  buildActionConfig(formData: any) {
+  buildActionConfig(formData: WebhookActionFormData): WebhookActionConfig {
     // Convert headers array to object
     let headersObject: Record<string, string> = {};
 
@@ -86,15 +114,14 @@ export class WebhookActionHandler implements BaseActionHandler {
     }
 
     return {
-      version: "1.0",
-      url: formData.webhook?.url,
-      method: "POST", // Always POST
+      type: "WEBHOOK",
+      url: formData.webhook?.url || "",
       headers: headersObject,
     };
   }
 
   renderForm(props: {
-    form: UseFormReturn<any>;
+    form: UseFormReturn<WebhookActionFormData>;
     disabled: boolean;
     projectId: string;
   }) {

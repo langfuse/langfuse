@@ -31,7 +31,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { type ActionType, type JobConfigState } from "@langfuse/shared";
+import { type ActionTypes, type JobConfigState } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
@@ -182,25 +182,20 @@ export const AutomationForm = ({
     };
 
     if (actionType === "WEBHOOK") {
+      // Use action handler to get default values with proper typing
+      const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
+      const webhookDefaults = handler.getDefaultValues(automation);
       return {
         ...baseValues,
-        webhook:
-          isEditing && automation?.action?.config
-            ? {
-                url: (automation.action.config as any)?.url || "",
-                headers: (automation.action.config as any)?.headers || [],
-              }
-            : { url: "", headers: [] },
+        webhook: webhookDefaults.webhook,
       };
     } else {
+      // Use action handler to get default values with proper typing
+      const handler = ActionHandlerRegistry.getHandler("ANNOTATION_QUEUE");
+      const annotationQueueDefaults = handler.getDefaultValues(automation);
       return {
         ...baseValues,
-        annotationQueue:
-          isEditing && automation?.action?.config
-            ? {
-                queueId: (automation.action.config as any)?.queueId || "",
-              }
-            : { queueId: "" },
+        annotationQueue: annotationQueueDefaults.annotationQueue,
       };
     }
   };
@@ -257,7 +252,7 @@ export const AutomationForm = ({
           status: data.status as JobConfigState,
           sampling: data.sampling / 100, // Convert to decimal (0-1)
           delay: data.delay,
-          actionType: data.actionType as ActionType,
+          actionType: data.actionType,
           actionConfig: actionConfig,
         });
       } else {
@@ -270,7 +265,7 @@ export const AutomationForm = ({
           status: data.status as JobConfigState,
           sampling: data.sampling / 100, // Convert to decimal (0-1)
           delay: data.delay,
-          actionType: data.actionType as ActionType,
+          actionType: data.actionType,
           actionName: data.description,
           actionConfig: actionConfig,
         });

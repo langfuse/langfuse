@@ -1,4 +1,5 @@
 import {
+  ActionType,
   JobExecutionStatus,
   jsonSchema,
   MetadataDomain,
@@ -11,11 +12,13 @@ import {
   getActionConfigById,
   getObservationById,
   logger,
-  QueueJobs,
+  QueueName,
+  TQueueJobTypes,
   WEBHOOK_ATTEMPTS,
   WebhookInput,
 } from "@langfuse/shared/src/server";
-import { Processor } from "bullmq";
+import { Job, Processor } from "bullmq";
+import { backOff } from "exponential-backoff";
 import { z } from "zod";
 
 export const ObservationWebhookOutputSchema = z.object({
@@ -68,14 +71,14 @@ const convertObservationToWebhookOutput = (
   return observation;
 };
 
-export const webhookProcessor: Processor = async (job) => {
-  if (job.name === QueueJobs.WebhookJob) {
-    try {
-      return await executeWebhook(job.data);
-    } catch (error) {
-      logger.error("Error executing DataRetentionProcessingJob", error);
-      throw error;
-    }
+export const webhookProcessor: Processor = async (
+  job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
+) => {
+  try {
+    return await executeWebhook(job.data.payload, job.attemptsMade + 1);
+  } catch (error) {
+    logger.error("Error executing WebhookJob", error);
+    throw error;
   }
 };
 
@@ -91,13 +94,15 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
     executionId,
   } = input;
   try {
-    logger.debug(`Executing webhook for action ${actionId}`);
+    logger.debug(
+      `Executing webhook for action ${actionId} and execution ${executionId}`,
+    );
 
     const observation = await getObservationById({
       id: observationId,
       projectId,
       fetchWithInputOutput: true,
-      startTime,
+      startTime: new Date(startTime),
       type: observationType,
     });
 
@@ -116,15 +121,24 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
       throw new Error("Action config not found");
     }
 
-    if (actionConfig.config.type !== "webhook") {
+    if (actionConfig.config.type !== "WEBHOOK") {
       throw new Error("Action config is not a webhook");
     }
 
-    await fetch(actionConfig.config.url, {
-      method: "POST",
-      body: JSON.stringify(reqBody),
-      headers: actionConfig.config.headers,
-    });
+    // TypeScript now knows actionConfig.config is WebhookActionConfig
+    const webhookConfig = actionConfig.config;
+
+    await backOff(
+      async () =>
+        await fetch(webhookConfig.url, {
+          method: "POST",
+          body: JSON.stringify(reqBody),
+          headers: webhookConfig.headers,
+        }),
+      {
+        numOfAttempts: 4,
+      },
+    );
 
     // Update action execution status
     await prisma.actionExecution.update({
@@ -139,6 +153,8 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
         finishedAt: new Date(),
       },
     });
+
+    logger.debug(`Webhook executed successfully for action ${actionId}`);
   } catch (error) {
     logger.error("Error executing webhook", error);
     await prisma.actionExecution.update({

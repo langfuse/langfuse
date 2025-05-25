@@ -2,12 +2,32 @@ import React from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import { type BaseActionHandler } from "./BaseActionHandler";
-import { AnnotationQueueActionForm } from "./AnnotationQueueActionForm";
+import {
+  AnnotationQueueActionForm,
+  type AnnotationQueueFormValues,
+} from "./AnnotationQueueActionForm";
+import { type AnnotationQueueActionConfig } from "@langfuse/shared";
+import { z } from "zod";
 
-export class AnnotationQueueActionHandler implements BaseActionHandler {
+// Define the form schema for annotation queue actions
+const AnnotationQueueActionFormSchema = z.object({
+  annotationQueue: z.object({
+    queueId: z.string().min(1, "Annotation Queue is required"),
+  }),
+});
+
+type AnnotationQueueActionFormData = z.infer<
+  typeof AnnotationQueueActionFormSchema
+>;
+
+export class AnnotationQueueActionHandler
+  implements BaseActionHandler<AnnotationQueueActionFormData>
+{
   actionType = "ANNOTATION_QUEUE" as const;
 
-  getDefaultValues(automation?: ActiveAutomation) {
+  getDefaultValues(
+    automation?: ActiveAutomation,
+  ): AnnotationQueueActionFormData {
     return {
       annotationQueue: {
         queueId:
@@ -20,7 +40,10 @@ export class AnnotationQueueActionHandler implements BaseActionHandler {
     };
   }
 
-  validateFormData(formData: any): { isValid: boolean; errors?: string[] } {
+  validateFormData(formData: AnnotationQueueActionFormData): {
+    isValid: boolean;
+    errors?: string[];
+  } {
     const errors: string[] = [];
 
     const queueId = formData.annotationQueue?.queueId;
@@ -36,15 +59,17 @@ export class AnnotationQueueActionHandler implements BaseActionHandler {
     };
   }
 
-  buildActionConfig(formData: any) {
+  buildActionConfig(
+    formData: AnnotationQueueActionFormData,
+  ): AnnotationQueueActionConfig {
     return {
-      version: "1.0",
-      queueId: formData.annotationQueue?.queueId,
+      type: "ANNOTATION_QUEUE",
+      queueId: formData.annotationQueue?.queueId || "",
     };
   }
 
   renderForm(props: {
-    form: UseFormReturn<any>;
+    form: UseFormReturn<AnnotationQueueActionFormData>;
     disabled: boolean;
     projectId: string;
   }) {

@@ -4,6 +4,7 @@ import {
   WebhookActionConfig,
   ActionDomain,
   TriggerDomain,
+  AnnotationQueueActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 
@@ -83,7 +84,7 @@ const convertTriggerToDomain = (trigger: Trigger): MinimalTriggerDomain => {
 const convertActionToDomain = (action: Action): MinimalActionDomain => {
   return {
     ...action,
-    config: action.config as WebhookActionConfig,
+    config: action.config as WebhookActionConfig | AnnotationQueueActionConfig,
   };
 };
 

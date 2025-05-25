@@ -1,24 +1,28 @@
-import { type UseFormReturn } from "react-hook-form";
-import { type ActionType } from "@langfuse/shared";
+import { type UseFormReturn, type FieldValues } from "react-hook-form";
+import { type ActionType, type ActionConfigSchema } from "@langfuse/shared";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
+import { type z } from "zod";
 
-export interface ActionConfig {
-  [key: string]: any;
-}
+type ActionConfig = z.infer<typeof ActionConfigSchema>;
 
-export interface BaseActionHandler {
+export interface BaseActionHandler<
+  TFormData extends FieldValues = FieldValues,
+> {
   actionType: ActionType;
 
   // Get default values for this action type
-  getDefaultValues(automation?: ActiveAutomation): Record<string, any>;
+  getDefaultValues(automation?: ActiveAutomation): TFormData;
 
   // Validate the form data for this action type
-  validateFormData(formData: any): { isValid: boolean; errors?: string[] };
+  validateFormData(formData: TFormData): {
+    isValid: boolean;
+    errors?: string[];
+  };
 
   // Build the action config for API submission
-  buildActionConfig(formData: any): ActionConfig;
+  buildActionConfig(formData: TFormData): ActionConfig;
 
-  // Render the action form UI
+  // Render the action form UI - using any for form to allow flexibility
   renderForm(props: {
     form: UseFormReturn<any>;
     disabled: boolean;

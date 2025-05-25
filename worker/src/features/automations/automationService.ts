@@ -137,15 +137,15 @@ export class AutomationService<T> {
       },
     });
 
-    logger.debug(
-      `Created action execution ${actionExecution.id} for trigger ${trigger.id} and action ${actionConfig.id}`,
-    );
-
     await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
       timestamp: new Date(),
       id: v4(),
       payload: actionInput,
       name: QueueJobs.WebhookJob,
     });
+
+    logger.debug(
+      `Created action execution ${actionExecution.id} for trigger ${trigger.id} and action ${actionConfig.id}`,
+    );
   }
 }

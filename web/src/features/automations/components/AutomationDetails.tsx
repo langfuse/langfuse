@@ -83,8 +83,8 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
     action: {
       ...automation.action,
       config: automation.action.config as
-        | { type: "webhook"; url: string; headers: Record<string, string> }
-        | { type: "annotation-queue"; queueId: string },
+        | { type: "WEBHOOK"; url: string; headers: Record<string, string> }
+        | { type: "ANNOTATION_QUEUE"; queueId: string },
     },
   };
 

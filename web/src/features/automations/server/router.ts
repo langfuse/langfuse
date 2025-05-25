@@ -1,7 +1,11 @@
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod";
-import { ActionType, JobConfigState } from "@langfuse/shared";
+import {
+  ActionConfigSchema,
+  ActionType,
+  JobConfigState,
+} from "@langfuse/shared";
 import { Prisma } from "@prisma/client";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -113,7 +117,7 @@ export const automationsRouter = createTRPCRouter({
         // Action fields
         actionType: z.nativeEnum(ActionType),
         actionName: z.string().min(1),
-        actionConfig: z.record(z.any()),
+        actionConfig: ActionConfigSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -185,7 +189,7 @@ export const automationsRouter = createTRPCRouter({
         delay: z.number().min(0),
         // Action fields
         actionType: z.nativeEnum(ActionType),
-        actionConfig: z.record(z.any()),
+        actionConfig: ActionConfigSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {

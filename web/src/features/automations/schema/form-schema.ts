@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { webhookSchema } from "../components/actions/WebhookActionForm";
 import { annotationQueueSchema } from "../components/actions/AnnotationQueueActionForm";
-import { type JobConfigState, type ActionType } from "@langfuse/shared";
+import {
+  type JobConfigState,
+  type ActionType,
+  ActionTypeSchema,
+} from "@langfuse/shared";
 
 // Define the trigger schema
 export const triggerSchema = z.object({
@@ -16,7 +20,7 @@ export const triggerSchema = z.object({
 // Combined form schema
 export const automationFormSchema = triggerSchema
   .extend({
-    actionType: z.enum(["WEBHOOK", "ANNOTATION_QUEUE"]),
+    actionType: ActionTypeSchema,
     webhook: webhookSchema.optional(),
     annotationQueue: annotationQueueSchema.optional(),
   })
