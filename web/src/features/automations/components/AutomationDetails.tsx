@@ -284,6 +284,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                 projectId={projectId}
                 triggerId={triggerId}
                 actionId={actionId}
+                eventSource={automation.trigger.eventSource}
               />
             </SettingsTableCard>
           </div>

@@ -6,6 +6,8 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
+import { TriggerEventSource } from "@langfuse/shared";
+import TableLink from "@/src/components/table/table-link";
 
 type ActionExecutionRow = {
   id: string;
@@ -23,11 +25,12 @@ interface AutomationExecutionsTableProps {
   projectId: string;
   triggerId: string;
   actionId: string;
+  eventSource: TriggerEventSource;
 }
 
 export const AutomationExecutionsTable: React.FC<
   AutomationExecutionsTableProps
-> = ({ projectId, triggerId, actionId }) => {
+> = ({ projectId, triggerId, actionId, eventSource }) => {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -54,13 +57,19 @@ export const AutomationExecutionsTable: React.FC<
     },
     {
       accessorKey: "sourceId",
-      header: "Source ID",
+      header:
+        eventSource === TriggerEventSource.ObservationCreated
+          ? "Observation ID"
+          : "Source ID",
       id: "sourceId",
       cell: ({ row }) => {
         const value = row.getValue("sourceId") as string;
         return (
           <span className="font-mono text-xs">
-            {value.length > 8 ? `${value.slice(0, 8)}...` : value}
+            <TableLink
+              path={`/project/${projectId}/observations/${value}`}
+              value={value}
+            />
           </span>
         );
       },

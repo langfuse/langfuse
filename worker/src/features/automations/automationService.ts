@@ -1,5 +1,6 @@
 import {
   ActionDomain,
+  AnnotationQueueActionConfig,
   JobConfigState,
   JobExecutionStatus,
   TriggerDomain,
@@ -159,7 +160,8 @@ export class AutomationService<T> {
         await addObservationToAnnotationQueue({
           projectId: this.projectId,
           traceId: actionInput.traceId,
-          targetId: actionInput.targetId,
+          targetId: (actionConfig.config as AnnotationQueueActionConfig)
+            .queueId,
           triggerId: trigger.id,
           actionId: actionConfig.id,
           executionId: actionExecution.id,
