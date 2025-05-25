@@ -16,6 +16,7 @@ import {
 import { v4 } from "uuid";
 import { getCachedTriggers } from "./cached-automation-repo";
 import { processAddToQueue } from "../batchAction/processAddToQueue";
+import { addObservationToAnnotationQueue } from "./annotation-queues";
 
 export enum TriggerEventSource {
   ObservationCreated = "observation.created",
@@ -155,6 +156,14 @@ export class AutomationService<T> {
         });
         break;
       case "ANNOTATION_QUEUE":
+        await addObservationToAnnotationQueue({
+          projectId: this.projectId,
+          traceId: actionInput.traceId,
+          targetId: actionInput.targetId,
+          triggerId: trigger.id,
+          actionId: actionConfig.id,
+          executionId: actionExecution.id,
+        });
         break;
       default:
         const _exhaustiveCheck: never = actionConfig.type;
