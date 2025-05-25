@@ -165,11 +165,9 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
         id: executionId,
       },
       data: {
-        status:
-          attempt >= WEBHOOK_ATTEMPTS
-            ? JobExecutionStatus.ERROR
-            : JobExecutionStatus.PENDING,
-        finishedAt: attempt >= WEBHOOK_ATTEMPTS ? new Date() : null,
+        status: JobExecutionStatus.ERROR,
+
+        finishedAt: new Date(),
         error: error instanceof Error ? error.message : "Unknown error",
       },
     });
