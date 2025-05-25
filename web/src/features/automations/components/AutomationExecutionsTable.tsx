@@ -6,8 +6,9 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
-import { TriggerEventSource } from "@langfuse/shared";
 import TableLink from "@/src/components/table/table-link";
+import { TriggerEventSource } from "@langfuse/shared";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 
 type ActionExecutionRow = {
   id: string;
@@ -18,7 +19,7 @@ type ActionExecutionRow = {
   error: string | null;
   createdAt: string;
   startedAt: string | null;
-  finishedAt: string | null;
+  duration: number | null;
 };
 
 interface AutomationExecutionsTableProps {
@@ -58,18 +59,20 @@ export const AutomationExecutionsTable: React.FC<
     {
       accessorKey: "sourceId",
       header:
-        eventSource === TriggerEventSource.ObservationCreated
-          ? "Observation ID"
-          : "Source ID",
+        eventSource === "observation.created" ? "Observation ID" : "Source ID",
       id: "sourceId",
       cell: ({ row }) => {
         const value = row.getValue("sourceId") as string;
         return (
           <span className="font-mono text-xs">
-            <TableLink
-              path={`/project/${projectId}/observations/${value}`}
-              value={value}
-            />
+            {eventSource === "observation.created" ? (
+              <TableLink
+                path={`/project/${projectId}/observations/${value}`}
+                value={value}
+              />
+            ) : (
+              value
+            )}
           </span>
         );
       },
@@ -95,22 +98,14 @@ export const AutomationExecutionsTable: React.FC<
       },
     },
     {
-      accessorKey: "finishedAt",
-      header: "Finished",
-      id: "finishedAt",
+      accessorKey: "duration",
+      header: "Duration",
+      id: "duration",
       cell: ({ row }) => {
-        const value = row.getValue("finishedAt") as string | null;
-        if (!value) return <span className="text-muted-foreground">-</span>;
-        const date = new Date(value);
+        const duration = row.getValue("duration") as number | null;
+        if (!duration) return <span className="text-muted-foreground">-</span>;
         return (
-          <div className="flex flex-col">
-            <span className="text-xs">
-              {formatDistanceToNow(date, { addSuffix: true })}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {date.toLocaleString()}
-            </span>
-          </div>
+          <span className="text-nowrap">{formatIntervalSeconds(duration)}</span>
         );
       },
     },
@@ -160,7 +155,11 @@ export const AutomationExecutionsTable: React.FC<
         error: execution.error,
         createdAt: execution.createdAt.toISOString(),
         startedAt: execution.startedAt?.toISOString() || null,
-        finishedAt: execution.finishedAt?.toISOString() || null,
+        duration: execution.finishedAt
+          ? (execution.finishedAt.getTime() -
+              (execution.startedAt?.getTime() ?? 0)) /
+            1000
+          : null,
       })) || []
     );
   }, [data]);
