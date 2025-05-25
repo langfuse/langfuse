@@ -84,6 +84,8 @@ export const webhookProcessor: Processor = async (
 
 // TODO: Webhook outgoing API versioning
 export const executeWebhook = async (input: WebhookInput, attempt: number) => {
+  const executionStart = new Date();
+
   const {
     observationId,
     projectId,
@@ -93,6 +95,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
     triggerId,
     executionId,
   } = input;
+
   try {
     logger.debug(
       `Executing webhook for action ${actionId} and execution ${executionId}`,
@@ -150,6 +153,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
       },
       data: {
         status: JobExecutionStatus.COMPLETED,
+        startedAt: executionStart,
         finishedAt: new Date(),
       },
     });
@@ -166,7 +170,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
       },
       data: {
         status: JobExecutionStatus.ERROR,
-
+        startedAt: executionStart,
         finishedAt: new Date(),
         error: error instanceof Error ? error.message : "Unknown error",
       },

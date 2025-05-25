@@ -66,25 +66,6 @@ export const AutomationExecutionsTable: React.FC<
       },
     },
     {
-      accessorKey: "createdAt",
-      header: "Created",
-      id: "createdAt",
-      cell: ({ row }) => {
-        const value = row.getValue("createdAt") as string;
-        const date = new Date(value);
-        return (
-          <div className="flex flex-col">
-            <span className="text-xs">
-              {formatDistanceToNow(date, { addSuffix: true })}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {date.toLocaleString()}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
       accessorKey: "startedAt",
       header: "Started",
       id: "startedAt",
@@ -183,14 +164,6 @@ export const AutomationExecutionsTable: React.FC<
     return (
       <div className="py-4 text-center text-red-600">
         Error loading execution history: {error?.message}
-      </div>
-    );
-  }
-
-  if (!data || data.executions.length === 0) {
-    return (
-      <div className="py-4 text-center text-muted-foreground">
-        No executions found for this automation.
       </div>
     );
   }
