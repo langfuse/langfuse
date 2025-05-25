@@ -279,22 +279,13 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
 
           <div>
             <Header title="Execution History" />
-            <Card>
-              <CardHeader>
-                <CardDescription>
-                  Recent executions of this automation
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SettingsTableCard>
-                  <AutomationExecutionsTable
-                    projectId={projectId}
-                    triggerId={triggerId}
-                    actionId={actionId}
-                  />
-                </SettingsTableCard>
-              </CardContent>
-            </Card>
+            <SettingsTableCard>
+              <AutomationExecutionsTable
+                projectId={projectId}
+                triggerId={triggerId}
+                actionId={actionId}
+              />
+            </SettingsTableCard>
           </div>
         </>
       )}

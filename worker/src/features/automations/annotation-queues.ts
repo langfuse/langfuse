@@ -19,6 +19,8 @@ export const addObservationToAnnotationQueue = async ({
   actionId,
   executionId,
 }: ProcessAddToQueueInput) => {
+  const executionStart = new Date();
+
   logger.debug(
     `Adding trace ${traceId} to annotation queue ${targetId} in project ${projectId}`,
   );
@@ -33,6 +35,7 @@ export const addObservationToAnnotationQueue = async ({
     },
     data: {
       status: JobExecutionStatus.COMPLETED,
+      startedAt: executionStart,
       finishedAt: new Date(),
     },
   });
