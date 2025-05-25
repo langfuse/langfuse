@@ -120,6 +120,7 @@ export default function AutomationsPage() {
       return (
         <div className="flex-1 overflow-auto p-6">
           <AutomationDetails
+            key={`${selectedAutomation.triggerId}-${selectedAutomation.actionId}`}
             projectId={projectId}
             triggerId={selectedAutomation.triggerId}
             actionId={selectedAutomation.actionId}

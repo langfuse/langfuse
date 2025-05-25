@@ -211,6 +211,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                       </h4>
                       {automation.trigger.filter ? (
                         <InlineFilterBuilder
+                          key={`${triggerId}-${actionId}-filter`}
                           columns={observationFilterColumns}
                           filterState={automation.trigger.filter as FilterState}
                           onChange={() => {}}
