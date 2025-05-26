@@ -7,6 +7,8 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { type Prisma } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -38,9 +40,17 @@ export default function EvalLogTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "job_executions",
+    projectId,
+  );
+
   const logs = api.evals.getLogs.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    filter: filterState,
     jobConfigurationId,
     projectId,
   });
@@ -191,6 +201,9 @@ export default function EvalLogTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        filterState={filterState}
+        setFilterState={setFilterState}
+        filterColumnDefinition={evalExecutionsFilterCols}
       />
       <DataTable
         columns={columns}

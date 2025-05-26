@@ -35,4 +35,5 @@ export type TableName =
   | "dashboard"
   | "widgets"
   | "users"
-  | "eval_configs";
+  | "eval_configs"
+  | "job_executions";
