@@ -311,12 +311,13 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
     },
   });
 
-  const executeDeleteMutation = async () => {
+  const executeDeleteMutation = async (onSuccess: () => void) => {
     try {
       await evaluatorMutation.mutateAsync({
         evalConfigId: itemId,
         projectId,
       });
+      onSuccess();
     } catch (error) {
       return Promise.reject(error);
     }
