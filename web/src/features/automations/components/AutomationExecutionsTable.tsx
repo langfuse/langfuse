@@ -7,7 +7,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
 import TableLink from "@/src/components/table/table-link";
-import { TriggerEventSource } from "@langfuse/shared";
+import { type TriggerEventSource } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 type ActionExecutionRow = {

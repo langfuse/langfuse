@@ -113,6 +113,9 @@ export const getActiveAutomations = async ({
       action: true,
       trigger: true,
     },
+    orderBy: {
+      createdAt: "desc",
+    },
   });
 
   return automations.map((automation) => ({
