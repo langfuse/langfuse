@@ -42,12 +42,13 @@ import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
-import { type PrismaClient } from "@prisma/client";
+import { type JobExecution, type PrismaClient } from "@prisma/client";
 import { type JobExecutionState } from "@/src/ee/features/evals/utils/job-execution-utils";
 import {
   evalConfigFilterColumns,
   evalConfigsTableCols,
 } from "@/src/server/api/definitions/evalConfigsTable";
+import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
@@ -1332,9 +1333,9 @@ export const evalRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        limit: z.number().optional(),
-        page: z.number().optional(),
+        filter: z.array(singleFilter),
         jobConfigurationId: z.string().optional(),
+        ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -1349,48 +1350,59 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJobExecution:read",
       });
 
-      const jobExecutions = await ctx.prisma.jobExecution.findMany({
-        where: {
-          projectId: input.projectId,
-          status: {
-            not: "CANCELLED",
-          },
-          ...(input.jobConfigurationId
-            ? { jobConfigurationId: input.jobConfigurationId }
-            : undefined),
-        },
-        select: {
-          id: true,
-          createdAt: true,
-          updatedAt: true,
-          projectId: true,
-          jobConfigurationId: true,
-          jobTemplateId: true,
-          status: true,
-          startTime: true,
-          endTime: true,
-          error: true,
-          jobInputTraceId: true,
-          jobOutputScoreId: true,
-        },
-        ...(input.limit !== undefined && input.page !== undefined
-          ? { take: input.limit, skip: input.page * input.limit }
-          : undefined),
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-      const count = await ctx.prisma.jobExecution.count({
-        where: {
-          projectId: input.projectId,
-          status: {
-            not: "CANCELLED",
-          },
-          ...(input.jobConfigurationId
-            ? { jobConfigurationId: input.jobConfigurationId }
-            : undefined),
-        },
-      });
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter,
+        evalExecutionsFilterCols,
+        "job_executions",
+      );
+
+      const [jobExecutions, count] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          Array<
+            Pick<
+              JobExecution,
+              | "status"
+              | "startTime"
+              | "endTime"
+              | "jobOutputScoreId"
+              | "jobInputTraceId"
+              | "jobTemplateId"
+              | "jobConfigurationId"
+              | "error"
+            >
+          >
+        >(
+          generateExecutionsQuery(
+            Prisma.sql`
+            je.status,
+            je.start_time as "startTime",
+            je.end_time as "endTime",
+            je.job_output_score_id as "jobOutputScoreId",
+            je.job_input_trace_id as "jobInputTraceId",
+            je.job_template_id as "jobTemplateId",
+            je.job_configuration_id as "jobConfigurationId",
+            je.error
+            `,
+            input.projectId,
+            filterCondition,
+            Prisma.sql`ORDER BY je.created_at DESC`,
+            input.limit,
+            input.page,
+            input.jobConfigurationId,
+          ),
+        ),
+        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+          generateExecutionsQuery(
+            Prisma.sql`COUNT(*) AS "totalCount"`,
+            input.projectId,
+            filterCondition,
+            Prisma.empty,
+            1, // limit
+            0, // page
+            input.jobConfigurationId,
+          ),
+        ),
+      ]);
 
       const scoreIds = jobExecutions
         .map((je) => je.jobOutputScoreId)
@@ -1406,7 +1418,7 @@ export const evalRouter = createTRPCRouter({
           ...je,
           score: scores.find((s) => s?.id === je.jobOutputScoreId),
         })),
-        totalCount: count,
+        totalCount: count.length > 0 ? Number(count[0]?.totalCount) : 0,
       };
     }),
 
@@ -1480,6 +1492,32 @@ const generateConfigsQuery = (
    AND jc.job_type = 'EVAL'
    ${filterCondition}
    ${searchCondition}
+   ${orderCondition}
+   LIMIT ${limit} OFFSET ${page * limit};
+  `;
+};
+
+const generateExecutionsQuery = (
+  select: Prisma.Sql,
+  projectId: string,
+  filterCondition: Prisma.Sql,
+  orderCondition: Prisma.Sql,
+  limit: number,
+  page: number,
+  jobConfigurationId?: string,
+) => {
+  const configCondition = jobConfigurationId
+    ? Prisma.sql`AND je.job_configuration_id = ${jobConfigurationId}`
+    : Prisma.empty;
+
+  return Prisma.sql`
+  SELECT
+   ${select}
+   FROM job_executions je
+   WHERE je.project_id = ${projectId}
+   ${filterCondition}
+   AND je.status != 'CANCELLED'
+   ${configCondition}
    ${orderCondition}
    LIMIT ${limit} OFFSET ${page * limit};
   `;

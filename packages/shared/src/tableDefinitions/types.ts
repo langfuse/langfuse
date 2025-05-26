@@ -75,6 +75,7 @@ export const tableNames = [
   "prompts",
   "users",
   "job_configurations",
+  "job_executions",
   "dataset_items",
 ] as const;
 
