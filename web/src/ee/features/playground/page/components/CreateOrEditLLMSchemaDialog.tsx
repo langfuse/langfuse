@@ -187,6 +187,9 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
                         placeholder="Describe the schema"
                         className="max-h-[120px] focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                         {...field}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
