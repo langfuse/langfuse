@@ -18,7 +18,8 @@ import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
-import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
+import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter"; // Keep TableName from ClickhouseWriter for now
+import { OlapWriter, getOlapWriter } from "../services/OlapWriterProvider";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
 
@@ -53,11 +54,12 @@ export const ingestionQueueProcessorBuilder = (
       }
 
       // We write the new file into the ClickHouse event log to keep track for retention and deletions
-      const clickhouseWriter = ClickhouseWriter.getInstance();
+      const olapWriter: OlapWriter = getOlapWriter();
 
-      if (job.data.payload.data.fileKey && job.data.payload.data.fileKey) {
+      // BlobStorageFileLog is ClickHouse-specific. Only write if using ClickhouseWriter.
+      if (olapWriter instanceof ClickhouseWriter && job.data.payload.data.fileKey && job.data.payload.data.fileKey) {
         const fileName = `${job.data.payload.data.fileKey}.json`;
-        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
+        olapWriter.addToQueue(TableName.BlobStorageFileLog, {
           id: randomUUID(),
           project_id: job.data.payload.authCheck.scope.projectId,
           entity_type: getClickhouseEntityType(job.data.payload.data.type),
@@ -201,8 +203,8 @@ export const ingestionQueueProcessorBuilder = (
       await new IngestionService(
         redis,
         prisma,
-        clickhouseWriter,
-        clickhouseClient(),
+        olapWriter,
+        clickhouseClient(), // This might also need to be conditional if GreptimeDB doesn't use it
       ).mergeAndWrite(
         getClickhouseEntityType(events[0].type),
         job.data.payload.authCheck.scope.projectId,
