@@ -8,6 +8,9 @@ export const langfuseObjects = [
   "dataset_item",
 ] as const;
 
+const langfuseObject = z.enum(langfuseObjects);
+export type LangfuseEvaluationObject = z.infer<typeof langfuseObject>;
+
 // variable mapping stored in the db for eval templates
 export const variableMapping = z
   .object({
@@ -15,7 +18,7 @@ export const variableMapping = z
     // name of the observation to extract the variable from
     // not required for trace, as we only have one.
     objectName: z.string().nullish(),
-    langfuseObject: z.enum(langfuseObjects),
+    langfuseObject: langfuseObject,
     selectedColumnId: z.string(),
     jsonSelector: z.string().nullish(),
   })
@@ -31,7 +34,7 @@ export const variableMappingList = z.array(variableMapping);
 export const wipVariableMapping = z.object({
   templateVariable: z.string(),
   objectName: z.string().nullish(),
-  langfuseObject: z.enum(langfuseObjects),
+  langfuseObject: langfuseObject,
   selectedColumnId: z.string().nullish(),
   jsonSelector: z.string().nullish(),
 });

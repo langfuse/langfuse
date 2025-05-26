@@ -25,7 +25,7 @@ export function TimeScopeDescription(props: {
 
   return (
     <div>
-      This configuration will run on{" "}
+      This configuration will target{" "}
       {props.timeScope?.includes("NEW") && props.timeScope?.includes("EXISTING")
         ? "all future and existing"
         : props.timeScope?.includes("NEW")

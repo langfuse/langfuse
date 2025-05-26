@@ -20,112 +20,74 @@ import { type EvalTemplate } from "@langfuse/shared";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import {
   OutputSchema,
-  type UIModelParams,
   type ModelParams,
   ZodModelConfig,
 } from "@langfuse/shared";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { Card, CardContent } from "@/src/components/ui/card";
+import { type RouterInput } from "@/src/utils/types";
+import { useEvaluationModel } from "@/src/ee/features/evals/hooks/useEvaluationModel";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { SetupDefaultEvalModelCard } from "@/src/ee/features/evals/components/set-up-default-eval-model-card";
+
+type PartialEvalTemplate = Omit<
+  EvalTemplate,
+  "id" | "version" | "createdAt" | "updatedAt"
+> & { id?: string };
 
 export const EvalTemplateForm = (props: {
   projectId: string;
-  existingEvalTemplate?: EvalTemplate;
-  onFormSuccess?: () => void;
+  existingEvalTemplate?: PartialEvalTemplate;
+  onFormSuccess?: (template?: EvalTemplate) => void;
+  onBeforeSubmit?: (
+    template: RouterInput["evals"]["createTemplate"],
+  ) => boolean;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
   preventRedirect?: boolean;
+  cloneSourceId?: string | null;
 }) => {
-  const [langfuseTemplate, setLangfuseTemplate] = useState<string | null>(null);
-
-  const updateLangfuseTemplate = (name: string) => {
-    setLangfuseTemplate(name);
-  };
-
-  const currentTemplate = TEMPLATES.find(
-    (template) => template.name === langfuseTemplate,
-  );
-
   return (
-    <div className="grid grid-cols-1 gap-6 gap-x-12 lg:grid-cols-3">
-      {props.isEditing ? (
-        <div className="col-span-1 lg:col-span-2">
-          <Select
-            value={langfuseTemplate ?? ""}
-            onValueChange={updateLangfuseTemplate}
-          >
-            <SelectTrigger className="text-primary ring-transparent focus:ring-0 focus:ring-offset-0">
-              <SelectValue
-                className="text-sm font-semibold text-primary"
-                placeholder={"Select a Langfuse managed template (optional)"}
-              />
-            </SelectTrigger>
-            <SelectContent className="max-h-60 max-w-80">
-              {TEMPLATES.sort((a, b) => a.name.localeCompare(b.name)).map(
-                (project) => (
-                  <SelectItem key={project.name} value={project.name}>
-                    {project.name}
-                  </SelectItem>
-                ),
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-      <div className="col-span-1 lg:col-span-3">
-        <InnerEvalTemplateForm
-          key={langfuseTemplate ?? props.existingEvalTemplate?.id}
-          {...props}
-          existingEvalTemplateId={props.existingEvalTemplate?.id}
-          existingEvalTemplateName={props.existingEvalTemplate?.name}
-          preFilledFormValues={
-            // if a langfuse template is selected, use that, else use the existing template
-            // no langfuse template is selected if there is already an existing template
-            langfuseTemplate
-              ? {
-                  name: langfuseTemplate.toLocaleLowerCase() ?? "",
-                  prompt: currentTemplate?.prompt.trim() ?? "",
-                  vars: [],
-                  outputSchema: {
-                    score: currentTemplate?.outputScore?.trim() ?? "",
-                    reasoning: currentTemplate?.outputReasoning?.trim() ?? "",
-                  },
-                }
-              : props.existingEvalTemplate
-                ? {
-                    name: props.existingEvalTemplate.name,
-                    prompt: props.existingEvalTemplate.prompt,
-                    vars: props.existingEvalTemplate.vars,
-                    outputSchema: props.existingEvalTemplate.outputSchema as {
-                      score: string;
-                      reasoning: string;
-                    },
-                    selectedModel: {
-                      provider: props.existingEvalTemplate.provider,
-                      model: props.existingEvalTemplate.model,
+    <div className="w-full">
+      <InnerEvalTemplateForm
+        key={props.existingEvalTemplate?.id ?? "new"}
+        {...props}
+        existingEvalTemplateId={props.existingEvalTemplate?.id}
+        existingEvalTemplateName={props.existingEvalTemplate?.name}
+        cloneSourceId={props.cloneSourceId}
+        onBeforeSubmit={props.onBeforeSubmit}
+        preFilledFormValues={
+          // if a langfuse template is selected, use that, else use the existing template
+          // no langfuse template is selected if there is already an existing template
+          props.existingEvalTemplate
+            ? {
+                name: props.existingEvalTemplate.name,
+                prompt: props.existingEvalTemplate.prompt,
+                vars: props.existingEvalTemplate.vars,
+                outputSchema: props.existingEvalTemplate.outputSchema as {
+                  score: string;
+                  reasoning: string;
+                },
+                selectedModel: props.existingEvalTemplate.provider
+                  ? {
+                      provider: props.existingEvalTemplate.provider as string,
+                      model: props.existingEvalTemplate.model as string,
                       modelParams: props.existingEvalTemplate
                         .modelParams as ModelParams & {
                         maxTemperature: number;
                       },
-                    },
-                  }
-                : undefined
-          }
-        />
-      </div>
+                    }
+                  : undefined,
+              }
+            : undefined
+        }
+      />
     </div>
   );
 };
@@ -162,6 +124,7 @@ const formSchema = z.object({
     .nativeEnum(EvalReferencedEvaluators)
     .optional()
     .default(EvalReferencedEvaluators.PERSIST),
+  shouldUseDefaultModel: z.boolean().default(true),
 });
 
 export type EvalTemplateFormPreFill = {
@@ -188,13 +151,26 @@ export const InnerEvalTemplateForm = (props: {
   // template to be updated
   existingEvalTemplateId?: string;
   existingEvalTemplateName?: string;
-  onFormSuccess?: () => void;
+  onFormSuccess?: (template?: EvalTemplate) => void;
+  onBeforeSubmit?: (template: any) => boolean;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
   preventRedirect?: boolean;
+  cloneSourceId?: string | null;
 }) => {
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Determine if we should use default model or custom model
+  // If existing template has no provider, it was using default model
+  const isExistingUsingDefault = props.preFilledFormValues?.selectedModel
+    ? false
+    : true;
+
+  const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
+    { projectId: props.projectId },
+    { enabled: !!props.projectId },
+  );
 
   // updates the model params based on the pre-filled data
   // either form update or from langfuse-generated template
@@ -207,29 +183,11 @@ export const InnerEvalTemplateForm = (props: {
     availableProviders,
   } = useModelParams();
 
-  useEffect(() => {
-    if (props.preFilledFormValues?.selectedModel) {
-      const { provider, model, modelParams } =
-        props.preFilledFormValues.selectedModel;
-
-      const modelConfig = Object.entries(modelParams).reduce(
-        (acc, [key, value]) => {
-          return {
-            ...acc,
-            [key]: { value, enabled: true },
-          };
-        },
-        {} as UIModelParams,
-      );
-
-      setModelParams((prev) => ({
-        ...prev,
-        ...modelConfig,
-        provider: { value: provider, enabled: true },
-        model: { value: model, enabled: true },
-      }));
-    }
-  }, [props.preFilledFormValues?.selectedModel, setModelParams]);
+  useEvaluationModel(
+    props.projectId,
+    setModelParams,
+    props.preFilledFormValues?.selectedModel,
+  );
 
   // updates the form based on the pre-filled data
   // either form update or from langfuse-generated template
@@ -243,12 +201,15 @@ export const InnerEvalTemplateForm = (props: {
       variables: props.preFilledFormValues?.vars ?? [],
       outputReasoning: props.preFilledFormValues
         ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).reasoning
-        : undefined,
+        : "One sentence reasoning for the score",
       outputScore: props.preFilledFormValues
         ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).score
-        : undefined,
+        : "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
+      shouldUseDefaultModel: isExistingUsingDefault,
     },
   });
+
+  const useDefaultModel = form.watch("shouldUseDefaultModel");
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -306,30 +267,48 @@ export const InnerEvalTemplateForm = (props: {
       name: values.name,
       projectId: props.projectId,
       prompt: values.prompt,
-      provider: modelParams.provider.value,
-      model: modelParams.model.value,
-      modelParams: getFinalModelParams(modelParams),
+      // Only include model details if not using default model
+      provider: values.shouldUseDefaultModel
+        ? undefined
+        : modelParams.provider.value,
+      model: values.shouldUseDefaultModel ? undefined : modelParams.model.value,
+      modelParams: values.shouldUseDefaultModel
+        ? undefined
+        : getFinalModelParams(modelParams),
       vars: extractedVariables ?? [],
       outputSchema: {
         score: values.outputScore,
         reasoning: values.outputReasoning,
       },
       referencedEvaluators: values.referencedEvaluators,
+      sourceTemplateId: props.cloneSourceId ?? undefined,
     };
 
-    const parsedModel = selectedModelSchema.safeParse(evalTemplate);
+    // Only validate model if not using default
+    if (!values.shouldUseDefaultModel) {
+      const parsedModel = selectedModelSchema.safeParse({
+        provider: evalTemplate.provider,
+        model: evalTemplate.model,
+        modelParams: evalTemplate.modelParams,
+      });
 
-    if (!parsedModel.success) {
-      setFormError(
-        `${parsedModel.error.errors[0].path}: ${parsedModel.error.errors[0].message}`,
-      );
-      return;
+      if (!parsedModel.success) {
+        setFormError(
+          `${parsedModel.error.errors[0].path}: ${parsedModel.error.errors[0].message}`,
+        );
+        return;
+      }
+    }
+
+    // Check if we need to perform any pre-submission validation or confirmation
+    if (props.onBeforeSubmit && !props.onBeforeSubmit(evalTemplate)) {
+      return; // Stop submission - the parent will handle it
     }
 
     createEvalTemplateMutation
       .mutateAsync(evalTemplate)
       .then((res) => {
-        props.onFormSuccess?.();
+        props.onFormSuccess?.(res);
         form.reset();
         props.setIsEditing?.(false);
         if (props.preventRedirect) {
@@ -356,7 +335,7 @@ export const InnerEvalTemplateForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="grid grid-cols-1 gap-6 gap-x-12 lg:grid-cols-3"
+        className="mt-2 space-y-4"
       >
         {!props.existingEvalTemplateId ? (
           <>
@@ -384,166 +363,164 @@ export const InnerEvalTemplateForm = (props: {
           </>
         ) : undefined}
 
-        <div className="col-span-1 flex flex-col gap-6 lg:col-span-2">
+        {/* Model Selection Section */}
+        {props.isEditing && (
           <FormField
             control={form.control}
-            name="prompt"
+            name="shouldUseDefaultModel"
             render={({ field }) => (
-              <>
-                <FormItem>
-                  <FormLabel>Prompt</FormLabel>
-                  <FormDescription>
-                    Define your llm-as-a-judge evaluation template. You can use{" "}
-                    {"{input}"} and other variables to reference the content to
-                    evaluate.
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={!props.isEditing}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Use default evaluation model</FormLabel>
+                  <FormDescription className="text-xs">
+                    Use the projects default evaluation model for this template
                   </FormDescription>
-                  <FormControl>
-                    <CodeMirrorEditor
-                      value={field.value}
-                      onChange={field.onChange}
-                      editable={props.isEditing}
-                      mode="prompt"
-                      minHeight={200}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                  <PromptVariableListPreview
-                    variables={extractedVariables ?? []}
-                  />
-                </FormItem>
-              </>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="outputReasoning"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Reasoning</FormLabel>
-                <FormDescription>
-                  Define how the LLM should explain its evaluation. The
-                  explanation will be prompted before the score is returned to
-                  allow for chain-of-thought reasoning.
-                </FormDescription>
-                <FormControl>
-                  <Input
-                    placeholder="One sentence reasoning for the score"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
+                </div>
               </FormItem>
             )}
           />
+        )}
 
-          <FormField
-            control={form.control}
-            name="outputScore"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Score</FormLabel>
-                <FormDescription>
-                  Define how the LLM should return the evaluation score in
-                  natural language. Needs to yield a numeric value.
-                </FormDescription>
-                <FormControl>
-                  <Input {...field} placeholder="Score between 0 and 1" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {useDefaultModel ? (
+          defaultModel ? (
+            <Card className="mt-2 border-dark-green bg-light-green">
+              <CardContent className="flex flex-col gap-1">
+                <p className="mt-2 text-sm font-semibold">
+                  Default evaluation model selected
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  This template will use the default evaluation model for your
+                  project:
+                  <span className="font-medium">
+                    {" "}
+                    {defaultModel.provider} / {defaultModel.model}
+                  </span>
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <SetupDefaultEvalModelCard projectId={props.projectId} />
+          )
+        ) : (
+          <Card className="mt-2 border-dark-blue bg-light-blue">
+            <CardContent className="flex flex-col gap-1">
+              <p className="mt-2 text-sm font-semibold">
+                Custom evaluation model selected
+              </p>
+              <p className="text-xs text-muted-foreground">
+                This template will use a custom model configuration instead of
+                the project default.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-          {props.isEditing && props.existingEvalTemplateId && (
+        {/* Only show model parameters if using custom model */}
+        {!useDefaultModel && (
+          <Card className="mt-2 flex flex-col gap-6">
+            <CardContent>
+              <ModelParameters
+                {...{
+                  modelParams,
+                  availableModels,
+                  availableProviders,
+                  updateModelParamValue: updateModelParamValue,
+                  setModelParamEnabled,
+                  modelParamsDescription:
+                    "Select a model which supports function calling.",
+                }}
+                formDisabled={!props.isEditing}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <p className="my-2 font-semibold">Prompt</p>
+              <FormField
+                control={form.control}
+                name="prompt"
+                render={({ field }) => (
+                  <>
+                    <FormItem>
+                      <FormLabel>Evaluation prompt</FormLabel>
+                      <FormDescription>
+                        Define your llm-as-a-judge evaluation template. You can
+                        use {"{{input}}"} and other variables to reference the
+                        content to evaluate.
+                      </FormDescription>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          value={field.value}
+                          onChange={field.onChange}
+                          editable={props.isEditing}
+                          mode="prompt"
+                          minHeight={200}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <PromptVariableListPreview
+                        variables={extractedVariables ?? []}
+                      />
+                    </FormItem>
+                  </>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="referencedEvaluators"
+              name="outputReasoning"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Referenced evaluators</FormLabel>
+                  <FormLabel>Score reasoning prompt</FormLabel>
                   <FormDescription>
-                    {evaluatorsByTemplateNameQuery.data?.evaluators.length ?? 0}{" "}
-                    evaluator(s) are currently using this template.
-                    {Boolean(
-                      evaluatorsByTemplateNameQuery.data?.evaluators.length,
-                    )
-                      ? " Choose how to handle existing evaluators with this update."
-                      : " No evaluators to update."}
+                    Define how the LLM should explain its evaluation. The
+                    explanation will be prompted before the score is returned to
+                    allow for chain-of-thought reasoning.
                   </FormDescription>
                   <FormControl>
-                    <RadioGroup
-                      {...field}
-                      onValueChange={field.onChange}
-                      defaultValue={
-                        Boolean(
-                          evaluatorsByTemplateNameQuery.data?.evaluators.length,
-                        )
-                          ? EvalReferencedEvaluators.UPDATE
-                          : EvalReferencedEvaluators.PERSIST
-                      }
-                      disabled={
-                        !Boolean(
-                          evaluatorsByTemplateNameQuery.data?.evaluators.length,
-                        )
-                      }
-                      className="flex flex-col space-y-1"
-                    >
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="update" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Update all to use new template version
-                        </FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="persist" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Persist existing template version
-                        </FormLabel>
-                      </FormItem>
-                    </RadioGroup>
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          )}
-          {!props.isEditing && (
-            <>
-              <FormLabel>Referenced evaluators</FormLabel>
-              <FormDescription>
-                {evaluatorsByTemplateNameQuery.data?.evaluators.length ?? 0}{" "}
-                evaluator(s) are currently using this template.
-              </FormDescription>
-            </>
-          )}
-        </div>
-        <div className="col-span-1 row-span-3">
-          <div className="flex flex-col gap-6">
-            <ModelParameters
-              {...{
-                modelParams,
-                availableModels,
-                availableProviders,
-                updateModelParamValue: updateModelParamValue,
-                setModelParamEnabled,
-                modelParamsDescription:
-                  "Select a model which supports function calling.",
-              }}
-              formDisabled={!props.isEditing}
+
+            <FormField
+              control={form.control}
+              name="outputScore"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Score range prompt</FormLabel>
+                  <FormDescription>
+                    Define how the LLM should return the evaluation score in
+                    natural language. Needs to yield a numeric value.
+                  </FormDescription>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {props.isEditing && (
           <Button
             type="submit"
             loading={createEvalTemplateMutation.isLoading}
-            className="col-span-1 lg:col-span-3"
+            className="w-full"
           >
             Save
           </Button>

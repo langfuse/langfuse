@@ -157,6 +157,7 @@ model Project {
   Dashboard              Dashboard[]
   DashboardWidget        DashboardWidget[]
   TableViewPreset        TableViewPreset[]
+  DefaultLlmModel        DefaultLlmModel[]
 
   @@index([orgId])
   @@map("projects")
@@ -222,8 +223,9 @@ model LlmApiKeys {
   extraHeaderKeys   String[] @default([]) @map("extra_header_keys")
   config            Json?
 
-  projectId String  @map("project_id")
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId       String            @map("project_id")
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
 
   @@unique([projectId, provider])
   @@map("llm_api_keys")
@@ -793,18 +795,22 @@ model EvalTemplate {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  projectId String  @map("project_id")
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String?  @map("project_id")
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  name             String
-  version          Int
-  prompt           String
-  model            String
-  provider         String
-  modelParams      Json               @map("model_params")
+  name    String
+  version Int
+  prompt  String
+
+  partner String? // e.g. "ragas", describes the partner that created the template
+
+  model            String?
+  provider         String?
+  modelParams      Json?              @map("model_params")
   vars             String[]           @default([])
   outputSchema     Json               @map("output_schema")
   JobConfiguration JobConfiguration[]
+  JobExecution     JobExecution[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -864,6 +870,9 @@ model JobExecution {
   jobConfigurationId String           @map("job_configuration_id")
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
 
+  jobTemplateId String?       @map("job_template_id")
+  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull)
+
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")
   endTime   DateTime?          @map("end_time")
@@ -885,6 +894,26 @@ model JobExecution {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("job_executions")
+}
+
+model DefaultLlmModel {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  Project   Project @relation(fields: [projectId], references: [id])
+
+  llmApiKeyId String     @map("llm_api_key_id")
+  LlmApiKey   LlmApiKeys @relation("LlmApiKeyId", fields: [llmApiKeyId], references: [id], onDelete: Cascade)
+
+  provider    String
+  adapter     String // This controls the interface that is used to connect with the LLM, e.g. 'openai' or 'anthropic'
+  model       String
+  modelParams Json?  @map("model_params")
+
+  @@unique([projectId])
+  @@map("default_llm_models")
 }
 
 // Single Sign-On configuration for a domain

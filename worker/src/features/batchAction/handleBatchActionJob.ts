@@ -8,7 +8,6 @@ import {
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import {
-  BatchActionQuery,
   BatchActionType,
   BatchExportTableName,
   FilterCondition,
@@ -24,15 +23,10 @@ import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 
 const CHUNK_SIZE = 1000;
-const convertDatesInQuery = (query: BatchActionQuery) => {
-  if (!query.filter) return query;
-
-  return {
-    ...query,
-    filter: query.filter.map((f: FilterCondition) =>
-      f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
-    ),
-  };
+const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
+  return filters.map((f: FilterCondition) =>
+    f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
+  );
 };
 
 /**
@@ -145,7 +139,8 @@ export const handleBatchActionJob = async (
     const dbReadStream = await getDatabaseReadStream({
       projectId: projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      ...convertDatesInQuery(query),
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      orderBy: query.orderBy,
       tableName: tableName as unknown as BatchExportTableName,
       exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
     });
@@ -193,7 +188,8 @@ export const handleBatchActionJob = async (
     const dbReadStream = await getDatabaseReadStream({
       projectId: projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      ...convertDatesInQuery(query),
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      orderBy: query.orderBy,
       tableName:
         targetObject === "trace"
           ? BatchExportTableName.Traces
