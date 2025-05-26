@@ -22,6 +22,7 @@ import {
   DeleteDatasetItemV1Response,
   DeleteDatasetRunV1Response,
   GetDatasetRunItemsV1Response,
+  PostDatasetsV2Body,
 } from "@/src/features/public-api/types/datasets";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -312,6 +313,29 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
 
     expect(response.status).toBe(404);
+  });
+
+  it("should support datasets with special characters in the name", async () => {
+    const name = "Special Characters !@#$%^&";
+    const createRes = await makeZodVerifiedAPICall(
+      PostDatasetsV2Body,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: name,
+      },
+      auth,
+    );
+    expect(createRes.status).toBe(200);
+
+    const getRes = await makeZodVerifiedAPICall(
+      GetDatasetV2Response,
+      "GET",
+      `/api/public/v2/datasets/${encodeURIComponent(name)}`,
+      undefined,
+      auth,
+    );
+    expect(getRes.status).toBe(200);
   });
 
   it("GET datasets (v1 & v2)", async () => {
