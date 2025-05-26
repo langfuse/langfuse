@@ -38,8 +38,12 @@ export async function runCHExperiment<T>(
       const [c, e] = await Promise.all([run(control), run(experiment)]);
 
       // latency metrics
-      recordDistribution(`ch_exp.${label}.control_ms`, c.ms);
-      recordDistribution(`ch_exp.${label}.experiment_ms`, e.ms);
+      recordDistribution(`langfuse.ch_exp.${label}_ms`, c.ms, {
+        type: "control",
+      });
+      recordDistribution(`langfuse.ch_exp.${label}_ms`, e.ms, {
+        type: "experiment",
+      });
 
       // diff check
       const equal = JSON.stringify(c.res) === JSON.stringify(e.res);
@@ -53,8 +57,12 @@ export async function runCHExperiment<T>(
         });
       }
 
+      // raise control error if any
+      if (c.err) {
+        throw c.err;
+      }
       // prefer returning control result to keep behaviour unchanged
-      return c.res ?? e.res;
+      return c.res;
     }
     case "off":
     default: {
