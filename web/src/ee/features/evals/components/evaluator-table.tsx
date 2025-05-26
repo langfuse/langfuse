@@ -38,7 +38,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
-import { DeleteEvaluatorButton } from "@/src/components/deleteButton";
+import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/ee/features/evals/types";
 import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
@@ -292,7 +292,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <DeleteEvaluatorButton
+                <DeleteEvalConfigButton
                   aria-label="delete"
                   itemId={id}
                   projectId={projectId}
