@@ -28,6 +28,7 @@ import {
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
+import { runCHExperiment } from "../utils/clickhouseExperiment";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -443,58 +444,120 @@ export const getTracesGroupedByUsers = async (
   offset?: number,
   columns?: UiColumnMappings,
 ) => {
-  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
-    tracesPrefix: "t",
-  });
+  // internal control implementation kept intact but renamed
+  const controlImpl = async () => {
+    const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
+      tracesPrefix: "t",
+    });
 
-  tracesFilter.push(
-    ...createFilterFromFilterState(
-      filter,
-      columns ?? tracesTableUiColumnDefinitions,
-    ),
+    tracesFilter.push(
+      ...createFilterFromFilterState(
+        filter,
+        columns ?? tracesTableUiColumnDefinitions,
+      ),
+    );
+
+    const tracesFilterRes = tracesFilter.apply();
+    const search = clickhouseSearchCondition(searchQuery);
+
+    const query = `
+        select 
+          user_id as user,
+          count(*) as count
+        from traces t
+        WHERE t.project_id = {projectId: String}
+        AND t.user_id IS NOT NULL
+        AND t.user_id != ''
+        ${tracesFilterRes?.query ? `AND ${tracesFilterRes.query}` : ""}
+        ${search.query}
+        GROUP BY user
+        ORDER BY count desc
+        ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    `;
+
+    const rows = await queryClickhouse<{
+      user: string;
+      count: string;
+    }>({
+      query: query,
+      params: {
+        limit,
+        offset,
+        projectId,
+        ...(tracesFilterRes ? tracesFilterRes.params : {}),
+        ...(searchQuery ? search.params : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "analytic",
+        projectId,
+      },
+    });
+
+    return rows;
+  };
+
+  // experimental implementation using trace_properties view
+  const experimentImpl = async () => {
+    const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
+      tracesPrefix: "t",
+    });
+
+    tracesFilter.push(
+      ...createFilterFromFilterState(
+        filter,
+        columns ?? tracesTableUiColumnDefinitions,
+      ),
+    );
+
+    const tracesFilterRes = tracesFilter.apply();
+    const search = clickhouseSearchCondition(searchQuery);
+
+    const query = `
+        SELECT 
+          tp.value AS user,
+          count()  AS count
+        FROM trace_properties tp
+          LEFT JOIN traces t ON t.id = tp.trace_id AND t.project_id = tp.project_id
+        WHERE tp.project_id = {projectId:String}
+          AND tp.property = 'user_id'
+          ${tracesFilterRes?.query ? `AND ${tracesFilterRes.query}` : ""}
+          ${search.query}
+        GROUP BY user
+        ORDER BY count DESC
+        ${limit !== undefined && offset !== undefined ? `LIMIT {limit:Int32} OFFSET {offset:Int32}` : ""}
+    `;
+
+    const rows = await queryClickhouse<{
+      user: string;
+      count: string;
+    }>({
+      query,
+      params: {
+        limit,
+        offset,
+        projectId,
+        ...(tracesFilterRes ? tracesFilterRes.params : {}),
+        ...(searchQuery ? search.params : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "analytic_exp",
+        projectId,
+      },
+    });
+
+    return rows;
+  };
+
+  // wrap with experiment runner
+  return runCHExperiment(
+    "getTracesGroupedByUsers",
+    controlImpl,
+    experimentImpl,
   );
-
-  const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition(searchQuery);
-
-  // We mainly use queries like this to retrieve filter options.
-  // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const query = `
-      select 
-        user_id as user,
-        count(*) as count
-      from traces t
-      WHERE t.project_id = {projectId: String}
-      AND t.user_id IS NOT NULL
-      AND t.user_id != ''
-      ${tracesFilterRes?.query ? `AND ${tracesFilterRes.query}` : ""}
-      ${search.query}
-      GROUP BY user
-      ORDER BY count desc
-      ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-  `;
-
-  const rows = await queryClickhouse<{
-    user: string;
-    count: string;
-  }>({
-    query: query,
-    params: {
-      limit,
-      offset,
-      projectId,
-      ...(tracesFilterRes ? tracesFilterRes.params : {}),
-      ...(searchQuery ? search.params : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "analytic",
-      projectId,
-    },
-  });
-
-  return rows;
 };
 
 export type GroupedTracesQueryProp = {

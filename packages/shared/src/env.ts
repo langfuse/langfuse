@@ -105,6 +105,10 @@ const EnvSchema = z.object({
     .number()
     .default(80e6), // 80MB
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(240_000), // 4 minutes
+
+  LANGFUSE_CLICKHOUSE_TABLE_EXPERIMENT_MODE: z
+    .enum(["off", "control", "experiment", "compare"])
+    .default("off"),
 });
 
 export const env: z.infer<typeof EnvSchema> =
