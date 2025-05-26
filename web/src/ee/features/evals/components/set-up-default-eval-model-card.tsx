@@ -1,7 +1,6 @@
-import { ExternalLink } from "lucide-react";
 import { CardContent } from "@/src/components/ui/card";
 import { Card } from "@/src/components/ui/card";
-import Link from "next/link";
+import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
 
 export function SetupDefaultEvalModelCard({
   projectId,
@@ -10,21 +9,16 @@ export function SetupDefaultEvalModelCard({
 }) {
   return (
     <Card className="mt-2 border-dark-yellow bg-light-yellow">
-      <CardContent className="flex flex-col gap-1">
-        <p className="mt-2 text-sm font-semibold">
-          This evaluator requires a default evaluation model
+      <CardContent className="mt-2 flex flex-col gap-1">
+        <ManageDefaultEvalModel
+          projectId={projectId}
+          setUpMessage="Set up default evaluation model to use this evaluator"
+          variant="color-coded"
+        />
+        <p className="text-xs text-dark-yellow/70">
+          This evaluator expects to use the default evaluation model for your
+          project.
         </p>
-        <p className="text-xs text-muted-foreground">
-          Please set up a default evaluation model for your project.
-        </p>
-        <Link
-          href={`/project/${projectId}/evals/default-model`}
-          className="mt-2 flex items-center text-sm text-blue-500 hover:underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Configure default model <ExternalLink className="ml-1" size={14} />
-        </Link>
       </CardContent>
     </Card>
   );

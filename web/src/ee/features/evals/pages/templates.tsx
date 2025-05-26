@@ -11,7 +11,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { ActionButton } from "@/src/components/ActionButton";
+import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -25,11 +25,6 @@ export default function TemplatesPage() {
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalTemplate:read",
-  });
-
-  const hasDefaultModelReadAccess = useHasProjectAccess({
-    projectId,
-    scope: "evalDefaultModel:read",
   });
 
   if (!hasReadAccess) {
@@ -60,15 +55,7 @@ export default function TemplatesPage() {
         ),
         actionButtonsRight: (
           <>
-            <ActionButton
-              hasAccess={hasDefaultModelReadAccess}
-              variant="outline"
-              onClick={() => {
-                router.push(`/project/${projectId}/evals/default-model`);
-              }}
-            >
-              Default Evaluation Model
-            </ActionButton>
+            <ManageDefaultEvalModel projectId={projectId} />
             <Button
               disabled={!hasWriteAccess}
               onClick={() => capture("eval_templates:new_form_open")}

@@ -22,11 +22,12 @@ export default function NewTemplatesPage() {
       scrollable
       headerProps={{
         title: "Create custom evaluator",
-        help: {
-          description:
-            "Create an evaluation template. Choose from one of the pre-defined templates or create your own.",
-          href: "https://langfuse.com/docs/scores/model-based-evals",
-        },
+        breadcrumb: [
+          {
+            name: "Evaluators",
+            href: `/project/${projectId}/evals/templates`,
+          },
+        ],
       }}
     >
       <EvalTemplateForm projectId={projectId} isEditing={true} />

@@ -14,6 +14,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
+import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
 
 // Multi-step setup process
 // 1. Select Evaluator: /project/:projectId/evals/new
@@ -61,6 +62,7 @@ export default function NewEvaluatorPage() {
             href: `/project/${projectId}/evals`,
           },
         ],
+        actionButtonsRight: <ManageDefaultEvalModel projectId={projectId} />,
       }}
     >
       <Breadcrumb className="mb-3">

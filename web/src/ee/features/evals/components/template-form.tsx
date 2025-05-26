@@ -34,7 +34,7 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
 import { useEvaluationModel } from "@/src/ee/features/evals/hooks/useEvaluationModel";
 import { Checkbox } from "@/src/components/ui/checkbox";
-import { SetupDefaultEvalModelCard } from "@/src/ee/features/evals/components/set-up-default-eval-model-card";
+import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
 
 type PartialEvalTemplate = Omit<
   EvalTemplate,
@@ -298,6 +298,13 @@ export const InnerEvalTemplateForm = (props: {
         );
         return;
       }
+    } else {
+      if (!defaultModel) {
+        setFormError(
+          "No default evaluation model set. Set up default evaluation model or use a custom model",
+        );
+        return;
+      }
     }
 
     // Check if we need to perform any pre-submission validation or confirmation
@@ -364,69 +371,45 @@ export const InnerEvalTemplateForm = (props: {
         ) : undefined}
 
         {/* Model Selection Section */}
-        {props.isEditing && (
-          <FormField
-            control={form.control}
-            name="shouldUseDefaultModel"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    disabled={!props.isEditing}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel>Use default evaluation model</FormLabel>
-                  <FormDescription className="text-xs">
-                    Use the projects default evaluation model for this template
-                  </FormDescription>
-                </div>
-              </FormItem>
+        <Card>
+          <CardContent>
+            <p className="my-2 font-semibold">Model</p>
+            {props.isEditing && (
+              <FormField
+                control={form.control}
+                name="shouldUseDefaultModel"
+                render={({ field }) => (
+                  <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={!props.isEditing}
+                      />
+                    </FormControl>
+                    <div className="space-y-0 leading-none">
+                      <FormLabel>Use default evaluation model</FormLabel>
+                      <FormDescription className="text-xs">
+                        <ManageDefaultEvalModel
+                          projectId={props.projectId}
+                          variant="color-coded"
+                          setUpMessage="No default model set. Set up default evaluation model"
+                          className="text-sm font-normal"
+                        />
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
             )}
-          />
-        )}
-
-        {useDefaultModel ? (
-          defaultModel ? (
-            <Card className="mt-2 border-dark-green bg-light-green">
-              <CardContent className="flex flex-col gap-1">
-                <p className="mt-2 text-sm font-semibold">
-                  Default evaluation model selected
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  This template will use the default evaluation model for your
-                  project:
-                  <span className="font-medium">
-                    {" "}
-                    {defaultModel.provider} / {defaultModel.model}
-                  </span>
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <SetupDefaultEvalModelCard projectId={props.projectId} />
-          )
-        ) : (
-          <Card className="mt-2 border-dark-blue bg-light-blue">
-            <CardContent className="flex flex-col gap-1">
-              <p className="mt-2 text-sm font-semibold">
-                Custom evaluation model selected
-              </p>
-              <p className="text-xs text-muted-foreground">
-                This template will use a custom model configuration instead of
-                the project default.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Only show model parameters if using custom model */}
-        {!useDefaultModel && (
-          <Card className="mt-2 flex flex-col gap-6">
-            <CardContent>
+            {/* Only show model parameters if using custom model */}
+            {!useDefaultModel && (
               <ModelParameters
+                customHeader={
+                  <p className="text-sm font-medium leading-none">
+                    Custom model configuration
+                  </p>
+                }
                 {...{
                   modelParams,
                   availableModels,
@@ -438,9 +421,9 @@ export const InnerEvalTemplateForm = (props: {
                 }}
                 formDisabled={!props.isEditing}
               />
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent className="space-y-6">
