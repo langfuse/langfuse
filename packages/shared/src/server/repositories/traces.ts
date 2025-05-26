@@ -517,11 +517,13 @@ export const getTracesGroupedByUsers = async (
     const query = `
         SELECT 
           tp.value AS user,
-          count()  AS count
-        FROM trace_properties tp
-          LEFT JOIN traces t ON t.id = tp.trace_id AND t.project_id = tp.project_id
+          uniq(o.trace_id)  AS count
+        FROM observations o
+        LEFT JOIN trace_properties tp
+        ON o.trace_id = tp.trace_id
+        AND o.project_id = tp.project_id
         WHERE tp.project_id = {projectId:String}
-          AND tp.property = 'user_id'
+        AND tp.property = 'user_id'
           ${tracesFilterRes?.query ? `AND ${tracesFilterRes.query}` : ""}
           ${search.query}
         GROUP BY user

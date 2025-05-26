@@ -57,6 +57,13 @@ export async function runCHExperiment<T>(
         });
       }
 
+      logger.info("Clickhouse experiment result", {
+        label,
+        equal,
+        control_ms: c.ms,
+        experiment_ms: e.ms,
+      });
+
       // raise control error if any
       if (c.err) {
         throw c.err;
