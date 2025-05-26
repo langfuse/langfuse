@@ -13,11 +13,17 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEvaluationModel } from "@/src/ee/features/evals/hooks/useEvaluationModel";
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
+import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
+import { useState } from "react";
+import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
+import { Dialog } from "@/src/components/ui/dialog";
+import { Pencil } from "lucide-react";
 
 export default function DefaultEvaluationModelPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const utils = api.useUtils();
+  const [isEditing, setIsEditing] = useState(false);
 
   const hasEntitlement = useHasEntitlement("model-based-evaluations");
   const hasWriteAccess = useHasProjectAccess({
@@ -83,102 +89,85 @@ export default function DefaultEvaluationModelPage() {
           ],
         }}
       >
-        {selectedModel ? (
-          <div className="flex flex-col gap-6">
-            <Card className="border-dark-green bg-light-green">
-              <CardContent className="flex flex-col gap-1">
-                <p className="mt-2 text-sm font-semibold">
-                  Default evaluation model selected
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  This project will use the default evaluation model:
-                  <span className="font-medium">
-                    {" "}
-                    {selectedModel.provider} / {selectedModel.model}
-                  </span>
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-6">
-            <Card className="border-dark-yellow bg-light-yellow">
-              <CardContent className="flex flex-col gap-1">
-                <p className="mt-2 text-sm font-semibold">
-                  No default evaluation model selected
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Select a model to use as the default evaluation model for your
-                  project.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
         <Card className="mt-3 flex flex-col gap-6">
           <CardContent>
-            <ModelParameters
-              {...{
-                modelParams,
-                availableModels,
-                availableProviders,
-                updateModelParamValue,
-                setModelParamEnabled,
-              }}
-              formDisabled={!hasWriteAccess}
+            <p className="my-2 text-lg font-semibold">Default model</p>
+            <ManageDefaultEvalModel
+              projectId={projectId}
+              variant="color-coded"
+              setUpMessage="No default model set. Set up default evaluation model"
+              className="text-sm font-normal"
+              showEditButton={false}
             />
-            <div className="my-2 text-xs text-muted-foreground">
-              Select a model which supports function calling.
-            </div>
           </CardContent>
         </Card>
-        {selectedModel ? (
-          <div className="mt-2 flex justify-end gap-2">
+
+        <div className="mt-2 flex justify-end gap-2">
+          {selectedModel && (
             <DeleteEvaluationModelButton
               projectId={projectId}
               scope="evalDefaultModel:CUD"
             />
-            <Button
-              disabled={!hasWriteAccess}
-              onClick={() => {
-                upsertDefaultModel({
-                  projectId,
-                  provider: modelParams.provider.value,
-                  adapter: modelParams.adapter.value,
-                  model: modelParams.model.value,
-                  modelParams: {
-                    max_tokens: modelParams.max_tokens.value,
-                    temperature: modelParams.temperature.value,
-                    top_p: modelParams.top_p.value,
-                  },
-                });
-              }}
-            >
-              Update as default
-            </Button>
-          </div>
-        ) : (
-          <div className="mt-3 flex justify-end">
-            <Button
-              disabled={!hasWriteAccess || !modelParams.provider.value}
-              onClick={() => {
-                upsertDefaultModel({
-                  projectId,
-                  provider: modelParams.provider.value,
-                  adapter: modelParams.adapter.value,
-                  model: modelParams.model.value,
-                  modelParams: {
-                    max_tokens: modelParams.max_tokens.value,
-                    temperature: modelParams.temperature.value,
-                    top_p: modelParams.top_p.value,
-                  },
-                });
-              }}
-            >
-              Set as default
-            </Button>
-          </div>
-        )}
+          )}
+
+          <Dialog open={isEditing} onOpenChange={setIsEditing}>
+            <DialogTrigger asChild>
+              <Button
+                disabled={!hasWriteAccess || !modelParams.provider.value}
+                onClick={() => {
+                  setIsEditing(true);
+                }}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                {selectedModel ? "Edit" : "Set up"}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="px-3 py-10">
+              <ModelParameters
+                customHeader={
+                  <p className="font-medium leading-none">
+                    Default model configuration
+                  </p>
+                }
+                {...{
+                  modelParams,
+                  availableModels,
+                  availableProviders,
+                  updateModelParamValue,
+                  setModelParamEnabled,
+                }}
+                formDisabled={!hasWriteAccess}
+              />
+              <div className="my-2 text-xs text-muted-foreground">
+                Select a model which supports function calling.
+              </div>
+              <div className="mt-2 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsEditing(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!hasWriteAccess || !modelParams.provider.value}
+                  onClick={() => {
+                    upsertDefaultModel({
+                      projectId,
+                      provider: modelParams.provider.value,
+                      adapter: modelParams.adapter.value,
+                      model: modelParams.model.value,
+                      modelParams: {
+                        max_tokens: modelParams.max_tokens.value,
+                        temperature: modelParams.temperature.value,
+                        top_p: modelParams.top_p.value,
+                      },
+                    });
+                    setIsEditing(false);
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </Page>
     </>
   );

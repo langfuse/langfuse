@@ -213,7 +213,7 @@ export const TemplateSelector = ({
                             {isInvalid && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
+                                  <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   Requires project-level evaluation model
@@ -288,7 +288,7 @@ export const TemplateSelector = ({
                           {isInvalid && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
+                                <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                               </TooltipTrigger>
                               <TooltipContent>
                                 Requires project-level evaluation model
