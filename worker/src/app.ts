@@ -1,4 +1,4 @@
-import "./initialize";
+// import "./initialize";
 
 import express from "express";
 import cors from "cors";
@@ -53,6 +53,11 @@ import {
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlxRetryService } from "./services/dlx/dlxRetryService";
+import { sum } from "@langfuse/shared";
+
+sum(1, 2).then((result) => {
+  logger.info(`sum-result ${result}`);
+});
 
 const app = express();
 

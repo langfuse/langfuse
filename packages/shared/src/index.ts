@@ -58,3 +58,5 @@ export * from "./interfaces/search";
 
 // domain
 export * from "./domain";
+
+export * from "./ee";
