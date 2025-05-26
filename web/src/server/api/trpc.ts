@@ -17,13 +17,16 @@
 import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
-
+import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import * as z from "zod";
+import * as opentelemetry from "@opentelemetry/api";
+import { type IncomingHttpHeaders } from "node:http";
 
 type CreateContextOptions = {
   session: Session | null;
+  headers: IncomingHttpHeaders;
 };
 
 /**
@@ -39,6 +42,7 @@ type CreateContextOptions = {
 export const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
     session: opts.session,
+    headers: opts.headers,
     prisma,
     DB,
   };
@@ -56,14 +60,10 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
   // Get the session from the server using the getServerSession wrapper function
   const session = await getServerAuthSession({ req, res });
 
-  addUserToSpan({
-    userId: session?.user?.id,
-    email: session?.user?.email ?? undefined,
-  });
+  // Get the headers from the request
+  const headers = req.headers;
 
-  return createInnerTRPCContext({
-    session,
-  });
+  return createInnerTRPCContext({ session, headers });
 };
 
 /**
@@ -78,11 +78,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
-import {
-  addUserToSpan,
-  getTraceById,
-  logger,
-} from "@langfuse/shared/src/server";
+import { getTraceById, logger } from "@langfuse/shared/src/server";
 
 setUpSuperjson();
 
@@ -140,10 +136,22 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   return res;
 });
 
+// otel setup with proper context propagation
+const withOtelInstrumentation = t.middleware(async (opts) => {
+  const baggageCtx = contextWithLangfuseProps({
+    headers: opts.ctx.headers,
+    userId: opts.ctx.session?.user?.id,
+    projectId: (opts.rawInput as Record<string, string>)?.projectId,
+  });
+
+  // Execute the next middleware/procedure with our context
+  return opentelemetry.context.with(baggageCtx, () => opts.next());
+});
+
 // otel setup
-const withOtelTracingProcedure = t.procedure.use(
-  tracing({ collectInput: true, collectResult: true }),
-);
+const withOtelTracingProcedure = t.procedure
+  .use(withOtelInstrumentation)
+  .use(tracing({ collectInput: true, collectResult: true }));
 
 /**
  * Public (unauthenticated) procedure

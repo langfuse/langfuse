@@ -6,6 +6,7 @@ import {
   redis,
   logger,
   getCurrentSpan,
+  contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -19,6 +20,7 @@ import { processEventBatch } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import * as opentelemetry from "@opentelemetry/api";
 
 export const config = {
   api: {
@@ -84,41 +86,50 @@ export default async function handler(
       );
     }
 
-    try {
-      const rateLimitCheck =
-        await RateLimitService.getInstance().rateLimitRequest(
-          authCheck.scope,
-          "ingestion",
-        );
-
-      if (rateLimitCheck?.isRateLimited()) {
-        return rateLimitCheck.sendRestResponseIfLimited(res);
-      }
-    } catch (e) {
-      // If rate-limiter returns an error, we log it and continue processing.
-      // This allows us to fail open instead of reject requests.
-      logger.error("Error while rate limiting", e);
-    }
-
-    const batchType = z.object({
-      batch: z.array(z.unknown()),
-      metadata: jsonSchema.nullish(),
+    const ctx = contextWithLangfuseProps({
+      headers: req.headers,
+      projectId: authCheck.scope.projectId,
     });
+    // Execute the rest of the handler within the context
+    return opentelemetry.context.with(ctx, async () => {
+      try {
+        const rateLimitCheck =
+          await RateLimitService.getInstance().rateLimitRequest(
+            authCheck.scope,
+            "ingestion",
+          );
 
-    const parsedSchema = batchType.safeParse(req.body);
+        if (rateLimitCheck?.isRateLimited()) {
+          return rateLimitCheck.sendRestResponseIfLimited(res);
+        }
+      } catch (e) {
+        // If rate-limiter returns an error, we log it and continue processing.
+        // This allows us to fail open instead of reject requests.
+        logger.error("Error while rate limiting", e);
+      }
 
-    if (!parsedSchema.success) {
-      logger.info("Invalid request data", parsedSchema.error);
-      return res.status(400).json({
-        message: "Invalid request data",
-        errors: parsedSchema.error.issues.map((issue) => issue.message),
+      const batchType = z.object({
+        batch: z.array(z.unknown()),
+        metadata: jsonSchema.nullish(),
       });
-    }
 
-    await telemetry();
+      const parsedSchema = batchType.safeParse(req.body);
 
-    const result = await processEventBatch(parsedSchema.data.batch, authCheck);
-    return res.status(207).json(result);
+      if (!parsedSchema.success) {
+        logger.info("Invalid request data", parsedSchema.error);
+        return res.status(400).json({
+          message: "Invalid request data",
+          errors: parsedSchema.error.issues.map((issue) => issue.message),
+        });
+      }
+
+      await telemetry();
+      const result = await processEventBatch(
+        parsedSchema.data.batch,
+        authCheck,
+      );
+      return res.status(207).json(result);
+    });
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       logger.error("error_handling_ingestion_event", error);
