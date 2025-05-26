@@ -27,6 +27,8 @@
     "dev:web": "turbo run dev --filter=web",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "remove-ee-imports": "node scripts/remove-ee-imports.js",
+    "remove-ee-imports:bash": "bash scripts/remove-ee-imports.sh",
     "release": "dotenv -e ../.env -- release-it",
     "prepare": "husky"
   },
@@ -34,6 +36,7 @@
     "@release-it/bumper": "^7.0.1",
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.2",
+    "glob": "^10.3.10",
     "husky": "^9.0.11",
     "prettier": "^3.3.3",
     "release-it": "^18.1.2",
