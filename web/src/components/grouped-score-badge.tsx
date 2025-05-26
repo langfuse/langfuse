@@ -22,6 +22,19 @@ const partitionScores = <T extends APIScoreV2 | LastUserScore>(
   return { visibleScores, hiddenScores };
 };
 
+const hasMetadata = (score: APIScoreV2 | LastUserScore) => {
+  if (!score.metadata) return false;
+  try {
+    const metadata =
+      typeof score.metadata === "string"
+        ? JSON.parse(score.metadata)
+        : score.metadata;
+    return Object.keys(metadata).length > 0;
+  } catch {
+    return false;
+  }
+};
+
 const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
   name,
   scores,
@@ -55,7 +68,7 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
                 </HoverCardContent>
               </HoverCard>
             )}
-            {s.metadata && Object.keys(s.metadata).length > 0 && (
+            {hasMetadata(s) && (
               <HoverCard>
                 <HoverCardTrigger className="inline-block">
                   <BracesIcon className="mb-[0.0625rem] !size-3" />
