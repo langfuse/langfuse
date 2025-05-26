@@ -196,6 +196,9 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                         placeholder="Describe the tool's purpose and usage"
                         className="max-h-[120px] focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                         {...field}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
