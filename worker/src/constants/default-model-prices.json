@@ -1736,9 +1736,9 @@
   {
     "id": "cmazmkzlm00000djp1e1qe4k4",
     "model_name": "claude-sonnet-4-20250514",
-    "match_pattern": "(?i)^(claude-sonnet-4-20250514|anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514)$",
+    "match_pattern": "(?i)^(claude-sonnet-4-20250514|anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
     "created_at": "2025-05-22T17:09:02.131Z",
-    "updated_at": "2025-05-22T17:09:02.131Z",
+    "updated_at": "2025-05-26T23:09:02.131Z",
     "prices": {
       "input": 3e-6,
       "input_tokens": 3e-6,
