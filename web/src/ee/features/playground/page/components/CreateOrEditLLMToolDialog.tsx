@@ -91,7 +91,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
         parameters: JSON.stringify(existingLlmTool.parameters, null, 2),
       });
     }
-  }, [existingLlmTool, form]);
+  }, [existingLlmTool, form, props.defaultValues]);
 
   async function onSubmit(values: FormValues) {
     let result;
