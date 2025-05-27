@@ -84,7 +84,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
 
   // Populate form when in edit mode
   useEffect(() => {
-    if (existingLlmTool) {
+    if (existingLlmTool && !props.defaultValues) {
       form.reset({
         name: existingLlmTool.name,
         description: existingLlmTool.description,

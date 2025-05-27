@@ -42,7 +42,13 @@ export const PlaygroundTools = () => {
 
   const isToolSaved = useCallback(
     (tool: PlaygroundTool) => {
-      return savedTools.some((savedTool) => savedTool.id === tool.id);
+      return savedTools.some(
+        (savedTool) =>
+          savedTool.id === tool.id &&
+          savedTool.description === tool.description &&
+          JSON.stringify(savedTool.parameters) ===
+            JSON.stringify(tool.parameters),
+      );
     },
     [savedTools],
   );
@@ -51,11 +57,7 @@ export const PlaygroundTools = () => {
     tools.forEach((tool, index) => {
       if (!tool.existingLlmTool) {
         const matchingSavedTool = savedTools.find(
-          (savedTool) =>
-            savedTool.name === tool.name &&
-            savedTool.description === tool.description &&
-            JSON.stringify(savedTool.parameters) ===
-              JSON.stringify(tool.parameters),
+          (savedTool) => savedTool.name === tool.name,
         );
 
         if (matchingSavedTool) {
