@@ -525,6 +525,7 @@ export const evalRouter = createTRPCRouter({
                 WHERE name = et.name AND 
                       (project_id = et.project_id OR (project_id IS NULL AND et.project_id IS NULL))
               )
+              AND jc.project_id = ${input.projectId}
             ) as usage_count
           FROM (
             SELECT DISTINCT ON (project_id, name) *

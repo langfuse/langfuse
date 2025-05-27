@@ -374,34 +374,32 @@ export const InnerEvalTemplateForm = (props: {
         <Card>
           <CardContent>
             <p className="my-2 font-semibold">Model</p>
-            {props.isEditing && (
-              <FormField
-                control={form.control}
-                name="shouldUseDefaultModel"
-                render={({ field }) => (
-                  <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={!props.isEditing}
+            <FormField
+              control={form.control}
+              name="shouldUseDefaultModel"
+              render={({ field }) => (
+                <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={!props.isEditing}
+                    />
+                  </FormControl>
+                  <div className="space-y-0 leading-none">
+                    <FormLabel>Use default evaluation model</FormLabel>
+                    <FormDescription className="text-xs">
+                      <ManageDefaultEvalModel
+                        projectId={props.projectId}
+                        variant="color-coded"
+                        setUpMessage="No default model set. Set up default evaluation model"
+                        className="text-sm font-normal"
                       />
-                    </FormControl>
-                    <div className="space-y-0 leading-none">
-                      <FormLabel>Use default evaluation model</FormLabel>
-                      <FormDescription className="text-xs">
-                        <ManageDefaultEvalModel
-                          projectId={props.projectId}
-                          variant="color-coded"
-                          setUpMessage="No default model set. Set up default evaluation model"
-                          className="text-sm font-normal"
-                        />
-                      </FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
-            )}
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
             {/* Only show model parameters if using custom model */}
             {!useDefaultModel && (
               <ModelParameters
