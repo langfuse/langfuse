@@ -65,7 +65,7 @@ export default withMiddlewares({
             // Check if the queue exists
       const existingQueue = await prisma.annotationQueue.findFirst({
         where: {
-          id: body.name,
+          name: body.name,
           projectId: auth.scope.projectId,
         },
       });
