@@ -84,14 +84,14 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
 
   // Populate form when in edit mode
   useEffect(() => {
-    if (existingLlmSchema) {
+    if (existingLlmSchema && !props.defaultValues) {
       form.reset({
         name: existingLlmSchema.name,
         description: existingLlmSchema.description,
         schema: JSON.stringify(existingLlmSchema.schema, null, 2),
       });
     }
-  }, [existingLlmSchema, form]);
+  }, [existingLlmSchema, form, props.defaultValues]);
 
   async function onSubmit(values: FormValues) {
     let result;

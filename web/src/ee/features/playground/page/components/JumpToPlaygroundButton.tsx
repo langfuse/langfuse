@@ -431,7 +431,13 @@ function parseStructuredOutputSchema(
   },
 ): PlaygroundSchema | null {
   try {
-    const metadata = generation.metadata;
+    let metadata = generation.metadata;
+
+    try {
+      if (typeof metadata === "string") {
+        metadata = JSON.parse(metadata);
+      }
+    } catch {}
 
     if (
       typeof metadata === "object" &&
