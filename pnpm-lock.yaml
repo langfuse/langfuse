@@ -865,9 +865,6 @@ importers:
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.7.3
         version: 0.7.3(bullmq@5.34.10)
-      '@clickhouse/client':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
@@ -1739,15 +1736,8 @@ packages:
   '@clickhouse/client-common@1.11.1':
     resolution: {integrity: sha512-bme0le2yhDSAh13d2fxhSW5ZrNoVqZ3LTyac8jK6hNH0qkksXnjYkLS6KQalPU6NMpffxHmpI4+/Gi2MnX0NCA==}
 
-  '@clickhouse/client-common@1.4.0':
-    resolution: {integrity: sha512-kglG8YyWnR1K24RckUf5ZdNTN0U0s+a1j/bpCO4ZjzjO87ICgWlXFVD22pZqSACW7/2IIi1IkzbwtxKI2s/MOw==}
-
   '@clickhouse/client@1.11.1':
     resolution: {integrity: sha512-u9h++h72SmWystijNqfNvMkfA+5+Y1LNfmLL/odCL3VgI3oyAPP9ubSw/Yrt2zRZkLKehMMD1kuOej0QHbSoBA==}
-    engines: {node: '>=16'}
-
-  '@clickhouse/client@1.4.0':
-    resolution: {integrity: sha512-O4mbFPM/wQtFck01ghYI2mnNHv9jSFEiQBsTCH4t6MKeGHNAPkJGaFGv+KycLTv6zjnQNjiUGdXDMVRema5SyA==}
     engines: {node: '>=16'}
 
   '@codemirror/autocomplete@6.17.0':
@@ -13712,15 +13702,9 @@ snapshots:
 
   '@clickhouse/client-common@1.11.1': {}
 
-  '@clickhouse/client-common@1.4.0': {}
-
   '@clickhouse/client@1.11.1':
     dependencies:
       '@clickhouse/client-common': 1.11.1
-
-  '@clickhouse/client@1.4.0':
-    dependencies:
-      '@clickhouse/client-common': 1.4.0
 
   '@codemirror/autocomplete@6.17.0(@codemirror/language@6.10.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)(@lezer/common@1.2.3)':
     dependencies:
@@ -14716,7 +14700,7 @@ snapshots:
       '@aws-sdk/client-bedrock-agent-runtime': 3.668.0
       '@aws-sdk/client-bedrock-runtime': 3.668.0
       '@aws-sdk/client-kendra': 3.668.0
-      '@aws-sdk/credential-provider-node': 3.675.0(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/credential-provider-node': 3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)
       '@langchain/core': 0.3.18(openai@4.82.0(zod@3.24.4))
       zod: 3.24.4
       zod-to-json-schema: 3.23.5(zod@3.24.4)
