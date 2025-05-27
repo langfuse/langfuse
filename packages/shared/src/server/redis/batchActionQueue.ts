@@ -26,7 +26,7 @@ export class BatchActionQueue {
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,
-              attempts: 2,
+              attempts: 10,
               backoff: {
                 type: "exponential",
                 delay: 5000,

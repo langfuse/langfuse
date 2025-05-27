@@ -38,6 +38,8 @@ import { tableRouter } from "@/src/features/table/server/tableRouter";
 import { cloudStatusRouter } from "@/src/features/cloud-status-notification/server/cloud-status-router";
 import { dashboardWidgetRouter } from "./routers/dashboardWidgets";
 import { TableViewPresetsRouter } from "@/src/server/api/routers/tableViewPresets";
+import { defaultEvalModelRouter } from "@/src/ee/features/evals/server/defaultEvalModelRouter";
+import { plainRouter } from "@/src/features/support-chat/trpc/plain";
 
 /**
  * This is the primary router for your server.
@@ -66,6 +68,7 @@ export const appRouter = createTRPCRouter({
   prompts: promptRouter,
   models: modelRouter,
   evals: evalRouter,
+  defaultLlmModel: defaultEvalModelRouter,
   experiments: experimentsRouter,
   posthogIntegration: posthogIntegrationRouter,
   blobStorageIntegration: blobStorageIntegrationRouter,
@@ -84,6 +87,7 @@ export const appRouter = createTRPCRouter({
   cloudStatus: cloudStatusRouter,
   dashboardWidgets: dashboardWidgetRouter,
   TableViewPresets: TableViewPresetsRouter,
+  plain: plainRouter,
 });
 
 // export type definition of API

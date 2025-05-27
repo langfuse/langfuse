@@ -71,7 +71,13 @@ export const OpenAIToolCallSchema = z.object({
       z.record(z.string(), z.unknown()),
       z
         .string()
-        .transform((v) => JSON.parse(v))
+        .transform((v) => {
+          try {
+            return JSON.parse(v);
+          } catch {
+            return v;
+          }
+        })
         .pipe(z.record(z.string(), z.unknown())),
     ]),
   }),
@@ -297,6 +303,8 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
+  "claude-sonnet-4-20250514",
+  "claude-opus-4-20250514",
   "claude-3-7-sonnet-20250219",
   "claude-3-5-sonnet-20241022",
   "claude-3-5-sonnet-20240620",

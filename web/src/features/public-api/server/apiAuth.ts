@@ -1,6 +1,5 @@
 import { env } from "@/src/env.mjs";
 import {
-  addUserToSpan,
   createShaHash,
   recordIncrement,
   verifySecretKey,
@@ -197,8 +196,6 @@ export class ApiAuthService {
               throw new Error("Invalid credentials");
             }
 
-            addUserToSpan({ projectId: finalApiKey.projectId ?? "" });
-
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
@@ -219,6 +216,7 @@ export class ApiAuthService {
                 rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
                 apiKeyId: finalApiKey.id,
                 scope: finalApiKey.scope,
+                publicKey,
               },
             };
           }
@@ -234,8 +232,6 @@ export class ApiAuthService {
               );
             }
 
-            addUserToSpan({ projectId: dbKey.projectId ?? "" });
-
             const { orgId, cloudConfig } =
               this.extractOrgIdAndCloudConfig(dbKey);
 
@@ -249,6 +245,7 @@ export class ApiAuthService {
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
                 scope: dbKey.scope,
+                publicKey,
               },
             };
           }
@@ -275,14 +272,6 @@ export class ApiAuthService {
         };
       },
     );
-    // this adds the projectid to the root span of the request which makes it easier to find traces for specific projects
-    if (result.validKey && result.scope?.projectId) {
-      addUserToSpan({
-        projectId: result.scope.projectId,
-        orgId: result.scope.orgId,
-        plan: result.scope.plan,
-      });
-    }
     return result;
   }
 

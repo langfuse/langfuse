@@ -11,6 +11,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
+import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -33,47 +34,50 @@ export default function TemplatesPage() {
   return (
     <Page
       headerProps={{
-        title: "Evaluators",
+        title: "LLM-as-a-Judge Evaluators",
         help: {
-          description:
-            "Create an evaluation template. Choose from one of the pre-defined templates or create your own.",
+          description: "View all langfuse managed and custom evaluators.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         },
         tabsComponent: (
           <TabsBar value="templates">
             <TabsBarList>
-              <TabsBarTrigger value="evaluators" asChild>
-                <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
+              <TabsBarTrigger value="configs" asChild>
+                <Link href={`/project/${projectId}/evals`}>
+                  Running Evaluators
+                </Link>
               </TabsBarTrigger>
-              <TabsBarTrigger value="templates">Templates</TabsBarTrigger>
-              <TabsBarTrigger value="log" asChild>
-                <Link href={`/project/${projectId}/evals/log`}>Log</Link>
+              <TabsBarTrigger value="templates">
+                Evaluator Library
               </TabsBarTrigger>
             </TabsBarList>
           </TabsBar>
         ),
         actionButtonsRight: (
-          <Button
-            disabled={!hasWriteAccess}
-            onClick={() => capture("eval_templates:new_form_open")}
-            asChild
-            variant="default"
-          >
-            <Link
-              href={
-                hasWriteAccess
-                  ? `/project/${projectId}/evals/templates/new`
-                  : "#"
-              }
+          <>
+            <ManageDefaultEvalModel projectId={projectId} />
+            <Button
+              disabled={!hasWriteAccess}
+              onClick={() => capture("eval_templates:new_form_open")}
+              asChild
+              variant="default"
             >
-              {hasWriteAccess ? (
-                <Plus className="mr-2 h-4 w-4" />
-              ) : (
-                <Lock className="mr-2 h-4 w-4" />
-              )}
-              New Template
-            </Link>
-          </Button>
+              <Link
+                href={
+                  hasWriteAccess
+                    ? `/project/${projectId}/evals/templates/new`
+                    : "#"
+                }
+              >
+                {hasWriteAccess ? (
+                  <Plus className="mr-2 h-4 w-4" />
+                ) : (
+                  <Lock className="mr-2 h-4 w-4" />
+                )}
+                Custom Evaluator
+              </Link>
+            </Button>
+          </>
         ),
       }}
     >

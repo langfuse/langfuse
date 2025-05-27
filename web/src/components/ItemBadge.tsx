@@ -11,9 +11,9 @@ import {
   FlaskConical,
   ListTodo,
   WandSparkles,
-  Cog,
   TestTubeDiagonal,
   Clock,
+  Bot,
 } from "lucide-react";
 import { cva } from "class-variance-authority";
 import { ObservationType } from "@langfuse/shared";
@@ -31,7 +31,7 @@ export type LangfuseItemType =
   | "ANNOTATION_QUEUE"
   | "PROMPT"
   | "EVALUATOR"
-  | "EVAL_TEMPLATE";
+  | "RUNNING_EVALUATOR";
 
 const iconMap: Record<LangfuseItemType, React.ElementType> = {
   TRACE: ListTree,
@@ -46,8 +46,8 @@ const iconMap: Record<LangfuseItemType, React.ElementType> = {
   DATASET_ITEM: TestTubeDiagonal,
   ANNOTATION_QUEUE: ListTodo,
   PROMPT: FileText,
+  RUNNING_EVALUATOR: Bot,
   EVALUATOR: WandSparkles,
-  EVAL_TEMPLATE: Cog,
 } as const;
 
 const iconVariants = cva(cn("h-4 w-4"), {
@@ -66,7 +66,7 @@ const iconVariants = cva(cn("h-4 w-4"), {
       ANNOTATION_QUEUE: "text-primary-accent",
       PROMPT: "text-primary-accent",
       EVALUATOR: "text-primary-accent",
-      EVAL_TEMPLATE: "text-primary-accent",
+      RUNNING_EVALUATOR: "text-primary-accent",
     },
   },
 });

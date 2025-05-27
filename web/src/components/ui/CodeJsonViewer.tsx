@@ -27,6 +27,7 @@ export function JSONView(props: {
   media?: MediaReturnType[];
   scrollable?: boolean;
   projectIdForPromptButtons?: string;
+  controlButtons?: React.ReactNode;
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
@@ -129,6 +130,7 @@ export function JSONView(props: {
           canEnableMarkdown={props.canEnableMarkdown ?? false}
           handleOnValueChange={handleOnValueChange}
           handleOnCopy={handleOnCopy}
+          controlButtons={props.controlButtons}
         />
       ) : null}
       {props.scrollable ? (

@@ -299,4 +299,104 @@ describe("/api/public/metrics API Endpoint", () => {
 
     expect(status).toBe(400);
   });
+
+  it("should return 400 for invalid metric measure", async () => {
+    // Build a query with an invalid metric measure (name)
+    const invalidMetricNameQuery = {
+      view: "traces",
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "invalidMetric", aggregation: "count" }],
+      fromTimestamp: new Date(
+        new Date().getTime() - 3600 * 24 * 1000,
+      ).toISOString(),
+      toTimestamp: new Date().toISOString(),
+    };
+
+    const { status, body } = await makeAPICall(
+      "GET",
+      `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidMetricNameQuery))}`,
+      undefined,
+    );
+
+    expect(status).toBe(400);
+    expect(body).toHaveProperty("error");
+    expect(body.message).toMatch(/Invalid metric/);
+  });
+
+  it("should return 400 for invalid metric aggregation", async () => {
+    // Build a query with an invalid aggregation method
+    const invalidAggregationQuery = {
+      view: "traces",
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", aggregation: "invalidAggregation" }],
+      fromTimestamp: new Date(
+        new Date().getTime() - 3600 * 24 * 1000,
+      ).toISOString(),
+      toTimestamp: new Date().toISOString(),
+    };
+
+    const { status, body } = await makeAPICall(
+      "GET",
+      `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidAggregationQuery))}`,
+      undefined,
+    );
+
+    expect(status).toBe(400);
+    expect(body).toHaveProperty("error");
+    expect(body.message).toMatch(/Invalid request data/);
+  });
+
+  it("should return 400 for invalid dimension", async () => {
+    // Build a query with an invalid dimension
+    const invalidDimensionQuery = {
+      view: "traces",
+      dimensions: [{ field: "nonExistentDimension" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      fromTimestamp: new Date(
+        new Date().getTime() - 3600 * 24 * 1000,
+      ).toISOString(),
+      toTimestamp: new Date().toISOString(),
+    };
+
+    const { status, body } = await makeAPICall(
+      "GET",
+      `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidDimensionQuery))}`,
+      undefined,
+    );
+
+    expect(status).toBe(400);
+    expect(body).toHaveProperty("error");
+    expect(body.message).toMatch(/Invalid dimension/);
+  });
+
+  it("should return 400 for invalid filter column", async () => {
+    // Build a query with an invalid filter column
+    const invalidFilterQuery = {
+      view: "traces",
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [
+        {
+          column: "nonExistentColumn",
+          operator: "=",
+          value: "test",
+          type: "string",
+        },
+      ],
+      fromTimestamp: new Date(
+        new Date().getTime() - 3600 * 24 * 1000,
+      ).toISOString(),
+      toTimestamp: new Date().toISOString(),
+    };
+
+    const { status, body } = await makeAPICall(
+      "GET",
+      `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidFilterQuery))}`,
+      undefined,
+    );
+
+    expect(status).toBe(400);
+    expect(body).toHaveProperty("error");
+    expect(body.message).toMatch(/Invalid filter column/);
+  });
 });

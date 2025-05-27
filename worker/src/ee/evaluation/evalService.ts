@@ -15,31 +15,30 @@ import {
   EvalExecutionQueue,
   checkTraceExists,
   checkObservationExists,
-  getTraceById,
-  getObservationForTraceIdByName,
   DatasetRunItemUpsertEventType,
   TraceQueueEventType,
   StorageService,
   StorageServiceFactory,
   CreateEvalQueueEventType,
   ChatMessageType,
+  DefaultEvalModelService,
+  getTraceById,
+  getObservationForTraceIdByName,
 } from "@langfuse/shared/src/server";
 import {
-  availableTraceEvalVariables,
   ChatMessageRole,
   ForbiddenError,
   LangfuseNotFoundError,
-  LLMApiKeySchema,
   Prisma,
   singleFilter,
   InvalidRequestError,
   variableMappingList,
-  ZodModelConfig,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
-  variableMapping,
   JobTimeScope,
   ScoreSource,
+  availableTraceEvalVariables,
+  variableMapping,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -47,8 +46,8 @@ import {
   callStructuredLLM,
   compileHandlebarString,
 } from "../../features/utilities";
-import { JSONPath } from "jsonpath-plus";
 import { env } from "../../env";
+import { JSONPath } from "jsonpath-plus";
 
 let s3StorageServiceClient: StorageService;
 
@@ -61,6 +60,8 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
       endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
+      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
     });
   }
   return s3StorageServiceClient;
@@ -193,14 +194,24 @@ export const createEvalJobs = async ({
     logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
+    const maxTimeStamp =
+      "timestamp" in event &&
+      new Date(event.timestamp).getTime() === new Date("2020-01-01").getTime() // min time for historic evals
+        ? new Date()
+        : undefined;
+
     // Check whether the trace already exists in the database.
-    const traceExists = await checkTraceExists(
-      event.projectId,
-      event.traceId,
+    const traceExists = await checkTraceExists({
+      projectId: event.projectId,
+      traceId: event.traceId,
       // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
-      "timestamp" in event ? new Date(event.timestamp) : new Date(jobTimestamp),
-      config.target_object === "trace" ? validatedFilter : [],
-    );
+      timestamp:
+        "timestamp" in event
+          ? new Date(event.timestamp)
+          : new Date(jobTimestamp),
+      filter: config.target_object === "trace" ? validatedFilter : [],
+      maxTimeStamp,
+    });
 
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem: { id: string } | undefined;
@@ -312,7 +323,7 @@ export const createEvalJobs = async ({
       }
 
       logger.debug(
-        `Creating eval job for config ${config.id} and trace ${event.traceId}`,
+        `Creating eval job execution for config ${config.id} and trace ${event.traceId}`,
       );
 
       await prisma.jobExecution.create({
@@ -321,6 +332,7 @@ export const createEvalJobs = async ({
           projectId: event.projectId,
           jobConfigurationId: config.id,
           jobInputTraceId: event.traceId,
+          jobTemplateId: config.eval_template_id,
           status: "PENDING",
           startTime: new Date(),
           ...(datasetItem
@@ -429,7 +441,7 @@ export const evaluate = async ({
   const template = await prisma.evalTemplate.findFirstOrThrow({
     where: {
       id: config.eval_template_id,
-      projectId: event.projectId,
+      OR: [{ projectId: event.projectId }, { projectId: null }],
     },
   });
 
@@ -494,25 +506,18 @@ export const evaluate = async ({
     score: z.number().describe(parsedOutputSchema.score),
   });
 
-  const modelParams = ZodModelConfig.parse(template.modelParams);
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    event.projectId,
+    template.provider ?? undefined,
+    template.model ?? undefined,
+    template.modelParams as Record<string, unknown> | null,
+  );
 
-  // the apiKey.secret_key must never be printed to the console or returned to the client.
-  const apiKey = await prisma.llmApiKeys.findFirst({
-    where: {
-      projectId: event.projectId,
-      provider: template.provider,
-    },
-  });
-  const parsedKey = LLMApiKeySchema.safeParse(apiKey);
-
-  if (!parsedKey.success) {
-    // this will fail the eval execution if a user deletes the API key.
+  if (!modelConfig.valid) {
     logger.error(
-      `Evaluating job ${event.jobExecutionId} did not find API key for provider ${template.provider} and project ${event.projectId}. Eval will fail. ${parsedKey.error}`,
+      `Evaluating job ${event.jobExecutionId} will fail. ${modelConfig.error}`,
     );
-    throw new LangfuseNotFoundError(
-      `API key for provider ${template.provider} and project ${event.projectId} not found.`,
-    );
+    throw new LangfuseNotFoundError(modelConfig.error);
   }
 
   const messages = [
@@ -527,11 +532,11 @@ export const evaluate = async ({
     async () =>
       await callStructuredLLM(
         event.jobExecutionId,
-        parsedKey.data,
+        modelConfig.config.apiKey,
         messages,
-        modelParams,
-        template.provider,
-        template.model,
+        modelConfig.config.modelParams ?? {},
+        modelConfig.config.provider,
+        modelConfig.config.model,
         evalScoreSchema,
       ),
     {
@@ -642,11 +647,11 @@ export async function extractVariablesFromTracingData({
         (m) => m.templateVariable === variable,
       );
 
+      // validation ensures that mapping is always defined for a variable
       if (!mapping) {
         logger.debug(`No mapping found for variable ${variable}`);
         return { var: variable, value: "" };
       }
-
       if (mapping.langfuseObject === "dataset_item") {
         if (!datasetItemId) {
           logger.error(
@@ -781,18 +786,22 @@ export async function extractVariablesFromTracingData({
 
 export const parseDatabaseRowToString = (
   dbRow: Record<string, unknown>,
+
   mapping: z.infer<typeof variableMapping>,
 ): string => {
   const selectedColumn = dbRow[mapping.selectedColumnId];
 
   let jsonSelectedColumn;
+
   if (mapping.jsonSelector) {
     logger.debug(
       `Parsing JSON for json selector ${mapping.jsonSelector} from ${JSON.stringify(selectedColumn)}`,
     );
+
     try {
       jsonSelectedColumn = JSONPath({
         path: mapping.jsonSelector,
+
         json:
           typeof selectedColumn === "string"
             ? JSON.parse(selectedColumn)
@@ -801,8 +810,10 @@ export const parseDatabaseRowToString = (
     } catch (error) {
       logger.error(
         `Error parsing JSON for json selector ${mapping.jsonSelector}. Falling back to original value.`,
+
         error,
       );
+
       jsonSelectedColumn = selectedColumn;
     }
   } else {
@@ -816,6 +827,7 @@ export const parseUnknownToString = (value: unknown): string => {
   if (value === null || value === undefined) {
     return "";
   }
+
   if (
     typeof value === "string" ||
     typeof value === "number" ||
@@ -823,9 +835,11 @@ export const parseUnknownToString = (value: unknown): string => {
   ) {
     return value.toString();
   }
+
   if (typeof value === "object") {
     return JSON.stringify(value);
   }
+
   if (typeof value === "symbol") {
     return value.toString();
   }

@@ -1,5 +1,6 @@
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -15,6 +16,7 @@ export function RequestResetPasswordEmailButton({
   variant?: "default" | "secondary";
 }) {
   const [isEmailSent, setIsEmailSent] = useState(false);
+  const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isValidEmail, setIsValidEmail] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -54,21 +56,66 @@ export function RequestResetPasswordEmailButton({
     }
   };
 
+  const handleVerify = async (_e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!code) return;
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const formattedEmail = encodeURIComponent(email.toLowerCase().trim());
+      const formattedCode = encodeURIComponent(code.trim());
+      const callback = encodeURIComponent(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
+      );
+      const url = `/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
+      window.location.href = url;
+    } catch (error) {
+      console.error("Error verifying code:", error);
+      setErrorMessage("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <>
-      <Button
-        onClick={handleResetPassword}
-        className={className}
-        loading={isLoading}
-        disabled={isEmailSent || !isValidEmail}
-        variant={variant}
-      >
-        {isEmailSent
-          ? "Email sent. Please check your inbox"
-          : session.status === "authenticated"
+      {isEmailSent ? (
+        <div>
+          <label htmlFor="otp-code" className="mb-2 block text-sm font-medium">
+            Check your inbox for the code
+          </label>
+          <Input
+            id="otp-code"
+            type="number"
+            minLength={6}
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.trim())}
+            placeholder="One time passcode"
+            className="mb-8 w-full"
+          />
+          <Button
+            onClick={handleVerify}
+            className={className}
+            loading={isLoading}
+            disabled={!code || code.length !== 6}
+            variant={variant}
+          >
+            Verify code
+          </Button>
+        </div>
+      ) : (
+        <Button
+          onClick={handleResetPassword}
+          className={className}
+          loading={isLoading}
+          disabled={!isValidEmail}
+          variant={variant}
+        >
+          {session.status === "authenticated"
             ? "Verify email to change password"
             : "Request password reset"}
-      </Button>
+        </Button>
+      )}
       {errorMessage && (
         <div className="mt-3 text-center text-sm text-destructive">
           {errorMessage}

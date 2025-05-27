@@ -39,7 +39,7 @@ service:
             docs: Optional filter for observations where the environment is one of the provided values.
           fromStartTime:
             type: optional<datetime>
-            docs: Retrieve only observations with a start_time or or after this datetime (ISO 8601).
+            docs: Retrieve only observations with a start_time on or after this datetime (ISO 8601).
           toStartTime:
             type: optional<datetime>
             docs: Retrieve only observations with a start_time before this datetime (ISO 8601).

@@ -1,5 +1,5 @@
 import { Terminal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import { z } from "zod";
 
@@ -27,14 +27,16 @@ import {
   OpenAIToolSchema,
   type ChatMessage,
   OpenAIResponseFormatSchema,
+  type Prisma,
 } from "@langfuse/shared";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 
 type JumpToPlaygroundButtonProps = (
   | {
       source: "prompt";
-      prompt: Prompt;
+      prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue };
       analyticsEventName: "prompt_detail:test_in_playground_button_click";
     }
   | {
@@ -62,13 +64,40 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
   const isEntitled = useHasEntitlement("playground");
 
+  const apiKeys = api.llmApiKey.all.useQuery(
+    {
+      projectId: projectId as string,
+    },
+    { enabled: Boolean(projectId) },
+  );
+
+  const modelToProviderMap = useMemo(() => {
+    const modelProviderMap: Record<string, string> = {};
+
+    (apiKeys.data?.data ?? []).forEach((apiKey) => {
+      const { provider, customModels, withDefaultModels, adapter } = apiKey;
+      // add default models if enabled
+      if (withDefaultModels) {
+        (playgroundSupportedModels[adapter] ?? []).forEach((model) => {
+          modelProviderMap[model] = provider;
+        });
+      }
+
+      // add custom models if set
+      customModels.forEach((customModel) => {
+        modelProviderMap[customModel] = provider;
+      });
+    });
+    return modelProviderMap;
+  }, [apiKeys.data]);
+
   useEffect(() => {
     if (props.source === "prompt") {
       setCapturedState(parsePrompt(props.prompt));
     } else if (props.source === "generation") {
-      setCapturedState(parseGeneration(props.generation));
+      setCapturedState(parseGeneration(props.generation, modelToProviderMap));
     }
-  }, [props]);
+  }, [props, modelToProviderMap]);
 
   useEffect(() => {
     if (capturedState) {
@@ -203,15 +232,19 @@ const transformToPlaygroundMessage = (
   }
 };
 
-const parsePrompt = (prompt: Prompt): PlaygroundCache => {
+const parsePrompt = (
+  prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue },
+): PlaygroundCache => {
   if (prompt.type === PromptType.Chat) {
-    const parsedMessages = ParsedChatMessageListSchema.safeParse(prompt.prompt);
+    const parsedMessages = ParsedChatMessageListSchema.safeParse(
+      prompt.resolvedPrompt,
+    );
 
     return parsedMessages.success
       ? { messages: parsedMessages.data.map(transformToPlaygroundMessage) }
       : null;
   } else {
-    const promptString = prompt.prompt?.valueOf();
+    const promptString = prompt.resolvedPrompt;
 
     return {
       messages: [
@@ -231,10 +264,11 @@ const parseGeneration = (
     output: string | null;
     metadata: string | null;
   },
+  modelToProviderMap: Record<string, string>,
 ): PlaygroundCache => {
   if (generation.type !== "GENERATION") return null;
 
-  const modelParams = parseModelParams(generation);
+  const modelParams = parseModelParams(generation, modelToProviderMap);
   const tools = parseTools(generation);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
 
@@ -311,6 +345,7 @@ const parseGeneration = (
 
 function parseModelParams(
   generation: Omit<Observation, "input" | "output" | "metadata">,
+  modelToProviderMap: Record<string, string>,
 ):
   | (Partial<UIModelParams> & Pick<UIModelParams, "provider" | "model">)
   | undefined {
@@ -320,10 +355,7 @@ function parseModelParams(
     | undefined = undefined;
 
   if (generationModel) {
-    const provider = Object.entries(playgroundSupportedModels).find(
-      ([_, models]) =>
-        generationModel ? models.some((m) => m === generationModel) : false,
-    )?.[0];
+    const provider = modelToProviderMap[generationModel];
 
     if (!provider) return;
 
@@ -404,7 +436,13 @@ function parseStructuredOutputSchema(
   },
 ): PlaygroundSchema | null {
   try {
-    const metadata = generation.metadata;
+    let metadata = generation.metadata;
+
+    try {
+      if (typeof metadata === "string") {
+        metadata = JSON.parse(metadata);
+      }
+    } catch {}
 
     if (
       typeof metadata === "object" &&
@@ -414,6 +452,29 @@ function parseStructuredOutputSchema(
       const parseStructuredOutputSchema = OpenAIResponseFormatSchema.safeParse(
         metadata["response_format"],
       );
+
+      if (parseStructuredOutputSchema.success)
+        return {
+          id: Math.random().toString(36).substring(2),
+          name: parseStructuredOutputSchema.data.json_schema.name,
+          description: "Schema parsed from generation",
+          schema: parseStructuredOutputSchema.data.json_schema.schema,
+        };
+    }
+
+    // LiteLLM records response_format in model params
+    const modelParams = generation.modelParameters;
+
+    if (
+      modelParams &&
+      typeof modelParams === "object" &&
+      "response_format" in modelParams &&
+      typeof modelParams["response_format"] === "string"
+    ) {
+      const parsedResponseFormat = JSON.parse(modelParams["response_format"]);
+
+      const parseStructuredOutputSchema =
+        OpenAIResponseFormatSchema.safeParse(parsedResponseFormat);
 
       if (parseStructuredOutputSchema.success)
         return {

@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.57.0",
+  "version": "3.63.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -57,7 +57,7 @@
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
     "uuid": "^9.0.1",
-    "zod": "^3.23.8"
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

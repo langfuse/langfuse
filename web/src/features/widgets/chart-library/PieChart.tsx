@@ -38,7 +38,10 @@ export const PieChart: React.FC<ChartProps> = ({
   return (
     <ChartContainer config={config}>
       <PieChartComponent accessibilityLayer={accessibilityLayer}>
-        <ChartTooltip />
+        <ChartTooltip
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
         <Pie
           data={chartData}
           dataKey="value"

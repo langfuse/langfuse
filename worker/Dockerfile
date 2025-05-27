@@ -73,6 +73,8 @@ RUN chmod +x ./worker/entrypoint.sh
 EXPOSE 3030
 ENV PORT=3030
 
+# Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
+# Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking
 ENTRYPOINT ["dumb-init", "--", "./worker/entrypoint.sh"]
 
 # startup command

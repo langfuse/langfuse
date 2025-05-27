@@ -452,4 +452,54 @@ describe("select all test suite", () => {
       }
     });
   });
+
+  it("should not create evals if config does not exist", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create a trace
+    const traceId = randomUUID();
+    await createTracesCh([
+      createTrace({
+        project_id: projectId,
+        id: traceId,
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+    ]);
+
+    // Use a non-existent config ID
+    const nonExistentConfigId = randomUUID();
+
+    const queue = getQueue(QueueName.CreateEvalQueue);
+    // Clear any existing jobs
+    await queue?.obliterate({ force: true });
+
+    const payload = {
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "eval-create" as const,
+        targetObject: "trace" as const,
+        configId: nonExistentConfigId,
+        cutoffCreatedAt: new Date(),
+        query: {
+          filter: [],
+          orderBy: {
+            column: "timestamp",
+            order: "DESC" as const,
+          },
+        },
+      },
+    };
+
+    // This should not throw
+    await expect(handleBatchActionJob(payload)).resolves.not.toThrow();
+
+    // Verify no jobs were created
+    await waitForExpect(async () => {
+      const jobs = await queue?.getJobs();
+      expect(jobs).toHaveLength(0);
+    });
+  });
 });

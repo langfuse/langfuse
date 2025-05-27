@@ -2519,6 +2519,83 @@ describe("queryBuilder", () => {
         expect(result.data[0].name).toBe("score-premium");
         expect(parseFloat(result.data[0].avg_value)).toBeCloseTo(0.95);
       });
+
+      it("LFE-4838: should filter scores-numeric by scoreName (fallback handling) without errors", async () => {
+        // Setup
+        const projectId = randomUUID();
+
+        // Create trace
+        const trace = createTrace({
+          project_id: projectId,
+          name: "score-name-test-trace",
+          environment: "production",
+        });
+        await createTracesCh([trace]);
+
+        // Create scores with different names
+        const scores = [
+          {
+            name: "accuracy",
+            traceId: trace.id,
+            value: 0.9,
+            dataType: "NUMERIC" as const,
+          },
+          {
+            name: "relevance",
+            traceId: trace.id,
+            value: 0.85,
+            dataType: "NUMERIC" as const,
+          },
+        ];
+
+        await setupScores(projectId, scores);
+
+        // Define query with filter using "scoreName" instead of "name"
+        // This tests the fallback handling in queryBuilder.ts that handles column names ending with "Name"
+        const query: QueryType = {
+          view: "scores-numeric",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "scoreName", // Using scoreName instead of name to test the fallback logic
+              operator: "=",
+              value: "accuracy",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        // Verify the compiled query contains filtering on name
+        expect(compiledQuery).toContain("scores_numeric.name");
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - should only return scores with name "accuracy"
+        expect(result.data).toHaveLength(1);
+        expect(result.data[0].name).toBe("accuracy");
+        expect(result.data[0].count_count).toBe("1");
+      });
     });
 
     describe("scores-categorical view", () => {
@@ -2967,6 +3044,228 @@ describe("queryBuilder", () => {
         expect(parseInt(claudeResult.p95_timeToFirstToken)).toBeLessThanOrEqual(
           1200,
         );
+      });
+
+      it("should return null streamingLatency and timeToFirstToken when completion_start_time is null", async () => {
+        const projectId = randomUUID();
+
+        // Create trace
+        const trace = createTrace({
+          project_id: projectId,
+          name: "null-completion-start-time-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        // Create observation with NULL completion_start_time
+        const startTime = new Date();
+        const endTime = new Date(startTime.getTime() + 1000);
+        const observation = createObservation({
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          name: "model-x",
+          provided_model_name: "model-x",
+          environment: "default",
+          start_time: startTime.getTime(),
+          completion_start_time: null, // explicitly null
+          end_time: endTime.getTime(),
+        });
+        await createObservationsCh([observation]);
+
+        // Build query selecting metrics per observation
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "name" }],
+          metrics: [
+            { measure: "timeToFirstToken", aggregation: "max" },
+            { measure: "streamingLatency", aggregation: "max" },
+          ],
+          filters: [
+            {
+              column: "type",
+              operator: "=",
+              value: "generation",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(1);
+        const row = result.data[0];
+        expect(row.max_timeToFirstToken).toBeNull();
+        expect(row.max_streamingLatency).toBeNull();
+      });
+
+      it("should return streamingLatency and timeToFirstToken when completion_start_time is present", async () => {
+        const projectId = randomUUID();
+
+        // Create trace
+        const trace = createTrace({
+          project_id: projectId,
+          name: "null-completion-start-time-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        // Create observation with NULL completion_start_time
+        const startTime = new Date();
+        const endTime = new Date(startTime.getTime() + 1000);
+        const observation = createObservation({
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          name: "model-x",
+          provided_model_name: "model-x",
+          environment: "default",
+          start_time: startTime.getTime(),
+          completion_start_time: startTime.getTime() + 200,
+          end_time: endTime.getTime(),
+        });
+        await createObservationsCh([observation]);
+
+        // Build query selecting metrics per observation
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "name" }],
+          metrics: [
+            { measure: "timeToFirstToken", aggregation: "max" },
+            { measure: "streamingLatency", aggregation: "max" },
+          ],
+          filters: [
+            {
+              column: "type",
+              operator: "=",
+              value: "generation",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(1);
+        const row = result.data[0];
+        expect(row.max_timeToFirstToken).toBe("200");
+        expect(row.max_streamingLatency).toBe("800");
+      });
+
+      it("should calculate tokens correctly", async () => {
+        const projectId = randomUUID();
+
+        // Create trace
+        const trace = createTrace({
+          project_id: projectId,
+          name: "null-completion-start-time-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        // Create observation with NULL completion_start_time
+        const startTime = new Date();
+        const endTime = new Date(startTime.getTime() + 1000);
+        const observation = createObservation({
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          name: "model-x",
+          provided_model_name: "model-x",
+          environment: "default",
+          start_time: startTime.getTime(),
+          completion_start_time: startTime.getTime() + 200,
+          end_time: endTime.getTime(),
+          usage_details: {
+            input_tokens: 100,
+            input_cache_tokens: 200,
+            output_tokens: 300,
+            output_cache_tokens: 400,
+            total: 1000,
+          },
+        });
+        await createObservationsCh([observation]);
+
+        // Build query selecting metrics per observation
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "name" }],
+          metrics: [
+            { measure: "inputTokens", aggregation: "sum" },
+            { measure: "outputTokens", aggregation: "sum" },
+            { measure: "totalTokens", aggregation: "sum" },
+            { measure: "outputTokensPerSecond", aggregation: "avg" },
+          ],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        expect(result.data).toHaveLength(1);
+        const row = result.data[0];
+        expect(row.sum_inputTokens).toBe("300");
+        expect(row.sum_outputTokens).toBe("700");
+        expect(row.sum_totalTokens).toBe("1000");
       });
 
       it("should filter observations by metadata correctly", async () => {

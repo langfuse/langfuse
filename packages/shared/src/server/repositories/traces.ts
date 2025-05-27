@@ -27,6 +27,7 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { recordDistribution } from "../instrumentation";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -41,12 +42,19 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
  * • Filters within ±2 day window
  * • Used for validating trace references before eval job creation
  */
-export const checkTraceExists = async (
-  projectId: string,
-  traceId: string,
-  timestamp: Date,
-  filter: FilterState,
-): Promise<boolean> => {
+export const checkTraceExists = async ({
+  projectId,
+  traceId,
+  timestamp,
+  filter,
+  maxTimeStamp,
+}: {
+  projectId: string;
+  traceId: string;
+  timestamp: Date;
+  filter: FilterState;
+  maxTimeStamp: Date | undefined;
+}): Promise<boolean> => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
   });
@@ -101,7 +109,8 @@ export const checkTraceExists = async (
     WHERE ${tracesFilterRes.query}
     AND t.project_id = {projectId: String}
     AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-    AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY
+    ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
+    ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
     GROUP BY t.id, t.project_id
   `;
 
@@ -113,6 +122,9 @@ export const checkTraceExists = async (
       ...(observationFilterRes ? observationFilterRes.params : {}),
       ...(timestamp
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+      ...(maxTimeStamp
+        ? { maxTimeStamp: convertDateToClickhouseDateTime(maxTimeStamp) }
         : {}),
     },
     tags: {
@@ -208,7 +220,16 @@ export const getTracesBySessionId = async (
     },
   });
 
-  return records.map(convertClickhouseToDomain);
+  const traces = records.map(convertClickhouseToDomain);
+
+  traces.forEach((trace) => {
+    recordDistribution(
+      "langfuse.traces_by_session_id_age",
+      new Date().getTime() - trace.timestamp.getTime(),
+    );
+  });
+
+  return traces;
 };
 
 export const hasAnyTrace = async (projectId: string) => {
@@ -352,6 +373,16 @@ export const getTraceById = async ({
   });
 
   const res = records.map(convertClickhouseToDomain);
+
+  res.forEach((trace) => {
+    recordDistribution(
+      "langfuse.query_by_id_age",
+      new Date().getTime() - trace.timestamp.getTime(),
+      {
+        table: "traces",
+      },
+    );
+  });
 
   return res.shift();
 };
