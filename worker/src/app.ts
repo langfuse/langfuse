@@ -53,6 +53,7 @@ import {
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlxRetryService } from "./services/dlx/dlxRetryService";
+import { webhookProcessor } from "./features/automations/webhooks";
 
 const app = express();
 
@@ -325,6 +326,12 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
       concurrency: 1,
     },
   );
+}
+
+if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.WebhookQueue, webhookProcessor, {
+    concurrency: 5,
+  });
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

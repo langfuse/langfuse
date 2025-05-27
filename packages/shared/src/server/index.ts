@@ -25,6 +25,7 @@ export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";
 export * from "./redis/cloudUsageMeteringQueue";
 export * from "./redis/getQueue";
+export * from "./redis/webhookQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";

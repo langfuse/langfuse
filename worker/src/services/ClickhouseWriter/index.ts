@@ -15,6 +15,7 @@ import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
+import { observationUpsertProcessor } from "../../features/observations/observationUpsertProcessor";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -186,10 +187,14 @@ export class ClickhouseWriter {
     }
   }
 
-  public addToQueue<T extends TableName>(
+  public async addToQueue<T extends TableName>(
     tableName: T,
     data: RecordInsertType<T>,
   ) {
+    if (tableName === TableName.Observations) {
+      await observationUpsertProcessor(data as ObservationRecordInsertType);
+    }
+
     const entityQueue = this.queue[tableName];
     entityQueue.push({
       createdAt: Date.now(),

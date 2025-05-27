@@ -6,6 +6,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchExportTableName } from "../features/batchExport/types";
+import { ObservationTypeDomain } from "../domain";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -128,6 +129,35 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const ObservationUpsertQueueEventSchema = z.object({
+  projectId: z.string(),
+  id: z.string(),
+  traceId: z.string(),
+  startTime: z.date(),
+  type: ObservationTypeDomain,
+});
+
+export const WebhookInputSchema = z
+  .discriminatedUnion("type", [
+    z.object({
+      observationId: z.string(),
+      type: z.literal("observation"),
+      startTime: z.date(),
+      traceId: z.string(),
+      observationType: ObservationTypeDomain,
+    }),
+  ])
+  .and(
+    z.object({
+      projectId: z.string(),
+      actionId: z.string(),
+      triggerId: z.string(),
+      executionId: z.string(),
+    }),
+  );
+
+export type WebhookInput = z.infer<typeof WebhookInputSchema>;
+
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
 >;
@@ -159,6 +189,10 @@ export type BlobStorageIntegrationProcessingEventType = z.infer<
 export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
+export type ObservationUpsertQueueEventType = z.infer<
+  typeof ObservationUpsertQueueEventSchema
+>;
+export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -183,6 +217,8 @@ export enum QueueName {
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
+  ObservationUpsert = "observation-upsert",
+  WebhookQueue = "webhook-queue",
 }
 
 export enum QueueJobs {
@@ -208,6 +244,8 @@ export enum QueueJobs {
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
   DeadLetterRetryJob = "dead-letter-retry-job",
+  ObservationUpsertJob = "observation-upsert-job",
+  WebhookJob = "webhook-job",
 }
 
 export type TQueueJobTypes = {
@@ -306,5 +344,17 @@ export type TQueueJobTypes = {
     id: string;
     payload: DeadLetterRetryQueueEventType;
     name: QueueJobs.DeadLetterRetryJob;
+  };
+  [QueueName.ObservationUpsert]: {
+    timestamp: Date;
+    id: string;
+    payload: ObservationUpsertQueueEventType;
+    name: QueueJobs.ObservationUpsertJob;
+  };
+  [QueueName.WebhookQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: WebhookInput;
+    name: QueueJobs.WebhookJob;
   };
 };
