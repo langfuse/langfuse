@@ -15,6 +15,7 @@ SELECT
     max(comment IS NOT NULL) AS hasComment
 FROM
     scores
+WHERE toStartOfHour(timestamp) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY
     project_id,
     hour;

@@ -9,6 +9,7 @@ SELECT
     max(length(tags) > 0) AS hasTags
 FROM
     traces
+WHERE toStartOfHour(timestamp) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY
     project_id,
     hour;

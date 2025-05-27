@@ -1,6 +1,7 @@
 CREATE VIEW analytics_observations ON CLUSTER default AS
 SELECT
     project_id,
+    type,
     toStartOfHour(start_time) AS hour,
     uniq(id) AS countObservations,
     max(level != 'DEFAULT') AS hasLevel,
@@ -10,6 +11,8 @@ SELECT
     max(prompt_name IS NOT NULL) AS hasPromptName
 FROM
     observations
+WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY
     project_id,
+    type,
     hour;
