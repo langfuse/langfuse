@@ -27,7 +27,7 @@ import {
   OpenAIToolSchema,
   type ChatMessage,
   OpenAIResponseFormatSchema,
-  Prisma,
+  type Prisma,
 } from "@langfuse/shared";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { api } from "@/src/utils/api";
