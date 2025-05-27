@@ -27,6 +27,7 @@ import {
   OpenAIToolSchema,
   type ChatMessage,
   OpenAIResponseFormatSchema,
+  type Prisma,
 } from "@langfuse/shared";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { api } from "@/src/utils/api";
@@ -35,7 +36,7 @@ import { cn } from "@/src/utils/tailwind";
 type JumpToPlaygroundButtonProps = (
   | {
       source: "prompt";
-      prompt: Prompt;
+      prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue };
       analyticsEventName: "prompt_detail:test_in_playground_button_click";
     }
   | {
@@ -231,15 +232,19 @@ const transformToPlaygroundMessage = (
   }
 };
 
-const parsePrompt = (prompt: Prompt): PlaygroundCache => {
+const parsePrompt = (
+  prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue },
+): PlaygroundCache => {
   if (prompt.type === PromptType.Chat) {
-    const parsedMessages = ParsedChatMessageListSchema.safeParse(prompt.prompt);
+    const parsedMessages = ParsedChatMessageListSchema.safeParse(
+      prompt.resolvedPrompt,
+    );
 
     return parsedMessages.success
       ? { messages: parsedMessages.data.map(transformToPlaygroundMessage) }
       : null;
   } else {
-    const promptString = prompt.prompt?.valueOf();
+    const promptString = prompt.resolvedPrompt;
 
     return {
       messages: [
