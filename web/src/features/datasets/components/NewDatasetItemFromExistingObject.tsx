@@ -42,6 +42,7 @@ export const NewDatasetItemFromExistingObject = (props: {
   input: string | null;
   output: string | null;
   metadata: Prisma.JsonValue;
+  comment?: string;
   isCopyItem?: boolean;
 }) => {
   const parsedInput =
@@ -164,6 +165,7 @@ export const NewDatasetItemFromExistingObject = (props: {
             input={parsedInput}
             output={parsedOutput}
             metadata={props.metadata}
+            comment={props.comment}
             onFormSuccess={() => setIsFormOpen(false)}
             className="h-full overflow-y-auto"
             blockedDatasetIds={

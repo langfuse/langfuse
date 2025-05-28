@@ -62,6 +62,7 @@ const formSchema = z.object({
         "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
+  comment: z.string(),
 });
 
 export const EditDatasetItem = ({
@@ -91,6 +92,7 @@ export const EditDatasetItem = ({
         metadata: datasetItem.metadata
           ? JSON.stringify(datasetItem.metadata, null, 2)
           : "",
+        comment: datasetItem.comment || "",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,6 +104,7 @@ export const EditDatasetItem = ({
       input: "",
       expectedOutput: "",
       metadata: "",
+      comment: "",
     },
   });
 
@@ -119,6 +122,7 @@ export const EditDatasetItem = ({
       input: values.input,
       expectedOutput: values.expectedOutput,
       metadata: values.metadata,
+      comment: values.comment,
     });
     setHasChanges(false);
   }
@@ -204,6 +208,28 @@ export const EditDatasetItem = ({
                     <FormControl>
                       <CodeMirrorEditor
                         mode="json"
+                        value={field.value}
+                        onChange={(v) => {
+                          setHasChanges(true);
+                          field.onChange(v);
+                        }}
+                        editable={hasAccess}
+                        minHeight={100}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="comment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Comment</FormLabel>
+                    <FormControl>
+                      <CodeMirrorEditor
+                        mode="text"
                         value={field.value}
                         onChange={(v) => {
                           setHasChanges(true);

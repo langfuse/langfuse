@@ -577,6 +577,7 @@ model DatasetItem {
   sourceObservationId String?           @map("source_observation_id")
   datasetId           String            @map("dataset_id")
   dataset             Dataset           @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
+  comment             String?           @map("comment")
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
   datasetRunItems     DatasetRunItems[]
