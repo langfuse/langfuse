@@ -5,17 +5,19 @@ import {
 } from "@langfuse/shared/src/server";
 import { getQueue } from "@langfuse/shared/src/server";
 
-export class DlxRetryService {
+export class DlqRetryService {
   private static retryQueues = [
     QueueName.ProjectDelete,
     QueueName.TraceDelete,
     QueueName.ScoreDelete,
+    QueueName.BatchActionQueue,
+    QueueName.DataRetentionProcessingQueue,
   ];
 
   // called each 10 minutes, defined by the bull cron job
   public static async retryDeadLetterQueue() {
     logger.info("Retrying dead letter queue");
-    const retryQueues = DlxRetryService.retryQueues;
+    const retryQueues = DlqRetryService.retryQueues;
     for (const queueName of retryQueues) {
       const queue = getQueue(queueName as QueueName);
 
@@ -34,7 +36,7 @@ export class DlxRetryService {
 
           const dlxDelay = Date.now() - ts;
 
-          recordHistogram("langfuse.dlx_retry_delay", dlxDelay, {
+          recordHistogram("langfuse.dlq_retry_delay", dlxDelay, {
             unit: "milliseconds",
             projectId,
             name,
