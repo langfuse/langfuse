@@ -11,6 +11,7 @@ export class DlqRetryService {
     QueueName.TraceDelete,
     QueueName.ScoreDelete,
     QueueName.BatchActionQueue,
+    QueueName.DataRetentionProcessingQueue,
   ];
 
   // called each 10 minutes, defined by the bull cron job
