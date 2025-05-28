@@ -20,7 +20,7 @@ import { DataRetentionProcessingQueue } from "./dataRetentionProcessingQueue";
 import { BatchActionQueue } from "./batchActionQueue";
 import { CreateEvalQueue } from "./createEvalQueue";
 import { ScoreDeleteQueue } from "./scoreDelete";
-import { DeadLetterRetryQueue } from "./dlxRetryQueue";
+import { DeadLetterRetryQueue } from "./dlqRetryQueue";
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
