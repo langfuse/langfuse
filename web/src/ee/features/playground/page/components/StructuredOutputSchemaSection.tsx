@@ -42,7 +42,12 @@ export const StructuredOutputSchemaSection = () => {
 
   const isSchemaSaved = useCallback(
     (schema: PlaygroundSchema) => {
-      return savedSchemas.some((savedSchema) => savedSchema.id === schema.id);
+      return savedSchemas.some(
+        (savedSchema) =>
+          savedSchema.id === schema.id &&
+          savedSchema.description === schema.description &&
+          JSON.stringify(savedSchema.schema) === JSON.stringify(schema.schema),
+      );
     },
     [savedSchemas],
   );
@@ -50,11 +55,7 @@ export const StructuredOutputSchemaSection = () => {
   useEffect(() => {
     if (structuredOutputSchema && !structuredOutputSchema.existingLlmSchema) {
       const matchingSavedSchema = savedSchemas.find(
-        (savedSchema) =>
-          savedSchema.name === structuredOutputSchema.name &&
-          savedSchema.description === structuredOutputSchema.description &&
-          JSON.stringify(savedSchema.schema) ===
-            JSON.stringify(structuredOutputSchema.schema),
+        (savedSchema) => savedSchema.name === structuredOutputSchema.name,
       );
 
       if (matchingSavedSchema) {

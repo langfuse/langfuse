@@ -130,7 +130,7 @@ export function EvaluatorSelector({
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
+                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                         </TooltipTrigger>
                         <TooltipContent>
                           Requires project-level evaluation model
@@ -202,7 +202,7 @@ export function EvaluatorSelector({
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-destructive" />
+                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                         </TooltipTrigger>
                         <TooltipContent>
                           Requires project-level evaluation model
@@ -239,23 +239,8 @@ export function EvaluatorSelector({
                 );
               })}
             </InputCommandGroup>
-            {filteredTemplates.langfuse.length > 0 && <InputCommandSeparator />}
           </>
         )}
-
-        <InputCommandGroup forceMount>
-          <InputCommandItem
-            onSelect={() => {
-              window.open(
-                `/project/${projectId}/evals/default-model`,
-                "_blank",
-              );
-            }}
-          >
-            Manage default evaluation model
-            <ExternalLink className="ml-auto h-4 w-4" />
-          </InputCommandItem>
-        </InputCommandGroup>
 
         {onCreateNew && (
           <>

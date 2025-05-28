@@ -18,6 +18,7 @@ import {
 } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
+import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
@@ -31,11 +32,6 @@ export default function EvaluatorsPage() {
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
-  });
-
-  const hasDefaultModelReadAccess = useHasProjectAccess({
-    projectId,
-    scope: "evalDefaultModel:read",
   });
 
   const hasReadAccess = useHasProjectAccess({
@@ -110,15 +106,7 @@ export default function EvaluatorsPage() {
           ),
           actionButtonsRight: (
             <>
-              <ActionButton
-                hasAccess={hasDefaultModelReadAccess}
-                variant="outline"
-                onClick={() => {
-                  router.push(`/project/${projectId}/evals/default-model`);
-                }}
-              >
-                Default Evaluation Model
-              </ActionButton>
+              <ManageDefaultEvalModel projectId={projectId} />
               <ActionButton
                 hasAccess={hasWriteAccess}
                 icon={<Plus className="h-4 w-4" />}
