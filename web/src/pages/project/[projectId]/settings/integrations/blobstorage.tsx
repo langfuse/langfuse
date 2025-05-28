@@ -35,7 +35,8 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -92,10 +93,9 @@ export default function BlobStorageIntegrationSettings() {
       <p className="mb-4 text-sm text-primary">
         Configure scheduled exports of your trace data to AWS S3, S3-compatible
         storages, or Azure Blob Storage. Set up a hourly, daily, or weekly
-        export to your own storage for data analysis or backup purposes. After
-        saving, use the "Validate" button to test your configuration by
-        uploading a small test file, and the "Run Now" button to trigger an
-        immediate export.
+        export to your own storage for data analysis or backup purposes.
+        Use the "Validate" button to test your configuration by uploading a small test file,
+        and the "Run Now" button to trigger an immediate export.
       </p>
       {!hasAccess && (
         <p className="text-sm">
@@ -203,14 +203,13 @@ const BlobStorageIntegrationSettingsForm = ({
   });
   const mutValidate = api.blobStorageIntegration.validate.useMutation({
     onSuccess: (data) => {
-      toast.success(data.message, {
+      showSuccessToast({
+        title: data.message,
         description: `Test file: ${data.testFileName}`,
       });
     },
     onError: (error) => {
-      toast.error("Validation failed", {
-        description: error.message,
-      });
+      showErrorToast("Validation failed", error.message);
     },
   });
 

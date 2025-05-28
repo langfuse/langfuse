@@ -310,7 +310,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         if (!integration) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: "Blob storage integration not found for this project. Please save your configuration first.",
+            message:
+              "Blob storage integration not found for this project. Please save your configuration first.",
           });
         }
 
@@ -367,7 +368,7 @@ This file can be safely deleted.`;
 
         return {
           success: true,
-          message: "Validation successful! Test file uploaded successfully.",
+          message: "Validation successful! Test file uploaded.",
           testFileName,
           signedUrl: result.signedUrl,
         };
