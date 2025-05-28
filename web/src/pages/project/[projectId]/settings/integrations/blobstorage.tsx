@@ -35,6 +35,8 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -91,7 +93,10 @@ export default function BlobStorageIntegrationSettings() {
       <p className="mb-4 text-sm text-primary">
         Configure scheduled exports of your trace data to AWS S3, S3-compatible
         storages, or Azure Blob Storage. Set up a hourly, daily, or weekly
-        export to your own storage for data analysis or backup purposes.
+        export to your own storage for data analysis or backup purposes. Use the
+        &quot;Validate&quot; button to test your configuration by uploading a
+        small test file, and the &quot;Run Now&quot; button to trigger an
+        immediate export.
       </p>
       {!hasAccess && (
         <p className="text-sm">
@@ -190,6 +195,22 @@ const BlobStorageIntegrationSettingsForm = ({
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();
+    },
+  });
+  const mutRunNow = api.blobStorageIntegration.runNow.useMutation({
+    onSuccess: () => {
+      utils.blobStorageIntegration.invalidate();
+    },
+  });
+  const mutValidate = api.blobStorageIntegration.validate.useMutation({
+    onSuccess: (data) => {
+      showSuccessToast({
+        title: data.message,
+        description: `Test file: ${data.testFileName}`,
+      });
+    },
+    onError: (error) => {
+      showErrorToast("Validation failed", error.message);
     },
   });
 
@@ -494,6 +515,33 @@ const BlobStorageIntegrationSettingsForm = ({
           disabled={isLoading}
         >
           Save
+        </Button>
+        <Button
+          variant="secondary"
+          loading={mutValidate.isLoading}
+          disabled={isLoading || !state}
+          title="Test your saved configuration by uploading a small test file to your storage"
+          onClick={() => {
+            mutValidate.mutate({ projectId });
+          }}
+        >
+          Validate
+        </Button>
+        <Button
+          variant="secondary"
+          loading={mutRunNow.isLoading}
+          disabled={isLoading || !state?.enabled}
+          title="Trigger an immediate export of all data since the last sync"
+          onClick={() => {
+            if (
+              confirm(
+                "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
+              )
+            )
+              mutRunNow.mutate({ projectId });
+          }}
+        >
+          Run Now
         </Button>
         <Button
           variant="ghost"

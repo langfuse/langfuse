@@ -10,8 +10,18 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { blobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { TRPCError } from "@trpc/server";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { logger } from "@langfuse/shared/src/server";
-import { type BlobStorageIntegration } from "@langfuse/shared";
+import {
+  logger,
+  BlobStorageIntegrationProcessingQueue,
+  QueueJobs,
+  StorageServiceFactory,
+} from "@langfuse/shared/src/server";
+import {
+  type BlobStorageIntegration,
+  BlobStorageIntegrationType,
+} from "@langfuse/shared";
+import { randomUUID } from "crypto";
+import { decrypt } from "@langfuse/shared/encryption";
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -182,6 +192,205 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to delete blob storage integration",
+        });
+      }
+    }),
+
+  runNow: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoEntitlement({
+          entitlement: "integration-blobstorage",
+          sessionUser: ctx.session.user,
+          projectId: input.projectId,
+        });
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "integrations:CRUD",
+        });
+
+        // Check if integration exists and is enabled
+        const integration = await ctx.prisma.blobStorageIntegration.findUnique({
+          where: {
+            projectId: input.projectId,
+          },
+        });
+
+        if (!integration) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Blob storage integration not found for this project",
+          });
+        }
+
+        if (!integration.enabled) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Blob storage integration is disabled",
+          });
+        }
+
+        // Get the processing queue
+        const blobStorageIntegrationProcessingQueue =
+          BlobStorageIntegrationProcessingQueue.getInstance();
+        if (!blobStorageIntegrationProcessingQueue) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "BlobStorageIntegrationProcessingQueue not initialized",
+          });
+        }
+
+        // Create a unique job ID for manual runs to avoid conflicts
+        const jobId = `${input.projectId}-manual-${new Date().toISOString()}`;
+
+        // Enqueue the processing job
+        await blobStorageIntegrationProcessingQueue.add(
+          QueueJobs.BlobStorageIntegrationProcessingJob,
+          {
+            id: randomUUID(),
+            name: QueueJobs.BlobStorageIntegrationProcessingJob,
+            timestamp: new Date(),
+            payload: {
+              projectId: input.projectId,
+            },
+          },
+          {
+            jobId,
+          },
+        );
+
+        logger.info(
+          `Manual blob storage integration job queued for project ${input.projectId}`,
+        );
+
+        return { success: true, jobId };
+      } catch (e) {
+        logger.error(`Failed to trigger blob storage integration run`, e);
+        if (e instanceof TRPCError) {
+          throw e;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to trigger blob storage integration run",
+        });
+      }
+    }),
+
+  validate: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoEntitlement({
+          entitlement: "integration-blobstorage",
+          sessionUser: ctx.session.user,
+          projectId: input.projectId,
+        });
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "integrations:CRUD",
+        });
+        await auditLog({
+          session: ctx.session,
+          action: "create",
+          resourceType: "blobStorageIntegration",
+          resourceId: input.projectId,
+          after: { action: "validation_test" },
+        });
+
+        // Get persisted configuration
+        const integration = await ctx.prisma.blobStorageIntegration.findUnique({
+          where: {
+            projectId: input.projectId,
+          },
+        });
+
+        if (!integration) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message:
+              "Blob storage integration not found for this project. Please save your configuration first.",
+          });
+        }
+
+        // Extract configuration from persisted data
+        const {
+          type,
+          bucketName,
+          endpoint,
+          region,
+          accessKeyId,
+          secretAccessKey: encryptedSecretAccessKey,
+          prefix,
+          forcePathStyle,
+        } = integration;
+
+        const secretAccessKey = decrypt(encryptedSecretAccessKey);
+
+        // Create storage service with provided configuration
+        const storageService = StorageServiceFactory.getInstance({
+          accessKeyId,
+          secretAccessKey,
+          bucketName,
+          endpoint: endpoint || undefined,
+          region: region || undefined,
+          forcePathStyle: forcePathStyle || false,
+          useAzureBlob: type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+          useGoogleCloudStorage: false, // Not supported in blob storage integration
+          googleCloudCredentials: undefined,
+          awsSse: undefined,
+          awsSseKmsKeyId: undefined,
+          externalEndpoint: undefined,
+        });
+
+        // Create a test file
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const testFileName = `${prefix || ""}langfuse-validation-test-${timestamp}.txt`;
+        const testContent = `Langfuse blob storage validation test
+Project ID: ${input.projectId}
+Timestamp: ${new Date().toISOString()}
+Configuration: ${type} storage
+This file can be safely deleted.`;
+
+        // Upload the test file
+        const result = await storageService.uploadFile({
+          fileName: testFileName,
+          fileType: "text/plain",
+          data: testContent,
+          expiresInSeconds: 3600, // 1 hour
+        });
+
+        logger.info(
+          `Blob storage validation successful for project ${input.projectId}`,
+        );
+
+        return {
+          success: true,
+          message: "Validation successful! Test file uploaded.",
+          testFileName,
+          signedUrl: result.signedUrl,
+        };
+      } catch (e) {
+        logger.error(
+          `Blob storage validation failed for project ${input.projectId}`,
+          e,
+        );
+
+        // Extract meaningful error message
+        let errorMessage = "Unknown error occurred during validation";
+        if (e instanceof Error) {
+          errorMessage = e.message;
+        }
+
+        if (e instanceof TRPCError) {
+          throw e;
+        }
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Validation failed: ${errorMessage}`,
         });
       }
     }),
