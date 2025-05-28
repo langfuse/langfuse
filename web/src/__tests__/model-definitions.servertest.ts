@@ -80,11 +80,11 @@ describe("/models API Endpoints", () => {
     expect(models.body.data[0]).toMatchObject({
       isLangfuseManaged: true,
       modelName: "gpt-3.5-turbo",
-      prices: [
-        { usageType: "input", price: 0.001 },
-        { usageType: "output", price: 0.002 },
-        { usageType: "total", price: 0.1 },
-      ],
+      prices: {
+        input: { price: 0.001 },
+        output: { price: 0.002 },
+        total: { price: 0.1 },
+      },
     });
   });
 
@@ -123,10 +123,10 @@ describe("/models API Endpoints", () => {
       auth,
     );
     expect(customModel.body.isLangfuseManaged).toBe(false);
-    expect(customModel.body.prices).toEqual([
-      { usageType: "input", price: 0.002 },
-      { usageType: "output", price: 0.004 },
-    ]);
+    expect(customModel.body.prices).toMatchObject({
+      input: { price: 0.002 },
+      output: { price: 0.004 },
+    });
 
     const models = await makeZodVerifiedAPICall(
       GetModelsV1Response,
@@ -154,10 +154,10 @@ describe("/models API Endpoints", () => {
       unit: "TOKENS",
       tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
       isLangfuseManaged: false,
-      prices: [
-        { usageType: "input", price: 0.002 },
-        { usageType: "output", price: 0.004 },
-      ],
+      prices: {
+        input: { price: 0.002 },
+        output: { price: 0.004 },
+      },
     });
 
     const prices = await prisma.price.findMany({

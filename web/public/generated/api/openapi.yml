@@ -5295,10 +5295,10 @@ components:
         isLangfuseManaged:
           type: boolean
         prices:
-          type: array
-          items:
+          type: object
+          additionalProperties:
             $ref: '#/components/schemas/ModelPrice'
-          description: Price (USD) per usage type
+          description: Price (USD) by usage type
       required:
         - id
         - modelName
@@ -5309,13 +5309,10 @@ components:
       title: ModelPrice
       type: object
       properties:
-        usageType:
-          type: string
         price:
           type: number
           format: double
       required:
-        - usageType
         - price
     ModelUsageUnit:
       title: ModelUsageUnit

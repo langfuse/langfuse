@@ -35,7 +35,7 @@ const APIModelDefinition = z
     tokenizerConfig: z.any(), // Assuming Prisma.JsonValue is any type
     isLangfuseManaged: z.boolean(),
     createdAt: z.coerce.date(),
-    prices: z.array(z.object({ usageType: z.string(), price: z.number() })),
+    prices: z.record(z.string(), z.object({ price: z.number() })),
   })
   .strict();
 
@@ -63,7 +63,14 @@ export function prismaToApiModelDefinition({
     outputPrice: outputPrice?.toNumber() ?? null,
     totalPrice: totalPrice?.toNumber() ?? null,
     isLangfuseManaged: !Boolean(projectId),
-    prices: Price.map((p) => ({ ...p, price: p.price.toNumber() })),
+    prices: Price.reduce(
+      (acc, p) => {
+        acc[p.usageType] = { price: p.price.toNumber() };
+
+        return acc;
+      },
+      {} as z.infer<typeof APIModelDefinition>["prices"],
+    ),
   };
 }
 

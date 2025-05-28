@@ -474,12 +474,11 @@ types:
       isLangfuseManaged:
         type: boolean
       prices:
-        docs: Price (USD) per usage type
-        type: list<ModelPrice>
+        docs: Price (USD) by usage type
+        type: map<string, ModelPrice>
 
   ModelPrice:
     properties:
-      usageType: string
       price: double
 
   # Utilities
