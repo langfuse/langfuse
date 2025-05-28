@@ -11,6 +11,22 @@ import {
 import type Decimal from "decimal.js";
 import { z } from "zod";
 
+
+const convertToUTC = (dateTime: string, timezone?: string): Date => {
+  if (!timezone || timezone === 'UTC') {
+    return new Date(dateTime);
+  }
+  
+  
+  return new Date(dateTime);
+};
+
+
+const parseEnvironmentFilter = (environment?: string | string[]): string | string[] | undefined => {
+  if (!environment) return undefined;
+  return Array.isArray(environment) ? environment : [environment];
+};
+
 /**
  * Objects
  */
@@ -165,6 +181,7 @@ export const GetObservationsV1Query = z.object({
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
+  timezone: z.string().optional().default('UTC'), // 新增时区参数
 });
 export const GetObservationsV1Response = z
   .object({
@@ -178,3 +195,26 @@ export const GetObservationV1Query = z.object({
   observationId: z.string(),
 });
 export const GetObservationV1Response = APIObservation;
+
+
+export const buildObservationQuery = (
+  query: z.infer<typeof GetObservationsV1Query>,
+  projectId: string
+) => {
+  const environmentFilter = parseEnvironmentFilter(query.environment);
+  
+  return {
+    projectId,
+    type: query.type,
+    name: query.name,
+    userId: query.userId,
+    traceId: query.traceId,
+    version: query.version,
+    parentObservationId: query.parentObservationId,
+    environment: environmentFilter,
+    startTime: {
+      gte: convertToUTC(query.fromStartTime, query.timezone),
+      lte: convertToUTC(query.toStartTime, query.timezone),
+    },
+  };
+};
