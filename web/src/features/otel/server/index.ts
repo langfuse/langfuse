@@ -656,7 +656,9 @@ export const convertOtelSpanToIngestionEvent = (
           timestamp: startTimeISO,
           name:
             attributes[LangfuseOtelSpanAttributes.TRACE_NAME] ??
-            (is_root_span ? extractName(span.name, attributes) : undefined),
+            (!parentObservationId
+              ? extractName(span.name, attributes)
+              : undefined),
           metadata: {
             ...resourceAttributeMetadata,
             ...extractMetadata(attributes, "trace"),

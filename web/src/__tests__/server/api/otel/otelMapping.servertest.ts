@@ -459,7 +459,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(traceEvent.body).toMatchObject({
         id: "95f3b926c7d009925bcb5dbc27311120",
         timestamp: "2025-05-05T13:42:33.936Z",
-        name: "my-span-with-custom-trace-id",
+        name: undefined,
         environment: "production",
       });
     });
