@@ -38,6 +38,13 @@ describe("/models API Endpoints", () => {
         unit: "TOKENS",
       },
     });
+    await prisma.price.createMany({
+      data: [
+        { modelId: "model-1", usageType: "input", price: 0.001 },
+        { modelId: "model-1", usageType: "output", price: 0.002 },
+        { modelId: "model-1", usageType: "total", price: 0.1 },
+      ],
+    });
     await prisma.model.create({
       data: {
         id: "model-2",
@@ -50,6 +57,12 @@ describe("/models API Endpoints", () => {
         tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
         unit: "TOKENS",
       },
+    });
+    await prisma.price.createMany({
+      data: [
+        { modelId: "model-2", usageType: "input", price: 0.002 },
+        { modelId: "model-2", usageType: "output", price: 0.004 },
+      ],
     });
   });
   afterEach(async () => await pruneDatabase());
@@ -67,6 +80,11 @@ describe("/models API Endpoints", () => {
     expect(models.body.data[0]).toMatchObject({
       isLangfuseManaged: true,
       modelName: "gpt-3.5-turbo",
+      prices: {
+        input: { price: 0.001 },
+        output: { price: 0.002 },
+        total: { price: 0.1 },
+      },
     });
   });
 
@@ -105,6 +123,10 @@ describe("/models API Endpoints", () => {
       auth,
     );
     expect(customModel.body.isLangfuseManaged).toBe(false);
+    expect(customModel.body.prices).toMatchObject({
+      input: { price: 0.002 },
+      output: { price: 0.004 },
+    });
 
     const models = await makeZodVerifiedAPICall(
       GetModelsV1Response,
@@ -132,6 +154,10 @@ describe("/models API Endpoints", () => {
       unit: "TOKENS",
       tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
       isLangfuseManaged: false,
+      prices: {
+        input: { price: 0.002 },
+        output: { price: 0.004 },
+      },
     });
 
     const prices = await prisma.price.findMany({
