@@ -386,7 +386,10 @@ export const PromptDetail = () => {
               <div className="flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
                 <JumpToPlaygroundButton
                   source="prompt"
-                  prompt={prompt}
+                  prompt={{
+                    ...prompt,
+                    resolvedPrompt: promptGraph.data?.resolvedPrompt,
+                  }}
                   analyticsEventName="prompt_detail:test_in_playground_button_click"
                   variant="outline"
                 />

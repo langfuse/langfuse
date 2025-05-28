@@ -15,9 +15,10 @@ import {
   traceRecordReadSchema,
   TraceRecordReadType,
   ingestionEvent,
+  logger,
 } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "../../../__tests__/utils";
-
+import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
@@ -1152,19 +1153,17 @@ describe("Ingestion end-to-end tests", () => {
 
     await clickhouseWriter.flushAll(true);
 
-    vi.useRealTimers();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    vi.useFakeTimers();
+    await waitForExpect(async () => {
+      const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
-    const trace = await getClickhouseRecord(TableName.Traces, traceId);
-
-    expect(trace.name).toBe("trace-name");
-    expect(trace.user_id).toBe("user-2");
-    expect(trace.release).toBe("1.0.0");
-    expect(trace.version).toBe("2.0.0");
-    expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-    expect(trace.tags).toEqual(["tag-1", "tag-2", "tag-3", "tag-4"]);
-    expect(trace.tags.length).toBe(4);
+      expect(trace.name).toBe("trace-name");
+      expect(trace.user_id).toBe("user-2");
+      expect(trace.release).toBe("1.0.0");
+      expect(trace.version).toBe("2.0.0");
+      expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+      expect(trace.tags).toEqual(["tag-1", "tag-2", "tag-3", "tag-4"]);
+      expect(trace.tags.length).toBe(4);
+    });
   });
 
   it("should upsert traces in the right order", async () => {
