@@ -18,6 +18,7 @@ import {
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { CopyIcon, ExternalLinkIcon } from "lucide-react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type PromptSelectionDialogProps = {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export function PromptSelectionDialog({
     useState<string>("");
 
   const copySelectedTag = useCallback(() => {
-    navigator.clipboard.writeText(selectedTag);
+    copyTextToClipboard(selectedTag);
   }, [selectedTag]);
 
   useEffect(() => {
@@ -177,18 +178,18 @@ export function PromptSelectionDialog({
                   <SelectContent>
                     {selectionType === "version"
                       ? selectedPrompt?.versions.map((version) => (
-                          <SelectItem
-                            key={version.toString()}
-                            value={version.toString()}
-                          >
-                            {version}
-                          </SelectItem>
-                        ))
+                        <SelectItem
+                          key={version.toString()}
+                          value={version.toString()}
+                        >
+                          {version}
+                        </SelectItem>
+                      ))
                       : selectedPrompt?.labels.map((label) => (
-                          <SelectItem key={label} value={label}>
-                            {label}
-                          </SelectItem>
-                        ))}
+                        <SelectItem key={label} value={label}>
+                          {label}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
                 {selectedVersionOrLabel && (
