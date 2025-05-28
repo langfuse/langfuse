@@ -1096,7 +1096,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.value).toBe(100.5);
   });
 
-  it.only("should upsert traces", async () => {
+  it("should upsert traces", async () => {
     const traceId = randomUUID();
 
     // First flush
