@@ -11,7 +11,11 @@ import { blobStorageIntegrationFormSchema } from "@/src/features/blobstorage-int
 import { TRPCError } from "@trpc/server";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { logger } from "@langfuse/shared/src/server";
-import { type BlobStorageIntegration } from "@langfuse/shared";
+import {
+  type BlobStorageIntegration,
+  BlobStorageIntegrationType,
+} from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -87,6 +91,19 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           fileType,
         } = input;
 
+        const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+        const canUseHostCredentials =
+          isSelfHosted && type === BlobStorageIntegrationType.S3;
+        const isUsingHostCredentials =
+          canUseHostCredentials && (!accessKeyId || !secretAccessKey);
+
+        if (!canUseHostCredentials && !accessKeyId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Access Key ID and Secret Access Key are required",
+          });
+        }
+
         const data: Partial<BlobStorageIntegration> = {
           type,
           bucketName,
@@ -112,7 +129,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           );
 
           if (existingConfig) {
-            // Record exists, perform update
             if (secretAccessKey) {
               data.secretAccessKey = encrypt(secretAccessKey);
             }
@@ -125,11 +141,11 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             });
           } else {
             // Record doesn't exist, perform create
-            // For create, secretAccessKey is mandatory
-            if (!secretAccessKey) {
+            if (!isUsingHostCredentials && !secretAccessKey) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
-                message: "Secret access key is required for new configuration",
+                message:
+                  "Secret access key is required for new configuration when not using host credentials",
               });
             }
 
@@ -138,12 +154,17 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
                 ...(data as BlobStorageIntegration),
                 projectId: input.projectId,
                 accessKeyId,
-                secretAccessKey: encrypt(secretAccessKey),
+                secretAccessKey: secretAccessKey
+                  ? encrypt(secretAccessKey)
+                  : undefined,
               },
             });
           }
         });
       } catch (e) {
+        if (e instanceof TRPCError) {
+          throw e;
+        }
         logger.error(`Failed to update blob storage integration`, e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",

@@ -49,8 +49,8 @@ const processBlobStorageExport = async (config: {
   bucketName: string;
   endpoint: string | null;
   region?: string;
-  accessKeyId: string;
-  secretAccessKey: string;
+  accessKeyId: string | undefined;
+  secretAccessKey: string | undefined;
   prefix?: string;
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
@@ -186,8 +186,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
       bucketName: blobStorageIntegration.bucketName,
       endpoint: blobStorageIntegration.endpoint,
       region: blobStorageIntegration.region || undefined,
-      accessKeyId: blobStorageIntegration.accessKeyId,
-      secretAccessKey: decrypt(blobStorageIntegration.secretAccessKey),
+      accessKeyId: blobStorageIntegration.accessKeyId || undefined,
+      secretAccessKey: blobStorageIntegration.secretAccessKey
+        ? decrypt(blobStorageIntegration.secretAccessKey)
+        : undefined,
       prefix: blobStorageIntegration.prefix || undefined,
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
       type: blobStorageIntegration.type,
