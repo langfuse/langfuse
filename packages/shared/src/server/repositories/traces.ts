@@ -48,12 +48,14 @@ export const checkTraceExists = async ({
   timestamp,
   filter,
   maxTimeStamp,
+  exactTimestamp,
 }: {
   projectId: string;
   traceId: string;
   timestamp: Date;
   filter: FilterState;
   maxTimeStamp: Date | undefined;
+  exactTimestamp?: Date;
 }): Promise<boolean> => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
@@ -111,6 +113,7 @@ export const checkTraceExists = async ({
     AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
     ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
     ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
+    ${exactTimestamp ? `AND timestamp = {exactTimestamp: DateTime64(3)}` : ""}
     GROUP BY t.id, t.project_id
   `;
 
@@ -125,6 +128,9 @@ export const checkTraceExists = async ({
         : {}),
       ...(maxTimeStamp
         ? { maxTimeStamp: convertDateToClickhouseDateTime(maxTimeStamp) }
+        : {}),
+      ...(exactTimestamp
+        ? { exactTimestamp: convertDateToClickhouseDateTime(exactTimestamp) }
         : {}),
     },
     tags: {

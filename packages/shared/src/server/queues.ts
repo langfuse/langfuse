@@ -120,6 +120,7 @@ export const CreateEvalQueueEventSchema = DatasetRunItemUpsertEventSchema.and(
     z.object({
       timestamp: z.date(),
       configId: z.string(),
+      exactTimestamp: z.date().optional(),
     }),
   ),
 );
