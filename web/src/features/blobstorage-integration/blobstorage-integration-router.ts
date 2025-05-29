@@ -310,13 +310,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "integrations:CRUD",
         });
-        await auditLog({
-          session: ctx.session,
-          action: "create",
-          resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
-          after: { action: "validation_test" },
-        });
 
         // Get persisted configuration
         const integration = await ctx.prisma.blobStorageIntegration.findUnique({
@@ -345,11 +338,13 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           forcePathStyle,
         } = integration;
 
-        const secretAccessKey = decrypt(encryptedSecretAccessKey);
+        const secretAccessKey = encryptedSecretAccessKey
+          ? decrypt(encryptedSecretAccessKey)
+          : undefined;
 
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
-          accessKeyId,
+          accessKeyId: accessKeyId || undefined,
           secretAccessKey,
           bucketName,
           endpoint: endpoint || undefined,
