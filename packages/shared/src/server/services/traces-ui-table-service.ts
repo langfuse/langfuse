@@ -253,7 +253,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     case "identifiers":
       sqlSelect = `
         t.id as id,
-        t.project_id as project_id,
+        t.project_id as projectId,
         t.timestamp as timestamp`;
       break;
     default:
