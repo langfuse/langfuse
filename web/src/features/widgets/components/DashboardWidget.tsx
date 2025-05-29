@@ -196,8 +196,8 @@ export function DashboardWidget({
     <div
       className={`group flex h-full w-full flex-col overflow-hidden rounded-lg border bg-background p-4`}
     >
-      <div className="mb-2 flex items-center justify-between">
-        <span className="font-medium">
+      <div className="flex items-center justify-between">
+        <span className="truncate font-medium" title={widget.data.name}>
           {widget.data.name}{" "}
           {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
             ? " ( 🪢 )"
@@ -236,7 +236,10 @@ export function DashboardWidget({
           </div>
         )}
       </div>
-      <div className="mb-4 text-sm text-muted-foreground">
+      <div
+        className="mb-4 truncate text-sm text-muted-foreground"
+        title={widget.data.description}
+      >
         {widget.data.description}
       </div>
       <div className="min-h-0 flex-1">
