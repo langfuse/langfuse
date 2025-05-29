@@ -146,6 +146,7 @@ export const handleBatchActionJob = async (
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
+            exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
           })
         : await getDatabaseReadStream({
             projectId: projectId,
