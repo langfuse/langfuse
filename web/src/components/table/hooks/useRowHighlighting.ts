@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 /**
  * Hook that handles row highlighting without causing React re-renders.
@@ -11,38 +11,23 @@ export const useRowHighlighting = (
   peekViewId: string | undefined,
   tableContainerRef: React.RefObject<HTMLElement>,
 ) => {
-  const lastHighlightedRowRef = useRef<HTMLElement | null>(null);
-
   useEffect(() => {
     const tableContainer = tableContainerRef.current;
     if (!tableContainer) return;
 
-    // Remove previous highlighting
-    if (lastHighlightedRowRef.current) {
-      lastHighlightedRowRef.current.classList.remove("bg-accent");
-      lastHighlightedRowRef.current = null;
-    }
+    // Remove all existing highlights
+    tableContainer.querySelectorAll(".bg-accent").forEach((row) => {
+      row.classList.remove("bg-accent");
+    });
 
-    // Apply new highlighting if peekViewId exists
+    // Add highlight to current row if peekViewId exists
     if (peekViewId) {
-      // Find the row with matching data-row-id attribute
       const targetRow = tableContainer.querySelector(
         `[data-row-id="${peekViewId}"]`,
-      ) as HTMLElement;
-
+      );
       if (targetRow) {
         targetRow.classList.add("bg-accent");
-        lastHighlightedRowRef.current = targetRow;
       }
     }
   }, [peekViewId, tableContainerRef]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (lastHighlightedRowRef.current) {
-        lastHighlightedRowRef.current.classList.remove("bg-accent");
-      }
-    };
-  }, []);
 };
