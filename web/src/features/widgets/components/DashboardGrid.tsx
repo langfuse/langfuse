@@ -49,6 +49,8 @@ export function DashboardGrid({
     w: w.x_size,
     h: w.y_size,
     isDraggable: canEdit,
+    minW: 2,
+    minH: 2,
   }));
 
   const handleLayoutChange = (newLayout: any[]) => {
