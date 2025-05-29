@@ -129,6 +129,9 @@ export const checkTraceExists = async ({
       ...(maxTimeStamp
         ? { maxTimeStamp: convertDateToClickhouseDateTime(maxTimeStamp) }
         : {}),
+      ...(exactTimestamp
+        ? { exactTimestamp: convertDateToClickhouseDateTime(exactTimestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",
