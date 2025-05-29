@@ -139,14 +139,22 @@ export const handleBatchActionJob = async (
       throw new Error(`Target ID is required for create action`);
     }
 
-    const dbReadStream = await getDatabaseReadStream({
-      projectId: projectId,
-      cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-      orderBy: query.orderBy,
-      tableName: tableName as unknown as BatchExportTableName,
-      exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
-    });
+    const dbReadStream =
+      actionId === "trace-delete"
+        ? await getTraceIdentifierStream({
+            projectId: projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            orderBy: query.orderBy,
+          })
+        : await getDatabaseReadStream({
+            projectId: projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            orderBy: query.orderBy,
+            tableName: tableName as unknown as BatchExportTableName,
+            exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
+          });
 
     // Process stream in database-sized batches
     // 1. Read all records
