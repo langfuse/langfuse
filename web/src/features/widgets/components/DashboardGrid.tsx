@@ -4,9 +4,26 @@ import "react-resizable/css/styles.css";
 import { type WidgetPlacement } from "../components/DashboardWidget";
 import { DashboardWidget } from "@/src/features/widgets";
 import { type FilterState } from "@langfuse/shared";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
+
+// Hook to detect screen size
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    if (media.matches !== matches) {
+      setMatches(media.matches);
+    }
+    const listener = () => setMatches(media.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, [matches, query]);
+
+  return matches;
+}
 
 export function DashboardGrid({
   widgets,
@@ -31,6 +48,9 @@ export function DashboardGrid({
 }) {
   const [rowHeight, setRowHeight] = useState(150);
 
+  // Detect if screen is medium or smaller (1024px and below)
+  const isSmallScreen = useMediaQuery("(max-width: 1024px)");
+
   const handleWidthChange = useCallback(
     (containerWidth: number) => {
       const calculatedRowHeight = ((containerWidth / 12) * 9) / 16;
@@ -48,13 +68,18 @@ export function DashboardGrid({
     y: w.y,
     w: w.x_size,
     h: w.y_size,
-    isDraggable: canEdit,
+    isDraggable: canEdit && !isSmallScreen, // Disable dragging on small screens
     minW: 2,
     minH: 2,
   }));
 
   const handleLayoutChange = (newLayout: any[]) => {
-    if (!canEdit) return;
+    // Safety checks: prevent layout changes on small screens and when editing is disabled
+    // This prevents unintended saves during responsive transitions or on mobile devices
+    if (!canEdit || isSmallScreen) return;
+
+    // Additional safety: ensure the layout change is meaningful
+    if (!newLayout || newLayout.length === 0) return;
 
     // Update widget positions based on the new layout
     const updatedWidgets = widgets.map((w) => {
@@ -73,6 +98,34 @@ export function DashboardGrid({
     onChange(updatedWidgets);
   };
 
+  // Render flex layout for small screens
+  if (isSmallScreen) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        {widgets
+          .sort((a, b) => a.y - b.y || a.x - b.x) // Sort by position for consistent order
+          .map((widget) => (
+            <div
+              key={widget.id}
+              className="w-full"
+              style={{ height: "300px" }} // Fixed height for all widgets on small screens
+            >
+              <DashboardWidget
+                dashboardId={dashboardId}
+                projectId={projectId}
+                placement={widget}
+                dateRange={dateRange}
+                filterState={filterState}
+                onDeleteWidget={onDeleteWidget}
+                dashboardOwner={dashboardOwner || "PROJECT"}
+              />
+            </div>
+          ))}
+      </div>
+    );
+  }
+
+  // Render grid layout for larger screens
   return (
     <ResponsiveGridLayout
       className="layout"

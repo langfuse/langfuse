@@ -207,7 +207,7 @@ export function DashboardWidget({
           <div className="flex space-x-2">
             <GripVerticalIcon
               size={16}
-              className="drag-handle hidden cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing group-hover:block"
+              className="drag-handle hidden cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing lg:group-hover:block"
             />
             {widget.data.owner === "PROJECT" ? (
               <button
