@@ -126,7 +126,7 @@ export const usePeekView = <TData extends object>({
         setRow(row);
       }
     },
-    [], // Empty dependency array - stable!
+    [peekView],
   );
 
   // Update the row state when the peekViewId changes on detail page navigation

@@ -232,16 +232,6 @@ export function DataTable<TData extends object, TValue>({
     ? table.getHeaderGroups()
     : [table.getHeaderGroups().slice(-1)[0]];
 
-  const shouldUseMemoization = useMemo(() => {
-    return (
-      table.getState().columnSizingInfo.isResizingColumn || // During column resize
-      !!peekView // Always use memoization when peek view is available
-    );
-  }, [
-    table.getState().columnSizingInfo.isResizingColumn,
-    peekView, // Remove peekViewId from dependencies
-  ]);
-
   return (
     <>
       <div
@@ -361,7 +351,8 @@ export function DataTable<TData extends object, TValue>({
                 </TableRow>
               ))}
             </TableHeader>
-            {shouldUseMemoization ? (
+            {table.getState().columnSizingInfo.isResizingColumn ||
+            !!peekView ? (
               <MemoizedTableBody
                 table={table}
                 rowheighttw={rowheighttw}

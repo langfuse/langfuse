@@ -35,7 +35,7 @@ export const useTracePeekState = (pathname: string) => {
       }
       // If same ID is already open, do nothing
     },
-    [getCurrentParams, updateParams, clearParams], // All stable functions
+    [getCurrentParams, updateParams, clearParams],
   );
 
   return {
