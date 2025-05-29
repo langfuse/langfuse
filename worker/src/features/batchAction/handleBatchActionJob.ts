@@ -12,7 +12,10 @@ import {
   BatchExportTableName,
   FilterCondition,
 } from "@langfuse/shared";
-import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
+import {
+  getDatabaseReadStream,
+  getTraceIdentifierStream,
+} from "../database-read-stream/getDatabaseReadStream";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
@@ -185,17 +188,22 @@ export const handleBatchActionJob = async (
       return;
     }
 
-    const dbReadStream = await getDatabaseReadStream({
-      projectId: projectId,
-      cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-      orderBy: query.orderBy,
-      tableName:
-        targetObject === "trace"
-          ? BatchExportTableName.Traces
-          : BatchExportTableName.DatasetRunItems,
-      exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
-    });
+    const dbReadStream =
+      targetObject === "trace"
+        ? await getTraceIdentifierStream({
+            projectId: projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            orderBy: query.orderBy,
+          }) // when reading from clickhouse, we only want to read the necessary identifiers.
+        : await getDatabaseReadStream({
+            projectId: projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            orderBy: query.orderBy,
+            tableName: BatchExportTableName.DatasetRunItems,
+            exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+          });
 
     const evalCreatorQueue = CreateEvalQueue.getInstance();
     if (!evalCreatorQueue) {
