@@ -1,6 +1,6 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
-import React, { useState, useMemo, useCallback, useContext } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -36,6 +36,7 @@ import {
 import { TablePeekView } from "@/src/components/table/peek";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
+import { useRowHighlighting } from "@/src/components/table/hooks/useRowHighlighting";
 import { isEqual } from "lodash";
 
 interface DataTableProps<TData, TValue> {
@@ -189,6 +190,12 @@ export function DataTable<TData extends object, TValue>({
     peekView,
   });
 
+  // Add table container ref for row highlighting
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use row highlighting hook to apply bg-accent without re-renders
+  useRowHighlighting(peekViewId, tableContainerRef);
+
   const handleOnRowClick = useCallback(
     (row: TData) => {
       handleOnRowClickPeek?.(row);
@@ -244,6 +251,7 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
+          ref={tableContainerRef}
           className={cn("relative w-full overflow-auto border-t")}
           style={{ ...columnSizeVars }}
         >
@@ -438,11 +446,10 @@ function TableRowComponent<TData>({
   onRowClick?: (row: TData) => void;
   children: React.ReactNode;
 }) {
-  // const router = useRouter();
-  // const peekViewId = router.query.peek as string | undefined;
   return (
     <TableRow
       data-row-index={row.index}
+      data-row-id={row.id}
       onClick={() => onRowClick?.(row.original)}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
@@ -452,7 +459,6 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        // peekViewId && peekViewId === row.id ? "bg-accent" : undefined,
       )}
     >
       {children}

@@ -36,6 +36,13 @@ function getInitialRow<TData>(
   }
 }
 
+// Helper function to get current URL peek parameter
+function getCurrentPeekUrl() {
+  const url = new URL(window.location.href);
+  const params = new URLSearchParams(url.search);
+  return params.get("peek") ?? undefined;
+}
+
 type UsePeekViewProps<TData> = {
   getRow: (id: string) => TData | undefined;
   peekView?: PeekViewProps<TData>;
@@ -60,9 +67,8 @@ export const usePeekView = <TData extends object>({
   getRow,
   peekView,
 }: UsePeekViewProps<TData>) => {
-  const url = new URL(window.location.href);
-  const params = new URLSearchParams(url.search);
-  const peekViewId = params.get("peek") ?? undefined;
+  // Get current peek ID from URL
+  const peekViewId = getCurrentPeekUrl();
 
   const [row, setRow] = useState<TData | undefined>(
     getInitialRow(peekViewId, getRow),
@@ -101,10 +107,8 @@ export const usePeekView = <TData extends object>({
     (row: TData) => {
       if (!peekView) return;
 
-      const url = new URL(window.location.href);
-      const params = new URLSearchParams(url.search);
-      // Get the current peekViewId from router directly
-      const currentPeekViewId = params.get("peek") ?? undefined;
+      // Get current peek ID from URL
+      const currentPeekViewId = getCurrentPeekUrl();
 
       const rowId =
         "id" in row && typeof row.id === "string" ? row.id : undefined;
