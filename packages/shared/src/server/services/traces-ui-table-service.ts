@@ -435,7 +435,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     )
     SELECT ${sqlSelect}
     -- FINAL is used for non default ordering and count.
-    FROM traces t  ${["metrics", "rows"].includes(select) && defaultOrder ? "" : "FINAL"}
+    FROM traces t  ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "" : "FINAL"}
     ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
     ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
     WHERE t.project_id = {projectId: String}
@@ -444,7 +444,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     ${chOrderBy}
     -- This is used for metrics and row queries. Count has only one result.
     -- This is only used for default ordering. Otherwise, we use final.
-    ${["metrics", "rows"].includes(select) && defaultOrder ? "LIMIT 1 BY id, project_id" : ""}
+    ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "LIMIT 1 BY id, project_id" : ""}
     ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
@@ -560,10 +560,27 @@ export const getTraceIdentifiers = async (props: {
   page?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 }) => {
+  const {
+    projectId,
+    filter,
+    searchQuery,
+    searchType,
+    orderBy,
+    limit,
+    page,
+    clickhouseConfigs,
+  } = props;
   const identifiers = await getTracesTableGeneric({
     select: "identifiers",
     tags: { kind: "list" },
-    ...props,
+    projectId,
+    filter,
+    searchQuery,
+    searchType,
+    orderBy,
+    limit,
+    page,
+    clickhouseConfigs,
   });
 
   return identifiers.map((row) => ({

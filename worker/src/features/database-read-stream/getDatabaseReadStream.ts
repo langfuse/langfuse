@@ -490,7 +490,7 @@ export const getTraceIdentifierStream = async (props: {
 
   return new DatabaseReadStream<TraceIdentifiers>(
     async (pageSize: number, offset: number) => {
-      return await getTraceIdentifiers({
+      const identifiers = await getTraceIdentifiers({
         projectId,
         filter: filter
           ? [...filter, createdAtCutoffFilter]
@@ -501,6 +501,7 @@ export const getTraceIdentifierStream = async (props: {
         page: Math.floor(offset / pageSize),
         clickhouseConfigs,
       });
+      return identifiers;
     },
     env.BATCH_EXPORT_PAGE_SIZE,
     exportLimit,
