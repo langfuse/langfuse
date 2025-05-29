@@ -20,7 +20,8 @@ function useMediaQuery(query: string) {
     const listener = () => setMatches(media.matches);
     media.addEventListener("change", listener);
     return () => media.removeEventListener("change", listener);
-  }, [matches, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   return matches;
 }
