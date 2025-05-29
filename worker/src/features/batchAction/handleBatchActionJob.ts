@@ -49,6 +49,9 @@ async function processActionChunk(
           processPostgresTraceDelete(projectId, chunkIds),
           processClickhouseTraceDelete(projectId, chunkIds),
         ]);
+        logger.info(
+          `Deleted ${chunkIds.length} traces for project ${projectId}`,
+        );
         break;
 
       case "trace-add-to-annotation-queue":
@@ -176,6 +179,7 @@ export const handleBatchActionJob = async (
         projectId,
         targetId,
       );
+      console.log(`Processed chunk ${JSON.stringify(batch.map((r) => r.id))}`);
     }
   } else if (actionId === "eval-create") {
     // if a user wants to apply evals for historic traces or dataset runs, we do this here.

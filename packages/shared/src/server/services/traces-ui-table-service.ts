@@ -435,7 +435,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     )
     SELECT ${sqlSelect}
     -- FINAL is used for non default ordering and count.
-    FROM traces t  ${["metrics", "rows"].includes(select) && defaultOrder ? "" : "FINAL"}
+    FROM traces t  ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "" : "FINAL"}
     ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
     ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
     WHERE t.project_id = {projectId: String}
