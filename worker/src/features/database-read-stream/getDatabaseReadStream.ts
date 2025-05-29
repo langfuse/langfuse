@@ -5,6 +5,7 @@ import {
   BatchExportQueryType,
   ScoreDomain,
   evalDatasetFormFilterCols,
+  OrderByState,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -21,6 +22,7 @@ import {
   getTracesByIds,
   getScoresForTraces,
   tableColumnsToSqlFilterAndPrefix,
+  getTraceIdentifiers,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -459,3 +461,48 @@ export function prepareScoresForOutput(
     {} as Record<string, string[] | number[]>,
   );
 }
+
+export type TraceIdentifiers = {
+  id: string;
+  projectId: string;
+  timestamp: Date;
+};
+
+export const getTraceIdentifierStream = async (props: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterCondition[];
+  orderBy: OrderByState;
+  exportLimit?: number;
+}): Promise<DatabaseReadStream<Array<TraceIdentifiers>>> => {
+  const { projectId, cutoffCreatedAt, filter, orderBy, exportLimit } = props;
+
+  const createdAtCutoffFilter: FilterCondition = {
+    column: "timestamp",
+    operator: "<",
+    value: cutoffCreatedAt,
+    type: "datetime",
+  };
+
+  const clickhouseConfigs = {
+    request_timeout: 120_000,
+  };
+
+  return new DatabaseReadStream<TraceIdentifiers>(
+    async (pageSize: number, offset: number) => {
+      return await getTraceIdentifiers({
+        projectId,
+        filter: filter
+          ? [...filter, createdAtCutoffFilter]
+          : [createdAtCutoffFilter],
+        searchType: ["id" as const],
+        orderBy,
+        limit: pageSize,
+        page: Math.floor(offset / pageSize),
+        clickhouseConfigs,
+      });
+    },
+    env.BATCH_EXPORT_PAGE_SIZE,
+    exportLimit,
+  );
+};
