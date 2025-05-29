@@ -1,6 +1,5 @@
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { useRouter } from "next/router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 /**
  * Props for configuring a peek view in a data table.
@@ -61,56 +60,70 @@ export const usePeekView = <TData extends object>({
   getRow,
   peekView,
 }: UsePeekViewProps<TData>) => {
-  const router = useRouter();
+  const url = new URL(window.location.href);
+  const params = new URLSearchParams(url.search);
+  const peekViewId = params.get("peek") ?? undefined;
 
-  const peekViewId = router.query.peek as string | undefined;
   const [row, setRow] = useState<TData | undefined>(
     getInitialRow(peekViewId, getRow),
   );
 
-  // Populate the row after the table is mounted
-  const attemptRef = useRef(false);
+  // // Track if we've attempted to find the row for this peekViewId
+  const lastAttemptedPeekViewId = useRef<string | undefined>();
 
-  // Try to find the row with delayed attempts
+  // Update row when peekViewId changes or table data updates
   useEffect(() => {
-    if (peekView && peekViewId && !row && !attemptRef.current) {
-      attemptRef.current = true;
-      let foundOnce = false;
-      let intervalId = setInterval(() => {
-        const foundRow = getInitialRow(peekViewId, getRow);
-        if (foundRow) {
-          setRow(foundRow);
-          if (foundOnce) clearInterval(intervalId);
-          foundOnce = true;
-        }
-      }, 500);
+    if (!peekView || !peekViewId) {
+      setRow(undefined);
+      lastAttemptedPeekViewId.current = undefined;
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    // Only attempt to find the row if:
+    // 1. We haven't tried for this peekViewId yet, OR
+    // 2. The table data has been updated (new data might contain the row)
+    const shouldAttemptFind =
+      lastAttemptedPeekViewId.current !== peekViewId || !row;
+
+    if (shouldAttemptFind) {
+      const foundRow = getInitialRow(peekViewId, getRow);
+      setRow(foundRow);
+      lastAttemptedPeekViewId.current = peekViewId;
+    }
+  }, [peekViewId, peekView?.tableDataUpdatedAt, getRow, peekView, row]);
 
   const inflatedPeekView = peekView
     ? { ...peekView, selectedRowId: peekViewId, row }
     : undefined;
 
-  // Update the row state when the user clicks on a row
-  const handleOnRowClickPeek = (row: TData) => {
-    if (inflatedPeekView) {
+  // Create a stable handleOnRowClickPeek function
+  const handleOnRowClickPeek = useCallback(
+    (row: TData) => {
+      if (!peekView) return;
+
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams(url.search);
+      // Get the current peekViewId from router directly
+      const currentPeekViewId = params.get("peek") ?? undefined;
+
       const rowId =
         "id" in row && typeof row.id === "string" ? row.id : undefined;
+
       // If clicking the same row that's already open, close it
-      if (rowId === inflatedPeekView.selectedRowId) {
-        inflatedPeekView.onOpenChange(false);
+      if (rowId === currentPeekViewId) {
+        peekView.onOpenChange(false);
         setRow(undefined);
       }
       // If clicking a different row update the row data and URL
       else {
         const timestamp =
           "timestamp" in row ? (row.timestamp as Date) : undefined;
-        inflatedPeekView.onOpenChange(true, rowId, timestamp?.toISOString());
+        peekView.onOpenChange(true, rowId, timestamp?.toISOString());
         setRow(row);
       }
-    }
-  };
+    },
+    [], // Empty dependency array - stable!
+  );
 
   // Update the row state when the peekViewId changes on detail page navigation
   useEffect(() => {

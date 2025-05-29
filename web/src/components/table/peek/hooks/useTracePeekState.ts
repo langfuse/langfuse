@@ -1,14 +1,17 @@
-import { useRouter } from "next/router";
 import { useCallback } from "react";
 
 export const useTracePeekState = (pathname: string) => {
-  const router = useRouter();
-  const { peek, timestamp } = router.query;
+  const url = new URL(window.location.href);
+  const params = new URLSearchParams(url.search);
+  const peek = params.get("peek");
+  const timestamp = params.get("timestamp");
 
   const setPeekView = useCallback(
     (open: boolean, id?: string, time?: string) => {
       const url = new URL(window.location.href);
       const params = new URLSearchParams(url.search);
+      const peek = params.get("peek");
+      const timestamp = params.get("timestamp");
 
       if (!open || !id) {
         // close peek view
@@ -17,7 +20,7 @@ export const useTracePeekState = (pathname: string) => {
         params.delete("observation");
         params.delete("display");
       } else if (open && id !== peek) {
-        // open peek view or update peek view
+        // open or update
         params.set("peek", id);
         const relevantTimestamp = time ?? (timestamp as string);
         if (relevantTimestamp) params.set("timestamp", relevantTimestamp);
@@ -26,16 +29,21 @@ export const useTracePeekState = (pathname: string) => {
         return;
       }
 
-      router.replace(
+      const newSearch = params.toString();
+      const newUrl = pathname + (newSearch ? `?${newSearch}` : "");
+
+      window.history.replaceState(
         {
-          pathname,
-          query: params.toString(),
+          ...window.history.state,
+          as: newUrl,
+          url: newUrl,
         },
-        undefined,
-        { shallow: true },
+        "",
+        newUrl,
       );
     },
-    [router, pathname, peek, timestamp],
+    // [router, peek, timestamp, pathname]
+    [],
   );
 
   return {

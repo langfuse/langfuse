@@ -98,8 +98,6 @@ function isValidCssVariableName({
   return regex.test(name);
 }
 
-const SelectedRowContext = React.createContext<string | undefined>(undefined);
-
 export function DataTable<TData extends object, TValue>({
   columns,
   data,
@@ -193,12 +191,10 @@ export function DataTable<TData extends object, TValue>({
 
   const handleOnRowClick = useCallback(
     (row: TData) => {
-      if (inflatedPeekView) {
-        handleOnRowClickPeek?.(row);
-      }
+      handleOnRowClickPeek?.(row);
       onRowClick?.(row);
     },
-    [handleOnRowClickPeek, onRowClick, inflatedPeekView],
+    [handleOnRowClickPeek, onRowClick],
   );
 
   const hasRowClickAction = !!onRowClick || !!inflatedPeekView;
@@ -229,6 +225,16 @@ export function DataTable<TData extends object, TValue>({
     ? table.getHeaderGroups()
     : [table.getHeaderGroups().slice(-1)[0]];
 
+  const shouldUseMemoization = useMemo(() => {
+    return (
+      table.getState().columnSizingInfo.isResizingColumn || // During column resize
+      !!peekView // Always use memoization when peek view is available
+    );
+  }, [
+    table.getState().columnSizingInfo.isResizingColumn,
+    peekView, // Remove peekViewId from dependencies
+  ]);
+
   return (
     <>
       <div
@@ -241,147 +247,140 @@ export function DataTable<TData extends object, TValue>({
           className={cn("relative w-full overflow-auto border-t")}
           style={{ ...columnSizeVars }}
         >
-          <SelectedRowContext.Provider value={peekViewId}>
-            <Table>
-              <TableHeader className="sticky top-0 z-10">
-                {tableHeaders.map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      const columnDef = header.column
-                        .columnDef as LangfuseColumnDef<ModelTableRow>;
-                      const sortingEnabled = columnDef.enableSorting;
-                      // if the header id does not translate to a valid css variable name, default to 150px as width
-                      // may only happen for dynamic columns, as column names are user defined
-                      const width = isValidCssVariableName({
-                        name: header.id,
-                        includesHyphens: false,
-                      })
-                        ? `calc(var(--header-${header.id}-size) * 1px)`
-                        : 150;
+          <Table>
+            <TableHeader className="sticky top-0 z-10">
+              {tableHeaders.map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    const columnDef = header.column
+                      .columnDef as LangfuseColumnDef<ModelTableRow>;
+                    const sortingEnabled = columnDef.enableSorting;
+                    // if the header id does not translate to a valid css variable name, default to 150px as width
+                    // may only happen for dynamic columns, as column names are user defined
+                    const width = isValidCssVariableName({
+                      name: header.id,
+                      includesHyphens: false,
+                    })
+                      ? `calc(var(--header-${header.id}-size) * 1px)`
+                      : 150;
 
-                      return header.column.getIsVisible() ? (
-                        <TableHead
-                          key={header.id}
-                          className={cn(
-                            "group p-1 first:pl-2",
-                            sortingEnabled && "cursor-pointer",
-                            pinFirstColumn &&
-                              header.index === 0 &&
-                              "sticky left-0 z-20 border-r bg-background",
-                          )}
-                          style={{ width }}
-                          onClick={(event) => {
-                            event.preventDefault();
+                    return header.column.getIsVisible() ? (
+                      <TableHead
+                        key={header.id}
+                        className={cn(
+                          "group p-1 first:pl-2",
+                          sortingEnabled && "cursor-pointer",
+                          pinFirstColumn &&
+                            header.index === 0 &&
+                            "sticky left-0 z-20 border-r bg-background",
+                        )}
+                        style={{ width }}
+                        onClick={(event) => {
+                          event.preventDefault();
 
-                            if (
-                              !setOrderBy ||
-                              !columnDef.id ||
-                              !sortingEnabled
-                            ) {
-                              return;
-                            }
+                          if (!setOrderBy || !columnDef.id || !sortingEnabled) {
+                            return;
+                          }
 
-                            if (orderBy?.column === columnDef.id) {
-                              if (orderBy.order === "DESC") {
-                                capture("table:column_sorting_header_click", {
-                                  column: columnDef.id,
-                                  order: "ASC",
-                                });
-                                setOrderBy({
-                                  column: columnDef.id,
-                                  order: "ASC",
-                                });
-                              } else {
-                                capture("table:column_sorting_header_click", {
-                                  column: columnDef.id,
-                                  order: "Disabled",
-                                });
-                                setOrderBy(null);
-                              }
-                            } else {
+                          if (orderBy?.column === columnDef.id) {
+                            if (orderBy.order === "DESC") {
                               capture("table:column_sorting_header_click", {
                                 column: columnDef.id,
-                                order: "DESC",
+                                order: "ASC",
                               });
                               setOrderBy({
                                 column: columnDef.id,
-                                order: "DESC",
+                                order: "ASC",
                               });
+                            } else {
+                              capture("table:column_sorting_header_click", {
+                                column: columnDef.id,
+                                order: "Disabled",
+                              });
+                              setOrderBy(null);
                             }
-                          }}
-                        >
-                          {header.isPlaceholder ? null : (
-                            <div className="flex select-none items-center">
-                              <span className="truncate">
-                                {flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext(),
-                                )}
-                              </span>
-                              {columnDef.headerTooltip && (
-                                <DocPopup
-                                  description={
-                                    columnDef.headerTooltip.description
-                                  }
-                                  href={columnDef.headerTooltip.href}
-                                />
+                          } else {
+                            capture("table:column_sorting_header_click", {
+                              column: columnDef.id,
+                              order: "DESC",
+                            });
+                            setOrderBy({
+                              column: columnDef.id,
+                              order: "DESC",
+                            });
+                          }
+                        }}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <div className="flex select-none items-center">
+                            <span className="truncate">
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
                               )}
-                              {orderBy?.column === columnDef.id
-                                ? renderOrderingIndicator(orderBy)
-                                : null}
-
-                              <div
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                }}
-                                onDoubleClick={() => header.column.resetSize()}
-                                onMouseDown={header.getResizeHandler()}
-                                onTouchStart={header.getResizeHandler()}
-                                className={cn(
-                                  "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
-                                  header.column.getIsResizing() &&
-                                    "bg-primary-accent opacity-100",
-                                )}
+                            </span>
+                            {columnDef.headerTooltip && (
+                              <DocPopup
+                                description={
+                                  columnDef.headerTooltip.description
+                                }
+                                href={columnDef.headerTooltip.href}
                               />
-                            </div>
-                          )}
-                        </TableHead>
-                      ) : null;
-                    })}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              {table.getState().columnSizingInfo.isResizingColumn ||
-              !!peekView ? (
-                <MemoizedTableBody
-                  table={table}
-                  rowheighttw={rowheighttw}
-                  columns={columns}
-                  data={data}
-                  help={help}
-                  onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                  pinFirstColumn={pinFirstColumn}
-                  tableSnapshot={{
-                    tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
-                    columnVisibility,
-                    columnOrder,
-                    rowSelection,
-                  }}
-                />
-              ) : (
-                <TableBodyComponent
-                  table={table}
-                  rowheighttw={rowheighttw}
-                  columns={columns}
-                  data={data}
-                  help={help}
-                  onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                  pinFirstColumn={pinFirstColumn}
-                />
-              )}
-            </Table>
-          </SelectedRowContext.Provider>
+                            )}
+                            {orderBy?.column === columnDef.id
+                              ? renderOrderingIndicator(orderBy)
+                              : null}
+
+                            <div
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onDoubleClick={() => header.column.resetSize()}
+                              onMouseDown={header.getResizeHandler()}
+                              onTouchStart={header.getResizeHandler()}
+                              className={cn(
+                                "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
+                                header.column.getIsResizing() &&
+                                  "bg-primary-accent opacity-100",
+                              )}
+                            />
+                          </div>
+                        )}
+                      </TableHead>
+                    ) : null;
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            {shouldUseMemoization ? (
+              <MemoizedTableBody
+                table={table}
+                rowheighttw={rowheighttw}
+                columns={columns}
+                data={data}
+                help={help}
+                onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                pinFirstColumn={pinFirstColumn}
+                tableSnapshot={{
+                  tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
+                  columnVisibility,
+                  columnOrder,
+                  rowSelection,
+                }}
+              />
+            ) : (
+              <TableBodyComponent
+                table={table}
+                rowheighttw={rowheighttw}
+                columns={columns}
+                data={data}
+                help={help}
+                onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                pinFirstColumn={pinFirstColumn}
+              />
+            )}
+          </Table>
         </div>
         <div className="grow"></div>
       </div>
@@ -439,7 +438,8 @@ function TableRowComponent<TData>({
   onRowClick?: (row: TData) => void;
   children: React.ReactNode;
 }) {
-  const peekViewId = useContext(SelectedRowContext);
+  // const router = useRouter();
+  // const peekViewId = router.query.peek as string | undefined;
   return (
     <TableRow
       data-row-index={row.index}
@@ -452,7 +452,7 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        peekViewId && peekViewId === row.id ? "bg-accent" : undefined,
+        // peekViewId && peekViewId === row.id ? "bg-accent" : undefined,
       )}
     >
       {children}
