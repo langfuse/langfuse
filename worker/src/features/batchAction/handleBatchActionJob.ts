@@ -179,7 +179,6 @@ export const handleBatchActionJob = async (
         projectId,
         targetId,
       );
-      console.log(`Processed chunk ${JSON.stringify(batch.map((r) => r.id))}`);
     }
   } else if (actionId === "eval-create") {
     // if a user wants to apply evals for historic traces or dataset runs, we do this here.
@@ -208,6 +207,7 @@ export const handleBatchActionJob = async (
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
+            exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           }) // when reading from clickhouse, we only want to read the necessary identifiers.
         : await getDatabaseReadStream({
             projectId: projectId,
@@ -275,7 +275,7 @@ export const handleBatchActionJob = async (
       }
     }
     logger.info(
-      `Batch action job {${count} elements} completed, projectId: ${batchActionJob.payload.projectId}, actionId: ${actionId}`,
+      `Batch action job completed, projectId: ${batchActionJob.payload.projectId}, ${count} elements`,
     );
   }
 

@@ -501,6 +501,7 @@ export const getTraceIdentifierStream = async (props: {
         page: Math.floor(offset / pageSize),
         clickhouseConfigs,
       });
+      console.log(`Identifiers found: ${JSON.stringify(identifiers.length)}`);
       return identifiers;
     },
     env.BATCH_EXPORT_PAGE_SIZE,
