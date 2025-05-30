@@ -87,6 +87,7 @@ export function DashboardGrid({
       isDraggable={editable}
       isResizable={editable}
       onDragStop={handleLayoutChange} // Save immediately when drag stops
+      onResizeStop={handleLayoutChange} // Save immediately when resize stops
       onWidthChange={handleWidthChange}
       draggableHandle=".drag-handle"
       useCSSTransforms
