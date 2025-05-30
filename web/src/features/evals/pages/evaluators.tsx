@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Plus } from "lucide-react";
-import EvaluatorTable from "@/src/ee/features/evals/components/evaluator-table";
+import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   TabsBar,
@@ -12,13 +12,10 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
-import {
-  useEntitlementLimit,
-  useHasEntitlement,
-} from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
-import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
@@ -28,7 +25,6 @@ export default function EvaluatorsPage() {
   const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
   );
-  const hasEntitlement = useHasEntitlement("model-based-evaluations");
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
@@ -45,7 +41,7 @@ export default function EvaluatorsPage() {
       projectId,
     },
     {
-      enabled: !!projectId && hasEntitlement,
+      enabled: !!projectId,
       trpc: {
         context: {
           skipBatch: true,
@@ -58,7 +54,7 @@ export default function EvaluatorsPage() {
     countsQuery.data?.configCount === 0 &&
     countsQuery.data?.templateCount === 0;
 
-  if (!hasReadAccess || !hasEntitlement) {
+  if (!hasReadAccess) {
     return <SupportOrUpgradePage />;
   }
 

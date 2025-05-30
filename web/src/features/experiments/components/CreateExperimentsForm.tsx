@@ -127,9 +127,7 @@ export const CreateExperimentsForm = ({
 }) => {
   const [open, setOpen] = useState(false);
   const capture = usePostHogClientCapture();
-  const hasPromptExperimentEntitlement =
-    useHasEntitlement("prompt-experiments");
-  const hasEvalEntitlement = useHasEntitlement("model-based-evaluations");
+
   const [selectedPromptName, setSelectedPromptName] = useState<string>(
     promptDefault?.name ?? "",
   );
@@ -173,14 +171,14 @@ export const CreateExperimentsForm = ({
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: "dataset" },
     {
-      enabled: hasEvalReadAccess && !!datasetId && hasEvalEntitlement,
+      enabled: hasEvalReadAccess && !!datasetId,
     },
   );
 
   const evalTemplates = api.evals.allTemplates.useQuery(
     { projectId },
     {
-      enabled: hasEvalReadAccess && hasEvalEntitlement,
+      enabled: hasEvalReadAccess,
     },
   );
 
@@ -196,7 +194,7 @@ export const CreateExperimentsForm = ({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
-      enabled: hasPromptExperimentEntitlement,
+      enabled: true,
     },
   );
 
@@ -229,7 +227,7 @@ export const CreateExperimentsForm = ({
       datasetId: datasetId as string,
     },
     {
-      enabled: Boolean(promptId && datasetId) && hasPromptExperimentEntitlement,
+      enabled: Boolean(promptId && datasetId),
     },
   );
 
@@ -296,46 +294,44 @@ export const CreateExperimentsForm = ({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2 sm:flex-row">
-          {hasPromptExperimentEntitlement && (
-            <Card className="flex flex-1 flex-col">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Wand2 className="size-4" />
-                  Prompt Experiment
-                </CardTitle>
-                <CardDescription>
-                  Test single prompts and model configurations via Langfuse UI
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
-                  <li>Compare prompt versions</li>
-                  <li>Compare model configurations</li>
-                  <li>No code required</li>
-                </ul>
-              </CardContent>
-              <CardFooter className="mt-auto flex flex-row gap-2">
-                <Button
-                  className="w-full"
-                  onClick={() => setShowPromptForm(true)}
-                >
-                  Create
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="w-full"
-                  asChild
-                  onClick={() =>
-                    capture("dataset_run:view_prompt_experiment_docs")
-                  }
-                >
-                  <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
-                    View Docs
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
+          <Card className="flex flex-1 flex-col">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Wand2 className="size-4" />
+                Prompt Experiment
+              </CardTitle>
+              <CardDescription>
+                Test single prompts and model configurations via Langfuse UI
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
+                <li>Compare prompt versions</li>
+                <li>Compare model configurations</li>
+                <li>No code required</li>
+              </ul>
+            </CardContent>
+            <CardFooter className="mt-auto flex flex-row gap-2">
+              <Button
+                className="w-full"
+                onClick={() => setShowPromptForm(true)}
+              >
+                Create
+              </Button>
+              <Button
+                variant="secondary"
+                className="w-full"
+                asChild
+                onClick={() =>
+                  capture("dataset_run:view_prompt_experiment_docs")
+                }
+              >
+                <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
+                  View Docs
+                </Link>
+              </Button>
+            </CardFooter>
+          </Card>
 
           <Card className="flex flex-1 flex-col">
             <CardHeader>
@@ -376,11 +372,6 @@ export const CreateExperimentsForm = ({
       </>
     );
   }
-
-  if (!hasPromptExperimentEntitlement) {
-    return null;
-  }
-
   if (
     !promptsByName ||
     !datasets.data ||

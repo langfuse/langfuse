@@ -7,14 +7,13 @@ import { cn } from "@/src/utils/tailwind";
 import { BreadcrumbList } from "@/src/components/ui/breadcrumb";
 import { Breadcrumb } from "@/src/components/ui/breadcrumb";
 import { useRouter } from "next/router";
-import { SelectEvaluatorList } from "@/src/ee/features/evals/components/select-evaluator-list";
-import { RunEvaluatorForm } from "@/src/ee/features/evals/components/run-evaluator-form";
+import { SelectEvaluatorList } from "@/src/features/evals/components/select-evaluator-list";
+import { RunEvaluatorForm } from "@/src/features/evals/components/run-evaluator-form";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
-import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
+import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
+import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 
 // Multi-step setup process
 // 1. Select Evaluator: /project/:projectId/evals/new
@@ -30,7 +29,6 @@ export default function NewEvaluatorPage() {
     projectId,
     scope: "evalTemplate:CUD",
   });
-  const hasEntityAccess = useHasEntitlement("model-based-evaluations");
 
   const evalTemplates = api.evals.allTemplates.useQuery(
     {
@@ -39,7 +37,7 @@ export default function NewEvaluatorPage() {
       page: 0,
     },
     {
-      enabled: hasAccess && hasEntityAccess,
+      enabled: hasAccess,
     },
   );
 
@@ -47,7 +45,7 @@ export default function NewEvaluatorPage() {
     (t) => t.id === evaluatorId,
   );
 
-  if (!hasAccess || !hasEntityAccess) {
+  if (!hasAccess) {
     return <div>You do not have access to this page.</div>;
   }
 

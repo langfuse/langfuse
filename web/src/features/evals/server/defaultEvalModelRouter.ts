@@ -1,5 +1,4 @@
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -17,12 +16,6 @@ export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -42,12 +35,6 @@ export const defaultEvalModelRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -68,12 +55,6 @@ export const defaultEvalModelRouter = createTRPCRouter({
   deleteDefaultModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,

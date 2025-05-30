@@ -20,8 +20,7 @@ import {
   datasetItemMatchesVariable,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+=import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
@@ -72,11 +71,7 @@ export const experimentsRouter = createTRPCRouter({
     )
     .output(ConfigResponse)
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "prompt-experiments",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -160,11 +155,7 @@ export const experimentsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "prompt-experiments",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,

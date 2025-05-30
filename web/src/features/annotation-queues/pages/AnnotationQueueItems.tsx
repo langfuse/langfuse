@@ -39,8 +39,8 @@ export default function QueueItems() {
     projectId,
     scope: "annotationQueues:CUD",
   });
-  const hasEntitlement = useHasEntitlement("annotation-queues");
-  if (!hasReadAccess || !hasEntitlement) return <SupportOrUpgradePage />;
+
+  if (!hasReadAccess) return <SupportOrUpgradePage />;
 
   return (
     <Page

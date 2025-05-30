@@ -65,7 +65,7 @@ export const ObservationPreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
-  const hasEntitlement = useHasEntitlement("annotation-queues");
+
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
   const router = useRouter();
@@ -163,16 +163,15 @@ export const ObservationPreview = ({
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={hasEntitlement}
+                    hasGroupedButton={true}
                     environment={preloadedObservation.environment}
                   />
-                  {hasEntitlement && (
-                    <CreateNewAnnotationQueueItem
-                      projectId={projectId}
-                      objectId={preloadedObservation.id}
-                      objectType={AnnotationQueueObjectType.OBSERVATION}
-                    />
-                  )}
+
+                  <CreateNewAnnotationQueueItem
+                    projectId={projectId}
+                    objectId={preloadedObservation.id}
+                    objectType={AnnotationQueueObjectType.OBSERVATION}
+                  />
                 </div>
                 {observationWithInputAndOutput.data?.type === "GENERATION" && (
                   <JumpToPlaygroundButton

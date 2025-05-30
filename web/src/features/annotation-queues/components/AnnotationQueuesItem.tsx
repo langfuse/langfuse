@@ -21,7 +21,6 @@ export const AnnotationQueuesItem = ({
     projectId,
     scope: "annotationQueues:read",
   });
-  const hasEntitlement = useHasEntitlement("annotation-queues");
 
   const queue = api.annotationQueues.byId.useQuery(
     {
@@ -43,7 +42,7 @@ export const AnnotationQueuesItem = ({
     "hideTree",
   );
 
-  if (!hasAccess || !hasEntitlement) return <SupportOrUpgradePage />;
+  if (!hasAccess) return <SupportOrUpgradePage />;
 
   return (
     <Page

@@ -5,12 +5,12 @@ import { z } from "zod";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { Button } from "@/src/components/ui/button";
-import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
+import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import {
   type PlaygroundTool,
   type PlaygroundCache,
   type PlaygroundSchema,
-} from "@/src/ee/features/playground/page/types";
+} from "@/src/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -62,7 +62,6 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const { setPlaygroundCache } = usePlaygroundCache();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
-  const isEntitled = useHasEntitlement("playground");
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
@@ -113,8 +112,6 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
     router.push(`/project/${projectId}/playground`);
   };
-
-  if (!isEntitled) return null;
 
   return (
     <Button

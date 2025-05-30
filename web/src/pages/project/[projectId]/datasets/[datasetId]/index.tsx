@@ -40,10 +40,10 @@ import {
   TabsBar,
 } from "@/src/components/ui/tabs-bar";
 import { Separator } from "@/src/components/ui/separator";
-import { TemplateSelector } from "@/src/ee/features/evals/components/template-selector";
+import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
-import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
+import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 
 export default function Dataset() {
   const router = useRouter();
@@ -51,7 +51,6 @@ export default function Dataset() {
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
-  const hasEntitlement = useHasEntitlement("model-based-evaluations");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
@@ -109,10 +108,6 @@ export default function Dataset() {
     scope: "evalJob:CUD",
   });
 
-  const hasPromptExperimentEntitlement = useHasEntitlement(
-    "model-based-evaluations",
-  );
-
   const evalTemplates = api.evals.allTemplates.useQuery({
     projectId,
   });
@@ -120,8 +115,7 @@ export default function Dataset() {
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: "dataset" },
     {
-      enabled:
-        hasEvalReadAccess && !!datasetId && hasPromptExperimentEntitlement,
+      enabled: hasEvalReadAccess && !!datasetId,
     },
   );
 
@@ -215,7 +209,7 @@ export default function Dataset() {
               </DialogContent>
             </Dialog>
 
-            {hasEvalReadAccess && hasEntitlement && (
+            {hasEvalReadAccess && (
               <div className="w-fit">
                 <TemplateSelector
                   projectId={projectId}
@@ -294,7 +288,7 @@ export default function Dataset() {
                     deleteConfirmation={dataset.data?.name}
                   />
                 </DropdownMenuItem>
-                {hasReadAccess && hasEntitlement && (
+                {hasReadAccess && (
                   <DropdownMenuItem asChild>
                     <Link href={`/project/${projectId}/evals?target=dataset`}>
                       <Bot className="ml-1 mr-2 h-4 w-4" />

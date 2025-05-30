@@ -1,5 +1,4 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -26,12 +25,6 @@ export const queueRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "annotation-queues",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -57,12 +50,6 @@ export const queueRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -147,12 +134,6 @@ export const queueRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         const queueNamesAndIds = await ctx.prisma.annotationQueue.findMany({
           where: {
             projectId: input.projectId,
@@ -197,12 +178,6 @@ export const queueRouter = createTRPCRouter({
     .input(z.object({ queueId: z.string(), projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -247,12 +222,6 @@ export const queueRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -316,12 +285,6 @@ export const queueRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -402,12 +365,6 @@ export const queueRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -459,12 +416,6 @@ export const queueRouter = createTRPCRouter({
     .input(z.object({ queueId: z.string(), projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -504,12 +455,6 @@ export const queueRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,

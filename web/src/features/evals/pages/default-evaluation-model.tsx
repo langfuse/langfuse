@@ -1,19 +1,18 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent } from "@/src/components/ui/card";
 import { Card } from "@/src/components/ui/card";
-import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useEvaluationModel } from "@/src/ee/features/evals/hooks/useEvaluationModel";
+import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
-import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { useState } from "react";
 import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
 import { Dialog } from "@/src/components/ui/dialog";
@@ -25,7 +24,6 @@ export default function DefaultEvaluationModelPage() {
   const utils = api.useUtils();
   const [isEditing, setIsEditing] = useState(false);
 
-  const hasEntitlement = useHasEntitlement("model-based-evaluations");
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalDefaultModel:CUD",
@@ -66,7 +64,7 @@ export default function DefaultEvaluationModelPage() {
     return <Skeleton className="h-[500px] w-full" />;
   }
 
-  if (!hasReadAccess || !hasEntitlement) {
+  if (!hasReadAccess) {
     return <SupportOrUpgradePage />;
   }
 

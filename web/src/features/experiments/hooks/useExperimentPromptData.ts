@@ -3,7 +3,6 @@ import { api } from "@/src/utils/api";
 import { type UseFormReturn } from "react-hook-form";
 import { extractVariables } from "@langfuse/shared";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 type ExperimentPromptDataProps = {
   projectId: string;
@@ -14,18 +13,11 @@ export function useExperimentPromptData({
   projectId,
   form,
 }: ExperimentPromptDataProps) {
-  const hasPromptExperimentEntitlement =
-    useHasEntitlement("prompt-experiments");
   const promptId = form.watch("promptId");
 
-  const promptMeta = api.prompts.allPromptMeta.useQuery(
-    {
-      projectId,
-    },
-    {
-      enabled: hasPromptExperimentEntitlement,
-    },
-  );
+  const promptMeta = api.prompts.allPromptMeta.useQuery({
+    projectId,
+  });
 
   const expectedColumns = useMemo(() => {
     const prompt = promptMeta.data?.find((p) => p.id === promptId);

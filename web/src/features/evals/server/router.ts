@@ -21,7 +21,6 @@ import {
   jsonSchema,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   decryptAndParseExtraHeaders,
   fetchLLMCompletion,
@@ -36,14 +35,14 @@ import {
   DefaultEvalModelService,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
+import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { type JobExecution, type PrismaClient } from "@prisma/client";
-import { type JobExecutionState } from "@/src/ee/features/evals/utils/job-execution-utils";
+import { type JobExecutionState } from "@/src/features/evals/utils/job-execution-utils";
 import {
   evalConfigFilterColumns,
   evalConfigsTableCols,
@@ -202,12 +201,6 @@ export const evalRouter = createTRPCRouter({
   globalJobConfigs: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -218,12 +211,6 @@ export const evalRouter = createTRPCRouter({
   counts: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -270,12 +257,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -389,11 +370,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -440,11 +416,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -476,11 +447,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -576,11 +542,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -606,11 +567,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -644,11 +600,6 @@ export const evalRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
     .query(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "model-based-evaluations",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -688,11 +639,6 @@ export const evalRouter = createTRPCRouter({
   jobConfigsByTarget: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), targetObject: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -716,11 +662,6 @@ export const evalRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
     .query(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "model-based-evaluations",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -761,11 +702,6 @@ export const evalRouter = createTRPCRouter({
     .input(CreateEvalJobSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "model-based-evaluations",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -851,11 +787,6 @@ export const evalRouter = createTRPCRouter({
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplate)
     .mutation(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -1068,11 +999,6 @@ export const evalRouter = createTRPCRouter({
         ctx,
         input: { projectId, evalTemplateId, datasetId, newStatus },
       }) => {
-        throwIfNoEntitlement({
-          entitlement: "model-based-evaluations",
-          projectId: projectId,
-          sessionUser: ctx.session.user,
-        });
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: projectId,
@@ -1125,11 +1051,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input: { config, projectId, evalConfigId } }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
@@ -1241,11 +1162,6 @@ export const evalRouter = createTRPCRouter({
   deleteEvalJob: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), evalConfigId: z.string() }))
     .mutation(async ({ ctx, input: { projectId, evalConfigId } }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
@@ -1340,11 +1256,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -1426,11 +1337,6 @@ export const evalRouter = createTRPCRouter({
   jobConfigsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "model-based-evaluations",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,

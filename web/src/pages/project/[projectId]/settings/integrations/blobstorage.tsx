@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   blobStorageIntegrationFormSchema,
@@ -46,7 +45,6 @@ import {
 export default function BlobStorageIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const entitled = useHasEntitlement("integration-blobstorage");
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
@@ -54,14 +52,13 @@ export default function BlobStorageIntegrationSettings() {
   const state = api.blobStorageIntegration.get.useQuery(
     { projectId },
     {
-      enabled: hasAccess && entitled,
+      enabled: hasAccess,
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: 50 * 60 * 1000, // 50 minutes
     },
   );
-  if (!entitled) return null;
 
   const status =
     state.isInitialLoading || !hasAccess

@@ -2,11 +2,9 @@ import { ListRestartIcon } from "lucide-react";
 import { useRouter } from "next/router";
 
 import { Button } from "@/src/components/ui/button";
-import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 
 export const ResetPlaygroundButton: React.FC = () => {
-  const available = useHasEntitlement("playground");
   const router = useRouter();
   const { setPlaygroundCache } = usePlaygroundCache();
 
@@ -15,8 +13,6 @@ export const ResetPlaygroundButton: React.FC = () => {
 
     router.reload();
   };
-
-  if (!available) return null;
 
   return (
     <Button

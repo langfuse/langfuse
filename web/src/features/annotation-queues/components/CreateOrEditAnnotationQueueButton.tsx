@@ -33,10 +33,7 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDeta
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  useHasEntitlement,
-  useEntitlementLimit,
-} from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
@@ -57,7 +54,6 @@ export const CreateOrEditAnnotationQueueButton = ({
     projectId: projectId,
     scope: "annotationQueues:CUD",
   });
-  const hasEntitlement = useHasEntitlement("annotation-queues");
   const queueLimit = useEntitlementLimit("annotation-queue-count");
   const router = useRouter();
   const capture = usePostHogClientCapture();

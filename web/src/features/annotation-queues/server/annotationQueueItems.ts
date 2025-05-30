@@ -1,5 +1,4 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import {
@@ -42,12 +41,6 @@ export const queueItemRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -114,12 +107,6 @@ export const queueItemRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -209,12 +196,6 @@ export const queueItemRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -258,12 +239,6 @@ export const queueItemRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -354,12 +329,6 @@ export const queueItemRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -417,12 +386,6 @@ export const queueItemRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
