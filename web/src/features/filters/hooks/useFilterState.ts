@@ -1,6 +1,6 @@
 import {
   type FilterState,
-  type TableName,
+  BatchTableNames,
   observationsTableCols,
   tracesTableCols,
   singleFilter,
@@ -21,10 +21,13 @@ import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecu
 
 const DEBUG_QUERY_STATE = false;
 
+// Union type for all table identifiers used in the UI
+type TableIdentifier = BatchTableNames | "generations" | "prompts" | "users" | "eval_configs" | "job_executions" | "widgets" | "dashboard";
+
 // encode/decode filter state
 // The decode has to return null or undefined so that withDefault will use the default value.
 // An empty array will be interpreted as existing state and hence the default value will not be used.
-const getCommaArrayParam = (table: TableName) => ({
+const getCommaArrayParam = (table: TableIdentifier) => ({
   encode: (filterState: FilterState) =>
     encodeDelimitedArray(
       filterState.map((f) => {
@@ -93,7 +96,7 @@ const getCommaArrayParam = (table: TableName) => ({
 // manage state with hook
 export const useQueryFilterState = (
   initialState: FilterState = [],
-  table: TableName,
+  table: TableIdentifier,
   projectId?: string, // Passing projectId is expected as filters might differ across projects. However, we can't call hooks conditionally. There is a case in the prompts table where this will only be used if projectId is defined, but it's not defined in all cases.
 ) => {
   const [sessionFilterState, setSessionFilterState] =
@@ -132,11 +135,15 @@ export const useQueryFilterState = (
   return [filterState, setFilterStateWithSession] as const;
 };
 
-const tableCols = {
+const tableCols: Record<TableIdentifier, Array<{ id: string; name: string }>> = {
+  // BatchTableNames
+  [BatchTableNames.Observations]: observationsTableCols,
+  [BatchTableNames.Traces]: tracesTableCols,
+  [BatchTableNames.Sessions]: sessionsViewCols,
+  [BatchTableNames.Scores]: scoresTableCols,
+  [BatchTableNames.DatasetRunItems]: [], // Add if needed
+  // Additional table identifiers
   generations: observationsTableCols,
-  traces: tracesTableCols,
-  sessions: sessionsViewCols,
-  scores: scoresTableCols,
   prompts: promptsTableCols,
   users: usersTableCols,
   eval_configs: evalConfigFilterColumns,
@@ -159,10 +166,10 @@ const tableCols = {
   ],
 };
 
-function getColumnId(table: TableName, name: string): string | undefined {
+function getColumnId(table: TableIdentifier, name: string): string | undefined {
   return tableCols[table]?.find((col) => col.name === name)?.id;
 }
 
-function getColumnName(table: TableName, id: string): string | undefined {
+function getColumnName(table: TableIdentifier, id: string): string | undefined {
   return tableCols[table]?.find((col) => col.id === id)?.name;
 }

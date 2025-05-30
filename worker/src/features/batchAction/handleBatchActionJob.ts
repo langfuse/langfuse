@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   BatchActionType,
-  BatchExportTableName,
+  BatchTableNames,
   FilterCondition,
 } from "@langfuse/shared";
 import {
@@ -149,15 +149,15 @@ export const handleBatchActionJob = async (
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
-            exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
+            rowLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
           })
         : await getDatabaseReadStream({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
-            tableName: tableName as unknown as BatchExportTableName,
-            exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
+            tableName: tableName,
+            rowLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
           });
 
     // Process stream in database-sized batches
@@ -207,15 +207,15 @@ export const handleBatchActionJob = async (
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
-            exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+            rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           }) // when reading from clickhouse, we only want to read the necessary identifiers.
         : await getDatabaseReadStream({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
-            tableName: BatchExportTableName.DatasetRunItems,
-            exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+            tableName: BatchTableNames.DatasetRunItems,
+            rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           });
 
     const evalCreatorQueue = CreateEvalQueue.getInstance();
