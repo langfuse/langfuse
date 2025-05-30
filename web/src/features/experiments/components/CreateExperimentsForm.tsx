@@ -68,14 +68,14 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TemplateSelector } from "@/src/ee/features/evals/components/template-selector";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
-import { useEvaluatorDefaults } from "@/src/ee/features/experiments/hooks/useEvaluatorDefaults";
-import { useExperimentEvaluatorData } from "@/src/ee/features/experiments/hooks/useExperimentEvaluatorData";
+import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
+import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
-import { useExperimentNameValidation } from "@/src/ee/features/experiments/hooks/useExperimentNameValidation";
-import { useExperimentPromptData } from "@/src/ee/features/experiments/hooks/useExperimentPromptData";
+import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
+import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
 
 const CreateExperimentData = z.object({
   name: z

@@ -17,18 +17,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
-import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
+import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import DocPopup from "@/src/components/layouts/doc-popup";
 
 export const SaveToPromptButton: React.FC = () => {
-  const available = useHasEntitlement("playground");
   const [selectedPromptId, setSelectedPromptId] = useState("");
   const { modelParams, messages, output, promptVariables } =
     usePlaygroundContext();
@@ -80,8 +78,6 @@ export const SaveToPromptButton: React.FC = () => {
       `/project/${projectId}/prompts/new?promptId=${selectedPromptId}&loadPlaygroundCache=true`,
     );
   };
-
-  if (!available) return null;
 
   return (
     <Popover>

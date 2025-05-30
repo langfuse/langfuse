@@ -24,7 +24,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
-import { useExperimentEvaluatorSelection } from "@/src/ee/features/experiments/hooks/useExperimentEvaluatorSelection";
+import { useExperimentEvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { useTemplatesValidation } from "@/src/ee/features/evals/hooks/useTemplatesValidation";
 import {
   Tooltip,
