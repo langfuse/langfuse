@@ -14,7 +14,7 @@ import {
   supportedModels,
   GCPServiceAccountKeySchema,
 } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
   fetchLLMCompletion,
@@ -156,6 +156,67 @@ export const llmApiKeyRouter = createTRPCRouter({
         return { success: true };
       });
     }),
+  update: protectedProjectProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        projectId: z.string(),
+        customModels: z.array(z.string()).optional(),
+        withDefaultModels: z.boolean().optional(),
+        baseURL: z.string().nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:update",
+      });
+
+      const existingKey = await ctx.prisma.llmApiKeys.findUnique({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+
+      if (!existingKey) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "LLM API key not found",
+        });
+      }
+
+      const updateData: any = {};
+
+      if (input.customModels !== undefined) {
+        updateData.customModels = input.customModels;
+      }
+
+      if (input.withDefaultModels !== undefined) {
+        updateData.withDefaultModels = input.withDefaultModels;
+      }
+
+      if (input.baseURL !== undefined) {
+        updateData.baseURL = input.baseURL;
+      }
+
+      const updated = await ctx.prisma.llmApiKeys.update({
+        where: { id: input.id },
+        data: updateData,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "llmApiKey",
+        resourceId: input.id,
+        action: "update",
+        before: existingKey,
+        after: updated,
+      });
+
+      return { success: true };
+    }),
   all: protectedProjectProcedure
     .input(
       z.object({
@@ -254,6 +315,76 @@ export const llmApiKeyRouter = createTRPCRouter({
           streaming: false,
           maxRetries: 1,
           config: input.config,
+        });
+
+        return { success: true };
+      } catch (err) {
+        logger.error(err);
+
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+        };
+      }
+    }),
+  testWithExistingKey: protectedProjectProcedureWithoutTracing
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string(), // existing API key ID
+        model: z.string(), // model name to test
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "llmApiKeys:update",
+        });
+
+        const existingKey = await ctx.prisma.llmApiKeys.findUnique({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
+        });
+
+        if (!existingKey) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "LLM API key not found",
+          });
+        }
+
+        const testMessages: ChatMessage[] = [
+          {
+            role: ChatMessageRole.System,
+            content: "You are a bot",
+            type: ChatMessageType.System,
+          },
+          {
+            role: ChatMessageRole.User,
+            content: "How are you?",
+            type: ChatMessageType.User,
+          },
+        ];
+
+        await fetchLLMCompletion({
+          modelParams: {
+            adapter: existingKey.adapter as LLMAdapter,
+            provider: existingKey.provider,
+            model: input.model,
+          },
+          baseURL: existingKey.baseURL || undefined,
+          apiKey: decrypt(existingKey.secretKey),
+          extraHeaders: existingKey.extraHeaders
+            ? JSON.parse(decrypt(existingKey.extraHeaders))
+            : undefined,
+          messages: testMessages,
+          streaming: false,
+          maxRetries: 1,
+          config: existingKey.config as any,
         });
 
         return { success: true };
