@@ -31,7 +31,7 @@ import {
   createEvalJobs,
   evaluate,
   extractVariablesFromTracingData,
-} from "../ee/evaluation/evalService";
+} from "../evaluation/evalService";
 import { compileHandlebarString } from "../features/utilities";
 import { OpenAIServer } from "./network";
 import { pruneDatabase } from "./utils";
