@@ -1,12 +1,12 @@
 import { useRouter } from "next/router";
-import { AnnotationQueuesTable } from "@/src/ee/features/annotation-queues/components/AnnotationQueuesTable";
+import { AnnotationQueuesTable } from "@/src/features/annotation-queues/components/AnnotationQueuesTable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import { SupportOrUpgradePage } from "@/src/features/billing/components/SupportOrUpgradePage";
 import Page from "@/src/components/layouts/page";
 import { AnnotationQueuesOnboarding } from "@/src/components/onboarding/AnnotationQueuesOnboarding";
 import { api } from "@/src/utils/api";
-import { CreateOrEditAnnotationQueueButton } from "@/src/ee/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
+import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 
 export default function AnnotationQueues() {
   const router = useRouter();
@@ -15,13 +15,12 @@ export default function AnnotationQueues() {
     projectId: projectId,
     scope: "annotationQueues:read",
   });
-  const hasEntitlement = useHasEntitlement("annotation-queues");
 
   // Check if the user has any annotation queues
   const { data: hasAnyQueue, isLoading } = api.annotationQueues.hasAny.useQuery(
     { projectId },
     {
-      enabled: !!projectId && hasEntitlement,
+      enabled: !!projectId,
       trpc: {
         context: {
           skipBatch: true,
@@ -33,7 +32,7 @@ export default function AnnotationQueues() {
 
   const showOnboarding = !isLoading && !hasAnyQueue;
 
-  if (!hasAccess || !hasEntitlement) return <SupportOrUpgradePage />;
+  if (!hasAccess) return <SupportOrUpgradePage />;
 
   return (
     <Page

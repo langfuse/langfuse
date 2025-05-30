@@ -1,4 +1,4 @@
-import { type VariableMapping } from "@/src/ee/features/evals/utils/evaluator-form-utils";
+import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
 import { extractValueFromObject } from "@langfuse/shared";
 import { useEffect, useState, useRef } from "react";

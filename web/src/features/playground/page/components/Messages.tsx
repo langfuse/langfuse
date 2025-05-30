@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
+import { usePlaygroundContext } from "@/src/features/playground/page/context";
 
 import { GenerationOutput } from "./GenerationOutput";
 import { ChatMessages } from "@/src/components/ChatMessages";

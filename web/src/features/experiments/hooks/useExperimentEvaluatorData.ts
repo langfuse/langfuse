@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { type EvalTemplate } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
-import { type PartialConfig } from "@/src/ee/features/evals/types";
+import { type PartialConfig } from "@/src/features/evals/types";
 import { partition } from "lodash";
 
 const partitionEvaluators = (

@@ -4,7 +4,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/src/components/ui/tooltip";
-import { RagasLogoIcon } from "@/src/ee/features/evals/components/ragas-logo";
+import { RagasLogoIcon } from "@/src/features/evals/components/ragas-logo";
 import { UserCircle2Icon } from "lucide-react";
 
 function MaintainerIcon({ maintainer }: { maintainer: string }) {

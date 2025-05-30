@@ -4,14 +4,14 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Lock, Plus } from "lucide-react";
-import EvalsTemplateTable from "@/src/ee/features/evals/components/eval-templates-table";
+import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   TabsBar,
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 
 export default function TemplatesPage() {
   const router = useRouter();

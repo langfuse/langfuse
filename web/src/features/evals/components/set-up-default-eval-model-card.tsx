@@ -1,6 +1,6 @@
 import { CardContent } from "@/src/components/ui/card";
 import { Card } from "@/src/components/ui/card";
-import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 
 export function SetupDefaultEvalModelCard({
   projectId,

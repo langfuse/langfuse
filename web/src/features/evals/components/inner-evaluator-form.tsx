@@ -47,24 +47,24 @@ import {
   isTraceOrDatasetObject,
   isTraceTarget,
   type LangfuseObject,
-} from "@/src/ee/features/evals/utils/evaluator-form-utils";
-import { ExecutionCountTooltip } from "@/src/ee/features/evals/components/execution-count-tooltip";
+} from "@/src/features/evals/utils/evaluator-form-utils";
+import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import {
   TimeScopeDescription,
   VariableMappingDescription,
-} from "@/src/ee/features/evals/components/eval-form-descriptions";
+} from "@/src/features/evals/components/eval-form-descriptions";
 import { Suspense, lazy } from "react";
 import {
   getDateFromOption,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
-import { useEvalConfigMappingData } from "@/src/ee/features/evals/hooks/useEvalConfigMappingData";
-import { type PartialConfig } from "@/src/ee/features/evals/types";
+import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
+import { type PartialConfig } from "@/src/features/evals/types";
 import { Switch } from "@/src/components/ui/switch";
 import {
   EvaluationPromptPreview,
   getVariableColor,
-} from "@/src/ee/features/evals/components/evaluation-prompt-preview";
+} from "@/src/features/evals/components/evaluation-prompt-preview";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Skeleton } from "@/src/components/ui/skeleton";
 

@@ -1,5 +1,5 @@
 import { Card } from "@/src/components/ui/card";
-import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
+import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { type RouterOutputs } from "@/src/utils/api";
 
 type RunEvaluatorFormProps = {

@@ -25,16 +25,16 @@ import {
 } from "@langfuse/shared";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
-import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
+import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
+import { EvalReferencedEvaluators } from "@/sr/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
-import { useEvaluationModel } from "@/src/ee/features/evals/hooks/useEvaluationModel";
+import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import { Checkbox } from "@/src/components/ui/checkbox";
-import { ManageDefaultEvalModel } from "@/src/ee/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 
 type PartialEvalTemplate = Omit<
   EvalTemplate,

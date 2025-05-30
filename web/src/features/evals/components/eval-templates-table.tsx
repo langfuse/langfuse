@@ -28,14 +28,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
+import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
+import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type RouterInput } from "@/src/utils/types";
-import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
-import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
+import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
+import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
+import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
 import {
   useEntitlementLimit,

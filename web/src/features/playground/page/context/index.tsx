@@ -10,10 +10,9 @@ import React, {
 import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import useCommandEnter from "@/src/ee/features/playground/page/hooks/useCommandEnter";
-import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
-import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
-import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
+import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnter";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
@@ -35,7 +34,8 @@ import { env } from "@/src/env.mjs";
 import {
   type PlaygroundSchema,
   type PlaygroundTool,
-} from "@/src/ee/features/playground/page/types";
+} from "@/src/features/playground/page/types";
+import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];

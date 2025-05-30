@@ -1,5 +1,5 @@
 import * as React from "react";
-import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
+import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";

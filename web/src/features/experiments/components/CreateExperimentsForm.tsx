@@ -72,7 +72,7 @@ import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/use
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
+import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
 

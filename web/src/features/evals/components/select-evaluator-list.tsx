@@ -7,8 +7,8 @@ import { PlusIcon } from "lucide-react";
 import { EvaluatorSelector } from "./evaluator-selector";
 import { EvalTemplateForm } from "./template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { SetupDefaultEvalModelCard } from "@/src/ee/features/evals/components/set-up-default-eval-model-card";
-import { useTemplateValidation } from "@/src/ee/features/evals/hooks/useTemplateValidation";
+import { SetupDefaultEvalModelCard } from "@/src/features/evals/components/set-up-default-eval-model-card";
+import { useTemplateValidation } from "@/src/features/evals/hooks/useTemplateValidation";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 

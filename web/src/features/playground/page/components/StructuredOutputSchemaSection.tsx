@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useEffect } from "react";
 
-import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
+import { usePlaygroundContext } from "@/src/features/playground/page/context";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { PlusIcon, PencilIcon, MinusCircle, BoxIcon } from "lucide-react";
 import { type LlmSchema } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { CreateOrEditLLMSchemaDialog } from "@/src/ee/features/playground/page/components/CreateOrEditLLMSchemaDialog";
+import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
 import {
   Command,
   CommandEmpty,
@@ -22,7 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { type PlaygroundSchema } from "@/src/ee/features/playground/page/types";
+import { type PlaygroundSchema } from "@/src/features/playground/page/types";
 
 export const StructuredOutputSchemaSection = () => {
   const { structuredOutputSchema, setStructuredOutputSchema } =

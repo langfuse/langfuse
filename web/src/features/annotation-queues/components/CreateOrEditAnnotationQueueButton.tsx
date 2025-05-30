@@ -182,7 +182,6 @@ export const CreateOrEditAnnotationQueueButton = ({
             )
           }
           hasAccess={hasAccess}
-          hasEntitlement={hasEntitlement}
           limitValue={queueCountData.data}
           limit={queueLimit}
           size={size}

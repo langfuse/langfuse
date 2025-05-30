@@ -29,7 +29,6 @@ import {
   OpenAIResponseFormatSchema,
   type Prisma,
 } from "@langfuse/shared";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 

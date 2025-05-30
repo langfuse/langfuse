@@ -1,4 +1,4 @@
-import { EvaluatorStatus } from "@/src/ee/features/evals/types";
+import { EvaluatorStatus } from "@/src/features/evals/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";

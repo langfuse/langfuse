@@ -19,7 +19,7 @@ import {
   StringParam,
 } from "use-query-params";
 import { z } from "zod";
-import { generateJobExecutionCounts } from "@/src/ee/features/evals/utils/job-execution-utils";
+import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { MoreVertical, Loader2, ExternalLinkIcon, Edit } from "lucide-react";
@@ -36,12 +36,12 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
-import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
+import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
-import { RAGAS_TEMPLATE_PREFIX } from "@/src/ee/features/evals/types";
-import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
+import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
+import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type EvaluatorDataRow = {

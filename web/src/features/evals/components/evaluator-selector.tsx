@@ -16,9 +16,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
-import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
+import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
+import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
+import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import Link from "next/link";
 
 interface EvaluatorSelectorProps {

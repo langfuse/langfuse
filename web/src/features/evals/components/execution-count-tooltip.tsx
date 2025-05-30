@@ -1,5 +1,5 @@
 import { InfoIcon, Loader } from "lucide-react";
-import { type EvalFormType } from "@/src/ee/features/evals/utils/evaluator-form-utils";
+import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import {
@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { useEvalTargetCount } from "@/src/ee/features/evals/hooks/useEvalTargetCount";
+import { useEvalTargetCount } from "@/src/features/evals/hooks/useEvalTargetCount";
 
 type ExecutionCountTooltipProps = {
   projectId: string;

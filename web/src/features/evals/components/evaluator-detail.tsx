@@ -1,7 +1,7 @@
 import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
+import EvalLogTable from "@/src/features/evals/components/eval-log";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import Page from "@/src/components/layouts/page";
@@ -9,7 +9,7 @@ import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import {
   type JobExecutionState,
   generateJobExecutionCounts,
-} from "@/src/ee/features/evals/utils/job-execution-utils";
+} from "@/src/features/evals/utils/job-execution-utils";
 
 const JobExecutionCounts = ({
   jobExecutionsByState,

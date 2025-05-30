@@ -2,7 +2,7 @@ import { api } from "@/src/utils/api";
 import {
   type EvalFormType,
   isTraceTarget,
-} from "@/src/ee/features/evals/utils/evaluator-form-utils";
+} from "@/src/features/evals/utils/evaluator-form-utils";
 
 interface UseEvalTargetCountProps {
   projectId: string;

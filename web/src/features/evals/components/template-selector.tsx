@@ -25,15 +25,15 @@ import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
 import { useExperimentEvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
-import { useTemplatesValidation } from "@/src/ee/features/evals/hooks/useTemplatesValidation";
+import { useTemplatesValidation } from "@/src/features/evals/hooks/useTemplatesValidation";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useSingleTemplateValidation } from "@/src/ee/features/evals/hooks/useSingleTemplateValidation";
-import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
+import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
+import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
+import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 
 type TemplateSelectorProps = {
   projectId: string;
