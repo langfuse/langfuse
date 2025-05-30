@@ -28,7 +28,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { EvalReferencedEvaluators } from "@/sr/features/evals/types";
+import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";

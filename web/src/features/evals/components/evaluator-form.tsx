@@ -1,6 +1,6 @@
 import { type EvalTemplate } from "@langfuse/shared";
 import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
-import { type PartialConfig } from "@/sr/features/evals/types";
+import { type PartialConfig } from "@/src/features/evals/types";
 
 export const EvaluatorForm = (props: {
   projectId: string;
