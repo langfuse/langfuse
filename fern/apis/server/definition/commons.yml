@@ -398,6 +398,7 @@ types:
       sourceObservationId: optional<string>
       datasetId: string
       datasetName: string
+      comment: optional<string>
       createdAt: datetime
       updatedAt: datetime
   DatasetRunItem:
