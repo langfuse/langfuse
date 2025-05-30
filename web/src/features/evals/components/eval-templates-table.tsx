@@ -86,7 +86,6 @@ export default function EvalsTemplateTable({
   });
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
-  const hasEntitlement = useHasEntitlement("model-based-evaluations");
 
   const totalCount = templates.data?.totalCount ?? null;
 
@@ -120,7 +119,7 @@ export default function EvalsTemplateTable({
       projectId,
     },
     {
-      enabled: !!projectId && hasEntitlement,
+      enabled: !!projectId,
       trpc: {
         context: {
           skipBatch: true,
@@ -240,7 +239,6 @@ export default function EvalsTemplateTable({
                   : undefined
               }
               hasAccess={hasAccess}
-              hasEntitlement={hasEntitlement}
               limitValue={countsQuery.data?.configActiveCount ?? 0}
               limit={evaluatorLimit}
               onClick={(e) => {
@@ -260,7 +258,7 @@ export default function EvalsTemplateTable({
                 variant="outline"
                 size="icon-xs"
                 title="Clone"
-                disabled={!hasAccess || !hasEntitlement}
+                disabled={!hasAccess}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (id) setCloneTemplateId(id);
@@ -274,7 +272,7 @@ export default function EvalsTemplateTable({
                 variant="outline"
                 size="icon-xs"
                 title="Edit"
-                disabled={!hasAccess || !hasEntitlement}
+                disabled={!hasAccess}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (id) setEditTemplateId(id);
