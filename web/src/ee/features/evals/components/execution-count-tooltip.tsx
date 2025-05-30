@@ -1,4 +1,3 @@
-import { InfoIcon, Loader } from "lucide-react";
 import { type EvalFormType } from "@/src/ee/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
