@@ -20,7 +20,7 @@ import {
   datasetItemMatchesVariable,
   UnauthorizedError,
 } from "@langfuse/shared";
-=import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
@@ -71,7 +71,6 @@ export const experimentsRouter = createTRPCRouter({
     )
     .output(ConfigResponse)
     .query(async ({ input, ctx }) => {
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -155,7 +154,6 @@ export const experimentsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,

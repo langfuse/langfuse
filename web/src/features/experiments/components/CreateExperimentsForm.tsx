@@ -51,7 +51,7 @@ import {
   CardFooter,
 } from "@/src/components/ui/card";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { ZodModelConfig } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -64,10 +64,9 @@ import {
   DialogContent,
 } from "@/src/components/ui/dialog";
 import Link from "next/link";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { TemplateSelector } from "@/src/ee/features/evals/components/template-selector";
-import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
+import { TemplateSelector } from "@/src/features/evals/components/template-selector";
+import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { z } from "zod";

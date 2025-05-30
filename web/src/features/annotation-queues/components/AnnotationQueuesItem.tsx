@@ -1,9 +1,8 @@
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { AnnotationQueueItemPage } from "@/src/ee/features/annotation-queues/components/AnnotationQueueItemPage";
+import { AnnotationQueueItemPage } from "@/src/features/annotation-queues/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
 import { Goal, Network } from "lucide-react";
 import Page from "@/src/components/layouts/page";

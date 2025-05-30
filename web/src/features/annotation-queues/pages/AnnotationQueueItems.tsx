@@ -1,15 +1,14 @@
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { AnnotationQueueItemsTable } from "@/src/ee/features/annotation-queues/components/AnnotationQueueItemsTable";
+import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
 import { CardDescription } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { ClipboardPen, Lock } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import Link from "next/link";
-import { CreateOrEditAnnotationQueueButton } from "@/src/ee/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
+import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import Page from "@/src/components/layouts/page";

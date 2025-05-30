@@ -23,7 +23,7 @@ export default function usePlaygroundCache() {
   }, []);
 
   return {
-    playgroundCache:  cache
-    setPlaygroundCache:  setPlaygroundCache : () => {}
+    playgroundCache: cache,
+    setPlaygroundCache: setPlaygroundCache,
   };
 }

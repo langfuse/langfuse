@@ -14,7 +14,6 @@ import { DuplicateDatasetButton } from "@/src/features/datasets/components/Dupli
 import { useState, useCallback } from "react";
 import { Bot, ChartLine, Cog, FlaskConical, MoreVertical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import {
   Dialog,
   DialogContent,
