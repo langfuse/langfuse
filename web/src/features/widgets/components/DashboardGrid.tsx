@@ -42,7 +42,7 @@ export function DashboardGrid({
         setRowHeight(calculatedRowHeight);
       }
     },
-    [rowHeight, editable],
+    [rowHeight, canEdit],
   );
 
   // Convert WidgetPlacement to react-grid-layout format
