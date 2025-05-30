@@ -1,9 +1,5 @@
-<<<<<<< Updated upstream:web/src/ee/features/evals/components/execution-count-tooltip.tsx
 import { InfoIcon, Loader } from "lucide-react";
 import { type EvalFormType } from "@/src/ee/features/evals/utils/evaluator-form-utils";
-=======
-import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
->>>>>>> Stashed changes:web/src/features/evals/components/execution-count-tooltip.tsx
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { useEvalTargetCount } from "@/src/ee/features/evals/hooks/useEvalTargetCount";
@@ -23,14 +19,12 @@ export const ExecutionCountTooltip = ({
     projectId,
   });
 
-  let { isLoading, totalCount, isTraceTarget } = useEvalTargetCount({
+  const { isLoading, totalCount, isTraceTarget } = useEvalTargetCount({
     projectId,
     item,
     filter,
     enabled: true,
   });
-
-  isLoading = true;
 
   return (
     <>
