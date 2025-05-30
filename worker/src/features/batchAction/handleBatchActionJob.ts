@@ -12,7 +12,10 @@ import {
   BatchExportTableName,
   FilterCondition,
 } from "@langfuse/shared";
-import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
+import {
+  getDatabaseReadStream,
+  getTraceIdentifierStream,
+} from "../database-read-stream/getDatabaseReadStream";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
@@ -46,6 +49,9 @@ async function processActionChunk(
           processPostgresTraceDelete(projectId, chunkIds),
           processClickhouseTraceDelete(projectId, chunkIds),
         ]);
+        logger.info(
+          `Deleted ${chunkIds.length} traces for project ${projectId}`,
+        );
         break;
 
       case "trace-add-to-annotation-queue":
@@ -136,14 +142,23 @@ export const handleBatchActionJob = async (
       throw new Error(`Target ID is required for create action`);
     }
 
-    const dbReadStream = await getDatabaseReadStream({
-      projectId: projectId,
-      cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-      orderBy: query.orderBy,
-      tableName: tableName as unknown as BatchExportTableName,
-      exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
-    });
+    const dbReadStream =
+      actionId === "trace-delete"
+        ? await getTraceIdentifierStream({
+            projectId: projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            orderBy: query.orderBy,
+            exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
+          })
+        : await getDatabaseReadStream({
+            projectId: projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            orderBy: query.orderBy,
+            tableName: tableName as unknown as BatchExportTableName,
+            exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
+          });
 
     // Process stream in database-sized batches
     // 1. Read all records
@@ -185,17 +200,23 @@ export const handleBatchActionJob = async (
       return;
     }
 
-    const dbReadStream = await getDatabaseReadStream({
-      projectId: projectId,
-      cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-      orderBy: query.orderBy,
-      tableName:
-        targetObject === "trace"
-          ? BatchExportTableName.Traces
-          : BatchExportTableName.DatasetRunItems,
-      exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
-    });
+    const dbReadStream =
+      targetObject === "trace"
+        ? await getTraceIdentifierStream({
+            projectId: projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            orderBy: query.orderBy,
+            exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+          }) // when reading from clickhouse, we only want to read the necessary identifiers.
+        : await getDatabaseReadStream({
+            projectId: projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            orderBy: query.orderBy,
+            tableName: BatchExportTableName.DatasetRunItems,
+            exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+          });
 
     const evalCreatorQueue = CreateEvalQueue.getInstance();
     if (!evalCreatorQueue) {
@@ -211,6 +232,7 @@ export const handleBatchActionJob = async (
           traceId: record.id,
           configId: configId,
           timestamp: new Date(record.timestamp),
+          exactTimestamp: new Date(record.timestamp),
         };
 
         await evalCreatorQueue.add(QueueJobs.CreateEvalJob, {
@@ -253,7 +275,7 @@ export const handleBatchActionJob = async (
       }
     }
     logger.info(
-      `Batch action job {${count} elements} completed, projectId: ${batchActionJob.payload.projectId}, actionId: ${actionId}`,
+      `Batch action job completed, projectId: ${batchActionJob.payload.projectId}, ${count} elements`,
     );
   }
 

@@ -211,6 +211,10 @@ export const createEvalJobs = async ({
           : new Date(jobTimestamp),
       filter: config.target_object === "trace" ? validatedFilter : [],
       maxTimeStamp,
+      exactTimestamp:
+        "exactTimestamp" in event && event.exactTimestamp
+          ? new Date(event.exactTimestamp)
+          : undefined,
     });
 
     const isDatasetConfig = config.target_object === "dataset";

@@ -744,8 +744,12 @@ export function WidgetForm({
       <div className="w-2/3">
         <Card className={"aspect-video"}>
           <CardHeader>
-            <CardTitle>{widgetName}</CardTitle>
-            <CardDescription>{widgetDescription}</CardDescription>
+            <CardTitle className="truncate" title={widgetName}>
+              {widgetName}
+            </CardTitle>
+            <CardDescription className="truncate" title={widgetDescription}>
+              {widgetDescription}
+            </CardDescription>
           </CardHeader>
           {queryResult.data ? (
             <Chart
