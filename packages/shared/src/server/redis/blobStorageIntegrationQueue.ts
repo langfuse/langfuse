@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 
 export class BlobStorageIntegrationQueue {
@@ -49,6 +53,11 @@ export class BlobStorageIntegrationQueue {
           logger.error("Error adding BlobStorageIntegrationJob schedule", err);
         });
     }
+
+    collectQueueMetrics(
+      BlobStorageIntegrationQueue.instance,
+      QueueName.BlobStorageIntegrationQueue,
+    );
 
     return BlobStorageIntegrationQueue.instance;
   }

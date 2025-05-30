@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 import { env } from "../../env";
 
@@ -54,6 +58,11 @@ export class CoreDataS3ExportQueue {
           logger.error("Error adding CoreDataS3ExportJob schedule", err);
         });
     }
+
+    collectQueueMetrics(
+      CoreDataS3ExportQueue.instance,
+      QueueName.CoreDataS3ExportQueue,
+    );
 
     return CoreDataS3ExportQueue.instance;
   }

@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 
 export class DeadLetterRetryQueue {
@@ -49,6 +53,11 @@ export class DeadLetterRetryQueue {
           logger.error("Error adding DeadLetterRetryQueue schedule", err);
         });
     }
+
+    collectQueueMetrics(
+      DeadLetterRetryQueue.instance,
+      QueueName.DeadLetterRetryQueue,
+    );
 
     return DeadLetterRetryQueue.instance;
   }

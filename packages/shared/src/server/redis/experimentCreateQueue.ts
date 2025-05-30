@@ -1,7 +1,11 @@
 import { Queue } from "bullmq";
 import { logger } from "../logger";
 import { TQueueJobTypes, QueueName } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 
 export class ExperimentCreateQueue {
   private static instance: Queue<
@@ -39,6 +43,11 @@ export class ExperimentCreateQueue {
     ExperimentCreateQueue.instance?.on("error", (err) => {
       logger.error("ExperimentCreateQueue error", err);
     });
+
+    collectQueueMetrics(
+      ExperimentCreateQueue.instance,
+      QueueName.ExperimentCreate,
+    );
 
     return ExperimentCreateQueue.instance;
   }

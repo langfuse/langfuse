@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 
 export class IngestionQueue {
@@ -39,6 +43,8 @@ export class IngestionQueue {
     IngestionQueue.instance?.on("error", (err) => {
       logger.error("IngestionQueue error", err);
     });
+
+    collectQueueMetrics(IngestionQueue.instance, QueueName.IngestionQueue);
 
     return IngestionQueue.instance;
   }
@@ -81,6 +87,11 @@ export class SecondaryIngestionQueue {
     SecondaryIngestionQueue.instance?.on("error", (err) => {
       logger.error("SecondaryIngestionQueue error", err);
     });
+
+    collectQueueMetrics(
+      SecondaryIngestionQueue.instance,
+      QueueName.IngestionSecondaryQueue,
+    );
 
     return SecondaryIngestionQueue.instance;
   }

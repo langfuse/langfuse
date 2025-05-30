@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 
 export class PostHogIntegrationProcessingQueue {
@@ -34,6 +38,11 @@ export class PostHogIntegrationProcessingQueue {
     PostHogIntegrationProcessingQueue.instance?.on("error", (err) => {
       logger.error("PostHogIntegrationProcessingQueue error", err);
     });
+
+    collectQueueMetrics(
+      PostHogIntegrationProcessingQueue.instance,
+      QueueName.PostHogIntegrationProcessingQueue,
+    );
 
     return PostHogIntegrationProcessingQueue.instance;
   }
