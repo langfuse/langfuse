@@ -16,12 +16,13 @@ import {
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
+import { decrypt } from "@langfuse/shared/encryption";
 import {
   type BlobStorageIntegration,
   BlobStorageIntegrationType,
 } from "@langfuse/shared";
-import { randomUUID } from "crypto";
-import { decrypt } from "@langfuse/shared/encryption";
+import { env } from "@/src/env.mjs";
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -97,6 +98,19 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           fileType,
         } = input;
 
+        const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+        const canUseHostCredentials =
+          isSelfHosted && type === BlobStorageIntegrationType.S3;
+        const isUsingHostCredentials =
+          canUseHostCredentials && (!accessKeyId || !secretAccessKey);
+
+        if (!canUseHostCredentials && !accessKeyId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Access Key ID and Secret Access Key are required",
+          });
+        }
+
         const data: Partial<BlobStorageIntegration> = {
           type,
           bucketName,
@@ -122,7 +136,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           );
 
           if (existingConfig) {
-            // Record exists, perform update
             if (secretAccessKey) {
               data.secretAccessKey = encrypt(secretAccessKey);
             }
@@ -135,11 +148,11 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             });
           } else {
             // Record doesn't exist, perform create
-            // For create, secretAccessKey is mandatory
-            if (!secretAccessKey) {
+            if (!isUsingHostCredentials && !secretAccessKey) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
-                message: "Secret access key is required for new configuration",
+                message:
+                  "Secret access key is required for new configuration when not using host credentials",
               });
             }
 
@@ -148,12 +161,17 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
                 ...(data as BlobStorageIntegration),
                 projectId: input.projectId,
                 accessKeyId,
-                secretAccessKey: encrypt(secretAccessKey),
+                secretAccessKey: secretAccessKey
+                  ? encrypt(secretAccessKey)
+                  : undefined,
               },
             });
           }
         });
       } catch (e) {
+        if (e instanceof TRPCError) {
+          throw e;
+        }
         logger.error(`Failed to update blob storage integration`, e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -292,13 +310,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "integrations:CRUD",
         });
-        await auditLog({
-          session: ctx.session,
-          action: "create",
-          resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
-          after: { action: "validation_test" },
-        });
 
         // Get persisted configuration
         const integration = await ctx.prisma.blobStorageIntegration.findUnique({
@@ -327,11 +338,13 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           forcePathStyle,
         } = integration;
 
-        const secretAccessKey = decrypt(encryptedSecretAccessKey);
+        const secretAccessKey = encryptedSecretAccessKey
+          ? decrypt(encryptedSecretAccessKey)
+          : undefined;
 
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
-          accessKeyId,
+          accessKeyId: accessKeyId || undefined,
           secretAccessKey,
           bucketName,
           endpoint: endpoint || undefined,
