@@ -5,8 +5,8 @@ import { logger, redis } from "@langfuse/shared/src/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   handleGetMemberships,
-  handleUpdateMembership
-} from "@/src/ee/features/admin-api/public/projects/projectById/memberships";
+  handleUpdateMembership,
+} from "@/src/features/admin-api/projects/projectById/memberships";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -100,7 +100,12 @@ export default async function handler(
       case "GET":
         return handleGetMemberships(req, res, projectId, authCheck.scope.orgId);
       case "PUT":
-        return handleUpdateMembership(req, res, projectId, authCheck.scope.orgId);
+        return handleUpdateMembership(
+          req,
+          res,
+          projectId,
+          authCheck.scope.orgId,
+        );
       default:
         // This should never happen due to the check at the beginning
         return res.status(405).json({

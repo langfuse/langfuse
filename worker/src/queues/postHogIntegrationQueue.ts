@@ -1,7 +1,7 @@
 import { Processor } from "bullmq";
 import { logger, QueueJobs } from "@langfuse/shared/src/server";
-import { handlePostHogIntegrationSchedule } from "../ee/integrations/posthog/handlePostHogIntegrationSchedule";
-import { handlePostHogIntegrationProjectJob } from "../ee/integrations/posthog/handlePostHogIntegrationProjectJob";
+import { handlePostHogIntegrationSchedule } from "../features/posthog/handlePostHogIntegrationSchedule";
+import { handlePostHogIntegrationProjectJob } from "../features/posthog/handlePostHogIntegrationProjectJob";
 
 export const postHogIntegrationProcessor: Processor = async (job) => {
   if (job.name === QueueJobs.PostHogIntegrationJob) {

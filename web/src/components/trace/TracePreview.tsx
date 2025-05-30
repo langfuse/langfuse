@@ -16,8 +16,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { api } from "@/src/utils/api";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
@@ -65,7 +64,6 @@ export const TracePreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
-  const hasEntitlement = useHasEntitlement("annotation-queues");
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
@@ -139,16 +137,14 @@ export const TracePreview = ({
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={hasEntitlement}
+                    hasGroupedButton={true}
                     environment={trace.environment}
                   />
-                  {hasEntitlement && (
-                    <CreateNewAnnotationQueueItem
-                      projectId={trace.projectId}
-                      objectId={trace.id}
-                      objectType={AnnotationQueueObjectType.TRACE}
-                    />
-                  )}
+                  <CreateNewAnnotationQueueItem
+                    projectId={trace.projectId}
+                    objectId={trace.id}
+                    objectType={AnnotationQueueObjectType.TRACE}
+                  />
                 </div>
                 <CommentDrawerButton
                   projectId={trace.projectId}

@@ -9,14 +9,13 @@ import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { Fragment, useMemo, useState } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -65,7 +64,7 @@ export const ObservationPreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
-  const hasEntitlement = useHasEntitlement("annotation-queues");
+
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
   const router = useRouter();
@@ -163,16 +162,15 @@ export const ObservationPreview = ({
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={hasEntitlement}
+                    hasGroupedButton={true}
                     environment={preloadedObservation.environment}
                   />
-                  {hasEntitlement && (
-                    <CreateNewAnnotationQueueItem
-                      projectId={projectId}
-                      objectId={preloadedObservation.id}
-                      objectType={AnnotationQueueObjectType.OBSERVATION}
-                    />
-                  )}
+
+                  <CreateNewAnnotationQueueItem
+                    projectId={projectId}
+                    objectId={preloadedObservation.id}
+                    objectType={AnnotationQueueObjectType.OBSERVATION}
+                  />
                 </div>
                 {observationWithInputAndOutput.data?.type === "GENERATION" && (
                   <JumpToPlaygroundButton

@@ -6,7 +6,7 @@ import {
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
-import { createExperimentJob } from "../ee/experiments/experimentService";
+import { createExperimentJob } from "../features/experiments/experimentService";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 

@@ -11,7 +11,7 @@ import {
   QueueJobs,
   recordIncrement,
 } from "@langfuse/shared/src/server";
-import { createEvalJobs, evaluate } from "../ee/evaluation/evalService";
+import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { randomUUID } from "crypto";
 
 export const evalJobTraceCreatorQueueProcessor = async (

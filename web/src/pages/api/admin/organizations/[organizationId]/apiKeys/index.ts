@@ -5,7 +5,7 @@ import {
   validateQueryAndExtractId,
   handleGetApiKeys,
   handleCreateApiKey,
-} from "@/src/ee/features/admin-api/organizations/apiKeys";
+} from "@/src/features/admin-api/organizations/apiKeys";
 import { prisma } from "@langfuse/shared/src/db";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";

@@ -9,7 +9,6 @@ import {
 import { encrypt } from "@langfuse/shared/encryption";
 import { blobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { TRPCError } from "@trpc/server";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   logger,
   BlobStorageIntegrationProcessingQueue,
@@ -28,11 +27,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "integration-blobstorage",
-        sessionUser: ctx.session.user,
-        projectId: input.projectId,
-      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -66,11 +60,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(blobStorageIntegrationFormSchema.extend({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "integration-blobstorage",
-          sessionUser: ctx.session.user,
-          projectId: input.projectId,
-        });
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -183,11 +172,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "integration-blobstorage",
-          sessionUser: ctx.session.user,
-          projectId: input.projectId,
-        });
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -218,11 +202,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "integration-blobstorage",
-          sessionUser: ctx.session.user,
-          projectId: input.projectId,
-        });
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -300,11 +279,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "integration-blobstorage",
-          sessionUser: ctx.session.user,
-          projectId: input.projectId,
-        });
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,

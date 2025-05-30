@@ -427,7 +427,6 @@ export default function TracesTable({
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
-        entitlement: "annotation-queues",
       },
     },
   ];

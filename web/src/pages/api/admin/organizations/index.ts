@@ -4,7 +4,7 @@ import { AdminApiAuthService } from "@/src/features/admin-api/server/adminApiAut
 import {
   handleGetOrganizations,
   handleCreateOrganization,
-} from "@/src/ee/features/admin-api/organizations";
+} from "@/src/features/admin-api/organizations";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
 

@@ -1,4 +1,4 @@
-import { type EvalsTemplateRow } from "@/src/ee/features/evals/components/eval-templates-table";
+import { type EvalsTemplateRow } from "@/src/features/evals/components/eval-templates-table";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
 

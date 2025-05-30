@@ -15,7 +15,6 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -32,7 +31,7 @@ import { type z } from "zod";
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const entitled = useHasEntitlement("integration-posthog");
+
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
@@ -40,10 +39,9 @@ export default function PosthogIntegrationSettings() {
   const state = api.posthogIntegration.get.useQuery(
     { projectId },
     {
-      enabled: hasAccess && entitled,
+      enabled: hasAccess,
     },
   );
-  if (!entitled) return null;
 
   const status =
     state.isInitialLoading || !hasAccess
