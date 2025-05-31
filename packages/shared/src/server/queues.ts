@@ -5,7 +5,7 @@ import {
   BatchActionQuerySchema,
   BatchActionType,
 } from "../features/batchAction/types";
-import { BatchExportTableName } from "../features/batchExport/types";
+import { BatchTableNames } from "../interfaces/tableNames";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -76,7 +76,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       actionId: z.literal("score-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
-      tableName: z.nativeEnum(BatchExportTableName),
+      tableName: z.nativeEnum(BatchTableNames),
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
       type: z.nativeEnum(BatchActionType),
@@ -85,7 +85,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       actionId: z.literal("trace-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
-      tableName: z.nativeEnum(BatchExportTableName),
+      tableName: z.nativeEnum(BatchTableNames),
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
       type: z.nativeEnum(BatchActionType),
@@ -94,7 +94,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       actionId: z.literal("trace-add-to-annotation-queue"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
-      tableName: z.nativeEnum(BatchExportTableName),
+      tableName: z.nativeEnum(BatchTableNames),
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
       type: z.nativeEnum(BatchActionType),

@@ -1,5 +1,5 @@
 import {
-  BatchExportTableName,
+  BatchTableNames,
   FilterCondition,
   TimeFilter,
   BatchExportQueryType,
@@ -28,14 +28,14 @@ import Decimal from "decimal.js";
 import { env } from "../../env";
 import { BatchExportTracesRow, BatchExportSessionsRow } from "./types";
 
-const tableNameToTimeFilterColumn: Record<BatchExportTableName, string> = {
+const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
 };
-const tableNameToTimeFilterColumnCh: Record<BatchExportTableName, string> = {
+const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
@@ -86,11 +86,11 @@ export const getDatabaseReadStream = async ({
   filter,
   orderBy,
   cutoffCreatedAt,
-  exportLimit = env.BATCH_EXPORT_ROW_LIMIT,
+  rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
 }: {
   projectId: string;
   cutoffCreatedAt: Date;
-  exportLimit?: number;
+  rowLimit?: number;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
   const createdAtCutoffFilter: FilterCondition = {
@@ -147,7 +147,7 @@ export const getDatabaseReadStream = async ({
           }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
       );
     }
 
@@ -208,7 +208,7 @@ export const getDatabaseReadStream = async ({
           });
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
       );
     case "observations": {
       let emptyScoreColumns: Record<string, null>;
@@ -264,7 +264,7 @@ export const getDatabaseReadStream = async ({
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
       );
     }
     case "traces": {
@@ -372,7 +372,7 @@ export const getDatabaseReadStream = async ({
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
       );
     }
 
@@ -422,7 +422,7 @@ export const getDatabaseReadStream = async ({
           }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
       );
     }
     default:
@@ -473,9 +473,9 @@ export const getTraceIdentifierStream = async (props: {
   cutoffCreatedAt: Date;
   filter: FilterCondition[];
   orderBy: OrderByState;
-  exportLimit?: number;
+  rowLimit?: number;
 }): Promise<DatabaseReadStream<Array<TraceIdentifiers>>> => {
-  const { projectId, cutoffCreatedAt, filter, orderBy, exportLimit } = props;
+  const { projectId, cutoffCreatedAt, filter, orderBy, rowLimit } = props;
 
   const createdAtCutoffFilter: FilterCondition = {
     column: "timestamp",
@@ -504,6 +504,6 @@ export const getTraceIdentifierStream = async (props: {
       return identifiers;
     },
     env.BATCH_EXPORT_PAGE_SIZE,
-    exportLimit,
+    rowLimit,
   );
 };

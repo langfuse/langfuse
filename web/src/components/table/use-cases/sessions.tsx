@@ -10,6 +10,7 @@ import {
   type FilterState,
   sessionsTableColsWithOptions,
   BatchExportTableName,
+  BatchTableNames,
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -79,7 +80,7 @@ export default function SessionsTable({
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
-    "sessions",
+    BatchTableNames.Sessions,
     projectId,
   );
 
