@@ -1,6 +1,6 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions, collectQueueMetrics } from "./redis";
 import { logger } from "../logger";
 
 export class DatasetRunItemUpsertQueue {
@@ -41,6 +41,9 @@ export class DatasetRunItemUpsertQueue {
     DatasetRunItemUpsertQueue.instance?.on("error", (err) => {
       logger.error("DatasetRunItemUpsertQueue error", err);
     });
+
+    // Collect queue metrics without blocking
+    collectQueueMetrics(DatasetRunItemUpsertQueue.instance, QueueName.DatasetRunItemUpsert);
 
     return DatasetRunItemUpsertQueue.instance;
   }

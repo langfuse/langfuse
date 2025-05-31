@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 
 export class DataRetentionProcessingQueue {
@@ -34,6 +38,11 @@ export class DataRetentionProcessingQueue {
     DataRetentionProcessingQueue.instance?.on("error", (err) => {
       logger.error("DataRetentionProcessingQueue error", err);
     });
+
+    collectQueueMetrics(
+      DataRetentionProcessingQueue.instance,
+      QueueName.DataRetentionProcessingQueue,
+    );
 
     return DataRetentionProcessingQueue.instance;
   }

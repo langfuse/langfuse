@@ -1,6 +1,10 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 
 export class TraceDeleteQueue {
@@ -38,6 +42,8 @@ export class TraceDeleteQueue {
     TraceDeleteQueue.instance?.on("error", (err) => {
       logger.error("TraceDeleteQueue error", err);
     });
+
+    collectQueueMetrics(TraceDeleteQueue.instance, QueueName.TraceDelete);
 
     return TraceDeleteQueue.instance;
   }

@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 import { env } from "../../env";
 
@@ -57,6 +61,11 @@ export class MeteringDataPostgresExportQueue {
           );
         });
     }
+
+    collectQueueMetrics(
+      MeteringDataPostgresExportQueue.instance,
+      QueueName.MeteringDataPostgresExportQueue,
+    );
 
     return MeteringDataPostgresExportQueue.instance;
   }
