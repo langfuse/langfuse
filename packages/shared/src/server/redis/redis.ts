@@ -45,8 +45,12 @@ export const createNewRedisInstance = (
       }
     : {};
 
+  logger.info(`-->> Connection string: ${env.REDIS_CONNECTION_STRING}`)
+
   const instance = env.REDIS_CONNECTION_STRING
     ? new Redis(env.REDIS_CONNECTION_STRING, {
+          username: String(env.REDIS_USERNAME),
+          password: String(env.REDIS_PASSWORD),
         ...defaultRedisOptions,
         ...additionalOptions,
         ...tlsOptions,
@@ -55,7 +59,8 @@ export const createNewRedisInstance = (
       ? new Redis({
           host: String(env.REDIS_HOST),
           port: Number(env.REDIS_PORT),
-          password: String(env.REDIS_AUTH),
+          username: String(env.REDIS_USERNAME),
+          password: String(env.REDIS_PASSWORD),
           ...defaultRedisOptions,
           ...additionalOptions,
           ...tlsOptions,
