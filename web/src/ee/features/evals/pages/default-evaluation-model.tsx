@@ -18,6 +18,8 @@ import { useState } from "react";
 import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
 import { Dialog } from "@/src/components/ui/dialog";
 import { Pencil } from "lucide-react";
+import Link from "next/link";
+import { TriangleAlert } from "lucide-react";
 
 export default function DefaultEvaluationModelPage() {
   const router = useRouter();
@@ -36,6 +38,11 @@ export default function DefaultEvaluationModelPage() {
     scope: "evalDefaultModel:read",
   });
 
+  const hasLlmApiKeysReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "llmApiKeys:read",
+  });
+
   const {
     modelParams,
     setModelParams,
@@ -50,6 +57,12 @@ export default function DefaultEvaluationModelPage() {
     setModelParams,
   );
 
+  const { data: llmApiKeys, isLoading: isLlmApiKeysLoading } =
+    api.llmApiKey.all.useQuery(
+      { projectId },
+      { enabled: hasLlmApiKeysReadAccess },
+    );
+
   const { mutate: upsertDefaultModel } =
     api.defaultLlmModel.upsertDefaultModel.useMutation({
       onSuccess: () => {
@@ -62,13 +75,15 @@ export default function DefaultEvaluationModelPage() {
       },
     });
 
-  if (isDefaultModelLoading) {
+  if (isDefaultModelLoading || isLlmApiKeysLoading) {
     return <Skeleton className="h-[500px] w-full" />;
   }
 
   if (!hasReadAccess || !hasEntitlement) {
     return <SupportOrUpgradePage />;
   }
+
+  const hasLlmConnections = llmApiKeys && llmApiKeys.totalCount > 0;
 
   return (
     <>
@@ -99,6 +114,25 @@ export default function DefaultEvaluationModelPage() {
               className="text-sm font-normal"
               showEditButton={false}
             />
+            {!hasLlmConnections && (
+              <div className="mt-4 flex items-center rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
+                <TriangleAlert className="mr-2 h-4 w-4 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium">No LLM connections configured</p>
+                  <p className="mt-1">
+                    You need to add at least one LLM connection before you can
+                    set up a default evaluation model.
+                  </p>
+                  <Button asChild disabled={!hasWriteAccess} className="mt-2">
+                    <Link
+                      href={`/project/${projectId}/settings?page=llm-connections`}
+                    >
+                      Add LLM Connection
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -110,63 +144,65 @@ export default function DefaultEvaluationModelPage() {
             />
           )}
 
-          <Dialog open={isEditing} onOpenChange={setIsEditing}>
-            <DialogTrigger asChild>
-              <Button
-                disabled={!hasWriteAccess || !modelParams.provider.value}
-                onClick={() => {
-                  setIsEditing(true);
-                }}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                {selectedModel ? "Edit" : "Set up"}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="px-3 py-10">
-              <ModelParameters
-                customHeader={
-                  <p className="font-medium leading-none">
-                    Default model configuration
-                  </p>
-                }
-                {...{
-                  modelParams,
-                  availableModels,
-                  availableProviders,
-                  updateModelParamValue,
-                  setModelParamEnabled,
-                }}
-                formDisabled={!hasWriteAccess}
-              />
-              <div className="my-2 text-xs text-muted-foreground">
-                Select a model which supports function calling.
-              </div>
-              <div className="mt-2 flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
+          {hasLlmConnections && (
+            <Dialog open={isEditing} onOpenChange={setIsEditing}>
+              <DialogTrigger asChild>
                 <Button
                   disabled={!hasWriteAccess || !modelParams.provider.value}
                   onClick={() => {
-                    upsertDefaultModel({
-                      projectId,
-                      provider: modelParams.provider.value,
-                      adapter: modelParams.adapter.value,
-                      model: modelParams.model.value,
-                      modelParams: {
-                        max_tokens: modelParams.max_tokens.value,
-                        temperature: modelParams.temperature.value,
-                        top_p: modelParams.top_p.value,
-                      },
-                    });
-                    setIsEditing(false);
+                    setIsEditing(true);
                   }}
                 >
-                  Save
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {selectedModel ? "Edit" : "Set up"}
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="px-3 py-10">
+                <ModelParameters
+                  customHeader={
+                    <p className="font-medium leading-none">
+                      Default model configuration
+                    </p>
+                  }
+                  {...{
+                    modelParams,
+                    availableModels,
+                    availableProviders,
+                    updateModelParamValue,
+                    setModelParamEnabled,
+                  }}
+                  formDisabled={!hasWriteAccess}
+                />
+                <div className="my-2 text-xs text-muted-foreground">
+                  Select a model which supports function calling.
+                </div>
+                <div className="mt-2 flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsEditing(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={!hasWriteAccess || !modelParams.provider.value}
+                    onClick={() => {
+                      upsertDefaultModel({
+                        projectId,
+                        provider: modelParams.provider.value,
+                        adapter: modelParams.adapter.value,
+                        model: modelParams.model.value,
+                        modelParams: {
+                          max_tokens: modelParams.max_tokens.value,
+                          temperature: modelParams.temperature.value,
+                          top_p: modelParams.top_p.value,
+                        },
+                      });
+                      setIsEditing(false);
+                    }}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </Page>
     </>
