@@ -12,7 +12,6 @@ const entitlements = [
   "audit-logs",
   "data-retention",
   "prompt-protected-labels",
-  "custom-dashboards",
   "admin-api",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
@@ -20,13 +19,9 @@ export type Entitlement = (typeof entitlements)[number];
 const cloudAllPlansEntitlements: Entitlement[] = [
   "cloud-billing",
   "trace-deletion",
-  "custom-dashboards",
 ];
 
-const selfHostedAllPlansEntitlements: Entitlement[] = [
-  "trace-deletion",
-  "custom-dashboards",
-];
+const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion"];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
 const entitlementLimits = [
