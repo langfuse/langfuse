@@ -26,6 +26,7 @@ import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
+import { EditLLMApiKeyDialog } from "./EditLLMApiKeyDialog";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 
 export function LlmApiKeyList(props: { projectId: string }) {
@@ -127,10 +128,16 @@ export function LlmApiKeyList(props: { projectId: string }) {
                     <TableCell> {apiKey.extraHeaderKeys.join(", ")} </TableCell>
                   ) : null}
                   <TableCell>
-                    <DeleteApiKeyButton
-                      projectId={props.projectId}
-                      apiKeyId={apiKey.id}
-                    />
+                    <div className="flex gap-2">
+                      <EditLLMApiKeyDialog
+                        projectId={props.projectId}
+                        llmApiKey={apiKey}
+                      />
+                      <DeleteApiKeyButton
+                        projectId={props.projectId}
+                        apiKeyId={apiKey.id}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
