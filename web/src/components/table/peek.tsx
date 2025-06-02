@@ -176,7 +176,7 @@ export function TablePeekView<TData>({
         </SheetHeader>
         <Separator />
         <div className="flex max-h-full min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto" key={selectedRowId}>
             {typeof children === "function" ? children(row) : children}
           </div>
         </div>

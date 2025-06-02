@@ -993,8 +993,40 @@ export default function TracesTable({
     ? `/project/${projectId}/users/${userId}`
     : `/project/${projectId}/traces`;
 
-  const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
-  const { setPeekView } = useTracePeekState(urlPathname);
+  const PeekConfig = useMemo(
+    () =>
+      ({
+        projectId,
+        urlPathname,
+      }: {
+        projectId: string;
+        urlPathname: string;
+      }) => {
+        const { getNavigationPath, expandPeek } =
+          useTracePeekNavigation(urlPathname);
+        const { setPeekView } = useTracePeekState(urlPathname);
+        if (hideControls) return undefined;
+
+        return {
+          itemType: "TRACE" as const,
+          listKey: "traces",
+          urlPathname,
+          peekEventOptions: {
+            ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
+          },
+          onOpenChange: setPeekView,
+          onExpand: expandPeek,
+          getNavigationPath,
+          children: <PeekViewTraceDetail projectId={projectId} />,
+          tableDataUpdatedAt: Math.max(
+            traces.dataUpdatedAt,
+            traceMetrics.dataUpdatedAt,
+          ),
+        };
+      },
+    [projectId, urlPathname, hideControls],
+  );
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId,
@@ -1162,29 +1194,7 @@ export default function TracesTable({
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
         pinFirstColumn={!hideControls}
-        peekView={
-          hideControls
-            ? undefined
-            : {
-                itemType: "TRACE",
-                listKey: "traces",
-                urlPathname,
-                peekEventOptions: {
-                  ignoredSelectors: [
-                    '[role="checkbox"]',
-                    '[aria-label="bookmark"]',
-                  ],
-                },
-                onOpenChange: setPeekView,
-                onExpand: expandPeek,
-                getNavigationPath,
-                children: <PeekViewTraceDetail projectId={projectId} />,
-                tableDataUpdatedAt: Math.max(
-                  traces.dataUpdatedAt,
-                  traceMetrics.dataUpdatedAt,
-                ),
-              }
-        }
+        peekView={PeekConfig({ projectId, urlPathname })}
       />
     </>
   );
