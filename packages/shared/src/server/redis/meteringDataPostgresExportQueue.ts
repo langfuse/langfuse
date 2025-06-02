@@ -12,61 +12,63 @@ export class MeteringDataPostgresExportQueue {
   private static instance: Queue | null = null;
 
   public static getInstance(): Queue | null {
-    if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED !== "true") {
-      return null;
-    }
+    try {
+      if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED !== "true") {
+        return null;
+      }
 
-    if (MeteringDataPostgresExportQueue.instance) {
-      return MeteringDataPostgresExportQueue.instance;
-    }
+      if (MeteringDataPostgresExportQueue.instance) {
+        return MeteringDataPostgresExportQueue.instance;
+      }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    MeteringDataPostgresExportQueue.instance = newRedis
-      ? new Queue(QueueName.MeteringDataPostgresExportQueue, {
-          connection: newRedis,
-          defaultJobOptions: {
-            removeOnComplete: true,
-            removeOnFail: 100,
-            attempts: 5,
-            backoff: {
-              type: "exponential",
-              delay: 5000,
+      MeteringDataPostgresExportQueue.instance = newRedis
+        ? new Queue(QueueName.MeteringDataPostgresExportQueue, {
+            connection: newRedis,
+            defaultJobOptions: {
+              removeOnComplete: true,
+              removeOnFail: 100,
+              attempts: 5,
+              backoff: {
+                type: "exponential",
+                delay: 5000,
+              },
             },
-          },
-        })
-      : null;
+          })
+        : null;
 
-    MeteringDataPostgresExportQueue.instance?.on("error", (err) => {
-      logger.error("MeteringDataPostgresExportQueue error", err);
-    });
+      MeteringDataPostgresExportQueue.instance?.on("error", (err) => {
+        logger.error("MeteringDataPostgresExportQueue error", err);
+      });
 
-    if (MeteringDataPostgresExportQueue.instance) {
-      logger.debug("Scheduling jobs for MeteringDataPostgresExportQueue");
-      MeteringDataPostgresExportQueue.instance
-        .add(
-          QueueJobs.MeteringDataPostgresExportJob,
-          {},
-          {
-            repeat: { pattern: "30 2 * * *" }, // every day at 2:30am UTC
-          },
-        )
-        .catch((err) => {
-          logger.error(
-            "Error adding MeteringDataPostgresExportJob schedule",
-            err,
-          );
-        });
+      if (MeteringDataPostgresExportQueue.instance) {
+        logger.debug("Scheduling jobs for MeteringDataPostgresExportQueue");
+        MeteringDataPostgresExportQueue.instance
+          .add(
+            QueueJobs.MeteringDataPostgresExportJob,
+            {},
+            {
+              repeat: { pattern: "30 2 * * *" }, // every day at 2:30am UTC
+            },
+          )
+          .catch((err) => {
+            logger.error(
+              "Error adding MeteringDataPostgresExportJob schedule",
+              err,
+            );
+          });
+      }
+
+      return MeteringDataPostgresExportQueue.instance;
+    } finally {
+      collectQueueMetrics(
+        MeteringDataPostgresExportQueue.instance,
+        QueueName.MeteringDataPostgresExportQueue,
+      );
     }
-
-    collectQueueMetrics(
-      MeteringDataPostgresExportQueue.instance,
-      QueueName.MeteringDataPostgresExportQueue,
-    );
-
-    return MeteringDataPostgresExportQueue.instance;
   }
 }

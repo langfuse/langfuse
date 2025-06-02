@@ -15,40 +15,42 @@ export class EvalExecutionQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.EvaluationExecution]
   > | null {
-    if (EvalExecutionQueue.instance) return EvalExecutionQueue.instance;
+    try {
+      if (EvalExecutionQueue.instance) return EvalExecutionQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    EvalExecutionQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
-          QueueName.EvaluationExecution,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 10_000,
-              attempts: 10,
-              backoff: {
-                type: "exponential",
-                delay: 1000,
+      EvalExecutionQueue.instance = newRedis
+        ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
+            QueueName.EvaluationExecution,
+            {
+              connection: newRedis,
+              defaultJobOptions: {
+                removeOnComplete: true,
+                removeOnFail: 10_000,
+                attempts: 10,
+                backoff: {
+                  type: "exponential",
+                  delay: 1000,
+                },
               },
             },
-          },
-        )
-      : null;
+          )
+        : null;
 
-    EvalExecutionQueue.instance?.on("error", (err) => {
-      logger.error("EvalExecutionQueue error", err);
-    });
+      EvalExecutionQueue.instance?.on("error", (err) => {
+        logger.error("EvalExecutionQueue error", err);
+      });
 
-    collectQueueMetrics(
-      EvalExecutionQueue.instance,
-      QueueName.EvaluationExecution,
-    );
-
-    return EvalExecutionQueue.instance;
+      return EvalExecutionQueue.instance;
+    } finally {
+      collectQueueMetrics(
+        EvalExecutionQueue.instance,
+        QueueName.EvaluationExecution,
+      );
+    }
   }
 }

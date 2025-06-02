@@ -14,38 +14,40 @@ export class TraceUpsertQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.TraceUpsert]
   > | null {
-    if (TraceUpsertQueue.instance) return TraceUpsertQueue.instance;
+    try {
+      if (TraceUpsertQueue.instance) return TraceUpsertQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    TraceUpsertQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(
-          QueueName.TraceUpsert,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
-              removeOnFail: 100_000,
-              attempts: 5,
-              delay: 15_000, // 15 seconds
-              backoff: {
-                type: "exponential",
-                delay: 5000,
+      TraceUpsertQueue.instance = newRedis
+        ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(
+            QueueName.TraceUpsert,
+            {
+              connection: newRedis,
+              defaultJobOptions: {
+                removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
+                removeOnFail: 100_000,
+                attempts: 5,
+                delay: 15_000, // 15 seconds
+                backoff: {
+                  type: "exponential",
+                  delay: 5000,
+                },
               },
             },
-          },
-        )
-      : null;
+          )
+        : null;
 
-    TraceUpsertQueue.instance?.on("error", (err) => {
-      logger.error("TraceUpsertQueue error", err);
-    });
+      TraceUpsertQueue.instance?.on("error", (err) => {
+        logger.error("TraceUpsertQueue error", err);
+      });
 
-    collectQueueMetrics(TraceUpsertQueue.instance, QueueName.TraceUpsert);
-
-    return TraceUpsertQueue.instance;
+      return TraceUpsertQueue.instance;
+    } finally {
+      collectQueueMetrics(TraceUpsertQueue.instance, QueueName.TraceUpsert);
+    }
   }
 }

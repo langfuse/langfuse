@@ -11,39 +11,41 @@ export class BlobStorageIntegrationProcessingQueue {
   private static instance: Queue | null = null;
 
   public static getInstance(): Queue | null {
-    if (BlobStorageIntegrationProcessingQueue.instance) {
-      return BlobStorageIntegrationProcessingQueue.instance;
-    }
+    try {
+      if (BlobStorageIntegrationProcessingQueue.instance) {
+        return BlobStorageIntegrationProcessingQueue.instance;
+      }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    BlobStorageIntegrationProcessingQueue.instance = newRedis
-      ? new Queue(QueueName.BlobStorageIntegrationProcessingQueue, {
-          connection: newRedis,
-          defaultJobOptions: {
-            removeOnComplete: true,
-            removeOnFail: 100_000,
-            attempts: 5,
-            backoff: {
-              type: "exponential",
-              delay: 5000,
+      BlobStorageIntegrationProcessingQueue.instance = newRedis
+        ? new Queue(QueueName.BlobStorageIntegrationProcessingQueue, {
+            connection: newRedis,
+            defaultJobOptions: {
+              removeOnComplete: true,
+              removeOnFail: 100_000,
+              attempts: 5,
+              backoff: {
+                type: "exponential",
+                delay: 5000,
+              },
             },
-          },
-        })
-      : null;
+          })
+        : null;
 
-    BlobStorageIntegrationProcessingQueue.instance?.on("error", (err) => {
-      logger.error("BlobStorageIntegrationProcessingQueue error", err);
-    });
+      BlobStorageIntegrationProcessingQueue.instance?.on("error", (err) => {
+        logger.error("BlobStorageIntegrationProcessingQueue error", err);
+      });
 
-    collectQueueMetrics(
-      BlobStorageIntegrationProcessingQueue.instance,
-      QueueName.BlobStorageIntegrationProcessingQueue,
-    );
-
-    return BlobStorageIntegrationProcessingQueue.instance;
+      return BlobStorageIntegrationProcessingQueue.instance;
+    } finally {
+      collectQueueMetrics(
+        BlobStorageIntegrationProcessingQueue.instance,
+        QueueName.BlobStorageIntegrationProcessingQueue,
+      );
+    }
   }
 }

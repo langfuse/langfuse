@@ -15,40 +15,42 @@ export class ExperimentCreateQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.ExperimentCreate]
   > | null {
-    if (ExperimentCreateQueue.instance) return ExperimentCreateQueue.instance;
+    try {
+      if (ExperimentCreateQueue.instance) return ExperimentCreateQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    ExperimentCreateQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.ExperimentCreate]>(
-          QueueName.ExperimentCreate,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 10_000,
-              attempts: 10,
-              backoff: {
-                type: "exponential",
-                delay: 1000,
+      ExperimentCreateQueue.instance = newRedis
+        ? new Queue<TQueueJobTypes[QueueName.ExperimentCreate]>(
+            QueueName.ExperimentCreate,
+            {
+              connection: newRedis,
+              defaultJobOptions: {
+                removeOnComplete: true,
+                removeOnFail: 10_000,
+                attempts: 10,
+                backoff: {
+                  type: "exponential",
+                  delay: 1000,
+                },
               },
             },
-          },
-        )
-      : null;
+          )
+        : null;
 
-    ExperimentCreateQueue.instance?.on("error", (err) => {
-      logger.error("ExperimentCreateQueue error", err);
-    });
+      ExperimentCreateQueue.instance?.on("error", (err) => {
+        logger.error("ExperimentCreateQueue error", err);
+      });
 
-    collectQueueMetrics(
-      ExperimentCreateQueue.instance,
-      QueueName.ExperimentCreate,
-    );
-
-    return ExperimentCreateQueue.instance;
+      return ExperimentCreateQueue.instance;
+    } finally {
+      collectQueueMetrics(
+        ExperimentCreateQueue.instance,
+        QueueName.ExperimentCreate,
+      );
+    }
   }
 }

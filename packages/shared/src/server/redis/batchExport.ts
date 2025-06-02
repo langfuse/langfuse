@@ -14,37 +14,39 @@ export class BatchExportQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.BatchExport]
   > | null {
-    if (BatchExportQueue.instance) return BatchExportQueue.instance;
+    try {
+      if (BatchExportQueue.instance) return BatchExportQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    BatchExportQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(
-          QueueName.BatchExport,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 10_000,
-              attempts: 8,
-              backoff: {
-                type: "exponential",
-                delay: 5000,
+      BatchExportQueue.instance = newRedis
+        ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(
+            QueueName.BatchExport,
+            {
+              connection: newRedis,
+              defaultJobOptions: {
+                removeOnComplete: true,
+                removeOnFail: 10_000,
+                attempts: 8,
+                backoff: {
+                  type: "exponential",
+                  delay: 5000,
+                },
               },
             },
-          },
-        )
-      : null;
+          )
+        : null;
 
-    BatchExportQueue.instance?.on("error", (err) => {
-      logger.error("BatchExportQueue error", err);
-    });
+      BatchExportQueue.instance?.on("error", (err) => {
+        logger.error("BatchExportQueue error", err);
+      });
 
-    collectQueueMetrics(BatchExportQueue.instance, QueueName.BatchExport);
-
-    return BatchExportQueue.instance;
+      return BatchExportQueue.instance;
+    } finally {
+      collectQueueMetrics(BatchExportQueue.instance, QueueName.BatchExport);
+    }
   }
 }

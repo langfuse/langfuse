@@ -15,38 +15,40 @@ export class IngestionQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.IngestionQueue]
   > | null {
-    if (IngestionQueue.instance) return IngestionQueue.instance;
+    try {
+      if (IngestionQueue.instance) return IngestionQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    IngestionQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.IngestionQueue]>(
-          QueueName.IngestionQueue,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 100_000,
-              attempts: 5,
-              backoff: {
-                type: "exponential",
-                delay: 5000,
+      IngestionQueue.instance = newRedis
+        ? new Queue<TQueueJobTypes[QueueName.IngestionQueue]>(
+            QueueName.IngestionQueue,
+            {
+              connection: newRedis,
+              defaultJobOptions: {
+                removeOnComplete: true,
+                removeOnFail: 100_000,
+                attempts: 5,
+                backoff: {
+                  type: "exponential",
+                  delay: 5000,
+                },
               },
             },
-          },
-        )
-      : null;
+          )
+        : null;
 
-    IngestionQueue.instance?.on("error", (err) => {
-      logger.error("IngestionQueue error", err);
-    });
+      IngestionQueue.instance?.on("error", (err) => {
+        logger.error("IngestionQueue error", err);
+      });
 
-    collectQueueMetrics(IngestionQueue.instance, QueueName.IngestionQueue);
-
-    return IngestionQueue.instance;
+      return IngestionQueue.instance;
+    } finally {
+      collectQueueMetrics(IngestionQueue.instance, QueueName.IngestionQueue);
+    }
   }
 }
 
@@ -58,41 +60,43 @@ export class SecondaryIngestionQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.IngestionSecondaryQueue]
   > | null {
-    if (SecondaryIngestionQueue.instance)
-      return SecondaryIngestionQueue.instance;
+    try {
+      if (SecondaryIngestionQueue.instance)
+        return SecondaryIngestionQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    SecondaryIngestionQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.IngestionSecondaryQueue]>(
-          QueueName.IngestionSecondaryQueue,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 100_000,
-              attempts: 5,
-              backoff: {
-                type: "exponential",
-                delay: 5000,
+      SecondaryIngestionQueue.instance = newRedis
+        ? new Queue<TQueueJobTypes[QueueName.IngestionSecondaryQueue]>(
+            QueueName.IngestionSecondaryQueue,
+            {
+              connection: newRedis,
+              defaultJobOptions: {
+                removeOnComplete: true,
+                removeOnFail: 100_000,
+                attempts: 5,
+                backoff: {
+                  type: "exponential",
+                  delay: 5000,
+                },
               },
             },
-          },
-        )
-      : null;
+          )
+        : null;
 
-    SecondaryIngestionQueue.instance?.on("error", (err) => {
-      logger.error("SecondaryIngestionQueue error", err);
-    });
+      SecondaryIngestionQueue.instance?.on("error", (err) => {
+        logger.error("SecondaryIngestionQueue error", err);
+      });
 
-    collectQueueMetrics(
-      SecondaryIngestionQueue.instance,
-      QueueName.IngestionSecondaryQueue,
-    );
-
-    return SecondaryIngestionQueue.instance;
+      return SecondaryIngestionQueue.instance;
+    } finally {
+      collectQueueMetrics(
+        SecondaryIngestionQueue.instance,
+        QueueName.IngestionSecondaryQueue,
+      );
+    }
   }
 }
