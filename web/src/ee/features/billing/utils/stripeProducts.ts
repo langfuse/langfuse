@@ -68,7 +68,7 @@ export const stripeProducts: StripeProduct[] = [
         : "prod_QhK9qKGH25BTcS", // live
     mappedPlan: "cloud:team",
     checkout: {
-      title: "Team",
+      title: "Pro + Teams Add-on",
       description: "Organizational and security controls for larger teams.",
       price: "$499 / month",
       usagePrice: "$8/100k events (100k included)",

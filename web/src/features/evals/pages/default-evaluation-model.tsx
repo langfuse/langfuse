@@ -111,7 +111,7 @@ export default function DefaultEvaluationModelPage() {
           <Dialog open={isEditing} onOpenChange={setIsEditing}>
             <DialogTrigger asChild>
               <Button
-                disabled={!hasWriteAccess || !modelParams.provider.value}
+                disabled={!hasWriteAccess}
                 onClick={() => {
                   setIsEditing(true);
                 }}
