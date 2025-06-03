@@ -134,11 +134,11 @@ const extractInputAndOutput = (
 
   // Langfuse
   input =
-    domain === "trace"
+    domain === "trace" && attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]
       ? attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]
       : attributes[LangfuseOtelSpanAttributes.OBSERVATION_INPUT];
   output =
-    domain === "trace"
+    domain === "trace" && attributes[LangfuseOtelSpanAttributes.TRACE_OUTPUT]
       ? attributes[LangfuseOtelSpanAttributes.TRACE_OUTPUT]
       : attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT];
 
