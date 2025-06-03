@@ -11,7 +11,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -249,6 +249,8 @@ export default function TracesTable({
 
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
     enabled: environmentFilterOptions.data !== undefined,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const traceMetrics = api.traces.metrics.useQuery(
@@ -259,6 +261,8 @@ export default function TracesTable({
     },
     {
       enabled: traces.data !== undefined,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
     },
   );
 
@@ -1092,7 +1096,7 @@ export default function TracesTable({
           };
         }) ?? [])
       : [];
-  }, [traces, traceRowData, scoreKeysAndProps]);
+  }, [traces.isSuccess, traceRowData?.rows, scoreKeysAndProps]);
 
   const setFilterState = useDebounce(setUserFilterState);
 
@@ -1216,27 +1220,29 @@ const TracesDynamicCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId, projectId, timestamp },
     {
-      enabled: typeof traceId === "string",
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 5 * 60 * 1000,
     },
   );
+
+  const data = useMemo(() => {
+    return col === "output"
+      ? trace.data?.output
+      : col === "input"
+        ? trace.data?.input
+        : trace.data?.metadata;
+  }, [trace.data, col]);
+
   return (
-    <IOTableCell
+    <MemoizedIOTableCell
       isLoading={trace.isLoading}
-      data={
-        col === "output"
-          ? trace.data?.output
-          : col === "input"
-            ? trace.data?.input
-            : trace.data?.metadata
-      }
+      data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
   );
 };
+
+const MemoizedIOTableCell = memo(IOTableCell);
