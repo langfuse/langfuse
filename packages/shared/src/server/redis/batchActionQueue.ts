@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 
 export class BatchActionQueue {
@@ -11,35 +15,42 @@ export class BatchActionQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.BatchActionQueue]
   > | null {
-    if (BatchActionQueue.instance) return BatchActionQueue.instance;
+    try {
+      if (BatchActionQueue.instance) return BatchActionQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    BatchActionQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.BatchActionQueue]>(
-          QueueName.BatchActionQueue,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 10_000,
-              attempts: 10,
-              backoff: {
-                type: "exponential",
-                delay: 5000,
+      BatchActionQueue.instance = newRedis
+        ? new Queue<TQueueJobTypes[QueueName.BatchActionQueue]>(
+            QueueName.BatchActionQueue,
+            {
+              connection: newRedis,
+              defaultJobOptions: {
+                removeOnComplete: true,
+                removeOnFail: 10_000,
+                attempts: 10,
+                backoff: {
+                  type: "exponential",
+                  delay: 5000,
+                },
               },
             },
-          },
-        )
-      : null;
+          )
+        : null;
 
-    BatchActionQueue.instance?.on("error", (err) => {
-      logger.error("BatchActionQueue error", err);
-    });
+      BatchActionQueue.instance?.on("error", (err) => {
+        logger.error("BatchActionQueue error", err);
+      });
 
-    return BatchActionQueue.instance;
+      return BatchActionQueue.instance;
+    } finally {
+      collectQueueMetrics(
+        BatchActionQueue.instance,
+        QueueName.BatchActionQueue,
+      );
+    }
   }
 }

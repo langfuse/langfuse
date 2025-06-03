@@ -1,7 +1,10 @@
 import Redis, { RedisOptions } from "ioredis";
 import fs from "fs";
+import { Queue } from "bullmq";
 import { env } from "../../env";
 import { logger } from "../logger";
+import { convertQueueNameToMetricName, recordGauge } from "../instrumentation";
+import { QueueName } from "../queues";
 
 const defaultRedisOptions: Partial<RedisOptions> = {
   maxRetriesPerRequest: null,
@@ -86,3 +89,36 @@ declare global {
 export const redis = globalThis.redis ?? createRedisClient();
 
 if (env.NODE_ENV !== "production") globalThis.redis = redis;
+
+/**
+ * Collects queue metrics (count and failed count) without blocking.
+ * This function is called from getInstance methods to collect metrics asynchronously.
+ */
+export const collectQueueMetrics = (queue: Queue | null, queueName: QueueName): void => {
+  if (!queue) return;
+
+  // Collect metrics without awaiting to avoid blocking getInstance
+  Promise.allSettled([
+    queue.count().then((count) => {
+      recordGauge(
+        convertQueueNameToMetricName(queueName) + ".length",
+        count,
+        {
+          unit: "records",
+        },
+      );
+    }),
+    queue.getFailedCount().then((count) => {
+      recordGauge(
+        convertQueueNameToMetricName(queueName) + ".dlq_length",
+        count,
+        {
+          unit: "records",
+        },
+      );
+    }),
+  ]).catch((error) => {
+    // Log errors but don't throw to avoid affecting queue initialization
+    logger.warn(`Failed to collect metrics for queue ${queueName}`, error);
+  });
+};

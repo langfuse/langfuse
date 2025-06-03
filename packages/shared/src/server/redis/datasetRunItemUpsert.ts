@@ -1,6 +1,6 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions, collectQueueMetrics } from "./redis";
 import { logger } from "../logger";
 
 export class DatasetRunItemUpsertQueue {
@@ -11,37 +11,42 @@ export class DatasetRunItemUpsertQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.DatasetRunItemUpsert]
   > | null {
-    if (DatasetRunItemUpsertQueue.instance)
-      return DatasetRunItemUpsertQueue.instance;
+    try {
+      if (DatasetRunItemUpsertQueue.instance)
+        return DatasetRunItemUpsertQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    DatasetRunItemUpsertQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.DatasetRunItemUpsert]>(
-          QueueName.DatasetRunItemUpsert,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 10_000,
-              attempts: 5,
-              delay: 30_000, // 30 seconds
-              backoff: {
-                type: "exponential",
-                delay: 5000,
+      DatasetRunItemUpsertQueue.instance = newRedis
+        ? new Queue<TQueueJobTypes[QueueName.DatasetRunItemUpsert]>(
+            QueueName.DatasetRunItemUpsert,
+            {
+              connection: newRedis,
+              defaultJobOptions: {
+                removeOnComplete: true,
+                removeOnFail: 10_000,
+                attempts: 5,
+                delay: 30_000, // 30 seconds
+                backoff: {
+                  type: "exponential",
+                  delay: 5000,
+                },
               },
             },
-          },
-        )
-      : null;
+          )
+        : null;
 
-    DatasetRunItemUpsertQueue.instance?.on("error", (err) => {
-      logger.error("DatasetRunItemUpsertQueue error", err);
-    });
+      DatasetRunItemUpsertQueue.instance?.on("error", (err) => {
+        logger.error("DatasetRunItemUpsertQueue error", err);
+      });
 
-    return DatasetRunItemUpsertQueue.instance;
+      return DatasetRunItemUpsertQueue.instance;
+    } finally {
+      // Collect queue metrics without blocking
+      collectQueueMetrics(DatasetRunItemUpsertQueue.instance, QueueName.DatasetRunItemUpsert);
+    }
   }
 }

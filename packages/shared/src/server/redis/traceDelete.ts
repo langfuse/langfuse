@@ -1,6 +1,10 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  collectQueueMetrics,
+} from "./redis";
 import { logger } from "../logger";
 
 export class TraceDeleteQueue {
@@ -10,35 +14,39 @@ export class TraceDeleteQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.TraceDelete]
   > | null {
-    if (TraceDeleteQueue.instance) return TraceDeleteQueue.instance;
+    try {
+      if (TraceDeleteQueue.instance) return TraceDeleteQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+      const newRedis = createNewRedisInstance({
+        enableOfflineQueue: false,
+        ...redisQueueRetryOptions,
+      });
 
-    TraceDeleteQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.TraceDelete]>(
-          QueueName.TraceDelete,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 100_000,
-              attempts: 2,
-              backoff: {
-                type: "exponential",
-                delay: 30_000,
+      TraceDeleteQueue.instance = newRedis
+        ? new Queue<TQueueJobTypes[QueueName.TraceDelete]>(
+            QueueName.TraceDelete,
+            {
+              connection: newRedis,
+              defaultJobOptions: {
+                removeOnComplete: true,
+                removeOnFail: 100_000,
+                attempts: 2,
+                backoff: {
+                  type: "exponential",
+                  delay: 30_000,
+                },
               },
             },
-          },
-        )
-      : null;
+          )
+        : null;
 
-    TraceDeleteQueue.instance?.on("error", (err) => {
-      logger.error("TraceDeleteQueue error", err);
-    });
+      TraceDeleteQueue.instance?.on("error", (err) => {
+        logger.error("TraceDeleteQueue error", err);
+      });
 
-    return TraceDeleteQueue.instance;
+      return TraceDeleteQueue.instance;
+    } finally {
+      collectQueueMetrics(TraceDeleteQueue.instance, QueueName.TraceDelete);
+    }
   }
 }
