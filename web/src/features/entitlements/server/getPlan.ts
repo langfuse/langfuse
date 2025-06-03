@@ -60,8 +60,5 @@ export function getSelfHostedInstancePlanServerSide(): Plan | null {
   if (licenseKey.startsWith("langfuse_ee_")) {
     return "self-hosted:enterprise";
   }
-  if (licenseKey.startsWith("langfuse_pro_")) {
-    return "self-hosted:pro";
-  }
   return null;
 }

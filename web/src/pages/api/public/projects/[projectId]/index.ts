@@ -5,7 +5,7 @@ import { logger, redis } from "@langfuse/shared/src/server";
 import {
   handleUpdateProject,
   handleDeleteProject,
-} from "@/src/ee/features/admin-api/public/projects/projectById";
+} from "@/src/features/admin-api/projects/projectById";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { type NextApiRequest, type NextApiResponse } from "next";
 

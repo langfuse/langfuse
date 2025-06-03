@@ -14,7 +14,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
-import { handleBlobStorageIntegrationProjectJob } from "../ee/integrations/blobstorage/handleBlobStorageIntegrationProjectJob";
+import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,

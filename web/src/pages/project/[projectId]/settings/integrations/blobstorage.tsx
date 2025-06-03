@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -47,7 +46,6 @@ import {
 export default function BlobStorageIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const entitled = useHasEntitlement("integration-blobstorage");
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
@@ -55,14 +53,13 @@ export default function BlobStorageIntegrationSettings() {
   const state = api.blobStorageIntegration.get.useQuery(
     { projectId },
     {
-      enabled: hasAccess && entitled,
+      enabled: hasAccess,
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: 50 * 60 * 1000, // 50 minutes
     },
   );
-  if (!entitled) return null;
 
   const status =
     state.isInitialLoading || !hasAccess
@@ -147,11 +144,6 @@ const BlobStorageIntegrationSettingsForm = ({
 
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-
-  // Check if user has blob storage entitlement
-  const hasBlobStorageEntitlement = useHasEntitlement(
-    "integration-blobstorage",
-  );
 
   const blobStorageForm = useForm<BlobStorageIntegrationFormSchema>({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
@@ -379,11 +371,9 @@ const BlobStorageIntegrationSettingsForm = ({
                     ? "AWS Access Key ID"
                     : "Access Key ID"}
                 {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
-                {isSelfHosted &&
-                  hasBlobStorageEntitlement &&
-                  integrationType === "S3" && (
-                    <span className="text-muted-foreground"> (optional)</span>
-                  )}
+                {isSelfHosted && integrationType === "S3" && (
+                  <span className="text-muted-foreground"> (optional)</span>
+                )}
               </FormLabel>
               <FormControl>
                 <Input {...field} />
@@ -392,7 +382,7 @@ const BlobStorageIntegrationSettingsForm = ({
                 {integrationType === "AZURE_BLOB_STORAGE"
                   ? "Your Azure storage account name"
                   : integrationType === "S3"
-                    ? isSelfHosted && hasBlobStorageEntitlement
+                    ? isSelfHosted
                       ? "Your AWS IAM user access key ID. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
                       : "Your AWS IAM user access key ID"
                     : "Access key for your S3-compatible storage"}
@@ -414,11 +404,9 @@ const BlobStorageIntegrationSettingsForm = ({
                     ? "AWS Secret Access Key"
                     : "Secret Access Key"}
                 {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
-                {isSelfHosted &&
-                  hasBlobStorageEntitlement &&
-                  integrationType === "S3" && (
-                    <span className="text-muted-foreground"> (optional)</span>
-                  )}
+                {isSelfHosted && integrationType === "S3" && (
+                  <span className="text-muted-foreground"> (optional)</span>
+                )}
               </FormLabel>
               <FormControl>
                 <PasswordInput
@@ -431,7 +419,7 @@ const BlobStorageIntegrationSettingsForm = ({
                 {integrationType === "AZURE_BLOB_STORAGE"
                   ? "Your Azure storage account access key"
                   : integrationType === "S3"
-                    ? isSelfHosted && hasBlobStorageEntitlement
+                    ? isSelfHosted
                       ? "Your AWS IAM user secret access key. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
                       : "Your AWS IAM user secret access key"
                     : "Secret key for your S3-compatible storage"}
