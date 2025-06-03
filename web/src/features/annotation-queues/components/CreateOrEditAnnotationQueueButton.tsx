@@ -67,23 +67,20 @@ export const CreateOrEditAnnotationQueueButton = ({
     resolver: zodResolver(CreateQueueData),
   });
 
-  useEffect(() => {
-    if (queueId && queueQuery.data) {
-      form.reset({
-        name: queueQuery.data.name,
-        description: queueQuery.data.description || undefined,
-        scoreConfigIds: queueQuery.data.scoreConfigs.map(
-          (config: ValidatedScoreConfig) => config.id,
-        ),
-      });
-    } else {
-      form.reset({
-        name: "",
-        scoreConfigIds: [],
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queueId, queueQuery.data]);
+  if (queueId && queueQuery.data) {
+    form.reset({
+      name: queueQuery.data.name,
+      description: queueQuery.data.description || undefined,
+      scoreConfigIds: queueQuery.data.scoreConfigs.map(
+        (config: ValidatedScoreConfig) => config.id,
+      ),
+    });
+  } else {
+    form.reset({
+      name: "",
+      scoreConfigIds: [],
+    });
+  }
 
   const utils = api.useUtils();
 
