@@ -115,7 +115,7 @@ export const entitlementAccess: Record<
   oss: {
     entitlements: selfHostedAllPlansEntitlements,
     entitlementLimits: {
-      "annotation-queue-count": 0,
+      "annotation-queue-count": false,
       "organization-member-count": false,
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
