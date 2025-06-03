@@ -7,6 +7,7 @@ settings:
 overrides:
   nanoid: ^3.3.8
   katex: ^0.16.21
+  tar-fs: ^2.1.2
 
 patchedDependencies:
   next-auth@4.24.11:
@@ -11212,8 +11213,8 @@ packages:
     resolution: {integrity: sha512-GNzQvQTOIP6RyTfE2Qxb8ZVlNmw0n88vp1szwWRimP02mnTsx3Wtn5qRdqY9w2XduFNUgvOwhNnQsjwCp+kqaQ==}
     engines: {node: '>=6'}
 
-  tar-fs@2.1.1:
-    resolution: {integrity: sha512-V0r2Y9scmbDRLCNex/+hYzvp/zyYjvFbHPNgVTKfQvVrb6guiE/fxP+XblDNR011utopbkex2nM4dHNV6GDsng==}
+  tar-fs@2.1.3:
+    resolution: {integrity: sha512-090nwYJDmlhwFwEW3QQl+vaNnxsO2yVsd45eTKRBzSzu+hlb1w2K9inVq5b0ngXuLVqQ4ApvsUHHnu/zQNkWAg==}
 
   tar-stream@2.2.0:
     resolution: {integrity: sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==}
@@ -15941,7 +15942,7 @@ snapshots:
       https-proxy-agent: 5.0.1
       progress: 2.0.3
       proxy-from-env: 1.1.0
-      tar-fs: 2.1.1
+      tar-fs: 2.1.3
       unbzip2-stream: 1.4.3
       yargs: 17.7.1
     optionalDependencies:
@@ -23996,7 +23997,7 @@ snapshots:
       extract-zip: 2.0.1
       https-proxy-agent: 5.0.1
       proxy-from-env: 1.1.0
-      tar-fs: 2.1.1
+      tar-fs: 2.1.3
       unbzip2-stream: 1.4.3
       ws: 8.13.0
     optionalDependencies:
@@ -25078,7 +25079,7 @@ snapshots:
 
   tapable@2.2.1: {}
 
-  tar-fs@2.1.1:
+  tar-fs@2.1.3:
     dependencies:
       chownr: 1.1.4
       mkdirp-classic: 0.5.3
