@@ -180,7 +180,7 @@ export function DataTableToolbar<TData, TValue>({
                   <Button
                     variant="outline"
                     size="default"
-                    className="flex w-48 items-center justify-between gap-1 rounded-l-none border-l-0"
+                    className="w-30 flex items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
                     <span className="flex items-center gap-1 truncate">
                       {searchConfig.tableAllowsFullTextSearch &&
