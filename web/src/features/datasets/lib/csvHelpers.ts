@@ -57,7 +57,7 @@ function detectDelimiter(sample: string): string {
     const columnCounts = lines
       .filter((line) => line.trim().length > 0)
       .map((line) => {
-        return line.split(delimiter).length;
+        return countColumnsWithQuotes(line, delimiter);
       });
 
     if (columnCounts.length === 0) continue;
@@ -83,6 +83,33 @@ function detectDelimiter(sample: string): string {
   }
 
   return bestDelimiter;
+}
+
+// Helper function to count columns while respecting quoted fields
+function countColumnsWithQuotes(line: string, delimiter: string): number {
+  let columnCount = 1;
+  let inQuotes = false;
+  let quoteChar = "";
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (!inQuotes && (char === '"' || char === "'")) {
+      inQuotes = true;
+      quoteChar = char;
+    } else if (inQuotes && char === quoteChar) {
+      if (i + 1 < line.length && line[i + 1] === quoteChar) {
+        i++;
+      } else {
+        inQuotes = false;
+        quoteChar = "";
+      }
+    } else if (!inQuotes && char === delimiter) {
+      columnCount++;
+    }
+  }
+
+  return columnCount;
 }
 
 // Shared parser configuration
