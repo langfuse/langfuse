@@ -244,7 +244,7 @@ function UpdateButton({
             loading={isLoading}
             onClick={() => {
               if (confirmationInput !== CONFIRMATION) {
-                alert("Please type the correct confirmation");
+                confirm("Please type the correct confirmation");
                 return;
               }
               executeUpsertMutation();
