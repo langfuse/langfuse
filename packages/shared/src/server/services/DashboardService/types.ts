@@ -42,6 +42,7 @@ export const DimensionSchema = z.object({
 export const MetricSchema = z.object({
   measure: z.string(),
   agg: z.string(),
+  histogramBins: z.number().int().min(1).max(100).optional(),
 });
 
 // Define chart config schema based on chart type

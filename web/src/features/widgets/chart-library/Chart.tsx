@@ -60,7 +60,10 @@ export const Chart = ({
         const value =
           renderedData.length === 1
             ? renderedData[0].metric
-            : renderedData.reduce((acc, d) => acc + (d.metric || 0), 0);
+            : renderedData.reduce(
+                (acc, d) => acc + ((d.metric as number) || 0),
+                0,
+              );
         return <BigNumber metric={value} />;
       }
       default:

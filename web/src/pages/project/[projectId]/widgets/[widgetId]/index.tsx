@@ -107,6 +107,7 @@ export default function EditWidget() {
             filters: widgetData.filters,
             chartType: widgetData.chartType,
             chartConfig: widgetData.chartConfig,
+            histogramBins: widgetData.metrics.slice().shift()?.histogramBins,
           }}
         />
       ) : (

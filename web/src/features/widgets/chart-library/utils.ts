@@ -15,7 +15,7 @@ export const groupDataByTimeDimension = (data: DataPoint[]) => {
       }
 
       const dimension = item.dimension || "Unknown";
-      acc[time][dimension] = item.metric;
+      acc[time][dimension] = item.metric as number;
 
       return acc;
     },

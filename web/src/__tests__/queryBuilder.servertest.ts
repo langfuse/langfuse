@@ -3455,6 +3455,7 @@ describe("queryBuilder", () => {
 
         // Verify histogram tuple structure and cost ranges
         histogramData.forEach((bin: [number, number, number]) => {
+          expect(Array.isArray(bin)).toBe(true);
           expect(bin).toHaveLength(3);
           const [lower, upper, height] = bin;
           expect(typeof lower).toBe("number");
