@@ -859,6 +859,149 @@ describe("OTel Resource Span Mapping", () => {
       );
       expect(parsedEvents).toHaveLength(2);
     });
+
+    it("LFE-5171: should convert a Semantic Kernel 1.55+ OTel Span with new event-based semantic conventions to Langfuse Events", () => {
+      // Setup - Semantic Kernel 1.55+ uses new event names instead of deprecated gen_ai.content.prompt/completion
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "Microsoft.SemanticKernel" },
+            spans: [
+              {
+                traceId: {
+                  type: "Buffer",
+                  data: [
+                    234, 103, 55, 8, 68, 28, 41, 132, 165, 74, 62, 57, 98, 211,
+                    89, 95,
+                  ],
+                },
+                spanId: {
+                  type: "Buffer",
+                  data: [185, 4, 191, 251, 32, 190, 109, 126],
+                },
+                name: "chat_completion",
+                kind: 3,
+                startTimeUnixNano: {
+                  low: 153687506,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 1327836088,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.response.model",
+                    value: { stringValue: "gpt-4-0613" },
+                  },
+                ],
+                events: [
+                  {
+                    timeUnixNano: {
+                      low: 1327691067,
+                      high: 404677085,
+                      unsigned: true,
+                    },
+                    name: "gen_ai.system.message",
+                    attributes: [
+                      {
+                        key: "content",
+                        value: {
+                          stringValue: "You are a helpful assistant.",
+                        },
+                      },
+                    ],
+                  },
+                  {
+                    timeUnixNano: {
+                      low: 1327691068,
+                      high: 404677085,
+                      unsigned: true,
+                    },
+                    name: "gen_ai.user.message",
+                    attributes: [
+                      {
+                        key: "content",
+                        value: {
+                          stringValue: "What is the capital of France?",
+                        },
+                      },
+                    ],
+                  },
+                  {
+                    timeUnixNano: {
+                      low: 1327737136,
+                      high: 404677085,
+                      unsigned: true,
+                    },
+                    name: "gen_ai.choice",
+                    attributes: [
+                      {
+                        key: "index",
+                        value: {
+                          intValue: { low: 0, high: 0, unsigned: false },
+                        },
+                      },
+                      {
+                        key: "finish_reason",
+                        value: { stringValue: "stop" },
+                      },
+                      {
+                        key: "message",
+                        value: {
+                          stringValue: JSON.stringify({
+                            role: "assistant",
+                            content: "The capital of France is Paris.",
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                ],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+      // Then
+      // Will throw an error if the parsing fails
+      const parsedEvents = langfuseEvents.map((event) =>
+        ingestionEvent.parse(event),
+      );
+      expect(parsedEvents).toHaveLength(2);
+
+      // Check that input contains both system and user messages
+      const observationEvent = parsedEvents.find(
+        (event) => event.type === "generation-create",
+      );
+      expect(observationEvent?.body.input).toEqual([
+        {
+          role: "system",
+          content: "You are a helpful assistant.",
+        },
+        {
+          role: "user",
+          content: "What is the capital of France?",
+        },
+      ]);
+
+      // Check that output contains the choice
+      expect(observationEvent?.body.output).toEqual({
+        index: 0,
+        finish_reason: "stop",
+        message: JSON.stringify({
+          role: "assistant",
+          content: "The capital of France is Paris.",
+        }),
+      });
+    });
   });
 
   describe("Property Mapping", () => {
@@ -1699,6 +1842,180 @@ describe("OTel Resource Span Mapping", () => {
             "gen_ai.something_else":
               "assistant: LLM Observability stands for logs, metrics, and traces observability.",
           },
+        },
+      ],
+      // Semantic Kernel 1.55+ new event-based semantic conventions
+      [
+        "should extract input from gen_ai.system.message event",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.system.message",
+          otelEventAttributeKey: "content",
+          otelEventAttributeValue: {
+            stringValue: "You are a helpful assistant.",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            {
+              role: "system",
+              content: "You are a helpful assistant.",
+            },
+          ],
+        },
+      ],
+      [
+        "should extract input from gen_ai.user.message event",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.user.message",
+          otelEventAttributeKey: "content",
+          otelEventAttributeValue: {
+            stringValue: "What is the capital of France?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            {
+              role: "user",
+              content: "What is the capital of France?",
+            },
+          ],
+        },
+      ],
+      [
+        "should extract input from gen_ai.assistant.message event with tool_calls",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.assistant.message",
+          otelEventAttributeKey: "tool_calls",
+          otelEventAttributeValue: {
+            stringValue: JSON.stringify([{
+              id: "call_123",
+              type: "function",
+              function: {
+                name: "get_weather",
+                arguments: '{"location": "Paris"}'
+              }
+            }]),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            {
+              role: "assistant",
+              tool_calls: JSON.stringify([{
+                id: "call_123",
+                type: "function",
+                function: {
+                  name: "get_weather",
+                  arguments: '{"location": "Paris"}'
+                }
+              }]),
+            },
+          ],
+        },
+      ],
+      [
+        "should extract input from gen_ai.tool.message event",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.tool.message",
+          otelEventAttributeKey: "content",
+          otelEventAttributeValue: {
+            stringValue: "Sunny, 22°C",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            {
+              role: "tool",
+              content: "Sunny, 22°C",
+            },
+          ],
+        },
+      ],
+      [
+        "should extract output from gen_ai.choice event",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.choice",
+          otelEventAttributeKey: "message",
+          otelEventAttributeValue: {
+            stringValue: JSON.stringify({
+              role: "assistant",
+              content: "The capital of France is Paris.",
+            }),
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: {
+            message: JSON.stringify({
+              role: "assistant",
+              content: "The capital of France is Paris.",
+            }),
+          },
+        },
+      ],
+      [
+        "should extract output from gen_ai.choice event with finish_reason",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.choice",
+          otelEventAttributeKey: "finish_reason",
+          otelEventAttributeValue: {
+            stringValue: "stop",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: {
+            finish_reason: "stop",
+          },
+        },
+      ],
+      [
+        "should extract input from gen_ai.tool.message event with id attribute",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.tool.message",
+          otelEventAttributeKey: "id",
+          otelEventAttributeValue: {
+            stringValue: "call_456",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            {
+              role: "tool",
+              id: "call_456",
+            },
+          ],
+        },
+      ],
+      [
+        "should extract output from gen_ai.choice event with index attribute",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.choice",
+          otelEventAttributeKey: "index",
+          otelEventAttributeValue: {
+            intValue: { low: 0, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: {
+            index: 0,
+          },
+        },
+      ],
+      [
+        "should extract input from gen_ai.assistant.message event with content",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.assistant.message",
+          otelEventAttributeKey: "content",
+          otelEventAttributeValue: {
+            stringValue: "I'll help you with that.",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            {
+              role: "assistant",
+              content: "I'll help you with that.",
+            },
+          ],
         },
       ],
     ])(
