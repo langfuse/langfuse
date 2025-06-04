@@ -567,7 +567,7 @@ model Dataset {
 }
 
 model DatasetItem {
-  id                  String            @default(cuid())
+  id                  String
   projectId           String            @map("project_id")
   status              DatasetStatus     @default(ACTIVE)
   input               Json?

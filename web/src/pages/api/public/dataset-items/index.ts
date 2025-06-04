@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { DatasetItemIdService } from "@/src/features/datasets/server/dataset-item-id-service";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -45,7 +46,9 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Dataset not found");
       }
 
-      const itemId = id ?? uuidv4();
+      const itemId =
+        id ??
+        (await DatasetItemIdService.generateFriendlyId(auth.scope.projectId));
 
       let item: DatasetItem;
       try {

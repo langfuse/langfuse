@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { DatasetItemIdService } from "@/src/features/datasets/server/dataset-item-id-service";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -653,21 +654,30 @@ export const datasetRouter = createTRPCRouter({
           description: dataset.description,
           projectId: input.projectId,
           metadata: dataset.metadata ?? undefined,
-          datasetItems: {
-            createMany: {
-              data: dataset.datasetItems.map((item) => ({
-                // the items get new ids as they need to be unique on project level
-                input: item.input ?? undefined,
-                expectedOutput: item.expectedOutput ?? undefined,
-                metadata: item.metadata ?? undefined,
-                sourceTraceId: item.sourceTraceId,
-                sourceObservationId: item.sourceObservationId,
-                status: item.status,
-              })),
-            },
-          },
         },
       });
+
+      // Generate friendly IDs for duplicated dataset items
+      const itemsWithIds = await Promise.all(
+        dataset.datasetItems.map(async (item) => ({
+          id: await DatasetItemIdService.generateFriendlyId(input.projectId), // Generate friendly ID
+          input: item.input ?? undefined,
+          expectedOutput: item.expectedOutput ?? undefined,
+          metadata: item.metadata ?? undefined,
+          sourceTraceId: item.sourceTraceId,
+          sourceObservationId: item.sourceObservationId,
+          status: item.status,
+          projectId: input.projectId,
+          datasetId: newDataset.id,
+        })),
+      );
+
+      // Create dataset items with explicit IDs
+      if (itemsWithIds.length > 0) {
+        await ctx.prisma.datasetItem.createMany({
+          data: itemsWithIds,
+        });
+      }
 
       await auditLog({
         session: ctx.session,
@@ -713,8 +723,14 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
+      // Generate friendly ID based on project name
+      const friendlyId = await DatasetItemIdService.generateFriendlyId(
+        input.projectId,
+      );
+
       const datasetItem = await ctx.prisma.datasetItem.create({
         data: {
+          id: friendlyId, // Use the generated friendly ID
           input: formatDatasetItemData(input.input),
           expectedOutput: formatDatasetItemData(input.expectedOutput),
           metadata: formatDatasetItemData(input.metadata),
@@ -775,17 +791,20 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      const itemsWithIds = input.items.map((item) => ({
-        id: createCuid(),
-        input: formatDatasetItemData(item.input),
-        expectedOutput: formatDatasetItemData(item.expectedOutput),
-        metadata: formatDatasetItemData(item.metadata),
-        datasetId: item.datasetId,
-        sourceTraceId: item.sourceTraceId,
-        sourceObservationId: item.sourceObservationId,
-        projectId: input.projectId,
-        status: DatasetStatus.ACTIVE,
-      }));
+      // Generate friendly IDs for all items
+      const itemsWithIds = await Promise.all(
+        input.items.map(async (item) => ({
+          id: await DatasetItemIdService.generateFriendlyId(input.projectId), // Use friendly ID
+          input: formatDatasetItemData(item.input),
+          expectedOutput: formatDatasetItemData(item.expectedOutput),
+          metadata: formatDatasetItemData(item.metadata),
+          datasetId: item.datasetId,
+          sourceTraceId: item.sourceTraceId,
+          sourceObservationId: item.sourceObservationId,
+          projectId: input.projectId,
+          status: DatasetStatus.ACTIVE,
+        })),
+      );
 
       await ctx.prisma.datasetItem.createMany({
         data: itemsWithIds,
