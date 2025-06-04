@@ -17,6 +17,13 @@ import { useState } from "react";
 import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
 import { Dialog } from "@/src/components/ui/dialog";
 import { Pencil } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { Label } from "@/src/components/ui/label";
+import { Input } from "@/src/components/ui/input";
 
 export default function DefaultEvaluationModelPage() {
   const router = useRouter();
@@ -48,7 +55,7 @@ export default function DefaultEvaluationModelPage() {
     setModelParams,
   );
 
-  const { mutate: upsertDefaultModel } =
+  const { mutate: upsertDefaultModel, isLoading } =
     api.defaultLlmModel.upsertDefaultModel.useMutation({
       onSuccess: () => {
         showSuccessToast({
@@ -59,6 +66,25 @@ export default function DefaultEvaluationModelPage() {
         utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
       },
     });
+
+  const executeUpsertMutation = () => {
+    try {
+      upsertDefaultModel({
+        projectId,
+        provider: modelParams.provider.value,
+        adapter: modelParams.adapter.value,
+        model: modelParams.model.value,
+        modelParams: {
+          max_tokens: modelParams.max_tokens.value,
+          temperature: modelParams.temperature.value,
+          top_p: modelParams.top_p.value,
+        },
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    setIsEditing(false);
+  };
 
   if (isDefaultModelLoading) {
     return <Skeleton className="h-[500px] w-full" />;
@@ -143,30 +169,91 @@ export default function DefaultEvaluationModelPage() {
                 <Button variant="outline" onClick={() => setIsEditing(false)}>
                   Cancel
                 </Button>
-                <Button
-                  disabled={!hasWriteAccess || !modelParams.provider.value}
-                  onClick={() => {
-                    upsertDefaultModel({
-                      projectId,
-                      provider: modelParams.provider.value,
-                      adapter: modelParams.adapter.value,
-                      model: modelParams.model.value,
-                      modelParams: {
-                        max_tokens: modelParams.max_tokens.value,
-                        temperature: modelParams.temperature.value,
-                        top_p: modelParams.top_p.value,
-                      },
-                    });
-                    setIsEditing(false);
-                  }}
-                >
-                  Save
-                </Button>
+                {selectedModel ? (
+                  <UpdateButton
+                    projectId={projectId}
+                    isLoading={isLoading}
+                    executeUpsertMutation={executeUpsertMutation}
+                  />
+                ) : (
+                  <Button
+                    disabled={!hasWriteAccess || !modelParams.provider.value}
+                    onClick={executeUpsertMutation}
+                  >
+                    Save
+                  </Button>
+                )}
               </div>
             </DialogContent>
           </Dialog>
         </div>
       </Page>
     </>
+  );
+}
+
+function UpdateButton({
+  projectId,
+  isLoading,
+  executeUpsertMutation,
+}: {
+  projectId: string;
+  isLoading: boolean;
+  executeUpsertMutation: () => void;
+}) {
+  const [confirmationInput, setConfirmationInput] = useState("");
+  const hasWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalDefaultModel:CUD",
+  });
+
+  const CONFIRMATION = "update";
+
+  return (
+    <Popover key="update-action">
+      <PopoverTrigger asChild>
+        <Button
+          disabled={!hasWriteAccess}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          Update
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <p className="mb-3 text-sm">
+          Updating the default model will impact any currently running
+          evaluators that use it. Please confirm that you want to proceed with
+          this change.
+        </p>
+        <div className="mb-4 grid w-full gap-1.5">
+          <Label htmlFor="update-confirmation">
+            Type &quot;{CONFIRMATION}&quot; to confirm
+          </Label>
+          <Input
+            id="update-confirmation"
+            value={confirmationInput}
+            onChange={(e) => setConfirmationInput(e.target.value)}
+          />
+        </div>
+        <div className="flex justify-end space-x-4">
+          <Button
+            type="button"
+            loading={isLoading}
+            onClick={() => {
+              if (confirmationInput !== CONFIRMATION) {
+                alert("Please type the correct confirmation");
+                return;
+              }
+              executeUpsertMutation();
+            }}
+          >
+            Confirm
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
