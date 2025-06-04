@@ -122,6 +122,16 @@ export const entitlementAccess: Record<
       "prompt-management-count-prompts": false,
     },
   },
+  "self-hosted:pro": {
+    entitlements: selfHostedAllPlansEntitlements,
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+    },
+  },
   "self-hosted:enterprise": {
     entitlements: [
       ...selfHostedAllPlansEntitlements,

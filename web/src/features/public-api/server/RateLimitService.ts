@@ -213,6 +213,7 @@ const getPlanBasedRateLimitConfig = (
 ): z.infer<typeof RateLimitConfig> => {
   switch (plan) {
     case "oss":
+    case "self-hosted:pro":
     case "self-hosted:enterprise":
       return {
         resource,
