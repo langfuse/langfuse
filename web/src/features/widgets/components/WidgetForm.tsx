@@ -99,17 +99,17 @@ const chartTypes: ChartType[] = [
   },
   {
     group: "total-value",
-    name: "Pie Chart",
-    value: "PIE",
-    icon: PieChart,
-    supportsBreakdown: true,
-  },
-  {
-    group: "total-value",
     name: "Histogram",
     value: "HISTOGRAM",
     icon: BarChart3,
     supportsBreakdown: false,
+  },
+  {
+    group: "total-value",
+    name: "Pie Chart",
+    value: "PIE",
+    icon: PieChart,
+    supportsBreakdown: true,
   },
 ];
 
@@ -128,7 +128,11 @@ export function WidgetForm({
     dimension: string;
     filters?: FilterState;
     chartType: DashboardWidgetChartType;
-    chartConfig?: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
+    chartConfig?: {
+      type: DashboardWidgetChartType;
+      row_limit?: number;
+      bins?: number;
+    };
   };
   projectId: string;
   onSave: (widgetData: {
@@ -139,7 +143,11 @@ export function WidgetForm({
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
+    chartConfig: {
+      type: DashboardWidgetChartType;
+      row_limit?: number;
+      bins?: number;
+    };
   }) => void;
   widgetId?: string;
 }) {
