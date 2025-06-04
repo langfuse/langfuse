@@ -146,7 +146,59 @@ const extractInputAndOutput = (
     return { input, output };
   }
 
-  // Openlit uses events property
+  const inputEvents = events.filter(
+    (event: Record<string, unknown>) =>
+      event.name === "gen_ai.system.message" ||
+      event.name === "gen_ai.user.message" ||
+      event.name === "gen_ai.assistant.message" ||
+      event.name === "gen_ai.tool.message",
+  );
+
+  const outputEvents = events.filter(
+    (event: Record<string, unknown>) => event.name === "gen_ai.choice",
+  );
+
+  if (inputEvents.length > 0 || outputEvents.length > 0) {
+    // Convert events to a structured format
+    const processedInput =
+      inputEvents.length > 0
+        ? inputEvents.map((event: any) => {
+            const eventAttributes =
+              event.attributes?.reduce((acc: any, attr: any) => {
+                acc[attr.key] = convertValueToPlainJavascript(attr.value);
+                return acc;
+              }, {}) ?? {};
+
+            return {
+              role: event.name.replace("gen_ai.", "").replace(".message", ""),
+              ...eventAttributes,
+            };
+          })
+        : null;
+
+    const processedOutput =
+      outputEvents.length > 0
+        ? outputEvents.map((event: any) => {
+            const eventAttributes =
+              event.attributes?.reduce((acc: any, attr: any) => {
+                acc[attr.key] = convertValueToPlainJavascript(attr.value);
+                return acc;
+              }, {}) ?? {};
+
+            return eventAttributes;
+          })
+        : null;
+
+    return {
+      input: processedInput,
+      output:
+        processedOutput && processedOutput.length === 1
+          ? processedOutput[0]
+          : processedOutput,
+    };
+  }
+
+  // Check legacy semantic kernel event definitions
   input = events.find(
     (event: Record<string, unknown>) => event.name === "gen_ai.content.prompt",
   )?.attributes;
