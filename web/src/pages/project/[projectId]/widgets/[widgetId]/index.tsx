@@ -58,7 +58,7 @@ export default function EditWidget() {
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number };
+    chartConfig: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
   }) => {
     if (!widgetId) return;
 
@@ -107,7 +107,6 @@ export default function EditWidget() {
             filters: widgetData.filters,
             chartType: widgetData.chartType,
             chartConfig: widgetData.chartConfig,
-            histogramBins: widgetData.metrics.slice().shift()?.histogramBins,
           }}
         />
       ) : (

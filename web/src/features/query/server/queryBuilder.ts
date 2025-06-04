@@ -27,10 +27,15 @@ type AppliedMetricType = {
   aggregation: z.infer<typeof metricAggregations>;
   alias?: string;
   relationTable?: string;
-  histogramBins?: number;
 };
 
 export class QueryBuilder {
+  private chartConfig?: { bins?: number; row_limit?: number };
+
+  constructor(chartConfig?: { bins?: number; row_limit?: number }) {
+    this.chartConfig = chartConfig;
+  }
+
   private translateAggregation(metric: AppliedMetricType): string {
     switch (metric.aggregation) {
       case "sum":
@@ -54,7 +59,9 @@ export class QueryBuilder {
       case "p99":
         return `quantile(0.99)(${metric.alias || metric.sql})`;
       case "histogram":
-        return `histogram(${metric.histogramBins ?? 10})(toFloat64(${metric.alias || metric.sql}))`;
+        // Get histogram bins from chart config, fallback to 10
+        const bins = this.chartConfig?.bins ?? 10;
+        return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
       default:
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const exhaustiveCheck: never = metric.aggregation;
@@ -94,7 +101,6 @@ export class QueryBuilder {
     metrics: Array<{
       measure: string;
       aggregation: z.infer<typeof metricAggregations>;
-      histogramBins?: number;
     }>,
     view: ViewDeclarationType,
   ): AppliedMetricType[] {
@@ -107,7 +113,6 @@ export class QueryBuilder {
       return {
         ...view.measures[metric.measure],
         aggregation: metric.aggregation,
-        histogramBins: metric.histogramBins,
       };
     });
   }

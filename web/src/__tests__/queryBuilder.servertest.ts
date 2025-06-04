@@ -3405,7 +3405,6 @@ describe("queryBuilder", () => {
             {
               measure: "totalCost",
               aggregation: "histogram",
-              histogramBins: 20, // Custom bin count
             },
           ],
           filters: [
@@ -3424,10 +3423,11 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
+          chartConfig: { type: "HISTOGRAM", bins: 20 }, // Custom bin count
         };
 
         // Execute histogram query with custom bins
-        const queryBuilder = new QueryBuilder();
+        const queryBuilder = new QueryBuilder(customBinHistogramQuery.chartConfig);
         const { query: compiledQuery, parameters } = queryBuilder.build(
           customBinHistogramQuery,
           projectId,

@@ -128,8 +128,7 @@ export function WidgetForm({
     dimension: string;
     filters?: FilterState;
     chartType: DashboardWidgetChartType;
-    chartConfig?: { type: DashboardWidgetChartType; row_limit?: number };
-    histogramBins?: number;
+    chartConfig?: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
   };
   projectId: string;
   onSave: (widgetData: {
@@ -137,10 +136,10 @@ export function WidgetForm({
     description: string;
     view: string;
     dimensions: { field: string }[];
-    metrics: { measure: string; agg: string; histogramBins?: number }[];
+    metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number };
+    chartConfig: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
   }) => void;
   widgetId?: string;
 }) {
@@ -176,7 +175,7 @@ export function WidgetForm({
     initialValues.chartConfig?.row_limit ?? 100,
   );
   const [histogramBins, setHistogramBins] = useState<number>(
-    initialValues.histogramBins ?? 10,
+    initialValues.chartConfig?.bins ?? 10,
   );
 
   // Filter state
@@ -375,7 +374,6 @@ export function WidgetForm({
         {
           measure: selectedMeasure,
           aggregation: selectedAggregation,
-          ...(selectedAggregation === "histogram" && { histogramBins }),
         },
       ],
       filters: [...mapLegacyUiTableFilterToView(selectedView, userFilterState)],
@@ -387,6 +385,10 @@ export function WidgetForm({
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
       orderBy: null,
+      chartConfig:
+        selectedChartType === "HISTOGRAM"
+          ? { type: selectedChartType, bins: histogramBins }
+          : { type: selectedChartType },
     };
   }, [
     selectedView,
@@ -460,7 +462,6 @@ export function WidgetForm({
         {
           measure: selectedMeasure,
           agg: selectedAggregation,
-          ...(selectedAggregation === "histogram" && { histogramBins }),
         },
       ],
       filters: mapLegacyUiTableFilterToView(selectedView, userFilterState),
@@ -469,10 +470,15 @@ export function WidgetForm({
         selectedChartType as DashboardWidgetChartType,
       )
         ? { type: selectedChartType as DashboardWidgetChartType }
-        : {
-            type: selectedChartType as DashboardWidgetChartType,
-            row_limit: rowLimit,
-          },
+        : selectedChartType === "HISTOGRAM"
+          ? {
+              type: selectedChartType as DashboardWidgetChartType,
+              bins: histogramBins,
+            }
+          : {
+              type: selectedChartType as DashboardWidgetChartType,
+              row_limit: rowLimit,
+            },
     });
   };
 

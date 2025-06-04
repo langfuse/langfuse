@@ -75,8 +75,6 @@ export const metricAggregations = z.enum([
 export const metric = z.object({
   measure: z.string(),
   aggregation: metricAggregations,
-  // Optional parameters for histogram aggregation
-  histogramBins: z.number().int().min(1).max(100).optional(),
 });
 
 export const granularities = z.enum([
@@ -113,6 +111,14 @@ export const query = z
         }),
       )
       .nullable(),
+    // Chart configuration for chart-specific settings like histogram bins
+    chartConfig: z
+      .object({
+        type: z.string(),
+        bins: z.number().int().min(1).max(100).optional(),
+        row_limit: z.number().int().positive().lte(1000).optional(),
+      })
+      .optional(),
   })
   .refine(
     (query) =>

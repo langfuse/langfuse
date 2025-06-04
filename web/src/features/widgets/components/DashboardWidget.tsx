@@ -77,7 +77,6 @@ export function DashboardWidget({
           widget.data?.metrics.map((metric) => ({
             measure: metric.measure,
             aggregation: metric.agg as z.infer<typeof metricAggregations>,
-            ...(metric.histogramBins && { histogramBins: metric.histogramBins }),
           })) ?? [],
         filters: [
           ...(widget.data?.filters ?? []),
@@ -94,6 +93,7 @@ export function DashboardWidget({
         fromTimestamp: fromTimestamp.toISOString(),
         toTimestamp: toTimestamp.toISOString(),
         orderBy: null,
+        chartConfig: widget.data?.chartConfig,
       },
     },
     {
