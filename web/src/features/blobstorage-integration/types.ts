@@ -9,11 +9,8 @@ export const blobStorageIntegrationFormSchema = z.object({
   bucketName: z.string().min(1, { message: "Bucket name is required" }),
   endpoint: z.string().url().optional().nullable(),
   region: z.string().default("auto"),
-  accessKeyId: z.string().min(1, { message: "Access key ID is required" }),
-  secretAccessKey: z
-    .string()
-    .min(1, { message: "Secret access key is required" })
-    .nullable(), // Only required on create
+  accessKeyId: z.string().optional(),
+  secretAccessKey: z.string().nullable().optional(),
   prefix: z
     .string()
     .refine((value) => !value || value === "" || value.endsWith("/"), {

@@ -27,15 +27,14 @@ import {
   expect,
   test,
 } from "vitest";
+import { compileHandlebarString } from "../features/utilities";
+import { OpenAIServer } from "./network";
+import { pruneDatabase } from "./utils";
 import {
   createEvalJobs,
   evaluate,
   extractVariablesFromTracingData,
-} from "../ee/evaluation/evalService";
-import { compileHandlebarString } from "../features/utilities";
-import { OpenAIServer } from "./network";
-import { pruneDatabase } from "./utils";
-
+} from "../features/evaluation/evalService";
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
 if (!hasActiveKey) {

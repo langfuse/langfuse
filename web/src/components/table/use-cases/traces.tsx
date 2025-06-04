@@ -428,7 +428,6 @@ export default function TracesTable({
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
-        entitlement: "annotation-queues",
       },
     },
   ];
@@ -1077,7 +1076,7 @@ export default function TracesTable({
           }}
           filterColumnDefinition={transformedFilterOptions}
           searchConfig={{
-            metadataSearchFields: ["ID", "Name", "Trace Name", "User ID"],
+            metadataSearchFields: ["ID", "Trace Name", "User ID"],
             updateQuery: setSearchQuery,
             currentQuery: searchQuery ?? undefined,
             tableAllowsFullTextSearch: true,

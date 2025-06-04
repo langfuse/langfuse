@@ -6550,6 +6550,7 @@ components:
           description: Metadata for the project
         retentionDays:
           type: integer
+          nullable: true
           description: >-
             Number of days to retain data. Null or 0 means no retention. Omitted
             if no retention is configured.
@@ -6557,7 +6558,6 @@ components:
         - id
         - name
         - metadata
-        - retentionDays
     ProjectDeletionResponse:
       title: ProjectDeletionResponse
       type: object

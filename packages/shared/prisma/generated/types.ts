@@ -228,8 +228,8 @@ export type BlobStorageIntegration = {
     type: BlobStorageIntegrationType;
     bucket_name: string;
     prefix: string;
-    access_key_id: string;
-    secret_access_key: string;
+    access_key_id: string | null;
+    secret_access_key: string | null;
     region: string;
     endpoint: string | null;
     force_path_style: boolean;

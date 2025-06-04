@@ -180,13 +180,13 @@ export function DataTableToolbar<TData, TValue>({
                   <Button
                     variant="outline"
                     size="default"
-                    className="flex w-auto items-center justify-between gap-1 rounded-l-none border-l-0"
+                    className="w-30 flex items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1 truncate">
                       {searchConfig.tableAllowsFullTextSearch &&
                       (searchConfig.searchType ?? []).includes("content")
-                        ? "Metadata + Full Text"
-                        : "Metadata"}
+                        ? "Full Text"
+                        : "IDs / Names"}
                       <DocPopup
                         description={
                           <>
@@ -242,13 +242,13 @@ export function DataTableToolbar<TData, TValue>({
                     }}
                   >
                     <DropdownMenuRadioItem value="metadata">
-                      Metadata
+                      IDs / Names
                     </DropdownMenuRadioItem>
                     <DropdownMenuRadioItem
                       value="metadata_fulltext"
                       disabled={!searchConfig.tableAllowsFullTextSearch}
                     >
-                      Metadata + Full Text
+                      Full Text
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
