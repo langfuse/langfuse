@@ -2,7 +2,6 @@ import React from "react";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
-import { getUniqueDimensions } from "@/src/features/widgets/chart-library/utils";
 
 interface HistogramDataPoint {
   binLabel: string;
@@ -22,13 +21,13 @@ const HistogramChart = ({ data }: { data: DataPoint[] }) => {
     if (firstDataPoint?.metric && Array.isArray(firstDataPoint.metric)) {
       // ClickHouse histogram format: [(lower, upper, height), ...]
       return (firstDataPoint.metric as [number, number, number][]).map(
-        ([lower, upper, height], index) => ({
+        ([lower, upper, height]) => ({
           binLabel: `[${lower.toFixed(2)}, ${upper.toFixed(2)}]`,
           count: height,
           lower,
           upper,
           height,
-        })
+        }),
       );
     }
 
@@ -40,7 +39,6 @@ const HistogramChart = ({ data }: { data: DataPoint[] }) => {
   };
 
   const histogramData = transformHistogramData(data);
-  const dimensions = getUniqueDimensions(data);
 
   // Chart configuration
   const config = {
@@ -61,7 +59,10 @@ const HistogramChart = ({ data }: { data: DataPoint[] }) => {
   return (
     <ChartContainer config={config}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={histogramData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+        <BarChart
+          data={histogramData}
+          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+        >
           <XAxis
             dataKey="binLabel"
             stroke="hsl(var(--chart-grid))"
