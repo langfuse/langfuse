@@ -27,11 +27,13 @@ type AppliedMetricType = {
   aggregation: z.infer<typeof metricAggregations>;
   alias?: string;
   relationTable?: string;
+  histogramBins?: number;
 };
 
 export class QueryBuilder {
   private translateAggregation(
     aggregation: z.infer<typeof metricAggregations>,
+    histogramBins?: number,
   ): string {
     switch (aggregation) {
       case "sum":
@@ -54,6 +56,9 @@ export class QueryBuilder {
         return "quantile(0.95)";
       case "p99":
         return "quantile(0.99)";
+      case "histogram":
+        const bins = histogramBins ?? 10; // Default to 10 bins
+        return `histogram(${bins})`;
       default:
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const exhaustiveCheck: never = aggregation;
@@ -91,6 +96,7 @@ export class QueryBuilder {
     metrics: Array<{
       measure: string;
       aggregation: z.infer<typeof metricAggregations>;
+      histogramBins?: number;
     }>,
     view: ViewDeclarationType,
   ): AppliedMetricType[] {
@@ -103,6 +109,7 @@ export class QueryBuilder {
       return {
         ...view.measures[metric.measure],
         aggregation: metric.aggregation,
+        histogramBins: metric.histogramBins,
       };
     });
   }
@@ -491,7 +498,7 @@ export class QueryBuilder {
 
   private buildOuterMetricsPart(appliedMetrics: AppliedMetricType[]) {
     return appliedMetrics.length > 0
-      ? `${appliedMetrics.map((metric) => `${this.translateAggregation(metric.aggregation)}(${metric.alias || metric.sql}) as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}`
+      ? `${appliedMetrics.map((metric) => `${this.translateAggregation(metric.aggregation, metric.histogramBins)}(${metric.alias || metric.sql}) as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}`
       : "count(*) as count";
   }
 

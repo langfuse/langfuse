@@ -69,11 +69,14 @@ export const metricAggregations = z.enum([
   "p90",
   "p95",
   "p99",
+  "histogram",
 ]);
 
 export const metric = z.object({
   measure: z.string(),
   aggregation: metricAggregations,
+  // Optional parameters for histogram aggregation
+  histogramBins: z.number().int().min(1).max(100).optional(),
 });
 
 export const granularities = z.enum([

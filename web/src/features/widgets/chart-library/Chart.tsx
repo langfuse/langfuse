@@ -6,6 +6,7 @@ import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/Ver
 import HorizontalBarChart from "@/src/features/widgets/chart-library/HorizontalBarChart";
 import VerticalBarChart from "@/src/features/widgets/chart-library/VerticalBarChart";
 import PieChart from "@/src/features/widgets/chart-library/PieChart";
+import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
@@ -52,6 +53,8 @@ export const Chart = ({
         return <VerticalBarChart data={renderedData.slice(0, rowLimit)} />;
       case "PIE":
         return <PieChart data={renderedData.slice(0, rowLimit)} />;
+      case "HISTOGRAM":
+        return <HistogramChart data={renderedData} />;
       case "NUMBER": {
         // Show the sum of all metrics, or just the first metric if only one
         const value =

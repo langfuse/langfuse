@@ -46,6 +46,7 @@ import {
   LineChart,
   BarChartHorizontal,
   Hash,
+  BarChart3,
 } from "lucide-react";
 import {
   buildWidgetName,
@@ -102,6 +103,13 @@ const chartTypes: ChartType[] = [
     value: "PIE",
     icon: PieChart,
     supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Histogram",
+    value: "HISTOGRAM",
+    icon: BarChart3,
+    supportsBreakdown: false,
   },
 ];
 

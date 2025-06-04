@@ -49,6 +49,8 @@ export const isTimeSeriesChart = (
     case "HORIZONTAL_BAR":
     case "VERTICAL_BAR":
     case "PIE":
+    case "HISTOGRAM":
+    case "NUMBER":
       return false;
     default:
       return false;

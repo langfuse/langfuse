@@ -110,7 +110,8 @@ export const DashboardWidgetChartType = {
     HORIZONTAL_BAR: "HORIZONTAL_BAR",
     VERTICAL_BAR: "VERTICAL_BAR",
     PIE: "PIE",
-    NUMBER: "NUMBER"
+    NUMBER: "NUMBER",
+    HISTOGRAM: "HISTOGRAM"
 } as const;
 export type DashboardWidgetChartType = (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
 export type Account = {
