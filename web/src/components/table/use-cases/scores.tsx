@@ -23,7 +23,6 @@ import {
   type FilterState,
   type ScoreDataType,
   BatchExportTableName,
-  BatchTableNames,
   BatchActionType,
   TableViewPresetTableName,
 } from "@langfuse/shared";
@@ -120,7 +119,7 @@ export default function ScoresTable({
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
-    BatchTableNames.Scores,
+    "scores",
     projectId,
   );
 

@@ -29,7 +29,6 @@ import {
   tracesTableColsWithOptions,
   type ObservationLevelType,
   BatchExportTableName,
-  BatchTableNames,
   AnnotationQueueObjectType,
   BatchActionType,
   TableViewPresetTableName,
@@ -154,7 +153,7 @@ export default function TracesTable({
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
-    BatchTableNames.Traces,
+    "traces",
     projectId,
   );
 
