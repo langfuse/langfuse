@@ -13,7 +13,6 @@ import {
   type FilterState,
   type ObservationOptions,
   BatchExportTableName,
-  BatchTableNames,
   type ObservationType,
   TableViewPresetTableName,
 } from "@langfuse/shared";
@@ -143,7 +142,7 @@ export default function ObservationsTable({
           },
         ]
       : [],
-    BatchTableNames.Observations,
+    "generations",
     projectId,
   );
 
