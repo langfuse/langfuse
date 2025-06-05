@@ -235,7 +235,7 @@ export function CreateLLMApiKeyForm({
         : undefined;
 
     const newKey = {
-      id: existingKey?.id ?? undefined,
+      id: existingKey?.id ?? "",
       projectId,
       secretKey: secretKey ?? "",
       provider: values.provider,
@@ -266,17 +266,15 @@ export function CreateLLMApiKeyForm({
       return;
     }
 
-    return mode === "create"
-      ? mutCreateLlmApiKey
-      : mutUpdateLlmApiKey
-          .mutateAsync(newKey)
-          .then(() => {
-            form.reset();
-            onSuccess();
-          })
-          .catch((error) => {
-            console.error(error);
-          });
+    return (mode === "create" ? mutCreateLlmApiKey : mutUpdateLlmApiKey)
+      .mutateAsync(newKey)
+      .then(() => {
+        form.reset();
+        onSuccess();
+      })
+      .catch((error) => {
+        console.error(error);
+      });
   }
 
   return (
