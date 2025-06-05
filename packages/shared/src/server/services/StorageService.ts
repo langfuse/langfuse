@@ -403,6 +403,7 @@ class S3StorageService implements StorageService {
         httpsAgent: {
           maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
         },
+        requestTimeout: env.LANGFUSE_S3_REQUEST_TIMEOUT,
       },
     });
 
@@ -419,6 +420,7 @@ class S3StorageService implements StorageService {
             httpsAgent: {
               maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
             },
+            requestTimeout: env.LANGFUSE_S3_REQUEST_TIMEOUT,
           },
         })
       : this.client;
