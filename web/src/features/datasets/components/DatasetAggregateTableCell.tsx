@@ -189,7 +189,7 @@ const DatasetAggregateCell = ({
               </DialogTrigger>
 
               <DialogContent
-                className="max-w-screen-xl"
+                size="xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 <DialogHeader>
@@ -216,7 +216,7 @@ const DatasetAggregateCell = ({
                   </div>
                 </DialogBody>
 
-                <DialogFooter className="flex flex-row">
+                <DialogFooter className="static mt-auto">
                   <Button
                     onClick={() => {
                       setIsOpen(false);
