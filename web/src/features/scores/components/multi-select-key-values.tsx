@@ -53,6 +53,7 @@ type MultiSelectKeyValuesProps<
   iconLeft?: React.ReactNode;
   iconRight?: React.ReactNode;
   variant?: "outline" | "secondary" | "ghost";
+  showSelectedValueStrings?: boolean;
 };
 
 export function MultiSelectKeyValues<
@@ -73,6 +74,7 @@ export function MultiSelectKeyValues<
   iconLeft,
   iconRight,
   variant = "secondary",
+  showSelectedValueStrings = true,
 }: MultiSelectKeyValuesProps<T>) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -192,12 +194,12 @@ export function MultiSelectKeyValues<
                 {selectedValueKeys.size}
               </Badge>
               <div className="hidden space-x-1 overflow-x-auto lg:flex">
-                {selectedValueKeys.size > 2 ? (
+                {selectedValueKeys.size > 2 || !showSelectedValueStrings ? (
                   <Badge
                     variant="secondary"
                     className="rounded-sm px-1 font-normal"
                   >
-                    {selectedValueKeys.size} selected
+                    {selectedValueKeys.size}
                   </Badge>
                 ) : (
                   options
