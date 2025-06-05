@@ -51,6 +51,7 @@ const projectScopes = [
 
   "llmApiKeys:read",
   "llmApiKeys:create",
+  "llmApiKeys:update",
   "llmApiKeys:delete",
 
   "llmSchemas:CUD",
@@ -105,6 +106,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalDefaultModel:read",
     "llmApiKeys:read",
     "llmApiKeys:create",
+    "llmApiKeys:update",
     "llmApiKeys:delete",
     "llmSchemas:CUD",
     "llmSchemas:read",
@@ -153,6 +155,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalDefaultModel:read",
     "llmApiKeys:read",
     "llmApiKeys:create",
+    "llmApiKeys:update",
     "llmApiKeys:delete",
     "llmSchemas:CUD",
     "llmSchemas:read",

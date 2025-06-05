@@ -125,4 +125,75 @@ describe("llmApiKey.all RPC", () => {
     // response must not contain the secret key itself
     expect(llmApiKeys[0]).not.toHaveProperty("secretKey");
   });
+
+  it("should create and update an llm api key", async () => {
+    const secret = "test-secret";
+    const provider = "openai";
+    const adapter = LLMAdapter.OpenAI;
+    const customModels = ["fancy-gpt-3.5-turbo"];
+    const baseURL = "https://custom.openai.com/v1";
+    const withDefaultModels = false;
+
+    // Create initial key
+    const createdKey = await caller.llmApiKey.create({
+      projectId,
+      secretKey: secret,
+      provider,
+      adapter,
+      baseURL,
+      customModels,
+      withDefaultModels,
+    });
+
+    // Verify initial key
+    const initialKeys = await prisma.llmApiKeys.findMany({
+      where: {
+        projectId,
+      },
+    });
+
+    expect(initialKeys.length).toBe(1);
+    expect(initialKeys[0].projectId).toBe(projectId);
+    expect(initialKeys[0].secretKey).not.toBeNull();
+    expect(initialKeys[0].secretKey).not.toEqual(secret);
+    expect(initialKeys[0].provider).toBe(provider);
+    expect(initialKeys[0].adapter).toBe(adapter);
+    expect(initialKeys[0].baseURL).toBe(baseURL);
+    expect(initialKeys[0].customModels).toEqual(customModels);
+    expect(initialKeys[0].withDefaultModels).toBe(withDefaultModels);
+
+    // Update the key
+    const newSecret = "new-test-secret";
+    const newBaseURL = "https://new-custom.openai.com/v1";
+    const newCustomModels = ["new-fancy-gpt-3.5-turbo"];
+    const newWithDefaultModels = true;
+
+    await caller.llmApiKey.update({
+      id: initialKeys[0].id,
+      projectId,
+      secretKey: newSecret,
+      provider,
+      adapter,
+      baseURL: newBaseURL,
+      customModels: newCustomModels,
+      withDefaultModels: newWithDefaultModels,
+    });
+
+    // Verify updated key
+    const updatedKeys = await prisma.llmApiKeys.findMany({
+      where: {
+        projectId,
+      },
+    });
+
+    expect(updatedKeys.length).toBe(1);
+    expect(updatedKeys[0].projectId).toBe(projectId);
+    expect(updatedKeys[0].secretKey).not.toBeNull();
+    expect(updatedKeys[0].secretKey).not.toEqual(newSecret);
+    expect(updatedKeys[0].provider).toBe(provider); // Should not change
+    expect(updatedKeys[0].adapter).toBe(adapter); // Should not change
+    expect(updatedKeys[0].baseURL).toBe(newBaseURL);
+    expect(updatedKeys[0].customModels).toEqual(newCustomModels);
+    expect(updatedKeys[0].withDefaultModels).toBe(newWithDefaultModels);
+  });
 });

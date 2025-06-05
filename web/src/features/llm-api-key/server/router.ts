@@ -266,4 +266,74 @@ export const llmApiKeyRouter = createTRPCRouter({
         };
       }
     }),
+
+  update: protectedProjectProcedureWithoutTracing
+    .input(CreateLlmApiKey.extend({
+      id: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "llmApiKeys:update",
+        });
+
+        // Get existing key to verify provider and adapter
+        const existingKey = await ctx.prisma.llmApiKeys.findUnique({
+          where: { id: input.id },
+        });
+
+        if (!existingKey) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "API key not found",
+          });
+        }
+
+        // Ensure provider and adapter cannot be changed
+        if (input.provider !== existingKey.provider || input.adapter !== existingKey.adapter) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Provider and adapter cannot be changed",
+          });
+        }
+
+        const updateData: any = {
+          baseURL: input.baseURL,
+          withDefaultModels: input.withDefaultModels,
+          customModels: input.customModels,
+          config: input.config,
+        };
+
+        // Only update secret key if provided
+        if (input.secretKey) {
+          updateData.secretKey = encrypt(input.secretKey);
+          updateData.displaySecretKey = getDisplaySecretKey(input.secretKey);
+        }
+
+        // Only update extra headers if provided
+        if (input.extraHeaders) {
+          updateData.extraHeaders = encrypt(JSON.stringify(input.extraHeaders));
+          updateData.extraHeaderKeys = Object.keys(input.extraHeaders);
+        }
+
+        const key = await ctx.prisma.llmApiKeys.update({
+          where: { id: input.id },
+          data: updateData,
+        });
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "llmApiKey",
+          resourceId: key.id,
+          action: "update",
+        });
+
+        return key;
+      } catch (e) {
+        logger.error(e);
+        throw e;
+      }
+    }),
 });
