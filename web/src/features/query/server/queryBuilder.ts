@@ -30,34 +30,44 @@ type AppliedMetricType = {
 };
 
 export class QueryBuilder {
-  private translateAggregation(
-    aggregation: z.infer<typeof metricAggregations>,
-  ): string {
-    switch (aggregation) {
+  private chartConfig?: { bins?: number; row_limit?: number };
+
+  constructor(chartConfig?: { bins?: number; row_limit?: number }) {
+    this.chartConfig = chartConfig;
+  }
+
+  private translateAggregation(metric: AppliedMetricType): string {
+    switch (metric.aggregation) {
       case "sum":
-        return "sum";
+        return `sum(${metric.alias || metric.sql})`;
       case "avg":
-        return "avg";
+        return `avg(${metric.alias || metric.sql})`;
       case "count":
-        return "count";
+        return `count(${metric.alias || metric.sql})`;
       case "max":
-        return "max";
+        return `max(${metric.alias || metric.sql})`;
       case "min":
-        return "min";
+        return `min(${metric.alias || metric.sql})`;
       case "p50":
-        return "quantile(0.5)";
+        return `quantile(0.5)(${metric.alias || metric.sql})`;
       case "p75":
-        return "quantile(0.75)";
+        return `quantile(0.75)(${metric.alias || metric.sql})`;
       case "p90":
-        return "quantile(0.9)";
+        return `quantile(0.9)(${metric.alias || metric.sql})`;
       case "p95":
-        return "quantile(0.95)";
+        return `quantile(0.95)(${metric.alias || metric.sql})`;
       case "p99":
-        return "quantile(0.99)";
+        return `quantile(0.99)(${metric.alias || metric.sql})`;
+      case "histogram":
+        // Get histogram bins from chart config, fallback to 10
+        const bins = this.chartConfig?.bins ?? 10;
+        return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
       default:
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = aggregation;
-        throw new InvalidRequestError(`Invalid aggregation: ${aggregation}`);
+        const exhaustiveCheck: never = metric.aggregation;
+        throw new InvalidRequestError(
+          `Invalid aggregation: ${metric.aggregation}`,
+        );
     }
   }
 
@@ -491,7 +501,7 @@ export class QueryBuilder {
 
   private buildOuterMetricsPart(appliedMetrics: AppliedMetricType[]) {
     return appliedMetrics.length > 0
-      ? `${appliedMetrics.map((metric) => `${this.translateAggregation(metric.aggregation)}(${metric.alias || metric.sql}) as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}`
+      ? `${appliedMetrics.map((metric) => `${this.translateAggregation(metric)} as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}`
       : "count(*) as count";
   }
 
