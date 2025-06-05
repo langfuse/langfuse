@@ -22,11 +22,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { Progress } from "@/src/components/ui/progress";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  DialogBody,
-  DialogFooter,
-  DialogHeader,
-} from "@/src/components/ui/dialog";
+import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 
 const MIN_CHUNK_SIZE = 1;
 const CHUNK_START_SIZE = 50;
