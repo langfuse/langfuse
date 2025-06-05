@@ -724,7 +724,10 @@ export const convertOtelSpanToIngestionEvent = (
             attributes?.[LangfuseOtelSpanAttributes.VERSION] ??
             resourceAttributes?.["service.version"] ??
             null,
-          release: attributes?.[LangfuseOtelSpanAttributes.RELEASE] ?? null,
+          release:
+            attributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+            resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+            null,
           userId: extractUserId(attributes),
           sessionId: extractSessionId(attributes),
           public:
