@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions, getQueuePrefix } from "./redis";
 import { logger } from "../logger";
 
 export class IngestionQueue {
@@ -23,6 +23,7 @@ export class IngestionQueue {
           QueueName.IngestionQueue,
           {
             connection: newRedis,
+            prefix: getQueuePrefix(),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,
@@ -65,6 +66,7 @@ export class SecondaryIngestionQueue {
           QueueName.IngestionSecondaryQueue,
           {
             connection: newRedis,
+            prefix: getQueuePrefix(),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

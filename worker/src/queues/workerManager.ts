@@ -3,6 +3,7 @@ import {
   getQueue,
   convertQueueNameToMetricName,
   createNewRedisInstance,
+  getQueuePrefix,
   logger,
   QueueName,
   recordGauge,
@@ -102,6 +103,7 @@ export class WorkerManager {
       WorkerManager.metricWrapper(processor, queueName),
       {
         connection: redisInstance,
+        prefix: getQueuePrefix(),
         ...additionalOptions,
       },
     );

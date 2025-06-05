@@ -92,6 +92,10 @@ const EnvSchema = z.object({
   REDIS_AUTH: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
+  // Redis Cluster Configuration
+  REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
+  REDIS_CLUSTER_NODES: z.string().optional(),
+  REDIS_CLUSTER_PREFIX: z.string().default("langfuse"),
 
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
