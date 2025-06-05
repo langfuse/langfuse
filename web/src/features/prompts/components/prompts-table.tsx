@@ -13,11 +13,16 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { createColumnHelper } from "@tanstack/react-table";
+import {
+  createColumnHelper,
+  type ColumnSizingState,
+  type OnChangeFn,
+} from "@tanstack/react-table";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 type PromptTableRow = {
   name: string;
@@ -228,6 +233,23 @@ export function PromptTable() {
     }),
   ] as LangfuseColumnDef<PromptTableRow>[];
 
+  const STORAGE_KEY = "prompts-table-column-sizing";
+
+  const [columnSizing, setColumnSizing] = useLocalStorage<ColumnSizingState>(
+    STORAGE_KEY,
+    {},
+  );
+
+  const handleColumnSizingChange: OnChangeFn<ColumnSizingState> = (
+    updatedSizing,
+  ) => {
+    setColumnSizing(
+      typeof updatedSizing === "function"
+        ? updatedSizing(columnSizing)
+        : updatedSizing,
+    );
+  };
+
   return (
     <>
       <DataTableToolbar
@@ -272,6 +294,8 @@ export function PromptTable() {
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnSizing={columnSizing}
+        onColumnSizingChange={handleColumnSizingChange}
       />
     </>
   );
