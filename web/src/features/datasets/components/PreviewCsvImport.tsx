@@ -22,6 +22,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { Progress } from "@/src/components/ui/progress";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 
 const MIN_CHUNK_SIZE = 1;
 const CHUNK_START_SIZE = 50;
@@ -330,131 +331,139 @@ export function PreviewCsvImport({
   };
 
   return (
-    <Card className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden p-2">
-      <CardHeader className="shrink-0 text-center">
-        <CardTitle className="text-lg">Import {preview.fileName}</CardTitle>
-        <CardDescription>
-          Map your CSV columns to dataset fields. The CSV file must have column
-          headers in the first row.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex min-h-0 w-full flex-1 flex-col p-2">
-        <div className="min-h-0 flex-1">
-          <DndContext
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="grid h-full grid-cols-2 gap-4 lg:grid-cols-4">
-              <ImportCard
-                id="input"
-                title="Input"
-                columns={preview.columns.filter((col) =>
-                  selectedInputColumn.has(col.name),
-                )}
-                onColumnSelect={(columnName) => {
-                  setSelectedInputColumn(
-                    new Set([...selectedInputColumn, columnName]),
-                  );
-                }}
-                onColumnRemove={(columnName) => {
-                  setSelectedInputColumn(
-                    new Set(
-                      [...selectedInputColumn].filter(
-                        (col) => col !== columnName,
-                      ),
-                    ),
-                  );
-                }}
-              />
-              <ImportCard
-                id="expected"
-                title="Expected Output"
-                columns={preview.columns.filter((col) =>
-                  selectedExpectedColumn.has(col.name),
-                )}
-                onColumnSelect={(columnName) => {
-                  setSelectedExpectedColumn(
-                    new Set([...selectedExpectedColumn, columnName]),
-                  );
-                }}
-                onColumnRemove={(columnName) => {
-                  setSelectedExpectedColumn(
-                    new Set(
-                      [...selectedExpectedColumn].filter(
-                        (col) => col !== columnName,
-                      ),
-                    ),
-                  );
-                }}
-              />
-              <ImportCard
-                id="metadata"
-                title="Metadata"
-                columns={preview.columns.filter((col) =>
-                  selectedMetadataColumn.has(col.name),
-                )}
-                onColumnSelect={(columnName) => {
-                  setSelectedMetadataColumn(
-                    new Set([...selectedMetadataColumn, columnName]),
-                  );
-                }}
-                onColumnRemove={(columnName) => {
-                  setSelectedMetadataColumn(
-                    new Set(
-                      [...selectedMetadataColumn].filter(
-                        (col) => col !== columnName,
-                      ),
-                    ),
-                  );
-                }}
-              />
-              <ImportCard
-                id="unmapped"
-                title="Not mapped"
-                info="These columns from your CSV will not be imported. Drag them to a field to include them."
-                columns={preview.columns.filter((col) =>
-                  excludedColumns.has(col.name),
-                )}
-                onColumnSelect={(columnName) => {
-                  setExcludedColumns(new Set([...excludedColumns, columnName]));
-                }}
-                onColumnRemove={(columnName) => {
-                  setExcludedColumns(
-                    new Set(
-                      [...excludedColumns].filter((col) => col !== columnName),
-                    ),
-                  );
-                }}
-                className="bg-secondary/50"
-              />
+    <>
+      <DialogBody className="border-t">
+        <Card className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden border-none pb-4">
+          <CardHeader className="shrink-0 text-center">
+            <CardTitle className="text-lg">Import {preview.fileName}</CardTitle>
+            <CardDescription>
+              Map your CSV columns to dataset fields. The CSV file must have
+              column headers in the first row.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 w-full flex-1 flex-col p-2">
+            <div className="min-h-0 flex-1">
+              <DndContext
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="grid h-full grid-cols-2 gap-4 lg:grid-cols-4">
+                  <ImportCard
+                    id="input"
+                    title="Input"
+                    columns={preview.columns.filter((col) =>
+                      selectedInputColumn.has(col.name),
+                    )}
+                    onColumnSelect={(columnName) => {
+                      setSelectedInputColumn(
+                        new Set([...selectedInputColumn, columnName]),
+                      );
+                    }}
+                    onColumnRemove={(columnName) => {
+                      setSelectedInputColumn(
+                        new Set(
+                          [...selectedInputColumn].filter(
+                            (col) => col !== columnName,
+                          ),
+                        ),
+                      );
+                    }}
+                  />
+                  <ImportCard
+                    id="expected"
+                    title="Expected Output"
+                    columns={preview.columns.filter((col) =>
+                      selectedExpectedColumn.has(col.name),
+                    )}
+                    onColumnSelect={(columnName) => {
+                      setSelectedExpectedColumn(
+                        new Set([...selectedExpectedColumn, columnName]),
+                      );
+                    }}
+                    onColumnRemove={(columnName) => {
+                      setSelectedExpectedColumn(
+                        new Set(
+                          [...selectedExpectedColumn].filter(
+                            (col) => col !== columnName,
+                          ),
+                        ),
+                      );
+                    }}
+                  />
+                  <ImportCard
+                    id="metadata"
+                    title="Metadata"
+                    columns={preview.columns.filter((col) =>
+                      selectedMetadataColumn.has(col.name),
+                    )}
+                    onColumnSelect={(columnName) => {
+                      setSelectedMetadataColumn(
+                        new Set([...selectedMetadataColumn, columnName]),
+                      );
+                    }}
+                    onColumnRemove={(columnName) => {
+                      setSelectedMetadataColumn(
+                        new Set(
+                          [...selectedMetadataColumn].filter(
+                            (col) => col !== columnName,
+                          ),
+                        ),
+                      );
+                    }}
+                  />
+                  <ImportCard
+                    id="unmapped"
+                    title="Not mapped"
+                    info="These columns from your CSV will not be imported. Drag them to a field to include them."
+                    columns={preview.columns.filter((col) =>
+                      excludedColumns.has(col.name),
+                    )}
+                    onColumnSelect={(columnName) => {
+                      setExcludedColumns(
+                        new Set([...excludedColumns, columnName]),
+                      );
+                    }}
+                    onColumnRemove={(columnName) => {
+                      setExcludedColumns(
+                        new Set(
+                          [...excludedColumns].filter(
+                            (col) => col !== columnName,
+                          ),
+                        ),
+                      );
+                    }}
+                    className="bg-secondary/50"
+                  />
+                </div>
+              </DndContext>
             </div>
-          </DndContext>
-        </div>
-        <div className="mt-3 flex justify-end space-x-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              setPreview(null);
-              setSelectedInputColumn(new Set());
-              setSelectedExpectedColumn(new Set());
-              setSelectedMetadataColumn(new Set());
-              setExcludedColumns(new Set());
-              setCsvFile(null);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              selectedInputColumn.size === 0 &&
-              selectedExpectedColumn.size === 0 &&
-              selectedMetadataColumn.size === 0
-            }
-            onClick={handleImport}
-          >
-            Import
-          </Button>
-        </div>
+          </CardContent>
+        </Card>
+      </DialogBody>
+      <DialogFooter>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setPreview(null);
+            setSelectedInputColumn(new Set());
+            setSelectedExpectedColumn(new Set());
+            setSelectedMetadataColumn(new Set());
+            setExcludedColumns(new Set());
+            setCsvFile(null);
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          disabled={
+            selectedInputColumn.size === 0 &&
+            selectedExpectedColumn.size === 0 &&
+            selectedMetadataColumn.size === 0
+          }
+          onClick={handleImport}
+        >
+          Import
+        </Button>
         {progress.status === "processing" && (
           <div className="mt-2">
             <Progress
@@ -463,7 +472,7 @@ export function PreviewCsvImport({
             />
           </div>
         )}
-      </CardContent>
-    </Card>
+      </DialogFooter>
+    </>
   );
 }

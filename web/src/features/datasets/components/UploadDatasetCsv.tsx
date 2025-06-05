@@ -14,6 +14,7 @@ import {
   type CsvPreviewResult,
   parseCsvClient,
 } from "@/src/features/datasets/lib/csvHelpers";
+import { DialogBody } from "@/src/components/ui/dialog";
 
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1 * 10; // 10MB
 const ACCEPTED_FILE_TYPES = ["text/csv"] as const;
@@ -76,35 +77,37 @@ export const UploadDatasetCsv = ({
   };
 
   return (
-    <Card className="h-full items-center justify-center p-2">
-      <CardHeader className="text-center">
-        <CardTitle className="text-lg">Add items to dataset</CardTitle>
-        <CardDescription>
-          Add items to dataset by uploading a file, add items manually or via
-          our SDKs/API
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {/* Hidden file input */}
-        <Input
-          type="file"
-          ref={fileInputRef}
-          className="hidden"
-          accept=".csv"
-          onChange={handleFileSelect}
-        />
+    <DialogBody className="border-t">
+      <Card className="h-full items-center justify-center border-none">
+        <CardHeader className="text-center">
+          <CardTitle className="text-lg">Add items to dataset</CardTitle>
+          <CardDescription>
+            Add items to dataset by uploading a file, add items manually or via
+            our SDKs/API
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Hidden file input */}
+          <Input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".csv"
+            onChange={handleFileSelect}
+          />
 
-        {/* Clickable upload area */}
-        <div
-          className="flex max-h-full min-h-0 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-y-auto rounded-lg border border-dashed bg-secondary/50 p-4"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <UploadIcon className="h-6 w-6 text-secondary-foreground" />
-          <div className="text-sm text-secondary-foreground">
-            Click to select a CSV file
+          {/* Clickable upload area */}
+          <div
+            className="flex max-h-full min-h-0 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-y-auto rounded-lg border border-dashed bg-secondary/50 p-4"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <UploadIcon className="h-6 w-6 text-secondary-foreground" />
+            <div className="text-sm text-secondary-foreground">
+              Click to select a CSV file
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </DialogBody>
   );
 };

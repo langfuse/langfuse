@@ -62,6 +62,8 @@ import {
   DialogDescription,
   Dialog,
   DialogContent,
+  DialogBody,
+  DialogFooter,
 } from "@/src/components/ui/dialog";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -292,82 +294,84 @@ export const CreateExperimentsForm = ({
             .
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Card className="flex flex-1 flex-col">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Wand2 className="size-4" />
-                Prompt Experiment
-              </CardTitle>
-              <CardDescription>
-                Test single prompts and model configurations via Langfuse UI
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
-                <li>Compare prompt versions</li>
-                <li>Compare model configurations</li>
-                <li>No code required</li>
-              </ul>
-            </CardContent>
-            <CardFooter className="mt-auto flex flex-row gap-2">
-              <Button
-                className="w-full"
-                onClick={() => setShowPromptForm(true)}
-              >
-                Create
-              </Button>
-              <Button
-                variant="secondary"
-                className="w-full"
-                asChild
-                onClick={() =>
-                  capture("dataset_run:view_prompt_experiment_docs")
-                }
-              >
-                <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
-                  View Docs
-                </Link>
-              </Button>
-            </CardFooter>
-          </Card>
-
-          <Card className="flex flex-1 flex-col">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Code2 className="size-4" />
-                Custom Experiment
-              </CardTitle>
-              <CardDescription>
-                Run any experiment via the Langfuse SDKs
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
-                <li>Full control over experiment execution</li>
-                <li>Custom evaluation logic</li>
-                <li>Integration with your codebase</li>
-              </ul>
-            </CardContent>
-            <CardFooter className="mt-auto">
-              <Button
-                className="w-full"
-                variant="secondary"
-                asChild
-                onClick={() =>
-                  capture("dataset_run:view_custom_experiment_docs")
-                }
-              >
-                <Link
-                  href="https://langfuse.com/docs/datasets/get-started"
-                  target="_blank"
+        <DialogBody>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Card className="flex flex-1 flex-col">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Wand2 className="size-4" />
+                  Prompt Experiment
+                </CardTitle>
+                <CardDescription>
+                  Test single prompts and model configurations via Langfuse UI
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
+                  <li>Compare prompt versions</li>
+                  <li>Compare model configurations</li>
+                  <li>No code required</li>
+                </ul>
+              </CardContent>
+              <CardFooter className="mt-auto flex flex-row gap-2">
+                <Button
+                  className="w-full"
+                  onClick={() => setShowPromptForm(true)}
                 >
-                  View Docs
-                </Link>
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
+                  Create
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  asChild
+                  onClick={() =>
+                    capture("dataset_run:view_prompt_experiment_docs")
+                  }
+                >
+                  <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
+                    View Docs
+                  </Link>
+                </Button>
+              </CardFooter>
+            </Card>
+
+            <Card className="flex flex-1 flex-col">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Code2 className="size-4" />
+                  Custom Experiment
+                </CardTitle>
+                <CardDescription>
+                  Run any experiment via the Langfuse SDKs
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
+                  <li>Full control over experiment execution</li>
+                  <li>Custom evaluation logic</li>
+                  <li>Integration with your codebase</li>
+                </ul>
+              </CardContent>
+              <CardFooter className="mt-auto">
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  asChild
+                  onClick={() =>
+                    capture("dataset_run:view_custom_experiment_docs")
+                  }
+                >
+                  <Link
+                    href="https://langfuse.com/docs/datasets/get-started"
+                    target="_blank"
+                  >
+                    View Docs
+                  </Link>
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </DialogBody>
       </>
     );
   }
@@ -406,353 +410,361 @@ export const CreateExperimentsForm = ({
       </DialogHeader>
       <Form {...form}>
         <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Experiment name (optional)</FormLabel>
-                <FormControl>
-                  <Input {...field} type="string" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="description"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Description (optional)</FormLabel>
-                <FormControl>
-                  <Textarea
-                    {...field}
-                    placeholder="Add description..."
-                    className="focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="promptId"
-            render={() => (
-              <FormItem>
-                <FormLabel>Prompt</FormLabel>
-                <div className="mb-2 flex gap-2">
-                  <Popover open={open} onOpenChange={setOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        className="w-2/3 justify-between px-2 font-normal"
+          <DialogBody>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Experiment name (optional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="string" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      placeholder="Add description..."
+                      className="focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="promptId"
+              render={() => (
+                <FormItem>
+                  <FormLabel>Prompt</FormLabel>
+                  <div className="mb-2 flex gap-2">
+                    <Popover open={open} onOpenChange={setOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={open}
+                          className="w-2/3 justify-between px-2 font-normal"
+                        >
+                          {selectedPromptName || "Select a prompt"}
+                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[--radix-popover-trigger-width] overflow-auto p-0"
+                        align="start"
                       >
-                        {selectedPromptName || "Select a prompt"}
-                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-[--radix-popover-trigger-width] overflow-auto p-0"
-                      align="start"
-                    >
-                      <InputCommand>
-                        <InputCommandInput
-                          placeholder="Search prompts..."
-                          className="h-9"
-                        />
-                        <InputCommandList>
-                          <InputCommandEmpty>
-                            No prompt found.
-                          </InputCommandEmpty>
-                          <InputCommandGroup>
-                            {promptsByName &&
-                              Object.entries(promptsByName).map(
-                                ([name, promptData]) => (
-                                  <InputCommandItem
-                                    key={name}
-                                    onSelect={() => {
-                                      setSelectedPromptName(name);
-                                      const latestVersion = promptData[0];
-                                      setSelectedPromptVersion(
-                                        latestVersion.version,
-                                      );
-                                      form.setValue(
-                                        "promptId",
-                                        latestVersion.id,
-                                      );
-                                      form.clearErrors("promptId");
-                                    }}
-                                  >
-                                    {name}
-                                    <CheckIcon
-                                      className={cn(
-                                        "ml-auto h-4 w-4",
-                                        name === selectedPromptName
-                                          ? "opacity-100"
-                                          : "opacity-0",
-                                      )}
-                                    />
-                                  </InputCommandItem>
-                                ),
+                        <InputCommand>
+                          <InputCommandInput
+                            placeholder="Search prompts..."
+                            className="h-9"
+                          />
+                          <InputCommandList>
+                            <InputCommandEmpty>
+                              No prompt found.
+                            </InputCommandEmpty>
+                            <InputCommandGroup>
+                              {promptsByName &&
+                                Object.entries(promptsByName).map(
+                                  ([name, promptData]) => (
+                                    <InputCommandItem
+                                      key={name}
+                                      onSelect={() => {
+                                        setSelectedPromptName(name);
+                                        const latestVersion = promptData[0];
+                                        setSelectedPromptVersion(
+                                          latestVersion.version,
+                                        );
+                                        form.setValue(
+                                          "promptId",
+                                          latestVersion.id,
+                                        );
+                                        form.clearErrors("promptId");
+                                      }}
+                                    >
+                                      {name}
+                                      <CheckIcon
+                                        className={cn(
+                                          "ml-auto h-4 w-4",
+                                          name === selectedPromptName
+                                            ? "opacity-100"
+                                            : "opacity-0",
+                                        )}
+                                      />
+                                    </InputCommandItem>
+                                  ),
+                                )}
+                            </InputCommandGroup>
+                          </InputCommandList>
+                        </InputCommand>
+                      </PopoverContent>
+                    </Popover>
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          disabled={!selectedPromptName}
+                          variant="outline"
+                          role="combobox"
+                          className="w-1/3 justify-between px-2 font-normal"
+                        >
+                          {selectedPromptVersion
+                            ? `Version ${selectedPromptVersion}`
+                            : "Version"}
+                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[--radix-popover-trigger-width] p-0"
+                        align="start"
+                      >
+                        <InputCommand>
+                          <InputCommandList>
+                            <InputCommandEmpty>
+                              No version found.
+                            </InputCommandEmpty>
+                            <InputCommandGroup className="overflow-y-auto">
+                              {promptsByName &&
+                              selectedPromptName &&
+                              promptsByName[selectedPromptName] ? (
+                                promptsByName[selectedPromptName].map(
+                                  (prompt) => (
+                                    <InputCommandItem
+                                      key={prompt.id}
+                                      onSelect={() => {
+                                        setSelectedPromptVersion(
+                                          prompt.version,
+                                        );
+                                        form.setValue("promptId", prompt.id);
+                                        form.clearErrors("promptId");
+                                      }}
+                                    >
+                                      Version {prompt.version}
+                                      <CheckIcon
+                                        className={cn(
+                                          "ml-auto h-4 w-4",
+                                          prompt.version ===
+                                            selectedPromptVersion
+                                            ? "opacity-100"
+                                            : "opacity-0",
+                                        )}
+                                      />
+                                    </InputCommandItem>
+                                  ),
+                                )
+                              ) : (
+                                <InputCommandItem disabled>
+                                  No versions available
+                                </InputCommandItem>
                               )}
-                          </InputCommandGroup>
-                        </InputCommandList>
-                      </InputCommand>
-                    </PopoverContent>
-                  </Popover>
+                            </InputCommandGroup>
+                          </InputCommandList>
+                        </InputCommand>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        disabled={!selectedPromptName}
-                        variant="outline"
-                        role="combobox"
-                        className="w-1/3 justify-between px-2 font-normal"
-                      >
-                        {selectedPromptVersion
-                          ? `Version ${selectedPromptVersion}`
-                          : "Version"}
-                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-[--radix-popover-trigger-width] p-0"
-                      align="start"
+            <FormField
+              control={form.control}
+              name="modelConfig"
+              render={() => (
+                <FormItem>
+                  <Card className="p-4">
+                    <ModelParameters
+                      {...{
+                        modelParams,
+                        availableModels,
+                        availableProviders,
+                        updateModelParamValue: updateModelParamValue,
+                        setModelParamEnabled,
+                      }}
+                    />
+                  </Card>
+                  {form.formState.errors.modelConfig && (
+                    <p
+                      id="modelConfig"
+                      className={cn("text-sm font-medium text-destructive")}
                     >
-                      <InputCommand>
-                        <InputCommandList>
-                          <InputCommandEmpty>
-                            No version found.
-                          </InputCommandEmpty>
-                          <InputCommandGroup className="overflow-y-auto">
-                            {promptsByName &&
-                            selectedPromptName &&
-                            promptsByName[selectedPromptName] ? (
-                              promptsByName[selectedPromptName].map(
-                                (prompt) => (
-                                  <InputCommandItem
-                                    key={prompt.id}
-                                    onSelect={() => {
-                                      setSelectedPromptVersion(prompt.version);
-                                      form.setValue("promptId", prompt.id);
-                                      form.clearErrors("promptId");
-                                    }}
-                                  >
-                                    Version {prompt.version}
-                                    <CheckIcon
-                                      className={cn(
-                                        "ml-auto h-4 w-4",
-                                        prompt.version === selectedPromptVersion
-                                          ? "opacity-100"
-                                          : "opacity-0",
-                                      )}
-                                    />
-                                  </InputCommandItem>
-                                ),
-                              )
-                            ) : (
-                              <InputCommandItem disabled>
-                                No versions available
-                              </InputCommandItem>
-                            )}
-                          </InputCommandGroup>
-                        </InputCommandList>
-                      </InputCommand>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                      {[
+                        form.formState.errors.modelConfig?.model?.message,
+                        form.formState.errors.modelConfig?.provider?.message,
+                      ].join(", ")}
+                    </p>
+                  )}
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="modelConfig"
-            render={() => (
-              <FormItem>
-                <Card className="p-4">
-                  <ModelParameters
-                    {...{
-                      modelParams,
-                      availableModels,
-                      availableProviders,
-                      updateModelParamValue: updateModelParamValue,
-                      setModelParamEnabled,
-                    }}
-                  />
-                </Card>
-                {form.formState.errors.modelConfig && (
-                  <p
-                    id="modelConfig"
-                    className={cn("text-sm font-medium text-destructive")}
+            <FormField
+              control={form.control}
+              name="datasetId"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center gap-2">
+                    <FormLabel>Dataset</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <span className="cursor-pointer text-xs text-muted-foreground">
+                          (expected columns)
+                        </span>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80">
+                        <div className="flex flex-col space-y-2">
+                          <h4 className="text-sm font-medium leading-none">
+                            Expected columns
+                          </h4>
+                          <span className="text-sm text-muted-foreground">
+                            {promptId ? (
+                              <div>
+                                <span>
+                                  Given current prompt, dataset item input must
+                                  contain at least one of these first-level JSON
+                                  keys, mapped to a string value:
+                                </span>
+                                <ul className="my-2 ml-2 list-inside list-disc">
+                                  {expectedColumns.map((col) => (
+                                    <li key={col}>{col}</li>
+                                  ))}
+                                </ul>
+                                <span>
+                                  These will be used as the input to your
+                                  prompt.
+                                </span>
+                              </div>
+                            ) : (
+                              "Please select a prompt first"
+                            )}
+                          </span>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
                   >
-                    {[
-                      form.formState.errors.modelConfig?.model?.message,
-                      form.formState.errors.modelConfig?.provider?.message,
-                    ].join(", ")}
-                  </p>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a dataset" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {datasets.data?.map((dataset) => (
+                        <SelectItem value={dataset.id} key={dataset.id}>
+                          {dataset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {evaluators.data && !!datasetId ? (
+              <FormItem>
+                <FormLabel>Evaluators</FormLabel>
+                <FormDescription>
+                  Will run against your experiment results.
+                </FormDescription>
+                <TemplateSelector
+                  projectId={projectId}
+                  datasetId={datasetId}
+                  evalTemplates={evalTemplates.data?.templates ?? []}
+                  onConfigureTemplate={handleConfigureEvaluator}
+                  onSelectEvaluator={handleSelectEvaluator}
+                  activeTemplateIds={activeEvaluators}
+                  inactiveTemplateIds={inActiveEvaluators}
+                />
+              </FormItem>
+            ) : (
+              <FormItem>
+                <FormLabel>Evaluators</FormLabel>
+                {hasEvalReadAccess ? (
+                  <FormDescription>
+                    Select a dataset first to set up evaluators.
+                  </FormDescription>
+                ) : (
+                  <FormDescription>
+                    ⓘ You do not have access to view evaluators. Please contact
+                    your admin to upgrade your role.
+                  </FormDescription>
                 )}
               </FormItem>
             )}
-          />
 
-          <FormField
-            control={form.control}
-            name="datasetId"
-            render={({ field }) => (
-              <FormItem>
-                <div className="flex items-center gap-2">
-                  <FormLabel>Dataset</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <span className="cursor-pointer text-xs text-muted-foreground">
-                        (expected columns)
-                      </span>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80">
-                      <div className="flex flex-col space-y-2">
-                        <h4 className="text-sm font-medium leading-none">
-                          Expected columns
-                        </h4>
-                        <span className="text-sm text-muted-foreground">
-                          {promptId ? (
-                            <div>
-                              <span>
-                                Given current prompt, dataset item input must
-                                contain at least one of these first-level JSON
-                                keys, mapped to a string value:
-                              </span>
-                              <ul className="my-2 ml-2 list-inside list-disc">
-                                {expectedColumns.map((col) => (
-                                  <li key={col}>{col}</li>
-                                ))}
-                              </ul>
-                              <span>
-                                These will be used as the input to your prompt.
-                              </span>
-                            </div>
-                          ) : (
-                            "Please select a prompt first"
-                          )}
-                        </span>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a dataset" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {datasets.data?.map((dataset) => (
-                      <SelectItem value={dataset.id} key={dataset.id}>
-                        {dataset.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {evaluators.data && !!datasetId ? (
-            <FormItem>
-              <FormLabel>Evaluators</FormLabel>
-              <FormDescription>
-                Will run against your experiment results.
-              </FormDescription>
-              <TemplateSelector
-                projectId={projectId}
-                datasetId={datasetId}
-                evalTemplates={evalTemplates.data?.templates ?? []}
-                onConfigureTemplate={handleConfigureEvaluator}
-                onSelectEvaluator={handleSelectEvaluator}
-                activeTemplateIds={activeEvaluators}
-                inactiveTemplateIds={inActiveEvaluators}
-              />
-            </FormItem>
-          ) : (
-            <FormItem>
-              <FormLabel>Evaluators</FormLabel>
-              {hasEvalReadAccess ? (
-                <FormDescription>
-                  Select a dataset first to set up evaluators.
-                </FormDescription>
-              ) : (
-                <FormDescription>
-                  ⓘ You do not have access to view evaluators. Please contact
-                  your admin to upgrade your role.
-                </FormDescription>
+            <div className="mt-4 flex flex-col gap-4">
+              {validationResult.isLoading && Boolean(promptId && datasetId) && (
+                <Card className="relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
+                  <CardHeader className="p-2">
+                    <CardTitle className="flex items-center justify-between text-sm">
+                      <span>Validating configuration...</span>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    </CardTitle>
+                    <CardDescription className="text-foreground">
+                      Checking dataset items against prompt variables
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
               )}
-            </FormItem>
-          )}
+              {validationResult.data?.isValid === false && (
+                <Card className="relative overflow-hidden rounded-md border-dark-yellow bg-light-yellow shadow-none group-data-[collapsible=icon]:hidden">
+                  <CardHeader className="p-2">
+                    <CardTitle className="flex items-center justify-between text-sm text-dark-yellow">
+                      <span>Invalid configuration</span>
+                      <Info className="h-4 w-4" />
+                    </CardTitle>
+                    <CardDescription className="text-foreground">
+                      {validationResult.data?.message}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )}
+              {validationResult.data?.isValid === true && (
+                <Card className="relative overflow-hidden rounded-md border-dark-green bg-light-green shadow-none group-data-[collapsible=icon]:hidden">
+                  <CardHeader className="p-2">
+                    <CardTitle className="flex items-center justify-between text-sm text-dark-green">
+                      <span>Valid configuration</span>
+                      <CircleCheck className="h-4 w-4" />
+                    </CardTitle>
+                    <div className="text-sm">
+                      Matches between dataset items and prompt variables
+                      <ul className="my-2 ml-2 list-inside list-disc">
+                        {Object.entries(
+                          validationResult.data.variablesMap ?? {},
+                        ).map(([variable, count]) => (
+                          <li key={variable}>
+                            <strong>{variable}:</strong> {count} /{" "}
+                            {validationResult.data?.isValid
+                              ? validationResult.data.totalItems
+                              : "unknown"}
+                          </li>
+                        ))}
+                      </ul>
+                      Items missing all prompt variables will be excluded from
+                      the experiment.
+                    </div>
+                  </CardHeader>
+                </Card>
+              )}
+            </div>
+          </DialogBody>
 
-          <div className="mt-4 flex flex-col gap-4">
-            {validationResult.isLoading && Boolean(promptId && datasetId) && (
-              <Card className="relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
-                <CardHeader className="p-2">
-                  <CardTitle className="flex items-center justify-between text-sm">
-                    <span>Validating configuration...</span>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  </CardTitle>
-                  <CardDescription className="text-foreground">
-                    Checking dataset items against prompt variables
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            )}
-            {validationResult.data?.isValid === false && (
-              <Card className="relative overflow-hidden rounded-md border-dark-yellow bg-light-yellow shadow-none group-data-[collapsible=icon]:hidden">
-                <CardHeader className="p-2">
-                  <CardTitle className="flex items-center justify-between text-sm text-dark-yellow">
-                    <span>Invalid configuration</span>
-                    <Info className="h-4 w-4" />
-                  </CardTitle>
-                  <CardDescription className="text-foreground">
-                    {validationResult.data?.message}
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            )}
-            {validationResult.data?.isValid === true && (
-              <Card className="relative overflow-hidden rounded-md border-dark-green bg-light-green shadow-none group-data-[collapsible=icon]:hidden">
-                <CardHeader className="p-2">
-                  <CardTitle className="flex items-center justify-between text-sm text-dark-green">
-                    <span>Valid configuration</span>
-                    <CircleCheck className="h-4 w-4" />
-                  </CardTitle>
-                  <div className="text-sm">
-                    Matches between dataset items and prompt variables
-                    <ul className="my-2 ml-2 list-inside list-disc">
-                      {Object.entries(
-                        validationResult.data.variablesMap ?? {},
-                      ).map(([variable, count]) => (
-                        <li key={variable}>
-                          <strong>{variable}:</strong> {count} /{" "}
-                          {validationResult.data?.isValid
-                            ? validationResult.data.totalItems
-                            : "unknown"}
-                        </li>
-                      ))}
-                    </ul>
-                    Items missing all prompt variables will be excluded from the
-                    experiment.
-                  </div>
-                </CardHeader>
-              </Card>
-            )}
-
+          <DialogFooter>
             <div className="flex justify-end">
               <Button
                 type="submit"
@@ -766,7 +778,7 @@ export const CreateExperimentsForm = ({
                 Create
               </Button>
             </div>
-          </div>
+          </DialogFooter>
         </form>
       </Form>
 

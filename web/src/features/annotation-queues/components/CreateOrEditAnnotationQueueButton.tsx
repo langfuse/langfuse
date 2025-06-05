@@ -2,8 +2,10 @@ import { Button, type ButtonProps } from "@/src/components/ui/button";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -204,103 +206,109 @@ export const CreateOrEditAnnotationQueueButton = ({
           </DialogHeader>
           <Form {...form}>
             <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="text"
-                        className="text-xs"
-                        onBlur={(e) => field.onChange(e.target.value.trimEnd())}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description (optional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="Add description..."
-                        className="text-xs focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="scoreConfigIds"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Score Configs</FormLabel>
-                    <FormDescription>
-                      Define which dimensions annotators should score for the
-                      given queue.
-                    </FormDescription>
-                    <FormControl>
-                      <MultiSelectKeyValues
-                        placeholder="Value"
-                        align="end"
-                        className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
-                        onValueChange={handleOnValueChange}
-                        options={configs
-                          .filter((config) => !config.isArchived)
-                          .map((config) => ({
-                            key: config.id,
-                            value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-                            isArchived: config.isArchived,
-                          }))}
-                        values={field.value.map((configId) => {
-                          const config = configs.find(
-                            (config) => config.id === configId,
-                          );
-                          return {
-                            value: config
-                              ? `${getScoreDataTypeIcon(config.dataType)} ${config.name}`
-                              : `${configId}`,
-                            key: configId,
-                          };
-                        })}
-                        controlButtons={
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              capture(
-                                "score_configs:manage_configs_item_click",
-                                { source: "AnnotationQueue" },
-                              );
-                              router.push(
-                                `/project/${projectId}/settings/scores`,
-                              );
-                            }}
-                          >
-                            Manage score configs
-                          </DropdownMenuItem>
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                className="text-xs"
-                disabled={!!form.formState.errors.name}
-              >
-                {queueId ? "Save" : "Create"} queue
-              </Button>
+              <DialogBody>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="text"
+                          className="text-xs"
+                          onBlur={(e) =>
+                            field.onChange(e.target.value.trimEnd())
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description (optional)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          placeholder="Add description..."
+                          className="text-xs focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="scoreConfigIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Score Configs</FormLabel>
+                      <FormDescription>
+                        Define which dimensions annotators should score for the
+                        given queue.
+                      </FormDescription>
+                      <FormControl>
+                        <MultiSelectKeyValues
+                          placeholder="Value"
+                          align="end"
+                          className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
+                          onValueChange={handleOnValueChange}
+                          options={configs
+                            .filter((config) => !config.isArchived)
+                            .map((config) => ({
+                              key: config.id,
+                              value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+                              isArchived: config.isArchived,
+                            }))}
+                          values={field.value.map((configId) => {
+                            const config = configs.find(
+                              (config) => config.id === configId,
+                            );
+                            return {
+                              value: config
+                                ? `${getScoreDataTypeIcon(config.dataType)} ${config.name}`
+                                : `${configId}`,
+                              key: configId,
+                            };
+                          })}
+                          controlButtons={
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                capture(
+                                  "score_configs:manage_configs_item_click",
+                                  { source: "AnnotationQueue" },
+                                );
+                                router.push(
+                                  `/project/${projectId}/settings/scores`,
+                                );
+                              }}
+                            >
+                              Manage score configs
+                            </DropdownMenuItem>
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </DialogBody>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  className="text-xs"
+                  disabled={!!form.formState.errors.name}
+                >
+                  {queueId ? "Save" : "Create"} queue
+                </Button>
+              </DialogFooter>
             </form>
           </Form>
         </DialogContent>

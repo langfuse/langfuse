@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -65,21 +66,23 @@ export const DeleteAnnotationQueueButton = ({
             deleted.
           </DialogDescription>
         </DialogHeader>
-        <Button
-          variant="destructive"
-          loading={mutDelete.isLoading}
-          disabled={mutDelete.isLoading}
-          onClick={async (event) => {
-            event.preventDefault();
-            await mutDelete.mutateAsync({
-              projectId,
-              queueId,
-            });
-            setIsOpen(false);
-          }}
-        >
-          Delete Annotation Queue
-        </Button>
+        <DialogFooter>
+          <Button
+            variant="destructive"
+            loading={mutDelete.isLoading}
+            disabled={mutDelete.isLoading}
+            onClick={async (event) => {
+              event.preventDefault();
+              await mutDelete.mutateAsync({
+                projectId,
+                queueId,
+              });
+              setIsOpen(false);
+            }}
+          >
+            Delete Annotation Queue
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   ) : (

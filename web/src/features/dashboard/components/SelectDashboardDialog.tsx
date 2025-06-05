@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -67,52 +68,52 @@ export function SelectDashboardDialog({
         <DialogHeader>
           <DialogTitle>Select dashboard to add widget to</DialogTitle>
         </DialogHeader>
-
-        <div className="mt-4 max-h-[400px] overflow-y-auto">
-          {dashboards.isLoading ? (
-            <div className="py-8 text-center">Loading dashboards...</div>
-          ) : dashboards.isError ? (
-            <div className="py-8 text-center text-destructive">
-              Error: {dashboards.error.message}
-            </div>
-          ) : dashboards.data?.dashboards.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              No dashboards found.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Updated</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dashboards.data?.dashboards
-                  .filter((d) => d.owner === "PROJECT")
-                  .map((d) => (
-                    <TableRow
-                      key={d.id}
-                      onClick={() => setSelectedDashboardId(d.id)}
-                      className={`cursor-pointer hover:bg-muted ${
-                        selectedDashboardId === d.id ? "bg-muted" : ""
-                      }`}
-                    >
-                      <TableCell className="font-medium">{d.name}</TableCell>
-                      <TableCell className="truncate" title={d.description}>
-                        {d.description}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(d.updatedAt).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-
+        <DialogBody>
+          <div className="mt-4 max-h-[400px] overflow-y-auto">
+            {dashboards.isLoading ? (
+              <div className="py-8 text-center">Loading dashboards...</div>
+            ) : dashboards.isError ? (
+              <div className="py-8 text-center text-destructive">
+                Error: {dashboards.error.message}
+              </div>
+            ) : dashboards.data?.dashboards.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                No dashboards found.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Updated</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dashboards.data?.dashboards
+                    .filter((d) => d.owner === "PROJECT")
+                    .map((d) => (
+                      <TableRow
+                        key={d.id}
+                        onClick={() => setSelectedDashboardId(d.id)}
+                        className={`cursor-pointer hover:bg-muted ${
+                          selectedDashboardId === d.id ? "bg-muted" : ""
+                        }`}
+                      >
+                        <TableCell className="font-medium">{d.name}</TableCell>
+                        <TableCell className="truncate" title={d.description}>
+                          {d.description}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(d.updatedAt).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </DialogBody>
         <DialogFooter className="mt-4 flex justify-between">
           <Button variant="outline" onClick={handleSkip}>
             Skip

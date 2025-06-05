@@ -160,11 +160,12 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="mb-5">Delete LLM provider</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete this LLM provider? This action
+            cannot be undone.
+          </DialogDescription>
         </DialogHeader>
-        <DialogDescription>
-          Are you sure you want to delete this LLM provider? This action cannot
-          be undone.
-        </DialogDescription>
+
         <DialogFooter>
           <Button
             variant="destructive"

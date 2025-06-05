@@ -5,7 +5,9 @@ import { Copy } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -110,64 +112,67 @@ const DuplicatePromptForm: React.FC<{
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="mt-4 flex h-full flex-1 flex-col gap-4"
+        className="flex h-full flex-1 flex-col gap-4"
       >
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem className="flex flex-col gap-2">
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <Input {...field} type="text" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="isCopySingleVersion"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Settings</FormLabel>
-              <FormControl>
-                <RadioGroup
-                  {...field}
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  className="flex flex-col space-y-1"
-                >
-                  <FormItem className="flex items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value={CopySettings.SINGLE_VERSION} />
-                    </FormControl>
-                    <FormLabel className="font-normal">
-                      Copy only version {promptVersion}
-                    </FormLabel>
-                  </FormItem>
-                  <FormItem className="flex items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value={CopySettings.ALL_VERSIONS} />
-                    </FormControl>
-                    <FormLabel className="font-normal">
-                      Copy all prompt versions and labels
-                    </FormLabel>
-                  </FormItem>
-                </RadioGroup>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <Button
-          type="submit"
-          loading={duplicatePrompt.isLoading}
-          className="mb-4 mt-auto w-full"
-        >
-          Submit
-        </Button>
+        <DialogBody>
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem className="flex flex-col gap-2">
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input {...field} type="text" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="isCopySingleVersion"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Settings</FormLabel>
+                <FormControl>
+                  <RadioGroup
+                    {...field}
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    className="flex flex-col space-y-1"
+                  >
+                    <FormItem className="flex items-center space-x-3 space-y-0">
+                      <FormControl>
+                        <RadioGroupItem value={CopySettings.SINGLE_VERSION} />
+                      </FormControl>
+                      <FormLabel className="font-normal">
+                        Copy only version {promptVersion}
+                      </FormLabel>
+                    </FormItem>
+                    <FormItem className="flex items-center space-x-3 space-y-0">
+                      <FormControl>
+                        <RadioGroupItem value={CopySettings.ALL_VERSIONS} />
+                      </FormControl>
+                      <FormLabel className="font-normal">
+                        Copy all prompt versions and labels
+                      </FormLabel>
+                    </FormItem>
+                  </RadioGroup>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="submit"
+            loading={duplicatePrompt.isLoading}
+            className="mt-auto w-full"
+          >
+            Submit
+          </Button>
+        </DialogFooter>
       </form>
     </Form>
   );
