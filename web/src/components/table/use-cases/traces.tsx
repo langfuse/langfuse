@@ -11,7 +11,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
-import { memo, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -34,7 +34,7 @@ import {
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { MemoizedIOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
@@ -997,39 +997,37 @@ export default function TracesTable({
     ? `/project/${projectId}/users/${userId}`
     : `/project/${projectId}/traces`;
 
-  const PeekConfig = useMemo(
-    () =>
-      ({
-        projectId,
-        urlPathname,
-      }: {
-        projectId: string;
-        urlPathname: string;
-      }) => {
-        const { getNavigationPath, expandPeek } =
-          useTracePeekNavigation(urlPathname);
-        const { setPeekView } = useTracePeekState(urlPathname);
-        if (hideControls) return undefined;
+  const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
+  const { setPeekView } = useTracePeekState(urlPathname);
 
-        return {
-          itemType: "TRACE" as const,
-          listKey: "traces",
-          urlPathname,
-          peekEventOptions: {
-            ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
-          },
-          onOpenChange: setPeekView,
-          onExpand: expandPeek,
-          getNavigationPath,
-          children: <PeekViewTraceDetail projectId={projectId} />,
-          tableDataUpdatedAt: Math.max(
-            traces.dataUpdatedAt,
-            traceMetrics.dataUpdatedAt,
-          ),
-        };
+  const peekConfig = useMemo(() => {
+    if (hideControls) return undefined;
+    return {
+      itemType: "TRACE" as const,
+      listKey: "traces",
+      urlPathname,
+      peekEventOptions: {
+        ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
-    [projectId, urlPathname, hideControls],
-  );
+      onOpenChange: setPeekView,
+      onExpand: expandPeek,
+      getNavigationPath,
+      children: <PeekViewTraceDetail projectId={projectId} />,
+      tableDataUpdatedAt: Math.max(
+        traces.dataUpdatedAt,
+        traceMetrics.dataUpdatedAt,
+      ),
+    };
+  }, [
+    projectId,
+    hideControls,
+    setPeekView,
+    expandPeek,
+    getNavigationPath,
+    urlPathname,
+    traces.dataUpdatedAt,
+    traceMetrics.dataUpdatedAt,
+  ]);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
@@ -1198,7 +1196,7 @@ export default function TracesTable({
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
         pinFirstColumn={!hideControls}
-        peekView={PeekConfig({ projectId, urlPathname })}
+        peekView={peekConfig}
       />
     </>
   );
@@ -1220,20 +1218,17 @@ const TracesDynamicCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId, projectId, timestamp },
     {
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: 5 * 60 * 1000,
+      refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
     },
   );
 
-  const data = useMemo(() => {
-    return col === "output"
+  const data =
+    col === "output"
       ? trace.data?.output
       : col === "input"
         ? trace.data?.input
         : trace.data?.metadata;
-  }, [trace.data, col]);
 
   return (
     <MemoizedIOTableCell
@@ -1244,5 +1239,3 @@ const TracesDynamicCell = ({
     />
   );
 };
-
-const MemoizedIOTableCell = memo(IOTableCell);

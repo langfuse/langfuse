@@ -547,11 +547,6 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
     prev.tableSnapshot.tableDataUpdatedAt !==
     next.tableSnapshot.tableDataUpdatedAt
   ) {
-    // console.log(
-    //   "tableDataUpdatedAt",
-    //   prev.tableSnapshot.tableDataUpdatedAt,
-    //   next.tableSnapshot.tableDataUpdatedAt,
-    // );
     return false;
   }
   if (prev.table.options.data !== next.table.options.data) return false;
