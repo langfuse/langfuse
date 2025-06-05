@@ -382,7 +382,9 @@ export default function EvalsTemplateTable({
         }}
       >
         <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
-          <DialogTitle>Edit evaluator</DialogTitle>
+          <DialogHeader>
+            <DialogTitle>Edit evaluator</DialogTitle>
+          </DialogHeader>
           <EvalTemplateForm
             projectId={projectId}
             preventRedirect={true}
@@ -409,7 +411,9 @@ export default function EvalsTemplateTable({
         }}
       >
         <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
-          <DialogTitle>Clone evaluator</DialogTitle>
+          <DialogHeader>
+            <DialogTitle>Clone evaluator</DialogTitle>
+          </DialogHeader>
           <EvalTemplateForm
             projectId={projectId}
             preventRedirect={true}

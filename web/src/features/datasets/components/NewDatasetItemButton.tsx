@@ -36,7 +36,7 @@ export const NewDatasetItemButton = (props: {
           New item
         </ActionButton>
       </DialogTrigger>
-      <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none items-start">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>Create new dataset item</DialogTitle>
         </DialogHeader>

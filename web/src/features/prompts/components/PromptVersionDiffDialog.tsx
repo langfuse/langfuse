@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -48,7 +49,7 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
       </DialogTrigger>
 
       <DialogContent
-        className="max-w-screen-xl"
+        size="xl"
         // prevent event bubbling up and triggering the row's click handler
         onClick={(event) => event.stopPropagation()}
         onPointerDownOutside={(e) => {
@@ -65,8 +66,7 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
             <span className="font-medium">Prompt {leftPrompt.name}</span>
           </DialogDescription>
         </DialogHeader>
-
-        <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
+        <DialogBody>
           <div className="space-y-6">
             <div className="space-y-4">
               <div>
@@ -99,9 +99,9 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
               </div>
             </div>
           </div>
-        </div>
+        </DialogBody>
 
-        <DialogFooter className="flex flex-row">
+        <DialogFooter className="static mt-auto">
           <Button
             onClick={() => {
               setIsOpen(false);

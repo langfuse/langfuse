@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import { EvaluatorSelector } from "./evaluator-selector";
@@ -109,7 +114,9 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         onOpenChange={setIsCreateTemplateOpen}
       >
         <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
-          <DialogTitle>Create new evaluator</DialogTitle>
+          <DialogHeader>
+            <DialogTitle>Create new evaluator</DialogTitle>
+          </DialogHeader>
           <EvalTemplateForm
             projectId={projectId}
             preventRedirect={true}

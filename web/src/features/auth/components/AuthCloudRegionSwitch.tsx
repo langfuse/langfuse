@@ -9,6 +9,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -133,35 +134,37 @@ const DataRegionInfo = () => (
       <DialogHeader>
         <DialogTitle>Data Regions</DialogTitle>
       </DialogHeader>
-      <DialogDescription className="flex flex-col gap-2">
-        <p>Langfuse Cloud is available in two data regions:</p>
-        <ul className="list-disc pl-5">
-          <li>US: Oregon (AWS us-west-2)</li>
-          <li>EU: Ireland (AWS eu-west-1)</li>
-        </ul>
-        <p>
-          Regions are strictly separated, and no data is shared across regions.
-          Choosing a region close to you can help improve speed and comply with
-          local data residency laws and privacy regulations. Contact us to
-          onboard into a HIPAA compliant region.
-        </p>
-        <p>
-          You can have accounts in both regions and data migrations are
-          available on Team plans.
-        </p>
-        <p>
-          For more information, visit{" "}
-          <a
-            href="https://langfuse.com/docs/data-security-privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-accent underline"
-          >
-            langfuse.com/security
-          </a>
-          .
-        </p>
-      </DialogDescription>
+      <DialogBody>
+        <DialogDescription className="flex flex-col gap-2">
+          <p>Langfuse Cloud is available in two data regions:</p>
+          <ul className="list-disc pl-5">
+            <li>US: Oregon (AWS us-west-2)</li>
+            <li>EU: Ireland (AWS eu-west-1)</li>
+          </ul>
+          <p>
+            Regions are strictly separated, and no data is shared across
+            regions. Choosing a region close to you can help improve speed and
+            comply with local data residency laws and privacy regulations.
+            Contact us to onboard into a HIPAA compliant region.
+          </p>
+          <p>
+            You can have accounts in both regions and data migrations are
+            available on Team plans.
+          </p>
+          <p>
+            For more information, visit{" "}
+            <a
+              href="https://langfuse.com/docs/data-security-privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-accent underline"
+            >
+              langfuse.com/security
+            </a>
+            .
+          </p>
+        </DialogDescription>
+      </DialogBody>
     </DialogContent>
   </Dialog>
 );

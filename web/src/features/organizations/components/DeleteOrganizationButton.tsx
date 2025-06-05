@@ -1,8 +1,10 @@
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -96,28 +98,32 @@ export function DeleteOrganizationButton() {
             className="space-y-8"
           >
             {!hasProjects && (
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input placeholder={confirmMessage} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <DialogBody>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input placeholder={confirmMessage} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </DialogBody>
             )}
-            <Button
-              type="submit"
-              variant="destructive"
-              loading={deleteOrganization.isLoading}
-              disabled={hasProjects}
-              className="w-full"
-            >
-              Delete Organization
-            </Button>
+            <DialogFooter>
+              <Button
+                type="submit"
+                variant="destructive"
+                loading={deleteOrganization.isLoading}
+                disabled={hasProjects}
+                className="w-full"
+              >
+                Delete Organization
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

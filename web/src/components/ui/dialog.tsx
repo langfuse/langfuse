@@ -91,7 +91,7 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "sticky top-0 z-10 flex flex-shrink-0 flex-col space-y-1.5 bg-background p-6 text-center sm:text-left",
+      "sticky top-0 z-10 flex flex-shrink-0 flex-col space-y-1.5 bg-background p-6 pb-4 text-center sm:text-left",
       className,
     )}
     {...props}
@@ -105,7 +105,10 @@ const DialogBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("grid flex-grow gap-4 overflow-y-auto px-6", className)}
+    className={cn(
+      "flex flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6 [&:has(+.dialog-footer)]:pb-0",
+      className,
+    )}
     {...props}
   />
 ));
@@ -117,7 +120,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "sticky bottom-0 z-10 flex flex-shrink-0 flex-col-reverse border-t bg-background p-6 pt-4 sm:flex-row sm:justify-end sm:space-x-2",
+      "dialog-footer sticky bottom-0 z-10 flex flex-shrink-0 flex-col-reverse bg-background p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
       className,
     )}
     {...props}

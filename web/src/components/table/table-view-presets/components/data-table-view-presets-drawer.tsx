@@ -39,6 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogBody,
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -571,34 +572,37 @@ export function TableViewPresetsDrawer({
               onSubmit={form.handleSubmit(onSubmit())}
               className="space-y-4"
             >
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>View name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <DialogBody>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>View name</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <div className="mt-4 text-sm text-muted-foreground">
-                <p>This will save the current:</p>
-                <ul className="mt-2 list-disc pl-5">
-                  <li>
-                    Column arrangement ({currentState.columnOrder.length}{" "}
-                    columns)
-                  </li>
-                  <li>Filters ({currentState.filters.length} active)</li>
-                  <li>
-                    Sort order ({formatOrderBy(currentState.orderBy)} criteria)
-                  </li>
-                  {currentState.searchQuery && <li>Search term</li>}
-                </ul>
-              </div>
+                <div className="mt-4 text-sm text-muted-foreground">
+                  <p>This will save the current:</p>
+                  <ul className="mt-2 list-disc pl-5">
+                    <li>
+                      Column arrangement ({currentState.columnOrder.length}{" "}
+                      columns)
+                    </li>
+                    <li>Filters ({currentState.filters.length} active)</li>
+                    <li>
+                      Sort order ({formatOrderBy(currentState.orderBy)}{" "}
+                      criteria)
+                    </li>
+                    {currentState.searchQuery && <li>Search term</li>}
+                  </ul>
+                </div>
+              </DialogBody>
 
               <DialogFooter>
                 <Button
