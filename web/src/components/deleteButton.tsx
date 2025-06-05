@@ -323,10 +323,6 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
     }
   };
 
-  const hasModelBasedEvaluationEntitlement = useHasEntitlement(
-    "model-based-evaluations",
-  );
-
   return (
     <DeleteButton
       {...props}
@@ -345,7 +341,6 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
       entityToDeleteName="running evaluator"
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={evaluatorMutation.isLoading}
-      enabled={hasModelBasedEvaluationEntitlement}
     />
   );
 }
@@ -382,9 +377,7 @@ export function DeleteEvaluationModelButton(
     }
     onSuccess();
   };
-  const hasModelBasedEvaluationEntitlement = useHasEntitlement(
-    "model-based-evaluations",
-  );
+
   return (
     <DeleteButton
       {...props}
@@ -406,7 +399,6 @@ export function DeleteEvaluationModelButton(
       deleteConfirmation="delete"
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={isLoading}
-      enabled={hasModelBasedEvaluationEntitlement}
     />
   );
 }

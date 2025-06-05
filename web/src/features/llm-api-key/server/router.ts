@@ -21,6 +21,8 @@ import {
   LLMAdapter,
   logger,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { TRPCError } from "@trpc/server";
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.endsWith('"}')
@@ -38,6 +40,21 @@ export const llmApiKeyRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "llmApiKeys:create",
         });
+
+        if (!env.ENCRYPTION_KEY) {
+          if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Internal server error",
+            });
+          } else {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Missing environment variable: `ENCRYPTION_KEY`. Please consult our docs: https://langfuse.com/self-hosting",
+            });
+          }
+        }
 
         const key = await ctx.prisma.llmApiKeys.create({
           data: {

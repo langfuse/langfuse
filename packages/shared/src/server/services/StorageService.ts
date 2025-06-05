@@ -460,7 +460,7 @@ class S3StorageService implements StorageService {
       return { signedUrl };
     } catch (err) {
       logger.error(`Failed to upload file to ${fileName}`, err);
-      throw new Error("Failed to upload to S3 or generate signed URL");
+      throw new Error(`Failed to upload to S3 or generate signed URL: ${err}`);
     }
   }
 

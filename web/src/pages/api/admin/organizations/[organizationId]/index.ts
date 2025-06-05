@@ -5,7 +5,7 @@ import {
   handleGetOrganizationById,
   handleUpdateOrganization,
   handleDeleteOrganization,
-} from "@/src/ee/features/admin-api/organizations/organizationById";
+} from "@/src/features/admin-api/organizations/organizationById";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
 

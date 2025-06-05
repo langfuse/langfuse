@@ -319,7 +319,8 @@ export const anthropicModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
-  "gemini-2.5-pro-exp-03-25",
+  "gemini-2.5-pro-preview-05-06",
+  "gemini-2.5-flash-preview-05-20",
   "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash",
   "gemini-2.0-flash-001",
@@ -332,7 +333,8 @@ export const vertexAIModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
 export const googleAIStudioModels = [
-  "gemini-2.5-pro-exp-03-25",
+  "gemini-2.5-pro-preview-05-06",
+  "gemini-2.5-flash-preview-05-20",
   "gemini-2.0-flash",
   "gemini-2.0-flash-lite-preview",
   "gemini-2.0-flash-lite-preview-02-05",

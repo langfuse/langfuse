@@ -3,7 +3,7 @@ import { type ChartConfig } from "@/src/components/ui/chart";
 export interface DataPoint {
   time_dimension: string | undefined;
   dimension: string | undefined;
-  metric: number;
+  metric: number | Array<Array<number>>;
 }
 
 export interface ChartProps {
