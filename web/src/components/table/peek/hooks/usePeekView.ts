@@ -17,10 +17,7 @@ import { useEffect, useRef, useState } from "react";
  * isTableDataComplete: !metricsQuery.isLoading && metricsQuery.data !== undefined
  * ```
  */
-export type PeekViewProps<TData> = Omit<
-  DataTablePeekViewProps<TData>,
-  "selectedRowId" | "row"
-> & {
+export type PeekViewProps<TData> = DataTablePeekViewProps<TData> & {
   tableDataUpdatedAt: number;
 };
 
@@ -50,8 +47,8 @@ type UsePeekViewProps<TData> = {
  *
  * @returns An object containing:
  * - handleOnRowClickPeek: Function to handle row clicks for peek view
- * - inflatedPeekView: The peek view props with the selected row data
  * - peekViewId: The ID of the currently selected row for peek view
+ * - row: The currently selected row for peek view
  *
  * The peek view allows users to preview details of a row without navigating away from the table.
  * It manages the URL state via query parameters and handles row selection/deselection.
@@ -88,25 +85,21 @@ export const usePeekView = <TData extends object>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const inflatedPeekView = peekView
-    ? { ...peekView, selectedRowId: peekViewId, row }
-    : undefined;
-
   // Update the row state when the user clicks on a row
   const handleOnRowClickPeek = (row: TData) => {
-    if (inflatedPeekView) {
+    if (peekView) {
       const rowId =
         "id" in row && typeof row.id === "string" ? row.id : undefined;
       // If clicking the same row that's already open, close it
-      if (rowId === inflatedPeekView.selectedRowId) {
-        inflatedPeekView.onOpenChange(false);
+      if (rowId === peekViewId) {
+        peekView.onOpenChange(false);
         setRow(undefined);
       }
       // If clicking a different row update the row data and URL
       else {
         const timestamp =
           "timestamp" in row ? (row.timestamp as Date) : undefined;
-        inflatedPeekView.onOpenChange(true, rowId, timestamp?.toISOString());
+        peekView.onOpenChange(true, rowId, timestamp?.toISOString());
         setRow(row);
       }
     }
@@ -120,7 +113,7 @@ export const usePeekView = <TData extends object>({
       row && "id" in row && typeof row.id === "string" ? row.id : undefined;
 
     if (peekViewId !== rowId) {
-      if (peekViewId && inflatedPeekView) {
+      if (peekViewId && peekView) {
         try {
           const row = getRow(peekViewId);
           if (row) {
@@ -136,7 +129,7 @@ export const usePeekView = <TData extends object>({
 
   return {
     handleOnRowClickPeek: peekView ? handleOnRowClickPeek : undefined,
-    inflatedPeekView,
     peekViewId,
+    row,
   };
 };

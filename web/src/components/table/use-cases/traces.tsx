@@ -34,7 +34,7 @@ import {
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { MemoizedIOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
@@ -249,6 +249,8 @@ export default function TracesTable({
 
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
     enabled: environmentFilterOptions.data !== undefined,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const traceMetrics = api.traces.metrics.useQuery(
@@ -259,6 +261,8 @@ export default function TracesTable({
     },
     {
       enabled: traces.data !== undefined,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
     },
   );
 
@@ -994,6 +998,36 @@ export default function TracesTable({
 
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
   const { setPeekView } = useTracePeekState(urlPathname);
+
+  const peekConfig = useMemo(() => {
+    if (hideControls) return undefined;
+    return {
+      itemType: "TRACE" as const,
+      listKey: "traces",
+      urlPathname,
+      peekEventOptions: {
+        ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
+      },
+      onOpenChange: setPeekView,
+      onExpand: expandPeek,
+      getNavigationPath,
+      children: <PeekViewTraceDetail projectId={projectId} />,
+      tableDataUpdatedAt: Math.max(
+        traces.dataUpdatedAt,
+        traceMetrics.dataUpdatedAt,
+      ),
+    };
+  }, [
+    projectId,
+    hideControls,
+    setPeekView,
+    expandPeek,
+    getNavigationPath,
+    urlPathname,
+    traces.dataUpdatedAt,
+    traceMetrics.dataUpdatedAt,
+  ]);
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId,
@@ -1059,7 +1093,7 @@ export default function TracesTable({
           };
         }) ?? [])
       : [];
-  }, [traces, traceRowData, scoreKeysAndProps]);
+  }, [traces.isSuccess, traceRowData?.rows, scoreKeysAndProps]);
 
   const setFilterState = useDebounce(setUserFilterState);
 
@@ -1161,29 +1195,7 @@ export default function TracesTable({
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
         pinFirstColumn={!hideControls}
-        peekView={
-          hideControls
-            ? undefined
-            : {
-                itemType: "TRACE",
-                listKey: "traces",
-                urlPathname,
-                peekEventOptions: {
-                  ignoredSelectors: [
-                    '[role="checkbox"]',
-                    '[aria-label="bookmark"]',
-                  ],
-                },
-                onOpenChange: setPeekView,
-                onExpand: expandPeek,
-                getNavigationPath,
-                children: <PeekViewTraceDetail projectId={projectId} />,
-                tableDataUpdatedAt: Math.max(
-                  traces.dataUpdatedAt,
-                  traceMetrics.dataUpdatedAt,
-                ),
-              }
-        }
+        peekView={peekConfig}
       />
     </>
   );
@@ -1205,25 +1217,22 @@ const TracesDynamicCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId, projectId, timestamp },
     {
-      enabled: typeof traceId === "string",
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
     },
   );
+
+  const data =
+    col === "output"
+      ? trace.data?.output
+      : col === "input"
+        ? trace.data?.input
+        : trace.data?.metadata;
+
   return (
-    <IOTableCell
+    <MemoizedIOTableCell
       isLoading={trace.isLoading}
-      data={
-        col === "output"
-          ? trace.data?.output
-          : col === "input"
-            ? trace.data?.input
-            : trace.data?.metadata
-      }
+      data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
