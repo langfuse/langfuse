@@ -201,6 +201,35 @@ export function DataTable<TData extends object, TValue>({
     [handleOnRowClickPeek, onRowClick, inflatedPeekView],
   );
 
+  // Handler to open a row directly in a new tab (modifier-click)
+  const handleOpenInNewTab = useCallback(
+    (row: TData) => {
+      if (!peekView) return;
+
+      // Derive row id & timestamp (if available)
+      const rowId =
+        row && (row as any).id && typeof (row as any).id === "string"
+          ? (row as any).id
+          : undefined;
+      if (!rowId) return;
+
+      let timestampParam = "";
+      if (row && "timestamp" in row) {
+        const ts = (row as any).timestamp;
+        if (ts instanceof Date) {
+          timestampParam = ts.toISOString();
+        }
+      }
+
+      const basePath = peekView.urlPathname?.replace(/\/$/, "");
+      if (!basePath) return;
+
+      const url = `${basePath}/${encodeURIComponent(rowId)}?timestamp=${encodeURIComponent(timestampParam)}&display=details`;
+      window.open(url, "_blank");
+    },
+    [peekView],
+  );
+
   const hasRowClickAction = !!onRowClick || !!inflatedPeekView;
 
   // memo column sizes for performance
@@ -361,6 +390,7 @@ export function DataTable<TData extends object, TValue>({
                   data={data}
                   help={help}
                   onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                  onOpenInNewTab={handleOpenInNewTab}
                   pinFirstColumn={pinFirstColumn}
                   tableSnapshot={{
                     tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
@@ -377,6 +407,7 @@ export function DataTable<TData extends object, TValue>({
                   data={data}
                   help={help}
                   onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                  onOpenInNewTab={handleOpenInNewTab}
                   pinFirstColumn={pinFirstColumn}
                 />
               )}
@@ -421,7 +452,9 @@ interface TableBodyComponentProps<TData> {
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
+  onOpenInNewTab?: (row: TData) => void;
   pinFirstColumn?: boolean;
+  /** Called when a row should open in a new tab (e.g. modifier click). */
   tableSnapshot?: {
     tableDataUpdatedAt?: number;
     columnVisibility?: VisibilityState;
@@ -433,17 +466,31 @@ interface TableBodyComponentProps<TData> {
 function TableRowComponent<TData>({
   row,
   onRowClick,
+  /** Called when the row should open in a new tab (e.g. ⌘/Ctrl-click) */
+  onOpenInNewTab,
   children,
 }: {
   row: Row<TData>;
   onRowClick?: (row: TData) => void;
+  /** Called when the row should open in a new tab (e.g. ⌘/Ctrl-click) */
+  onOpenInNewTab?: (row: TData) => void;
   children: React.ReactNode;
 }) {
   const peekViewId = useContext(SelectedRowContext);
   return (
     <TableRow
       data-row-index={row.index}
-      onClick={() => onRowClick?.(row.original)}
+      onClick={(e) => {
+        // If user holds cmd (Mac) or ctrl (Win/Linux), open full detail page in new tab
+        if ((e.metaKey || e.ctrlKey) && onOpenInNewTab) {
+          e.preventDefault();
+          // Ensure the click is handled only for the new-tab behaviour
+          onOpenInNewTab(row.original);
+          return;
+        }
+
+        onRowClick?.(row.original);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           onRowClick?.(row.original);
@@ -467,6 +514,7 @@ function TableBodyComponent<TData>({
   data,
   help,
   onRowClick,
+  onOpenInNewTab,
   pinFirstColumn = false,
 }: TableBodyComponentProps<TData>) {
   return (
@@ -482,7 +530,12 @@ function TableBodyComponent<TData>({
         </TableRow>
       ) : table.getRowModel().rows.length ? (
         table.getRowModel().rows.map((row) => (
-          <TableRowComponent key={row.id} row={row} onRowClick={onRowClick}>
+          <TableRowComponent
+            key={row.id}
+            row={row}
+            onRowClick={onRowClick}
+            onOpenInNewTab={onOpenInNewTab}
+          >
             {row.getVisibleCells().map((cell) => (
               <TableCell
                 key={cell.id}
