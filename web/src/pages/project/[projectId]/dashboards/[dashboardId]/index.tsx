@@ -343,7 +343,7 @@ export default function DashboardDetail() {
         title:
           (dashboard.data?.name || "Dashboard") +
           (dashboard.data?.owner === "LANGFUSE"
-            ? " (Maintained by Langfuse 🪢)"
+            ? " (Langfuse Maintained)"
             : ""),
         help: {
           description:
