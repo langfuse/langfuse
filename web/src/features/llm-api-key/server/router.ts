@@ -268,9 +268,11 @@ export const llmApiKeyRouter = createTRPCRouter({
     }),
 
   update: protectedProjectProcedureWithoutTracing
-    .input(CreateLlmApiKey.extend({
-      id: z.string(),
-    }))
+    .input(
+      CreateLlmApiKey.extend({
+        id: z.string(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoProjectAccess({
@@ -281,7 +283,10 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         // Get existing key to verify provider and adapter
         const existingKey = await ctx.prisma.llmApiKeys.findUnique({
-          where: { id: input.id },
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
         });
 
         if (!existingKey) {
@@ -292,35 +297,37 @@ export const llmApiKeyRouter = createTRPCRouter({
         }
 
         // Ensure provider and adapter cannot be changed
-        if (input.provider !== existingKey.provider || input.adapter !== existingKey.adapter) {
+        if (
+          input.provider !== existingKey.provider ||
+          input.adapter !== existingKey.adapter
+        ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "Provider and adapter cannot be changed",
           });
         }
 
-        const updateData: any = {
-          baseURL: input.baseURL,
-          withDefaultModels: input.withDefaultModels,
-          customModels: input.customModels,
-          config: input.config,
-        };
-
-        // Only update secret key if provided
-        if (input.secretKey) {
-          updateData.secretKey = encrypt(input.secretKey);
-          updateData.displaySecretKey = getDisplaySecretKey(input.secretKey);
-        }
-
-        // Only update extra headers if provided
-        if (input.extraHeaders) {
-          updateData.extraHeaders = encrypt(JSON.stringify(input.extraHeaders));
-          updateData.extraHeaderKeys = Object.keys(input.extraHeaders);
+        // Ensure we delete extra headers if they existed before and were removed
+        if (input.extraHeaders === undefined && existingKey.extraHeaders) {
+          input.extraHeaders = {};
         }
 
         const key = await ctx.prisma.llmApiKeys.update({
           where: { id: input.id },
-          data: updateData,
+          data: {
+            secretKey: encrypt(input.secretKey),
+            extraHeaders: input.extraHeaders
+              ? encrypt(JSON.stringify(input.extraHeaders))
+              : undefined,
+            extraHeaderKeys: input.extraHeaders
+              ? Object.keys(input.extraHeaders)
+              : undefined,
+            displaySecretKey: getDisplaySecretKey(input.secretKey),
+            baseURL: input.baseURL,
+            withDefaultModels: input.withDefaultModels,
+            customModels: input.customModels,
+            config: input.config,
+          },
         });
 
         await auditLog({
@@ -329,8 +336,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           resourceId: key.id,
           action: "update",
         });
-
-        return key;
       } catch (e) {
         logger.error(e);
         throw e;
