@@ -27,7 +27,6 @@ import { DialogDescription } from "@radix-ui/react-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { EditLLMApiKeyDialog } from "./EditLLMApiKeyDialog";
-import { useEntitlements } from "@/src/features/entitlements/hooks";
 
 export function LlmApiKeyList(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({
