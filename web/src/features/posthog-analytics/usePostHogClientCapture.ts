@@ -166,6 +166,7 @@ const events = {
     "api_key_create",
     "llm_api_key_delete",
     "llm_api_key_create",
+    "llm_api_key_update",
     "send_membership_invitation",
     "delete_membership_invitation",
     "delete_membership",

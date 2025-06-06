@@ -4,6 +4,7 @@ import {
   type BedrockConfig,
   type BedrockCredential,
   LLMAdapter,
+  type LlmApiKeys,
 } from "@langfuse/shared";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
@@ -69,15 +70,21 @@ const formSchema = z
     path: ["secretKey"],
   });
 
+interface CreateLLMApiKeyFormProps {
+  projectId?: string;
+  onSuccess: () => void;
+  customization: ReturnType<typeof useUiCustomization>;
+  mode?: "create" | "update";
+  existingKey?: LlmApiKeys;
+}
+
 export function CreateLLMApiKeyForm({
   projectId,
   onSuccess,
   customization,
-}: {
-  projectId?: string;
-  onSuccess: () => void;
-  customization: ReturnType<typeof useUiCustomization>;
-}) {
+  mode = "create",
+  existingKey,
+}: CreateLLMApiKeyFormProps) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -89,6 +96,10 @@ export function CreateLLMApiKeyForm({
   );
 
   const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
+    onSuccess: () => utils.llmApiKey.invalidate(),
+  });
+
+  const mutUpdateLlmApiKey = api.llmApiKey.update.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
   });
 
@@ -115,15 +126,30 @@ export function CreateLLMApiKeyForm({
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      adapter: defaultAdapter,
-      provider: "",
-      secretKey: "",
-      baseURL: getCustomizedBaseURL(defaultAdapter),
-      withDefaultModels: true,
-      customModels: [],
-      extraHeaders: [],
-    },
+    defaultValues:
+      mode === "update" && existingKey
+        ? {
+            adapter: existingKey.adapter as LLMAdapter,
+            provider: existingKey.provider,
+            secretKey: existingKey.displaySecretKey ?? "",
+            baseURL:
+              existingKey.baseURL ??
+              getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
+            withDefaultModels: existingKey.withDefaultModels,
+            customModels: existingKey.customModels.map((value) => ({ value })),
+            extraHeaders:
+              existingKey.extraHeaderKeys?.map((key) => ({ key, value: "" })) ??
+              [],
+          }
+        : {
+            adapter: defaultAdapter,
+            provider: "",
+            secretKey: "",
+            baseURL: getCustomizedBaseURL(defaultAdapter),
+            withDefaultModels: true,
+            customModels: [],
+            extraHeaders: [],
+          },
   });
 
   const currentAdapter = form.watch("adapter");
@@ -142,20 +168,35 @@ export function CreateLLMApiKeyForm({
     name: "extraHeaders",
   });
 
+  // Disable provider and adapter fields in update mode
+  const isFieldDisabled = (fieldName: string) => {
+    if (mode !== "update") return false;
+    return ["provider", "adapter"].includes(fieldName);
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!projectId) return console.error("No project ID found.");
-    if (
-      existingKeys?.data?.data.map((k) => k.provider).includes(values.provider)
-    ) {
-      form.setError("provider", {
-        type: "manual",
-        message: "There already exists an API key for this provider.",
+
+    if (mode === "create") {
+      if (
+        existingKeys?.data?.data
+          .map((k) => k.provider)
+          .includes(values.provider)
+      ) {
+        form.setError("provider", {
+          type: "manual",
+          message: "There already exists an API key for this provider.",
+        });
+        return;
+      }
+      capture("project_settings:llm_api_key_create", {
+        provider: values.provider,
       });
-      return;
+    } else {
+      capture("project_settings:llm_api_key_update", {
+        provider: values.provider,
+      });
     }
-    capture("project_settings:llm_api_key_create", {
-      provider: values.provider,
-    });
 
     let secretKey = values.secretKey;
     let config: BedrockConfig | undefined;
@@ -184,6 +225,7 @@ export function CreateLLMApiKeyForm({
         : undefined;
 
     const newKey = {
+      id: existingKey?.id ?? "",
       projectId,
       secretKey: secretKey ?? "",
       provider: values.provider,
@@ -214,7 +256,7 @@ export function CreateLLMApiKeyForm({
       return;
     }
 
-    return mutCreateLlmApiKey
+    return (mode === "create" ? mutCreateLlmApiKey : mutUpdateLlmApiKey)
       .mutateAsync(newKey)
       .then(() => {
         form.reset();
@@ -243,7 +285,7 @@ export function CreateLLMApiKeyForm({
                   Name to identify the key within Langfuse.
                 </FormDescription>
                 <FormControl>
-                  <Input {...field} />
+                  <Input {...field} disabled={isFieldDisabled("provider")} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -269,6 +311,7 @@ export function CreateLLMApiKeyForm({
                       getCustomizedBaseURL(value as LLMAdapter),
                     );
                   }}
+                  disabled={isFieldDisabled("adapter")}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -590,7 +633,7 @@ export function CreateLLMApiKeyForm({
             className="w-full"
             loading={form.formState.isSubmitting}
           >
-            Save new LLM API key
+            {mode === "create" ? "Save new LLM API key" : "Update LLM API key"}
           </Button>
 
           {form.formState.errors.root && (

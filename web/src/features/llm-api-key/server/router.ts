@@ -266,4 +266,79 @@ export const llmApiKeyRouter = createTRPCRouter({
         };
       }
     }),
+
+  update: protectedProjectProcedureWithoutTracing
+    .input(
+      CreateLlmApiKey.extend({
+        id: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "llmApiKeys:update",
+        });
+
+        // Get existing key to verify provider and adapter
+        const existingKey = await ctx.prisma.llmApiKeys.findUnique({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
+        });
+
+        if (!existingKey) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "API key not found",
+          });
+        }
+
+        // Ensure provider and adapter cannot be changed
+        if (
+          input.provider !== existingKey.provider ||
+          input.adapter !== existingKey.adapter
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Provider and adapter cannot be changed",
+          });
+        }
+
+        // Ensure we delete extra headers if they existed before and were removed
+        if (input.extraHeaders === undefined && existingKey.extraHeaders) {
+          input.extraHeaders = {};
+        }
+
+        const key = await ctx.prisma.llmApiKeys.update({
+          where: { id: input.id },
+          data: {
+            secretKey: encrypt(input.secretKey),
+            extraHeaders: input.extraHeaders
+              ? encrypt(JSON.stringify(input.extraHeaders))
+              : undefined,
+            extraHeaderKeys: input.extraHeaders
+              ? Object.keys(input.extraHeaders)
+              : undefined,
+            displaySecretKey: getDisplaySecretKey(input.secretKey),
+            baseURL: input.baseURL,
+            withDefaultModels: input.withDefaultModels,
+            customModels: input.customModels,
+            config: input.config,
+          },
+        });
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "llmApiKey",
+          resourceId: key.id,
+          action: "update",
+        });
+      } catch (e) {
+        logger.error(e);
+        throw e;
+      }
+    }),
 });
