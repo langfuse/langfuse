@@ -4,6 +4,7 @@ import {
   type BedrockConfig,
   type BedrockCredential,
   LLMAdapter,
+  type LlmApiKeys,
 } from "@langfuse/shared";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
@@ -74,19 +75,7 @@ interface CreateLLMApiKeyFormProps {
   onSuccess: () => void;
   customization: ReturnType<typeof useUiCustomization>;
   mode?: "create" | "update";
-  existingKey?: {
-    id: string;
-    provider: string;
-    adapter: LLMAdapter;
-    baseURL?: string;
-    withDefaultModels: boolean;
-    customModels: string[];
-    extraHeaderKeys?: string[];
-    displaySecretKey?: string;
-    config?: {
-      region?: string;
-    };
-  };
+  existingKey?: LlmApiKeys;
 }
 
 export function CreateLLMApiKeyForm({
@@ -140,11 +129,12 @@ export function CreateLLMApiKeyForm({
     defaultValues:
       mode === "update" && existingKey
         ? {
-            adapter: existingKey.adapter,
+            adapter: existingKey.adapter as LLMAdapter,
             provider: existingKey.provider,
             secretKey: existingKey.displaySecretKey ?? "",
             baseURL:
-              existingKey.baseURL ?? getCustomizedBaseURL(existingKey.adapter),
+              existingKey.baseURL ??
+              getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
             withDefaultModels: existingKey.withDefaultModels,
             customModels: existingKey.customModels.map((value) => ({ value })),
             extraHeaders:
