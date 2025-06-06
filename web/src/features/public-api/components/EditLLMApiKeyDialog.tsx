@@ -20,9 +20,9 @@ interface EditLLMApiKeyDialogProps {
   trigger?: React.ReactNode;
 }
 
-export function EditLLMApiKeyDialog({ 
-  apiKeyId, 
-  trigger 
+export function EditLLMApiKeyDialog({
+  apiKeyId,
+  trigger,
 }: EditLLMApiKeyDialogProps) {
   const projectId = useProjectIdFromURL();
   const [open, setOpen] = useState(false);
@@ -34,18 +34,22 @@ export function EditLLMApiKeyDialog({
   const uiCustomization = useUiCustomization();
 
   // Fetch all API keys to find the one we're editing
-  const { data: apiKeysData, isLoading, error } = api.llmApiKey.all.useQuery(
+  const {
+    data: apiKeysData,
+    isLoading,
+    error,
+  } = api.llmApiKey.all.useQuery(
     {
       projectId: projectId as string,
     },
-    { 
+    {
       enabled: Boolean(projectId) && open, // Only fetch when dialog is open
       retry: false, // Don't retry on error to show immediate feedback
     },
   );
 
   // Find the specific API key to edit
-  const apiKeyToEdit = apiKeysData?.data?.find(key => key.id === apiKeyId);
+  const apiKeyToEdit = apiKeysData?.data?.find((key) => key.id === apiKeyId);
 
   if (!hasAccess) return null;
 
@@ -62,15 +66,10 @@ export function EditLLMApiKeyDialog({
         setOpen(isOpen);
       }}
     >
-      <DialogTrigger asChild>
-        {trigger || defaultTrigger}
-      </DialogTrigger>
+      <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
       <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
         <DialogHeader>
-          <DialogTitle>
-            Edit LLM API key
-            {apiKeyToEdit && ` - ${apiKeyToEdit.provider}`}
-          </DialogTitle>
+          <DialogTitle>Edit LLM API key</DialogTitle>
         </DialogHeader>
         {open && (
           <>
@@ -79,7 +78,7 @@ export function EditLLMApiKeyDialog({
                 <div className="text-muted-foreground">Loading...</div>
               </div>
             ) : error ? (
-              <div className="flex flex-col items-center justify-center py-8 space-y-2">
+              <div className="flex flex-col items-center justify-center space-y-2 py-8">
                 <div className="text-destructive">Failed to load API key</div>
                 <div className="text-sm text-muted-foreground">
                   {error.message || "An unexpected error occurred"}
@@ -99,29 +98,36 @@ export function EditLLMApiKeyDialog({
                   extraHeaderKeys: apiKeyToEdit.extraHeaderKeys || [],
                   updatedAt: apiKeyToEdit.updatedAt,
                 }}
-                existingApiKeys={apiKeysData?.data?.map(key => ({ id: key.id, provider: key.provider }))}
+                existingApiKeys={apiKeysData?.data?.map((key) => ({
+                  id: key.id,
+                  provider: key.provider,
+                }))}
                 onSuccess={() => {
                   setOpen(false);
                   // Refresh the parent API keys list
-                  utils.llmApiKey.all.invalidate({ projectId: projectId as string });
+                  utils.llmApiKey.all.invalidate({
+                    projectId: projectId as string,
+                  });
                 }}
                 customization={uiCustomization}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center py-8 space-y-3">
-                <div className="text-muted-foreground text-center">
+              <div className="flex flex-col items-center justify-center space-y-3 py-8">
+                <div className="text-center text-muted-foreground">
                   <div className="font-medium">API key not found</div>
-                  <div className="text-sm mt-1">
-                    This API key may have been deleted by another user.
-                    Please close this dialog and reopen it to try again.
+                  <div className="mt-1 text-sm">
+                    This API key may have been deleted by another user. Please
+                    close this dialog and reopen it to try again.
                   </div>
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setOpen(false);
                     // Refresh the parent API keys list
-                    utils.llmApiKey.all.invalidate({ projectId: projectId as string });
+                    utils.llmApiKey.all.invalidate({
+                      projectId: projectId as string,
+                    });
                   }}
                 >
                   Close & Refresh
