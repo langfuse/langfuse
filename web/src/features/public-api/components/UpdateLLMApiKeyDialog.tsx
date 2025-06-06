@@ -11,17 +11,15 @@ import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { type LlmApiKeys } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PencilIcon } from "lucide-react";
 
-export function UpdateLLMApiKeyDialog({ 
+export function UpdateLLMApiKeyDialog({
   apiKey,
-  projectId 
-}: { 
+  projectId,
+}: {
   apiKey: LlmApiKeys;
   projectId: string;
 }) {
-  const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
   const uiCustomization = useUiCustomization();
 
@@ -55,4 +53,4 @@ export function UpdateLLMApiKeyDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}
