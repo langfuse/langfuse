@@ -200,6 +200,8 @@ export function DashboardWidgetTable() {
             return "Pie Chart (Total Value)";
           case "NUMBER":
             return "Big Number (Total Value)";
+          case "HISTOGRAM":
+            return "Histogram (Total Value)";
           default:
             return "Unknown Chart Type";
         }
