@@ -135,7 +135,7 @@ describe("llmApiKey.all RPC", () => {
     const withDefaultModels = false;
 
     // Create initial key
-    const createdKey = await caller.llmApiKey.create({
+    await caller.llmApiKey.create({
       projectId,
       secretKey: secret,
       provider,
