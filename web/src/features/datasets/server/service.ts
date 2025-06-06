@@ -22,10 +22,13 @@ import {
   queryClickhouse,
   type ScoreRecordReadType,
   traceException,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
 import { env } from "@/src/env.mjs";
+import { type FilterState } from "@langfuse/shared";
+import { datasetItemsTableCols } from "@/src/server/api/definitions/datasetItemsTable";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -405,9 +408,11 @@ export type DatasetRunItemsTableInput = {
   limit: number;
   page: number;
   prisma: PrismaClient;
+  filter?: FilterState;
 };
 
 export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
+  const filters = input.filter || [];
   const dataset = await input.prisma.dataset.findUnique({
     where: {
       id_projectId: {
@@ -456,6 +461,39 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
       .filter((id): id is string => Boolean(id)),
     input.projectId,
   );
+  try {
+    // Build base WHERE conditions
+    let whereConditions = Prisma.sql`dataset_items.dataset_id = ${input.datasetId} AND dataset_items.project_id = ${input.projectId}`;
+
+    // Add filter conditions if filters exist
+    if (filters.length > 0) {
+      const filterSql = tableColumnsToSqlFilterAndPrefix(
+        filters,
+        datasetItemsTableCols,
+        "dataset_items",
+      );
+      if (filterSql !== Prisma.empty) {
+        whereConditions = Prisma.sql`${whereConditions} ${filterSql}`;
+      }
+    }
+
+    // Execute queries with combined conditions
+    const selectQuery = Prisma.sql`
+      SELECT * FROM dataset_items
+      WHERE ${whereConditions}
+      ORDER BY dataset_items.status ASC, dataset_items.created_at DESC
+      LIMIT ${input.limit} OFFSET ${input.page * input.limit}
+    `;
+
+    const countQuery = Prisma.sql`
+      SELECT count(*) FROM dataset_items
+      WHERE ${whereConditions}
+    `;
+
+    [datasetItems, countResult] = await Promise.all([
+      input.prisma.$queryRaw<any[]>(selectQuery),
+      input.prisma.$queryRaw<any[]>(countQuery),
+    ]);
 
   const tracingData = {
     traceIds: traces.map((t) => t.id),
