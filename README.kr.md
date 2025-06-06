@@ -201,7 +201,7 @@ LANGFUSE_HOST="https://cloud.langfuse.com" # 🇪🇺 EU region
 ```
 
 ```python:main.py
-from langfuse.decorators import observe
+from langfuse import observe
 from langfuse.openai import openai # OpenAI integration
 
 @observe()

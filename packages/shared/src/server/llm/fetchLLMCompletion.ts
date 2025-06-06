@@ -16,7 +16,7 @@ import {
   StringOutputParser,
 } from "@langchain/core/output_parsers";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatOpenAI, AzureChatOpenAI } from "@langchain/openai";
 import GCPServiceAccountKeySchema, {
   BedrockConfigSchema,
   BedrockCredentialSchema,
@@ -219,7 +219,7 @@ export async function fetchLLMCompletion(
       timeout: 1000 * 60 * 2, // 2 minutes timeout
     });
   } else if (modelParams.adapter === LLMAdapter.Azure) {
-    chatModel = new ChatOpenAI({
+    chatModel = new AzureChatOpenAI({
       azureOpenAIApiKey: apiKey,
       azureOpenAIBasePath: baseURL,
       azureOpenAIApiDeploymentName: modelParams.model,

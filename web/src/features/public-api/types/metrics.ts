@@ -41,6 +41,12 @@ export const MetricsQueryObject = z
       .nullable()
       .optional()
       .default(null),
+    config: z
+      .object({
+        bins: z.number().int().min(1).max(100).optional(),
+        row_limit: z.number().int().positive().lte(1000).optional(),
+      })
+      .optional(),
   })
   .refine(
     (query) =>

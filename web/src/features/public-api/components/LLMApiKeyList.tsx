@@ -35,26 +35,18 @@ export function LlmApiKeyList(props: { projectId: string }) {
     scope: "llmApiKeys:read",
   });
 
-  // only show if the user has access to features that require LLM API keys
-  const entitlements = useEntitlements();
-  const isAvailable =
-    entitlements.includes("playground") ||
-    entitlements.includes("model-based-evaluations");
-
   const apiKeys = api.llmApiKey.all.useQuery(
     {
       projectId: props.projectId,
     },
     {
-      enabled: hasAccess && isAvailable,
+      enabled: hasAccess,
     },
   );
 
   const hasExtraHeaderKeys = apiKeys.data?.data.some(
     (key) => key.extraHeaderKeys.length > 0,
   );
-
-  if (!isAvailable) return null;
 
   if (!hasAccess) {
     return (
@@ -173,11 +165,12 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="mb-5">Delete LLM provider</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete this LLM provider? This action
+            cannot be undone.
+          </DialogDescription>
         </DialogHeader>
-        <DialogDescription>
-          Are you sure you want to delete this LLM provider? This action cannot
-          be undone.
-        </DialogDescription>
+
         <DialogFooter>
           <Button
             variant="destructive"

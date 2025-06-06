@@ -1156,6 +1156,7 @@ enum DashboardWidgetChartType {
   VERTICAL_BAR
   PIE
   NUMBER
+  HISTOGRAM
 }
 
 model DashboardWidget {

@@ -1,7 +1,9 @@
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -108,90 +110,93 @@ export function TransferProjectButton() {
           <DialogTitle className="text-lg font-semibold">
             Transfer Project
           </DialogTitle>
+          <Alert className="mt-2">
+            <TriangleAlert className="h-4 w-4" />
+            <AlertTitle>Warning</AlertTitle>
+            <AlertDescription>
+              Transferring the project will move it to a different organization:
+              <ul className="list-disc pl-4">
+                <li>
+                  Members who are not part of the new organization will lose
+                  access.
+                </li>
+                <li>
+                  The project remains fully operational as API keys, settings,
+                  and data will remain unchanged. All features (e.g. tracing,
+                  prompt management) will continue to work without interruption.
+                </li>
+              </ul>
+            </AlertDescription>
+          </Alert>
         </DialogHeader>
-        <Alert className="mt-2">
-          <TriangleAlert className="h-4 w-4" />
-          <AlertTitle>Warning</AlertTitle>
-          <AlertDescription>
-            Transferring the project will move it to a different organization:
-            <ul className="list-disc pl-4">
-              <li>
-                Members who are not part of the new organization will lose
-                access.
-              </li>
-              <li>
-                The project remains fully operational as API keys, settings, and
-                data will remain unchanged. All features (e.g. tracing, prompt
-                management) will continue to work without interruption.
-              </li>
-            </ul>
-          </AlertDescription>
-        </Alert>
         <Form {...form}>
           <form
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
-            className="mt-8 space-y-8"
+            className="space-y-8"
           >
-            <FormField
-              control={form.control}
-              name="projectId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Select New Organization</FormLabel>
-                  <FormControl>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={transferProject.isLoading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select organization" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {organizationsToTransferTo
-                          .filter((org) => org.id !== organization?.id)
-                          .map((org) => (
-                            <SelectItem key={org.id} value={org.id}>
-                              {org.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormDescription>
-                    Transfer this project to another organization where you have
-                    the ability to create projects.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Confirm</FormLabel>
-                  <FormControl>
-                    <Input placeholder={confirmMessage} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {`To confirm, type "${confirmMessage}" in the input box `}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Button
-              type="submit"
-              variant="destructive"
-              loading={transferProject.isLoading}
-              className="w-full"
-            >
-              Transfer project
-            </Button>
+            <DialogBody>
+              <FormField
+                control={form.control}
+                name="projectId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select New Organization</FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={transferProject.isLoading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select organization" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {organizationsToTransferTo
+                            .filter((org) => org.id !== organization?.id)
+                            .map((org) => (
+                              <SelectItem key={org.id} value={org.id}>
+                                {org.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormDescription>
+                      Transfer this project to another organization where you
+                      have the ability to create projects.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm</FormLabel>
+                    <FormControl>
+                      <Input placeholder={confirmMessage} {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {`To confirm, type "${confirmMessage}" in the input box `}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                type="submit"
+                variant="destructive"
+                loading={transferProject.isLoading}
+                className="w-full"
+              >
+                Transfer project
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

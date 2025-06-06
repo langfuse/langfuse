@@ -49,6 +49,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
@@ -151,22 +152,24 @@ const DatasetRunTableMultiSelectAction = ({
               {selectedRunIds.length > 1 ? "s" : ""}.
             </DialogDescription>
           </DialogHeader>
-          <Button
-            variant="destructive"
-            loading={mutDelete.isLoading}
-            disabled={mutDelete.isLoading}
-            onClick={async (event) => {
-              event.preventDefault();
-              capture("dataset_run:delete_form_submit");
-              await mutDelete.mutateAsync({
-                projectId,
-                datasetRunIds: selectedRunIds,
-              });
-              setIsDeleteDialogOpen(false);
-            }}
-          >
-            Delete Dataset Runs
-          </Button>
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              loading={mutDelete.isLoading}
+              disabled={mutDelete.isLoading}
+              onClick={async (event) => {
+                event.preventDefault();
+                capture("dataset_run:delete_form_submit");
+                await mutDelete.mutateAsync({
+                  projectId,
+                  datasetRunIds: selectedRunIds,
+                });
+                setIsDeleteDialogOpen(false);
+              }}
+            >
+              Delete Dataset Runs
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

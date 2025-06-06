@@ -219,7 +219,7 @@ LANGFUSE_HOST="https://cloud.langfuse.com" # 🇪🇺 EUリージョン
 ```
 
 ```python:/@observe()/ /from langfuse.openai import openai/ filename="main.py"
-from langfuse.decorators import observe
+from langfuse import observe
 from langfuse.openai import openai  # OpenAI統合
 
 @observe()

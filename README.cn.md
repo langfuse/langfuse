@@ -213,8 +213,8 @@ LANGFUSE_HOST="https://cloud.langfuse.com" # 🇪🇺 欧盟区域
 
 创建示例代码（文件名：**main.py**）：
 
-````python:main.py
-from langfuse.decorators import observe
+```python:main.py
+from langfuse import observe
 from langfuse.openai import openai  # OpenAI 集成
 
 @observe()
