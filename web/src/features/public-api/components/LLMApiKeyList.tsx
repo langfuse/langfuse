@@ -26,6 +26,7 @@ import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
+import { EditLLMApiKeyDialog } from "./EditLLMApiKeyDialog";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 
 export function LlmApiKeyList(props: { projectId: string }) {
@@ -96,13 +97,13 @@ export function LlmApiKeyList(props: { projectId: string }) {
               {hasExtraHeaderKeys ? (
                 <TableHead className="text-primary">Extra headers</TableHead>
               ) : null}
-              <TableHead />
+              <TableHead className="text-primary">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="text-muted-foreground">
             {apiKeys.data?.data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={7} className="text-center">
                   None
                 </TableCell>
               </TableRow>
@@ -127,10 +128,13 @@ export function LlmApiKeyList(props: { projectId: string }) {
                     <TableCell> {apiKey.extraHeaderKeys.join(", ")} </TableCell>
                   ) : null}
                   <TableCell>
-                    <DeleteApiKeyButton
-                      projectId={props.projectId}
-                      apiKeyId={apiKey.id}
-                    />
+                    <div className="flex items-center gap-1">
+                      <EditLLMApiKeyDialog apiKeyId={apiKey.id} />
+                      <DeleteApiKeyButton
+                        projectId={props.projectId}
+                        apiKeyId={apiKey.id}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
