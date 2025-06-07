@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
+import {
+  CreateLlmApiKey,
+  UpdateLlmApiKey,
+} from "@/src/features/llm-api-key/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -155,6 +158,119 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         return { success: true };
       });
+    }),
+  update: protectedProjectProcedureWithoutTracing
+    .input(UpdateLlmApiKey)
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "llmApiKeys:update",
+        });
+
+        if (input.secretKey && !env.ENCRYPTION_KEY) {
+          if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Internal server error",
+            });
+          } else {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Missing environment variable: `ENCRYPTION_KEY`. Please consult our docs: https://langfuse.com/self-hosting",
+            });
+          }
+        }
+
+        // Get the existing record for audit logging and concurrency check
+        const existingKey = await ctx.prisma.llmApiKeys.findUnique({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
+        });
+
+        if (!existingKey) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "LLM API key not found",
+          });
+        }
+
+        // Concurrent update protection
+        if (
+          existingKey.updatedAt.getTime() !== input.lastKnownUpdate.getTime()
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "This API key was recently modified by another user.",
+          });
+        }
+
+        // Prepare update data
+        const updateData: Partial<{
+          provider: string;
+          adapter: LLMAdapter;
+          baseURL: string | null;
+          withDefaultModels: boolean;
+          customModels: string[];
+          config: any;
+          secretKey: string;
+          displaySecretKey: string;
+          extraHeaders: string;
+          extraHeaderKeys: string[];
+        }> = {
+          ...(input.provider !== undefined && { provider: input.provider }),
+          ...(input.adapter !== undefined && { adapter: input.adapter }),
+          ...(input.baseURL !== undefined && {
+            baseURL: input.baseURL || null,
+          }),
+          ...(input.withDefaultModels !== undefined && {
+            withDefaultModels: input.withDefaultModels,
+          }),
+          ...(input.customModels !== undefined && {
+            customModels: input.customModels,
+          }),
+          ...(input.config !== undefined && { config: input.config }),
+        };
+
+        // Handle encrypted fields if they're being updated
+        if (input.secretKey) {
+          updateData.secretKey = encrypt(input.secretKey);
+          updateData.displaySecretKey = getDisplaySecretKey(input.secretKey);
+        }
+
+        if (input.extraHeaders) {
+          updateData.extraHeaders = encrypt(JSON.stringify(input.extraHeaders));
+          updateData.extraHeaderKeys = Object.keys(input.extraHeaders);
+        }
+
+        // Update the record
+        const updatedKey = await ctx.prisma.llmApiKeys.update({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
+          data: updateData,
+        });
+
+        // Audit logging
+        await auditLog({
+          session: ctx.session,
+          resourceType: "llmApiKey",
+          resourceId: updatedKey.id,
+          action: "update",
+          before: existingKey,
+          after: updatedKey,
+        });
+
+        return { success: true };
+      } catch (e) {
+        logger.error(e);
+        throw e;
+      }
     }),
   all: protectedProjectProcedure
     .input(

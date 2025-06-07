@@ -7,6 +7,7 @@ import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { Role } from "@langfuse/shared";
 
 describe("llmApiKey.all RPC", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -21,26 +22,34 @@ describe("llmApiKey.all RPC", () => {
       organizations: [
         {
           id: "seed-org-id",
-          role: "OWNER",
+          name: "Test Organization",
+          role: Role.OWNER,
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
           projects: [
             {
               id: projectId,
-              role: "ADMIN",
+              name: "Test Project",
+              role: Role.ADMIN,
+              deletedAt: null,
+              retentionDays: null,
+              metadata: {},
             },
           ],
         },
       ],
       featureFlags: {
         templateFlag: true,
+        excludeClickhouseRead: false,
       },
       admin: true,
+      canCreateOrganizations: true,
     },
     environment: {} as any,
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   it("should create an llm api key", async () => {
@@ -124,5 +133,145 @@ describe("llmApiKey.all RPC", () => {
 
     // response must not contain the secret key itself
     expect(llmApiKeys[0]).not.toHaveProperty("secretKey");
+  });
+
+  describe("llmApiKey.update", () => {
+    it("should update only metadata without touching credentials", async () => {
+      // Create an LLM API key first
+      const secret = "sk-test-original-key";
+      const originalProvider = "OpenAI Original";
+
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: secret,
+        provider: originalProvider,
+        adapter: LLMAdapter.OpenAI,
+        baseURL: "https://api.openai.com/v1",
+        withDefaultModels: true,
+        customModels: ["gpt-3.5-turbo"],
+        extraHeaders: { "X-Test": "original" },
+      });
+
+      const apiKey = await prisma.llmApiKeys.findFirst({
+        where: { projectId, provider: originalProvider },
+      });
+      expect(apiKey).toBeTruthy();
+
+      // Update only metadata
+      const result = await caller.llmApiKey.update({
+        id: apiKey!.id,
+        projectId,
+        lastKnownUpdate: apiKey!.updatedAt,
+        provider: "OpenAI Updated",
+        baseURL: "https://api.openai.com/v2",
+        withDefaultModels: false,
+        customModels: ["gpt-4", "gpt-4-turbo"],
+      });
+
+      expect(result.success).toBe(true);
+
+      // Verify the update
+      const updated = await prisma.llmApiKeys.findUnique({
+        where: { id: apiKey!.id },
+      });
+
+      expect(updated).toBeTruthy();
+      expect(updated!.provider).toBe("OpenAI Updated");
+      expect(updated!.baseURL).toBe("https://api.openai.com/v2");
+      expect(updated!.withDefaultModels).toBe(false);
+      expect(updated!.customModels).toEqual(["gpt-4", "gpt-4-turbo"]);
+
+      // Credentials should remain unchanged
+      expect(updated!.secretKey).toBe(apiKey!.secretKey);
+      expect(updated!.displaySecretKey).toBe(apiKey!.displaySecretKey);
+      expect(updated!.extraHeaders).toBe(apiKey!.extraHeaders);
+      expect(updated!.extraHeaderKeys).toEqual(apiKey!.extraHeaderKeys);
+    });
+
+    it("should update API credentials and verify encryption", async () => {
+      // Create an LLM API key first
+      const originalSecret = "sk-test-original";
+      const provider = "OpenAI Test";
+
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: originalSecret,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        withDefaultModels: true,
+        customModels: [],
+      });
+
+      const apiKey = await prisma.llmApiKeys.findFirst({
+        where: { projectId, provider },
+      });
+      expect(apiKey).toBeTruthy();
+
+      const newSecretKey = "sk-test-updated-key";
+
+      // Update with new credentials
+      const result = await caller.llmApiKey.update({
+        id: apiKey!.id,
+        projectId,
+        lastKnownUpdate: apiKey!.updatedAt,
+        secretKey: newSecretKey,
+        extraHeaders: { Authorization: "Bearer new-token" },
+      });
+
+      expect(result.success).toBe(true);
+
+      // Verify the update
+      const updated = await prisma.llmApiKeys.findUnique({
+        where: { id: apiKey!.id },
+      });
+
+      expect(updated).toBeTruthy();
+
+      // Secret key should be encrypted and display key updated
+      expect(updated!.secretKey).not.toBe(newSecretKey);
+      expect(updated!.secretKey).not.toBe(apiKey!.secretKey);
+      expect(updated!.displaySecretKey).toMatch(/^...[-a-zA-Z0-9]{4}$/);
+
+      // Extra headers should be encrypted
+      expect(updated!.extraHeaders).toBeTruthy();
+      expect(updated!.extraHeaders).not.toContain("Bearer new-token");
+      expect(updated!.extraHeaderKeys).toEqual(["Authorization"]);
+    });
+
+    it("should fail with concurrent update protection", async () => {
+      // Create an LLM API key
+      const secret = "sk-test-concurrent";
+      const provider = "OpenAI Concurrent";
+
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: secret,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        withDefaultModels: true,
+        customModels: [],
+      });
+
+      const apiKey = await prisma.llmApiKeys.findFirst({
+        where: { projectId, provider },
+      });
+      expect(apiKey).toBeTruthy();
+
+      // Simulate another user updating the key
+      await prisma.llmApiKeys.update({
+        where: { id: apiKey!.id },
+        data: { provider: "Updated by another user" },
+      });
+
+      // Try to update with stale timestamp
+      await expect(
+        caller.llmApiKey.update({
+          id: apiKey!.id,
+          projectId,
+          lastKnownUpdate: apiKey!.updatedAt, // This is now stale
+          provider: "My update",
+        }),
+      ).rejects.toThrow("recently modified by another user");
+    });
   });
 });

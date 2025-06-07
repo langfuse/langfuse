@@ -145,7 +145,7 @@ export function CreateLLMApiKeyForm({
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!projectId) return console.error("No project ID found.");
     if (
-      existingKeys?.data?.data.map((k) => k.provider).includes(values.provider)
+      existingKeys?.data?.data.map((k) => k.provider.toLowerCase()).includes(values.provider.toLowerCase())
     ) {
       form.setError("provider", {
         type: "manual",
