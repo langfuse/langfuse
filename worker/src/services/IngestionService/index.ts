@@ -1,4 +1,4 @@
-import { Redis } from "ioredis";
+import { Redis, Cluster } from "ioredis";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 import {
@@ -89,7 +89,7 @@ export class IngestionService {
   private promptService: PromptService;
 
   constructor(
-    private redis: Redis,
+    private redis: Redis | Cluster,
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
     private clickhouseClient: ClickhouseClientType,

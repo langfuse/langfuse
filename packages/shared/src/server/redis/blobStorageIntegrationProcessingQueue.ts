@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions, getQueuePrefix } from "./redis";
 import { logger } from "../logger";
 
 export class BlobStorageIntegrationProcessingQueue {
@@ -18,7 +18,8 @@ export class BlobStorageIntegrationProcessingQueue {
 
     BlobStorageIntegrationProcessingQueue.instance = newRedis
       ? new Queue(QueueName.BlobStorageIntegrationProcessingQueue, {
-          connection: newRedis,
+            connection: newRedis,
+            prefix: getQueuePrefix(),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,

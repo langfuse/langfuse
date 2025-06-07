@@ -1,4 +1,4 @@
-import Redis, { RedisOptions } from "ioredis";
+import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
@@ -24,9 +24,94 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
   },
 };
 
+/**
+ * Parse Redis cluster nodes from environment variable
+ * Format: "host1:port1,host2:port2,host3:port3"
+ */
+const parseClusterNodes = (nodesString: string): Array<{ host: string; port: number }> => {
+  return nodesString.split(',').map(node => {
+    const [host, port] = node.trim().split(':');
+    if (!host || !port) {
+      throw new Error(`Invalid cluster node format: ${node}. Expected format: host:port`);
+    }
+    return { host, port: parseInt(port, 10) };
+  });
+};
+
+/**
+ * Create Redis cluster instance with BullMQ-compatible configuration
+ */
+const createRedisClusterInstance = (
+  additionalOptions: Partial<RedisOptions> = {},
+): Cluster | null => {
+  if (!env.REDIS_CLUSTER_NODES) {
+    logger.error("REDIS_CLUSTER_NODES is required when REDIS_CLUSTER_ENABLED is true");
+    return null;
+  }
+
+  try {
+    const nodes = parseClusterNodes(env.REDIS_CLUSTER_NODES);
+    const tlsEnabled = env.REDIS_TLS_ENABLED === "true";
+
+    const tlsOptions = tlsEnabled
+      ? {
+          tls: {
+            ca: env.REDIS_TLS_CA_PATH
+              ? fs.readFileSync(env.REDIS_TLS_CA_PATH)
+              : undefined,
+            cert: env.REDIS_TLS_CERT_PATH
+              ? fs.readFileSync(env.REDIS_TLS_CERT_PATH)
+              : undefined,
+            key: env.REDIS_TLS_KEY_PATH
+              ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
+              : undefined,
+          },
+        }
+      : {};
+
+    const clusterOptions: ClusterOptions = {
+      redisOptions: {
+        password: env.REDIS_AUTH || undefined,
+        ...defaultRedisOptions,
+        ...additionalOptions,
+        ...tlsOptions,
+      },
+      // Enable read from replicas for better performance
+      scaleReads: "slave",
+      // Retry configuration for cluster
+      retryDelayOnFailover: 100,
+    };
+
+    const cluster = new Cluster(nodes, clusterOptions);
+
+    cluster.on("error", (error) => {
+      logger.error("Redis cluster error", error);
+    });
+
+    cluster.on("connect", () => {
+      logger.info("Redis cluster connected");
+    });
+
+    cluster.on("ready", () => {
+      logger.info("Redis cluster ready");
+    });
+
+    return cluster;
+  } catch (error) {
+    logger.error("Failed to create Redis cluster instance", error);
+    return null;
+  }
+};
+
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
-) => {
+): Redis | Cluster | null => {
+  // Check if cluster mode is enabled
+  if (env.REDIS_CLUSTER_ENABLED === "true") {
+    return createRedisClusterInstance(additionalOptions);
+  }
+
+  // Single-node Redis configuration (existing logic)
   const tlsEnabled = env.REDIS_TLS_ENABLED === "true";
 
   const tlsOptions = tlsEnabled
@@ -67,6 +152,20 @@ export const createNewRedisInstance = (
   });
 
   return instance;
+};
+
+/**
+ * Get the queue prefix for BullMQ cluster compatibility
+ * In cluster mode, uses hash tags to ensure queue keys are on the same node
+ * In single-node mode, returns undefined (no prefix needed)
+ */
+export const getQueuePrefix = (): string | undefined => {
+  if (env.REDIS_CLUSTER_ENABLED === "true") {
+    // Use hash tags for Redis cluster compatibility
+    // This ensures all keys for a queue are placed on the same hash slot
+    return `{${env.REDIS_CLUSTER_PREFIX}}`;
+  }
+  return undefined;
 };
 
 const createRedisClient = () => {
