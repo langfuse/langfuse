@@ -16,7 +16,6 @@ CREATE TABLE "dataset_items" (
     "expected_output" JSONB,
     "source_observation_id" TEXT,
     "dataset_id" TEXT NOT NULL,
-    "comment" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
