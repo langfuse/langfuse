@@ -256,7 +256,13 @@ export default function Dataset() {
                     projectId={projectId}
                   />
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem
+                  asChild
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    return false;
+                  }}
+                >
                   <DeleteDatasetButton
                     itemId={datasetId}
                     projectId={projectId}
