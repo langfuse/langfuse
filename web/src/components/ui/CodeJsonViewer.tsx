@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
@@ -301,6 +301,8 @@ export const IOTableCell = ({
     </>
   );
 };
+
+export const MemoizedIOTableCell = memo(IOTableCell);
 
 export const JsonSkeleton = ({
   className,

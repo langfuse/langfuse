@@ -11,6 +11,7 @@ import {
 import { InvalidRequestError } from "@langfuse/shared";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { type Decimal } from "decimal.js";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -39,6 +40,11 @@ export default withMiddlewares({
             },
           },
         ],
+        include: {
+          Price: {
+            select: { usageType: true, price: true },
+          },
+        },
         take: query.limit,
         skip: (query.page - 1) * query.limit,
       });
@@ -67,6 +73,7 @@ export default withMiddlewares({
       };
     },
   }),
+
   POST: createAuthedProjectAPIRoute({
     name: "Create custom model definition",
     bodySchema: PostModelsV1Body,
@@ -122,7 +129,15 @@ export default withMiddlewares({
         return createdModel;
       });
 
-      return prismaToApiModelDefinition(model);
+      return prismaToApiModelDefinition({
+        ...model,
+        Price: (["inputPrice", "outputPrice", "totalPrice"] as const)
+          .filter((key) => model[key] != null)
+          .map((key) => ({
+            usageType: key.split("Price")[0],
+            price: model[key] as Decimal,
+          })),
+      });
     },
   }),
 });

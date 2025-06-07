@@ -28,6 +28,11 @@ export const BigNumberChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("NUMBER"),
 });
 
+export const HistogramChartConfig = BaseTotalValueChartConfig.extend({
+  type: z.literal("HISTOGRAM"),
+  bins: z.number().int().min(1).max(100).optional().default(10),
+});
+
 // Define dimension schema
 export const DimensionSchema = z.object({
   field: z.string(),
@@ -47,6 +52,7 @@ export const ChartConfigSchema = z.discriminatedUnion("type", [
   VerticalBarChartConfig,
   PieChartConfig,
   BigNumberChartConfig,
+  HistogramChartConfig,
 ]);
 
 export const DashboardDefinitionWidgetWidgetSchema = z.object({

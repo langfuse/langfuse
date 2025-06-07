@@ -326,10 +326,9 @@ export async function executeQuery(
   query: QueryType,
 ): Promise<Array<Record<string, unknown>>> {
   try {
-    const { query: compiledQuery, parameters } = new QueryBuilder().build(
-      query,
-      projectId,
-    );
+    const { query: compiledQuery, parameters } = new QueryBuilder(
+      query.chartConfig,
+    ).build(query, projectId);
 
     const result = await queryClickhouse<Record<string, unknown>>({
       query: compiledQuery,

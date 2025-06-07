@@ -399,4 +399,102 @@ describe("/api/public/metrics API Endpoint", () => {
     expect(body).toHaveProperty("error");
     expect(body.message).toMatch(/Invalid filter column/);
   });
+
+  it("should handle histogram aggregation with custom bin count", async () => {
+    // Create test data with varying costs for histogram
+    const histogramTraceId = randomUUID();
+
+    // Create a trace for histogram testing
+    await createTracesCh([
+      createTrace({
+        id: histogramTraceId,
+        name: "histogram-test-trace",
+        project_id: projectId,
+        timestamp: now.getTime(),
+        metadata: { test: testMetadataValue },
+      }),
+    ]);
+
+    // Create observations with varying costs to test histogram
+    const histogramObservations: ReturnType<typeof createObservation>[] = [];
+    const costValues = [
+      // Low cost cluster - 5 observations
+      0.001, 0.002, 0.003, 0.004, 0.005,
+      // Medium cost cluster - 5 observations
+      0.05, 0.06, 0.07, 0.08, 0.09,
+      // High cost cluster - 5 observations
+      0.5, 0.6, 0.7, 0.8, 0.9,
+    ];
+
+    costValues.forEach((cost, index) => {
+      histogramObservations.push(
+        createObservation({
+          id: randomUUID(),
+          trace_id: histogramTraceId,
+          project_id: projectId,
+          name: `histogram-observation-${index}`,
+          start_time: now.getTime(),
+          total_cost: cost,
+          metadata: { test: testMetadataValue },
+        }),
+      );
+    });
+
+    await createObservationsCh(histogramObservations);
+
+    // Test histogram query with custom bin count
+    const histogramQuery = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "totalCost", aggregation: "histogram" }],
+      filters: [
+        {
+          column: "metadata",
+          operator: "contains",
+          key: "test",
+          value: testMetadataValue,
+          type: "stringObject",
+        },
+      ],
+      timeDimension: null,
+      fromTimestamp: twoDaysAgo.toISOString(),
+      toTimestamp: tomorrow.toISOString(),
+      orderBy: null,
+      config: { bins: 15 },
+    };
+
+    // Make the API call
+    const response = await makeZodVerifiedAPICall(
+      GetMetricsV1Response,
+      "GET",
+      `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(histogramQuery))}`,
+    );
+
+    // Validate response format
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body.data)).toBe(true);
+    expect(response.body.data).toHaveLength(1);
+
+    // Validate histogram data structure
+    const histogramData = response.body.data[0].histogram_totalCost as [
+      number,
+      number,
+      number,
+    ][];
+    expect(Array.isArray(histogramData)).toBe(true);
+    expect(histogramData.length).toBeGreaterThan(0);
+    expect(histogramData.length).toBeLessThanOrEqual(15); // Should not exceed requested bins
+
+    // Verify histogram tuple structure [lower, upper, height]
+    histogramData.forEach((bin: [number, number, number]) => {
+      expect(Array.isArray(bin)).toBe(true);
+      expect(bin).toHaveLength(3);
+      const [lower, upper, height] = bin;
+      expect(typeof lower).toBe("number");
+      expect(typeof upper).toBe("number");
+      expect(typeof height).toBe("number");
+      expect(lower).toBeLessThanOrEqual(upper);
+      expect(height).toBeGreaterThanOrEqual(0);
+    });
+  });
 });

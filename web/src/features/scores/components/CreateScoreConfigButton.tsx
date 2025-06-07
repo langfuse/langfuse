@@ -3,7 +3,9 @@ import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -193,248 +195,255 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
               // eslint-disable-next-line @typescript-eslint/no-misused-promises
               onSubmit={form.handleSubmit(onSubmit)}
             >
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="text"
-                        onBlur={(e) => field.onChange(e.target.value.trimEnd())}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="dataType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Data type</FormLabel>
-                    <Select
-                      defaultValue={field.value}
-                      onValueChange={(value) => {
-                        field.onChange(
-                          value as (typeof availableDataTypes)[number],
-                        );
-                        form.clearErrors();
-                        if (isNumericDataType(value as ScoreDataType)) {
-                          form.setValue("categories", undefined);
-                        } else {
-                          form.setValue("minValue", undefined);
-                          form.setValue("maxValue", undefined);
-                          if (isBooleanDataType(value as ScoreDataType)) {
-                            replace([
-                              { label: "True", value: 1 },
-                              { label: "False", value: 0 },
-                            ]);
-                          } else {
-                            replace([{ label: "", value: 0 }]);
-                          }
-                        }
-                      }}
-                    >
+              <DialogBody>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a data type" />
-                        </SelectTrigger>
+                        <Input
+                          {...field}
+                          type="text"
+                          onBlur={(e) =>
+                            field.onChange(e.target.value.trimEnd())
+                          }
+                        />
                       </FormControl>
-                      <SelectContent>
-                        {availableDataTypes.map((role) => (
-                          <SelectItem value={role} key={role}>
-                            {role}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {isNumericDataType(form.getValues("dataType")) ? (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="minValue"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Minimum (optional) </FormLabel>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dataType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data type</FormLabel>
+                      <Select
+                        defaultValue={field.value}
+                        onValueChange={(value) => {
+                          field.onChange(
+                            value as (typeof availableDataTypes)[number],
+                          );
+                          form.clearErrors();
+                          if (isNumericDataType(value as ScoreDataType)) {
+                            form.setValue("categories", undefined);
+                          } else {
+                            form.setValue("minValue", undefined);
+                            form.setValue("maxValue", undefined);
+                            if (isBooleanDataType(value as ScoreDataType)) {
+                              replace([
+                                { label: "True", value: 1 },
+                                { label: "False", value: 0 },
+                              ]);
+                            } else {
+                              replace([{ label: "", value: 0 }]);
+                            }
+                          }
+                        }}
+                      >
                         <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                            // manually manage controlled input state
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              field.onChange(
-                                value === "" ? undefined : Number(value),
-                              );
-                            }}
-                            type="number"
-                          />
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a data type" />
+                          </SelectTrigger>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="maxValue"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Maximum (optional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                            // manually manage controlled input state
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              field.onChange(
-                                value === "" ? undefined : Number(value),
-                              );
-                            }}
-                            type="number"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
-              ) : (
-                <div className="grid grid-flow-row gap-2">
-                  <FormField
-                    control={form.control}
-                    name="categories"
-                    render={() => (
-                      <>
-                        {fields.length > 0 && (
-                          <div className="mb-2 grid grid-cols-[1fr,3fr] items-center gap-2 text-left sm:grid-cols-[1fr,7fr]">
-                            <FormLabel className="grid grid-flow-col">
-                              Value
-                              <DocPopup
-                                description={`This is how the ${
-                                  isCategoricalDataType(
-                                    form.getValues("dataType"),
-                                  )
-                                    ? "category"
-                                    : "boolean"
-                                } label is mapped to an integer value internally.`}
-                              />
-                            </FormLabel>
-                            <FormLabel>Label</FormLabel>
-                          </div>
-                        )}
-                        {fields.map((category, index) => (
-                          <div
-                            key={`${category.id}-langfuseObject`}
-                            className="items-top mb-2 grid grid-cols-[1fr,3fr] gap-2 text-left sm:grid-cols-[1fr,7fr]"
-                          >
-                            <FormField
-                              control={form.control}
-                              name={`categories.${index}.value`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      {...field}
-                                      readOnly
-                                      disabled
-                                      inputMode="numeric"
-                                      className="text-center"
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
+                        <SelectContent>
+                          {availableDataTypes.map((role) => (
+                            <SelectItem value={role} key={role}>
+                              {role}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {isNumericDataType(form.getValues("dataType")) ? (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="minValue"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Minimum (optional) </FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                              // manually manage controlled input state
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                field.onChange(
+                                  value === "" ? undefined : Number(value),
+                                );
+                              }}
+                              type="number"
                             />
-                            <div className="grid grid-cols-[1fr,auto] gap-2">
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="maxValue"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Maximum (optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                              // manually manage controlled input state
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                field.onChange(
+                                  value === "" ? undefined : Number(value),
+                                );
+                              }}
+                              type="number"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                ) : (
+                  <div className="grid grid-flow-row gap-2">
+                    <FormField
+                      control={form.control}
+                      name="categories"
+                      render={() => (
+                        <>
+                          {fields.length > 0 && (
+                            <div className="mb-2 grid grid-cols-[1fr,3fr] items-center gap-2 text-left sm:grid-cols-[1fr,7fr]">
+                              <FormLabel className="grid grid-flow-col">
+                                Value
+                                <DocPopup
+                                  description={`This is how the ${
+                                    isCategoricalDataType(
+                                      form.getValues("dataType"),
+                                    )
+                                      ? "category"
+                                      : "boolean"
+                                  } label is mapped to an integer value internally.`}
+                                />
+                              </FormLabel>
+                              <FormLabel>Label</FormLabel>
+                            </div>
+                          )}
+                          {fields.map((category, index) => (
+                            <div
+                              key={`${category.id}-langfuseObject`}
+                              className="items-top mb-2 grid grid-cols-[1fr,3fr] gap-2 text-left sm:grid-cols-[1fr,7fr]"
+                            >
                               <FormField
                                 control={form.control}
-                                name={`categories.${index}.label`}
+                                name={`categories.${index}.value`}
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormControl>
                                       <Input
                                         {...field}
-                                        type="text"
-                                        onBlur={(e) =>
-                                          field.onChange(
-                                            e.target.value.trimEnd(),
-                                          )
-                                        }
-                                        readOnly={isBooleanDataType(
-                                          form.getValues("dataType"),
-                                        )}
+                                        readOnly
+                                        disabled
+                                        inputMode="numeric"
+                                        className="text-center"
                                       />
                                     </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
                               />
-                              {isCategoricalDataType(
-                                form.getValues("dataType"),
-                              ) && (
-                                <Button
-                                  onClick={() => remove(index)}
-                                  variant="outline"
-                                  size="icon"
-                                  disabled={
-                                    index === 0 || index !== fields.length - 1
-                                  }
-                                >
-                                  <Trash className="h-4 w-4" />
-                                </Button>
-                              )}
+                              <div className="grid grid-cols-[1fr,auto] gap-2">
+                                <FormField
+                                  control={form.control}
+                                  name={`categories.${index}.label`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormControl>
+                                        <Input
+                                          {...field}
+                                          type="text"
+                                          onBlur={(e) =>
+                                            field.onChange(
+                                              e.target.value.trimEnd(),
+                                            )
+                                          }
+                                          readOnly={isBooleanDataType(
+                                            form.getValues("dataType"),
+                                          )}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                {isCategoricalDataType(
+                                  form.getValues("dataType"),
+                                ) && (
+                                  <Button
+                                    onClick={() => remove(index)}
+                                    variant="outline"
+                                    size="icon"
+                                    disabled={
+                                      index === 0 || index !== fields.length - 1
+                                    }
+                                  >
+                                    <Trash className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                        {isCategoricalDataType(form.getValues("dataType")) && (
-                          <div className="grid-cols-auto grid">
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              disabled={
-                                isBooleanDataType(form.getValues("dataType")) &&
-                                fields.length === 2
-                              }
-                              onClick={() =>
-                                append({ label: "", value: fields.length })
-                              }
-                            >
-                              Add category
-                            </Button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  />
-                </div>
-              )}
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <>
-                    <FormItem>
-                      <FormLabel>Description (optional)</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          placeholder="Provide an optional description of the score config..."
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  </>
+                          ))}
+                          {isCategoricalDataType(
+                            form.getValues("dataType"),
+                          ) && (
+                            <div className="grid-cols-auto grid">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={
+                                  isBooleanDataType(
+                                    form.getValues("dataType"),
+                                  ) && fields.length === 2
+                                }
+                                onClick={() =>
+                                  append({ label: "", value: fields.length })
+                                }
+                              >
+                                Add category
+                              </Button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    />
+                  </div>
                 )}
-              />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <>
+                      <FormItem>
+                        <FormLabel>Description (optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder="Provide an optional description of the score config..."
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    </>
+                  )}
+                />
+              </DialogBody>
             </form>
             <Dialog
               open={confirmOpen}
@@ -444,39 +453,45 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
               }}
             >
               <DialogTrigger asChild>
-                <Button
-                  type="button"
-                  className="w-full"
-                  onClick={handleSubmitConfirm}
-                >
-                  Submit
-                </Button>
+                <div className="p-6 pt-0">
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={handleSubmitConfirm}
+                  >
+                    Submit
+                  </Button>
+                </div>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Confirm Submission</DialogTitle>
                 </DialogHeader>
-                <p className="text-sm">
-                  Score configs cannot be edited or deleted after they have been
-                  created. Are you sure you want to proceed?
-                </p>
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={form.formState.isSubmitting}
-                    onClick={() => setConfirmOpen(false)}
-                  >
-                    Continue Editing
-                  </Button>
-                  <Button
-                    type="submit"
-                    loading={form.formState.isSubmitting}
-                    onClick={form.handleSubmit(onSubmit)}
-                  >
-                    Confirm
-                  </Button>
-                </div>
+                <DialogBody>
+                  <p className="text-sm">
+                    Score configs cannot be edited or deleted after they have
+                    been created. Are you sure you want to proceed?
+                  </p>
+                </DialogBody>
+                <DialogFooter>
+                  <div className="flex justify-end space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={form.formState.isSubmitting}
+                      onClick={() => setConfirmOpen(false)}
+                    >
+                      Continue Editing
+                    </Button>
+                    <Button
+                      type="submit"
+                      loading={form.formState.isSubmitting}
+                      onClick={form.handleSubmit(onSubmit)}
+                    >
+                      Confirm
+                    </Button>
+                  </div>
+                </DialogFooter>
               </DialogContent>
             </Dialog>
             {formError ? (

@@ -93,7 +93,7 @@ Langfuse is an **open source LLM engineering** platform. It helps teams collabor
 
 ### Langfuse Cloud
 
-Managed deployment by the Langfuse team, generous free-tier (hobby plan), no credit card required.
+Managed deployment by the Langfuse team, generous free-tier, no credit card required.
 
 <div align="center">
     <a href="https://cloud.langfuse.com" target="_blank">
@@ -115,12 +115,11 @@ Run Langfuse on your own infrastructure:
   # Run the langfuse docker compose
   docker compose up
   ```
-
-- [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Run Langfuse on a Kubernetes cluster using Helm. This is the preferred production deployment.
 - [VM](https://langfuse.com/self-hosting/docker-compose): Run Langfuse on a single Virtual Machine using Docker Compose.
-- Planned: Cloud-specific deployment guides, please upvote and comment on the following threads: [AWS](https://github.com/orgs/langfuse/discussions/4645), [Google Cloud](https://github.com/orgs/langfuse/discussions/4646), [Azure](https://github.com/orgs/langfuse/discussions/4647).
+- [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Run Langfuse on a Kubernetes cluster using Helm. This is the preferred production deployment.
+- Terraform Templates: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)
 
-See [self-hosting documentation](https://langfuse.com/self-hosting) to learn more about the architecture and configuration options.
+See [self-hosting documentation](https://langfuse.com/self-hosting) to learn more about architecture and configuration options.
 
 ## 🔌 Integrations
 
@@ -191,7 +190,7 @@ LANGFUSE_HOST="https://cloud.langfuse.com" # 🇪🇺 EU region
 ```
 
 ```python /@observe()/ /from langfuse.openai import openai/ filename="main.py"
-from langfuse.decorators import observe
+from langfuse import observe
 from langfuse.openai import openai # OpenAI integration
 
 @observe()

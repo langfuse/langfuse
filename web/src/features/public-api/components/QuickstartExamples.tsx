@@ -22,7 +22,6 @@ export const QuickstartExamples = (p: {
     { value: "openai", label: "OpenAI" },
     { value: "langchain", label: "Langchain" },
     { value: "langchain-js", label: "Langchain JS" },
-    { value: "llamaindex", label: "LlamaIndex" },
     { value: "other", label: "Other" },
   ];
   const host = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
@@ -196,32 +195,6 @@ export const QuickstartExamples = (p: {
             for more details and an end-to-end example.
           </p>
         </TabsContent>
-        <TabsContent value="llamaindex">
-          <p className="mt-2 text-xs text-muted-foreground">
-            The integration uses the LlamaIndex callback system to automatically
-            capture detailed traces of your LlamaIndex executions.
-          </p>
-          <CodeView
-            content="pip install langfuse llama-index"
-            className="my-2"
-          />
-          <CodeView
-            content={LLAMA_INDEX_CODE({ publicKey, secretKey, host })}
-            className="my-2"
-          />
-          <p className="mt-2 text-xs text-muted-foreground">
-            See the{" "}
-            <a
-              href="https://langfuse.com/docs/integrations/llama-index"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              LlamaIndex Integration docs
-            </a>{" "}
-            for more details and an end-to-end example.
-          </p>
-        </TabsContent>
         <TabsContent value="other">
           <p className="mt-2 text-xs text-muted-foreground">
             Use the{" "}
@@ -283,12 +256,16 @@ const LANGCHAIN_PYTHON_CODE = (p: {
   publicKey: string;
   secretKey: string;
   host: string;
-}) => `from langfuse.callback import CallbackHandler
-langfuse_handler = CallbackHandler(
+}) => `from langfuse import Langfuse
+from langfuse.langchain import CallbackHandler
+
+langfuse = Langfuse(
     public_key="${p.publicKey}",
     secret_key="${p.secretKey}",
     host="${p.host}"
 )
+
+langfuse_handler = CallbackHandler()
 
 # <Your Langchain code here>
  
@@ -316,18 +293,3 @@ await chain.invoke(
   { input: "<user_input>" },
   { callbacks: [langfuseHandler] }
 );`;
-
-const LLAMA_INDEX_CODE = (p: {
-  publicKey: string;
-  secretKey: string;
-  host: string;
-}) => `from llama_index.core import Settings
-from llama_index.core.callbacks import CallbackManager
-from langfuse.llama_index import LlamaIndexCallbackHandler
- 
-langfuse_callback_handler = LlamaIndexCallbackHandler(
-    public_key="${p.publicKey}",
-    secret_key="${p.secretKey}",
-    host="${p.host}"
-)
-Settings.callback_manager = CallbackManager([langfuse_callback_handler])`;

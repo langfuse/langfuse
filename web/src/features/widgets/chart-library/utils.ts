@@ -15,7 +15,7 @@ export const groupDataByTimeDimension = (data: DataPoint[]) => {
       }
 
       const dimension = item.dimension || "Unknown";
-      acc[time][dimension] = item.metric;
+      acc[time][dimension] = item.metric as number;
 
       return acc;
     },
@@ -49,6 +49,8 @@ export const isTimeSeriesChart = (
     case "HORIZONTAL_BAR":
     case "VERTICAL_BAR":
     case "PIE":
+    case "HISTOGRAM":
+    case "NUMBER":
       return false;
     default:
       return false;
