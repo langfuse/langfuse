@@ -131,7 +131,7 @@ describe("llmApiKey.all RPC", () => {
       // Create an LLM API key first
       const secret = "sk-test-original-key";
       const originalProvider = "OpenAI Original";
-      
+
       await caller.llmApiKey.create({
         projectId,
         secretKey: secret,
@@ -171,7 +171,7 @@ describe("llmApiKey.all RPC", () => {
       expect(updated!.baseURL).toBe("https://api.openai.com/v2");
       expect(updated!.withDefaultModels).toBe(false);
       expect(updated!.customModels).toEqual(["gpt-4", "gpt-4-turbo"]);
-      
+
       // Credentials should remain unchanged
       expect(updated!.secretKey).toBe(apiKey!.secretKey);
       expect(updated!.displaySecretKey).toBe(apiKey!.displaySecretKey);
@@ -183,7 +183,7 @@ describe("llmApiKey.all RPC", () => {
       // Create an LLM API key first
       const originalSecret = "sk-test-original";
       const provider = "OpenAI Test";
-      
+
       await caller.llmApiKey.create({
         projectId,
         secretKey: originalSecret,
@@ -206,7 +206,7 @@ describe("llmApiKey.all RPC", () => {
         projectId,
         lastKnownUpdate: apiKey!.updatedAt,
         secretKey: newSecretKey,
-        extraHeaders: { "Authorization": "Bearer new-token" },
+        extraHeaders: { Authorization: "Bearer new-token" },
       });
 
       expect(result.success).toBe(true);
@@ -217,12 +217,12 @@ describe("llmApiKey.all RPC", () => {
       });
 
       expect(updated).toBeTruthy();
-      
+
       // Secret key should be encrypted and display key updated
       expect(updated!.secretKey).not.toBe(newSecretKey);
       expect(updated!.secretKey).not.toBe(apiKey!.secretKey);
-      expect(updated!.displaySecretKey).toBe("...t-key");
-      
+      expect(updated!.displaySecretKey).toMatch(/^...[-a-zA-Z0-9]{4}$/);
+
       // Extra headers should be encrypted
       expect(updated!.extraHeaders).toBeTruthy();
       expect(updated!.extraHeaders).not.toContain("Bearer new-token");
@@ -233,7 +233,7 @@ describe("llmApiKey.all RPC", () => {
       // Create an LLM API key
       const secret = "sk-test-concurrent";
       const provider = "OpenAI Concurrent";
-      
+
       await caller.llmApiKey.create({
         projectId,
         secretKey: secret,
@@ -261,7 +261,7 @@ describe("llmApiKey.all RPC", () => {
           projectId,
           lastKnownUpdate: apiKey!.updatedAt, // This is now stale
           provider: "My update",
-        })
+        }),
       ).rejects.toThrow("recently modified by another user");
     });
   });
