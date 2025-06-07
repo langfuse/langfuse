@@ -225,7 +225,7 @@ export function EditLLMApiKeyForm({
     }
 
     const otherKeys = existingApiKeys.filter((k) => k.id !== apiKeyData.id);
-    if (otherKeys.map((k) => k.provider).includes(values.provider)) {
+    if (otherKeys.map((k) => k.provider.toLowerCase()).includes(values.provider.toLowerCase())) {
       form.setError("provider", {
         type: "manual",
         message: "There already exists an API key for this provider.",
