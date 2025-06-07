@@ -28,10 +28,11 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/ui/switch";
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
+
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 
 const formSchema = z
   .object({
@@ -354,20 +355,18 @@ export function EditLLMApiKeyForm({
 
   return (
     <Form {...form}>
-      <form
-        className={cn("flex flex-col gap-6 overflow-auto pb-2 pl-1 pr-4")}
-        onSubmit={form.handleSubmit(onSubmit)}
-      >
-        {/* Provider name */}
-        <FormField
-          control={form.control}
-          name="provider"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Provider name</FormLabel>
-              <FormDescription>
-                Name to identify the key within Langfuse.
-              </FormDescription>
+      <DialogBody>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* Provider name */}
+          <FormField
+            control={form.control}
+            name="provider"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Provider name</FormLabel>
+                <FormDescription>
+                  Name to identify the key within Langfuse.
+                </FormDescription>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -544,7 +543,7 @@ export function EditLLMApiKeyForm({
                       <Input
                         {...field}
                         type={showSecretKey ? "text" : "password"}
-                        placeholder="Enter new API key..."
+                        placeholder="Enter new API key or leave blank to keep current..."
                       />
                     </FormControl>
                     <Button
@@ -730,26 +729,31 @@ export function EditLLMApiKeyForm({
           )}
         />
 
-        <Button
-          type="submit"
-          className="w-full"
-          loading={
-            form.formState.isSubmitting ||
-            mutTestLLMApiKey.isLoading ||
-            mutUpdateLlmApiKey.isLoading
-          }
-        >
-          {mutTestLLMApiKey.isLoading
-            ? "Testing API key..."
-            : mutUpdateLlmApiKey.isLoading
-              ? "Updating..."
-              : "Update LLM API key"}
-        </Button>
+
 
         {form.formState.errors.root && (
           <FormMessage>{form.formState.errors.root.message}</FormMessage>
         )}
-      </form>
+        </form>
+        <DialogFooter>
+          <Button
+            type="submit"
+            className="w-full"
+            loading={
+              form.formState.isSubmitting ||
+              mutTestLLMApiKey.isLoading ||
+              mutUpdateLlmApiKey.isLoading
+            }
+            onClick={form.handleSubmit(onSubmit)}
+          >
+            {mutTestLLMApiKey.isLoading
+              ? "Testing API key..."
+              : mutUpdateLlmApiKey.isLoading
+                ? "Updating..."
+                : "Update LLM API key"}
+          </Button>
+        </DialogFooter>
+      </DialogBody>
     </Form>
   );
 }
