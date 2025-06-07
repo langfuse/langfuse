@@ -304,6 +304,7 @@ export type DatasetItem = {
     source_trace_id: string | null;
     source_observation_id: string | null;
     dataset_id: string;
+    comment: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };

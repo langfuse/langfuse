@@ -64,6 +64,7 @@ const APIDatasetItem = z
     sourceTraceId: z.string().nullable(),
     sourceObservationId: z.string().nullable(),
     datasetId: z.string(),
+    comment: z.string().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })
@@ -148,6 +149,7 @@ export const PostDatasetItemsV1Body = z.object({
   sourceTraceId: z.string().nullish(),
   sourceObservationId: z.string().nullish(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).nullish(),
+  comment: z.string().nullish(),
 });
 export const PostDatasetItemsV1Response = APIDatasetItem.strict();
 

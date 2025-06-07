@@ -197,6 +197,7 @@ export default function Dataset() {
                 input={JSON.stringify(item.data.input)}
                 output={JSON.stringify(item.data.expectedOutput)}
                 metadata={JSON.stringify(item.data.metadata)}
+                comment={item.data.comment ?? undefined}
                 isCopyItem
               />
             )}
@@ -224,7 +225,7 @@ export default function Dataset() {
       <ResizablePanelGroup direction="vertical">
         <ResizablePanel
           minSize={10}
-          defaultSize={50}
+          defaultSize={70}
           className="!overflow-y-auto"
         >
           <EditDatasetItem
