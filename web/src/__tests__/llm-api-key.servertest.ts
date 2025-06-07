@@ -7,6 +7,7 @@ import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { Role } from "@langfuse/shared";
 
 describe("llmApiKey.all RPC", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -21,26 +22,34 @@ describe("llmApiKey.all RPC", () => {
       organizations: [
         {
           id: "seed-org-id",
-          role: "OWNER",
+          name: "Test Organization",
+          role: Role.OWNER,
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
           projects: [
             {
               id: projectId,
-              role: "ADMIN",
+              name: "Test Project",
+              role: Role.ADMIN,
+              deletedAt: null,
+              retentionDays: null,
+              metadata: {},
             },
           ],
         },
       ],
       featureFlags: {
         templateFlag: true,
+        excludeClickhouseRead: false,
       },
       admin: true,
+      canCreateOrganizations: true,
     },
     environment: {} as any,
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   it("should create an llm api key", async () => {
