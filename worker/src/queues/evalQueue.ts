@@ -151,6 +151,7 @@ export const evalJobExecutorQueueProcessor = async (
       (e instanceof ApiError && e.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
       (e instanceof ApiError &&
         e.message.includes("Error: Unterminated string in JSON at position")) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
+      (e instanceof ApiError && e.message.includes("is not valid JSON")) || // When evaluator model is not consistently returning valid JSON on structured output calls
       (e instanceof BaseError &&
         e.message.includes(
           "Please ensure the mapped data exists and consider extending the job delay.",
