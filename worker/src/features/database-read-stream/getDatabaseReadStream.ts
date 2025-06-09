@@ -5,7 +5,6 @@ import {
   BatchExportQueryType,
   ScoreDomain,
   evalDatasetFormFilterCols,
-  datasetItemsFormFilterCols,
   OrderByState,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";

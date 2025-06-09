@@ -309,6 +309,16 @@ export function DatasetItemsTable({
     columns,
   );
 
+  const batchExportButton = (
+    <BatchExportTableButton
+      key="batchExport"
+      projectId={projectId}
+      tableName={BatchExportTableName.DatasetItems}
+      orderByState={{ column: "createdAt", order: "DESC" }}
+      filterState={[]}
+    />
+  );
+
   if (items.data?.totalDatasetItems === 0 && hasAccess) {
     return (
       <>
@@ -320,16 +330,7 @@ export function DatasetItemsTable({
           setColumnOrder={setColumnOrder}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
-          actionButtons={[
-            menuItems,
-            <BatchExportTableButton
-              key="batchExport"
-              projectId={projectId}
-              tableName={BatchExportTableName.DatasetItems}
-              orderByState={{ column: "createdAt", order: "DESC" }}
-              filterState={[]}
-            />,
-          ].filter(Boolean)}
+          actionButtons={[menuItems, batchExportButton].filter(Boolean)}
         />
         {preview ? (
           <PreviewCsvImport
@@ -357,16 +358,7 @@ export function DatasetItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={[
-          menuItems,
-          <BatchExportTableButton
-            key="batchExport"
-            projectId={projectId}
-            tableName={BatchExportTableName.DatasetItems}
-            orderByState={{ column: "createdAt", order: "DESC" }}
-            filterState={[]}
-          />,
-        ].filter(Boolean)}
+        actionButtons={[menuItems, batchExportButton].filter(Boolean)}
       />
       <DataTable
         columns={columns}
