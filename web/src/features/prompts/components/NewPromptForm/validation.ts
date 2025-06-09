@@ -10,7 +10,9 @@ const NewPromptBaseSchema = z.object({
   name: z
     .string()
     .min(1, "Enter a name")
-    .regex(/^[^|]*$/, "Prompt name cannot contain '|' character"),
+    .regex(/^[^|]*$/, "Prompt name cannot contain '|' character")
+    .regex(/^[a-zA-Z0-9_\-.]+$/, "Name must be alphanumeric with optional underscores, hyphens, or periods")
+    .refine((name) => name !== "new", "Prompt name cannot be 'new'"),
   isActive: z.boolean({
     required_error: "Enter whether the prompt should go live",
   }),
