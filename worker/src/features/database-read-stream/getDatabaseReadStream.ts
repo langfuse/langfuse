@@ -434,7 +434,7 @@ export const getDatabaseReadStream = async ({
         async (pageSize: number, offset: number) => {
           const condition = tableColumnsToSqlFilterAndPrefix(
             filter ?? [],
-            datasetItemsFormFilterCols,
+            evalDatasetFormFilterCols,
             "dataset_items",
           );
 
