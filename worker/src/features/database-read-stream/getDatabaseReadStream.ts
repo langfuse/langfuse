@@ -5,6 +5,7 @@ import {
   BatchExportQueryType,
   ScoreDomain,
   evalDatasetFormFilterCols,
+  datasetItemsFormFilterCols,
   OrderByState,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -34,6 +35,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
+  dataset_items: "createdAt",
 };
 const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   scores: "timestamp",
@@ -41,6 +43,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
+  dataset_items: "createdAt",
 };
 const isGenerationTimestampFilter = (
   filter: FilterCondition,
@@ -425,6 +428,75 @@ export const getDatabaseReadStream = async ({
         rowLimit,
       );
     }
+
+    case "dataset_items": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const condition = tableColumnsToSqlFilterAndPrefix(
+            filter ?? [],
+            datasetItemsFormFilterCols,
+            "dataset_items",
+          );
+
+          const items = await prisma.$queryRaw<
+            Array<{
+              id: string;
+              project_id: string;
+              dataset_id: string;
+              dataset_name: string;
+              status: string;
+              input: unknown;
+              expected_output: unknown;
+              metadata: unknown;
+              source_trace_id: string | null;
+              source_observation_id: string | null;
+              created_at: Date;
+              updated_at: Date;
+            }>
+          >`
+            SELECT 
+              di.id,
+              di.project_id,
+              di.dataset_id,
+              d.name as dataset_name,
+              di.status,
+              di.input,
+              di.expected_output,
+              di.metadata,
+              di.source_trace_id,
+              di.source_observation_id,
+              di.created_at,
+              di.updated_at
+            FROM dataset_items di 
+              JOIN datasets d ON di.dataset_id = d.id AND di.project_id = d.project_id
+            WHERE di.project_id = ${projectId}
+            AND di.created_at < ${cutoffCreatedAt}
+            ${condition}
+            ORDER BY di.created_at DESC
+            LIMIT ${pageSize}
+            OFFSET ${offset}
+          `;
+
+          return items.map((item) => ({
+            id: item.id,
+            projectId: item.project_id,
+            datasetId: item.dataset_id,
+            datasetName: item.dataset_name,
+            status: item.status,
+            input: item.input,
+            expectedOutput: item.expected_output,
+            metadata: item.metadata,
+            sourceTraceId: item.source_trace_id,
+            sourceObservationId: item.source_observation_id,
+            createdAt: item.created_at,
+            updatedAt: item.updated_at,
+          }));
+        },
+        env.BATCH_EXPORT_PAGE_SIZE,
+        rowLimit,
+      );
+    }
+
     default:
       throw new Error(`Unhandled table case: ${tableName}`);
   }

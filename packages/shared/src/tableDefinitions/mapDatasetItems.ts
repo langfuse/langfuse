@@ -1,4 +1,5 @@
 import { UiColumnMappings } from "./types";
+import type { ColumnDefinition } from "./types";
 
 export const datasetItemsTableUiColumnDefinitions: UiColumnMappings = [
   {
@@ -45,29 +46,31 @@ export const datasetItemsTableUiColumnDefinitions: UiColumnMappings = [
   },
 ];
 
-export const datasetItemsFormFilterCols: UiColumnMappings = [
+export const datasetItemsFormFilterCols: ColumnDefinition[] = [
   {
-    uiTableName: "Dataset Name",
-    uiTableId: "datasetName",
-    clickhouseTableName: "datasets",
-    clickhouseSelect: "name",
+    name: "Dataset Name",
+    id: "datasetName",
+    type: "string",
+    internal: 'd."name"',
   },
   {
-    uiTableName: "Status",
-    uiTableId: "status",
-    clickhouseTableName: "dataset_items",
-    clickhouseSelect: "status",
+    name: "Status",
+    id: "status",
+    type: "stringOptions",
+    internal: 'di."status"',
+    options: [{ value: "ACTIVE" }, { value: "ARCHIVED" }],
   },
   {
-    uiTableName: "Source Trace ID",
-    uiTableId: "sourceTraceId",
-    clickhouseTableName: "dataset_items",
-    clickhouseSelect: "source_trace_id",
+    name: "Source Trace ID",
+    id: "sourceTraceId",
+    type: "string",
+    internal: 'di."source_trace_id"',
+    nullable: true,
   },
   {
-    uiTableName: "Created At",
-    uiTableId: "createdAt",
-    clickhouseTableName: "dataset_items",
-    clickhouseSelect: "created_at",
+    name: "Created At",
+    id: "createdAt",
+    type: "datetime",
+    internal: 'di."created_at"',
   },
 ];
