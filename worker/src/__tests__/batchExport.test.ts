@@ -9,7 +9,7 @@ import {
   createTrace,
   createTracesCh,
 } from "@langfuse/shared/src/server";
-import { BatchExportTableName } from "@langfuse/shared";
+import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
 
@@ -910,5 +910,394 @@ describe("batch export test suite", () => {
     expect(rows[0].source).toBe("API");
     expect(rows[0].value).toBe(0.9);
     expect(rows[0].traceId).toBe(traces[1].id);
+  });
+
+  it("should export dataset items", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create dataset
+    const datasetId = randomUUID();
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: "test-dataset",
+        projectId,
+        description: "Test dataset for export",
+        metadata: { purpose: "testing" },
+      },
+    });
+
+    // Create dataset items with different statuses and relationships
+    const datasetItems = [
+      {
+        id: randomUUID(),
+        datasetId,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        input: { question: "What is AI?" },
+        expectedOutput: { answer: "Artificial Intelligence" },
+        metadata: { category: "tech" },
+        sourceTraceId: null,
+        sourceObservationId: null,
+      },
+      {
+        id: randomUUID(),
+        datasetId,
+        projectId,
+        status: DatasetStatus.ARCHIVED,
+        input: { question: "What is ML?" },
+        expectedOutput: { answer: "Machine Learning" },
+        metadata: { category: "tech" },
+        sourceTraceId: randomUUID(),
+        sourceObservationId: randomUUID(),
+      },
+      {
+        id: randomUUID(),
+        datasetId,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        input: { question: "What is DL?" },
+        expectedOutput: { answer: "Deep Learning" },
+        metadata: { category: "advanced" },
+        sourceTraceId: randomUUID(),
+        sourceObservationId: null,
+      },
+    ];
+
+    await prisma.datasetItem.createMany({ data: datasetItems });
+
+    // Export dataset items
+    const stream = await getDatabaseReadStream({
+      projectId,
+      tableName: BatchExportTableName.DatasetItems,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(3);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: datasetItems[0].id,
+          datasetName: "test-dataset",
+          status: "ACTIVE",
+          sourceTraceId: null,
+          sourceObservationId: null,
+        }),
+        expect.objectContaining({
+          id: datasetItems[1].id,
+          datasetName: "test-dataset",
+          status: "ARCHIVED",
+          sourceTraceId: datasetItems[1].sourceTraceId,
+          sourceObservationId: datasetItems[1].sourceObservationId,
+        }),
+        expect.objectContaining({
+          id: datasetItems[2].id,
+          datasetName: "test-dataset",
+          status: "ACTIVE",
+          sourceTraceId: datasetItems[2].sourceTraceId,
+          sourceObservationId: null,
+        }),
+      ]),
+    );
+  });
+
+  it("should export dataset items with filter and sorting", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create datasets
+    const datasetId1 = randomUUID();
+    const datasetId2 = randomUUID();
+
+    await prisma.dataset.createMany({
+      data: [
+        {
+          id: datasetId1,
+          name: "dataset-1",
+          projectId,
+        },
+        {
+          id: datasetId2,
+          name: "dataset-2",
+          projectId,
+        },
+      ],
+    });
+
+    // Create dataset items across different datasets with different statuses
+    const datasetItems = [
+      {
+        id: randomUUID(),
+        datasetId: datasetId1,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        createdAt: new Date("2024-01-01"),
+      },
+      {
+        id: randomUUID(),
+        datasetId: datasetId1,
+        projectId,
+        status: DatasetStatus.ARCHIVED,
+        createdAt: new Date("2024-01-02"),
+      },
+      {
+        id: randomUUID(),
+        datasetId: datasetId2,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        createdAt: new Date("2024-01-03"),
+      },
+    ];
+
+    await prisma.datasetItem.createMany({ data: datasetItems });
+
+    // Export dataset items with filters
+    const stream = await getDatabaseReadStream({
+      projectId,
+      tableName: BatchExportTableName.DatasetItems,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "status",
+          value: ["ACTIVE"],
+        },
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "datasetName",
+          value: ["dataset-1"],
+        },
+      ],
+      orderBy: { column: "createdAt", order: "ASC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only include ACTIVE items from dataset-1
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(datasetItems[0].id);
+    expect(rows[0].status).toBe("ACTIVE");
+    expect(rows[0].datasetName).toBe("dataset-1");
+  });
+
+  it("should export dataset items with source relationships", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create dataset
+    const datasetId = randomUUID();
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: "relationship-dataset",
+        projectId,
+      },
+    });
+
+    // Create traces and observations for source relationships
+    const traceId1 = randomUUID();
+    const traceId2 = randomUUID();
+    const observationId1 = randomUUID();
+    const observationId2 = randomUUID();
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: traceId1,
+        name: "source-trace-1",
+      }),
+      createTrace({
+        project_id: projectId,
+        id: traceId2,
+        name: "source-trace-2",
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: traceId1,
+        id: observationId1,
+        type: "GENERATION",
+        name: "source-observation-1",
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traceId2,
+        id: observationId2,
+        type: "GENERATION",
+        name: "source-observation-2",
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Create dataset items with different source relationships
+    const datasetItems = [
+      {
+        id: randomUUID(),
+        datasetId,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        sourceTraceId: traceId1,
+        sourceObservationId: observationId1,
+        input: { from: "trace_and_observation" },
+      },
+      {
+        id: randomUUID(),
+        datasetId,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        sourceTraceId: traceId2,
+        sourceObservationId: null,
+        input: { from: "trace_only" },
+      },
+      {
+        id: randomUUID(),
+        datasetId,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        sourceTraceId: null,
+        sourceObservationId: null,
+        input: { from: "manual" },
+      },
+    ];
+
+    await prisma.datasetItem.createMany({ data: datasetItems });
+
+    // Export dataset items
+    const stream = await getDatabaseReadStream({
+      projectId,
+      tableName: BatchExportTableName.DatasetItems,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "createdAt", order: "ASC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(3);
+
+    // Find items by their input to verify relationships
+    const traceAndObsItem = rows.find(
+      (r) => r.input?.from === "trace_and_observation",
+    );
+    const traceOnlyItem = rows.find((r) => r.input?.from === "trace_only");
+    const manualItem = rows.find((r) => r.input?.from === "manual");
+
+    expect(traceAndObsItem).toMatchObject({
+      sourceTraceId: traceId1,
+      sourceObservationId: observationId1,
+      datasetName: "relationship-dataset",
+    });
+
+    expect(traceOnlyItem).toMatchObject({
+      sourceTraceId: traceId2,
+      sourceObservationId: null,
+      datasetName: "relationship-dataset",
+    });
+
+    expect(manualItem).toMatchObject({
+      sourceTraceId: null,
+      sourceObservationId: null,
+      datasetName: "relationship-dataset",
+    });
+  });
+
+  it("should export dataset items with date range filtering", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create dataset
+    const datasetId = randomUUID();
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: "date-filter-dataset",
+        projectId,
+      },
+    });
+
+    // Create dataset items with different creation dates
+    const datasetItems = [
+      {
+        id: randomUUID(),
+        datasetId,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        createdAt: new Date("2024-01-01T10:00:00Z"),
+        input: { date: "early" },
+      },
+      {
+        id: randomUUID(),
+        datasetId,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        createdAt: new Date("2024-01-15T10:00:00Z"),
+        input: { date: "middle" },
+      },
+      {
+        id: randomUUID(),
+        datasetId,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        createdAt: new Date("2024-01-30T10:00:00Z"),
+        input: { date: "late" },
+      },
+    ];
+
+    await prisma.datasetItem.createMany({ data: datasetItems });
+
+    // Export dataset items with date range filter
+    const stream = await getDatabaseReadStream({
+      projectId,
+      tableName: BatchExportTableName.DatasetItems,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "createdAt",
+          value: new Date("2024-01-10T00:00:00Z"),
+        },
+        {
+          type: "datetime",
+          operator: "<",
+          column: "createdAt",
+          value: new Date("2024-01-20T00:00:00Z"),
+        },
+      ],
+      orderBy: { column: "createdAt", order: "ASC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only include items within the date range
+    expect(rows).toHaveLength(1);
+    expect(rows[0].input?.date).toBe("middle");
+    expect(new Date(rows[0].createdAt).toISOString()).toBe(
+      "2024-01-15T10:00:00.000Z",
+    );
   });
 });
