@@ -28,6 +28,8 @@ import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { BatchExportTableName } from "@langfuse/shared";
 
 type RowData = {
   id: string;
@@ -318,7 +320,16 @@ export function DatasetItemsTable({
           setColumnOrder={setColumnOrder}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
-          actionButtons={menuItems}
+          actionButtons={[
+            menuItems,
+            <BatchExportTableButton
+              key="batchExport"
+              projectId={projectId}
+              tableName={BatchExportTableName.DatasetItems}
+              orderByState={{ column: "createdAt", order: "DESC" }}
+              filterState={[]}
+            />,
+          ].filter(Boolean)}
         />
         {preview ? (
           <PreviewCsvImport
@@ -346,7 +357,16 @@ export function DatasetItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={menuItems}
+        actionButtons={[
+          menuItems,
+          <BatchExportTableButton
+            key="batchExport"
+            projectId={projectId}
+            tableName={BatchExportTableName.DatasetItems}
+            orderByState={{ column: "createdAt", order: "DESC" }}
+            filterState={[]}
+          />,
+        ].filter(Boolean)}
       />
       <DataTable
         columns={columns}
