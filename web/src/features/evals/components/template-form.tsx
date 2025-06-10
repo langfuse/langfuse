@@ -36,6 +36,8 @@ import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationMode
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
+import { AlertCircle } from "lucide-react";
+import { useValidateCustomModel } from "@/src/features/evals/hooks/useValidateCustomModel";
 
 type PartialEvalTemplate = Omit<
   EvalTemplate,
@@ -187,6 +189,11 @@ export const InnerEvalTemplateForm = (props: {
   useEvaluationModel(
     props.projectId,
     setModelParams,
+    props.preFilledFormValues?.selectedModel,
+  );
+
+  const { isCustomModelValid } = useValidateCustomModel(
+    availableProviders,
     props.preFilledFormValues?.selectedModel,
   );
 
@@ -403,25 +410,35 @@ export const InnerEvalTemplateForm = (props: {
                 )}
               />
               {/* Only show model parameters if using custom model */}
-              {!useDefaultModel && (
-                <ModelParameters
-                  customHeader={
-                    <p className="text-sm font-medium leading-none">
-                      Custom model configuration
+              {!useDefaultModel &&
+                (!props.isEditing && !isCustomModelValid ? (
+                  <div className="mt-2 flex items-center space-x-1 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <p>
+                      This evaluator is configured to use{" "}
+                      {modelParams.provider.value}s models but no API key
+                      exists. Add a key or choose another provider.
                     </p>
-                  }
-                  {...{
-                    modelParams,
-                    availableModels,
-                    availableProviders,
-                    updateModelParamValue: updateModelParamValue,
-                    setModelParamEnabled,
-                    modelParamsDescription:
-                      "Select a model which supports function calling.",
-                  }}
-                  formDisabled={!props.isEditing}
-                />
-              )}
+                  </div>
+                ) : (
+                  <ModelParameters
+                    customHeader={
+                      <p className="text-sm font-medium leading-none">
+                        Custom model configuration
+                      </p>
+                    }
+                    {...{
+                      modelParams,
+                      availableModels,
+                      availableProviders,
+                      updateModelParamValue: updateModelParamValue,
+                      setModelParamEnabled,
+                      modelParamsDescription:
+                        "Select a model which supports function calling.",
+                    }}
+                    formDisabled={!props.isEditing}
+                  />
+                ))}
             </CardContent>
           </Card>
 
