@@ -15,7 +15,6 @@ import {
   traceRecordReadSchema,
   TraceRecordReadType,
   ingestionEvent,
-  logger,
 } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "../../../__tests__/utils";
 import waitForExpect from "wait-for-expect";
