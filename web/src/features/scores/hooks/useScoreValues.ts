@@ -17,6 +17,7 @@ export function useScoreValues({
       name?: string | null;
       dataType?: ScoreDataType | null;
       configId?: string | null;
+      scoreId?: string | null;
     }
   >(getValues().scoreData, (state, updatedScore) => {
     const stateCopy = state.map((score, idx) =>
@@ -25,6 +26,7 @@ export function useScoreValues({
             ...score,
             value: updatedScore.value,
             stringValue: updatedScore.stringValue ?? undefined,
+            scoreId: updatedScore.scoreId ?? undefined,
           }
         : score,
     );
@@ -36,6 +38,7 @@ export function useScoreValues({
         configId: updatedScore.configId ?? undefined,
         value: updatedScore.value,
         stringValue: updatedScore.stringValue ?? undefined,
+        scoreId: updatedScore.scoreId ?? undefined,
       };
       return [...stateCopy, newScore];
     }
