@@ -198,24 +198,6 @@ export const env = createEnv({
       )
       .optional(),
 
-    REDIS_HOST: z.string().nullish(),
-    REDIS_PORT: z.coerce
-      .number({
-        description:
-          ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
-      })
-      .positive()
-      .max(65536, `options.port should be >= 0 and < 65536`)
-      .default(6379)
-      .nullable(),
-    REDIS_AUTH: z.string().nullish(),
-    REDIS_CONNECTION_STRING: z.string().nullish(),
-    REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
-    // Redis Cluster Configuration
-    REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
-    REDIS_CLUSTER_NODES: z.string().optional(),
-    REDIS_CLUSTER_PREFIX: z.string().default("langfuse"),
-
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
@@ -515,14 +497,6 @@ export const env = createEnv({
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
-    REDIS_HOST: process.env.REDIS_HOST,
-    REDIS_PORT: process.env.REDIS_PORT,
-    REDIS_AUTH: process.env.REDIS_AUTH,
-    REDIS_CONNECTION_STRING: process.env.REDIS_CONNECTION_STRING,
-    REDIS_ENABLE_AUTO_PIPELINING: process.env.REDIS_ENABLE_AUTO_PIPELINING,
-    REDIS_CLUSTER_ENABLED: process.env.REDIS_CLUSTER_ENABLED,
-    REDIS_CLUSTER_NODES: process.env.REDIS_CLUSTER_NODES,
-    REDIS_CLUSTER_PREFIX: process.env.REDIS_CLUSTER_PREFIX,
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:

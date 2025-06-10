@@ -79,23 +79,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3),
-  REDIS_HOST: z.string().nullish(),
-  REDIS_PORT: z.coerce
-    .number({
-      description:
-        ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
-    })
-    .positive()
-    .max(65536, `options.port should be >= 0 and < 65536`)
-    .default(6379)
-    .nullable(),
-  REDIS_AUTH: z.string().nullish(),
-  REDIS_CONNECTION_STRING: z.string().nullish(),
-  REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
-  // Redis Cluster Configuration
-  REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
-  REDIS_CLUSTER_NODES: z.string().optional(),
-  REDIS_CLUSTER_PREFIX: z.string().default("langfuse"),
 
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
