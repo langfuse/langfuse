@@ -1,12 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import { type RouterOutput } from "@/src/utils/types";
+import type { RouterOutput } from "@/src/utils/types";
 import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
@@ -20,16 +20,66 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 type PromptTableRow = {
+  id: string;
   name: string;
-  version: number;
-  createdAt: Date;
-  labels: string[];
+  version?: number;
+  createdAt?: Date;
+  labels?: string[];
   type: string;
-  numberOfObservations: number;
-  tags: string[];
+  numberOfObservations?: number;
+  tags?: string[];
 };
 
-export function PromptTable() {
+function isFolder(row: PromptTableRow): boolean {
+  return row.type === 'folder';
+}
+
+function createFolderRow(folderPath: string, folderName: string): PromptTableRow {
+  return {
+    id: folderPath,
+    name: folderName,
+    type: 'folder' as const,
+    version: undefined,
+    createdAt: undefined,
+    labels: undefined,
+    tags: undefined,
+    numberOfObservations: undefined,
+  };
+}
+
+// TODO: ugly, fix this
+function createPromptRow(prompt: {
+  id: string;
+  version: number;
+  createdAt: Date;
+  type: string;
+  labels: string[];
+  tags?: string[];
+  observationCount?: number;
+}): PromptTableRow {
+  return {
+    id: prompt.id,
+    name: prompt.id,
+    version: prompt.version,
+    createdAt: prompt.createdAt,
+    type: prompt.type,
+    labels: prompt.labels,
+    numberOfObservations: Number(prompt.observationCount ?? 0),
+    tags: prompt.tags ?? [],
+  };
+}
+
+function getDisplayName(fullPath: string, currentFolderPath: string): string {
+  return currentFolderPath === ''
+    ? fullPath
+    : fullPath.substring(currentFolderPath.length + 1);
+}
+
+type PromptTableProps = {
+  currentFolderPath?: string;
+};
+
+export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
@@ -97,6 +147,81 @@ export function PromptTable() {
     })),
   );
 
+  // Filter and group prompts based on current folder path
+  const processedRowData = useMemo(() => {
+    if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
+
+    const folderGroups = new Map<string, typeof promptsRowData.rows>();
+    const matchingPrompts: typeof promptsRowData.rows = [];
+
+    // Filter prompts based on current folder path
+    for (const prompt of promptsRowData.rows) {
+      const promptName = prompt.id;
+
+      if (currentFolderPath === '') {
+        // Root level - show folders and prompts at root
+        const slashIndex = promptName.indexOf('/');
+
+        // Ignore potential initial slashes
+        if (slashIndex > 0) {
+          // This prompt belongs to a folder
+          const folderName = promptName.substring(0, slashIndex);
+          if (!folderGroups.has(folderName)) {
+            folderGroups.set(folderName, []);
+          }
+          const folderArray = folderGroups.get(folderName);
+          if (folderArray) folderArray.push(prompt);
+        } else {
+          // This prompt is at root level
+          matchingPrompts.push(prompt);
+        }
+      } else {
+        // We are in a folder: show prompts that start with the folder path
+        const folderPrefix = `${currentFolderPath}/`;
+
+        if (promptName.startsWith(folderPrefix)) {
+          const remainingPath = promptName.substring(folderPrefix.length);
+          const slashIndex = remainingPath.indexOf('/');
+
+          if (slashIndex > 0) {
+            // This is a subfolder
+            const subFolderName = remainingPath.substring(0, slashIndex);
+            const fullSubFolderPath = `${currentFolderPath}/${subFolderName}`;
+
+            if (!folderGroups.has(fullSubFolderPath)) {
+              folderGroups.set(fullSubFolderPath, []);
+            }
+            const folderArray = folderGroups.get(fullSubFolderPath);
+            if (folderArray) folderArray.push(prompt);
+          } else {
+            // This is a direct prompt in the current folder
+            matchingPrompts.push(prompt);
+          }
+        }
+      }
+    }
+
+    // Create combined rows: folders first, then prompts
+    const combinedRows: PromptTableRow[] = [];
+    //const combinedRows: typeof promptsRowData.rows = [];
+
+    // Add folder rows
+    for (const [folderPath] of folderGroups) {
+      const folderName = getDisplayName(folderPath, currentFolderPath);
+      combinedRows.push(createFolderRow(folderPath, folderName));
+    }
+
+    // Add matching prompts
+    for (const prompt of matchingPrompts) {
+      combinedRows.push(createPromptRow(prompt));
+    }
+
+    return {
+      ...promptsRowData,
+      rows: combinedRows,
+    };
+  }, [promptsRowData, currentFolderPath]);
+
   const promptFilterOptions = api.prompts.filterOptions.useQuery(
     {
       projectId: projectId as string,
@@ -136,9 +261,22 @@ export function PromptTable() {
       size: 250,
       cell: (row) => {
         const name = row.getValue();
+        const rowData = row.row.original;
+
+        if (isFolder(rowData)) {
+          const displayName = getDisplayName(rowData.id, currentFolderPath);
+          return (
+            <TableLink
+              path={`/project/${projectId}/prompts/${rowData.id}`}
+              value={displayName}
+              className="font-medium"
+            />
+          );
+        }
+
         return name ? (
           <TableLink
-            path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
+            path={`/project/${projectId}/prompts/${rowData.id}`}
             value={name}
           />
         ) : undefined;
@@ -150,6 +288,8 @@ export function PromptTable() {
       enableSorting: true,
       size: 70,
       cell: (row) => {
+        const rowType = row.row.original.type;
+        if (rowType === 'folder') return null;
         return row.getValue();
       },
     }),
@@ -168,6 +308,8 @@ export function PromptTable() {
       enableSorting: true,
       size: 200,
       cell: (row) => {
+        const rowType = row.row.original.type;
+        if (rowType === 'folder') return null;
         const createdAt = row.getValue();
         return <LocalIsoDate date={createdAt} />;
       },
@@ -176,6 +318,9 @@ export function PromptTable() {
       header: "Number of Observations",
       size: 170,
       cell: (row) => {
+        const rowType = row.row.original.type;
+        if (rowType === 'folder') return null;
+
         const numberOfObservations = row.getValue();
         const name = row.row.original.name;
         const filter = encodeURIComponent(
@@ -198,6 +343,9 @@ export function PromptTable() {
       enableSorting: true,
       size: 120,
       cell: (row) => {
+        const rowType = row.row.original.type;
+        if (rowType === 'folder') return null;
+
         const tags = row.getValue();
         const promptName: string = row.row.original.name;
         return (
@@ -222,6 +370,9 @@ export function PromptTable() {
       header: "Actions",
       size: 70,
       cell: (row) => {
+        const rowType = row.row.original.type;
+        if (rowType === 'folder') return null;
+
         const name = row.row.original.name;
         return <DeletePrompt promptName={name} />;
       },
@@ -253,9 +404,13 @@ export function PromptTable() {
               : {
                   isLoading: false,
                   isError: false,
-                  data: promptsRowData.rows?.map((item) => ({
+                  data: processedRowData.rows?.map((item) => ({
                     id: item.id,
-                    name: item.id, // was renamed to id to match the core and metrics
+                    name: item.type === 'folder' // name was renamed to id to match the core and metrics
+                      ? item.name // Keep full path for folders for navigation
+                      : currentFolderPath
+                        ? item.name.substring(currentFolderPath.length + 1) // Remove current folder path prefix
+                        : item.name, // Root level prompts keep full name
                     version: item.version,
                     createdAt: item.createdAt,
                     type: item.type,

@@ -8,10 +8,18 @@ import { PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
+import PromptMetrics from "./prompt-metrics";
 
-export default function Prompts() {
+export default function PromptsWithFolder() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const folderSegments = router.query.folder as string[] | undefined;
+  const isMetricsPage = folderSegments?.slice(-1)[0] === 'metrics';
+  // If going to metrics page, omit the last "metrics" segment for the actual prompt name/path
+  const promptNamePath = isMetricsPage
+    ? folderSegments?.slice(0, -1).join('/') || ''
+    : folderSegments?.join('/') || '';
   const capture = usePostHogClientCapture();
   const hasCUDAccess = useHasProjectAccess({
     projectId,
@@ -32,6 +40,7 @@ export default function Prompts() {
     },
   );
 
+  // TODO: don't check this when just navigating the folder structure, or is this cached anyway?
   const { data: count } = api.prompts.count.useQuery(
     { projectId },
     {
@@ -44,12 +53,45 @@ export default function Prompts() {
     },
   );
 
+  // Check if the current path is an actual prompt (not a folder)
+  const { data: promptData, isLoading: isCheckingPrompt } = api.prompts.allVersions.useQuery(
+    {
+      projectId,
+      name: promptNamePath,
+    },
+    {
+      enabled: Boolean(projectId && promptNamePath),
+      retry: false, // Don't retry on 404
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  // Determine if current path is a folder (no prompt versions found) or an actual prompt
+  const isFolder = !promptData || promptData.promptVersions.length === 0;
+
   const showOnboarding = !isLoading && !hasAnyPrompt;
+
+  // Create the page title based on current folder
+  // TODO: remove when we have proper breadcrumbs
+  const pageTitle = promptNamePath ? `Prompts - ${promptNamePath}` : "Prompts";
+
+  // Decide what to render: metrics, detail, or folder view
+  if (promptNamePath && !isCheckingPrompt) {
+    if (!isFolder) {
+      if (isMetricsPage) {
+        return <PromptMetrics />;
+      }
+      return <PromptDetail />;
+    }
+  }
 
   return (
     <Page
       headerProps={{
-        title: "Prompts",
+        title: pageTitle,
         help: {
           description:
             "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
@@ -77,7 +119,7 @@ export default function Prompts() {
       {showOnboarding ? (
         <PromptsOnboarding projectId={projectId} />
       ) : (
-        <PromptTable />
+        <PromptTable currentFolderPath={promptNamePath} />
       )}
     </Page>
   );

@@ -64,7 +64,7 @@ const getPythonCode = (
 # Initialize Langfuse client
 langfuse = Langfuse()
 
-# Get production prompt 
+# Get production prompt
 prompt = langfuse.get_prompt("${name}")
 
 # Get by label
@@ -84,7 +84,7 @@ const getJsCode = (
 // Initialize the Langfuse client
 const langfuse = new Langfuse();
 
-// Get production prompt 
+// Get production prompt
 const prompt = await langfuse.getPrompt("${name}");
 
 // Get by label
@@ -98,7 +98,12 @@ langfuse.getPrompt("${name}", ${version})
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
-  const promptName = decodeURIComponent(useRouter().query.promptName as string);
+  const router = useRouter();
+
+  // Handle both [promptName] route and catch-all [...folder] route
+  const promptName = router.query.promptName
+    ? decodeURIComponent(router.query.promptName as string)
+    : (router.query.folder as string[])?.join('/') || '';
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
     NumberParam,
