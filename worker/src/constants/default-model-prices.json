@@ -1789,5 +1789,35 @@
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
+  },
+  {
+    "id": "cmz9x72kq55721pqrs83y4n2bx",
+    "model_name": "o3-pro",
+    "match_pattern": "(?i)^(o3-pro)$",
+    "created_at": "2025-06-10T22:26:54.132Z",
+    "updated_at": "2025-06-10T22:26:54.132Z",
+    "prices": {
+      "input": 20e-6,
+      "output": 80e-6,
+      "output_reasoning_tokens": 80e-6,
+      "output_reasoning": 80e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cmz9x72kq55721pqrs83y4n2by",
+    "model_name": "o3-pro-2025-06-10",
+    "match_pattern": "(?i)^(o3-pro-2025-06-10)$",
+    "created_at": "2025-06-10T22:26:54.132Z",
+    "updated_at": "2025-06-10T22:26:54.132Z",
+    "prices": {
+      "input": 20e-6,
+      "output": 80e-6,
+      "output_reasoning_tokens": 80e-6,
+      "output_reasoning": 80e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
   }
 ]
