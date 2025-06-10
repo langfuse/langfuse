@@ -57,7 +57,7 @@ export const DeleteAnnotationQueueButton = ({
       }}
     >
       <DialogTrigger asChild>{button}</DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="overflow-hidden sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="mb-4">Please confirm</DialogTitle>
           <DialogDescription className="text-md p-0">
