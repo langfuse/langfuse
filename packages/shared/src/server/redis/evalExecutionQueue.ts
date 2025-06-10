@@ -23,7 +23,7 @@ export class EvalExecutionQueue {
           QueueName.EvaluationExecution,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.EvaluationExecution),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

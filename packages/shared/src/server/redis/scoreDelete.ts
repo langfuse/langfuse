@@ -19,7 +19,7 @@ export class ScoreDeleteQueue {
           QueueName.ScoreDelete,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.ScoreDelete),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,

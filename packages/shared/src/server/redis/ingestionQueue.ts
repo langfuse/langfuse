@@ -23,7 +23,7 @@ export class IngestionQueue {
           QueueName.IngestionQueue,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.IngestionQueue),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,
@@ -66,7 +66,7 @@ export class SecondaryIngestionQueue {
           QueueName.IngestionSecondaryQueue,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.IngestionSecondaryQueue),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

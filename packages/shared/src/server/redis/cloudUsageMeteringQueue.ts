@@ -24,7 +24,7 @@ export class CloudUsageMeteringQueue {
     CloudUsageMeteringQueue.instance = newRedis
       ? new Queue(QueueName.CloudUsageMeteringQueue, {
           connection: newRedis,
-          prefix: getQueuePrefix(),
+          prefix: getQueuePrefix(QueueName.CloudUsageMeteringQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

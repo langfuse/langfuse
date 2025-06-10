@@ -24,7 +24,7 @@ export class CoreDataS3ExportQueue {
     CoreDataS3ExportQueue.instance = newRedis
       ? new Queue(QueueName.CoreDataS3ExportQueue, {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.CoreDataS3ExportQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

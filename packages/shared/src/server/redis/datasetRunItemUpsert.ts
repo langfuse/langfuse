@@ -24,7 +24,7 @@ export class DatasetRunItemUpsertQueue {
           QueueName.DatasetRunItemUpsert,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.DatasetRunItemUpsert),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

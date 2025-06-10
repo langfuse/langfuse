@@ -22,7 +22,7 @@ export class BatchExportQueue {
           QueueName.BatchExport,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.BatchExport),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

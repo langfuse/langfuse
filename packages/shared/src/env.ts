@@ -27,7 +27,6 @@ const EnvSchema = z.object({
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
-  REDIS_CLUSTER_PREFIX: z.string().default("langfuse"),
   ENCRYPTION_KEY: z
     .string()
     .length(

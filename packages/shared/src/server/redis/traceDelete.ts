@@ -22,7 +22,7 @@ export class TraceDeleteQueue {
           QueueName.TraceDelete,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.TraceDelete),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

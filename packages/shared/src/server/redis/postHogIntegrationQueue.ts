@@ -19,7 +19,7 @@ export class PostHogIntegrationQueue {
     PostHogIntegrationQueue.instance = newRedis
       ? new Queue(QueueName.PostHogIntegrationQueue, {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.PostHogIntegrationQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

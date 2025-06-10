@@ -97,7 +97,7 @@ export class WorkerManager {
       WorkerManager.metricWrapper(processor, queueName),
       {
         connection: redisInstance,
-        prefix: getQueuePrefix(),
+        prefix: getQueuePrefix(queueName),
         ...additionalOptions,
       },
     );

@@ -19,7 +19,7 @@ export class BlobStorageIntegrationProcessingQueue {
     BlobStorageIntegrationProcessingQueue.instance = newRedis
       ? new Queue(QueueName.BlobStorageIntegrationProcessingQueue, {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.BlobStorageIntegrationProcessingQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,

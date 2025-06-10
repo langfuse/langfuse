@@ -23,7 +23,7 @@ export class ProjectDeleteQueue {
           QueueName.ProjectDelete,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.ProjectDelete),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

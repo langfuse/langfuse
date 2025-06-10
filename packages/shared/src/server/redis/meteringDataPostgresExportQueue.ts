@@ -24,7 +24,7 @@ export class MeteringDataPostgresExportQueue {
     MeteringDataPostgresExportQueue.instance = newRedis
       ? new Queue(QueueName.MeteringDataPostgresExportQueue, {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.MeteringDataPostgresExportQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

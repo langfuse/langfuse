@@ -27,9 +27,6 @@ REDIS_CLUSTER_ENABLED=true
 # Comma-separated list of Redis cluster nodes
 REDIS_CLUSTER_NODES=redis-node1:6379,redis-node2:6379,redis-node3:6379
 
-# Hash tag prefix for BullMQ compatibility (default: langfuse)
-REDIS_CLUSTER_PREFIX=langfuse
-
 # Existing Redis configuration (still supported for single-node mode)
 # REDIS_HOST=localhost
 # REDIS_PORT=6379
@@ -62,7 +59,6 @@ REDIS_AUTH=your-cluster-password
 Redis Cluster requires special handling for BullMQ queues because BullMQ operations span multiple keys that must be on the same Redis node. This implementation uses Redis hash tags to ensure compatibility:
 
 - **Hash Tags**: All queue keys use the format `{langfuse}:queue-name` to ensure they're placed on the same hash slot
-- **Configurable Prefix**: The hash tag prefix can be customized via `REDIS_CLUSTER_PREFIX`
 - **Multiple Queues**: Different prefixes can be used for different queue groups to distribute load across cluster nodes
 
 ## Deployment Examples
@@ -143,7 +139,6 @@ Monitor cluster health through:
 1. **Invalid Node Format**: Ensure `REDIS_CLUSTER_NODES` uses the format `host:port,host:port`
 2. **Authentication**: All cluster nodes must use the same password
 3. **Network Connectivity**: Ensure all nodes are reachable from the Langfuse application
-4. **Hash Tag Conflicts**: Use different `REDIS_CLUSTER_PREFIX` values for different applications sharing the same cluster
 
 ## Migration from Single-Node
 

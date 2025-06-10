@@ -19,7 +19,7 @@ export class DataRetentionQueue {
     DataRetentionQueue.instance = newRedis
       ? new Queue(QueueName.DataRetentionQueue, {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.DataRetentionQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

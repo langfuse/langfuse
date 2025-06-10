@@ -23,7 +23,7 @@ export class ExperimentCreateQueue {
           QueueName.ExperimentCreate,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.ExperimentCreate),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

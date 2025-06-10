@@ -19,7 +19,7 @@ export class DeadLetterRetryQueue {
     DeadLetterRetryQueue.instance = newRedis
       ? new Queue(QueueName.DeadLetterRetryQueue, {
             connection: newRedis,
-            prefix: getQueuePrefix(),
+            prefix: getQueuePrefix(QueueName.DeadLetterRetryQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
