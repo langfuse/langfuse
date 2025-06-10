@@ -20,6 +20,8 @@ import {
   TableCell,
 } from "@/src/components/ui/table";
 import { startCase } from "lodash";
+import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
+import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
 export type WidgetItem = {
   id: string;
@@ -130,26 +132,9 @@ export function SelectWidgetDialog({
                         {startCase(widget.view.toLowerCase())}
                       </TableCell>
                       <TableCell>
-                        {(() => {
-                          switch (widget.chartType) {
-                            case "LINE_TIME_SERIES":
-                              return "Line Chart (Time Series)";
-                            case "BAR_TIME_SERIES":
-                              return "Bar Chart (Time Series)";
-                            case "HORIZONTAL_BAR":
-                              return "Horizontal Bar Chart (Total Value)";
-                            case "VERTICAL_BAR":
-                              return "Vertical Bar Chart (Total Value)";
-                            case "PIE":
-                              return "Pie Chart (Total Value)";
-                            case "NUMBER":
-                              return "Big Number (Total Value)";
-                            case "HISTOGRAM":
-                              return "Histogram (Total Value)";
-                            default:
-                              return widget.chartType;
-                          }
-                        })()}
+                        {getChartTypeDisplayName(
+                          widget.chartType as DashboardWidgetChartType,
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
