@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { api } from "@/src/utils/api";
-import { ChartLine, Cog, FlaskConical, List } from "lucide-react";
+import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
@@ -28,19 +28,14 @@ import {
 } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
-import { SubHeader, SubHeaderLabel } from "@/src/components/layouts/header";
+import { SubHeaderLabel } from "@/src/components/layouts/header";
 import {
   SidePanel,
   SidePanelContent,
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { Separator } from "@/src/components/ui/separator";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -56,7 +51,8 @@ export default function DatasetCompare() {
   const [localRuns, setLocalRuns] = useState<
     Array<{ key: string; value: string }>
   >([]);
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
+  const [selectedMetrics, setSelectedMetrics] = useLocalStorage<string[]>(
+    `${projectId}-dataset-compare-metrics`,
     RESOURCE_METRICS.map((metric) => metric.key),
   );
   const runIds = runState.runs as undefined | string[];
@@ -286,36 +282,13 @@ export default function DatasetCompare() {
             </div>
 
             <>
-              <div className="flex w-full flex-row items-center justify-between gap-2">
-                <SubHeader title="Charts" />
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="focus-visible:ring-0 focus-visible:ring-offset-0"
-                    >
-                      <div className="relative" title="Chart settings">
-                        <ChartLine className="h-4 w-4" />
-                        <Cog className="absolute -bottom-1.5 -right-1 h-3.5 w-3.5 rounded-full bg-background p-0.5" />
-                      </div>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-[250px] p-0">
-                    <div className="px-3 py-2 font-medium">Chart settings</div>
-                    <Separator />
-                    <div onClick={(e) => e.stopPropagation()} className="p-1">
-                      <DatasetAnalytics
-                        key="dataset-analytics"
-                        projectId={projectId}
-                        scoreOptions={scoreAnalyticsOptions}
-                        selectedMetrics={selectedMetrics}
-                        setSelectedMetrics={setSelectedMetrics}
-                      />
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
+              <DatasetAnalytics
+                key="dataset-analytics"
+                projectId={projectId}
+                scoreOptions={scoreAnalyticsOptions}
+                selectedMetrics={selectedMetrics}
+                setSelectedMetrics={setSelectedMetrics}
+              />
 
               {Boolean(selectedMetrics.length) &&
               Boolean(runAggregatedMetrics?.size) ? (

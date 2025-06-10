@@ -11,6 +11,8 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
+import { memo } from "react";
+import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
@@ -37,12 +39,6 @@ export type DataTablePeekViewProps<TData> = {
   listKey?: string;
   /** Custom prefix for the peek view title */
   customTitlePrefix?: string;
-
-  // Data
-  /** The currently selected row ID */
-  selectedRowId?: string | null;
-  /** The row data for the selected item */
-  row?: TData;
 
   // Navigation and URL handling
   /** The base pathname for constructing URLs */
@@ -87,19 +83,15 @@ export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
   };
 };
 
-export function TablePeekView<TData>({
-  itemType,
-  selectedRowId,
-  onOpenChange,
-  onExpand,
-  getNavigationPath,
-  children,
-  listKey,
-  peekEventOptions,
-  row,
-  customTitlePrefix,
-}: DataTablePeekViewProps<TData>) {
-  const eventHandler = createPeekEventHandler(peekEventOptions);
+type TablePeekViewProps<T> = {
+  peekView: PeekViewProps<T>;
+  row?: T;
+  selectedRowId?: string | null;
+};
+
+function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
+  const { peekView, row, selectedRowId } = props;
+  const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
 
   if (!selectedRowId) return null;
 
@@ -108,13 +100,17 @@ export function TablePeekView<TData>({
       return;
     }
     if (!!row && typeof row === "object" && "timestamp" in row) {
-      onOpenChange(open, selectedRowId, (row as any).timestamp.toISOString());
+      peekView.onOpenChange(
+        open,
+        selectedRowId,
+        (row as any).timestamp.toISOString(),
+      );
     } else {
-      onOpenChange(open, selectedRowId);
+      peekView.onOpenChange(open, selectedRowId);
     }
   };
 
-  const canExpand = typeof onExpand === "function";
+  const canExpand = typeof peekView.onExpand === "function";
 
   return (
     <Sheet open={!!selectedRowId} onOpenChange={handleOpenChange} modal={false}>
@@ -128,13 +124,13 @@ export function TablePeekView<TData>({
       >
         <SheetHeader className="flex min-h-12 flex-row flex-nowrap items-center justify-between rounded-t-xl bg-header px-2">
           <SheetTitle className="!mt-0 ml-2 flex min-w-0 flex-row items-center gap-2">
-            <ItemBadge type={itemType} showLabel />
+            <ItemBadge type={peekView.itemType} showLabel />
             <span
               className="truncate text-sm font-medium focus:outline-none"
               tabIndex={0}
             >
-              {customTitlePrefix
-                ? `${customTitlePrefix} ${selectedRowId}`
+              {peekView.customTitlePrefix
+                ? `${peekView.customTitlePrefix} ${selectedRowId}`
                 : selectedRowId}
             </span>
           </SheetTitle>
@@ -144,13 +140,15 @@ export function TablePeekView<TData>({
               !canExpand && "mr-8",
             )}
           >
-            {selectedRowId && listKey && getNavigationPath && (
-              <DetailPageNav
-                currentId={selectedRowId}
-                path={getNavigationPath}
-                listKey={listKey}
-              />
-            )}
+            {selectedRowId &&
+              peekView.listKey &&
+              peekView.getNavigationPath && (
+                <DetailPageNav
+                  currentId={selectedRowId}
+                  path={peekView.getNavigationPath}
+                  listKey={peekView.listKey}
+                />
+              )}
             {canExpand && (
               <div className="!mt-0 mr-8 flex h-full flex-row items-center gap-1 border-l">
                 <Button
@@ -158,7 +156,7 @@ export function TablePeekView<TData>({
                   size="icon-xs"
                   title="Open in current tab"
                   className="ml-2"
-                  onClick={() => onExpand?.(false, row)}
+                  onClick={() => peekView.onExpand?.(false, row)}
                 >
                   <Expand className="h-4 w-4" />
                 </Button>
@@ -166,7 +164,7 @@ export function TablePeekView<TData>({
                   variant="ghost"
                   size="icon-xs"
                   title="Open in new tab"
-                  onClick={() => onExpand?.(true, row)}
+                  onClick={() => peekView.onExpand?.(true, row)}
                 >
                   <ExternalLink className="h-4 w-4" />
                 </Button>
@@ -176,11 +174,17 @@ export function TablePeekView<TData>({
         </SheetHeader>
         <Separator />
         <div className="flex max-h-full min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-auto">
-            {typeof children === "function" ? children(row) : children}
+          <div className="flex-1 overflow-auto" key={selectedRowId}>
+            {typeof peekView.children === "function"
+              ? peekView.children(row)
+              : peekView.children}
           </div>
         </div>
       </SheetContent>
     </Sheet>
   );
 }
+
+export const TablePeekView = memo(TablePeekViewComponent, (prev, next) => {
+  return prev.selectedRowId === next.selectedRowId;
+}) as typeof TablePeekViewComponent;
