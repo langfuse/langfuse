@@ -4,7 +4,8 @@ This document describes how to configure and use Redis Cluster mode with Langfus
 
 ## Overview
 
-Langfuse now supports Redis Cluster mode for improved scalability and high availability. The implementation maintains full backward compatibility with single-node Redis configurations while adding cluster support for production deployments.
+Langfuse now supports Redis Cluster mode for improved scalability and high availability.
+The implementation maintains full backward compatibility with single-node Redis configurations while adding cluster support for production deployments.
 
 ## Features
 

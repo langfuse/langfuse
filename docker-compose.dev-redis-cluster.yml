@@ -1,0 +1,244 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    ports:
+      - 127.0.0.1:8123:8123
+      - 127.0.0.1:9000:9000
+    depends_on:
+      - postgres
+
+  minio:
+    image: minio/minio
+    entrypoint: sh
+    # create the 'langfuse' bucket before starting the service
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: miniosecret
+    ports:
+      - 127.0.0.1:9090:9000
+      - 127.0.0.1:9091:9001
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-latest}
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    command: ["postgres", "-c", "log_statement=all"]
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+
+  # Redis Cluster - 3 Master Nodes
+  redis-node1:
+    image: redis:7.2.4
+    restart: always
+    command: >
+      redis-server
+      --cluster-enabled yes
+      --cluster-config-file nodes-6379.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_AUTH:-myredissecret}
+      --masterauth ${REDIS_AUTH:-myredissecret}
+      --port 6379
+    ports:
+      - "127.0.0.1:7001:6379"
+    volumes:
+      - langfuse_redis_node1_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_AUTH:-myredissecret}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-node2:
+    image: redis:7.2.4
+    restart: always
+    command: >
+      redis-server
+      --cluster-enabled yes
+      --cluster-config-file nodes-6379.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_AUTH:-myredissecret}
+      --masterauth ${REDIS_AUTH:-myredissecret}
+      --port 6379
+    ports:
+      - "127.0.0.1:7002:6379"
+    volumes:
+      - langfuse_redis_node2_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_AUTH:-myredissecret}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-node3:
+    image: redis:7.2.4
+    restart: always
+    command: >
+      redis-server
+      --cluster-enabled yes
+      --cluster-config-file nodes-6379.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_AUTH:-myredissecret}
+      --masterauth ${REDIS_AUTH:-myredissecret}
+      --port 6379
+    ports:
+      - "127.0.0.1:7003:6379"
+    volumes:
+      - langfuse_redis_node3_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_AUTH:-myredissecret}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis Cluster - 3 Replica Nodes
+  redis-replica1:
+    image: redis:7.2.4
+    restart: always
+    command: >
+      redis-server
+      --cluster-enabled yes
+      --cluster-config-file nodes-6379.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_AUTH:-myredissecret}
+      --masterauth ${REDIS_AUTH:-myredissecret}
+      --port 6379
+    ports:
+      - "127.0.0.1:7004:6379"
+    volumes:
+      - langfuse_redis_replica1_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_AUTH:-myredissecret}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-replica2:
+    image: redis:7.2.4
+    restart: always
+    command: >
+      redis-server
+      --cluster-enabled yes
+      --cluster-config-file nodes-6379.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_AUTH:-myredissecret}
+      --masterauth ${REDIS_AUTH:-myredissecret}
+      --port 6379
+    ports:
+      - "127.0.0.1:7005:6379"
+    volumes:
+      - langfuse_redis_replica2_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_AUTH:-myredissecret}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-replica3:
+    image: redis:7.2.4
+    restart: always
+    command: >
+      redis-server
+      --cluster-enabled yes
+      --cluster-config-file nodes-6379.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_AUTH:-myredissecret}
+      --masterauth ${REDIS_AUTH:-myredissecret}
+      --port 6379
+    ports:
+      - "127.0.0.1:7006:6379"
+    volumes:
+      - langfuse_redis_replica3_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_AUTH:-myredissecret}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis Cluster Initialization
+  redis-cluster-init:
+    image: redis:7.2.4
+    depends_on:
+      redis-node1:
+        condition: service_healthy
+      redis-node2:
+        condition: service_healthy
+      redis-node3:
+        condition: service_healthy
+      redis-replica1:
+        condition: service_healthy
+      redis-replica2:
+        condition: service_healthy
+      redis-replica3:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for Redis nodes to be ready...' &&
+        sleep 10 &&
+        echo 'Creating Redis cluster...' &&
+        redis-cli -a ${REDIS_AUTH:-myredissecret} --cluster create
+        redis-node1:6379 redis-node2:6379 redis-node3:6379
+        redis-replica1:6379 redis-replica2:6379 redis-replica3:6379
+        --cluster-replicas 1 --cluster-yes &&
+        echo 'Redis cluster created successfully!' &&
+        echo 'Cluster info:' &&
+        redis-cli -a ${REDIS_AUTH:-myredissecret} -h redis-node1 cluster info &&
+        echo 'Cluster nodes:' &&
+        redis-cli -a ${REDIS_AUTH:-myredissecret} -h redis-node1 cluster nodes
+      "
+    restart: "no"
+
+volumes:
+  langfuse_postgres_data:
+    driver: local
+  langfuse_clickhouse_data:
+    driver: local
+  langfuse_clickhouse_logs:
+    driver: local
+  langfuse_minio_data:
+    driver: local
+  # Redis Cluster Volumes
+  langfuse_redis_node1_data:
+    driver: local
+  langfuse_redis_node2_data:
+    driver: local
+  langfuse_redis_node3_data:
+    driver: local
+  langfuse_redis_replica1_data:
+    driver: local
+  langfuse_redis_replica2_data:
+    driver: local
+  langfuse_redis_replica3_data:
+    driver: local
