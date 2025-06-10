@@ -228,7 +228,7 @@ export function CreateLLMApiKeyForm({
   return (
     <Form {...form}>
       <form
-        className={cn("flex flex-col gap-6 overflow-auto pb-2 pl-1 pr-4")}
+        className={cn("flex flex-col gap-4 overflow-auto")}
         onSubmit={form.handleSubmit(onSubmit)}
       >
         <DialogBody>
