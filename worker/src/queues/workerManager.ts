@@ -37,33 +37,27 @@ export class WorkerManager {
         },
       );
       const result = await processor(job);
-
-      // Collect queue metrics if enabled (defaults to true)
-      const collectQueueMetrics =
-        env.LANGFUSE_COLLECT_QUEUE_LENGTH_METRICS !== "false";
-      if (collectQueueMetrics) {
-        const queue = WorkerManager.getQueue(queueName);
-        await Promise.allSettled([
-          queue?.count().then((count) => {
-            recordGauge(
-              convertQueueNameToMetricName(queueName) + ".length",
-              count,
-              {
-                unit: "records",
-              },
-            );
-          }),
-          queue?.getFailedCount().then((count) => {
-            recordGauge(
-              convertQueueNameToMetricName(queueName) + ".dlq_length",
-              count,
-              {
-                unit: "records",
-              },
-            );
-          }),
-        ]);
-      }
+      const queue = WorkerManager.getQueue(queueName);
+      await Promise.allSettled([
+        queue?.count().then((count) => {
+          recordGauge(
+            convertQueueNameToMetricName(queueName) + ".length",
+            count,
+            {
+              unit: "records",
+            },
+          );
+        }),
+        queue?.getFailedCount().then((count) => {
+          recordGauge(
+            convertQueueNameToMetricName(queueName) + ".dlq_length",
+            count,
+            {
+              unit: "records",
+            },
+          );
+        }),
+      ]);
       recordHistogram(
         convertQueueNameToMetricName(queueName) + ".processing_time",
         Date.now() - startTime,
