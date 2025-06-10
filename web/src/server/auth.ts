@@ -388,6 +388,18 @@ const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
 const extendedPrismaAdapter: Adapter = {
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
+    console.log("🔍 DEBUG: createUser called with profile:", profile);
+    logger.error("🔍 DEBUG: createUser called with email:", profile.email);
+    console.log("🔍 DEBUG: LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP =", env.LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP);
+    logger.error("🔍 DEBUG: LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP =", env.LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP);
+    
+    // Write to file as well to ensure we can track this
+    try {
+      require('fs').appendFileSync('/tmp/debug.txt', `createUser called at ${new Date().toISOString()} for email: ${profile.email}\n`);
+    } catch (e) {
+      // ignore file write errors
+    }
+    
     if (!prismaAdapter.createUser)
       throw new Error("createUser not implemented");
     if (
@@ -403,6 +415,35 @@ const extendedPrismaAdapter: Adapter = {
       );
     }
 
+    // Check if invitation is required and exists
+    console.log("🔍 DEBUG: Checking invitation requirement...");
+    logger.error("🔍 DEBUG: Checking invitation requirement...");
+    if (env.LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP === "true") {
+      console.log("🔍 DEBUG: Invitation required, looking for invitation for email:", profile.email.toLowerCase());
+      logger.error("🔍 DEBUG: Invitation required, looking for invitation for email:", profile.email.toLowerCase());
+      const pendingInvitation = await prisma.membershipInvitation.findFirst({
+        where: {
+          email: profile.email.toLowerCase(),
+        },
+      });
+
+      console.log("🔍 DEBUG: Found invitation:", pendingInvitation);
+      logger.error("🔍 DEBUG: Found invitation:", pendingInvitation);
+
+      if (!pendingInvitation) {
+        console.log("🔍 DEBUG: No invitation found, blocking signup");
+        logger.error("🔍 DEBUG: No invitation found, blocking signup");
+        throw new Error("Sign up requires an invitation. Please contact an administrator for an invitation.");
+      }
+      console.log("🔍 DEBUG: Invitation found, allowing signup");
+      logger.error("🔍 DEBUG: Invitation found, allowing signup");
+    } else {
+      console.log("🔍 DEBUG: Invitation not required, proceeding with signup");
+      logger.error("🔍 DEBUG: Invitation not required, proceeding with signup");
+    }
+
+    console.log("🔍 DEBUG: Creating user...");
+    logger.error("🔍 DEBUG: Creating user...");
     const user = await prismaAdapter.createUser(profile);
 
     await createProjectMembershipsOnSignup(user);

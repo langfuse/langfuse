@@ -281,6 +281,9 @@ export const env = createEnv({
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: z.string().optional(),
     // UI customization - comma-separated list of hidden product modules
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES: z.string().optional(),
+
+    // Auth: require invitation for signup
+    LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP: z.enum(["true", "false"]).default("false"),
   },
 
   /**
@@ -544,6 +547,8 @@ export const env = createEnv({
     NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
     LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT:
       process.env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+    LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP:
+      process.env.LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

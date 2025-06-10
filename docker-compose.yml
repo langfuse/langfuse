@@ -5,7 +5,9 @@
 # External connections from other machines will not be able to reach these services directly.
 services:
   langfuse-worker:
-    image: langfuse/langfuse-worker:3
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
     restart: always
     depends_on: &langfuse-depends-on
       postgres:
@@ -19,27 +21,28 @@ services:
     ports:
       - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres # CHANGEME
-      SALT: "mysalt" # CHANGEME
-      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000" # CHANGEME: generate via `openssl rand -hex 32`
+      ADMIN_API_KEY: 8dd3e53baa1fe92f55f9857c9bdf3fdea116c557b44dcbc3fe277f982bf2e7e3
+      DATABASE_URL: postgresql://postgres:pwd4langfuse@postgres:5432/postgres # CHANGEME
+      SALT: "salt4langfuse" # CHANGEME
+      ENCRYPTION_KEY: "62c6c7e1db807ffe9a6a72c9b89e0b190be3d73391fa627877bccf871a401072" # CHANGEME: generate via `openssl rand -hex 32`
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: ${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-true}
       CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL:-clickhouse://clickhouse:9000}
       CLICKHOUSE_URL: ${CLICKHOUSE_URL:-http://clickhouse:8123}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse} # CHANGEME
+      CLICKHOUSE_PASSWORD: pwd4langfuse
       CLICKHOUSE_CLUSTER_ENABLED: ${CLICKHOUSE_CLUSTER_ENABLED:-false}
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-langfuse}
       LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_EVENT_UPLOAD_REGION:-auto}
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID:-minio}
-      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY:-miniosecret} # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: pwd4langfuse
       LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: ${LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT:-http://minio:9000}
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: ${LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:-true}
       LANGFUSE_S3_EVENT_UPLOAD_PREFIX: ${LANGFUSE_S3_EVENT_UPLOAD_PREFIX:-events/}
       LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:-langfuse}
       LANGFUSE_S3_MEDIA_UPLOAD_REGION: ${LANGFUSE_S3_MEDIA_UPLOAD_REGION:-auto}
       LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID:-minio}
-      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY:-miniosecret} # CHANGEME
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: pwd4langfuse
       LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT:-http://localhost:9090}
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: ${LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE:-true}
       LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: ${LANGFUSE_S3_MEDIA_UPLOAD_PREFIX:-media/}
@@ -50,28 +53,39 @@ services:
       LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: ${LANGFUSE_S3_BATCH_EXPORT_ENDPOINT:-http://minio:9000}
       LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT: ${LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT:-http://localhost:9090}
       LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: ${LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID:-minio}
-      LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: ${LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY:-miniosecret} # CHANGEME
+      LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: pwd4langfuse
       LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: ${LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE:-true}
       LANGFUSE_INGESTION_QUEUE_DELAY_MS: ${LANGFUSE_INGESTION_QUEUE_DELAY_MS:-}
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: ${LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS:-}
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_AUTH: ${REDIS_AUTH:-myredissecret} # CHANGEME
+      REDIS_AUTH: pwd4langfuse
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
       REDIS_TLS_CA: ${REDIS_TLS_CA:-/certs/ca.crt}
       REDIS_TLS_CERT: ${REDIS_TLS_CERT:-/certs/redis.crt}
       REDIS_TLS_KEY: ${REDIS_TLS_KEY:-/certs/redis.key}
+      LANGFUSE_PLAN: enterprise
+      LANGFUSE_CLOUD: false
+      LANGFUSE_SELF_HOSTED: true
+      SMTP_CONNECTION_URL: "smtp://7d986938607787:b4d756ce7a60a6@sandbox.smtp.mailtrap.io:2525"
+      EMAIL_FROM_ADDRESS: "langfuse@toddcrowe.com"
+      LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP: true
 
   langfuse-web:
-    image: langfuse/langfuse:3
+    build:
+      context: .
+      dockerfile: web/Dockerfile
     restart: always
     depends_on: *langfuse-depends-on
     ports:
       - 3000:3000
+    #volumes:
+    #  - ./langfuse.dev.pem:/app/ssl/cert.pem:ro
+    #  - ./langfuse.dev-key.pem:/app/ssl/key.pem:ro
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: mysecret # CHANGEME
+      NEXTAUTH_SECRET: pwd4langfuse
       LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:-}
       LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_INIT_ORG_NAME:-}
       LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-}
@@ -81,6 +95,12 @@ services:
       LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-}
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
+      #SSL_CERT_PATH: /app/ssl/langfuse.dev.pem
+      #SSL_KEY_PATH: /app/ssl/langfuse.dev-key.pem
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+      SMTP_CONNECTION_URL: "smtp://7d986938607787:b4d756ce7a60a6@sandbox.smtp.mailtrap.io:2525"
+      EMAIL_FROM_ADDRESS: "langfuse@toddcrowe.com"
+      LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP: true
 
   clickhouse:
     image: clickhouse/clickhouse-server
@@ -89,7 +109,7 @@ services:
     environment:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
-      CLICKHOUSE_PASSWORD: clickhouse # CHANGEME
+      CLICKHOUSE_PASSWORD: pwd4langfuse
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
@@ -111,7 +131,7 @@ services:
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
       MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: miniosecret # CHANGEME
+      MINIO_ROOT_PASSWORD: pwd4langfuse
     ports:
       - 9090:9000
       - 127.0.0.1:9091:9001
@@ -129,9 +149,9 @@ services:
     restart: always
     # CHANGEME: row below to secure redis password
     command: >
-      --requirepass ${REDIS_AUTH:-myredissecret}
+      --requirepass pwd4langfuse
     ports:
-      - 127.0.0.1:6379:6379
+      - 127.0.0.1:6380:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -148,12 +168,23 @@ services:
       retries: 10
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres # CHANGEME
+      POSTGRES_PASSWORD: pwd4langfuse
       POSTGRES_DB: postgres
     ports:
-      - 127.0.0.1:5432:5432
+      - 127.0.0.1:5434:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
+
+  #nginx:
+    #image: nginx:alpine
+    #ports:
+      #- "3000:3000"  # Move this from langfuse-web to nginx
+    #volumes:
+      #- ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      #- ./langfuse.dev.pem:/etc/ssl/cert.pem:ro
+      #- ./langfuse.dev-key.pem:/etc/ssl/key.pem:ro
+    #depends_on:
+      #- langfuse-web
 
 volumes:
   langfuse_postgres_data:
