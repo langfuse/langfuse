@@ -416,7 +416,7 @@ export const InnerEvalTemplateForm = (props: {
                     <AlertCircle className="h-4 w-4" />
                     <p>
                       This evaluator is configured to use{" "}
-                      {modelParams.provider.value}'s models but no API key
+                      {modelParams.provider.value}s models but no API key
                       exists. Add a key or choose another provider.
                     </p>
                   </div>
