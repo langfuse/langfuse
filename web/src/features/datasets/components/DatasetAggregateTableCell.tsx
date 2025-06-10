@@ -5,6 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   Dialog,
+  DialogBody,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -188,33 +189,34 @@ const DatasetAggregateCell = ({
               </DialogTrigger>
 
               <DialogContent
-                className="max-w-screen-xl"
+                size="xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 <DialogHeader>
                   <DialogTitle>Expected Output → Actual Output</DialogTitle>
                 </DialogHeader>
-
-                <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
-                  <div className="space-y-6">
-                    <div className="space-y-4">
-                      <div>
-                        <DiffViewer
-                          oldString={JSON.stringify(output, null, 2)}
-                          newString={JSON.stringify(
-                            data?.output ?? "null",
-                            null,
-                            2,
-                          )}
-                          oldLabel="Expected Output"
-                          newLabel="Actual Output"
-                        />
+                <DialogBody>
+                  <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
+                    <div className="space-y-6">
+                      <div className="space-y-4">
+                        <div>
+                          <DiffViewer
+                            oldString={JSON.stringify(output, null, 2)}
+                            newString={JSON.stringify(
+                              data?.output ?? "null",
+                              null,
+                              2,
+                            )}
+                            oldLabel="Expected Output"
+                            newLabel="Actual Output"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                </DialogBody>
 
-                <DialogFooter className="flex flex-row">
+                <DialogFooter className="static mt-auto">
                   <Button
                     onClick={() => {
                       setIsOpen(false);

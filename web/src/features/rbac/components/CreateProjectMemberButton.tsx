@@ -7,7 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -158,105 +160,109 @@ export function CreateProjectMemberButton(props: {
               // eslint-disable-next-line @typescript-eslint/no-misused-promises
               onSubmit={form.handleSubmit(onSubmit)}
             >
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="jsdoe@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {!hasOnlySingleProjectAccess && (
+              <DialogBody>
                 <FormField
                   control={form.control}
-                  name="orgRole"
+                  name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Organization Role</FormLabel>
-                      <Select
-                        defaultValue={field.value}
-                        onValueChange={(value) =>
-                          field.onChange(
-                            value as (typeof Role)[keyof typeof Role],
-                          )
-                        }
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select an organization role" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(Role).map((role) => (
-                            <RoleSelectItem role={role} key={role} />
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input placeholder="jsdoe@example.com" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
-              {props.project !== undefined && hasProjectRoleEntitlement && (
-                <FormField
-                  control={form.control}
-                  name="projectRole"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project Role</FormLabel>
-                      <Select
-                        defaultValue={field.value}
-                        onValueChange={(value) =>
-                          field.onChange(
-                            value as (typeof Role)[keyof typeof Role],
-                          )
-                        }
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a project role" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(Role)
-                            .filter(
-                              (role) =>
-                                !hasOnlySingleProjectAccess ||
-                                role !== Role.NONE,
+                {!hasOnlySingleProjectAccess && (
+                  <FormField
+                    control={form.control}
+                    name="orgRole"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Organization Role</FormLabel>
+                        <Select
+                          defaultValue={field.value}
+                          onValueChange={(value) =>
+                            field.onChange(
+                              value as (typeof Role)[keyof typeof Role],
                             )
-                            .map((role) => (
-                              <RoleSelectItem
-                                role={role}
-                                key={role}
-                                isProjectRole
-                              />
+                          }
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select an organization role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {Object.values(Role).map((role) => (
+                              <RoleSelectItem role={role} key={role} />
                             ))}
-                        </SelectContent>
-                      </Select>
-                      {!hasOnlySingleProjectAccess && (
-                        <FormDescription>
-                          This project role will override the default role for
-                          this current project ({props.project!.name}).
-                        </FormDescription>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-              <Button
-                type="submit"
-                className="w-full"
-                loading={form.formState.isSubmitting}
-              >
-                Grant access
-              </Button>
-              <FormMessage />
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                {props.project !== undefined && hasProjectRoleEntitlement && (
+                  <FormField
+                    control={form.control}
+                    name="projectRole"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project Role</FormLabel>
+                        <Select
+                          defaultValue={field.value}
+                          onValueChange={(value) =>
+                            field.onChange(
+                              value as (typeof Role)[keyof typeof Role],
+                            )
+                          }
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a project role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {Object.values(Role)
+                              .filter(
+                                (role) =>
+                                  !hasOnlySingleProjectAccess ||
+                                  role !== Role.NONE,
+                              )
+                              .map((role) => (
+                                <RoleSelectItem
+                                  role={role}
+                                  key={role}
+                                  isProjectRole
+                                />
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        {!hasOnlySingleProjectAccess && (
+                          <FormDescription>
+                            This project role will override the default role for
+                            this current project ({props.project!.name}).
+                          </FormDescription>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </DialogBody>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  loading={form.formState.isSubmitting}
+                >
+                  Grant access
+                </Button>
+                <FormMessage />
+              </DialogFooter>
             </form>
           </Form>
         </DialogContent>

@@ -1,7 +1,9 @@
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -91,26 +93,30 @@ export function DeleteProjectButton() {
             onSubmit={form.handleSubmit(onSubmit)}
             className="space-y-8"
           >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input placeholder={confirmMessage} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button
-              type="submit"
-              variant="destructive"
-              loading={deleteProject.isLoading}
-              className="w-full"
-            >
-              Delete project
-            </Button>
+            <DialogBody>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input placeholder={confirmMessage} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                type="submit"
+                variant="destructive"
+                loading={deleteProject.isLoading}
+                className="w-full"
+              >
+                Delete project
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

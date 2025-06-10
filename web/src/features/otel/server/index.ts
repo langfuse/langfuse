@@ -134,11 +134,11 @@ const extractInputAndOutput = (
 
   // Langfuse
   input =
-    domain === "trace"
+    domain === "trace" && attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]
       ? attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]
       : attributes[LangfuseOtelSpanAttributes.OBSERVATION_INPUT];
   output =
-    domain === "trace"
+    domain === "trace" && attributes[LangfuseOtelSpanAttributes.TRACE_OUTPUT]
       ? attributes[LangfuseOtelSpanAttributes.TRACE_OUTPUT]
       : attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT];
 
@@ -146,7 +146,59 @@ const extractInputAndOutput = (
     return { input, output };
   }
 
-  // Openlit uses events property
+  const inputEvents = events.filter(
+    (event: Record<string, unknown>) =>
+      event.name === "gen_ai.system.message" ||
+      event.name === "gen_ai.user.message" ||
+      event.name === "gen_ai.assistant.message" ||
+      event.name === "gen_ai.tool.message",
+  );
+
+  const outputEvents = events.filter(
+    (event: Record<string, unknown>) => event.name === "gen_ai.choice",
+  );
+
+  if (inputEvents.length > 0 || outputEvents.length > 0) {
+    // Convert events to a structured format
+    const processedInput =
+      inputEvents.length > 0
+        ? inputEvents.map((event: any) => {
+            const eventAttributes =
+              event.attributes?.reduce((acc: any, attr: any) => {
+                acc[attr.key] = convertValueToPlainJavascript(attr.value);
+                return acc;
+              }, {}) ?? {};
+
+            return {
+              role: event.name.replace("gen_ai.", "").replace(".message", ""),
+              ...eventAttributes,
+            };
+          })
+        : null;
+
+    const processedOutput =
+      outputEvents.length > 0
+        ? outputEvents.map((event: any) => {
+            const eventAttributes =
+              event.attributes?.reduce((acc: any, attr: any) => {
+                acc[attr.key] = convertValueToPlainJavascript(attr.value);
+                return acc;
+              }, {}) ?? {};
+
+            return eventAttributes;
+          })
+        : null;
+
+    return {
+      input: processedInput,
+      output:
+        processedOutput && processedOutput.length === 1
+          ? processedOutput[0]
+          : processedOutput,
+    };
+  }
+
+  // Check legacy semantic kernel event definitions
   input = events.find(
     (event: Record<string, unknown>) => event.name === "gen_ai.content.prompt",
   )?.attributes;
@@ -656,7 +708,9 @@ export const convertOtelSpanToIngestionEvent = (
           timestamp: startTimeISO,
           name:
             attributes[LangfuseOtelSpanAttributes.TRACE_NAME] ??
-            (is_root_span ? extractName(span.name, attributes) : undefined),
+            (!parentObservationId
+              ? extractName(span.name, attributes)
+              : undefined),
           metadata: {
             ...resourceAttributeMetadata,
             ...extractMetadata(attributes, "trace"),
@@ -670,7 +724,10 @@ export const convertOtelSpanToIngestionEvent = (
             attributes?.[LangfuseOtelSpanAttributes.VERSION] ??
             resourceAttributes?.["service.version"] ??
             null,
-          release: attributes?.[LangfuseOtelSpanAttributes.RELEASE] ?? null,
+          release:
+            attributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+            resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+            null,
           userId: extractUserId(attributes),
           sessionId: extractSessionId(attributes),
           public:

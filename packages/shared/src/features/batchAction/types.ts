@@ -1,7 +1,7 @@
 import z from "zod";
 import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
-import { BatchExportTableName } from "../batchExport/types";
+import { BatchTableNames } from "../../interfaces/tableNames";
 
 /* eslint-disable no-unused-vars */
 export enum BatchActionType {
@@ -29,11 +29,11 @@ export const CreateBatchActionSchema = z.object({
   actionId: ActionIdSchema,
   targetId: z.string().optional(),
   query: BatchActionQuerySchema,
-  tableName: z.nativeEnum(BatchExportTableName),
+  tableName: z.nativeEnum(BatchTableNames),
 });
 
 export const GetIsBatchActionInProgressSchema = z.object({
   projectId: z.string(),
   actionId: ActionIdSchema,
-  tableName: z.nativeEnum(BatchExportTableName),
+  tableName: z.nativeEnum(BatchTableNames),
 });

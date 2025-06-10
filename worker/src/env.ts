@@ -232,6 +232,11 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
+  // Whether to collect queue length metrics. Experimental flag to understand redis performance around this command.
+  LANGFUSE_COLLECT_QUEUE_LENGTH_METRICS: z
+    .enum(["true", "false"])
+    .default("true"),
+
   LANGFUSE_S3_CONCURRENT_READS: z.coerce.number().positive().default(50),
   LANGFUSE_CLICKHOUSE_PROJECT_DELETION_CONCURRENCY_DURATION_MS: z.coerce
     .number()

@@ -344,7 +344,7 @@ export const datasetRouter = createTRPCRouter({
           expectedOutput: true,
           metadata: true,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: input.limit,
         skip: input.page * input.limit,
       });
@@ -866,7 +866,8 @@ export const datasetRouter = createTRPCRouter({
           dri.project_id = ${input.projectId}
           ${filterQuery}
         ORDER BY 
-          di.created_at DESC
+          di.created_at DESC,
+          di.id DESC
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
       `;

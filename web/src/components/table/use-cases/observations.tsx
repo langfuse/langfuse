@@ -22,7 +22,7 @@ import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { observationsTableColsWithOptions } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { MemoizedIOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
@@ -54,6 +54,7 @@ import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -879,6 +880,31 @@ export default function ObservationsTable({
     },
   });
 
+  const peekConfig: PeekViewProps<ObservationsTableRow> = useMemo(
+    () => ({
+      itemType: "TRACE",
+      customTitlePrefix: "Observation ID:",
+      listKey: "observations",
+      urlPathname,
+      onOpenChange: setPeekView,
+      onExpand: expandPeek,
+      shouldUpdateRowOnDetailPageNavigation: true,
+      getNavigationPath,
+      children: (row?: ObservationsTableRow) => (
+        <PeekViewObservationDetail projectId={projectId} row={row} />
+      ),
+      tableDataUpdatedAt: generations.dataUpdatedAt,
+    }),
+    [
+      projectId,
+      urlPathname,
+      generations.dataUpdatedAt,
+      getNavigationPath,
+      expandPeek,
+      setPeekView,
+    ],
+  );
+
   const rows: ObservationsTableRow[] = useMemo(() => {
     return generations.isSuccess
       ? generations.data.generations.map((generation) => {
@@ -969,20 +995,7 @@ export default function ObservationsTable({
       />
       <DataTable
         columns={columns}
-        peekView={{
-          itemType: "RUNNING_EVALUATOR",
-          customTitlePrefix: "Observation ID:",
-          listKey: "observations",
-          urlPathname,
-          onOpenChange: setPeekView,
-          onExpand: expandPeek,
-          shouldUpdateRowOnDetailPageNavigation: true,
-          getNavigationPath,
-          children: (row) => (
-            <PeekViewObservationDetail projectId={projectId} row={row} />
-          ),
-          tableDataUpdatedAt: generations.dataUpdatedAt,
-        }}
+        peekView={peekConfig}
         data={
           generations.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
@@ -1039,24 +1052,22 @@ const GenerationsDynamicCell = ({
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
     },
   );
+
+  const data =
+    col === "output"
+      ? observation.data?.output
+      : col === "input"
+        ? observation.data?.input
+        : observation.data?.metadata;
+
   return (
-    <IOTableCell
+    <MemoizedIOTableCell
       isLoading={observation.isLoading}
-      data={
-        col === "output"
-          ? observation.data?.output
-          : col === "input"
-            ? observation.data?.input
-            : observation.data?.metadata
-      }
+      data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />

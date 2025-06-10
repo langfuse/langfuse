@@ -73,7 +73,6 @@ export const ROUTES: Route[] = [
     title: "Dashboards",
     pathname: `/project/[projectId]/dashboards`,
     icon: LayoutDashboard,
-    entitlements: ["custom-dashboards"],
     productModule: "dashboards",
   },
   {
@@ -105,19 +104,16 @@ export const ROUTES: Route[] = [
     icon: Lightbulb,
     pathname: `/project/[projectId]/annotation-queues`,
     productModule: "evaluation",
-    entitlements: ["annotation-queues", "model-based-evaluations"],
     projectRbacScopes: ["annotationQueues:read", "evalJob:read"],
     items: [
       {
         title: "Human Annotation",
         pathname: `/project/[projectId]/annotation-queues`,
         projectRbacScopes: ["annotationQueues:read"],
-        entitlements: ["annotation-queues"],
       },
       {
         title: "LLM-as-a-Judge",
         pathname: `/project/[projectId]/evals`,
-        entitlements: ["model-based-evaluations"],
         projectRbacScopes: ["evalJob:read"],
       },
     ],
@@ -140,7 +136,6 @@ export const ROUTES: Route[] = [
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
-    entitlements: ["playground"],
   },
   {
     title: "Datasets",

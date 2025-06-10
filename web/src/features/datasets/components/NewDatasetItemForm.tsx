@@ -31,6 +31,7 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 
 const formSchema = z.object({
   datasetIds: z.array(z.string()).min(1, "Select at least one dataset"),
@@ -153,128 +154,152 @@ export const NewDatasetItemForm = (props: {
         onSubmit={form.handleSubmit(onSubmit)}
         className={cn("flex h-full flex-col gap-6", props.className)}
       >
-        <div className="flex-none">
-          <FormField
-            control={form.control}
-            name="datasetIds"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Datasets</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className={cn(
-                          "w-full justify-between",
-                          !field.value.length && "text-muted-foreground",
-                        )}
-                      >
-                        {field.value.length > 0
-                          ? `${field.value.length} dataset${field.value.length > 1 ? "s" : ""} selected`
-                          : "Select datasets"}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
-                    <InputCommand>
-                      <InputCommandInput placeholder="Search datasets..." />
-                      <InputCommandEmpty>No datasets found.</InputCommandEmpty>
-                      <InputCommandGroup>
-                        <ScrollArea className="h-60">
-                          {datasets.data
-                            ?.filter(
-                              (dataset) =>
-                                !props.blockedDatasetIds?.includes(dataset.id),
-                            )
-                            .map((dataset) => (
-                              <InputCommandItem
-                                value={dataset.name}
-                                key={dataset.id}
-                                onSelect={() => {
-                                  const newValue = field.value.includes(
-                                    dataset.id,
-                                  )
-                                    ? field.value.filter(
-                                        (id) => id !== dataset.id,
-                                      )
-                                    : [...field.value, dataset.id];
-                                  field.onChange(newValue);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    field.value.includes(dataset.id)
-                                      ? "opacity-100"
-                                      : "opacity-0",
-                                  )}
-                                />
-                                {dataset.name}
-                              </InputCommandItem>
-                            ))}
-                        </ScrollArea>
-                      </InputCommandGroup>
-                    </InputCommand>
-                  </PopoverContent>
-                </Popover>
-                {field.value.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {field.value.map((datasetId) => {
-                      const dataset = datasets.data?.find(
-                        (d) => d.id === datasetId,
-                      );
-                      return (
-                        <Badge
-                          key={datasetId}
-                          variant="secondary"
-                          className="mb-1 mr-1"
-                        >
-                          {dataset?.name || datasetId}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                )}
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <div className="ph-no-capture min-h-0 flex-1 overflow-y-auto">
-          <div className="grid gap-4 md:grid-cols-2">
+        <DialogBody className="grid grid-rows-[auto,1fr]">
+          <div className="flex-none">
             <FormField
               control={form.control}
-              name="input"
+              name="datasetIds"
               render={({ field }) => (
-                <FormItem className="flex flex-col gap-2">
-                  <FormLabel>Input</FormLabel>
-                  <FormControl>
-                    <CodeMirrorEditor
-                      mode="json"
-                      value={field.value}
-                      onChange={field.onChange}
-                      minHeight={200}
-                    />
-                  </FormControl>
+                <FormItem className="flex flex-col">
+                  <FormLabel>Datasets</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !field.value.length && "text-muted-foreground",
+                          )}
+                        >
+                          {field.value.length > 0
+                            ? `${field.value.length} dataset${field.value.length > 1 ? "s" : ""} selected`
+                            : "Select datasets"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0">
+                      <InputCommand>
+                        <InputCommandInput placeholder="Search datasets..." />
+                        <InputCommandEmpty>
+                          No datasets found.
+                        </InputCommandEmpty>
+                        <InputCommandGroup>
+                          <ScrollArea className="h-fit">
+                            {datasets.data
+                              ?.filter(
+                                (dataset) =>
+                                  !props.blockedDatasetIds?.includes(
+                                    dataset.id,
+                                  ),
+                              )
+                              .map((dataset) => (
+                                <InputCommandItem
+                                  value={dataset.name}
+                                  key={dataset.id}
+                                  onSelect={() => {
+                                    const newValue = field.value.includes(
+                                      dataset.id,
+                                    )
+                                      ? field.value.filter(
+                                          (id) => id !== dataset.id,
+                                        )
+                                      : [...field.value, dataset.id];
+                                    field.onChange(newValue);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      field.value.includes(dataset.id)
+                                        ? "opacity-100"
+                                        : "opacity-0",
+                                    )}
+                                  />
+                                  {dataset.name}
+                                </InputCommandItem>
+                              ))}
+                          </ScrollArea>
+                        </InputCommandGroup>
+                      </InputCommand>
+                    </PopoverContent>
+                  </Popover>
+                  {field.value.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {field.value.map((datasetId) => {
+                        const dataset = datasets.data?.find(
+                          (d) => d.id === datasetId,
+                        );
+                        return (
+                          <Badge
+                            key={datasetId}
+                            variant="secondary"
+                            className="mb-1 mr-1"
+                          >
+                            {dataset?.name || datasetId}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
             />
+          </div>
+          <div className="ph-no-capture min-h-0 flex-1 overflow-y-auto">
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="input"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <FormLabel>Input</FormLabel>
+                    <FormControl>
+                      <CodeMirrorEditor
+                        mode="json"
+                        value={field.value}
+                        onChange={field.onChange}
+                        minHeight={200}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="expectedOutput"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <FormLabel>Expected output</FormLabel>
+                    <FormControl>
+                      <CodeMirrorEditor
+                        mode="json"
+                        value={field.value}
+                        onChange={field.onChange}
+                        minHeight={200}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
-              name="expectedOutput"
+              name="metadata"
               render={({ field }) => (
-                <FormItem className="flex flex-col gap-2">
-                  <FormLabel>Expected output</FormLabel>
+                <FormItem className="mt-4 flex flex-col gap-2">
+                  <FormLabel>Metadata</FormLabel>
                   <FormControl>
                     <CodeMirrorEditor
                       mode="json"
                       value={field.value}
                       onChange={field.onChange}
-                      minHeight={200}
+                      minHeight={100}
                     />
                   </FormControl>
                   <FormMessage />
@@ -282,26 +307,8 @@ export const NewDatasetItemForm = (props: {
               )}
             />
           </div>
-          <FormField
-            control={form.control}
-            name="metadata"
-            render={({ field }) => (
-              <FormItem className="mt-4 flex flex-col gap-2">
-                <FormLabel>Metadata</FormLabel>
-                <FormControl>
-                  <CodeMirrorEditor
-                    mode="json"
-                    value={field.value}
-                    onChange={field.onChange}
-                    minHeight={100}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <div className="mt-3 flex-none">
+        </DialogBody>
+        <DialogFooter>
           <Button
             type="submit"
             loading={createManyDatasetItemsMutation.isLoading}
@@ -315,7 +322,7 @@ export const NewDatasetItemForm = (props: {
               <span className="font-bold">Error:</span> {formError}
             </p>
           ) : null}
-        </div>
+        </DialogFooter>
       </form>
     </Form>
   );

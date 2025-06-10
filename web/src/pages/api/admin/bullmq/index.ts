@@ -40,7 +40,7 @@ export default async function handler(
       return;
     }
 
-    if (!AdminApiAuthService.handleAdminAuth(req, res)) {
+    if (!AdminApiAuthService.handleAdminAuth(req, res, false)) {
       return;
     }
 

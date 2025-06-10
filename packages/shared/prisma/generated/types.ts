@@ -110,7 +110,8 @@ export const DashboardWidgetChartType = {
     HORIZONTAL_BAR: "HORIZONTAL_BAR",
     VERTICAL_BAR: "VERTICAL_BAR",
     PIE: "PIE",
-    NUMBER: "NUMBER"
+    NUMBER: "NUMBER",
+    HISTOGRAM: "HISTOGRAM"
 } as const;
 export type DashboardWidgetChartType = (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
 export type Account = {
@@ -228,8 +229,8 @@ export type BlobStorageIntegration = {
     type: BlobStorageIntegrationType;
     bucket_name: string;
     prefix: string;
-    access_key_id: string;
-    secret_access_key: string;
+    access_key_id: string | null;
+    secret_access_key: string | null;
     region: string;
     endpoint: string | null;
     force_path_style: boolean;
