@@ -15,7 +15,7 @@ test_redis_connection() {
     local host=$1
     local port=$2
     local name=$3
-    
+
     echo "Testing $name ($host:$port)..."
     if docker exec -it $(docker ps -q -f name=$host) redis-cli -a $REDIS_AUTH ping > /dev/null 2>&1; then
         echo "✅ $name is responding"
@@ -30,10 +30,10 @@ get_cluster_info() {
     echo ""
     echo "📊 Cluster Information:"
     echo "======================"
-    
+
     echo "Cluster Info:"
     docker exec -it $(docker ps -q -f name=redis-node1) redis-cli -a $REDIS_AUTH cluster info
-    
+
     echo ""
     echo "Cluster Nodes:"
     docker exec -it $(docker ps -q -f name=redis-node1) redis-cli -a $REDIS_AUTH cluster nodes
@@ -44,26 +44,26 @@ test_cluster_operations() {
     echo ""
     echo "🧪 Testing Cluster Operations:"
     echo "=============================="
-    
+
     # Test setting and getting keys
     echo "Setting test keys..."
     docker exec -it $(docker ps -q -f name=redis-node1) redis-cli -a $REDIS_AUTH set test:key1 "value1"
     docker exec -it $(docker ps -q -f name=redis-node2) redis-cli -a $REDIS_AUTH set test:key2 "value2"
     docker exec -it $(docker ps -q -f name=redis-node3) redis-cli -a $REDIS_AUTH set test:key3 "value3"
-    
+
     echo "Getting test keys from different nodes..."
     val1=$(docker exec -it $(docker ps -q -f name=redis-node1) redis-cli -a $REDIS_AUTH get test:key1 | tr -d '\r')
     val2=$(docker exec -it $(docker ps -q -f name=redis-node2) redis-cli -a $REDIS_AUTH get test:key2 | tr -d '\r')
     val3=$(docker exec -it $(docker ps -q -f name=redis-node3) redis-cli -a $REDIS_AUTH get test:key3 | tr -d '\r')
-    
+
     echo "Retrieved values: $val1, $val2, $val3"
-    
+
     # Test BullMQ-style hash tags
     echo "Testing BullMQ hash tags..."
     docker exec -it $(docker ps -q -f name=redis-node1) redis-cli -a $REDIS_AUTH set "{langfuse}:queue:test" "bullmq-test"
     hash_val=$(docker exec -it $(docker ps -q -f name=redis-node1) redis-cli -a $REDIS_AUTH get "{langfuse}:queue:test" | tr -d '\r')
     echo "Hash tag test value: $hash_val"
-    
+
     # Clean up test keys
     echo "Cleaning up test keys..."
     docker exec -it $(docker ps -q -f name=redis-node1) redis-cli -a $REDIS_AUTH del test:key1 test:key2 test:key3 "{langfuse}:queue:test"
@@ -88,6 +88,9 @@ echo "Checking if Redis cluster containers are running..."
 test_redis_connection "redis-node1" "7001" "Redis Node 1 (Master)"
 test_redis_connection "redis-node2" "7002" "Redis Node 2 (Master)"  
 test_redis_connection "redis-node3" "7003" "Redis Node 3 (Master)"
+test_redis_connection "redis-replica1" "7004" "Redis Replica 1"
+test_redis_connection "redis-replica2" "7005" "Redis Replica 2"
+test_redis_connection "redis-replica3" "7006" "Redis Replica 3"
 
 # Get cluster information
 get_cluster_info
@@ -109,3 +112,6 @@ echo "📊 Redis cluster nodes available at:"
 echo "   - Node 1: localhost:7001"
 echo "   - Node 2: localhost:7002" 
 echo "   - Node 3: localhost:7003"
+echo "   - Replica 1: localhost:7004"
+echo "   - Replica 2: localhost:7005"
+echo "   - Replica 3: localhost:7006"

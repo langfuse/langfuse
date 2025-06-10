@@ -208,10 +208,10 @@ services:
         echo 'Waiting for Redis nodes to be ready...' &&
         sleep 10 &&
         echo 'Creating Redis cluster...' &&
-        redis-cli -a ${REDIS_AUTH:-myredissecret} --cluster create
-        redis-node1:6379 redis-node2:6379 redis-node3:6379
-        redis-replica1:6379 redis-replica2:6379 redis-replica3:6379
-        --cluster-replicas 1 --cluster-yes &&
+        redis-cli -a ${REDIS_AUTH:-myredissecret} \\
+            --cluster create redis-node1:6379 redis-node2:6379 redis-node3:6379 redis-replica1:6379 redis-replica2:6379 redis-replica3:6379 \\
+            --cluster-replicas 1 \\
+            --cluster-yes &&
         echo 'Redis cluster created successfully!' &&
         echo 'Cluster info:' &&
         redis-cli -a ${REDIS_AUTH:-myredissecret} -h redis-node1 cluster info &&
