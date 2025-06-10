@@ -17,30 +17,20 @@ export async function createUserEmailPassword(
   password: string,
   name: string,
 ) {
-  console.log("🔍 DEBUG: createUserEmailPassword called for email:", email);
-  console.log("🔍 DEBUG: LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP =", env.LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP);
-
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");
 
   // Check if invitation is required and exists
   if (env.LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP === "true") {
-    console.log("🔍 DEBUG: Invitation required, checking for invitation...");
     const pendingInvitation = await prisma.membershipInvitation.findFirst({
       where: {
         email: email.toLowerCase(),
       },
     });
 
-    console.log("🔍 DEBUG: Found invitation:", pendingInvitation);
-
     if (!pendingInvitation) {
-      console.log("🔍 DEBUG: No invitation found, blocking signup");
       throw new Error("Sign up requires an invitation. Please contact an administrator for an invitation.");
     }
-    console.log("🔍 DEBUG: Invitation found, allowing signup");
-  } else {
-    console.log("🔍 DEBUG: Invitation not required, proceeding with signup");
   }
 
   const hashedPassword = await hashPassword(password);
@@ -58,7 +48,6 @@ export async function createUserEmailPassword(
     );
   }
 
-  console.log("🔍 DEBUG: Creating user in database...");
   const newUser = await prisma.user.create({
     data: {
       email: email.toLowerCase(),
