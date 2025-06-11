@@ -2494,5 +2494,162 @@ describe("OTel Resource Span Mapping", () => {
 
       expect(traceEvent.body.metadata).toBeDefined();
     });
+
+    it("should create only ONE trace when multiple spans share the same traceId with empty seenTraces", () => {
+      const sharedTraceId = [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32];
+
+      const otelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "test-scope",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: sharedTraceId,
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [131, 78, 40, 181, 145, 127, 190, 246],
+                  },
+                  name: "first-child-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1149405088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "first-operation" },
+                    },
+                  ],
+                  status: {},
+                },
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: sharedTraceId,
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [180, 95, 123, 45, 67, 89, 101, 112],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [131, 78, 40, 181, 145, 127, 190, 246],
+                  },
+                  name: "second-child-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1150000000,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1250000000,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "second-operation" },
+                    },
+                  ],
+                  status: {},
+                },
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: sharedTraceId,
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [200, 100, 150, 75, 25, 50, 175, 225],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [131, 78, 40, 181, 145, 127, 190, 246],
+                  },
+                  name: "third-child-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1260000000,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1360000000,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "third-operation" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      // Empty seenTraces set - should create only ONE trace despite multiple spans with same traceId
+      const events = otelSpans.flatMap((span) =>
+        convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+      );
+
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      const spanEvents = events.filter((e) => e.type === "span-create");
+
+      expect(events.length).toBe(4); // 1 trace + 3 spans
+      expect(traceEvents.length).toBe(1); // Only ONE trace should be created
+      expect(spanEvents.length).toBe(3); // All three spans should be created
+
+      const traceEvent = traceEvents[0];
+      
+      // Should create shallow trace with minimal information (from first span processed)
+      expect(traceEvent.body).toMatchObject({
+        id: "95f3b926c7d009925bcb5dbc27311120",
+        timestamp: "2025-05-05T13:42:33.936Z", // timestamp from first span
+        environment: "default",
+      });
+
+      // Verify all spans were created with the same traceId
+      spanEvents.forEach((spanEvent) => {
+        expect(spanEvent.body.traceId).toBe("95f3b926c7d009925bcb5dbc27311120");
+      });
+
+      // Verify span names are correct
+      expect(spanEvents[0].body.name).toBe("first-child-span");
+      expect(spanEvents[1].body.name).toBe("second-child-span");
+      expect(spanEvents[2].body.name).toBe("third-child-span");
+    });
   });
 });
