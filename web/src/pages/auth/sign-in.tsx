@@ -524,14 +524,8 @@ export default function SignIn({
         return; // stop further execution – page redirect expected
       }
 
-      // No SSO – fall back to password step (credentials must be enabled)
-      if (!authProviders.credentials) {
-        setCredentialsFormError(
-          "SSO is not enabled for this domain and password authentication is disabled.",
-        );
-      } else {
-        setShowPasswordStep(true);
-      }
+      // No SSO – fall back to password step
+      setShowPasswordStep(true);
     } catch (error) {
       console.error(error);
       setCredentialsFormError(
