@@ -68,7 +68,7 @@ export function DatasetItemsTable({
   // Add filter state for advanced filtering (will be implemented later)
   const [filterState, setFilterState] = useQueryFilterState(
     [],
-    "traces",
+    "dataset_items",
     projectId,
   );
 
