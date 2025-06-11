@@ -74,9 +74,7 @@ export default function PromptsWithFolder() {
 
   const showOnboarding = !isLoading && !hasAnyPrompt;
 
-  // Create the page title based on current folder
-  // TODO: remove when we have proper breadcrumbs
-  const pageTitle = promptNamePath ? `Prompts - ${promptNamePath}` : "Prompts";
+  const pageTitle = "Prompts";
 
   // Decide what to render: metrics, detail, or folder view
   if (promptNamePath && !isCheckingPrompt) {

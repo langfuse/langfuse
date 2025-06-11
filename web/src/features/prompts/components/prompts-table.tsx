@@ -18,6 +18,16 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/src/components/ui/breadcrumb";
+import { Slash, Folder } from "lucide-react";
+import Link from "next/link";
 
 type PromptTableRow = {
   id: string;
@@ -73,6 +83,17 @@ function getDisplayName(fullPath: string, currentFolderPath: string): string {
   return currentFolderPath === ''
     ? fullPath
     : fullPath.substring(currentFolderPath.length + 1);
+}
+
+function createBreadcrumbItems(currentFolderPath: string, projectId: string) {
+  if (!currentFolderPath) return [];
+
+  const segments = currentFolderPath.split('/');
+  return segments.map((name, i) => ({
+    name,
+    href: `/project/${projectId}/prompts/${segments.slice(0, i + 1).join('/')}`,
+    path: segments.slice(0, i + 1).join('/'),
+  }));
 }
 
 type PromptTableProps = {
@@ -268,7 +289,12 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
           return (
             <TableLink
               path={`/project/${projectId}/prompts/${rowData.id}`}
-              value={displayName}
+              value={
+                <div className="flex items-center gap-2">
+                  <Folder className="h-4 w-4" />
+                  {displayName}
+                </div>
+              }
               className="font-medium"
             />
           );
@@ -288,8 +314,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
       enableSorting: true,
       size: 70,
       cell: (row) => {
-        const rowType = row.row.original.type;
-        if (rowType === 'folder') return null;
+        if (isFolder(row.row.original)) return null;
         return row.getValue();
       },
     }),
@@ -308,8 +333,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
       enableSorting: true,
       size: 200,
       cell: (row) => {
-        const rowType = row.row.original.type;
-        if (rowType === 'folder') return null;
+        if (isFolder(row.row.original)) return null;
         const createdAt = row.getValue();
         return <LocalIsoDate date={createdAt} />;
       },
@@ -318,8 +342,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
       header: "Number of Observations",
       size: 170,
       cell: (row) => {
-        const rowType = row.row.original.type;
-        if (rowType === 'folder') return null;
+        if (isFolder(row.row.original)) return null;
 
         const numberOfObservations = row.getValue();
         const name = row.row.original.name;
@@ -343,11 +366,10 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
       enableSorting: true,
       size: 120,
       cell: (row) => {
-        const rowType = row.row.original.type;
-        if (rowType === 'folder') return null;
+        if (isFolder(row.row.original)) return null;
 
         const tags = row.getValue();
-        const promptName: string = row.row.original.name;
+        const promptName = row.row.original.name;
         return (
           <TagPromptPopover
             tags={tags}
@@ -370,8 +392,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
       header: "Actions",
       size: 70,
       cell: (row) => {
-        const rowType = row.row.original.type;
-        if (rowType === 'folder') return null;
+        if (isFolder(row.row.original)) return null;
 
         const name = row.row.original.name;
         return <DeletePrompt promptName={name} />;
@@ -381,6 +402,37 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
 
   return (
     <>
+      {currentFolderPath && (
+        <div className="py-2 pb-2 ml-2">
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href={`/project/${projectId}/prompts`} className="hover:underline">
+                    <Slash className="h-4 w-4" />
+                  </Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              {createBreadcrumbItems(currentFolderPath, projectId).flatMap((item, index, array) => [
+                index > 0 && (
+                  <BreadcrumbSeparator key={`sep-${item.path}`}>
+                    <Slash />
+                  </BreadcrumbSeparator>
+                ),
+                <BreadcrumbItem key={item.path}>
+                  {index === array.length - 1 ? (
+                    <BreadcrumbPage>{item.name}</BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <Link href={item.href} className="hover:underline">{item.name}</Link>
+                    </BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
+              ])}
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
+      )}
       <DataTableToolbar
         columns={promptColumns}
         filterColumnDefinition={promptsTableColsWithOptions(
