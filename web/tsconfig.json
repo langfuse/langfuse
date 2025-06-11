@@ -4,6 +4,8 @@
     "declaration": false,
     "declarationMap": false,
     "outDir": "dist",
+    "baseUrl": ".",
+    "jsx": "preserve",
     "plugins": [
       {
         "name": "next"
