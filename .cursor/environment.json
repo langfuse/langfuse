@@ -4,5 +4,10 @@
     "context": ".",
     "dockerfile": "Dockerfile"
   },
-  "start": "pnpm dx-f"
+  "terminals": [
+    {
+      "name": "Run dev server",
+      "command": "pnpm dx-f"
+    }
+  ]
 }
