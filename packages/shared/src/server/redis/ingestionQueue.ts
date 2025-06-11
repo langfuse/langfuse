@@ -40,7 +40,7 @@ export class IngestionQueue {
       ...redisQueueRetryOptions,
     });
 
-    const name = `${QueueName.IngestionQueue}${shardIndex > 1 ? `-${shardIndex}` : ""}`;
+    const name = `${QueueName.IngestionQueue}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
     const queueInstance = newRedis
       ? new Queue<TQueueJobTypes[QueueName.IngestionQueue]>(name, {
           connection: newRedis,
