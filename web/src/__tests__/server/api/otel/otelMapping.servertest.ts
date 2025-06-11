@@ -2153,4 +2153,346 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
   });
+
+  describe("Trace seen logic", () => {
+    const publicKey = "pk-lf-1234567890";
+
+    it("should create a shallow trace when seenTraces set is empty for non-root span without trace updates", () => {
+      const otelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "test-scope",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                  },
+                  spanId: {
+                    type: "Buffer", 
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [131, 78, 40, 181, 145, 127, 190, 246],
+                  },
+                  name: "child-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1149405088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "test-operation" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      // Empty seenTraces set - should create shallow trace for first span
+      const events = otelSpans.flatMap((span) =>
+        convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+      );
+
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      const spanEvents = events.filter((e) => e.type === "span-create");
+
+      expect(events.length).toBe(2);
+      expect(traceEvents.length).toBe(1);
+      expect(spanEvents.length).toBe(1);
+
+      const traceEvent = traceEvents[0];
+      
+      // Should create shallow trace with minimal information
+      expect(traceEvent.body).toMatchObject({
+        id: "95f3b926c7d009925bcb5dbc27311120",
+        timestamp: "2025-05-05T13:42:33.936Z",
+        environment: "default",
+      });
+
+      // Should NOT have name, metadata, etc. since it's a shallow trace
+      expect(traceEvent.body.name).toBeUndefined();
+      expect(traceEvent.body.metadata).toBeUndefined();
+      expect(traceEvent.body.userId).toBeUndefined();
+      expect(traceEvent.body.sessionId).toBeUndefined();
+    });
+
+    it("should NOT create trace when seenTraces set contains the traceId", () => {
+      const traceId = "95f3b926c7d009925bcb5dbc27311120";
+      const seenTraces = new Set([traceId]);
+
+      const otelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "test-scope",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [131, 78, 40, 181, 145, 127, 190, 246],
+                  },
+                  name: "child-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1149405088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "test-operation" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      // seenTraces contains the traceId - should NOT create trace
+      const events = otelSpans.flatMap((span) =>
+        convertOtelSpanToIngestionEvent(span, seenTraces, publicKey),
+      );
+
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      const spanEvents = events.filter((e) => e.type === "span-create");
+
+      expect(events.length).toBe(1);
+      expect(traceEvents.length).toBe(0); // No trace should be created
+      expect(spanEvents.length).toBe(1);   // Only span should be created
+
+      const spanEvent = spanEvents[0];
+      expect(spanEvent.body).toMatchObject({
+        id: "d43e37b7d17e5476",
+        traceId: "95f3b926c7d009925bcb5dbc27311120",
+        parentObservationId: "834e28b5917fbef6",
+        name: "child-span",
+      });
+    });
+
+    it("should create full trace for root span even when seenTraces contains traceId", () => {
+      const traceId = "95f3b926c7d009925bcb5dbc27311120";
+      const seenTraces = new Set([traceId]);
+
+      const otelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "test-scope",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  // No parentSpanId - makes it a root span
+                  name: "root-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1149405088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "root-operation" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      // seenTraces contains the traceId, but span is root - should still create full trace
+      const events = otelSpans.flatMap((span) =>
+        convertOtelSpanToIngestionEvent(span, seenTraces, publicKey),
+      );
+
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      const spanEvents = events.filter((e) => e.type === "span-create");
+
+      expect(events.length).toBe(2);
+      expect(traceEvents.length).toBe(1); // Trace should be created because it's root span
+      expect(spanEvents.length).toBe(1);
+
+      const traceEvent = traceEvents[0];
+      
+      // Should create full trace with name and metadata since it's a root span
+      expect(traceEvent.body).toMatchObject({
+        id: "95f3b926c7d009925bcb5dbc27311120",
+        timestamp: "2025-05-05T13:42:33.936Z",
+        name: "root-span",
+        environment: "default",
+      });
+
+      expect(traceEvent.body.metadata).toBeDefined();
+    });
+
+    it("should create full trace for span with trace updates even when seenTraces contains traceId", () => {
+      const traceId = "95f3b926c7d009925bcb5dbc27311120";
+      const seenTraces = new Set([traceId]);
+
+      const otelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "test-scope",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [131, 78, 40, 181, 145, 127, 190, 246],
+                  },
+                  name: "child-span-with-trace-updates",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1149405088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.trace.name",
+                      value: { stringValue: "Custom Trace Name" },
+                    },
+                    {
+                      key: "user.id",
+                      value: { stringValue: "user-123" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      // seenTraces contains the traceId, but span has trace updates - should still create full trace
+      const events = otelSpans.flatMap((span) =>
+        convertOtelSpanToIngestionEvent(span, seenTraces, publicKey),
+      );
+
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      const spanEvents = events.filter((e) => e.type === "span-create");
+
+      expect(events.length).toBe(2);
+      expect(traceEvents.length).toBe(1); // Trace should be created because it has trace updates
+      expect(spanEvents.length).toBe(1);
+
+      const traceEvent = traceEvents[0];
+      
+      // Should create full trace with trace updates
+      expect(traceEvent.body).toMatchObject({
+        id: "95f3b926c7d009925bcb5dbc27311120",
+        timestamp: "2025-05-05T13:42:33.936Z",
+        name: "Custom Trace Name",
+        userId: "user-123",
+        environment: "default",
+      });
+
+      expect(traceEvent.body.metadata).toBeDefined();
+    });
+  });
 });
