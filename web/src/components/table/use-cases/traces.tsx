@@ -14,7 +14,11 @@ import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
@@ -405,6 +409,12 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
+  const displayCount = totalCountQuery.isLoading ? (
+    <span className="inline-block font-mono">...</span>
+  ) : (
+    compactNumberFormatter(totalCountQuery.data?.totalCount)
+  );
+
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [
@@ -412,8 +422,7 @@ export default function TracesTable({
             id: "trace-delete",
             type: BatchActionType.Delete,
             label: "Delete Traces",
-            description:
-              "This action permanently deletes traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.",
+            description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.`,
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",
