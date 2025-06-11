@@ -420,7 +420,10 @@ export default function SignIn({
     string | null
   >(nextAuthErrorDescription ?? nextAuthError);
   // Two-step login flow: ask for email first, detect SSO, then either redirect to SSO or reveal password field.
-  const [showPasswordStep, setShowPasswordStep] = useState<boolean>(false);
+  // Skip this flow when no SSO is configured - show password field immediately
+  const [showPasswordStep, setShowPasswordStep] = useState<boolean>(
+    !authProviders.sso,
+  );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
 
   const capture = usePostHogClientCapture();
