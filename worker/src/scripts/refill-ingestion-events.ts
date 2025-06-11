@@ -43,8 +43,8 @@ const main = async () => {
 
   console.log(`Found ${unprocessedRecords.length} unprocessed records`);
 
-  // Create queue connection
-  const ingestionQueue = IngestionQueue.getInstance();
+  // Create queue connection - we can use a static sharding key here as event order is unimportant
+  const ingestionQueue = IngestionQueue.getInstance("refill");
 
   // Process each record
   const BATCH_SIZE = 20;

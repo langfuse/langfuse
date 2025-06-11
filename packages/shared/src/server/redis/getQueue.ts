@@ -5,7 +5,7 @@ import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { EvalExecutionQueue } from "./evalExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
-import { IngestionQueue, SecondaryIngestionQueue } from "./ingestionQueue";
+import { SecondaryIngestionQueue } from "./ingestionQueue";
 import { TraceUpsertQueue } from "./traceUpsert";
 import { TraceDeleteQueue } from "./traceDelete";
 import { ProjectDeleteQueue } from "./projectDelete";
@@ -39,7 +39,9 @@ export function getQueue(queueName: QueueName): Queue | null {
     case QueueName.TraceDelete:
       return TraceDeleteQueue.getInstance();
     case QueueName.IngestionQueue:
-      return IngestionQueue.getInstance();
+      // IngestionQueue is sharded and requires a sharding key
+      // Use IngestionQueue.getInstance(shardingKey) directly instead
+      return null;
     case QueueName.ProjectDelete:
       return ProjectDeleteQueue.getInstance();
     case QueueName.PostHogIntegrationQueue:

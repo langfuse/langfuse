@@ -585,7 +585,8 @@ export const evaluate = async ({
     ]);
 
     if (redis) {
-      const queue = IngestionQueue.getInstance();
+      const shardingKey = `${event.projectId}-${scoreId}`;
+      const queue = IngestionQueue.getInstance(shardingKey);
       if (!queue) {
         throw new Error("Ingestion queue not available");
       }
