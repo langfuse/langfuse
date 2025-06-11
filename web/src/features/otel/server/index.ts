@@ -1,5 +1,5 @@
 import {
-  TraceEventType,
+  type TraceEventType,
   type IngestionEventType,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
