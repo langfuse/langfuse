@@ -240,7 +240,7 @@ describe("OTel Resource Span Mapping", () => {
       ];
 
       const events = langfuseOtelSpans.flatMap((span) =>
-        convertOtelSpanToIngestionEvent(span, publicKey),
+        convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
       );
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const generationEvents = events.filter(
@@ -433,7 +433,7 @@ describe("OTel Resource Span Mapping", () => {
       ];
 
       const events = langfuseOtelSpans.flatMap((span) =>
-        convertOtelSpanToIngestionEvent(span, publicKey),
+        convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
       );
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const spanEvents = events.filter((e) => e.type === "span-create");
@@ -551,7 +551,7 @@ describe("OTel Resource Span Mapping", () => {
 
       expect(() =>
         langfuseOtelSpans.flatMap((span) =>
-          convertOtelSpanToIngestionEvent(span, publicKey),
+          convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
         ),
       ).toThrowError("Langfuse OTEL SDK span has different public key");
     });
@@ -734,7 +734,10 @@ describe("OTel Resource Span Mapping", () => {
       };
 
       // When
-      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+      const langfuseEvents = convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
 
       // Then
       // Will throw an error if the parsing fails
@@ -850,7 +853,10 @@ describe("OTel Resource Span Mapping", () => {
       };
 
       // When
-      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+      const langfuseEvents = convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
 
       // Then
       // Will throw an error if the parsing fails
@@ -968,7 +974,10 @@ describe("OTel Resource Span Mapping", () => {
       };
 
       // When
-      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+      const langfuseEvents = convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
 
       // Then
       // Will throw an error if the parsing fails
@@ -1051,7 +1060,10 @@ describe("OTel Resource Span Mapping", () => {
       };
 
       // When
-      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+      const langfuseEvents = convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
 
       // Then
       // Expect a span and a trace to be created
@@ -1078,7 +1090,10 @@ describe("OTel Resource Span Mapping", () => {
       };
 
       // When
-      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+      const langfuseEvents = convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
 
       // Then
       // Check that we create a generation
@@ -1108,7 +1123,10 @@ describe("OTel Resource Span Mapping", () => {
       };
 
       // When
-      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+      const langfuseEvents = convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
 
       // Then
       expect(langfuseEvents[0].body.name).toBe("right name");
@@ -1658,7 +1676,10 @@ describe("OTel Resource Span Mapping", () => {
         };
 
         // When
-        const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+        const langfuseEvents = convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
 
         // Then
         const entity: { body: Record<string, any> } =
@@ -1766,7 +1787,10 @@ describe("OTel Resource Span Mapping", () => {
         };
 
         // When
-        const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+        const langfuseEvents = convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
 
         // Then
         const entity: { body: Record<string, any> } =
@@ -1888,27 +1912,31 @@ describe("OTel Resource Span Mapping", () => {
           otelEventName: "gen_ai.assistant.message",
           otelEventAttributeKey: "tool_calls",
           otelEventAttributeValue: {
-            stringValue: JSON.stringify([{
-              id: "call_123",
-              type: "function",
-              function: {
-                name: "get_weather",
-                arguments: '{"location": "Paris"}'
-              }
-            }]),
+            stringValue: JSON.stringify([
+              {
+                id: "call_123",
+                type: "function",
+                function: {
+                  name: "get_weather",
+                  arguments: '{"location": "Paris"}',
+                },
+              },
+            ]),
           },
           entityAttributeKey: "input",
           entityAttributeValue: [
             {
               role: "assistant",
-              tool_calls: JSON.stringify([{
-                id: "call_123",
-                type: "function",
-                function: {
-                  name: "get_weather",
-                  arguments: '{"location": "Paris"}'
-                }
-              }]),
+              tool_calls: JSON.stringify([
+                {
+                  id: "call_123",
+                  type: "function",
+                  function: {
+                    name: "get_weather",
+                    arguments: '{"location": "Paris"}',
+                  },
+                },
+              ]),
             },
           ],
         },
@@ -2062,7 +2090,10 @@ describe("OTel Resource Span Mapping", () => {
         };
 
         // When
-        const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+        const langfuseEvents = convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
 
         // Then
         const entity: { body: Record<string, any> } =
