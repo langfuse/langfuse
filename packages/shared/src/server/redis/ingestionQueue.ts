@@ -18,7 +18,7 @@ export class IngestionQueue {
   public static getShardNames() {
     return Array.from(
       { length: env.LANGFUSE_INGESTION_QUEUE_SHARD_COUNT },
-      (_, i) => `${QueueName.IngestionQueue}${i > 1 ? `-${i}` : ""}`,
+      (_, i) => `${QueueName.IngestionQueue}${i > 0 ? `-${i}` : ""}`,
     );
   }
 
