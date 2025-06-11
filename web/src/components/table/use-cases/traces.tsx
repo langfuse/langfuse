@@ -435,37 +435,35 @@ export default function TracesTable({
     },
   ];
 
-  const controlColumns: LangfuseColumnDef<TracesTableRow>[] = hideControls
-    ? []
-    : [
-        selectActionColumn,
-        {
-          accessorKey: "bookmarked",
-          header: undefined,
-          id: "bookmarked",
-          size: 30,
-          isPinned: true,
-          cell: ({ row }) => {
-            const bookmarked: TracesTableRow["bookmarked"] =
-              row.getValue("bookmarked");
-            const traceId = row.getValue("id");
-            return typeof traceId === "string" &&
-              typeof bookmarked === "boolean" ? (
-              <StarTraceToggle
-                tracesFilter={tracesAllQueryFilter}
-                traceId={traceId}
-                projectId={projectId}
-                value={bookmarked}
-                size="icon-xs"
-              />
-            ) : undefined;
-          },
-          enableSorting: true,
-        },
-      ];
-
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    ...controlColumns,
+    selectActionColumn,
+    ...(hideControls
+      ? []
+      : [
+          {
+            accessorKey: "bookmarked",
+            header: undefined,
+            id: "bookmarked",
+            size: 30,
+            isPinned: true,
+            cell: ({ row }: { row: Row<TracesTableRow> }) => {
+              const bookmarked: TracesTableRow["bookmarked"] =
+                row.getValue("bookmarked");
+              const traceId = row.getValue("id");
+              return typeof traceId === "string" &&
+                typeof bookmarked === "boolean" ? (
+                <StarTraceToggle
+                  tracesFilter={tracesAllQueryFilter}
+                  traceId={traceId}
+                  projectId={projectId}
+                  value={bookmarked}
+                  size="icon-xs"
+                />
+              ) : undefined;
+            },
+            enableSorting: true,
+          },
+        ]),
     {
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -983,12 +981,12 @@ export default function TracesTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
-      `traceColumnVisibility-${projectId}`,
+      `traceColumnVisibility-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
-    "traceColumnOrder",
+    `traceColumnOrder-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
     columns,
   );
 
