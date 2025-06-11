@@ -648,8 +648,7 @@ export default function SignIn({
                 </form>
               </Form>
             )}
-            {/* Additional OAuth/SSO providers remain visible */}
-            <SSOButtons authProviders={authProviders} />
+            {/* Show errors before SSO buttons to maintain previous layout */}
             {credentialsFormError ? (
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}
@@ -659,6 +658,8 @@ export default function SignIn({
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
+            {/* Additional OAuth/SSO providers remain visible */}
+            <SSOButtons authProviders={authProviders} />
           </div>
           {
             // Turnstile exists copy-paste also on sign-up.tsx
