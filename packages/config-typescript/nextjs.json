@@ -18,7 +18,15 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "types": ["jest", "node", "react", "react-dom", "next"]
+    "types": [
+      "jest",
+      "node",
+      "react",
+      "react-dom",
+      "next",
+      "next-auth",
+      "marsidev__react-turnstile"
+    ]
   },
   "include": ["src", "next-env.d.ts"],
   "exclude": ["node_modules"]

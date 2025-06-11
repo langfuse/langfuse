@@ -201,7 +201,9 @@
     "typescript": "^5.4.5",
     "wait-for-expect": "^3.0.2",
     "@types/hookform__resolvers": "^3.3.6",
-    "@types/next": "^14.0.5"
+    "@types/next": "^14.0.5",
+    "@types/next-auth": "^4.0.12",
+    "@types/marsidev__react-turnstile": "^0.5.4"
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"
