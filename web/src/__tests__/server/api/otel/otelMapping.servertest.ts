@@ -1888,31 +1888,27 @@ describe("OTel Resource Span Mapping", () => {
           otelEventName: "gen_ai.assistant.message",
           otelEventAttributeKey: "tool_calls",
           otelEventAttributeValue: {
-            stringValue: JSON.stringify([
-              {
-                id: "call_123",
-                type: "function",
-                function: {
-                  name: "get_weather",
-                  arguments: '{"location": "Paris"}',
-                },
-              },
-            ]),
+            stringValue: JSON.stringify([{
+              id: "call_123",
+              type: "function",
+              function: {
+                name: "get_weather",
+                arguments: '{"location": "Paris"}'
+              }
+            }]),
           },
           entityAttributeKey: "input",
           entityAttributeValue: [
             {
               role: "assistant",
-              tool_calls: JSON.stringify([
-                {
-                  id: "call_123",
-                  type: "function",
-                  function: {
-                    name: "get_weather",
-                    arguments: '{"location": "Paris"}',
-                  },
-                },
-              ]),
+              tool_calls: JSON.stringify([{
+                id: "call_123",
+                type: "function",
+                function: {
+                  name: "get_weather",
+                  arguments: '{"location": "Paris"}'
+                }
+              }]),
             },
           ],
         },
