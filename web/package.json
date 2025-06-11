@@ -206,7 +206,8 @@
     "@types/marsidev__react-turnstile": "^0.5.4",
     "@types/zod": "latest",
     "@types/react-hook-form": "latest",
-    "@types/lucide-react": "latest"
+    "@types/lucide-react": "latest",
+    "@types/sentry__nextjs": "latest"
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"

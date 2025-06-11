@@ -4,31 +4,19 @@
   "extends": "./base.json",
   "compilerOptions": {
     "plugins": [{ "name": "next" }],
-
-    /* ECMAScript & module system */
     "target": "es2017",
     "module": "esnext",
     "moduleResolution": "NodeNext",
     "lib": ["dom", "dom.iterable", "esnext"],
-
-    /* React / JSX */
     "jsx": "preserve",
-
-    /* Interop helpers */
     "esModuleInterop": true,
     "resolveJsonModule": true,
-
-    /* Build behaviour */
     "noEmit": true,
     "incremental": true,
     "importsNotUsedAsValues": "preserve",
-
-    /* Type-safety */
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-
-    /* Global type packages that should always be available */
     "types": [
       "node",
       "jest",
@@ -37,6 +25,11 @@
       "next"
     ]
   },
-  "include": ["src", "next-env.d.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src",
+    "next-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
