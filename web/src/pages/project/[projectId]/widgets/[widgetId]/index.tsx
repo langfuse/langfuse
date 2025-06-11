@@ -58,7 +58,11 @@ export default function EditWidget() {
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
+    chartConfig: {
+      type: DashboardWidgetChartType;
+      row_limit?: number;
+      bins?: number;
+    };
   }) => {
     if (!widgetId) return;
 

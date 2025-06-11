@@ -49,7 +49,11 @@ export default function NewWidget() {
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
+    chartConfig: {
+      type: DashboardWidgetChartType;
+      row_limit?: number;
+      bins?: number;
+    };
   }) => {
     if (!widgetData.name.trim()) {
       showErrorToast("Error", "Widget name is required");
