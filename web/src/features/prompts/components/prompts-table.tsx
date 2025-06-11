@@ -89,11 +89,14 @@ function createBreadcrumbItems(currentFolderPath: string, projectId: string) {
   if (!currentFolderPath) return [];
 
   const segments = currentFolderPath.split('/');
-  return segments.map((name, i) => ({
-    name,
-    href: `/project/${projectId}/prompts/${segments.slice(0, i + 1).join('/')}`,
-    path: segments.slice(0, i + 1).join('/'),
-  }));
+  return segments.map((name, i) => {
+    const folderPath = segments.slice(0, i + 1).join('/');
+    return {
+      name,
+      href: `/project/${projectId}/prompts?folder=${encodeURIComponent(folderPath)}`,
+      path: folderPath,
+    };
+  });
 }
 
 type PromptTableProps = {
@@ -126,6 +129,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       filter: filterState,
       orderBy: orderByState,
+      pathPrefix: currentFolderPath,
     },
     {
       enabled: Boolean(projectId),
@@ -175,37 +179,18 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
     const folderGroups = new Map<string, typeof promptsRowData.rows>();
     const matchingPrompts: typeof promptsRowData.rows = [];
 
-    // Filter prompts based on current folder path
+    // Identify immediate subfolders from backend-filtered prompts
     for (const prompt of promptsRowData.rows) {
       const promptName = prompt.id;
 
-      if (currentFolderPath === '') {
-        // Root level - show folders and prompts at root
-        const slashIndex = promptName.indexOf('/');
-
-        // Ignore potential initial slashes
-        if (slashIndex > 0) {
-          // This prompt belongs to a folder
-          const folderName = promptName.substring(0, slashIndex);
-          if (!folderGroups.has(folderName)) {
-            folderGroups.set(folderName, []);
-          }
-          const folderArray = folderGroups.get(folderName);
-          if (folderArray) folderArray.push(prompt);
-        } else {
-          // This prompt is at root level
-          matchingPrompts.push(prompt);
-        }
-      } else {
-        // We are in a folder: show prompts that start with the folder path
-        const folderPrefix = `${currentFolderPath}/`;
-
-        if (promptName.startsWith(folderPrefix)) {
-          const remainingPath = promptName.substring(folderPrefix.length);
+      if (currentFolderPath) {
+        const prefix = `${currentFolderPath}/`;
+        if (promptName.startsWith(prefix)) {
+          const remainingPath = promptName.substring(prefix.length);
           const slashIndex = remainingPath.indexOf('/');
 
           if (slashIndex > 0) {
-            // This is a subfolder
+            // Subfolder
             const subFolderName = remainingPath.substring(0, slashIndex);
             const fullSubFolderPath = `${currentFolderPath}/${subFolderName}`;
 
@@ -215,16 +200,28 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
             const folderArray = folderGroups.get(fullSubFolderPath);
             if (folderArray) folderArray.push(prompt);
           } else {
-            // This is a direct prompt in the current folder
+            // Direct prompt in current folder
             matchingPrompts.push(prompt);
           }
+        }
+      } else {
+        // Root level
+        const slashIndex = promptName.indexOf('/');
+        if (slashIndex > 0) {
+          const folderName = promptName.substring(0, slashIndex);
+          if (!folderGroups.has(folderName)) {
+            folderGroups.set(folderName, []);
+          }
+          const folderArray = folderGroups.get(folderName);
+          if (folderArray) folderArray.push(prompt);
+        } else {
+          matchingPrompts.push(prompt);
         }
       }
     }
 
     // Create combined rows: folders first, then prompts
     const combinedRows: PromptTableRow[] = [];
-    //const combinedRows: typeof promptsRowData.rows = [];
 
     // Add folder rows
     for (const [folderPath] of folderGroups) {
@@ -288,7 +285,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
           const displayName = getDisplayName(rowData.id, currentFolderPath);
           return (
             <TableLink
-              path={`/project/${projectId}/prompts/${rowData.id}`}
+              path={`/project/${projectId}/prompts?folder=${encodeURIComponent(rowData.id)}`}
               value={
                 <div className="flex items-center gap-2">
                   <Folder className="h-4 w-4" />
@@ -355,7 +352,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
         return (
           <TableLink
             path={`/project/${projectId}/observations?filter=${numberOfObservations ? filter : ""}`}
-            value={numberOfObservations.toLocaleString()}
+            value={numberOfObservations?.toLocaleString() ?? ""}
           />
         );
       },
@@ -403,7 +400,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
   return (
     <>
       {currentFolderPath && (
-        <div className="py-2 pb-2 ml-2">
+        <div className="pt-2 ml-2">
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
@@ -458,16 +455,16 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
                   isError: false,
                   data: processedRowData.rows?.map((item) => ({
                     id: item.id,
-                    name: item.type === 'folder' // name was renamed to id to match the core and metrics
-                      ? item.name // Keep full path for folders for navigation
+                    name: item.type === 'folder'
+                      ? item.name
                       : currentFolderPath
-                        ? item.name.substring(currentFolderPath.length + 1) // Remove current folder path prefix
-                        : item.name, // Root level prompts keep full name
+                        ? item.name.substring(currentFolderPath.length + 1)
+                        : item.name,
                     version: item.version,
                     createdAt: item.createdAt,
                     type: item.type,
                     labels: item.labels,
-                    numberOfObservations: Number(item.observationCount ?? 0),
+                    numberOfObservations: item.numberOfObservations,
                     tags: item.tags,
                   })),
                 }

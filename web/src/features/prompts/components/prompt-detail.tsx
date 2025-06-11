@@ -103,7 +103,15 @@ export const PromptDetail = () => {
   // Handle both [promptName] route and catch-all [...folder] route
   const promptName = router.query.promptName
     ? decodeURIComponent(router.query.promptName as string)
-    : (router.query.folder as string[])?.join('/') || '';
+    : (() => {
+        const folder = router.query.folder;
+        if (Array.isArray(folder)) {
+          return folder.join('/');
+        } else if (typeof folder === 'string') {
+          return folder;
+        }
+        return '';
+      })();
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
     NumberParam,
