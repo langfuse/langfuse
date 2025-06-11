@@ -28,7 +28,7 @@ import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegio
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
-import { Shield, Code } from "lucide-react";
+import { Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -419,7 +419,11 @@ export default function SignIn({
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
   >(nextAuthErrorDescription ?? nextAuthError);
-  const [ssoLoading, setSsoLoading] = useState<boolean>(false);
+  // loading indicator for the first step (domain lookup + possible SSO redirect)
+  const [firstStepLoading, setFirstStepLoading] = useState<boolean>(false);
+
+  // which step of the auth flow we are in
+  const [step, setStep] = useState<"email" | "password">("email");
 
   const capture = usePostHogClientCapture();
   const [turnstileToken, setTurnstileToken] = useState<string>();
@@ -477,38 +481,68 @@ export default function SignIn({
     }
   }
 
-  async function handleSsoSignIn() {
-    setSsoLoading(true);
+  /**
+   * Handles the first step (email submission).
+   * If SSO is configured for the entered email domain, the user will be
+   * redirected to the SSO provider. Otherwise we advance to the password step.
+   */
+  async function handleEmailContinue() {
+    setFirstStepLoading(true);
     setCredentialsFormError(null);
     credentialsForm.clearErrors();
-    // get current email field, verify it, add input error if not valid
+
+    // Validate email format
     const emailSchema = z.string().email();
     const email = emailSchema.safeParse(credentialsForm.getValues("email"));
     if (!email.success) {
       credentialsForm.setError("email", {
         message: "Invalid email address",
       });
-      setSsoLoading(false);
+      setFirstStepLoading(false);
       return;
     }
-    // current email domain
-    const domain = email.data.split("@")[1]?.toLowerCase();
-    const res = await fetch(
-      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain }),
-      },
-    );
 
-    if (!res.ok) {
-      setCredentialsFormError("SSO is not enabled for this domain.");
-      setSsoLoading(false);
-    } else {
-      const { providerId } = await res.json();
-      capture("sign_in:button_click", { provider: "sso" });
+    // If SSO feature flag is not enabled at all, skip the lookup and move to password immediately
+    if (!authProviders.sso) {
+      setStep("password");
+      setFirstStepLoading(false);
+      return;
+    }
+
+    // Look up SSO provider for the email's domain
+    try {
+      const domain = email.data.split("@")[1]?.toLowerCase();
+      const res = await fetch(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain }),
+        },
+      );
+
+      if (!res.ok) {
+        // No SSO configured for domain – fall back to password sign-in if allowed
+        if (authProviders.credentials) {
+          setStep("password");
+        } else {
+          setCredentialsFormError(
+            "SSO is not enabled for this domain and password sign-in is disabled.",
+          );
+        }
+        setFirstStepLoading(false);
+        return;
+      }
+
+      // SSO provider found – redirect
+      const { providerId } = (await res.json()) as { providerId: string };
+      capture("sign_in:button_click", { provider: "sso_auto" });
       void signIn(providerId);
+    } catch (error) {
+      console.error(error);
+      captureException(error);
+      setCredentialsFormError("An unexpected error occurred.");
+      setFirstStepLoading(false);
     }
   }
 
@@ -543,99 +577,101 @@ export default function SignIn({
 
         <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
-            {authProviders.credentials ? (
+            {authProviders.credentials && (
               <Form {...credentialsForm}>
-                <form
-                  className="space-y-6"
-                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                  onSubmit={credentialsForm.handleSubmit(onCredentialsSubmit)}
-                >
-                  <FormField
-                    control={credentialsForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input placeholder="jsdoe@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={credentialsForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Password{" "}
-                          <Link
-                            href="/auth/reset-password"
-                            className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
-                            tabIndex={-1}
-                            title="What is this?"
-                          >
-                            (forgot password?)
-                          </Link>
-                        </FormLabel>
-                        <FormControl>
-                          <PasswordInput {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    // this hidden button is needed to submit form by pressing enter
-                    type="submit"
-                    className="hidden"
-                    disabled={
-                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                      turnstileToken === undefined
-                    }
+                {step === "email" ? (
+                  <form
+                    className="space-y-6"
+                    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void handleEmailContinue();
+                    }}
                   >
-                    Sign in
-                  </Button>
-                </form>
+                    <FormField
+                      control={credentialsForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="jsdoe@example.com"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      className="w-full"
+                      loading={firstStepLoading}
+                      disabled={credentialsForm.watch("email") === ""}
+                      type="submit"
+                    >
+                      Continue
+                    </Button>
+                  </form>
+                ) : (
+                  <form
+                    className="space-y-6"
+                    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                    onSubmit={credentialsForm.handleSubmit(onCredentialsSubmit)}
+                  >
+                    <FormField
+                      control={credentialsForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input disabled {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={credentialsForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            Password{" "}
+                            <Link
+                              href="/auth/reset-password"
+                              className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+                              tabIndex={-1}
+                              title="What is this?"
+                            >
+                              (forgot password?)
+                            </Link>
+                          </FormLabel>
+                          <FormControl>
+                            <PasswordInput {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      className="w-full"
+                      loading={credentialsForm.formState.isSubmitting}
+                      disabled={
+                        (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                          turnstileToken === undefined) ||
+                        credentialsForm.watch("password") === ""
+                      }
+                      type="submit"
+                      data-testid="submit-email-password-sign-in-form"
+                    >
+                      Sign in
+                    </Button>
+                  </form>
+                )}
               </Form>
-            ) : null}
-            {(authProviders.credentials || authProviders.sso) && (
-              <div className="flex flex-row gap-3">
-                {authProviders.credentials && (
-                  <Button
-                    className="w-full"
-                    loading={credentialsForm.formState.isSubmitting}
-                    disabled={
-                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                        turnstileToken === undefined) ||
-                      credentialsForm.watch("email") === "" ||
-                      credentialsForm.watch("password") === ""
-                    }
-                    onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
-                    data-testid="submit-email-password-sign-in-form"
-                  >
-                    Sign in
-                  </Button>
-                )}
-                {authProviders.sso && (
-                  <Button
-                    className="w-full"
-                    variant="secondary"
-                    loading={ssoLoading}
-                    disabled={
-                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                        turnstileToken === undefined) ||
-                      credentialsForm.watch("email") === ""
-                    }
-                    onClick={handleSsoSignIn}
-                  >
-                    <Shield className="mr-3" size={18} />
-                    SSO
-                  </Button>
-                )}
-              </div>
             )}
+
             {credentialsFormError ? (
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}
@@ -645,11 +681,13 @@ export default function SignIn({
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
+
+            {/* Keep generic SSO/OAuth buttons below the 2-step flow */}
             <SSOButtons authProviders={authProviders} />
           </div>
           {
             // Turnstile exists copy-paste also on sign-up.tsx
-            env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
+            env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && step === "password" && (
               <>
                 <Divider className="text-muted-foreground" />
                 <Turnstile
