@@ -131,11 +131,10 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
         updatedAt: run.run_updated_at,
         avgLatency: trace?.latency ?? observation?.latency ?? 0,
         scores: aggregateScores(
-          traceScores.filter((s) => s.run_id === run.run_id),
+          traceScores.filter((s) => s.run_id === run.run_id && s.id),
         ),
-        // check this one
         runScores: aggregateScores(
-          runScores.filter((s) => s.datasetRunId === run.run_id),
+          runScores.filter((s) => s.datasetRunId === run.run_id && s.id),
         ),
       };
     });
@@ -435,9 +434,9 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
       },
     },
   });
-  const datasetItems = dataset?.datasetItems ?? [];
+  let datasetItems = dataset?.datasetItems ?? [];
 
-  const totalDatasetItems = await input.prisma.datasetItem.count({
+  let totalDatasetItems = await input.prisma.datasetItem.count({
     where: {
       dataset: {
         id: input.datasetId,
@@ -448,25 +447,26 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
   });
 
   // check in clickhouse if the traces already exist. They arrive delayed.
-  const traces = await getTracesByIds(
-    datasetItems
-      .map((item) => item.sourceTraceId)
-      .filter((id): id is string => Boolean(id)),
-    input.projectId,
-  );
+  const traceIds = datasetItems
+    .map((item) => item.sourceTraceId)
+    .filter((id): id is string => Boolean(id));
 
-  const observations = await getObservationsById(
-    datasetItems
-      .map((item) => item.sourceObservationId)
-      .filter((id): id is string => Boolean(id)),
-    input.projectId,
-  );
-  try {
-    // Build base WHERE conditions
-    let whereConditions = Prisma.sql`dataset_items.dataset_id = ${input.datasetId} AND dataset_items.project_id = ${input.projectId}`;
+  const observationIds = datasetItems
+    .map((item) => item.sourceObservationId)
+    .filter((id): id is string => Boolean(id));
 
-    // Add filter conditions if filters exist
-    if (filters.length > 0) {
+  const traces =
+    traceIds.length > 0 ? await getTracesByIds(traceIds, input.projectId) : [];
+  const observations =
+    observationIds.length > 0
+      ? await getObservationsById(observationIds, input.projectId)
+      : [];
+  // Only use raw SQL when filters are present
+  if (filters.length > 0) {
+    try {
+      // Build base WHERE conditions
+      let whereConditions = Prisma.sql`dataset_items.dataset_id = ${input.datasetId} AND dataset_items.project_id = ${input.projectId}`;
+
       const filterSql = tableColumnsToSqlFilterAndPrefix(
         filters,
         datasetItemsTableCols,
@@ -475,25 +475,36 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
       if (filterSql !== Prisma.empty) {
         whereConditions = Prisma.sql`${whereConditions} ${filterSql}`;
       }
+
+      // Execute queries with combined conditions
+      const selectQuery = Prisma.sql`
+        SELECT * FROM dataset_items
+        WHERE ${whereConditions}
+        ORDER BY dataset_items.status ASC, dataset_items.created_at DESC
+        LIMIT ${input.limit} OFFSET ${input.page * input.limit}
+      `;
+
+      const countQuery = Prisma.sql`
+        SELECT count(*) as count FROM dataset_items
+        WHERE ${whereConditions}
+      `;
+
+      const [newDatasetItems, countResult] = await Promise.all([
+        input.prisma.$queryRaw<any[]>(selectQuery),
+        input.prisma.$queryRaw<{ count: bigint }[]>(countQuery),
+      ]);
+
+      // Use the filtered results
+      datasetItems = newDatasetItems;
+      totalDatasetItems = Number(countResult[0].count);
+    } catch (error) {
+      // Fall back to the original datasetItems if the raw query fails
+      console.warn(
+        "Raw SQL query failed, falling back to Prisma queries:",
+        error,
+      );
     }
-
-    // Execute queries with combined conditions
-    const selectQuery = Prisma.sql`
-      SELECT * FROM dataset_items
-      WHERE ${whereConditions}
-      ORDER BY dataset_items.status ASC, dataset_items.created_at DESC
-      LIMIT ${input.limit} OFFSET ${input.page * input.limit}
-    `;
-
-    const countQuery = Prisma.sql`
-      SELECT count(*) FROM dataset_items
-      WHERE ${whereConditions}
-    `;
-
-    [datasetItems, countResult] = await Promise.all([
-      input.prisma.$queryRaw<any[]>(selectQuery),
-      input.prisma.$queryRaw<any[]>(countQuery),
-    ]);
+  }
 
   const tracingData = {
     traceIds: traces.map((t) => t.id),
