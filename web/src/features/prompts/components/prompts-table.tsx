@@ -12,7 +12,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { NumberParam, StringParam, useQueryParams, withDefault } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -26,8 +26,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
-import { Slash, Folder } from "lucide-react";
-import Link from "next/link";
+import { Slash, Folder, Home } from "lucide-react";
 
 type PromptTableRow = {
   id: string;
@@ -85,7 +84,7 @@ function getDisplayName(fullPath: string, currentFolderPath: string): string {
     : fullPath.substring(currentFolderPath.length + 1);
 }
 
-function createBreadcrumbItems(currentFolderPath: string, projectId: string) {
+function createBreadcrumbItems(currentFolderPath: string) {
   if (!currentFolderPath) return [];
 
   const segments = currentFolderPath.split('/');
@@ -93,8 +92,7 @@ function createBreadcrumbItems(currentFolderPath: string, projectId: string) {
     const folderPath = segments.slice(0, i + 1).join('/');
     return {
       name,
-      href: `/project/${projectId}/prompts?folder=${encodeURIComponent(folderPath)}`,
-      path: folderPath,
+      folderPath,
     };
   });
 }
@@ -117,10 +115,18 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
     column: "createdAt",
     order: "DESC",
   });
-  const [paginationState, setPaginationState] = useQueryParams({
+  const [queryParams, setQueryParams] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
+    folder: StringParam,
   });
+  const paginationState = {
+    pageIndex: queryParams.pageIndex,
+    pageSize: queryParams.pageSize,
+  };
+  const setPaginationState = (newPagination: { pageIndex?: number; pageSize?: number }) => {
+    setQueryParams(newPagination);
+  };
 
   const prompts = api.prompts.all.useQuery(
     {
@@ -284,16 +290,16 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
         if (isFolder(rowData)) {
           const displayName = getDisplayName(rowData.id, currentFolderPath);
           return (
-            <TableLink
-              path={`/project/${projectId}/prompts?folder=${encodeURIComponent(rowData.id)}`}
-              value={
-                <div className="flex items-center gap-2">
-                  <Folder className="h-4 w-4" />
-                  {displayName}
-                </div>
-              }
-              className="font-medium"
-            />
+            <div
+              className="flex cursor-pointer items-center gap-2 font-medium hover:underline"
+              onClick={() => {
+                setQueryParams({ folder: rowData.id, pageIndex: 0 });
+              }}
+              title={rowData.id}
+            >
+              <Folder className="h-4 w-4" />
+              {displayName}
+            </div>
           );
         }
 
@@ -404,24 +410,32 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link href={`/project/${projectId}/prompts`} className="hover:underline">
-                    <Slash className="h-4 w-4" />
-                  </Link>
+                <BreadcrumbLink
+                  className="cursor-pointer hover:underline"
+                  onClick={() => {
+                    setQueryParams({ folder: undefined, pageIndex: 0 });
+                  }}
+                >
+                  <Home className="h-4 w-4" />
                 </BreadcrumbLink>
               </BreadcrumbItem>
-              {createBreadcrumbItems(currentFolderPath, projectId).flatMap((item, index, array) => [
+              {createBreadcrumbItems(currentFolderPath).flatMap((item, index, array) => [
                 index > 0 && (
-                  <BreadcrumbSeparator key={`sep-${item.path}`}>
+                  <BreadcrumbSeparator key={`sep-${item.folderPath}`}>
                     <Slash />
                   </BreadcrumbSeparator>
                 ),
-                <BreadcrumbItem key={item.path}>
+                <BreadcrumbItem key={item.folderPath}>
                   {index === array.length - 1 ? (
                     <BreadcrumbPage>{item.name}</BreadcrumbPage>
                   ) : (
-                    <BreadcrumbLink asChild>
-                      <Link href={item.href} className="hover:underline">{item.name}</Link>
+                    <BreadcrumbLink
+                      className="cursor-pointer hover:underline"
+                      onClick={() => {
+                        setQueryParams({ folder: item.folderPath, pageIndex: 0 });
+                      }}
+                    >
+                      {item.name}
                     </BreadcrumbLink>
                   )}
                 </BreadcrumbItem>
