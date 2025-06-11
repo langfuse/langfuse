@@ -5,6 +5,7 @@ declare module "@radix-ui/react-*";
 declare module "@tremor/react";
 declare module "react";
 declare module "lucide-react";
+declare module "@hookform/resolvers/zod";
 
 declare namespace JSX {
   interface IntrinsicElements {
