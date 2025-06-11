@@ -70,12 +70,7 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
   const nodeToParentObservationMap = new Map<string, string>();
 
   agentGraphData.forEach((o) => {
-    const { node: rawNode, step } = o;
-
-    let node = rawNode;
-    try {
-      node = JSON.parse(rawNode);
-    } catch {}
+    const { node, step } = o;
 
     stepToNodeMap.set(step, node);
 
