@@ -203,7 +203,9 @@
     "@types/hookform__resolvers": "^3.3.6",
     "@types/next": "^14.0.5",
     "@types/next-auth": "^4.0.12",
-    "@types/marsidev__react-turnstile": "^0.5.4"
+    "@types/marsidev__react-turnstile": "^0.5.4",
+    "@types/zod": "latest",
+    "@types/react-hook-form": "latest"
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"
