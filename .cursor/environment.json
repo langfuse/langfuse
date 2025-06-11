@@ -9,5 +9,6 @@
       "name": "Run dev server",
       "command": "pnpm dx-f"
     }
-  ]
+  ],
+  "start": "sudo service docker start"
 }
