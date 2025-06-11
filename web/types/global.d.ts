@@ -1,3 +1,5 @@
+import type * as React from "react";
+
 declare namespace JSX {
   interface IntrinsicElements {
     "stripe-pricing-table": React.DetailedHTMLProps<
@@ -12,5 +14,4 @@ declare namespace JSX {
 declare module "react-icons/*";
 declare module "@radix-ui/react-*";
 declare module "@tremor/react";
-declare module "next";
-declare module "next/image-types/global";
+declare module "react";
