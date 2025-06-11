@@ -16,10 +16,6 @@ import {
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
 
-  private static getQueue(queueName: QueueName): Queue | null {
-    return getQueue(queueName);
-  }
-
   private static metricWrapper(
     processor: Processor,
     queueName: QueueName,
@@ -36,7 +32,7 @@ export class WorkerManager {
         },
       );
       const result = await processor(job);
-      const queue = WorkerManager.getQueue(queueName);
+      const queue = getQueue(queueName);
       await Promise.allSettled([
         queue?.count().then((count) => {
           recordGauge(
