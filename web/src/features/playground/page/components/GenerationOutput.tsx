@@ -99,10 +99,10 @@ export const GenerationOutput = () => {
         </pre>
         {outputToolCalls.length > 0
           ? outputToolCalls.map((toolCall) => (
-            <div className="mt-4" key={toolCall.id}>
-              <ToolCallCard toolCall={toolCall} />
-            </div>
-          ))
+              <div className="mt-4" key={toolCall.id}>
+                <ToolCallCard toolCall={toolCall} />
+              </div>
+            ))
           : null}
       </div>
     </div>

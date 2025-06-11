@@ -325,7 +325,7 @@ export function MarkdownView({
                   <ResizableImage src={content.image_url.url.toString()} />
                 </div>
               ) : MediaReferenceStringSchema.safeParse(content.image_url.url)
-                .success ? (
+                  .success ? (
                 <LangfuseMediaView
                   mediaReferenceString={content.image_url.url}
                 />
