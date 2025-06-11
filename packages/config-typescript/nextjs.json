@@ -4,31 +4,37 @@
   "extends": "./base.json",
   "compilerOptions": {
     "plugins": [{ "name": "next" }],
+
+    /* ECMAScript & module system */
     "target": "es2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "checkJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
-    "incremental": true,
-    "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "NodeNext",
-    "importsNotUsedAsValues": "preserve",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+    "lib": ["dom", "dom.iterable", "esnext"],
+
+    /* React / JSX */
     "jsx": "preserve",
+
+    /* Interop helpers */
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+
+    /* Build behaviour */
+    "noEmit": true,
+    "incremental": true,
+    "importsNotUsedAsValues": "preserve",
+
+    /* Type-safety */
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Global type packages that should always be available */
     "types": [
-      "jest",
       "node",
+      "jest",
       "react",
       "react-dom",
-      "next",
-      "next-auth",
-      "marsidev__react-turnstile",
-      "lucide-react"
+      "next"
     ]
   },
   "include": ["src", "next-env.d.ts"],
