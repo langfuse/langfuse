@@ -499,7 +499,7 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
       totalDatasetItems = Number(countResult[0].count);
     } catch (error) {
       // Fall back to the original datasetItems if the raw query fails
-      console.warn(
+      logger.warn(
         "Raw SQL query failed, falling back to Prisma queries:",
         error,
       );
