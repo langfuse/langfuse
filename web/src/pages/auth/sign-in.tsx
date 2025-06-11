@@ -28,7 +28,7 @@ import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegio
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
-import { Shield, Code } from "lucide-react";
+import { Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -419,7 +419,9 @@ export default function SignIn({
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
   >(nextAuthErrorDescription ?? nextAuthError);
-  const [ssoLoading, setSsoLoading] = useState<boolean>(false);
+  // Two-step login flow: ask for email first, detect SSO, then either redirect to SSO or reveal password field.
+  const [showPasswordStep, setShowPasswordStep] = useState<boolean>(false);
+  const [continueLoading, setContinueLoading] = useState<boolean>(false);
 
   const capture = usePostHogClientCapture();
   const [turnstileToken, setTurnstileToken] = useState<string>();
@@ -477,38 +479,66 @@ export default function SignIn({
     }
   }
 
-  async function handleSsoSignIn() {
-    setSsoLoading(true);
+  /**
+   * First-step handler ("Continue" button).
+   * 1. Validates email.
+   * 2. Queries backend to see if a tenant-specific SSO provider is configured.
+   *    ‑ If found: redirects to that provider immediately.
+   *    ‑ Otherwise: reveals password input so the user can finish with credentials.
+   * 3. Gracefully handles network errors and edge cases.
+   */
+  async function handleContinue() {
+    setContinueLoading(true);
     setCredentialsFormError(null);
     credentialsForm.clearErrors();
-    // get current email field, verify it, add input error if not valid
+
+    // Ensure email is valid before hitting the API
     const emailSchema = z.string().email();
     const email = emailSchema.safeParse(credentialsForm.getValues("email"));
     if (!email.success) {
       credentialsForm.setError("email", {
         message: "Invalid email address",
       });
-      setSsoLoading(false);
+      setContinueLoading(false);
       return;
     }
-    // current email domain
-    const domain = email.data.split("@")[1]?.toLowerCase();
-    const res = await fetch(
-      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain }),
-      },
-    );
 
-    if (!res.ok) {
-      setCredentialsFormError("SSO is not enabled for this domain.");
-      setSsoLoading(false);
-    } else {
-      const { providerId } = await res.json();
-      capture("sign_in:button_click", { provider: "sso" });
-      void signIn(providerId);
+    // Extract domain and check whether SSO is configured for it
+    const domain = email.data.split("@")[1]?.toLowerCase();
+
+    try {
+      const res = await fetch(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain }),
+        },
+      );
+
+      if (res.ok) {
+        // Enterprise SSO found – redirect straight away
+        const { providerId } = await res.json();
+        capture("sign_in:button_click", { provider: "sso_auto" });
+        void signIn(providerId);
+        return; // stop further execution – page redirect expected
+      }
+
+      // No SSO – fall back to password step (credentials must be enabled)
+      if (!authProviders.credentials) {
+        setCredentialsFormError(
+          "SSO is not enabled for this domain and password authentication is disabled.",
+        );
+      } else {
+        setShowPasswordStep(true);
+      }
+    } catch (error) {
+      console.error(error);
+      setCredentialsFormError(
+        "Unable to check SSO configuration. Please try again.",
+      );
+    } finally {
+      setContinueLoading(false);
     }
   }
 
@@ -543,26 +573,37 @@ export default function SignIn({
 
         <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
-            {authProviders.credentials ? (
-              <Form {...credentialsForm}>
-                <form
-                  className="space-y-6"
-                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                  onSubmit={credentialsForm.handleSubmit(onCredentialsSubmit)}
-                >
-                  <FormField
-                    control={credentialsForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input placeholder="jsdoe@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+            {/* Email / (optional) password form */}
+            <Form {...credentialsForm}>
+              <form
+                className="space-y-6"
+                // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                onSubmit={
+                  showPasswordStep
+                    ? credentialsForm.handleSubmit(onCredentialsSubmit)
+                    : (e) => {
+                        e.preventDefault();
+                        void handleContinue();
+                      }
+                }
+              >
+                {/* Email input – always visible */}
+                <FormField
+                  control={credentialsForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input placeholder="jsdoe@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Password only shown once we know SSO is not configured */}
+                {showPasswordStep && (
                   <FormField
                     control={credentialsForm.control}
                     name="password"
@@ -586,56 +627,33 @@ export default function SignIn({
                       </FormItem>
                     )}
                   />
-                  <Button
-                    // this hidden button is needed to submit form by pressing enter
-                    type="submit"
-                    className="hidden"
-                    disabled={
-                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                      turnstileToken === undefined
-                    }
-                  >
-                    Sign in
-                  </Button>
-                </form>
-              </Form>
-            ) : null}
-            {(authProviders.credentials || authProviders.sso) && (
-              <div className="flex flex-row gap-3">
-                {authProviders.credentials && (
-                  <Button
-                    className="w-full"
-                    loading={credentialsForm.formState.isSubmitting}
-                    disabled={
-                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                        turnstileToken === undefined) ||
-                      credentialsForm.watch("email") === "" ||
-                      credentialsForm.watch("password") === ""
-                    }
-                    onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
-                    data-testid="submit-email-password-sign-in-form"
-                  >
-                    Sign in
-                  </Button>
                 )}
-                {authProviders.sso && (
-                  <Button
-                    className="w-full"
-                    variant="secondary"
-                    loading={ssoLoading}
-                    disabled={
-                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                        turnstileToken === undefined) ||
-                      credentialsForm.watch("email") === ""
-                    }
-                    onClick={handleSsoSignIn}
-                  >
-                    <Shield className="mr-3" size={18} />
-                    SSO
-                  </Button>
-                )}
-              </div>
-            )}
+
+                {/* Primary action button */}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  loading={
+                    showPasswordStep
+                      ? credentialsForm.formState.isSubmitting
+                      : continueLoading
+                  }
+                  disabled={
+                    (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                      showPasswordStep &&
+                      turnstileToken === undefined) ||
+                    credentialsForm.watch("email") === "" ||
+                    (showPasswordStep &&
+                      credentialsForm.watch("password") === "")
+                  }
+                  data-testid="submit-email-password-sign-in-form"
+                >
+                  {showPasswordStep ? "Sign in" : "Continue"}
+                </Button>
+              </form>
+            </Form>
+            {/* Additional OAuth/SSO providers remain visible */}
+            <SSOButtons authProviders={authProviders} />
             {credentialsFormError ? (
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}
@@ -645,7 +663,6 @@ export default function SignIn({
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
-            <SSOButtons authProviders={authProviders} />
           </div>
           {
             // Turnstile exists copy-paste also on sign-up.tsx
