@@ -7,7 +7,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
-import { convertOtelSpanToIngestionEvent } from "@/src/features/otel/server";
+import {
+  convertOtelSpanToIngestionEvent,
+  getTraceSeenMap,
+} from "@/src/features/otel/server";
 import { gunzip } from "node:zlib";
 
 export const config = {
@@ -89,9 +92,17 @@ export default withMiddlewares({
         }
       }
 
+      const traceSeenMap = await getTraceSeenMap(
+        resourceSpans,
+        auth.scope.projectId,
+      );
       const events: IngestionEventType[] = resourceSpans.flatMap(
         (span: unknown) =>
-          convertOtelSpanToIngestionEvent(span, auth.scope.publicKey),
+          convertOtelSpanToIngestionEvent(
+            span,
+            traceSeenMap,
+            auth.scope.publicKey,
+          ),
       );
       // We set a delay of 0 for OTel, as we never expect updates.
       // We also set the source to "otel" which helps us with metric tracking and skipping list calls for S3.

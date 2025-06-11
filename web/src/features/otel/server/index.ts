@@ -1,7 +1,57 @@
-import { type IngestionEventType } from "@langfuse/shared/src/server";
+import {
+  TraceEventType,
+  type IngestionEventType,
+} from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { ForbiddenError, ObservationLevel } from "@langfuse/shared";
 import { LangfuseOtelSpanAttributes } from "./attributes";
+import { redis } from "@langfuse/shared/src/server";
+
+export async function getTraceSeenMap(
+  resourceSpans: unknown,
+  projectId: string,
+): Promise<Set<string>> {
+  if (!redis) {
+    console.warn("Redis client not available");
+
+    return new Set();
+  }
+
+  const traceIds: Set<string> = new Set();
+  if (Array.isArray(resourceSpans)) {
+    resourceSpans.forEach((resourceSpan) => {
+      for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+        for (const span of scopeSpan?.spans ?? []) {
+          traceIds.add(
+            Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
+          );
+        }
+      }
+    });
+  }
+
+  const results = await Promise.all(
+    [...traceIds].map(async (traceId) => {
+      const key = `project:${projectId}:trace:${traceId}:seen`;
+      const TTLSeconds = 600; // 10 minutes
+      const result = await redis?.call("SET", key, "1", "NX", "EX", TTLSeconds);
+
+      return {
+        traceId: traceId,
+        wasSeen: result !== "OK", // Redis returns "OK" if key did not exist, i.e. trace was NOT seen in last TTL seconds
+      };
+    }),
+  );
+
+  const seenTraceIds: Set<string> = new Set();
+  results.forEach((r) => {
+    if (r.wasSeen) {
+      seenTraceIds.add(r.traceId);
+    }
+  });
+
+  return seenTraceIds;
+}
 
 export const convertNanoTimestampToISO = (
   timestamp:
@@ -630,6 +680,7 @@ const extractTags = (attributes: Record<string, unknown>): string[] => {
  */
 export const convertOtelSpanToIngestionEvent = (
   resourceSpan: any,
+  traceSeenMap: Set<string>,
   publicKey?: string,
 ): IngestionEventType[] => {
   const resourceAttributes =
@@ -666,6 +717,10 @@ export const convertOtelSpanToIngestionEvent = (
           return acc;
         }, {}) ?? {};
 
+      const traceId = Buffer.from(span.traceId?.data ?? span.traceId).toString(
+        "hex",
+      );
+
       const parentObservationId = span?.parentSpanId
         ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
             "hex",
@@ -701,53 +756,69 @@ export const convertOtelSpanToIngestionEvent = (
         LangfuseOtelSpanAttributes.TRACE_TAGS,
       ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
 
-      if (is_root_span || hasTraceUpdates) {
-        // Create a trace for any root span
-        const trace = {
-          id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
+      if (is_root_span || hasTraceUpdates || !traceSeenMap.has(traceId)) {
+        // Use a shallow trace-update for the case when the span belongs to a new trace
+        // but is not a root span and has no trace updates
+        let trace: TraceEventType["body"] = {
+          id: traceId,
           timestamp: startTimeISO,
-          name:
-            attributes[LangfuseOtelSpanAttributes.TRACE_NAME] ??
-            (!parentObservationId
-              ? extractName(span.name, attributes)
-              : undefined),
-          metadata: {
-            ...resourceAttributeMetadata,
-            ...extractMetadata(attributes, "trace"),
-            ...(isLangfuseSDKSpans
-              ? {}
-              : { attributes: spanAttributesInMetadata }),
-            resourceAttributes,
-            scope: { ...(scopeSpan.scope || {}), attributes: scopeAttributes },
-          },
-          version:
-            attributes?.[LangfuseOtelSpanAttributes.VERSION] ??
-            resourceAttributes?.["service.version"] ??
-            null,
-          release:
-            attributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
-            resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
-            null,
-          userId: extractUserId(attributes),
-          sessionId: extractSessionId(attributes),
-          public:
-            attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === true ||
-            attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === "true" ||
-            attributes?.["langfuse.public"] === true ||
-            attributes?.["langfuse.public"] === "true",
-          tags: extractTags(attributes),
-
           environment: extractEnvironment(attributes, resourceAttributes),
-
-          // Input and Output
-          ...extractInputAndOutput(span?.events ?? [], attributes, "trace"),
         };
+
+        if (is_root_span || hasTraceUpdates) {
+          trace = {
+            ...trace,
+            name:
+              attributes[LangfuseOtelSpanAttributes.TRACE_NAME] ??
+              (!parentObservationId
+                ? extractName(span.name, attributes)
+                : undefined),
+            metadata: {
+              ...resourceAttributeMetadata,
+              ...extractMetadata(attributes, "trace"),
+              ...(isLangfuseSDKSpans
+                ? {}
+                : { attributes: spanAttributesInMetadata }),
+              resourceAttributes,
+              scope: {
+                ...(scopeSpan.scope || {}),
+                attributes: scopeAttributes,
+              },
+            },
+            version:
+              attributes?.[LangfuseOtelSpanAttributes.VERSION] ??
+              resourceAttributes?.["service.version"] ??
+              null,
+            release:
+              attributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+              resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+              null,
+            userId: extractUserId(attributes),
+            sessionId: extractSessionId(attributes),
+            public:
+              attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === true ||
+              attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] ===
+                "true" ||
+              attributes?.["langfuse.public"] === true ||
+              attributes?.["langfuse.public"] === "true",
+            tags: extractTags(attributes),
+
+            environment: extractEnvironment(attributes, resourceAttributes),
+
+            // Input and Output
+            ...extractInputAndOutput(span?.events ?? [], attributes, "trace"),
+          };
+        }
         events.push({
           id: randomUUID(),
           type: "trace-create",
           timestamp: new Date(startTimeISO).toISOString(),
           body: trace,
         });
+
+        // Update the local cache of 'seen' traces to avoid multiple
+        // trace create calls per batch
+        traceSeenMap.add(traceId);
       }
 
       const observation = {
