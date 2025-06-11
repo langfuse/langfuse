@@ -9,9 +9,9 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "infra:dev:up": "docker compose -f ./docker-compose.dev-redis-cluster.yml up -d --wait",
-    "infra:dev:down": "docker compose -f ./docker-compose.dev-redis-cluster.yml down",
-    "infra:dev:prune": "docker compose -f ./docker-compose.dev-redis-cluster.yml down -v",
+    "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d --wait",
+    "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",
+    "infra:dev:prune": "docker compose -f ./docker-compose.dev.yml down -v",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",

@@ -53,6 +53,7 @@ services:
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
 
+  # Redis Cluster. Requires a Unix host to work for network_mode: host. I.e. tests will fail on windows and mac with this setup.
   redis-node-0:
     image: docker.io/bitnami/redis-cluster:8.0
     network_mode: host
