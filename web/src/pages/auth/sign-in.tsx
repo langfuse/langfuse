@@ -567,85 +567,87 @@ export default function SignIn({
 
         <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
-            {/* Email / (optional) password form */}
-            <Form {...credentialsForm}>
-              <form
-                className="space-y-6"
-                // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                onSubmit={
-                  showPasswordStep
-                    ? credentialsForm.handleSubmit(onCredentialsSubmit)
-                    : (e) => {
-                        e.preventDefault();
-                        void handleContinue();
-                      }
-                }
-              >
-                {/* Email input – always visible */}
-                <FormField
-                  control={credentialsForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="jsdoe@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Password only shown once we know SSO is not configured */}
-                {showPasswordStep && (
+            {/* Email / (optional) password form – only when credentials auth is enabled */}
+            {authProviders.credentials && (
+              <Form {...credentialsForm}>
+                <form
+                  className="space-y-6"
+                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                  onSubmit={
+                    showPasswordStep
+                      ? credentialsForm.handleSubmit(onCredentialsSubmit)
+                      : (e) => {
+                          e.preventDefault();
+                          void handleContinue();
+                        }
+                  }
+                >
+                  {/* Email input – always visible */}
                   <FormField
                     control={credentialsForm.control}
-                    name="password"
+                    name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>
-                          Password{" "}
-                          <Link
-                            href="/auth/reset-password"
-                            className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
-                            tabIndex={-1}
-                            title="What is this?"
-                          >
-                            (forgot password?)
-                          </Link>
-                        </FormLabel>
+                        <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <PasswordInput {...field} />
+                          <Input placeholder="jsdoe@example.com" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
 
-                {/* Primary action button */}
-                <Button
-                  type="submit"
-                  className="w-full"
-                  loading={
-                    showPasswordStep
-                      ? credentialsForm.formState.isSubmitting
-                      : continueLoading
-                  }
-                  disabled={
-                    (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                      showPasswordStep &&
-                      turnstileToken === undefined) ||
-                    credentialsForm.watch("email") === "" ||
-                    (showPasswordStep &&
-                      credentialsForm.watch("password") === "")
-                  }
-                  data-testid="submit-email-password-sign-in-form"
-                >
-                  {showPasswordStep ? "Sign in" : "Continue"}
-                </Button>
-              </form>
-            </Form>
+                  {/* Password only shown once we know SSO is not configured */}
+                  {showPasswordStep && (
+                    <FormField
+                      control={credentialsForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            Password{" "}
+                            <Link
+                              href="/auth/reset-password"
+                              className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+                              tabIndex={-1}
+                              title="What is this?"
+                            >
+                              (forgot password?)
+                            </Link>
+                          </FormLabel>
+                          <FormControl>
+                            <PasswordInput {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* Primary action button */}
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    loading={
+                      showPasswordStep
+                        ? credentialsForm.formState.isSubmitting
+                        : continueLoading
+                    }
+                    disabled={
+                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                        showPasswordStep &&
+                        turnstileToken === undefined) ||
+                      credentialsForm.watch("email") === "" ||
+                      (showPasswordStep &&
+                        credentialsForm.watch("password") === "")
+                    }
+                    data-testid="submit-email-password-sign-in-form"
+                  >
+                    {showPasswordStep ? "Sign in" : "Continue"}
+                  </Button>
+                </form>
+              </Form>
+            )}
             {/* Additional OAuth/SSO providers remain visible */}
             <SSOButtons authProviders={authProviders} />
             {credentialsFormError ? (
