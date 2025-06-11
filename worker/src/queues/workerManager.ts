@@ -1,12 +1,12 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
-  getQueue,
+  // getQueue,
   convertQueueNameToMetricName,
   createNewRedisInstance,
   getQueuePrefix,
   logger,
   QueueName,
-  recordGauge,
+  // recordGauge,
   recordHistogram,
   recordIncrement,
   redisQueueRetryOptions,
