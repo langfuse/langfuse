@@ -7,7 +7,7 @@ import { ForbiddenError, ObservationLevel } from "@langfuse/shared";
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { redis } from "@langfuse/shared/src/server";
 
-export async function getTraceSeenMap(
+export async function getSeenTracesSet(
   resourceSpans: unknown,
   projectId: string,
 ): Promise<Set<string>> {
@@ -680,7 +680,7 @@ const extractTags = (attributes: Record<string, unknown>): string[] => {
  */
 export const convertOtelSpanToIngestionEvent = (
   resourceSpan: any,
-  traceSeenMap: Set<string>,
+  seenTraces: Set<string>,
   publicKey?: string,
 ): IngestionEventType[] => {
   const resourceAttributes =
@@ -756,7 +756,7 @@ export const convertOtelSpanToIngestionEvent = (
         LangfuseOtelSpanAttributes.TRACE_TAGS,
       ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
 
-      if (is_root_span || hasTraceUpdates || !traceSeenMap.has(traceId)) {
+      if (is_root_span || hasTraceUpdates || !seenTraces.has(traceId)) {
         // Use a shallow trace-update for the case when the span belongs to a new trace
         // but is not a root span and has no trace updates
         let trace: TraceEventType["body"] = {
@@ -818,7 +818,7 @@ export const convertOtelSpanToIngestionEvent = (
 
         // Update the local cache of 'seen' traces to avoid multiple
         // trace create calls per batch
-        traceSeenMap.add(traceId);
+        seenTraces.add(traceId);
       }
 
       const observation = {

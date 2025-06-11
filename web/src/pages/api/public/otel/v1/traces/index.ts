@@ -9,7 +9,7 @@ import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   convertOtelSpanToIngestionEvent,
-  getTraceSeenMap,
+  getSeenTracesSet,
 } from "@/src/features/otel/server";
 import { gunzip } from "node:zlib";
 
@@ -92,7 +92,7 @@ export default withMiddlewares({
         }
       }
 
-      const traceSeenMap = await getTraceSeenMap(
+      const seenTraces = await getSeenTracesSet(
         resourceSpans,
         auth.scope.projectId,
       );
@@ -100,7 +100,7 @@ export default withMiddlewares({
         (span: unknown) =>
           convertOtelSpanToIngestionEvent(
             span,
-            traceSeenMap,
+            seenTraces,
             auth.scope.publicKey,
           ),
       );
