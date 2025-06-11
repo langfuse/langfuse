@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "display": "Next.js",
+  "display": "Next.js (shared)",
   "extends": "./base.json",
   "compilerOptions": {
     "plugins": [{ "name": "next" }],
@@ -27,7 +27,8 @@
       "react-dom",
       "next",
       "next-auth",
-      "marsidev__react-turnstile"
+      "marsidev__react-turnstile",
+      "lucide-react"
     ]
   },
   "include": ["src", "next-env.d.ts"],

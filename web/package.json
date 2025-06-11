@@ -205,7 +205,8 @@
     "@types/next-auth": "^4.0.12",
     "@types/marsidev__react-turnstile": "^0.5.4",
     "@types/zod": "latest",
-    "@types/react-hook-form": "latest"
+    "@types/react-hook-form": "latest",
+    "@types/lucide-react": "latest"
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"
