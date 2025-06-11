@@ -19,6 +19,7 @@ import {
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { CopyIcon, ExternalLinkIcon } from "lucide-react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type PromptSelectionDialogProps = {
   isOpen: boolean;
@@ -42,7 +43,7 @@ export function PromptSelectionDialog({
     useState<string>("");
 
   const copySelectedTag = useCallback(() => {
-    navigator.clipboard.writeText(selectedTag);
+    copyTextToClipboard(selectedTag);
   }, [selectedTag]);
 
   useEffect(() => {
