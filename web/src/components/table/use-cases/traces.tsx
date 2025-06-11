@@ -981,12 +981,12 @@ export default function TracesTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
-      `traceColumnVisibility-${projectId}`,
+      `traceColumnVisibility-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
-    "traceColumnOrder",
+    `traceColumnOrder-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
     columns,
   );
 
