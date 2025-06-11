@@ -3427,9 +3427,7 @@ describe("queryBuilder", () => {
         };
 
         // Execute histogram query with custom bins
-        const queryBuilder = new QueryBuilder(
-          customBinHistogramQuery.chartConfig,
-        );
+        const queryBuilder = new QueryBuilder(customBinHistogramQuery.chartConfig);
         const { query: compiledQuery, parameters } = queryBuilder.build(
           customBinHistogramQuery,
           projectId,
