@@ -18,7 +18,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "types": ["jest", "node"],
+    "types": ["jest", "node", "react", "react-dom", "next"]
   },
   "include": ["src", "next-env.d.ts"],
   "exclude": ["node_modules"]
