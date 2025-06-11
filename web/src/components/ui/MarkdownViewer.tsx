@@ -33,6 +33,7 @@ import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -271,7 +272,7 @@ export function MarkdownView({
       typeof markdown === "string"
         ? markdown
         : parseOpenAIContentParts(markdown);
-    void navigator.clipboard.writeText(rawText);
+    void copyTextToClipboard(rawText);
   };
 
   const handleOnValueChange = () => {
