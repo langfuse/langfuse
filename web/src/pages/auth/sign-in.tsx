@@ -526,6 +526,18 @@ export default function SignIn({
 
       // No SSO – fall back to password step
       setShowPasswordStep(true);
+
+      // Auto-focus password input when password step becomes visible
+      setTimeout(() => {
+        // Find and focus the password input
+        // Ref did not work, so we use a more specific selector
+        const passwordInput = document.querySelector(
+          'input[name="password"]',
+        ) as HTMLInputElement;
+        if (passwordInput) {
+          passwordInput.focus();
+        }
+      }, 100);
     } catch (error) {
       console.error(error);
       setCredentialsFormError(
