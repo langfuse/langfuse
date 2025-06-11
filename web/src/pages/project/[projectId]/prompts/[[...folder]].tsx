@@ -99,7 +99,7 @@ export default function PromptsWithFolder() {
           <ActionButton
             icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
             hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/prompts/new`}
+            href={`/project/${projectId}/prompts/new${promptNamePath ? `?folder=${encodeURIComponent(promptNamePath)}` : ''}`}
             variant="default"
             limit={promptLimit}
             limitValue={Number(count?.totalCount ?? 0)}
