@@ -5,14 +5,14 @@ import {
 import { randomUUID } from "crypto";
 import { ForbiddenError, ObservationLevel } from "@langfuse/shared";
 import { LangfuseOtelSpanAttributes } from "./attributes";
-import { redis } from "@langfuse/shared/src/server";
+import { redis, logger } from "@langfuse/shared/src/server";
 
 export async function getSeenTracesSet(
   resourceSpans: unknown,
   projectId: string,
 ): Promise<Set<string>> {
   if (!redis) {
-    console.warn("Redis client not available");
+    logger.warn("Redis client not available");
 
     return new Set();
   }
@@ -32,7 +32,7 @@ export async function getSeenTracesSet(
 
   const results = await Promise.all(
     [...traceIds].map(async (traceId) => {
-      const key = `project:${projectId}:trace:${traceId}:seen`;
+      const key = `langfuse:project:${projectId}:trace:${traceId}:seen`;
       const TTLSeconds = 600; // 10 minutes
       const result = await redis?.call("SET", key, "1", "NX", "EX", TTLSeconds);
 
