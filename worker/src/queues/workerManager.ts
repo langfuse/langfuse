@@ -1,4 +1,4 @@
-import { Job, Processor, Queue, Worker, WorkerOptions } from "bullmq";
+import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
   getQueue,
   convertQueueNameToMetricName,
