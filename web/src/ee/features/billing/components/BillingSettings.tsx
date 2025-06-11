@@ -219,17 +219,13 @@ const BillingPortalOrPricingPageButton = () => {
         <Button>Change plan</Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl">
-        <DialogHeader>
-          <Header
-            title="Plans"
-            actionButtons={
-              <Button variant="secondary" asChild>
-                <Link href="https://langfuse.com/pricing" target="_blank">
-                  Comparison of plans ↗
-                </Link>
-              </Button>
-            }
-          />
+        <DialogHeader className="flex flex-row items-center justify-between">
+          <DialogTitle>Plans</DialogTitle>
+          <Button variant="secondary" asChild>
+            <Link href="https://langfuse.com/pricing" target="_blank">
+              Comparison of plans ↗
+            </Link>
+          </Button>
         </DialogHeader>
         <DialogBody>
           <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
