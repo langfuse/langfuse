@@ -71,6 +71,7 @@ const createRedisClusterInstance = (
       : {};
 
   const clusterOptions: ClusterOptions = {
+    // Return incoming addresses as-is - required for AWS ElastiCache Certificate resolution
     dnsLookup: (address, callback) => {
       callback(null, address);
     },
@@ -82,15 +83,6 @@ const createRedisClusterInstance = (
     },
     // Retry configuration for cluster
     retryDelayOnFailover: 100,
-    // NAT mapping for Docker cluster - maps internal hostnames to external addresses
-    // natMap: {
-    //   "172.18.0.4:6379": { host: "127.0.0.1", port: 7001 },
-    //   "172.18.0.2:6379": { host: "127.0.0.1", port: 7002 },
-    //   "172.18.0.5:6379": { host: "127.0.0.1", port: 7003 },
-    //   "172.18.0.8:6379": { host: "127.0.0.1", port: 7004 },
-    //   "172.18.0.7:6379": { host: "127.0.0.1", port: 7005 },
-    //   "172.18.0.3:6379": { host: "127.0.0.1", port: 7006 },
-    // },
   };
 
   const cluster = new Cluster(nodes, clusterOptions);

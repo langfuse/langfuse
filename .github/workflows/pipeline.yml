@@ -163,7 +163,7 @@ jobs:
       - name: run test-sync
         run: pnpm --filter=web run test-sync
       - name: run test-client
-        run: pnpm --filter=web run test-client
+        run: DEBUG=ioredis:* pnpm --filter=web run test-client
 
   tests-web-async:
     timeout-minutes: 30
@@ -242,7 +242,7 @@ jobs:
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
-        run: pnpm --filter=web run test
+        run: DEBUG=ioredis:* pnpm --filter=web run test
 
   tests-worker:
     timeout-minutes: 20
@@ -311,7 +311,7 @@ jobs:
       - name: Build
         run: pnpm --filter=worker... run build
       - name: run tests
-        run: pnpm --filter=worker run test
+        run: DEBUG=ioredis:* pnpm --filter=worker run test
 
   e2e-tests:
     runs-on: ubuntu-latest
