@@ -8,6 +8,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
 import { useState } from "react";
 
@@ -96,7 +97,7 @@ const Base = (props: {
 
   const copyUrl = () => {
     setIsCopied(true);
-    void navigator.clipboard.writeText(window.location.href);
+    void copyTextToClipboard(window.location.href);
     setTimeout(() => setIsCopied(false), 2500);
   };
 
