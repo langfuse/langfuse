@@ -99,7 +99,7 @@ export default function PromptsWithFolder() {
       {showOnboarding ? (
         <PromptsOnboarding projectId={projectId} />
       ) : (
-        <PromptTable key={currentFolderPath} currentFolderPath={currentFolderPath} />
+        <PromptTable key={currentFolderPath} />
       )}
     </Page>
   );

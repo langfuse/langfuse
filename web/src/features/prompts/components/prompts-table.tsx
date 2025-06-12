@@ -97,11 +97,7 @@ function createBreadcrumbItems(currentFolderPath: string) {
   });
 }
 
-type PromptTableProps = {
-  currentFolderPath?: string;
-};
-
-export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
+export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
@@ -115,18 +111,15 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
     column: "createdAt",
     order: "DESC",
   });
-  const [queryParams, setQueryParams] = useQueryParams({
+  const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
+  });
+  const [folderPathParam, setFolderPathParam] = useQueryParams({
     folder: StringParam,
   });
-  const paginationState = {
-    pageIndex: queryParams.pageIndex,
-    pageSize: queryParams.pageSize,
-  };
-  const setPaginationState = (newPagination: { pageIndex?: number; pageSize?: number }) => {
-    setQueryParams(newPagination);
-  };
+  
+  const currentFolderPath = folderPathParam.folder || '';
 
   const prompts = api.prompts.all.useQuery(
     {
@@ -293,7 +286,8 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
             <div
               className="flex cursor-pointer items-center gap-2 font-medium hover:underline"
               onClick={() => {
-                setQueryParams({ folder: rowData.id, pageIndex: 0 });
+                setFolderPathParam({ folder: rowData.id });
+                setPaginationState({ pageIndex: 0 });
               }}
               title={rowData.id}
             >
@@ -375,7 +369,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
         const promptName = row.row.original.name;
         return (
           <TagPromptPopover
-            tags={tags}
+            tags={tags ?? []}
             availableTags={allTags}
             projectId={projectId as string}
             promptName={promptName}
@@ -413,7 +407,8 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
                 <BreadcrumbLink
                   className="cursor-pointer hover:underline"
                   onClick={() => {
-                    setQueryParams({ folder: undefined, pageIndex: 0 });
+                    setFolderPathParam({ folder: undefined });
+                    setPaginationState({ pageIndex: 0 });
                   }}
                 >
                   <Home className="h-4 w-4" />
@@ -432,7 +427,8 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
                     <BreadcrumbLink
                       className="cursor-pointer hover:underline"
                       onClick={() => {
-                        setQueryParams({ folder: item.folderPath, pageIndex: 0 });
+                        setFolderPathParam({ folder: item.folderPath });
+                        setPaginationState({ pageIndex: 0 });
                       }}
                     >
                       {item.name}
