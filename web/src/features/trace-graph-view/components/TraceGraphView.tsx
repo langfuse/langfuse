@@ -111,7 +111,9 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
     }
   });
 
-  const nodes = [...nodeToParentObservationMap.keys()];
+  const nodes = [
+    ...new Set([...stepToNodeMap.values(), LANGGRAPH_END_NODE_NAME]),
+  ];
   const edges = [...stepToNodeMap.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([_, node], idx, arr) => ({
