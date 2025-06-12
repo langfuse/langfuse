@@ -35,6 +35,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
+  audit_logs: "createdAt",
 };
 const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   scores: "timestamp",
@@ -42,6 +43,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
+  audit_logs: "createdAt",
 };
 const isGenerationTimestampFilter = (
   filter: FilterCondition,
@@ -425,6 +427,46 @@ export const getDatabaseReadStream = async ({
             createdAt: item.created_at,
             updatedAt: item.updated_at,
             datasetName: item.dataset_name,
+          }));
+        },
+        env.BATCH_EXPORT_PAGE_SIZE,
+        rowLimit,
+      );
+    }
+
+    case "audit_logs": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const auditLogs = await prisma.auditLog.findMany({
+            where: {
+              projectId: projectId,
+              createdAt: {
+                lt: cutoffCreatedAt,
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            skip: offset,
+            take: pageSize,
+          });
+
+          return auditLogs.map((log) => ({
+            id: log.id,
+            createdAt: log.createdAt,
+            updatedAt: log.updatedAt,
+            type: log.type,
+            apiKeyId: log.apiKeyId,
+            userId: log.userId,
+            orgId: log.orgId,
+            userOrgRole: log.userOrgRole,
+            projectId: log.projectId,
+            userProjectRole: log.userProjectRole,
+            resourceType: log.resourceType,
+            resourceId: log.resourceId,
+            action: log.action,
+            before: log.before,
+            after: log.after,
           }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
