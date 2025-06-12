@@ -27,16 +27,23 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: langfuse-langfuse-web
-          args: --file=web/Dockerfile
+          args: --file=web/Dockerfile --sarif-file-output=snyk.sarif
 
       # Workaround for https://github.com/github/codeql-action/issues/2187
       - name: Replace security-severity undefined for license-related findings
-        run: "sed -i 's/\"security-severity\": \"undefined\"/\"security-severity\": \"0\"/g' snyk.sarif"
+        run: |
+          if [ -f "snyk.sarif" ]; then
+            sed -i 's/"security-severity": "undefined"/"security-severity": "0"/g' snyk.sarif
+          fi
 
       - name: Replace security-severity null for license-related findings
-        run: "sed -i 's/\"security-severity\": \"null\"/\"security-severity\": \"0\"/g' snyk.sarif"
+        run: |
+          if [ -f "snyk.sarif" ]; then
+            sed -i 's/"security-severity": "null"/"security-severity": "0"/g' snyk.sarif
+          fi
 
       - name: Upload result to GitHub Code Scanning
+        if: always() && hashFiles('snyk.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
@@ -49,16 +56,23 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: langfuse-langfuse-worker
-          args: --file=worker/Dockerfile
+          args: --file=worker/Dockerfile --sarif-file-output=snyk.sarif
 
       # Workaround for https://github.com/github/codeql-action/issues/2187
       - name: Replace security-severity undefined for license-related findings
-        run: "sed -i 's/\"security-severity\": \"undefined\"/\"security-severity\": \"0\"/g' snyk.sarif"
+        run: |
+          if [ -f "snyk.sarif" ]; then
+            sed -i 's/"security-severity": "undefined"/"security-severity": "0"/g' snyk.sarif
+          fi
 
       - name: Replace security-severity null for license-related findings
-        run: "sed -i 's/\"security-severity\": \"null\"/\"security-severity\": \"0\"/g' snyk.sarif"
+        run: |
+          if [ -f "snyk.sarif" ]; then
+            sed -i 's/"security-severity": "null"/"security-severity": "0"/g' snyk.sarif
+          fi
 
       - name: Upload result to GitHub Code Scanning
+        if: always() && hashFiles('snyk.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
