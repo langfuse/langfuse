@@ -14,7 +14,7 @@ export const TagButton: React.FC<{
     variant="tertiary"
     size="icon-sm"
     disabled={viewOnly}
-    className={cn(viewOnly && "cursor-default", "h-fit min-h-6")}
+    className={cn(viewOnly && "cursor-default")}
     loading={loading}
   >
     <TagIcon className="mr-1 h-3.5 w-3.5 flex-shrink-0" />
