@@ -101,12 +101,11 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
           </div>
         </DialogBody>
 
-        <DialogFooter className="static mt-auto">
+        <DialogFooter>
           <Button
             onClick={() => {
               setIsOpen(false);
             }}
-            className="w-full"
           >
             Close
           </Button>

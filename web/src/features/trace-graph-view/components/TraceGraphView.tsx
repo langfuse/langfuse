@@ -6,6 +6,7 @@ import {
   type GraphCanvasData,
   LANGGRAPH_END_NODE_NAME,
   type AgentGraphDataResponse,
+  LANGGRAPH_START_NODE_NAME,
 } from "../types";
 
 type TraceGraphViewProps = {
@@ -84,6 +85,16 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
           LANGGRAPH_END_NODE_NAME,
           o.parentObservationId,
         );
+
+        // Also initialize the start node if it hasn't been seen yet
+        // Langgraph >= v4 is no longer adding a span for the start node
+        if (!nodeToParentObservationMap.has(LANGGRAPH_START_NODE_NAME)) {
+          stepToNodeMap.set(0, LANGGRAPH_START_NODE_NAME);
+          nodeToParentObservationMap.set(
+            LANGGRAPH_START_NODE_NAME,
+            o.parentObservationId,
+          );
+        }
       }
 
       // Only register id if it is top-most to allow navigation on node click in graph
