@@ -6,6 +6,7 @@ import {
   type GraphCanvasData,
   LANGGRAPH_END_NODE_NAME,
   type AgentGraphDataResponse,
+  LANGGRAPH_START_NODE_NAME,
 } from "../types";
 
 type TraceGraphViewProps = {
@@ -31,8 +32,13 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
       (o) => o.id === currentObservationId,
     )?.node;
 
-    setSelectedNodeName(nodeName ?? null);
-  }, [currentObservationId, agentGraphData]);
+    // Only set selectedNodeName if the node actually exists in the graph
+    if (nodeName && graph.nodes.includes(nodeName)) {
+      setSelectedNodeName(nodeName);
+    } else {
+      setSelectedNodeName(null);
+    }
+  }, [currentObservationId, agentGraphData, graph.nodes]);
 
   const onCanvasNodeNameChange = useCallback(
     (nodeName: string | null) => {
@@ -84,6 +90,16 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
           LANGGRAPH_END_NODE_NAME,
           o.parentObservationId,
         );
+
+        // Also initialize the start node if it hasn't been seen yet
+        // Langgraph >= v4 is no longer adding a span for the start node
+        if (!nodeToParentObservationMap.has(LANGGRAPH_START_NODE_NAME)) {
+          stepToNodeMap.set(0, LANGGRAPH_START_NODE_NAME);
+          nodeToParentObservationMap.set(
+            LANGGRAPH_START_NODE_NAME,
+            o.parentObservationId,
+          );
+        }
       }
 
       // Only register id if it is top-most to allow navigation on node click in graph
@@ -95,7 +111,9 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
     }
   });
 
-  const nodes = [...nodeToParentObservationMap.keys()];
+  const nodes = [
+    ...new Set([...stepToNodeMap.values(), LANGGRAPH_END_NODE_NAME]),
+  ];
   const edges = [...stepToNodeMap.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([_, node], idx, arr) => ({

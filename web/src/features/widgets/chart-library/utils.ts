@@ -60,3 +60,29 @@ export const isTimeSeriesChart = (
 // Used for a combination of YAxis styling workarounds as discussed in https://github.com/recharts/recharts/issues/2027#issuecomment-769674096.
 export const formatAxisLabel = (label: string): string =>
   label.length > 13 ? label.slice(0, 13).concat("…") : label;
+
+/**
+ * Maps chart types to their human-readable display names.
+ */
+export function getChartTypeDisplayName(
+  chartType: DashboardWidgetChartType,
+): string {
+  switch (chartType) {
+    case "LINE_TIME_SERIES":
+      return "Line Chart (Time Series)";
+    case "BAR_TIME_SERIES":
+      return "Bar Chart (Time Series)";
+    case "HORIZONTAL_BAR":
+      return "Horizontal Bar Chart (Total Value)";
+    case "VERTICAL_BAR":
+      return "Vertical Bar Chart (Total Value)";
+    case "PIE":
+      return "Pie Chart (Total Value)";
+    case "NUMBER":
+      return "Big Number (Total Value)";
+    case "HISTOGRAM":
+      return "Histogram (Total Value)";
+    default:
+      return "Unknown Chart Type";
+  }
+}

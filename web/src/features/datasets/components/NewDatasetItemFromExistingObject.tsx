@@ -157,19 +157,21 @@ export const NewDatasetItemFromExistingObject = (props: {
           <DialogHeader>
             <DialogTitle>Add to datasets</DialogTitle>
           </DialogHeader>
-          <NewDatasetItemForm
-            traceId={props.traceId}
-            observationId={props.observationId}
-            projectId={props.projectId}
-            input={parsedInput}
-            output={parsedOutput}
-            metadata={props.metadata}
-            onFormSuccess={() => setIsFormOpen(false)}
-            className="h-full overflow-y-auto"
-            blockedDatasetIds={
-              props.fromDatasetId ? [props.fromDatasetId] : undefined
-            }
-          />
+          {isFormOpen && (
+            <NewDatasetItemForm
+              traceId={props.traceId}
+              observationId={props.observationId}
+              projectId={props.projectId}
+              input={parsedInput}
+              output={parsedOutput}
+              metadata={props.metadata}
+              onFormSuccess={() => setIsFormOpen(false)}
+              className="h-full overflow-y-auto"
+              blockedDatasetIds={
+                props.fromDatasetId ? [props.fromDatasetId] : undefined
+              }
+            />
+          )}
         </DialogContent>
       </Dialog>
     </>

@@ -19,6 +19,7 @@ import {
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { CopyIcon, ExternalLinkIcon } from "lucide-react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type PromptSelectionDialogProps = {
   isOpen: boolean;
@@ -42,7 +43,7 @@ export function PromptSelectionDialog({
     useState<string>("");
 
   const copySelectedTag = useCallback(() => {
-    navigator.clipboard.writeText(selectedTag);
+    copyTextToClipboard(selectedTag);
   }, [selectedTag]);
 
   useEffect(() => {
@@ -104,7 +105,7 @@ export function PromptSelectionDialog({
           <DialogTitle>Add inline prompt reference</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <div className="flex flex-col gap-4 py-4">
+          <div className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
               Referenced prompts are dynamically resolved and inserted when
               fetched via API/SDK. This enables modular design—create complex
