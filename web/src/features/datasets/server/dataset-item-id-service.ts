@@ -49,40 +49,76 @@ export class DatasetItemIdService {
 
   /**
    * Get the next sequence number for dataset items in a project
-   * This uses a transaction to ensure thread safety
+   * This uses atomic upsert operations to ensure thread safety and avoid concurrency issues
    */
   private static async getNextSequenceNumber(
     projectId: string,
     prefix: string,
   ): Promise<number> {
     return prisma.$transaction(async (tx) => {
-      // Find the highest sequence number for this project's dataset items
-      const existingItems = await tx.datasetItem.findMany({
+      // Try to increment existing counter or create new one
+      const result = await tx.sequenceCounter.upsert({
         where: {
-          projectId,
-          id: {
-            startsWith: `${prefix}-`,
+          projectId_entityType_prefix: {
+            projectId,
+            entityType: "dataset_item",
+            prefix,
           },
         },
-        select: { id: true },
-        orderBy: { createdAt: "desc" },
+        update: {
+          sequence: {
+            increment: 1,
+          },
+        },
+        create: {
+          projectId,
+          entityType: "dataset_item",
+          prefix,
+          sequence: await this.getInitialSequenceNumber(tx, projectId, prefix),
+        },
+        select: {
+          sequence: true,
+        },
       });
 
-      let maxSequence = 0;
+      return result.sequence;
+    });
+  }
 
-      // Extract sequence numbers from existing IDs
-      for (const item of existingItems) {
-        const match = item.id.match(new RegExp(`^${prefix}-(\\d+)$`));
-        if (match) {
-          const sequence = parseInt(match[1], 10);
-          if (sequence > maxSequence) {
-            maxSequence = sequence;
-          }
+  /**
+   * Calculate the initial sequence number by finding the highest existing sequence
+   * This is only called when creating a new sequence counter
+   */
+  private static async getInitialSequenceNumber(
+    tx: any,
+    projectId: string,
+    prefix: string,
+  ): Promise<number> {
+    // Find the highest sequence number for this project's dataset items
+    const existingItems = await tx.datasetItem.findMany({
+      where: {
+        projectId,
+        id: {
+          startsWith: `${prefix}-`,
+        },
+      },
+      select: { id: true },
+    });
+
+    let maxSequence = 0;
+
+    // Extract sequence numbers from existing IDs
+    for (const item of existingItems) {
+      const match = item.id.match(new RegExp(`^${prefix}-(\\d+)$`));
+      if (match) {
+        const sequence = parseInt(match[1], 10);
+        if (sequence > maxSequence) {
+          maxSequence = sequence;
         }
       }
+    }
 
-      return maxSequence + 1;
-    });
+    return maxSequence + 1;
   }
 
   /**
