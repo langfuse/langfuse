@@ -636,6 +636,15 @@ export type ScoreConfig = {
     categories: unknown | null;
     description: string | null;
 };
+export type SequenceCounter = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    entity_type: string;
+    prefix: string;
+    sequence: Generated<number>;
+};
 export type Session = {
     id: string;
     session_token: string;
@@ -740,6 +749,7 @@ export type DB = {
     prompts: Prompt;
     score_configs: ScoreConfig;
     scores: LegacyPrismaScore;
+    sequence_counters: SequenceCounter;
     Session: Session;
     sso_configs: SsoConfig;
     table_view_presets: TableViewPreset;

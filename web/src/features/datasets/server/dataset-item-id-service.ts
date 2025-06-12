@@ -88,36 +88,29 @@ export class DatasetItemIdService {
   /**
    * Calculate the initial sequence number by finding the highest existing sequence
    * This is only called when creating a new sequence counter
+   * Uses efficient database query instead of fetching all items
    */
   private static async getInitialSequenceNumber(
     tx: any,
     projectId: string,
     prefix: string,
   ): Promise<number> {
-    // Find the highest sequence number for this project's dataset items
-    const existingItems = await tx.datasetItem.findMany({
-      where: {
-        projectId,
-        id: {
-          startsWith: `${prefix}-`,
-        },
-      },
-      select: { id: true },
-    });
+    // Use raw SQL to efficiently extract and find the maximum sequence number
+    // This avoids fetching all items and iterating through them in the application
+    const result = await tx.$queryRaw<Array<{ max_sequence: number | null }>>`
+      SELECT MAX(
+        CASE 
+          WHEN id ~ ${`^${prefix}-\\d{4}$`}
+          THEN CAST(SUBSTRING(id FROM ${prefix.length + 2}) AS INTEGER)
+          ELSE NULL
+        END
+      ) as max_sequence
+      FROM dataset_items 
+      WHERE project_id = ${projectId} 
+        AND id LIKE ${`${prefix}-%`}
+    `;
 
-    let maxSequence = 0;
-
-    // Extract sequence numbers from existing IDs
-    for (const item of existingItems) {
-      const match = item.id.match(new RegExp(`^${prefix}-(\\d+)$`));
-      if (match) {
-        const sequence = parseInt(match[1], 10);
-        if (sequence > maxSequence) {
-          maxSequence = sequence;
-        }
-      }
-    }
-
+    const maxSequence = result[0]?.max_sequence ?? 0;
     return maxSequence + 1;
   }
 
