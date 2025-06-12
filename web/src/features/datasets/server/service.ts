@@ -424,6 +424,9 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
           {
             createdAt: "desc",
           },
+          {
+            id: "desc",
+          },
         ],
         take: input.limit,
         skip: input.page * input.limit,
