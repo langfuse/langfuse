@@ -80,6 +80,7 @@ const formSchema = z.object({
         "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
+  comment: z.string(),
 });
 
 export const NewDatasetItemForm = (props: {
@@ -89,6 +90,7 @@ export const NewDatasetItemForm = (props: {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
+  comment?: string;
   datasetId?: string;
   className?: string;
   onFormSuccess?: () => void;
@@ -103,6 +105,7 @@ export const NewDatasetItemForm = (props: {
       input: props.input ? JSON.stringify(props.input, null, 2) : "",
       expectedOutput: props.output ? JSON.stringify(props.output, null, 2) : "",
       metadata: props.metadata ? JSON.stringify(props.metadata, null, 2) : "",
+      comment: props.comment || "",
     },
   });
 
@@ -136,6 +139,7 @@ export const NewDatasetItemForm = (props: {
           metadata: values.metadata,
           sourceTraceId: props.traceId,
           sourceObservationId: props.observationId,
+          comment: values.comment,
         })),
       })
       .then(() => {
@@ -307,6 +311,42 @@ export const NewDatasetItemForm = (props: {
               )}
             />
           </div>
+          <FormField
+            control={form.control}
+            name="metadata"
+            render={({ field }) => (
+              <FormItem className="mt-4 flex flex-col gap-2">
+                <FormLabel>Metadata</FormLabel>
+                <FormControl>
+                  <CodeMirrorEditor
+                    mode="json"
+                    value={field.value}
+                    onChange={field.onChange}
+                    minHeight={100}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="comment"
+            render={({ field }) => (
+              <FormItem className="mt-4 flex flex-col gap-2">
+                <FormLabel>Comment</FormLabel>
+                <FormControl>
+                  <CodeMirrorEditor
+                    mode="text"
+                    value={field.value}
+                    onChange={field.onChange}
+                    minHeight={100}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </DialogBody>
         <DialogFooter>
           <Button

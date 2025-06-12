@@ -373,6 +373,7 @@ export const datasetRouter = createTRPCRouter({
         sourceTraceId: z.string().optional(),
         sourceObservationId: z.string().optional(),
         status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
+        comment: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -411,6 +412,7 @@ export const datasetRouter = createTRPCRouter({
           sourceTraceId: input.sourceTraceId,
           sourceObservationId: input.sourceObservationId,
           status: input.status,
+          comment: input.comment,
         },
       });
       await auditLog({
@@ -690,6 +692,7 @@ export const datasetRouter = createTRPCRouter({
         metadata: z.string().nullish(),
         sourceTraceId: z.string().optional(),
         sourceObservationId: z.string().optional(),
+        comment: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -722,6 +725,7 @@ export const datasetRouter = createTRPCRouter({
           sourceTraceId: input.sourceTraceId,
           sourceObservationId: input.sourceObservationId,
           projectId: input.projectId,
+          comment: input.comment,
         },
       });
       await auditLog({
@@ -746,6 +750,7 @@ export const datasetRouter = createTRPCRouter({
             metadata: z.string().nullish(),
             sourceTraceId: z.string().optional(),
             sourceObservationId: z.string().optional(),
+            comment: z.string().optional(),
           }),
         ),
       }),
@@ -785,6 +790,7 @@ export const datasetRouter = createTRPCRouter({
         sourceObservationId: item.sourceObservationId,
         projectId: input.projectId,
         status: DatasetStatus.ACTIVE,
+        comment: item.comment,
       }));
 
       await ctx.prisma.datasetItem.createMany({
