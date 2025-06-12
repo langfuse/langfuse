@@ -32,6 +32,8 @@
     "@dnd-kit/modifiers": "^7.0.0",
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
     "@headlessui/react": "2.1.9",
     "@headlessui/tailwindcss": "0.2.1",
     "@heroicons/react": "^2.1.5",
