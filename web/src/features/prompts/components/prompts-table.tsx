@@ -31,51 +31,29 @@ import { Slash, Folder, Home } from "lucide-react";
 type PromptTableRow = {
   id: string;
   name: string;
+  type: "folder" | "text" | "chat";
   version?: number;
   createdAt?: Date;
   labels?: string[];
-  type: string;
   numberOfObservations?: number;
   tags?: string[];
 };
 
-function isFolder(row: PromptTableRow): boolean {
-  return row.type === 'folder';
-}
-
-function createFolderRow(folderPath: string, folderName: string): PromptTableRow {
+function createRow(
+  data: Partial<PromptTableRow> & { id: string; name: string; type: "folder" | "text" | "chat" }
+): PromptTableRow {
   return {
-    id: folderPath,
-    name: folderName,
-    type: 'folder' as const,
     version: undefined,
     createdAt: undefined,
-    labels: undefined,
-    tags: undefined,
+    labels: [],
+    tags: [],
     numberOfObservations: undefined,
+    ...data,
   };
 }
 
-// TODO: ugly, fix this
-function createPromptRow(prompt: {
-  id: string;
-  version: number;
-  createdAt: Date;
-  type: string;
-  labels: string[];
-  tags?: string[];
-  observationCount?: number;
-}): PromptTableRow {
-  return {
-    id: prompt.id,
-    name: prompt.id,
-    version: prompt.version,
-    createdAt: prompt.createdAt,
-    type: prompt.type,
-    labels: prompt.labels,
-    numberOfObservations: Number(prompt.observationCount ?? 0),
-    tags: prompt.tags ?? [],
-  };
+function isFolder(row: PromptTableRow): row is PromptTableRow & { type: "folder" } {
+  return row.type === "folder";
 }
 
 function getDisplayName(fullPath: string, currentFolderPath: string): string {
@@ -118,7 +96,7 @@ export function PromptTable() {
   const [folderPathParam, setFolderPathParam] = useQueryParams({
     folder: StringParam,
   });
-  
+
   const currentFolderPath = folderPathParam.folder || '';
 
   const prompts = api.prompts.all.useQuery(
@@ -225,12 +203,27 @@ export function PromptTable() {
     // Add folder rows
     for (const [folderPath] of folderGroups) {
       const folderName = getDisplayName(folderPath, currentFolderPath);
-      combinedRows.push(createFolderRow(folderPath, folderName));
+      combinedRows.push(createRow({
+        id: folderPath,
+        name: folderName,
+        type: "folder",
+      }));
     }
 
     // Add matching prompts
     for (const prompt of matchingPrompts) {
-      combinedRows.push(createPromptRow(prompt));
+      combinedRows.push(
+        createRow({
+          id: prompt.id,
+          name: prompt.id,
+          type: prompt.type as "text" | "chat",
+          version: prompt.version,
+          createdAt: prompt.createdAt,
+          labels: prompt.labels,
+          tags: prompt.tags,
+          numberOfObservations: Number(prompt.observationCount ?? 0),
+        })
+      );
     }
 
     return {
