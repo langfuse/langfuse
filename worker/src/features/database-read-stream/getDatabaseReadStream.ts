@@ -6,6 +6,7 @@ import {
   ScoreDomain,
   evalDatasetFormFilterCols,
   OrderByState,
+  TracingSearchType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -86,10 +87,14 @@ export const getDatabaseReadStream = async ({
   filter,
   orderBy,
   cutoffCreatedAt,
+  searchQuery,
+  searchType,
   rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
 }: {
   projectId: string;
   cutoffCreatedAt: Date;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
   rowLimit?: number;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
@@ -291,7 +296,8 @@ export const getDatabaseReadStream = async ({
             filter: filter
               ? [...filter, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
-            searchType: ["id" as const],
+            searchQuery,
+            searchType: searchType ?? ["id" as const],
             orderBy,
             limit: pageSize,
             page: Math.floor(offset / pageSize),
@@ -473,9 +479,19 @@ export const getTraceIdentifierStream = async (props: {
   cutoffCreatedAt: Date;
   filter: FilterCondition[];
   orderBy: OrderByState;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
   rowLimit?: number;
 }): Promise<DatabaseReadStream<Array<TraceIdentifiers>>> => {
-  const { projectId, cutoffCreatedAt, filter, orderBy, rowLimit } = props;
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter,
+    orderBy,
+    searchQuery,
+    searchType,
+    rowLimit,
+  } = props;
 
   const createdAtCutoffFilter: FilterCondition = {
     column: "timestamp",
@@ -495,7 +511,8 @@ export const getTraceIdentifierStream = async (props: {
         filter: filter
           ? [...filter, createdAtCutoffFilter]
           : [createdAtCutoffFilter],
-        searchType: ["id" as const],
+        searchQuery,
+        searchType: searchType ?? ["id" as const],
         orderBy,
         limit: pageSize,
         page: Math.floor(offset / pageSize),
