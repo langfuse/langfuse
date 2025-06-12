@@ -99,7 +99,11 @@ const OpenAICompletionUsageSchema = z
       prompt_tokens_details,
       completion_tokens_details,
     } = v;
-    const result: Record<string, number | null | undefined> = {
+    const result: z.infer<typeof RawUsageDetails> & {
+      input: number;
+      output: number;
+      total: number;
+    } = {
       input: prompt_tokens,
       output: completion_tokens,
       total: total_tokens,
@@ -109,7 +113,7 @@ const OpenAICompletionUsageSchema = z
       for (const [key, value] of Object.entries(prompt_tokens_details)) {
         if (value !== null && value !== undefined) {
           result[`input_${key}`] = value;
-          result.input = Math.max((result.input as number) - (value ?? 0), 0);
+          result.input = Math.max(result.input - (value ?? 0), 0);
         }
       }
     }
@@ -118,7 +122,7 @@ const OpenAICompletionUsageSchema = z
       for (const [key, value] of Object.entries(completion_tokens_details)) {
         if (value !== null && value !== undefined) {
           result[`output_${key}`] = value;
-          result.output = Math.max((result.output as number) - (value ?? 0), 0);
+          result.output = Math.max(result.output - (value ?? 0), 0);
         }
       }
     }
@@ -150,7 +154,11 @@ const OpenAIResponseUsageSchema = z
       input_tokens_details,
       output_tokens_details,
     } = v;
-    const result: Record<string, number | null | undefined> = {
+    const result: z.infer<typeof RawUsageDetails> & {
+      input: number;
+      output: number;
+      total: number;
+    } = {
       input: input_tokens,
       output: output_tokens,
       total: total_tokens,
@@ -160,7 +168,7 @@ const OpenAIResponseUsageSchema = z
       for (const [key, value] of Object.entries(input_tokens_details)) {
         if (value !== null && value !== undefined) {
           result[`input_${key}`] = value;
-          result.input = Math.max((result.input as number) - (value ?? 0), 0);
+          result.input = Math.max(result.input - (value ?? 0), 0);
         }
       }
     }
@@ -169,7 +177,7 @@ const OpenAIResponseUsageSchema = z
       for (const [key, value] of Object.entries(output_tokens_details)) {
         if (value !== null && value !== undefined) {
           result[`output_${key}`] = value;
-          result.output = Math.max((result.output as number) - (value ?? 0), 0);
+          result.output = Math.max(result.output - (value ?? 0), 0);
         }
       }
     }
