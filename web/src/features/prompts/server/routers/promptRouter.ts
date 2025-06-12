@@ -614,12 +614,19 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        const toBeLabeledPrompt = await ctx.prisma.prompt.findUniqueOrThrow({
+        const toBeLabeledPrompt = await ctx.prisma.prompt.findUnique({
           where: {
             id: input.promptId,
             projectId,
           },
         });
+
+        if (!toBeLabeledPrompt) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Prompt not found.",
+          });
+        }
 
         const { name: promptName } = toBeLabeledPrompt;
         const newLabelSet = new Set(input.labels);

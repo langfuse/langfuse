@@ -468,7 +468,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   <DialogTitle>Confirm Submission</DialogTitle>
                 </DialogHeader>
                 <DialogBody>
-                  <p className="text-sm">
+                  <p className="py-4 text-sm">
                     Score configs cannot be edited or deleted after they have
                     been created. Are you sure you want to proceed?
                   </p>
