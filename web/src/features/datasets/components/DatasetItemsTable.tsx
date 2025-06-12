@@ -28,6 +28,9 @@ import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { BatchTableNames, type OrderByState } from "@langfuse/shared";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 
 type RowData = {
   id: string;
@@ -67,6 +70,11 @@ export function DatasetItemsTable({
   );
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
+
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "createdAt",
+    order: "DESC",
+  });
 
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
@@ -318,7 +326,16 @@ export function DatasetItemsTable({
           setColumnOrder={setColumnOrder}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
-          actionButtons={menuItems}
+          actionButtons={[
+            menuItems,
+            <BatchExportTableButton
+              key="batchExport"
+              projectId={projectId}
+              tableName={BatchTableNames.DatasetItems}
+              orderByState={orderByState}
+              filterState={[]}
+            />,
+          ]}
         />
         {preview ? (
           <PreviewCsvImport
@@ -346,7 +363,16 @@ export function DatasetItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={menuItems}
+        actionButtons={[
+          menuItems,
+          <BatchExportTableButton
+            key="batchExport"
+            projectId={projectId}
+            tableName={BatchTableNames.DatasetItems}
+            orderByState={orderByState}
+            filterState={[]}
+          />,
+        ]}
       />
       <DataTable
         columns={columns}
