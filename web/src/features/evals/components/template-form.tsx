@@ -124,7 +124,7 @@ const formSchema = z.object({
   outputScore: z.string().min(1, "Enter a score function"),
   outputReasoning: z.string().min(1, "Enter a reasoning function"),
   referencedEvaluators: z
-    .nativeEnum(EvalReferencedEvaluators)
+    .enum(EvalReferencedEvaluators)
     .optional()
     .default(EvalReferencedEvaluators.PERSIST),
   shouldUseDefaultModel: z.boolean().default(true),

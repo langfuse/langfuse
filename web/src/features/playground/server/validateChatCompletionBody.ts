@@ -8,7 +8,7 @@ import {
 
 const ModelParamsSchema = z.object({
   provider: z.string(),
-  adapter: z.nativeEnum(LLMAdapter),
+  adapter: z.enum(LLMAdapter),
   model: z.string(),
   temperature: z.number().optional(),
   max_tokens: z.number().optional(),

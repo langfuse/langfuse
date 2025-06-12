@@ -217,7 +217,7 @@ export const queueRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         objectId: z.string(),
-        objectType: z.nativeEnum(AnnotationQueueObjectType),
+        objectType: z.enum(AnnotationQueueObjectType),
       }),
     )
     .query(async ({ input, ctx }) => {

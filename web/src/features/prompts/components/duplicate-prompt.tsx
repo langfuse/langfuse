@@ -38,7 +38,7 @@ enum CopySettings {
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  isCopySingleVersion: z.nativeEnum(CopySettings),
+  isCopySingleVersion: z.enum(CopySettings),
 });
 
 const DuplicatePromptForm: React.FC<{

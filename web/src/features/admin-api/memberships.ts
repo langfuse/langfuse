@@ -6,7 +6,7 @@ import { z } from "zod/v4";
 // Schema for request body validation
 const MembershipSchema = z.object({
   userId: z.string(),
-  role: z.nativeEnum(Role),
+  role: z.enum(Role),
 });
 
 // GET - Retrieve all organization memberships

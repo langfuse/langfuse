@@ -15,7 +15,7 @@ const APIComment = z
     projectId: z.string(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
-    objectType: z.nativeEnum(CommentObjectType),
+    objectType: z.enum(CommentObjectType),
     objectId: z.string(),
     content: z.string().min(1).max(3000),
     authorUserId: z.string().nullish(),
@@ -35,7 +35,7 @@ export const PostCommentsV1Response = z.object({ id: z.string() }).strict();
 // GET /comments
 export const GetCommentsV1Query = z
   .object({
-    objectType: z.nativeEnum(CommentObjectType).nullish(),
+    objectType: z.enum(CommentObjectType).nullish(),
     objectId: z.string().nullish(),
     authorUserId: z.string().nullish(),
     ...publicApiPaginationZod,

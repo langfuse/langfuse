@@ -139,7 +139,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
 const ParsedChatMessageListSchema = z.array(
   z.object({
-    role: z.nativeEnum(ChatMessageRole),
+    role: z.enum(ChatMessageRole),
     content: z.union([
       z.string(),
       z

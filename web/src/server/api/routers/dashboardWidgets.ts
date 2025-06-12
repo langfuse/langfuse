@@ -27,7 +27,7 @@ const CreateDashboardWidgetInput = z.object({
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
   filters: z.array(singleFilter),
-  chartType: z.nativeEnum(DashboardWidgetChartType),
+  chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
 
@@ -41,7 +41,7 @@ const UpdateDashboardWidgetInput = z.object({
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
   filters: z.array(singleFilter),
-  chartType: z.nativeEnum(DashboardWidgetChartType),
+  chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
 

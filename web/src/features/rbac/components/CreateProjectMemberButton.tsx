@@ -43,8 +43,8 @@ import { ActionButton } from "@/src/components/ActionButton";
 
 const formSchema = z.object({
   email: z.string().trim().email(),
-  orgRole: z.nativeEnum(Role),
-  projectRole: z.nativeEnum(Role),
+  orgRole: z.enum(Role),
+  projectRole: z.enum(Role),
 });
 
 export function CreateProjectMemberButton(props: {

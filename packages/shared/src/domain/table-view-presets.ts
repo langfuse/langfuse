@@ -17,7 +17,7 @@ const TableViewPresetDomainSchema = z.object({
   updatedAt: z.date(),
   createdBy: z.string().nullable(),
   name: z.string(),
-  tableName: z.nativeEnum(TableViewPresetTableName),
+  tableName: z.enum(TableViewPresetTableName),
   filters: z.array(singleFilter),
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),

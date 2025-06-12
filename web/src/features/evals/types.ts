@@ -7,7 +7,7 @@ export enum EvalReferencedEvaluators {
 }
 
 export const EvaluatorStatus = JobConfigState;
-export const EvaluatorStatusSchema = z.nativeEnum(EvaluatorStatus);
+export const EvaluatorStatusSchema = z.enum(EvaluatorStatus);
 export type EvaluatorStatusType = z.infer<typeof EvaluatorStatusSchema>;
 
 export type PartialConfig = Pick<

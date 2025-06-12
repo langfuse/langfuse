@@ -91,7 +91,7 @@ export class DefaultEvalModelService {
       if (!result.success) {
         errors.push(
           ...result.error.issues.map(
-            (err: any) => `Model parameter error: ${err.message}`,
+            (err) => `Model parameter error: ${err.message}`,
           ),
         );
         return false;

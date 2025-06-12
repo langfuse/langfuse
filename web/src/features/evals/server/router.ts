@@ -59,8 +59,8 @@ const ConfigWithTemplateSchema = z.object({
   variableMapping: z.array(variableMapping),
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
-  status: z.nativeEnum(JobConfigState),
-  jobType: z.nativeEnum(JobType),
+  status: z.enum(JobConfigState),
+  jobType: z.enum(JobType),
   createdAt: z.date(),
   updatedAt: z.date(),
   timeScope: TimeScopeSchema,
@@ -120,7 +120,7 @@ export const CreateEvalTemplate = z.object({
   }),
   cloneSourceId: z.string().optional(),
   referencedEvaluators: z
-    .nativeEnum(EvalReferencedEvaluators)
+    .enum(EvalReferencedEvaluators)
     .optional()
     .default(EvalReferencedEvaluators.PERSIST),
 });
@@ -143,7 +143,7 @@ const UpdateEvalJobSchema = z.object({
   variableMapping: z.array(variableMapping).optional(),
   sampling: z.number().gt(0).lte(1).optional(),
   delay: z.number().gte(0).optional(),
-  status: z.nativeEnum(EvaluatorStatus).optional(),
+  status: z.enum(EvaluatorStatus).optional(),
   timeScope: TimeScopeSchema.optional(),
 });
 
@@ -991,7 +991,7 @@ export const evalRouter = createTRPCRouter({
         projectId: z.string(),
         evalTemplateId: z.string(),
         datasetId: z.string(),
-        newStatus: z.nativeEnum(EvaluatorStatus),
+        newStatus: z.enum(EvaluatorStatus),
       }),
     )
     .mutation(

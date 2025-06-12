@@ -6,7 +6,7 @@ export const AnnotationScoreDataSchema = z.object({
   scoreId: z.string().optional(),
   value: z.number().nullable().optional(),
   stringValue: z.string().optional(),
-  dataType: z.nativeEnum(ScoreDataType),
+  dataType: z.enum(ScoreDataType),
   configId: z.string().optional(),
   comment: z.string().optional(),
 });

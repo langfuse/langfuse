@@ -29,11 +29,11 @@ export const CreateBatchActionSchema = z.object({
   actionId: ActionIdSchema,
   targetId: z.string().optional(),
   query: BatchActionQuerySchema,
-  tableName: z.nativeEnum(BatchTableNames),
+  tableName: z.enum(BatchTableNames),
 });
 
 export const GetIsBatchActionInProgressSchema = z.object({
   projectId: z.string(),
   actionId: ActionIdSchema,
-  tableName: z.nativeEnum(BatchTableNames),
+  tableName: z.enum(BatchTableNames),
 });

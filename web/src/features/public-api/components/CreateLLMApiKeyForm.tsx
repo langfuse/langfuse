@@ -39,7 +39,7 @@ const formSchema = z
     provider: z
       .string()
       .min(1, "Please add a provider name that identifies this connection."),
-    adapter: z.nativeEnum(LLMAdapter),
+    adapter: z.enum(LLMAdapter),
     baseURL: z.union([z.literal(""), z.string().url()]),
     withDefaultModels: z.boolean(),
     customModels: z.array(z.object({ value: z.string().min(1) })),
