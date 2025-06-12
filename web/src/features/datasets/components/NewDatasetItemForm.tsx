@@ -83,7 +83,7 @@ const formSchema = z.object({
 });
 
 const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
-  if (!value) return "";
+  if (value === undefined) return "";
 
   if (typeof value === "string") {
     try {
