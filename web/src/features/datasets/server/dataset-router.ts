@@ -21,7 +21,6 @@ import {
   logger,
   getRunScoresGroupedByNameSourceType,
 } from "@langfuse/shared/src/server";
-import { createId as createCuid } from "@paralleldrive/cuid2";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { DatasetItemIdService } from "@/src/features/datasets/server/dataset-item-id-service";
 

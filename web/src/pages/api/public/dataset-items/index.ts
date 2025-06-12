@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { v4 as uuidv4 } from "uuid";
 import {
   GetDatasetItemsV1Query,
   GetDatasetItemsV1Response,
