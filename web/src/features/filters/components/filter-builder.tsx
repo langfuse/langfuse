@@ -143,7 +143,7 @@ export function PopoverFilterBuilder({
           onClick={() => setWipFilterState([])}
           variant="ghost"
           size="icon"
-          className="ml-2"
+          className="ml-0.5"
         >
           <X className="h-4 w-4" />
         </Button>
