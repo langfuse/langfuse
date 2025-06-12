@@ -7,6 +7,7 @@ import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { encrypt } from "@langfuse/shared/encryption";
 
 describe("llmApiKey.all RPC", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -253,12 +254,11 @@ describe("llmApiKey.all RPC", () => {
     });
 
     expect(updatedKeys.length).toBe(1);
-    expect(updatedKeys[0].secretKey).not.toEqual(initialSecretKey); // Secret should be different
-    expect(updatedKeys[0].secretKey).not.toEqual(newSecret); // Should be encrypted
+    expect(updatedKeys[0].secretKey).toEqual(encrypt(newSecret)); // Should be encrypted
     expect(updatedKeys[0].displaySecretKey).not.toEqual(
       initialDisplaySecretKey,
     ); // Display should be different
-    expect(updatedKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9\-]{4}$/); // Should match format with hyphens allowed
+    expect(updatedKeys[0].displaySecretKey).toEqual("...-y123"); // Should match format with hyphens allowed
 
     // Other fields should remain unchanged
     expect(updatedKeys[0].baseURL).toBe(baseURL);
