@@ -14,7 +14,11 @@ import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
@@ -374,6 +378,8 @@ export default function TracesTable({
       query: {
         filter: filterState,
         orderBy: orderByState,
+        searchQuery: searchQuery || undefined,
+        searchType,
       },
       isBatchAction: selectAll,
     });
@@ -405,6 +411,12 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
+  const displayCount = totalCountQuery.isLoading ? (
+    <span className="inline-block font-mono">...</span>
+  ) : (
+    compactNumberFormatter(totalCountQuery.data?.totalCount)
+  );
+
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [
@@ -412,8 +424,7 @@ export default function TracesTable({
             id: "trace-delete",
             type: BatchActionType.Delete,
             label: "Delete Traces",
-            description:
-              "This action permanently deletes traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.",
+            description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.`,
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",
@@ -435,37 +446,35 @@ export default function TracesTable({
     },
   ];
 
-  const controlColumns: LangfuseColumnDef<TracesTableRow>[] = hideControls
-    ? []
-    : [
-        selectActionColumn,
-        {
-          accessorKey: "bookmarked",
-          header: undefined,
-          id: "bookmarked",
-          size: 30,
-          isPinned: true,
-          cell: ({ row }) => {
-            const bookmarked: TracesTableRow["bookmarked"] =
-              row.getValue("bookmarked");
-            const traceId = row.getValue("id");
-            return typeof traceId === "string" &&
-              typeof bookmarked === "boolean" ? (
-              <StarTraceToggle
-                tracesFilter={tracesAllQueryFilter}
-                traceId={traceId}
-                projectId={projectId}
-                value={bookmarked}
-                size="icon-xs"
-              />
-            ) : undefined;
-          },
-          enableSorting: true,
-        },
-      ];
-
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    ...controlColumns,
+    selectActionColumn,
+    ...(hideControls
+      ? []
+      : [
+          {
+            accessorKey: "bookmarked",
+            header: undefined,
+            id: "bookmarked",
+            size: 30,
+            isPinned: true,
+            cell: ({ row }: { row: Row<TracesTableRow> }) => {
+              const bookmarked: TracesTableRow["bookmarked"] =
+                row.getValue("bookmarked");
+              const traceId = row.getValue("id");
+              return typeof traceId === "string" &&
+                typeof bookmarked === "boolean" ? (
+                <StarTraceToggle
+                  tracesFilter={tracesAllQueryFilter}
+                  traceId={traceId}
+                  projectId={projectId}
+                  value={bookmarked}
+                  size="icon-xs"
+                />
+              ) : undefined;
+            },
+            enableSorting: true,
+          },
+        ]),
     {
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -983,12 +992,12 @@ export default function TracesTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
-      `traceColumnVisibility-${projectId}`,
+      `traceColumnVisibility-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
-    "traceColumnOrder",
+    `traceColumnOrder-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
     columns,
   );
 

@@ -165,7 +165,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-1 flex-col"
+            className="grid max-h-full min-h-0 overflow-hidden"
           >
             <DialogBody>
               <div className="flex-1 space-y-4 overflow-y-auto">
