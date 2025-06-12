@@ -150,7 +150,7 @@ export const handleBatchActionJob = async (
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
             searchQuery: query.searchQuery ?? undefined,
-            searchType: query.searchType ?? [],
+            searchType: query.searchType ?? ["id" as const],
           })
         : await getDatabaseReadStream({
             projectId: projectId,
@@ -159,7 +159,7 @@ export const handleBatchActionJob = async (
             orderBy: query.orderBy,
             tableName: tableName,
             searchQuery: query.searchQuery ?? undefined,
-            searchType: query.searchType ?? [],
+            searchType: query.searchType ?? ["id" as const],
           });
 
     // Process stream in database-sized batches
