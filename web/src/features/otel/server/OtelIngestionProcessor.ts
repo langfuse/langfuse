@@ -18,6 +18,11 @@ interface TraceState {
   shallowEventIds: string[];
 }
 
+export interface OtelIngestionProcessorConfig {
+  projectId: string;
+  publicKey?: string;
+}
+
 interface CreateTraceEventParams {
   traceId: string;
   startTimeISO: string;
@@ -85,11 +90,13 @@ interface ResourceSpan {
 export class OtelIngestionProcessor {
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
+  private readonly projectId: string;
+  private readonly publicKey?: string;
 
-  constructor(
-    private readonly projectId: string,
-    private readonly publicKey?: string,
-  ) {}
+  constructor(config: OtelIngestionProcessorConfig) {
+    this.projectId = config.projectId;
+    this.publicKey = config.publicKey;
+  }
 
   /**
    * Process resource spans and convert them to Langfuse ingestion events.

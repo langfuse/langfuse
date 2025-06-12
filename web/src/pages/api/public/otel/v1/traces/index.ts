@@ -90,10 +90,10 @@ export default withMiddlewares({
       }
 
       // Create and process OTEL resource spans to ingestion events
-      const processor = new OtelIngestionProcessor(
-        auth.scope.projectId,
-        auth.scope.publicKey,
-      );
+      const processor = new OtelIngestionProcessor({
+        projectId: auth.scope.projectId,
+        publicKey: auth.scope.publicKey,
+      });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(resourceSpans);
 

@@ -8,7 +8,10 @@ async function convertOtelSpanToIngestionEvent(
   seenTraces: Set<string>,
   publicKey?: string,
 ) {
-  const processor = new OtelIngestionProcessor("test-project", publicKey);
+  const processor = new OtelIngestionProcessor({
+    projectId: "test-project",
+    publicKey,
+  });
   
   // For tests, we bypass Redis initialization and directly set the seen traces
   // This is safe because we're testing the conversion logic, not the Redis caching
@@ -2121,7 +2124,7 @@ describe("OTel Resource Span Mapping", () => {
 
   describe("Span Counting", () => {
     it("should count spans correctly across multiple resource spans", () => {
-      const processor = new OtelIngestionProcessor("test-project");
+      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
       
       const resourceSpans = [
         {
@@ -2143,21 +2146,21 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should handle empty resource spans", () => {
-      const processor = new OtelIngestionProcessor("test-project");
+      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
       
       const count = (processor as any).getTotalSpanCount([]);
       expect(count).toBe(0);
     });
 
     it("should handle null/undefined resource spans", () => {
-      const processor = new OtelIngestionProcessor("test-project");
+      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
       
       expect((processor as any).getTotalSpanCount(null)).toBe(0);
       expect((processor as any).getTotalSpanCount(undefined)).toBe(0);
     });
 
     it("should handle malformed resource spans", () => {
-      const processor = new OtelIngestionProcessor("test-project");
+      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
       
       const resourceSpans = [
         { scopeSpans: null },
@@ -2178,7 +2181,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should return 0 for non-array input", () => {
-      const processor = new OtelIngestionProcessor("test-project");
+      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
       
       expect((processor as any).getTotalSpanCount("not-an-array")).toBe(0);
       expect((processor as any).getTotalSpanCount({})).toBe(0);
@@ -2186,7 +2189,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should handle deeply nested null/undefined structures", () => {
-      const processor = new OtelIngestionProcessor("test-project");
+      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
       
       const resourceSpans = [
         null,
@@ -2205,7 +2208,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should return -1 and not throw on unexpected errors", () => {
-      const processor = new OtelIngestionProcessor("test-project");
+      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
       
       // Create a malicious object that throws when accessed
       const maliciousResourceSpan = {
