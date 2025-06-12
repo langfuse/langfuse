@@ -82,6 +82,22 @@ const formSchema = z.object({
   ),
 });
 
+const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
+  if (!value) return "";
+
+  if (typeof value === "string") {
+    try {
+      // Parse the string and re-stringify with proper formatting
+      const parsed = JSON.parse(value);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      // If it's not valid JSON, stringify the string itself
+      return JSON.stringify(value, null, 2);
+    }
+  }
+  return JSON.stringify(value, null, 2);
+};
+
 export const NewDatasetItemForm = (props: {
   projectId: string;
   traceId?: string;
@@ -100,9 +116,9 @@ export const NewDatasetItemForm = (props: {
     resolver: zodResolver(formSchema),
     defaultValues: {
       datasetIds: props.datasetId ? [props.datasetId] : [],
-      input: props.input ? JSON.stringify(props.input, null, 2) : "",
-      expectedOutput: props.output ? JSON.stringify(props.output, null, 2) : "",
-      metadata: props.metadata ? JSON.stringify(props.metadata, null, 2) : "",
+      input: formatJsonValue(props.input),
+      expectedOutput: formatJsonValue(props.output),
+      metadata: formatJsonValue(props.metadata),
     },
   });
 
