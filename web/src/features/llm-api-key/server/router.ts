@@ -444,8 +444,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           }
         }
 
-        console.log("extraHeaders to be saved", extraHeaders);
-
         const key = await ctx.prisma.llmApiKeys.update({
           where: { id: input.id },
           data: {
