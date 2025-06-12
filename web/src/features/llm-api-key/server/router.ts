@@ -320,21 +320,12 @@ export const llmApiKeyRouter = createTRPCRouter({
           },
         });
 
-        logger.info(`existingKey ${JSON.stringify(existingKey)}`);
-        logger.info(`input key ${input.secretKey}`);
-        logger.info(
-          `extra headers ${JSON.stringify(decryptAndParseExtraHeaders(existingKey?.extraHeaders))}`,
-        );
-
         if (!existingKey) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "API key not found",
           });
         }
-        logger.info(
-          `decrypted existing key ${decrypt(existingKey?.secretKey ?? "")}`,
-        );
 
         const decryptedSecretKey =
           input.secretKey !== undefined &&
@@ -342,8 +333,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           input.secretKey !== null
             ? input.secretKey
             : decrypt(existingKey.secretKey);
-
-        logger.info(`decrypted secret key ${decryptedSecretKey}`);
 
         // Merge existing key with provided input, giving priority to input
         const secretKey = decryptedSecretKey;
@@ -357,8 +346,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           (existingKey.extraHeaders
             ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
             : undefined);
-
-        logger.info(`extra headers ${JSON.stringify(extraHeaders)}`);
 
         return testLLMConnection({
           adapter,
@@ -456,6 +443,8 @@ export const llmApiKeyRouter = createTRPCRouter({
             extraHeaders = undefined;
           }
         }
+
+        console.log("extraHeaders to be saved", extraHeaders);
 
         const key = await ctx.prisma.llmApiKeys.update({
           where: { id: input.id },
