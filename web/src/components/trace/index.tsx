@@ -366,7 +366,7 @@ export function Trace(props: {
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
                         <span className="flex items-center">
-                          Min Level: {minObservationLevel as any}
+                          Min Level: {minObservationLevel}
                         </span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>

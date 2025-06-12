@@ -148,7 +148,7 @@ function getObservationLevels(minLevel: ObservationLevelType | undefined) {
 
   if (!minLevel) return ascendingLevels;
 
-  const minLevelIndex = ascendingLevels.indexOf(minLevel as any);
+  const minLevelIndex = ascendingLevels.indexOf(minLevel);
 
   return ascendingLevels.slice(minLevelIndex);
 }

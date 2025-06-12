@@ -555,9 +555,9 @@ export default function TracesTable({
 
         const counts: LevelCount[] = Object.entries(value).map(
           ([level, count]) => ({
-            level: formatAsLabel(level) as any,
+            level: formatAsLabel(level),
             count,
-            symbol: (LevelSymbols as any)[formatAsLabel(level) as any],
+            symbol: LevelSymbols[formatAsLabel(level)],
           }),
         );
 
@@ -782,11 +782,11 @@ export default function TracesTable({
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              (LevelColors as any)[value as any]?.bg,
-              (LevelColors as any)[value as any]?.text,
+              (LevelColors as any)[value]?.bg,
+              (LevelColors as any)[value]?.text,
             )}
           >
-            {value as any}
+            {value}
           </span>
         ) : (
           <span>-</span>

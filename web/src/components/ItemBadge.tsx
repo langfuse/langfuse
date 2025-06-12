@@ -82,11 +82,11 @@ export function ItemBadge({
   isSmall?: boolean;
   className?: string;
 }) {
-  const Icon = (iconMap as any)[type as any] || ListTree; // Default to ListTree if unknown type
+  const Icon = iconMap[type] || ListTree; // Default to ListTree if unknown type
 
   // Modify this line to ensure the icon is properly sized
   const iconClass = cn(
-    iconVariants({ type: type as any }),
+    iconVariants({ type }),
     isSmall ? "h-3 w-3" : "h-4 w-4",
     className,
   );

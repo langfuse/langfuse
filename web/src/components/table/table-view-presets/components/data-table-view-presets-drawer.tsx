@@ -137,11 +137,11 @@ export function TableViewPresetsDrawer({
   const [dropdownId, setDropdownId] = useState<string | null>(null);
 
   const selectedViewName = TableViewPresetsList?.find(
-    (view: any) => view.id === selectedViewId,
+    (view) => view.id === selectedViewId,
   )?.name;
 
   const allViewNames = useMemo(
-    () => TableViewPresetsList?.map((view: any) => ({ value: view.name })) ?? [],
+    () => TableViewPresetsList?.map((view) => ({ value: view.name })) ?? [],
     [TableViewPresetsList],
   );
 
@@ -340,7 +340,7 @@ export function TableViewPresetsDrawer({
               <CommandList>
                 <CommandEmpty>No saved table views found</CommandEmpty>
                 <CommandGroup className="pb-0">
-                  {TableViewPresetsList?.map((view: any) => (
+                  {TableViewPresetsList?.map((view) => (
                     <CommandItem
                       key={view.id}
                       onSelect={() => handleSelectView(view.id)}
@@ -519,7 +519,7 @@ export function TableViewPresetsDrawer({
                               {view.createdByUser?.name
                                 ? view.createdByUser?.name
                                     .split(" ")
-                                    .map((word: any) => word[0])
+                                    .map((word) => word[0])
                                     .slice(0, 2)
                                     .concat("")
                                 : null}

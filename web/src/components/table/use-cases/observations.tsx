@@ -404,11 +404,11 @@ export default function ObservationsTable({
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              (LevelColors as any)[value as any]?.bg,
-              (LevelColors as any)[value as any]?.text,
+              LevelColors[value]?.bg,
+              LevelColors[value]?.text,
             )}
           >
-            {value as any}
+            {value}
           </span>
         ) : undefined;
       },

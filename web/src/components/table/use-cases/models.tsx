@@ -263,7 +263,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       matchPattern: model.matchPattern,
       prices: model.prices,
       tokenizerId: model.tokenizerId ?? undefined,
-      config: model.tokenizerConfig as any,
+      config: model.tokenizerConfig,
       lastUsed: model.lastUsed,
       serverResponse: model,
     };
