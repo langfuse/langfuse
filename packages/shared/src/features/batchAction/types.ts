@@ -20,6 +20,8 @@ export type ActionId = z.infer<typeof ActionIdSchema>;
 export const BatchActionQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),
   orderBy,
+  searchQuery: z.string().optional(),
+  searchType: z.array(z.enum(["id", "content"])).optional(),
 });
 
 export type BatchActionQuery = z.infer<typeof BatchActionQuerySchema>;

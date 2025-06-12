@@ -149,6 +149,8 @@ export const handleBatchActionJob = async (
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
+            searchQuery: query.searchQuery ?? undefined,
+            searchType: query.searchType ?? [],
           })
         : await getDatabaseReadStream({
             projectId: projectId,
@@ -156,6 +158,8 @@ export const handleBatchActionJob = async (
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
             tableName: tableName,
+            searchQuery: query.searchQuery ?? undefined,
+            searchType: query.searchType ?? [],
           });
 
     // Process stream in database-sized batches
@@ -205,6 +209,8 @@ export const handleBatchActionJob = async (
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
+            searchQuery: query.searchQuery ?? undefined,
+            searchType: query.searchType,
             rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           }) // when reading from clickhouse, we only want to read the necessary identifiers.
         : await getDatabaseReadStream({
