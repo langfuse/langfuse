@@ -477,7 +477,7 @@ describe("OTel Resource Span Mapping", () => {
         environment: "production",
       });
     });
-    it("should return empty array if langfuse scope spans have wrong project ID", async () => {
+    it("should throw an error if langfuse scope spans have wrong project ID", async () => {
       const langfuseOtelSpans = [
         {
           resource: {
@@ -563,12 +563,11 @@ describe("OTel Resource Span Mapping", () => {
         },
       ];
 
-      const results = await Promise.all(langfuseOtelSpans.map(async (span) =>
-        await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
-      ));
-      
-      // Should return empty arrays when validation fails
-      expect(results).toEqual([[]]);
+      await expect(
+        Promise.all(langfuseOtelSpans.map(async (span) =>
+          await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+        ))
+      ).rejects.toThrowError("Langfuse OTEL SDK span has different public key");
     });
   });
 

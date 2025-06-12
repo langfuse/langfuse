@@ -94,7 +94,8 @@ export default withMiddlewares({
         auth.scope.projectId,
         auth.scope.publicKey,
       );
-      const events: IngestionEventType[] = await processor.processToIngestionEvents(resourceSpans);
+      const events: IngestionEventType[] =
+        await processor.processToIngestionEvents(resourceSpans);
 
       // We set a delay of 0 for OTel, as we never expect updates.
       // We also set the source to "otel" which helps us with metric tracking and skipping list calls for S3.

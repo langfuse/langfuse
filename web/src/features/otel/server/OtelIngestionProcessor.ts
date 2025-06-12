@@ -124,6 +124,8 @@ export class OtelIngestionProcessor {
       // Filter out redundant shallow trace events
       return this.filterRedundantShallowTraces(allEvents);
     } catch (error) {
+      if (error instanceof ForbiddenError) throw error;
+
       // Log error but don't throw to avoid breaking the ingestion pipeline
       logger.error("Error processing OTEL spans:", error);
       return [];
