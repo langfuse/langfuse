@@ -174,7 +174,7 @@ export const InnerEvaluatorForm = (props: {
           ["NEW", "EXISTING"].includes(option),
       ),
     },
-  }) as UseFormReturn<EvalFormType>; // TODO: Review
+  }) as UseFormReturn<EvalFormType>;
 
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
     { projectId: props.projectId },

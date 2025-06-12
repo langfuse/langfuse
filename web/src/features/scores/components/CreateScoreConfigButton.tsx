@@ -126,7 +126,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
       maxValue: undefined,
       name: "",
     },
-  }) as UseFormReturn<CreateConfig>; // TODO: Review
+  }) as UseFormReturn<CreateConfig>;
 
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,

@@ -91,7 +91,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     name: initialPrompt?.name ?? "",
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
     isActive: !Boolean(initialPrompt),
-    commitMessage: initialPrompt?.commitMessage ?? "",
+    commitMessage: initialPrompt?.commitMessage ?? undefined,
   };
 
   const form = useForm({
