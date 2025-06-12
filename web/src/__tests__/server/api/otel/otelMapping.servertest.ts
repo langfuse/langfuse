@@ -1,4 +1,3 @@
-import { convertNanoTimestampToISO } from "@/src/features/otel/server";
 import { OtelIngestionProcessor } from "@/src/features/otel/server/OtelIngestionProcessor";
 import { ingestionEvent } from "@langfuse/shared/src/server";
 
@@ -2142,8 +2141,8 @@ describe("OTel Resource Span Mapping", () => {
       const expectedEndTime = "2025-04-17T07:39:54.084Z";
 
       // Convert timestamps to ISO strings
-      const actualStartTime = convertNanoTimestampToISO(positiveTimestamp);
-      const actualEndTime = convertNanoTimestampToISO(negativeTimestamp);
+      const actualStartTime = OtelIngestionProcessor.convertNanoTimestampToISO(positiveTimestamp);
+      const actualEndTime = OtelIngestionProcessor.convertNanoTimestampToISO(negativeTimestamp);
 
       // Verify conversions match expected values
       expect(actualStartTime).toBe(expectedStartTime);
@@ -2154,7 +2153,7 @@ describe("OTel Resource Span Mapping", () => {
       // Test with string timestamp (nanoseconds)
       const stringTimestamp = "1744317592317227000"; // Same as positiveTimestamp above
       const expectedStringResult = "2025-04-10T20:39:52.317Z";
-      expect(convertNanoTimestampToISO(stringTimestamp)).toBe(
+      expect(OtelIngestionProcessor.convertNanoTimestampToISO(stringTimestamp)).toBe(
         expectedStringResult,
       );
 
@@ -2164,7 +2163,7 @@ describe("OTel Resource Span Mapping", () => {
         high: 0,
         unsigned: true,
       };
-      expect(convertNanoTimestampToISO(zeroTimestamp)).toBe(
+      expect(OtelIngestionProcessor.convertNanoTimestampToISO(zeroTimestamp)).toBe(
         "1970-01-01T00:00:00.000Z",
       );
     });

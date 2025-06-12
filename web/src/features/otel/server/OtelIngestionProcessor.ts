@@ -1,17 +1,51 @@
+import { randomUUID } from "crypto";
+
+import { ForbiddenError, ObservationLevel } from "@langfuse/shared";
 import {
   type TraceEventType,
   type IngestionEventType,
+  redis,
+  logger,
 } from "@langfuse/shared/src/server";
-import { randomUUID } from "crypto";
-import { ForbiddenError, ObservationLevel } from "@langfuse/shared";
+
 import { LangfuseOtelSpanAttributes } from "./attributes";
-import { getSeenTracesSet, convertNanoTimestampToISO } from "./index";
-import { logger } from "@langfuse/shared/src/server";
 
 // Type definitions for internal processor state
 interface TraceState {
   hasFullTrace: boolean;
   shallowEventIds: string[];
+}
+
+interface CreateTraceEventParams {
+  traceId: string;
+  startTimeISO: string;
+  attributes: Record<string, unknown>;
+  resourceAttributes: Record<string, unknown>;
+  resourceAttributeMetadata: Record<string, unknown>;
+  spanAttributesInMetadata: Record<string, unknown>;
+  scopeSpan: any;
+  scopeAttributes: Record<string, unknown>;
+  isLangfuseSDKSpans: boolean;
+  isRootSpan: boolean;
+  hasTraceUpdates: boolean;
+  parentObservationId: string | null;
+  span: any;
+}
+
+interface CreateObservationEventParams {
+  span: any;
+  traceId: string;
+  parentObservationId: string | null;
+  attributes: Record<string, unknown>;
+  resourceAttributes: Record<string, unknown>;
+  resourceAttributeMetadata: Record<string, unknown>;
+  spanAttributeMetadata: Record<string, unknown>;
+  spanAttributesInMetadata: Record<string, unknown>;
+  scopeSpan: any;
+  scopeAttributes: Record<string, unknown>;
+  isLangfuseSDKSpans: boolean;
+  startTimeISO: string;
+  endTimeISO: string;
 }
 
 interface ResourceSpan {
@@ -40,9 +74,9 @@ interface ResourceSpan {
 }
 
 /**
- * Processor class that encapsulates all logic for converting OpenTelemetry 
+ * Processor class that encapsulates all logic for converting OpenTelemetry
  * resource spans into Langfuse ingestion events.
- * 
+ *
  * Manages trace deduplication internally and provides a clean interface
  * for converting OTEL spans to Langfuse events.
  */
@@ -61,11 +95,14 @@ export class OtelIngestionProcessor {
    * Initializes seen traces from Redis automatically on first call.
    * Filters out shallow trace events if full trace events exist for the same traceId.
    */
-  async processToIngestionEvents(resourceSpans: ResourceSpan[]): Promise<IngestionEventType[]> {
+  async processToIngestionEvents(
+    resourceSpans: ResourceSpan[],
+  ): Promise<IngestionEventType[]> {
     try {
       // Lazy initialization - load seen traces from Redis if not already done
+      // Seen traces are traces that went through the ingestion pipeline within last 10 minutes
       if (!this.isInitialized) {
-        this.seenTraces = await getSeenTracesSet(resourceSpans, this.projectId);
+        this.seenTraces = await this.getSeenTracesSet(resourceSpans);
         this.isInitialized = true;
       }
 
@@ -88,7 +125,7 @@ export class OtelIngestionProcessor {
       return this.filterRedundantShallowTraces(allEvents);
     } catch (error) {
       // Log error but don't throw to avoid breaking the ingestion pipeline
-      logger.error('Error processing OTEL spans:', error);
+      logger.error("Error processing OTEL spans:", error);
       return [];
     }
   }
@@ -96,14 +133,18 @@ export class OtelIngestionProcessor {
   /**
    * Filter out shallow trace-create events if a full trace-create event exists for the same traceId.
    * Maintains optimal trace representation per traceId in the final event list.
-   * 
+   *
    * Performance: O(n) where n is the number of events
    */
-  private filterRedundantShallowTraces(events: IngestionEventType[]): IngestionEventType[] {
+  private filterRedundantShallowTraces(
+    events: IngestionEventType[],
+  ): IngestionEventType[] {
     if (events.length === 0) return events;
 
     // Fast path: if no trace-create events, return as-is
-    const hasTraceEvents = events.some(event => event.type === "trace-create");
+    const hasTraceEvents = events.some(
+      (event) => event.type === "trace-create",
+    );
     if (!hasTraceEvents) return events;
 
     // Track trace states by traceId - using simpler structure for better performance
@@ -113,14 +154,18 @@ export class OtelIngestionProcessor {
     for (const event of events) {
       if (event.type === "trace-create") {
         const traceId = event.body.id as string;
-        
+
         if (!traceStates.has(traceId)) {
-          traceStates.set(traceId, { hasFullTrace: false, shallowEventIds: [] });
+          // Initialize entry
+          traceStates.set(traceId, {
+            hasFullTrace: false,
+            shallowEventIds: [],
+          });
         }
 
         const traceState = traceStates.get(traceId)!;
         const isShallowTrace = this.isShallowTraceEvent(event.body);
-        
+
         if (isShallowTrace) {
           traceState.shallowEventIds.push(event.id);
         } else {
@@ -133,7 +178,7 @@ export class OtelIngestionProcessor {
     const eventIdsToExclude = new Set<string>();
     for (const traceState of traceStates.values()) {
       if (traceState.hasFullTrace && traceState.shallowEventIds.length > 0) {
-        traceState.shallowEventIds.forEach(id => eventIdsToExclude.add(id));
+        traceState.shallowEventIds.forEach((id) => eventIdsToExclude.add(id));
       }
     }
 
@@ -141,7 +186,7 @@ export class OtelIngestionProcessor {
     if (eventIdsToExclude.size === 0) return events;
 
     // Filter out redundant shallow traces
-    return events.filter(event => !eventIdsToExclude.has(event.id));
+    return events.filter((event) => !eventIdsToExclude.has(event.id));
   }
 
   /**
@@ -151,13 +196,21 @@ export class OtelIngestionProcessor {
    */
   private isShallowTraceEvent(traceBody: TraceEventType["body"]): boolean {
     // Define minimal fields that shallow traces have
-    const SHALLOW_TRACE_FIELDS = new Set(['id', 'timestamp', 'environment']);
-    
+    const SHALLOW_TRACE_FIELDS = new Set(["id", "timestamp", "environment"]);
+
     // Check for presence of any full trace indicators
     // These fields indicate a full trace with meaningful trace-level data
     const FULL_TRACE_INDICATORS = [
-      'name', 'metadata', 'userId', 'sessionId', 'public', 'tags',
-      'version', 'release', 'input', 'output'
+      "name",
+      "metadata",
+      "userId",
+      "sessionId",
+      "public",
+      "tags",
+      "version",
+      "release",
+      "input",
+      "output",
     ] as const;
 
     // Fast path: check for any full trace indicators with meaningful values
@@ -169,34 +222,39 @@ export class OtelIngestionProcessor {
     }
 
     // If no full trace indicators, verify it has the basic shallow fields
-    return SHALLOW_TRACE_FIELDS.has('id') && 
-           this.hasMeaningfulValue(traceBody.id) &&
-           this.hasMeaningfulValue(traceBody.timestamp) &&
-           this.hasMeaningfulValue(traceBody.environment);
+    return (
+      SHALLOW_TRACE_FIELDS.has("id") &&
+      this.hasMeaningfulValue(traceBody.id) &&
+      this.hasMeaningfulValue(traceBody.timestamp) &&
+      this.hasMeaningfulValue(traceBody.environment)
+    );
   }
 
   /**
    * Check if a value is meaningful (not null, undefined, empty string, or empty object/array)
    */
   private hasMeaningfulValue(value: unknown): boolean {
-    if (value === null || value === undefined || value === '') {
+    if (value === null || value === undefined || value === "") {
       return false;
     }
     if (Array.isArray(value)) {
       return value.length > 0;
     }
-    if (typeof value === 'object' && value !== null) {
+    if (typeof value === "object" && value !== null) {
       return Object.keys(value).length > 0;
     }
     return true;
   }
 
-  private processResourceSpan(resourceSpan: ResourceSpan): IngestionEventType[] {
+  private processResourceSpan(
+    resourceSpan: ResourceSpan,
+  ): IngestionEventType[] {
     const resourceAttributes = this.extractResourceAttributes(resourceSpan);
     const events: IngestionEventType[] = [];
 
     for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
-      const isLangfuseSDKSpans = scopeSpan.scope?.name.startsWith("langfuse-sdk");
+      const isLangfuseSDKSpans =
+        scopeSpan.scope?.name.startsWith("langfuse-sdk") ?? false;
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
       this.validatePublicKey(isLangfuseSDKSpans, scopeAttributes);
@@ -225,18 +283,33 @@ export class OtelIngestionProcessor {
   ): IngestionEventType[] {
     const events: IngestionEventType[] = [];
     const attributes = this.extractSpanAttributes(span);
-    
-    const traceId = Buffer.from(span.traceId?.data ?? span.traceId).toString("hex");
+
+    const traceId = Buffer.from(span.traceId?.data ?? span.traceId).toString(
+      "hex",
+    );
     const parentObservationId = span?.parentSpanId
-      ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString("hex")
+      ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
+          "hex",
+        )
       : null;
 
-    const spanAttributeMetadata = this.extractMetadata(attributes, "observation");
-    const resourceAttributeMetadata = this.extractMetadata(resourceAttributes, "trace");
-    const startTimeISO = convertNanoTimestampToISO(span.startTimeUnixNano);
-    const endTimeISO = convertNanoTimestampToISO(span.endTimeUnixNano);
-    
-    const isRootSpan = !parentObservationId || 
+    const spanAttributeMetadata = this.extractMetadata(
+      attributes,
+      "observation",
+    );
+    const resourceAttributeMetadata = this.extractMetadata(
+      resourceAttributes,
+      "trace",
+    );
+    const startTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
+      span.startTimeUnixNano,
+    );
+    const endTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
+      span.endTimeUnixNano,
+    );
+
+    const isRootSpan =
+      !parentObservationId ||
       String(attributes[LangfuseOtelSpanAttributes.AS_ROOT]) === "true";
 
     const spanAttributesInMetadata = Object.fromEntries(
@@ -250,7 +323,7 @@ export class OtelIngestionProcessor {
 
     // Handle trace creation logic with internal seen traces management
     if (isRootSpan || hasTraceUpdates || !this.seenTraces.has(traceId)) {
-      const traceEvent = this.createTraceEvent(
+      const traceEvent = this.createTraceEvent({
         traceId,
         startTimeISO,
         attributes,
@@ -264,7 +337,7 @@ export class OtelIngestionProcessor {
         hasTraceUpdates,
         parentObservationId,
         span,
-      );
+      });
       events.push(traceEvent);
 
       // Update internal seen traces cache
@@ -272,7 +345,7 @@ export class OtelIngestionProcessor {
     }
 
     // Create observation event
-    const observationEvent = this.createObservationEvent(
+    const observationEvent = this.createObservationEvent({
       span,
       traceId,
       parentObservationId,
@@ -286,27 +359,29 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       startTimeISO,
       endTimeISO,
-    );
+    });
     events.push(observationEvent);
 
     return events;
   }
 
-  private createTraceEvent(
-    traceId: string,
-    startTimeISO: string,
-    attributes: Record<string, unknown>,
-    resourceAttributes: Record<string, unknown>,
-    resourceAttributeMetadata: Record<string, unknown>,
-    spanAttributesInMetadata: Record<string, unknown>,
-    scopeSpan: any,
-    scopeAttributes: Record<string, unknown>,
-    isLangfuseSDKSpans: boolean,
-    isRootSpan: boolean,
-    hasTraceUpdates: boolean,
-    parentObservationId: string | null,
-    span: any,
-  ): IngestionEventType {
+  private createTraceEvent(params: CreateTraceEventParams): IngestionEventType {
+    const {
+      traceId,
+      startTimeISO,
+      attributes,
+      resourceAttributes,
+      resourceAttributeMetadata,
+      spanAttributesInMetadata,
+      scopeSpan,
+      scopeAttributes,
+      isLangfuseSDKSpans,
+      isRootSpan,
+      hasTraceUpdates,
+      parentObservationId,
+      span,
+    } = params;
+
     // Create shallow trace for new traces without root span or trace updates
     let trace: TraceEventType["body"] = {
       id: traceId,
@@ -319,24 +394,28 @@ export class OtelIngestionProcessor {
       trace = {
         ...trace,
         name:
-          attributes[LangfuseOtelSpanAttributes.TRACE_NAME] ??
-          (!parentObservationId ? this.extractName(span.name, attributes) : undefined),
+          (attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string) ??
+          (!parentObservationId
+            ? this.extractName(span.name, attributes)
+            : undefined),
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
-          ...(isLangfuseSDKSpans ? {} : { attributes: spanAttributesInMetadata }),
+          ...(isLangfuseSDKSpans
+            ? {}
+            : { attributes: spanAttributesInMetadata }),
           resourceAttributes,
           scope: {
             ...(scopeSpan.scope || {}),
             attributes: scopeAttributes,
           },
-        },
+        } as Record<string, string | Record<string, string | number>>,
         version:
-          attributes?.[LangfuseOtelSpanAttributes.VERSION] ??
+          (attributes?.[LangfuseOtelSpanAttributes.VERSION] as string) ??
           resourceAttributes?.["service.version"] ??
           null,
         release:
-          attributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+          (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
         userId: this.extractUserId(attributes),
@@ -361,20 +440,24 @@ export class OtelIngestionProcessor {
   }
 
   private createObservationEvent(
-    span: any,
-    traceId: string,
-    parentObservationId: string | null,
-    attributes: Record<string, unknown>,
-    resourceAttributes: Record<string, unknown>,
-    resourceAttributeMetadata: Record<string, unknown>,
-    spanAttributeMetadata: Record<string, unknown>,
-    spanAttributesInMetadata: Record<string, unknown>,
-    scopeSpan: any,
-    scopeAttributes: Record<string, unknown>,
-    isLangfuseSDKSpans: boolean,
-    startTimeISO: string,
-    endTimeISO: string,
+    params: CreateObservationEventParams,
   ): IngestionEventType {
+    const {
+      span,
+      traceId,
+      parentObservationId,
+      attributes,
+      resourceAttributes,
+      resourceAttributeMetadata,
+      spanAttributeMetadata,
+      spanAttributesInMetadata,
+      scopeSpan,
+      scopeAttributes,
+      isLangfuseSDKSpans,
+      startTimeISO,
+      endTimeISO,
+    } = params;
+
     const observation = {
       id: Buffer.from(span.spanId?.data ?? span.spanId).toString("hex"),
       traceId,
@@ -393,7 +476,9 @@ export class OtelIngestionProcessor {
       },
       level:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
-        (span.status?.code === 2 ? ObservationLevel.ERROR : ObservationLevel.DEFAULT),
+        (span.status?.code === 2
+          ? ObservationLevel.ERROR
+          : ObservationLevel.DEFAULT),
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
         span.status?.message ??
@@ -412,13 +497,20 @@ export class OtelIngestionProcessor {
         attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION] ??
         attributes["langfuse.prompt.version"] ??
         null,
-      usageDetails: this.extractUsageDetails(attributes, isLangfuseSDKSpans) as any,
-      costDetails: this.extractCostDetails(attributes, isLangfuseSDKSpans) as any,
+      usageDetails: this.extractUsageDetails(
+        attributes,
+        isLangfuseSDKSpans,
+      ) as any,
+      costDetails: this.extractCostDetails(
+        attributes,
+        isLangfuseSDKSpans,
+      ) as any,
       ...this.extractInputAndOutput(span?.events ?? [], attributes),
     };
 
     const isGeneration =
-      attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] === "generation" ||
+      attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] ===
+        "generation" ||
       Boolean(observation.model) ||
       ("openinference.span.kind" in attributes &&
         attributes["openinference.span.kind"] === "LLM");
@@ -428,10 +520,14 @@ export class OtelIngestionProcessor {
 
     return {
       id: randomUUID(),
-      type: isGeneration ? "generation-create" : isEvent ? "event-create" : "span-create",
+      type: isGeneration
+        ? "generation-create"
+        : isEvent
+          ? "event-create"
+          : "span-create",
       timestamp: new Date().toISOString(),
       body: observation,
-    };
+    } as unknown as IngestionEventType;
   }
 
   private validatePublicKey(
@@ -462,7 +558,9 @@ export class OtelIngestionProcessor {
     ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
   }
 
-  private extractResourceAttributes(resourceSpan: any): Record<string, unknown> {
+  private extractResourceAttributes(
+    resourceSpan: any,
+  ): Record<string, unknown> {
     return (
       resourceSpan?.resource?.attributes?.reduce((acc: any, attr: any) => {
         acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
@@ -500,7 +598,9 @@ export class OtelIngestionProcessor {
       return value.boolValue;
     }
     if (value.arrayValue && value.arrayValue.values !== undefined) {
-      return value.arrayValue.values.map((v: any) => this.convertValueToPlainJavascript(v));
+      return value.arrayValue.values.map((v: any) =>
+        this.convertValueToPlainJavascript(v),
+      );
     }
     if (value.intValue && value.intValue.high === 0) {
       return value.intValue.low;
@@ -531,7 +631,7 @@ export class OtelIngestionProcessor {
 
     const keys = Object.keys(input).map((key) => key.replace(`${prefix}.`, ""));
     const useArray = keys.some((key) => key.match(/^\d+\./));
-    
+
     if (useArray) {
       const result: any[] = [];
       for (const key of keys) {
@@ -591,7 +691,9 @@ export class OtelIngestionProcessor {
           ? inputEvents.map((event: any) => {
               const eventAttributes =
                 event.attributes?.reduce((acc: any, attr: any) => {
-                  acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+                  acc[attr.key] = this.convertValueToPlainJavascript(
+                    attr.value,
+                  );
                   return acc;
                 }, {}) ?? {};
 
@@ -607,7 +709,9 @@ export class OtelIngestionProcessor {
           ? outputEvents.map((event: any) => {
               const eventAttributes =
                 event.attributes?.reduce((acc: any, attr: any) => {
-                  acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+                  acc[attr.key] = this.convertValueToPlainJavascript(
+                    attr.value,
+                  );
                   return acc;
                 }, {}) ?? {};
 
@@ -626,7 +730,8 @@ export class OtelIngestionProcessor {
 
     // Legacy semantic kernel event definitions
     input = events.find(
-      (event: Record<string, unknown>) => event.name === "gen_ai.content.prompt",
+      (event: Record<string, unknown>) =>
+        event.name === "gen_ai.content.prompt",
     )?.attributes;
 
     output = events.find(
@@ -645,7 +750,7 @@ export class OtelIngestionProcessor {
           acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
           return acc;
         }, {}) ?? {};
-      
+
       const { input: eventInput } = this.extractInputAndOutput([], input);
       const { output: eventOutput } = this.extractInputAndOutput([], output);
       return { input: eventInput || input, output: eventOutput || output };
@@ -826,7 +931,9 @@ export class OtelIngestionProcessor {
     };
   }
 
-  private extractUserId(attributes: Record<string, unknown>): string | undefined {
+  private extractUserId(
+    attributes: Record<string, unknown>,
+  ): string | undefined {
     const userIdKeys = ["langfuse.user.id", "user.id"];
 
     for (const key of userIdKeys) {
@@ -838,7 +945,9 @@ export class OtelIngestionProcessor {
     }
   }
 
-  private extractSessionId(attributes: Record<string, unknown>): string | undefined {
+  private extractSessionId(
+    attributes: Record<string, unknown>,
+  ): string | undefined {
     const userIdKeys = ["langfuse.session.id", "session.id"];
 
     for (const key of userIdKeys) {
@@ -856,7 +965,9 @@ export class OtelIngestionProcessor {
     if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS]) {
       try {
         return JSON.parse(
-          attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS] as string,
+          attributes[
+            LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
+          ] as string,
         );
       } catch {}
     }
@@ -890,7 +1001,9 @@ export class OtelIngestionProcessor {
     }, {});
   }
 
-  private extractModelName(attributes: Record<string, unknown>): string | undefined {
+  private extractModelName(
+    attributes: Record<string, unknown>,
+  ): string | undefined {
     const modelNameKeys = [
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
       "gen_ai.request.model",
@@ -914,7 +1027,9 @@ export class OtelIngestionProcessor {
     if (isLangfuseSDKSpan) {
       try {
         return JSON.parse(
-          attributes[LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS] as string,
+          attributes[
+            LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS
+          ] as string,
         );
       } catch {}
     }
@@ -956,7 +1071,9 @@ export class OtelIngestionProcessor {
     if (isLangfuseSDKSpan) {
       try {
         return JSON.parse(
-          attributes[LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS] as string,
+          attributes[
+            LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS
+          ] as string,
         );
       } catch {}
     }
@@ -970,7 +1087,9 @@ export class OtelIngestionProcessor {
   private extractCompletionStartTime(attributes: Record<string, unknown>) {
     try {
       return JSON.parse(
-        attributes[LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME] as string,
+        attributes[
+          LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
+        ] as string,
       );
     } catch {}
 
@@ -1010,5 +1129,90 @@ export class OtelIngestionProcessor {
     }
 
     return [];
+  }
+
+  /**
+   * Get a set of trace IDs that have been seen recently (from Redis cache).
+   * Returns a Set of trace IDs that should not trigger new trace creation.
+   */
+  private async getSeenTracesSet(resourceSpans: unknown): Promise<Set<string>> {
+    if (!redis) {
+      logger.warn("Redis client not available");
+      return new Set();
+    }
+
+    const traceIds: Set<string> = new Set();
+    if (Array.isArray(resourceSpans)) {
+      resourceSpans.forEach((resourceSpan) => {
+        for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+          for (const span of scopeSpan?.spans ?? []) {
+            traceIds.add(
+              Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
+            );
+          }
+        }
+      });
+    }
+
+    const results = await Promise.all(
+      [...traceIds].map(async (traceId) => {
+        const key = `langfuse:project:${this.projectId}:trace:${traceId}:seen`;
+        const TTLSeconds = 600; // 10 minutes
+        const result = await redis?.call(
+          "SET",
+          key,
+          "1",
+          "NX",
+          "EX",
+          TTLSeconds,
+        );
+
+        return {
+          traceId: traceId,
+          wasSeen: result !== "OK", // Redis returns "OK" if key did not exist, i.e. trace was NOT seen in last TTL seconds
+        };
+      }),
+    );
+
+    const seenTraceIds: Set<string> = new Set();
+    results.forEach((r) => {
+      if (r.wasSeen) {
+        seenTraceIds.add(r.traceId);
+      }
+    });
+
+    return seenTraceIds;
+  }
+
+  /**
+   * Convert OpenTelemetry nano timestamp to ISO string.
+   * Handles various timestamp formats: string, number, or object with high/low bits.
+   */
+  public static convertNanoTimestampToISO(
+    timestamp:
+      | number
+      | string
+      | {
+          high: number;
+          low: number;
+        },
+  ): string {
+    if (typeof timestamp === "string") {
+      return new Date(Number(BigInt(timestamp) / BigInt(1e6))).toISOString();
+    }
+    if (typeof timestamp === "number") {
+      return new Date(timestamp / 1e6).toISOString();
+    }
+
+    // Convert high and low to BigInt
+    const highBits = BigInt(timestamp.high) << BigInt(32);
+    const lowBits = BigInt(timestamp.low >>> 0);
+
+    // Combine high and low bits
+    const nanosBigInt = highBits | lowBits;
+
+    // Convert nanoseconds to milliseconds for JavaScript Date
+    const millisBigInt = nanosBigInt / BigInt(1000000);
+    return new Date(Number(millisBigInt)).toISOString();
   }
 }
