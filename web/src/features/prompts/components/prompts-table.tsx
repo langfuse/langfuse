@@ -89,15 +89,18 @@ export function PromptTable() {
     column: "createdAt",
     order: "DESC",
   });
-  const [paginationState, setPaginationState] = useQueryParams({
+  const [queryParams, setQueryParams] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
-  });
-  const [folderPathParam, setFolderPathParam] = useQueryParams({
     folder: StringParam,
   });
 
-  const currentFolderPath = folderPathParam.folder || '';
+  const paginationState = {
+    pageIndex: queryParams.pageIndex,
+    pageSize: queryParams.pageSize,
+  };
+  
+  const currentFolderPath = queryParams.folder || '';
 
   const prompts = api.prompts.all.useQuery(
     {
@@ -153,7 +156,7 @@ export function PromptTable() {
   const processedRowData = useMemo(() => {
     if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
 
-    const folderGroups = new Map<string, typeof promptsRowData.rows>();
+    const uniqueFolders = new Set<string>();
     const matchingPrompts: typeof promptsRowData.rows = [];
 
     // Identify immediate subfolders from backend-filtered prompts
@@ -170,12 +173,7 @@ export function PromptTable() {
             // Subfolder
             const subFolderName = remainingPath.substring(0, slashIndex);
             const fullSubFolderPath = `${currentFolderPath}/${subFolderName}`;
-
-            if (!folderGroups.has(fullSubFolderPath)) {
-              folderGroups.set(fullSubFolderPath, []);
-            }
-            const folderArray = folderGroups.get(fullSubFolderPath);
-            if (folderArray) folderArray.push(prompt);
+            uniqueFolders.add(fullSubFolderPath);
           } else {
             // Direct prompt in current folder
             matchingPrompts.push(prompt);
@@ -186,11 +184,7 @@ export function PromptTable() {
         const slashIndex = promptName.indexOf('/');
         if (slashIndex > 0) {
           const folderName = promptName.substring(0, slashIndex);
-          if (!folderGroups.has(folderName)) {
-            folderGroups.set(folderName, []);
-          }
-          const folderArray = folderGroups.get(folderName);
-          if (folderArray) folderArray.push(prompt);
+          uniqueFolders.add(folderName);
         } else {
           matchingPrompts.push(prompt);
         }
@@ -201,7 +195,7 @@ export function PromptTable() {
     const combinedRows: PromptTableRow[] = [];
 
     // Add folder rows
-    for (const [folderPath] of folderGroups) {
+    for (const folderPath of uniqueFolders) {
       const folderName = getDisplayName(folderPath, currentFolderPath);
       combinedRows.push(createRow({
         id: folderPath,
@@ -279,8 +273,11 @@ export function PromptTable() {
             <div
               className="flex cursor-pointer items-center gap-2 font-medium hover:underline"
               onClick={() => {
-                setFolderPathParam({ folder: rowData.id });
-                setPaginationState({ pageIndex: 0 });
+                setQueryParams({ 
+                  folder: rowData.id,
+                  pageIndex: 0,
+                  pageSize: queryParams.pageSize 
+                });
               }}
               title={rowData.id}
             >
@@ -335,9 +332,9 @@ export function PromptTable() {
         if (isFolder(row.row.original)) return null;
 
         const numberOfObservations = row.getValue();
-        const name = row.row.original.name;
+        const promptId = row.row.original.id;
         const filter = encodeURIComponent(
-          `promptName;stringOptions;;any of;${name}`,
+          `promptName;stringOptions;;any of;${promptId}`,
         );
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
@@ -359,13 +356,13 @@ export function PromptTable() {
         if (isFolder(row.row.original)) return null;
 
         const tags = row.getValue();
-        const promptName = row.row.original.name;
+        const promptId = row.row.original.id;
         return (
           <TagPromptPopover
             tags={tags ?? []}
             availableTags={allTags}
             projectId={projectId as string}
-            promptName={promptName}
+            promptName={promptId}
             promptsFilter={{
               ...filterOptionTags,
               projectId: projectId as string,
@@ -384,8 +381,8 @@ export function PromptTable() {
       cell: (row) => {
         if (isFolder(row.row.original)) return null;
 
-        const name = row.row.original.name;
-        return <DeletePrompt promptName={name} />;
+        const promptId = row.row.original.id;
+        return <DeletePrompt promptName={promptId} />;
       },
     }),
   ] as LangfuseColumnDef<PromptTableRow>[];
@@ -400,8 +397,11 @@ export function PromptTable() {
                 <BreadcrumbLink
                   className="cursor-pointer hover:underline"
                   onClick={() => {
-                    setFolderPathParam({ folder: undefined });
-                    setPaginationState({ pageIndex: 0 });
+                    setQueryParams({ 
+                      folder: undefined,
+                      pageIndex: 0,
+                      pageSize: queryParams.pageSize 
+                    });
                   }}
                 >
                   <Home className="h-4 w-4" />
@@ -420,8 +420,11 @@ export function PromptTable() {
                     <BreadcrumbLink
                       className="cursor-pointer hover:underline"
                       onClick={() => {
-                        setFolderPathParam({ folder: item.folderPath });
-                        setPaginationState({ pageIndex: 0 });
+                        setQueryParams({ 
+                          folder: item.folderPath,
+                          pageIndex: 0,
+                          pageSize: queryParams.pageSize 
+                        });
                       }}
                     >
                       {item.name}
@@ -476,7 +479,12 @@ export function PromptTable() {
         setOrderBy={setOrderByState}
         pagination={{
           totalCount,
-          onChange: setPaginationState,
+          onChange: (newPaginationState) => {
+            setQueryParams({
+              ...queryParams,
+              ...newPaginationState,
+            });
+          },
           state: paginationState,
         }}
       />
