@@ -696,6 +696,69 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(fetchedPrompt.body.config).toEqual({});
     });
 
+    describe("prompt name validation", () => {
+      const testInvalidName = async (name: string, expectedError: string) => {
+        const response = await makeAPICall("POST", baseURI, {
+          name,
+          prompt: "test prompt",
+          type: "text",
+        });
+        expect(response.status).toBe(400);
+        expect(response.body).toMatchObject({
+          error: "InvalidRequestError",
+          message: expect.stringContaining(expectedError),
+        });
+      };
+
+      const testValidName = async (name: string) => {
+        const response = await makeAPICall("POST", baseURI, {
+          name,
+          prompt: "test prompt",
+          type: "text",
+        });
+        expect(response.status).toBe(201);
+        await prisma.prompt.deleteMany({
+          where: { name, projectId },
+        });
+      };
+
+      it("should reject invalid prompt names", async () => {
+        // Test invalid patterns
+        await testInvalidName("/invalid-name", "cannot start with a slash");
+        await testInvalidName("invalid-name/", "cannot end with a slash");
+        await testInvalidName("invalid//name", "cannot contain consecutive slashes");
+        await testInvalidName("invalid|name", "cannot contain '|' character");
+        await testInvalidName("new", "cannot be 'new'");
+        await testInvalidName("", "Enter a name");
+
+        // Test special characters
+        const invalidChars = ["@", "#", "$", "%", "&", "*", "(", ")", "[", "]", "{", "}", "<", ">", "?", "\\", "\"", "'", " "];
+        for (const char of invalidChars) {
+          await testInvalidName(`name${char}test`, "alphanumeric");
+        }
+      });
+
+      it("should accept valid prompt names", async () => {
+        const validNames = [
+          "simple-name",
+          "name_with_underscores",
+          "name.with.dots",
+          "UPPERCASE",
+          "folder/subfolder/name",
+          "name-with-123-numbers",
+          "_starting_with_underscore",
+          "ending_with_underscore_",
+          "multiple___underscores",
+          "multiple---hyphens",
+          "multiple...dots",
+        ];
+
+        for (const name of validNames) {
+          await testValidName(name);
+        }
+      });
+    });
+
     it("should update tags across versions", async () => {
       const promptName = "prompt-name" + nanoid();
 
@@ -759,6 +822,37 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(fetchedPrompt3.version).toBe(3);
       expect(fetchedPrompt4.tags).toEqual([]);
       expect(fetchedPrompt4.version).toBe(4);
+    });
+
+    it("should create and fetch a test prompt with slashes in the name", async () => {
+      const promptName = "this/is/a/prompt/with/a/slash" + nanoid();
+
+      const response = await makeAPICall("POST", baseURI, {
+        name: promptName,
+        prompt: "This is a prompt in a folder structure",
+        type: "text",
+        labels: ["production"],
+        commitMessage: "chore: setup folder structure prompt",
+      });
+
+      expect(response.status).toBe(201);
+
+      const { body: fetchedPrompt } = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(promptName)}`,
+        undefined,
+      );
+
+      const validatedPrompt = validatePrompt(fetchedPrompt);
+      // expect(fetchedPrompt.status).toBe(200);
+      // if (!isPrompt(fetchedPrompt.body)) {
+      //   throw new Error("Expected body to be a prompt");
+      // }
+
+      // Verify the name with slashes is preserved
+      expect(validatedPrompt.name).toBe(promptName);
+      expect(validatedPrompt.name).toContain("/");
+      expect(validatedPrompt.prompt).toBe("This is a prompt in a folder structure");
     });
   });
 
