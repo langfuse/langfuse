@@ -32,8 +32,13 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
       (o) => o.id === currentObservationId,
     )?.node;
 
-    setSelectedNodeName(nodeName ?? null);
-  }, [currentObservationId, agentGraphData]);
+    // Only set selectedNodeName if the node actually exists in the graph
+    if (nodeName && graph.nodes.includes(nodeName)) {
+      setSelectedNodeName(nodeName);
+    } else {
+      setSelectedNodeName(null);
+    }
+  }, [currentObservationId, agentGraphData, graph.nodes]);
 
   const onCanvasNodeNameChange = useCallback(
     (nodeName: string | null) => {
@@ -106,7 +111,9 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
     }
   });
 
-  const nodes = [...nodeToParentObservationMap.keys()];
+  const nodes = [
+    ...new Set([...stepToNodeMap.values(), LANGGRAPH_END_NODE_NAME]),
+  ];
   const edges = [...stepToNodeMap.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([_, node], idx, arr) => ({
