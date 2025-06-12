@@ -256,6 +256,11 @@ export const CreateExperimentsForm = ({
       model: modelParams.model.value,
       modelParams: getFinalModelParams(modelParams),
     });
+
+    // Clear errors when valid values are set
+    if (modelParams.provider.value && modelParams.model.value) {
+      form.clearErrors("modelConfig");
+    }
   }, [modelParams, form]);
 
   const onSubmit = async (data: CreateExperiment) => {
@@ -295,7 +300,7 @@ export const CreateExperimentsForm = ({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <Card className="flex flex-1 flex-col">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
