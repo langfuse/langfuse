@@ -34,41 +34,51 @@ import { type useUiCustomization } from "@/src/ee/features/ui-customization/useU
 import { DialogFooter } from "@/src/components/ui/dialog";
 import { DialogBody } from "@/src/components/ui/dialog";
 
-const formSchema = z
-  .object({
-    secretKey: z.string().optional(),
-    provider: z
-      .string()
-      .min(1, "Please add a provider name that identifies this connection."),
-    adapter: z.nativeEnum(LLMAdapter),
-    baseURL: z.union([z.literal(""), z.string().url()]),
-    withDefaultModels: z.boolean(),
-    customModels: z.array(z.object({ value: z.string().min(1) })),
-    awsAccessKeyId: z.string().optional(),
-    awsSecretAccessKey: z.string().optional(),
-    awsRegion: z.string().optional(),
-    extraHeaders: z.array(
-      z.object({ key: z.string().min(1), value: z.string().min(1) }),
-    ),
-  })
-  .refine((data) => data.withDefaultModels || data.customModels.length > 0, {
-    message:
-      "At least one custom model name is required when default models are disabled.",
-    path: ["withDefaultModels"],
-  })
-  .refine(
-    (data) =>
-      data.adapter !== LLMAdapter.Bedrock ||
-      (data.awsAccessKeyId && data.awsSecretAccessKey && data.awsRegion),
-    {
-      message: "AWS credentials are required when using Bedrock adapter.",
-      path: ["adapter"],
-    },
-  )
-  .refine((data) => data.adapter === LLMAdapter.Bedrock || data.secretKey, {
-    message: "Secret key is required.",
-    path: ["secretKey"],
-  });
+const createFormSchema = (mode: "create" | "update") =>
+  z
+    .object({
+      secretKey: z.string().optional(),
+      provider: z
+        .string()
+        .min(1, "Please add a provider name that identifies this connection."),
+      adapter: z.nativeEnum(LLMAdapter),
+      baseURL: z.union([z.literal(""), z.string().url()]),
+      withDefaultModels: z.boolean(),
+      customModels: z.array(z.object({ value: z.string().min(1) })),
+      awsAccessKeyId: z.string().optional(),
+      awsSecretAccessKey: z.string().optional(),
+      awsRegion: z.string().optional(),
+      extraHeaders: z.array(
+        z.object({
+          key: z.string().min(1),
+          value: mode === "create" ? z.string().min(1) : z.string().optional(),
+        }),
+      ),
+    })
+    .refine((data) => data.withDefaultModels || data.customModels.length > 0, {
+      message:
+        "At least one custom model name is required when default models are disabled.",
+      path: ["withDefaultModels"],
+    })
+    .refine(
+      (data) =>
+        data.adapter !== LLMAdapter.Bedrock ||
+        (data.awsAccessKeyId && data.awsSecretAccessKey && data.awsRegion),
+      {
+        message: "AWS credentials are required when using Bedrock adapter.",
+        path: ["adapter"],
+      },
+    )
+    .refine(
+      (data) =>
+        data.adapter === LLMAdapter.Bedrock ||
+        mode === "update" ||
+        data.secretKey,
+      {
+        message: "Secret key is required.",
+        path: ["secretKey"],
+      },
+    );
 
 interface CreateLLMApiKeyFormProps {
   projectId?: string;
@@ -104,6 +114,7 @@ export function CreateLLMApiKeyForm({
   });
 
   const mutTestLLMApiKey = api.llmApiKey.test.useMutation();
+  const mutTestUpdateLLMApiKey = api.llmApiKey.testUpdate.useMutation();
 
   const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
     ? LLMAdapter[customization.defaultModelAdapter]
@@ -124,6 +135,8 @@ export function CreateLLMApiKeyForm({
     }
   };
 
+  const formSchema = createFormSchema(mode);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues:
@@ -131,7 +144,7 @@ export function CreateLLMApiKeyForm({
         ? {
             adapter: existingKey.adapter as LLMAdapter,
             provider: existingKey.provider,
-            secretKey: existingKey.displaySecretKey ?? "",
+            secretKey: "",
             baseURL:
               existingKey.baseURL ??
               getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
@@ -217,7 +230,7 @@ export function CreateLLMApiKeyForm({
       values.extraHeaders.length > 0
         ? values.extraHeaders.reduce(
             (acc, header) => {
-              acc[header.key] = header.value;
+              acc[header.key] = header.value ?? "";
               return acc;
             },
             {} as Record<string, string>,
@@ -240,7 +253,10 @@ export function CreateLLMApiKeyForm({
     };
 
     try {
-      const testResult = await mutTestLLMApiKey.mutateAsync(newKey);
+      const testResult =
+        mode === "create"
+          ? await mutTestLLMApiKey.mutateAsync(newKey)
+          : await mutTestUpdateLLMApiKey.mutateAsync(newKey);
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
@@ -455,7 +471,14 @@ export function CreateLLMApiKeyForm({
                     </FormDescription>
                   )}
                   <FormControl>
-                    <Input {...field} />
+                    <Input
+                      {...field}
+                      placeholder={
+                        mode === "update"
+                          ? existingKey?.displaySecretKey
+                          : undefined
+                      }
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -486,7 +509,13 @@ export function CreateLLMApiKeyForm({
                       />
                       <Input
                         {...form.register(`extraHeaders.${index}.value`)}
-                        placeholder="Header value"
+                        placeholder={
+                          mode === "update" &&
+                          existingKey?.extraHeaderKeys &&
+                          existingKey.extraHeaderKeys[index]
+                            ? "***"
+                            : "Header value"
+                        }
                       />
                       <Button
                         type="button"

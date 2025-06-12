@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
+import {
+  CreateLlmApiKey,
+  UpdateLlmApiKey,
+} from "@/src/features/llm-api-key/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -13,13 +16,15 @@ import {
   ChatMessageRole,
   supportedModels,
   GCPServiceAccountKeySchema,
+  BedrockConfigSchema,
 } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
   fetchLLMCompletion,
   LLMAdapter,
   logger,
+  decryptAndParseExtraHeaders,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -28,6 +33,79 @@ export function getDisplaySecretKey(secretKey: string) {
   return secretKey.endsWith('"}')
     ? "..." + secretKey.slice(-6, -2)
     : "..." + secretKey.slice(-4);
+}
+
+type TestLLMConnectionParams = {
+  adapter: LLMAdapter;
+  provider: string;
+  secretKey: string;
+  baseURL?: string | null;
+  customModels?: string[];
+  extraHeaders?: Record<string, string>;
+  config?: unknown;
+};
+
+async function testLLMConnection(
+  params: TestLLMConnectionParams,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const model = params.customModels?.length
+      ? params.customModels[0]
+      : supportedModels[params.adapter][0];
+
+    if (!model) throw Error("No model found");
+
+    if (params.adapter === LLMAdapter.VertexAI) {
+      const parsed = GCPServiceAccountKeySchema.safeParse(
+        JSON.parse(params.secretKey),
+      );
+      if (!parsed.success) throw Error("Invalid GCP service account JSON key");
+    }
+
+    const testMessages: ChatMessage[] = [
+      {
+        role: ChatMessageRole.System,
+        content: "You are a bot",
+        type: ChatMessageType.System,
+      },
+      {
+        role: ChatMessageRole.User,
+        content: "How are you?",
+        type: ChatMessageType.User,
+      },
+    ];
+
+    // Parse config properly for type safety
+    let parsedConfig: Record<string, string> | null = null;
+    if (params.config && params.adapter === LLMAdapter.Bedrock) {
+      const bedrockConfig = BedrockConfigSchema.parse(params.config);
+      parsedConfig = { region: bedrockConfig.region };
+    }
+
+    await fetchLLMCompletion({
+      modelParams: {
+        adapter: params.adapter,
+        provider: params.provider,
+        model,
+      },
+      baseURL: params.baseURL || undefined,
+      apiKey: params.secretKey,
+      extraHeaders: params.extraHeaders,
+      messages: testMessages,
+      streaming: false,
+      maxRetries: 1,
+      config: parsedConfig,
+    });
+
+    return { success: true };
+  } catch (err) {
+    logger.error(err);
+
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
 }
 
 export const llmApiKeyRouter = createTRPCRouter({
@@ -213,50 +291,84 @@ export const llmApiKeyRouter = createTRPCRouter({
   test: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
     .mutation(async ({ input }) => {
+      return testLLMConnection({
+        adapter: input.adapter,
+        provider: input.provider,
+        secretKey: input.secretKey,
+        baseURL: input.baseURL,
+        customModels: input.customModels,
+        extraHeaders: input.extraHeaders,
+        config: input.config,
+      });
+    }),
+
+  testUpdate: protectedProjectProcedureWithoutTracing
+    .input(UpdateLlmApiKey)
+    .mutation(async ({ input, ctx }) => {
       try {
-        const model = input.customModels?.length
-          ? input.customModels[0]
-          : supportedModels[input.adapter][0];
-
-        if (!model) throw Error("No model found");
-
-        if (input.adapter === LLMAdapter.VertexAI) {
-          const parsed = GCPServiceAccountKeySchema.safeParse(
-            JSON.parse(input.secretKey),
-          );
-          if (!parsed.success)
-            throw Error("Invalid GCP service account JSON key");
-        }
-
-        const testMessages: ChatMessage[] = [
-          {
-            role: ChatMessageRole.System,
-            content: "You are a bot",
-            type: ChatMessageType.System,
-          },
-          {
-            role: ChatMessageRole.User,
-            content: "How are you?",
-            type: ChatMessageType.User,
-          },
-        ];
-
-        await fetchLLMCompletion({
-          modelParams: {
-            adapter: input.adapter,
-            provider: input.provider,
-            model,
-          },
-          baseURL: input.baseURL,
-          apiKey: input.secretKey,
-          extraHeaders: input.extraHeaders,
-          messages: testMessages,
-          streaming: false,
-          maxRetries: 1,
-          config: input.config,
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "llmApiKeys:read",
         });
 
-        return { success: true };
+        // Get the existing key from the database
+        const existingKey = await ctx.prisma.llmApiKeys.findUnique({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
+        });
+
+        logger.info(`existingKey ${JSON.stringify(existingKey)}`);
+        logger.info(`input key ${input.secretKey}`);
+        logger.info(
+          `extra headers ${JSON.stringify(decryptAndParseExtraHeaders(existingKey?.extraHeaders))}`,
+        );
+
+        if (!existingKey) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "API key not found",
+          });
+        }
+        logger.info(
+          `decrypted existing key ${decrypt(existingKey?.secretKey ?? "")}`,
+        );
+
+        const decryptedSecretKey =
+          input.secretKey !== undefined &&
+          input.secretKey !== "" &&
+          input.secretKey !== null
+            ? input.secretKey
+            : decrypt(existingKey.secretKey);
+
+        logger.info(`decrypted secret key ${decryptedSecretKey}`);
+
+        // Merge existing key with provided input, giving priority to input
+        const secretKey = decryptedSecretKey;
+        const adapter = input.adapter ?? (existingKey.adapter as LLMAdapter);
+        const provider = input.provider ?? existingKey.provider;
+        const baseURL = input.baseURL ?? existingKey.baseURL;
+        const customModels = input.customModels ?? existingKey.customModels;
+        const config = input.config ?? existingKey.config;
+        const extraHeaders =
+          input.extraHeaders ??
+          (existingKey.extraHeaders
+            ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
+            : undefined);
+
+        logger.info(`extra headers ${JSON.stringify(extraHeaders)}`);
+
+        return testLLMConnection({
+          adapter,
+          provider,
+          secretKey,
+          baseURL,
+          customModels,
+          extraHeaders,
+          config,
+        });
       } catch (err) {
         logger.error(err);
 
@@ -268,11 +380,7 @@ export const llmApiKeyRouter = createTRPCRouter({
     }),
 
   update: protectedProjectProcedureWithoutTracing
-    .input(
-      CreateLlmApiKey.extend({
-        id: z.string(),
-      }),
-    )
+    .input(UpdateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoProjectAccess({
@@ -312,17 +420,56 @@ export const llmApiKeyRouter = createTRPCRouter({
           input.extraHeaders = {};
         }
 
+        // Get existing decrypted headers for comparison
+        const decryptedHeaders = existingKey.extraHeaders
+          ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
+          : null;
+        const existingHeaders: Record<string, string> = decryptedHeaders ?? {};
+
+        // Ensure we only update the extraHeaders where the value is not null
+        let extraHeaders: Record<string, string> | undefined;
+
+        if (input.extraHeaders === undefined) {
+          // Keep all existing headers unchanged
+          extraHeaders =
+            Object.keys(existingHeaders).length > 0
+              ? existingHeaders
+              : undefined;
+        } else {
+          // Process input headers, preserving existing values for empty inputs
+          extraHeaders = {};
+
+          for (const [key, value] of Object.entries(input.extraHeaders)) {
+            if (value === null || value === undefined || value === "") {
+              // Keep existing value if input value is empty and key exists
+              if (existingHeaders[key] !== undefined) {
+                extraHeaders[key] = existingHeaders[key];
+              }
+            } else {
+              // Use the new non-empty value
+              extraHeaders[key] = value;
+            }
+          }
+
+          // If no headers remain, set to undefined
+          if (Object.keys(extraHeaders).length === 0) {
+            extraHeaders = undefined;
+          }
+        }
+
         const key = await ctx.prisma.llmApiKeys.update({
           where: { id: input.id },
           data: {
-            secretKey: encrypt(input.secretKey),
-            extraHeaders: input.extraHeaders
-              ? encrypt(JSON.stringify(input.extraHeaders))
+            ...(input.secretKey ? { secretKey: encrypt(input.secretKey) } : {}),
+            extraHeaders: extraHeaders
+              ? encrypt(JSON.stringify(extraHeaders))
               : undefined,
-            extraHeaderKeys: input.extraHeaders
-              ? Object.keys(input.extraHeaders)
+            extraHeaderKeys: extraHeaders
+              ? Object.keys(extraHeaders)
               : undefined,
-            displaySecretKey: getDisplaySecretKey(input.secretKey),
+            displaySecretKey: input.secretKey
+              ? getDisplaySecretKey(input.secretKey)
+              : undefined,
             baseURL: input.baseURL,
             withDefaultModels: input.withDefaultModels,
             customModels: input.customModels,
