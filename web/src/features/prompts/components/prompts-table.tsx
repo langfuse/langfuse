@@ -338,7 +338,7 @@ export function PromptTable({ currentFolderPath = '' }: PromptTableProps) {
       cell: (row) => {
         if (isFolder(row.row.original)) return null;
         const createdAt = row.getValue();
-        return <LocalIsoDate date={createdAt} />;
+        return createdAt ? <LocalIsoDate date={createdAt} /> : null;
       },
     }),
     columnHelper.accessor("numberOfObservations", {
