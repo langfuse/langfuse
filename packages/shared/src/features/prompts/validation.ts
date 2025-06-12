@@ -7,7 +7,6 @@ export const PromptNameSchema = z
   .string()
   .min(1, "Enter a name")
   .regex(/^[^|]*$/, "Prompt name cannot contain '|' character")
-  .regex(/^[a-zA-Z0-9_\-/. ]+$/, "Name must be alphanumeric with optional underscores, hyphens, periods, slashes or spaces")
   .regex(/^[^/]/, "Name cannot start with a slash")
   .regex(/^(?!.*\/\/)/, "Name cannot contain consecutive slashes")
   .regex(/^.*[^/]$/, "Name cannot end with a slash")

@@ -735,12 +735,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         await testInvalidName("invalid|name", "cannot contain '|' character");
         await testInvalidName("new", "cannot be 'new'");
         await testInvalidName("", "Enter a name");
-
-        // Test special characters
-        const invalidChars = ["@", "#", "$", "%", "&", "*", "(", ")", "[", "]", "{", "}", "<", ">", "?", "\\", "\"", "'"];
-        for (const char of invalidChars) {
-          await testInvalidName(`name${char}test`, "alphanumeric");
-        }
       });
 
       it("should accept valid prompt names", async () => {
@@ -758,6 +752,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           "multiple...dots",
           "name with spaces",
           "multiple   spaces",
+          "angled[brac]es]",
         ];
 
         for (const name of validNames) {
