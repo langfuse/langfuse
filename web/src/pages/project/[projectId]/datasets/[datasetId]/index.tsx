@@ -48,16 +48,16 @@ export default function Dataset() {
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const [selectedMetrics, setSelectedMetrics] = useLocalStorage<string[]>(
-    `${projectId}-dataset-chart-metrics`,
+    `${projectId}-${datasetId-chart-metrics`,
     RESOURCE_METRICS.map((metric) => metric.key),
   );
 
-  const [scoreOptions, setScoreOptions] = useState<
+   const [scoreOptions, setScoreOptions] = useLocalStorage<
     {
       key: string;
       value: string;
     }[]
-  >([]);
+  >(`${projectId}-${datasetId}-score-options`, []);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
