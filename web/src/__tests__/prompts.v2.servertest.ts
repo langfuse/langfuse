@@ -705,8 +705,15 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         });
         expect(response.status).toBe(400);
         expect(response.body).toMatchObject({
-          error: "InvalidRequestError",
-          message: expect.stringContaining(expectedError),
+          message: "Invalid request data",
+          error: expect.arrayContaining([
+            expect.objectContaining({
+              code: "invalid_string",
+              message: expect.stringContaining(expectedError),
+              path: ["name"],
+              validation: "regex",
+            }),
+          ]),
         });
       };
 
