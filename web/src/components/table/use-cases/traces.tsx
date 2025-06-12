@@ -782,8 +782,8 @@ export default function TracesTable({
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              (LevelColors as any)[value]?.bg,
-              (LevelColors as any)[value]?.text,
+              LevelColors[value].bg,
+              LevelColors[value].text,
             )}
           >
             {value}
