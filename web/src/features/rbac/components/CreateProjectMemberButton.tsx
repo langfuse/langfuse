@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
-import * as z from "zod";
+import * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -65,6 +65,8 @@ export function CreateProjectMemberButton(props: {
   const orgMemberCount = api.members.allFromOrg.useQuery(
     {
       orgId: props.orgId,
+      page: 0,
+      limit: 1,
     },
     {
       enabled: hasOrgAccess,
@@ -73,6 +75,8 @@ export function CreateProjectMemberButton(props: {
   const inviteCount = api.members.allInvitesFromOrg.useQuery(
     {
       orgId: props.orgId,
+      page: 0,
+      limit: 1,
     },
     {
       enabled: hasOrgAccess,
@@ -92,7 +96,7 @@ export function CreateProjectMemberButton(props: {
       }),
   });
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",

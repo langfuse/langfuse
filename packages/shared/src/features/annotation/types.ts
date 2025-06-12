@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { type ScoreDataType } from "../../db";
 
 const NUMERIC: ScoreDataType = "NUMERIC";

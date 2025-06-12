@@ -65,7 +65,7 @@ export const CreateOrEditAnnotationQueueButton = ({
     { enabled: !!queueId && hasAccess },
   );
 
-  const form = useForm<CreateQueue>({
+  const form = useForm({
     resolver: zodResolver(CreateQueueData),
   });
 

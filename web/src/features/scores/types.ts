@@ -1,7 +1,7 @@
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
 import { type APIScoreV2, type ScoreDataType } from "@langfuse/shared";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 
 export type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;

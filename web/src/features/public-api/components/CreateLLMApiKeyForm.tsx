@@ -6,7 +6,7 @@ import {
   LLMAdapter,
 } from "@langfuse/shared";
 import { PlusIcon, TrashIcon } from "lucide-react";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -113,7 +113,7 @@ export function CreateLLMApiKeyForm({
     }
   };
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       adapter: defaultAdapter,

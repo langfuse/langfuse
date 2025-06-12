@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
 import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";

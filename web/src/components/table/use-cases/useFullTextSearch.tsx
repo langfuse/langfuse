@@ -21,7 +21,7 @@ export const useFullTextSearch = () => {
   );
 
   const setSearchType = (newSearchType: TracingSearchType[]) => {
-    handleSearchTypeChange(newSearchType);
+    handleSearchTypeChange(newSearchType as any);
   };
 
   const typedSearchType = (searchType ?? ["id"]) as TracingSearchType[];

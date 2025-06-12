@@ -1,5 +1,5 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { singleFilter } from "../../../";
 
 export const BaseTimeSeriesChartConfig = z.object({});

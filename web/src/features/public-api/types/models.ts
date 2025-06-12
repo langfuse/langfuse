@@ -5,7 +5,7 @@ import {
   jsonSchema,
   publicApiPaginationZod,
 } from "@langfuse/shared";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { type Decimal } from "decimal.js";
 
 /**

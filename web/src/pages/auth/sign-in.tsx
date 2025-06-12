@@ -21,7 +21,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import * as z from "zod";
+import * as z from "zod/v4";
 import { Divider } from "@tremor/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
@@ -429,7 +429,7 @@ export default function SignIn({
   );
 
   // Credentials
-  const credentialsForm = useForm<z.infer<typeof credentialAuthForm>>({
+  const credentialsForm = useForm({
     resolver: zodResolver(credentialAuthForm),
     defaultValues: {
       email: "",

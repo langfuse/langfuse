@@ -21,7 +21,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const isItemLocked = (item: AnnotationQueueItem) => {
   return (

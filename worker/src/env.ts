@@ -1,5 +1,5 @@
 import { removeEmptyEnvVariables } from "@langfuse/shared";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const EnvSchema = z.object({
   BUILD_ID: z.string().optional(),
@@ -9,10 +9,7 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string(),
   HOSTNAME: z.string().default("0.0.0.0"),
   PORT: z.coerce
-    .number({
-      description:
-        ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
-    })
+    .number() // ".env files convert numbers to strings, therefore we have to enforce them to be numbers"
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(3030),
@@ -32,7 +29,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_BATCH_EXPORT_SSE_KMS_KEY_ID: z.string().optional(),
 
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
-    required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
+    error: "Langfuse requires a bucket name for S3 Event Uploads.",
   }),
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
@@ -81,10 +78,7 @@ const EnvSchema = z.object({
     .default(3),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
-    .number({
-      description:
-        ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
-    })
+    .number() // .env files convert numbers to strings, therefore we have to enforce them to be numbers
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(6379)

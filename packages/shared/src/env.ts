@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
@@ -10,7 +10,7 @@ const EnvSchema = z.object({
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number({
-      description:
+      message:
         ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
     })
     .positive()
@@ -61,7 +61,7 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
-    required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
+    message: "Langfuse requires a bucket name for S3 Event Uploads.",
   }),
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),

@@ -19,7 +19,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
-import { z } from "zod";
+import { z } from "zod/v4";
 import waitForExpect from "wait-for-expect";
 
 describe("/api/public/scores API Endpoint", () => {

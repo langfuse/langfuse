@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -129,7 +129,7 @@ const CreateEvalJobSchema = z.object({
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
-  target: z.string(z.enum(["trace", "dataset-run-item"])),
+  target: z.string(), // should be z.enum(["trace", "dataset-run-item"])
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(variableMapping),
   sampling: z.number().gt(0).lte(1),

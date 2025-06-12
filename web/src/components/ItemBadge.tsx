@@ -16,7 +16,7 @@ import {
   Bot,
 } from "lucide-react";
 import { cva } from "class-variance-authority";
-import { ObservationType } from "@langfuse/shared";
+import { type ObservationType } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
 export type LangfuseItemType =
@@ -33,11 +33,11 @@ export type LangfuseItemType =
   | "EVALUATOR"
   | "RUNNING_EVALUATOR";
 
-const iconMap: Record<LangfuseItemType, React.ElementType> = {
+const iconMap = {
   TRACE: ListTree,
-  [ObservationType.GENERATION]: Fan,
-  [ObservationType.EVENT]: CircleDot,
-  [ObservationType.SPAN]: MoveHorizontal,
+  GENERATION: Fan,
+  EVENT: CircleDot,
+  SPAN: MoveHorizontal,
   SESSION: Clock,
   USER: User,
   QUEUE_ITEM: ClipboardPen,
@@ -54,9 +54,9 @@ const iconVariants = cva(cn("h-4 w-4"), {
   variants: {
     type: {
       TRACE: "text-dark-green",
-      [ObservationType.GENERATION]: "text-muted-magenta",
-      [ObservationType.EVENT]: "text-muted-green",
-      [ObservationType.SPAN]: "text-muted-blue",
+      GENERATION: "text-muted-magenta",
+      EVENT: "text-muted-green",
+      SPAN: "text-muted-blue",
       SESSION: "text-primary-accent",
       USER: "text-primary-accent",
       QUEUE_ITEM: "text-primary-accent",
@@ -82,16 +82,17 @@ export function ItemBadge({
   isSmall?: boolean;
   className?: string;
 }) {
-  const Icon = iconMap[type] || ListTree; // Default to ListTree if unknown type
+  const Icon = (iconMap as any)[type as any] || ListTree; // Default to ListTree if unknown type
 
   // Modify this line to ensure the icon is properly sized
   const iconClass = cn(
-    iconVariants({ type }),
+    iconVariants({ type: type as any }),
     isSmall ? "h-3 w-3" : "h-4 w-4",
     className,
   );
 
-  const label = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+  const label =
+    String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
 
   return (
     <Badge

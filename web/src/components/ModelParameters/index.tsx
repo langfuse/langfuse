@@ -61,7 +61,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     const hasEnabledModelSetting = Object.keys(modelParams).some(
       (key) =>
         !["adapter", "provider", "model"].includes(key) &&
-        modelParams[key as keyof typeof modelParams].enabled === true,
+        (modelParams as any)[key]?.enabled === true,
     );
 
     if (hasEnabledModelSetting) {

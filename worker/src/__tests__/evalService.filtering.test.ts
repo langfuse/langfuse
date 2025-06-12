@@ -14,7 +14,7 @@ import {
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { afterAll, test as baseTest, beforeAll, describe } from "vitest";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { createEvalJobs } from "../features/evaluation/evalService";
 import { OpenAIServer } from "./network";
 import { pruneDatabase } from "./utils";

@@ -1,6 +1,6 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const config = {
   api: {

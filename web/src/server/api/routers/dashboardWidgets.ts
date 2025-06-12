@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, orderBy, singleFilter } from "@langfuse/shared";
+import { orderBy, singleFilter, optionalPaginationZod } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DashboardWidgetChartType,
@@ -48,7 +48,7 @@ const UpdateDashboardWidgetInput = z.object({
 // Define the widget list input schema
 const ListDashboardWidgetsInput = z.object({
   projectId: z.string(),
-  ...paginationZod,
+  ...optionalPaginationZod,
   orderBy: orderBy,
 });
 

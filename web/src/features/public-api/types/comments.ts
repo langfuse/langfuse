@@ -3,14 +3,14 @@ import {
   CreateCommentData,
   publicApiPaginationZod,
 } from "@langfuse/shared";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 /**
  * Objects
  */
 
 const APIComment = z
-  .strictObject({
+  .object({
     id: z.string(),
     projectId: z.string(),
     createdAt: z.coerce.date(),

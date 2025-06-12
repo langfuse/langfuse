@@ -57,14 +57,14 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
             key={i}
             className="group/score ml-1 flex items-center gap-1 rounded-sm first:ml-0"
           >
-            {s.stringValue ?? s.value?.toFixed(2) ?? ""}
-            {s.comment && (
+            {(s as any).stringValue ?? (s as any).value?.toFixed(2) ?? ""}
+            {(s as any).comment && (
               <HoverCard>
                 <HoverCardTrigger className="inline-block">
                   <MessageCircleMoreIcon className="mb-[0.0625rem] !size-3" />
                 </HoverCardTrigger>
                 <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal">
-                  <p className="whitespace-pre-wrap">{s.comment}</p>
+                  <p className="whitespace-pre-wrap">{(s as any).comment}</p>
                 </HoverCardContent>
               </HoverCard>
             )}
@@ -74,7 +74,7 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
                   <BracesIcon className="mb-[0.0625rem] !size-3" />
                 </HoverCardTrigger>
                 <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal rounded-md border-none p-0">
-                  <JSONView codeClassName="!rounded-md" json={s.metadata} />
+                  <JSONView codeClassName="!rounded-md" json={(s as any).metadata} />
                 </HoverCardContent>
               </HoverCard>
             )}
@@ -94,10 +94,10 @@ export const GroupedScoreBadges = <T extends APIScoreV2 | LastUserScore>({
   maxVisible?: number;
 }) => {
   const groupedScores = scores.reduce<Record<string, T[]>>((acc, score) => {
-    if (!acc[score.name] || !Array.isArray(acc[score.name])) {
-      acc[score.name] = [score];
+    if (!acc[(score as any).name] || !Array.isArray(acc[(score as any).name])) {
+      acc[(score as any).name] = [score];
     } else {
-      acc[score.name].push(score);
+      acc[(score as any).name].push(score);
     }
     return acc;
   }, {});

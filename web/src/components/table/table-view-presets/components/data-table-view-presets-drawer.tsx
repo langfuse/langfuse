@@ -73,7 +73,7 @@ import {
 } from "@/src/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -120,7 +120,7 @@ export function TableViewPresetsDrawer({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
-  const form = useForm<{ name: string }>({
+  const form = useForm({
     resolver: zodResolver(z.object({ name: z.string().min(1) })),
     defaultValues: {
       name: "",
@@ -137,11 +137,11 @@ export function TableViewPresetsDrawer({
   const [dropdownId, setDropdownId] = useState<string | null>(null);
 
   const selectedViewName = TableViewPresetsList?.find(
-    (view) => view.id === selectedViewId,
+    (view: any) => view.id === selectedViewId,
   )?.name;
 
   const allViewNames = useMemo(
-    () => TableViewPresetsList?.map((view) => ({ value: view.name })) ?? [],
+    () => TableViewPresetsList?.map((view: any) => ({ value: view.name })) ?? [],
     [TableViewPresetsList],
   );
 
@@ -340,7 +340,7 @@ export function TableViewPresetsDrawer({
               <CommandList>
                 <CommandEmpty>No saved table views found</CommandEmpty>
                 <CommandGroup className="pb-0">
-                  {TableViewPresetsList?.map((view) => (
+                  {TableViewPresetsList?.map((view: any) => (
                     <CommandItem
                       key={view.id}
                       onSelect={() => handleSelectView(view.id)}
@@ -519,7 +519,7 @@ export function TableViewPresetsDrawer({
                               {view.createdByUser?.name
                                 ? view.createdByUser?.name
                                     .split(" ")
-                                    .map((word) => word[0])
+                                    .map((word: any) => word[0])
                                     .slice(0, 2)
                                     .concat("")
                                 : null}
