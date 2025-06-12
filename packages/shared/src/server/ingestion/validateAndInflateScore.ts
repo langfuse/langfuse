@@ -163,7 +163,7 @@ function validateConfigAgainstBody(
 
   if (!rangeValidation.success) {
     const errorDetails = rangeValidation.error.issues
-      .map((error: any) => `${error.path.join(".")} - ${error.message}`)
+      .map((error) => `${error.path.join(".")} - ${error.message}`)
       .join(", ");
 
     throw new InvalidRequestError(
