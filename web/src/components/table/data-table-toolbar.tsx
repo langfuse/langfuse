@@ -262,14 +262,6 @@ export function DataTableToolbar<TData, TValue>({
             setDateRangeAndOption={setDateRangeAndOption}
           />
         )}
-        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
-          <PopoverFilterBuilder
-            columns={filterColumnDefinition}
-            filterState={filterState}
-            onChange={setFilterState}
-            columnsWithCustomSelect={columnsWithCustomSelect}
-          />
-        )}
         {environmentFilter && (
           <MultiSelect
             title="Environment"
@@ -278,6 +270,14 @@ export function DataTableToolbar<TData, TValue>({
             onValueChange={environmentFilter.onValueChange}
             options={environmentFilter.options}
             className="my-0 w-auto overflow-hidden"
+          />
+        )}
+        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
+          <PopoverFilterBuilder
+            columns={filterColumnDefinition}
+            filterState={filterState}
+            onChange={setFilterState}
+            columnsWithCustomSelect={columnsWithCustomSelect}
           />
         )}
 
