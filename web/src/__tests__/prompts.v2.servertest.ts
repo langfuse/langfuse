@@ -708,10 +708,8 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           message: "Invalid request data",
           error: expect.arrayContaining([
             expect.objectContaining({
-              code: "invalid_string",
               message: expect.stringContaining(expectedError),
               path: ["name"],
-              validation: "regex",
             }),
           ]),
         });
@@ -739,7 +737,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         await testInvalidName("", "Enter a name");
 
         // Test special characters
-        const invalidChars = ["@", "#", "$", "%", "&", "*", "(", ")", "[", "]", "{", "}", "<", ">", "?", "\\", "\"", "'", " "];
+        const invalidChars = ["@", "#", "$", "%", "&", "*", "(", ")", "[", "]", "{", "}", "<", ">", "?", "\\", "\"", "'"];
         for (const char of invalidChars) {
           await testInvalidName(`name${char}test`, "alphanumeric");
         }
@@ -758,6 +756,8 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           "multiple___underscores",
           "multiple---hyphens",
           "multiple...dots",
+          "name with spaces",
+          "multiple   spaces",
         ];
 
         for (const name of validNames) {
