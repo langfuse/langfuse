@@ -57,7 +57,7 @@ export class DatasetItemIdService {
   ): Promise<number> {
     return prisma.$transaction(async (tx) => {
       // Try to increment existing counter or create new one
-      const result = await tx.sequenceCounter.upsert({
+      const result = await (tx as any).sequenceCounter.upsert({
         where: {
           projectId_entityType_prefix: {
             projectId,
