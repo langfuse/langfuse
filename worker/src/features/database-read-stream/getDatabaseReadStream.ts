@@ -34,6 +34,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
+  dataset_items: "createdAt",
 };
 const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   scores: "timestamp",
@@ -41,6 +42,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
+  dataset_items: "createdAt",
 };
 const isGenerationTimestampFilter = (
   filter: FilterCondition,
@@ -419,6 +421,48 @@ export const getDatabaseReadStream = async ({
             createdAt: item.created_at,
             updatedAt: item.updated_at,
             datasetName: item.dataset_name,
+          }));
+        },
+        env.BATCH_EXPORT_PAGE_SIZE,
+        rowLimit,
+      );
+    }
+    case "dataset_items": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const items = await prisma.datasetItem.findMany({
+            where: {
+              projectId,
+              createdAt: {
+                lt: cutoffCreatedAt,
+              },
+            },
+            include: {
+              dataset: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            skip: offset,
+            take: pageSize,
+          });
+
+          return items.map((item) => ({
+            id: item.id,
+            datasetId: item.datasetId,
+            datasetName: item.dataset.name,
+            sourceTraceId: item.sourceTraceId,
+            sourceObservationId: item.sourceObservationId,
+            input: item.input,
+            expectedOutput: item.expectedOutput,
+            metadata: item.metadata,
+            status: item.status,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
           }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
