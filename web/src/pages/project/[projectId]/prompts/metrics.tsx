@@ -1,12 +1,12 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import type { RouterOutput } from "@/src/utils/types";
+import { type RouterOutput } from "@/src/utils/types";
 import {
   TabsBar,
   TabsBarList,
@@ -19,7 +19,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import type { ScoreAggregate } from "@langfuse/shared";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import Page from "@/src/components/layouts/page";
