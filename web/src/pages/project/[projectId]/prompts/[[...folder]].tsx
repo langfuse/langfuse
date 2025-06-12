@@ -9,7 +9,7 @@ import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
-import PromptMetrics from "./prompt-metrics";
+import PromptMetrics from "./metrics";
 import { useQueryParams, StringParam } from "use-query-params";
 
 export default function PromptsWithFolder() {
