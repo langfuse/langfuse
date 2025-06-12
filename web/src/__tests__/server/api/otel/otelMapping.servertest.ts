@@ -2119,6 +2119,106 @@ describe("OTel Resource Span Mapping", () => {
     );
   });
 
+  describe("Span Counting", () => {
+    it("should count spans correctly across multiple resource spans", () => {
+      const processor = new OtelIngestionProcessor("test-project");
+      
+      const resourceSpans = [
+        {
+          scopeSpans: [
+            { spans: [{}, {}, {}] }, // 3 spans
+            { spans: [{}] },         // 1 span
+          ],
+        },
+        {
+          scopeSpans: [
+            { spans: [{}, {}] },     // 2 spans
+          ],
+        },
+      ];
+
+      // Access private method for testing
+      const count = (processor as any).getTotalSpanCount(resourceSpans);
+      expect(count).toBe(6);
+    });
+
+    it("should handle empty resource spans", () => {
+      const processor = new OtelIngestionProcessor("test-project");
+      
+      const count = (processor as any).getTotalSpanCount([]);
+      expect(count).toBe(0);
+    });
+
+    it("should handle null/undefined resource spans", () => {
+      const processor = new OtelIngestionProcessor("test-project");
+      
+      expect((processor as any).getTotalSpanCount(null)).toBe(0);
+      expect((processor as any).getTotalSpanCount(undefined)).toBe(0);
+    });
+
+    it("should handle malformed resource spans", () => {
+      const processor = new OtelIngestionProcessor("test-project");
+      
+      const resourceSpans = [
+        { scopeSpans: null },
+        { scopeSpans: undefined },
+        { scopeSpans: [] },
+        {
+          scopeSpans: [
+            { spans: null },
+            { spans: undefined },
+            { spans: [] },
+            { spans: [{}, {}] }, // 2 valid spans
+          ],
+        },
+      ];
+
+      const count = (processor as any).getTotalSpanCount(resourceSpans);
+      expect(count).toBe(2);
+    });
+
+    it("should return 0 for non-array input", () => {
+      const processor = new OtelIngestionProcessor("test-project");
+      
+      expect((processor as any).getTotalSpanCount("not-an-array")).toBe(0);
+      expect((processor as any).getTotalSpanCount({})).toBe(0);
+      expect((processor as any).getTotalSpanCount(123)).toBe(0);
+    });
+
+    it("should handle deeply nested null/undefined structures", () => {
+      const processor = new OtelIngestionProcessor("test-project");
+      
+      const resourceSpans = [
+        null,
+        undefined,
+        {},
+        { scopeSpans: [null, undefined, {}] },
+        {
+          scopeSpans: [
+            { spans: [{}, {}] }, // 2 valid spans
+          ],
+        },
+      ];
+
+      const count = (processor as any).getTotalSpanCount(resourceSpans);
+      expect(count).toBe(2);
+    });
+
+    it("should return -1 and not throw on unexpected errors", () => {
+      const processor = new OtelIngestionProcessor("test-project");
+      
+      // Create a malicious object that throws when accessed
+      const maliciousResourceSpan = {
+        get scopeSpans() {
+          throw new Error("Malicious property access");
+        },
+      };
+
+      const count = (processor as any).getTotalSpanCount([maliciousResourceSpan]);
+      expect(count).toBe(-1);
+    });
+  });
+
   describe("Timestamp Conversion", () => {
     it("should correctly convert OpenTelemetry timestamps to ISO strings", () => {
       // Test case with positive low value

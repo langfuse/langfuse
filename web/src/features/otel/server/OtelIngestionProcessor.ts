@@ -6,6 +6,8 @@ import {
   type IngestionEventType,
   redis,
   logger,
+  instrumentAsync,
+  traceException,
 } from "@langfuse/shared/src/server";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -98,38 +100,58 @@ export class OtelIngestionProcessor {
   async processToIngestionEvents(
     resourceSpans: ResourceSpan[],
   ): Promise<IngestionEventType[]> {
-    try {
-      // Lazy initialization - load seen traces from Redis if not already done
-      // Seen traces are traces that went through the ingestion pipeline within last 10 minutes
-      if (!this.isInitialized) {
-        this.seenTraces = await this.getSeenTracesSet(resourceSpans);
-        this.isInitialized = true;
-      }
+    return await instrumentAsync(
+      { name: "otel-ingestion-processor" },
+      async (span) => {
+        span.setAttribute("project_id", this.projectId);
+        span.setAttribute(
+          "total_span_count",
+          this.getTotalSpanCount(resourceSpans),
+        );
 
-      // Input validation
-      if (!Array.isArray(resourceSpans)) {
-        return [];
-      }
+        try {
+          // Lazy initialization - load seen traces from Redis if not already done
+          // Seen traces are traces that went through the ingestion pipeline within last 10 minutes
+          if (!this.isInitialized) {
+            this.seenTraces = await this.getSeenTracesSet(resourceSpans);
+            this.isInitialized = true;
+          }
 
-      if (resourceSpans.length === 0) {
-        return [];
-      }
+          // Input validation
+          if (!Array.isArray(resourceSpans)) {
+            return [];
+          }
 
-      // Process all events normally first
-      const allEvents = resourceSpans.flatMap((resourceSpan) => {
-        if (!resourceSpan) return [];
-        return this.processResourceSpan(resourceSpan);
-      });
+          if (resourceSpans.length === 0) {
+            return [];
+          }
 
-      // Filter out redundant shallow trace events
-      return this.filterRedundantShallowTraces(allEvents);
-    } catch (error) {
-      if (error instanceof ForbiddenError) throw error;
+          // Process all events normally first
+          const allEvents = resourceSpans.flatMap((resourceSpan) => {
+            if (!resourceSpan) return [];
+            return this.processResourceSpan(resourceSpan);
+          });
 
-      // Log error but don't throw to avoid breaking the ingestion pipeline
-      logger.error("Error processing OTEL spans:", error);
-      return [];
-    }
+          // Filter out redundant shallow trace events
+          const finalEvents = this.filterRedundantShallowTraces(allEvents);
+
+          span.setAttribute("events_generated", finalEvents.length);
+
+          return finalEvents;
+        } catch (error) {
+          if (error instanceof ForbiddenError) {
+            traceException(error, span);
+            throw error;
+          }
+
+          // Log error but don't throw to avoid breaking the ingestion pipeline
+          logger.error("Error processing OTEL spans:", error);
+          traceException(error, span);
+
+          return [];
+        }
+      },
+    );
   }
 
   /**
@@ -1156,34 +1178,42 @@ export class OtelIngestionProcessor {
       });
     }
 
-    const results = await Promise.all(
-      [...traceIds].map(async (traceId) => {
-        const key = `langfuse:project:${this.projectId}:trace:${traceId}:seen`;
-        const TTLSeconds = 600; // 10 minutes
-        const result = await redis?.call(
-          "SET",
-          key,
-          "1",
-          "NX",
-          "EX",
-          TTLSeconds,
-        );
+    try {
+      const results = await Promise.all(
+        [...traceIds].map(async (traceId) => {
+          const key = `langfuse:project:${this.projectId}:trace:${traceId}:seen`;
+          const TTLSeconds = 600; // 10 minutes
+          const result = await redis?.call(
+            "SET",
+            key,
+            "1",
+            "NX",
+            "EX",
+            TTLSeconds,
+          );
 
-        return {
-          traceId: traceId,
-          wasSeen: result !== "OK", // Redis returns "OK" if key did not exist, i.e. trace was NOT seen in last TTL seconds
-        };
-      }),
-    );
+          return {
+            traceId: traceId,
+            wasSeen: result !== "OK", // Redis returns "OK" if key did not exist, i.e. trace was NOT seen in last TTL seconds
+          };
+        }),
+      );
 
-    const seenTraceIds: Set<string> = new Set();
-    results.forEach((r) => {
-      if (r.wasSeen) {
-        seenTraceIds.add(r.traceId);
-      }
-    });
+      const seenTraceIds: Set<string> = new Set();
+      results.forEach((r) => {
+        if (r.wasSeen) {
+          seenTraceIds.add(r.traceId);
+        }
+      });
 
-    return seenTraceIds;
+      return seenTraceIds;
+    } catch (error) {
+      // Redis error will be captured by parent span, just log and continue
+      logger.error("Redis operation failed in getSeenTracesSet:", error);
+
+      // Return empty set to continue processing (fail-safe behavior)
+      return new Set();
+    }
   }
 
   /**
@@ -1216,5 +1246,34 @@ export class OtelIngestionProcessor {
     // Convert nanoseconds to milliseconds for JavaScript Date
     const millisBigInt = nanosBigInt / BigInt(1000000);
     return new Date(Number(millisBigInt)).toISOString();
+  }
+
+  /**
+   * Count the total number of spans across all resource spans.
+   * Returns -1 if an error occurs during counting to avoid throwing exceptions.
+   */
+  private getTotalSpanCount(resourceSpans: ResourceSpan[]): number {
+    try {
+      if (!Array.isArray(resourceSpans)) {
+        return 0;
+      }
+
+      return resourceSpans.reduce((total, resourceSpan) => {
+        if (!resourceSpan?.scopeSpans) {
+          return total;
+        }
+
+        return (
+          total +
+          resourceSpan.scopeSpans.reduce((count, scopeSpan) => {
+            return count + (scopeSpan?.spans?.length ?? 0);
+          }, 0)
+        );
+      }, 0);
+    } catch (error) {
+      // Log error but never throw - return -1 to indicate counting failed
+      logger.warn("Failed to count total spans:", error);
+      return -1;
+    }
   }
 }
