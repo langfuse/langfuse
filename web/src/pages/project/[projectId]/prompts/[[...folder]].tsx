@@ -15,15 +15,15 @@ import { useQueryParams, StringParam } from "use-query-params";
 export default function PromptsWithFolder() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const folderSegments = router.query.folder;
+  const routeSegments = router.query.folder;
   const [queryParams] = useQueryParams({ folder: StringParam });
-  const currentFolderPath = queryParams.folder || '';
+  const folderQueryParam = queryParams.folder || '';
 
-  // Check if viewing a specific prompt (using route segments for prompt detail)
-  const folderArray = Array.isArray(folderSegments) ? folderSegments : [];
-  const isMetricsPage = folderArray.length > 0 && folderArray[folderArray.length - 1] === 'metrics';
-  const promptNamePath = folderArray.length > 0
-    ? (isMetricsPage ? folderArray.slice(0, -1).join('/') : folderArray.join('/'))
+  // Determine view type based on route segments
+  const segmentsArray = Array.isArray(routeSegments) ? routeSegments : [];
+  const isMetricsPage = segmentsArray.length > 0 && segmentsArray[segmentsArray.length - 1] === 'metrics';
+  const promptNameFromRoute = segmentsArray.length > 0
+    ? (isMetricsPage ? segmentsArray.slice(0, -1).join('/') : segmentsArray.join('/'))
     : '';
 
   const capture = usePostHogClientCapture();
@@ -49,7 +49,7 @@ export default function PromptsWithFolder() {
   const { data: count } = api.prompts.count.useQuery(
     { projectId },
     {
-      enabled: !!projectId && !promptNamePath, // Only count when on folder view
+      enabled: !!projectId && !promptNameFromRoute, // Only count when on folder view
       trpc: {
         context: {
           skipBatch: true,
@@ -61,7 +61,7 @@ export default function PromptsWithFolder() {
   const showOnboarding = !isLoading && !hasAnyPrompt;
 
   // Decide what to render: metrics, detail, or folder view
-  if (promptNamePath.length > 0) {
+  if (promptNameFromRoute.length > 0) {
     if (isMetricsPage) {
       return <PromptMetrics />;
     }
@@ -81,7 +81,7 @@ export default function PromptsWithFolder() {
           <ActionButton
             icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
             hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/prompts/new${currentFolderPath ? `?folder=${encodeURIComponent(currentFolderPath)}` : ''}`}
+            href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ''}`}
             variant="default"
             limit={promptLimit}
             limitValue={Number(count?.totalCount ?? 0)}
@@ -99,7 +99,7 @@ export default function PromptsWithFolder() {
       {showOnboarding ? (
         <PromptsOnboarding projectId={projectId} />
       ) : (
-        <PromptTable key={currentFolderPath} />
+        <PromptTable key={folderQueryParam} />
       )}
     </Page>
   );
