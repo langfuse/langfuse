@@ -1,4 +1,4 @@
-import { DatasetItemIdService } from "../dataset-item-id-service";
+import { DatasetItemIdService } from "../features/datasets/server/dataset-item-id-service";
 
 describe("DatasetItemIdService", () => {
   describe("normalizeProjectName", () => {
