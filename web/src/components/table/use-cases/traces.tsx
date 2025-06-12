@@ -378,6 +378,8 @@ export default function TracesTable({
       query: {
         filter: filterState,
         orderBy: orderByState,
+        searchQuery: searchQuery || undefined,
+        searchType,
       },
       isBatchAction: selectAll,
     });
