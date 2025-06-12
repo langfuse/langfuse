@@ -131,10 +131,20 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
         updatedAt: run.run_updated_at,
         avgLatency: trace?.latency ?? observation?.latency ?? 0,
         scores: aggregateScores(
-          traceScores.filter((s) => s.run_id === run.run_id && s.id),
+          traceScores
+            .filter((s) => s.run_id === run.run_id && s.id)
+            .map((s) => ({
+              ...s,
+              dataType: s.dataType === "CATEGORICAL" || s.dataType === "NUMERIC" ? "BOOLEAN" : s.dataType,
+            })),
         ),
         runScores: aggregateScores(
-          runScores.filter((s) => s.datasetRunId === run.run_id && s.id),
+          runScores
+            .filter((s) => s.datasetRunId === run.run_id && s.id)
+            .map((s) => ({
+              ...s,
+              dataType: s.dataType === "CATEGORICAL" || s.dataType === "NUMERIC" ? "BOOLEAN" : s.dataType,
+            })),
         ),
       };
     });
