@@ -135,7 +135,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
             .filter((s) => s.run_id === run.run_id && s.id)
             .map((s) => ({
               ...s,
-              dataType: s.dataType === "CATEGORICAL" || s.dataType === "NUMERIC" ? "BOOLEAN" : s.dataType,
             })),
         ),
         runScores: aggregateScores(
@@ -143,7 +142,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
             .filter((s) => s.datasetRunId === run.run_id && s.id)
             .map((s) => ({
               ...s,
-              dataType: s.dataType === "CATEGORICAL" || s.dataType === "NUMERIC" ? "BOOLEAN" : s.dataType,
             })),
         ),
       };

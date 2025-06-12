@@ -102,9 +102,15 @@ export function tableColumnsToSqlFilter(
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
       case "stringOptions":
-        valuePrisma = Prisma.sql`(${Prisma.join(
-          filter.value.map((v) => Prisma.sql`${v}${castForColumn}`),
-        )})`;
+        if (castForColumn !== Prisma.empty) {
+          valuePrisma = Prisma.sql`(${Prisma.join(
+            filter.value.map((v) => Prisma.sql`${v}${castForColumn}`),
+          )})`;
+        } else {
+          valuePrisma = Prisma.sql`(${Prisma.join(
+            filter.value.map((v) => Prisma.sql`${v}`),
+          )})`;
+        }
         break;
       case "arrayOptions":
         valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
@@ -125,7 +131,9 @@ export function tableColumnsToSqlFilter(
     }
     const jsonKeyPrisma =
       filter.type === "stringObject" || filter.type === "numberObject"
-        ? Prisma.sql`->>${filter.key}`
+        ? filter.key && filter.key.length > 0
+          ? Prisma.sql`->>${filter.key}`
+          : Prisma.sql`::text`
         : Prisma.empty;
     const [cast1, cast2] =
       filter.type === "numberObject"
