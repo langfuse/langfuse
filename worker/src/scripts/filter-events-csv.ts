@@ -389,7 +389,7 @@ async function ingestEventsToQueue(jsonPath: string): Promise<void> {
 
     console.log(`🔗 Connected to Redis and created queue: ${QUEUE_NAME}`);
 
-    // Ingest events into queue in batches of 200
+    // Ingest events into queue in batches of 1000
     const BATCH_SIZE = 1000;
     for (let i = 0; i < events.length; i += BATCH_SIZE) {
       const batch = events.slice(i, i + BATCH_SIZE);
