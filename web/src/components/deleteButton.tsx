@@ -117,7 +117,7 @@ export function DeleteButton({
       </PopoverTrigger>
       <PopoverContent onClick={(e) => e.stopPropagation()}>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
-        <p className="mb-3 text-sm">
+        <p className="mb-3 max-w-72 text-sm">
           {customDeletePrompt ??
             `This action cannot be undone and removes all the data associated with
             this ${entityToDeleteName}.`}
