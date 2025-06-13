@@ -9,5 +9,6 @@ export enum BatchTableNames {
   Traces = "traces",
   Observations = "observations",
   DatasetRunItems = "dataset_run_items",
+  DatasetItems = "dataset_items",
   AuditLogs = "audit_logs",
 }
