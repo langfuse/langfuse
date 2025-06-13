@@ -804,6 +804,7 @@ export const CreateExperimentsForm = ({
             </DialogTitle>
             <EvaluatorForm
               projectId={projectId}
+              useDialog={true}
               evalTemplates={evalTemplates.data?.templates ?? []}
               templateId={selectedEvaluatorData.templateId}
               existingEvaluator={selectedEvaluatorData.evaluator}

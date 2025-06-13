@@ -383,6 +383,7 @@ export default function EvalsTemplateTable({
           <EvalTemplateForm
             projectId={projectId}
             preventRedirect={true}
+            useDialog={true}
             isEditing={true}
             existingEvalTemplate={template.data ?? undefined}
             onFormSuccess={() => {
@@ -412,6 +413,7 @@ export default function EvalsTemplateTable({
           <EvalTemplateForm
             projectId={projectId}
             preventRedirect={true}
+            useDialog={true}
             isEditing={true}
             existingEvalTemplate={
               cloneTemplate.data
