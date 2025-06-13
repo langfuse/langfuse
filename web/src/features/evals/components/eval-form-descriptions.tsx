@@ -23,6 +23,24 @@ export function TimeScopeDescription(props: {
     return "Select a time scope to run this configuration on.";
   }
 
+  if (props.target === "dataset_item") {
+    return (
+      <div>
+        This evaluator will run automatically when dataset experiments are
+        executed and will score{" "}
+        {props.timeScope?.includes("NEW") &&
+        props.timeScope?.includes("EXISTING")
+          ? "all traces from future and existing"
+          : props.timeScope?.includes("NEW")
+            ? "all traces from future"
+            : "all traces from existing"}{" "}
+        dataset run items that match these filters. <strong>Note:</strong>{" "}
+        Creating this evaluator will not run it immediately - it will be
+        triggered when you run dataset experiments.
+      </div>
+    );
+  }
+
   return (
     <div>
       This configuration will target{" "}

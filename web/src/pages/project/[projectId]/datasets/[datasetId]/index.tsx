@@ -138,7 +138,10 @@ export default function Dataset() {
   const preprocessFormValues = useCallback((values: any) => {
     // Ask the user if they want to run on historic data
     const shouldRunOnHistoric = confirm(
-      "Do you also want to execute this evaluator on historic data? If not, click cancel.",
+      "Do you also want to execute this evaluator on existing dataset experiment data?\n\n" +
+        "• Click OK to run on both existing and future experiment runs\n" +
+        "• Click Cancel to only run on future experiment runs\n\n" +
+        "Note: Running on existing data will execute immediately after saving and may take some time depending on the amount of historical data.",
     );
 
     // If the user confirms, include EXISTING in the timeScope
@@ -303,8 +306,17 @@ export default function Dataset() {
           <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
             <DialogTitle>
               {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
-              Evaluator
+              Dataset Experiment Evaluator
             </DialogTitle>
+            {!selectedEvaluatorData.evaluator.id && (
+              <div className="mb-4 rounded-md bg-blue-50 p-3 dark:bg-blue-950/20">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  This evaluator will run automatically when you execute dataset
+                  experiments. It will not run immediately after saving - it
+                  will be triggered by future experiment runs.
+                </p>
+              </div>
+            )}
             <EvaluatorForm
               projectId={projectId}
               evalTemplates={evalTemplates.data?.templates ?? []}

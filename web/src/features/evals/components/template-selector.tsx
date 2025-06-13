@@ -222,7 +222,7 @@ export const TemplateSelector = ({
                             )}
                             {isInactive && (
                               <div
-                                title="The evaluator has been used in the past but is currently paused. It will not run in this experiment. You can reactivate it if you wish"
+                                title="This evaluator has been used before but is currently paused. It will not run in future dataset experiments until reactivated."
                                 className="ml-2 text-xs text-muted-foreground"
                               >
                                 Paused
@@ -297,7 +297,7 @@ export const TemplateSelector = ({
                           )}
                           {isInactive && (
                             <div
-                              title="The evaluator has been used in the past but is currently paused. It will not run in this experiment. You can reactivate it if you wish"
+                              title="This evaluator has been used before but is currently paused. It will not run in future dataset experiments until reactivated."
                               className="ml-2 text-xs text-muted-foreground"
                             >
                               Paused

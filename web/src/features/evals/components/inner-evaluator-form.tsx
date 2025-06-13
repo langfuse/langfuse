@@ -463,11 +463,17 @@ export const InnerEvaluatorForm = (props: {
                                 htmlFor="newObjects"
                                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
-                                New{" "}
+                                Future{" "}
                                 {form.watch("target") === "trace"
                                   ? "traces"
-                                  : "dataset run items"}
+                                  : "dataset experiment runs"}
                               </label>
+                              {form.watch("target") === "dataset" && (
+                                <p className="text-xs text-muted-foreground">
+                                  Evaluator will run when new dataset
+                                  experiments are executed
+                                </p>
+                              )}
                             </div>
                           </div>
                           <div className="items-top flex space-x-2">
@@ -487,15 +493,23 @@ export const InnerEvaluatorForm = (props: {
                               }
                             />
                             <div className="flex items-center gap-1.5 leading-none">
-                              <label
-                                htmlFor="existingObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                              >
-                                Existing{" "}
-                                {form.watch("target") === "trace"
-                                  ? "traces"
-                                  : "dataset run items"}
-                              </label>
+                              <div className="grid gap-1.5 leading-none">
+                                <label
+                                  htmlFor="existingObjects"
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  Existing{" "}
+                                  {form.watch("target") === "trace"
+                                    ? "traces"
+                                    : "dataset experiment runs"}
+                                </label>
+                                {form.watch("target") === "dataset" && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Run evaluator on historical experiment data
+                                    immediately after saving
+                                  </p>
+                                )}
+                              </div>
                               {field.value.includes("EXISTING") &&
                                 props.mode !== "edit" &&
                                 !props.disabled && (
@@ -556,11 +570,32 @@ export const InnerEvaluatorForm = (props: {
                               value="dataset"
                               disabled={props.disabled || props.mode === "edit"}
                             >
-                              Experiment runs
+                              Dataset experiments
                             </TabsTrigger>
                           </TabsList>
                         </Tabs>
                       </FormControl>
+                      {field.value === "dataset" && (
+                        <div className="mt-2 rounded-md bg-blue-50 p-3 dark:bg-blue-950/20">
+                          <div className="flex">
+                            <div className="ml-3">
+                              <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                                Dataset experiment evaluators
+                              </h3>
+                              <div className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                                <p>
+                                  This evaluator will run automatically when
+                                  dataset experiments are executed. It will not
+                                  run immediately upon creation - it will be
+                                  triggered each time you run a dataset
+                                  experiment that matches the configured
+                                  filters.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}

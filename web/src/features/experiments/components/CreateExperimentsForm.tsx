@@ -684,7 +684,8 @@ export const CreateExperimentsForm = ({
               <FormItem>
                 <FormLabel>Evaluators</FormLabel>
                 <FormDescription>
-                  Will run against your experiment results.
+                  Selected evaluators will run automatically during experiment
+                  execution to score the results.
                 </FormDescription>
                 <TemplateSelector
                   projectId={projectId}
