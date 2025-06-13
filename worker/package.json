@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.68.0",
+  "version": "3.67.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -16,7 +16,8 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 32",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/refill-ingestion-events.ts",
-    "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts"
+    "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
+    "filter-events-csv": "tsx src/scripts/filter-events-csv.ts"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
