@@ -38,6 +38,7 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export default function Dataset() {
   const router = useRouter();
@@ -207,16 +208,22 @@ export default function Dataset() {
 
             {hasEvalReadAccess && (
               <div className="w-fit">
-                <TemplateSelector
-                  projectId={projectId}
-                  datasetId={datasetId}
-                  evalTemplates={evalTemplates.data?.templates ?? []}
-                  onConfigureTemplate={handleConfigureEvaluator}
-                  onSelectEvaluator={handleSelectEvaluator}
-                  activeTemplateIds={activeEvaluators}
-                  inactiveTemplateIds={inActiveEvaluators}
-                  disabled={!hasEvalWriteAccess}
-                />
+                <div className="flex items-center gap-2">
+                  <TemplateSelector
+                    projectId={projectId}
+                    datasetId={datasetId}
+                    evalTemplates={evalTemplates.data?.templates ?? []}
+                    onConfigureTemplate={handleConfigureEvaluator}
+                    onSelectEvaluator={handleSelectEvaluator}
+                    activeTemplateIds={activeEvaluators}
+                    inactiveTemplateIds={inActiveEvaluators}
+                    disabled={!hasEvalWriteAccess}
+                  />
+                  <DocPopup
+                    description="Evaluators will automatically run when dataset experiments are executed, scoring all generated traces."
+                    href="https://langfuse.com/docs/scores/model-based-evals"
+                  />
+                </div>
               </div>
             )}
 

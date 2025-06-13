@@ -561,6 +561,14 @@ export const InnerEvaluatorForm = (props: {
                           </TabsList>
                         </Tabs>
                       </FormControl>
+                      {form.watch("target") === "dataset" && (
+                        <FormDescription className="mt-2">
+                          <span className="font-medium">ℹ️ Note:</span> This
+                          evaluator will automatically run when you execute a
+                          dataset experiment. It will score all traces that are
+                          part of the experiment run.
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
