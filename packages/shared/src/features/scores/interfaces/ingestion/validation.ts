@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
 import { isPresent } from "../../../../utils/typeChecks";

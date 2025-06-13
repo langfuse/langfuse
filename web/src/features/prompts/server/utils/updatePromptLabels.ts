@@ -6,7 +6,10 @@ export const removeLabelsFromPreviousPromptVersions = async ({
   promptName,
   labelsToRemove,
 }: {
-  prisma: PrismaClient;
+  prisma: Omit<
+    PrismaClient,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+  >;
   projectId: string;
   promptName: string;
   labelsToRemove: string[];

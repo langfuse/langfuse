@@ -9,7 +9,7 @@ import {
   stringDateTime,
 } from "@langfuse/shared/src/server";
 import type Decimal from "decimal.js";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 /**
  * Objects

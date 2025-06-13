@@ -4,7 +4,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   LegacyCreatePromptSchema,
   GetPromptSchema,
@@ -139,7 +139,7 @@ export default async function handler(
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         message: "Invalid request data",
-        error: error.errors,
+        error: error.issues,
       });
     }
 

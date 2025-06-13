@@ -207,7 +207,8 @@ export function PromptTable() {
             projectId={projectId as string}
             promptName={promptName}
             promptsFilter={{
-              ...filterOptionTags,
+              page: 0,
+              limit: 50,
               projectId: projectId as string,
               filter: filterState,
               orderBy: orderByState,

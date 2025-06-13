@@ -49,7 +49,7 @@ export const entitlementAccess: Record<
   "cloud:hobby": {
     entitlements: [...cloudAllPlansEntitlements],
     entitlementLimits: {
-      "organization-member-count": 2,
+      "organization-member-count": 3, // 2 acc to billing page, 1 overage possible
       "data-access-days": 30,
       "annotation-queue-count": 1,
       "model-based-evaluations-count-evaluators": 1,

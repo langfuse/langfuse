@@ -10,7 +10,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { BsMarkdown } from "react-icons/bs";
 import { cn } from "@/src/utils/tailwind";
 
@@ -77,10 +77,7 @@ export function MarkdownJsonViewHeader({
 
 const isSupportedMarkdownFormat = (
   content: unknown,
-  contentValidation: z.SafeParseReturnType<
-    string,
-    z.infer<typeof OpenAIContentSchema>
-  >,
+  contentValidation: z.ZodSafeParseResult<z.infer<typeof OpenAIContentSchema>>,
 ): content is z.infer<typeof OpenAIContentSchema> => contentValidation.success;
 
 // MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown

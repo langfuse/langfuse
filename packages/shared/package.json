@@ -60,7 +60,7 @@
     "@aws-sdk/lib-storage": "^3.675.0",
     "@aws-sdk/s3-request-presigner": "^3.679.0",
     "@azure/storage-blob": "^12.26.0",
-    "@clickhouse/client": "^1.11.1",
+    "@clickhouse/client": "^1.11.2",
     "@google-cloud/storage": "^7.15.2",
     "@langchain/anthropic": "^0.3.21",
     "@langchain/aws": "^0.1.10",
@@ -91,7 +91,7 @@
     "prisma-extension-kysely": "^2.1.0",
     "uuid": "^9.0.1",
     "winston": "^3.15.0",
-    "zod": "^3.24.4",
+    "zod": "^3.25.62",
     "zod-to-json-schema": "^3.23.5"
   },
   "devDependencies": {

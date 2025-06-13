@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { prisma } from "@langfuse/shared/src/db";
 import defaultModelPrices from "../constants/default-model-prices.json";
 import { logger } from "@langfuse/shared/src/server";
@@ -9,8 +9,10 @@ const DefaultModelPriceSchema = z.object({
   match_pattern: z.string(),
   created_at: z.coerce.date(),
   updated_at: z.coerce.date(),
-  prices: z.record(z.number()),
-  tokenizer_config: z.record(z.union([z.string(), z.number()])).nullish(),
+  prices: z.record(z.string(), z.number()),
+  tokenizer_config: z
+    .record(z.string(), z.union([z.string(), z.number()]))
+    .nullish(),
   tokenizer_id: z.string().nullish(),
 });
 type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;

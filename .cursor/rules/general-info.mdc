@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# General rules
+
+- Linting in this repo only works if the development server is running
