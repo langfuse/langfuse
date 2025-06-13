@@ -46,9 +46,7 @@ export const PeekDatasetCompareDetail = ({
       : undefined;
 
   const { datasetItemId, selectedRunItemProps, setSelectedRunItemProps } =
-    useDatasetComparePeekState(
-      `/project/${projectId}/datasets/${datasetId}/compare`,
-    );
+    useDatasetComparePeekState();
   const { runId, traceId } = selectedRunItemProps ?? {};
 
   const trace = usePeekData({
