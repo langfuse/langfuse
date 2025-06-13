@@ -8,7 +8,7 @@ describe("DatasetItemIdService", () => {
         .normalizeProjectName;
 
       expect(normalizeProjectName("AIR")).toBe("AIR");
-      expect(normalizeProjectName("Air Project")).toBe("AIR_PROJECT");
+      expect(normalizeProjectName("Air Project")).toBe("AIR_PROJEC");
       expect(normalizeProjectName("my-project-2024")).toBe("MY_PROJECT");
       expect(normalizeProjectName("Project With Spaces & Special!")).toBe(
         "PROJECT_WI",

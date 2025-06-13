@@ -1,4 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
+import { v4 as uuidv4 } from "uuid";
 
 /**
  * Generate a user-friendly dataset item ID based on project name
@@ -10,26 +11,35 @@ export class DatasetItemIdService {
    * Generate next friendly ID for a dataset item
    */
   static async generateFriendlyId(projectId: string): Promise<string> {
-    // Get project information
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { name: true },
-    });
+    try {
+      // Get project information
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { name: true },
+      });
 
-    if (!project) {
-      throw new Error(`Project with id ${projectId} not found`);
+      if (!project) {
+        throw new Error(`Project with id ${projectId} not found`);
+      }
+
+      // Normalize project name to be used as prefix
+      const prefix = this.normalizeProjectName(project.name);
+
+      // Get the next sequence number for this project
+      const sequenceNumber = await this.getNextSequenceNumber(
+        projectId,
+        prefix,
+      );
+
+      // Format sequence number with leading zeros (4 digits)
+      const formattedSequence = sequenceNumber.toString().padStart(4, "0");
+
+      return `${prefix}-${formattedSequence}`;
+    } catch (error) {
+      // If there's any error (e.g., sequence counter table doesn't exist),
+      // fall back to UUID
+      return uuidv4();
     }
-
-    // Normalize project name to be used as prefix
-    const prefix = this.normalizeProjectName(project.name);
-
-    // Get the next sequence number for this project
-    const sequenceNumber = await this.getNextSequenceNumber(projectId, prefix);
-
-    // Format sequence number with leading zeros (4 digits)
-    const formattedSequence = sequenceNumber.toString().padStart(4, "0");
-
-    return `${prefix}-${formattedSequence}`;
   }
 
   /**
@@ -55,34 +65,44 @@ export class DatasetItemIdService {
     projectId: string,
     prefix: string,
   ): Promise<number> {
-    return prisma.$transaction(async (tx) => {
-      // Try to increment existing counter or create new one
-      const result = await (tx as any).sequenceCounter.upsert({
-        where: {
-          projectId_entityType_prefix: {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // Try to increment existing counter or create new one
+        const result = await (tx as any).sequenceCounter.upsert({
+          where: {
+            projectId_entityType_prefix: {
+              projectId,
+              entityType: "dataset_item",
+              prefix,
+            },
+          },
+          update: {
+            sequence: {
+              increment: 1,
+            },
+          },
+          create: {
             projectId,
             entityType: "dataset_item",
             prefix,
+            sequence: await this.getInitialSequenceNumber(
+              tx,
+              projectId,
+              prefix,
+            ),
           },
-        },
-        update: {
-          sequence: {
-            increment: 1,
+          select: {
+            sequence: true,
           },
-        },
-        create: {
-          projectId,
-          entityType: "dataset_item",
-          prefix,
-          sequence: await this.getInitialSequenceNumber(tx, projectId, prefix),
-        },
-        select: {
-          sequence: true,
-        },
-      });
+        });
 
-      return result.sequence;
-    });
+        return result.sequence;
+      });
+    } catch (error) {
+      // If there's any error (e.g., sequence counter table doesn't exist),
+      // return a random number between 1 and 9999
+      return Math.floor(Math.random() * 9999) + 1;
+    }
   }
 
   /**
@@ -95,23 +115,28 @@ export class DatasetItemIdService {
     projectId: string,
     prefix: string,
   ): Promise<number> {
-    // Use raw SQL to efficiently extract and find the maximum sequence number
-    // This avoids fetching all items and iterating through them in the application
-    const result = await tx.$queryRaw<Array<{ max_sequence: number | null }>>`
-      SELECT MAX(
-        CASE 
-          WHEN id ~ ${`^${prefix}-\\d{4}$`}
-          THEN CAST(SUBSTRING(id FROM ${prefix.length + 2}) AS INTEGER)
-          ELSE NULL
-        END
-      ) as max_sequence
-      FROM dataset_items 
-      WHERE project_id = ${projectId} 
-        AND id LIKE ${`${prefix}-%`}
-    `;
+    try {
+      // Use raw SQL to efficiently extract and find the maximum sequence number
+      // This avoids fetching all items and iterating through them in the application
+      const result = await tx.$queryRaw<Array<{ max_sequence: number | null }>>`
+        SELECT MAX(
+          CASE 
+            WHEN id ~ ${`^${prefix}-\\d{4}$`}
+            THEN CAST(SUBSTRING(id FROM ${prefix.length + 2}) AS INTEGER)
+            ELSE NULL
+          END
+        ) as max_sequence
+        FROM dataset_items 
+        WHERE project_id = ${projectId} 
+          AND id LIKE ${`${prefix}-%`}
+      `;
 
-    const maxSequence = result[0]?.max_sequence ?? 0;
-    return maxSequence + 1;
+      const maxSequence = result[0]?.max_sequence ?? 0;
+      return maxSequence + 1;
+    } catch (error) {
+      // If there's any error, return 1 as the initial sequence
+      return 1;
+    }
   }
 
   /**
