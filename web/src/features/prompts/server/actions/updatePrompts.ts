@@ -102,28 +102,29 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
         )}`,
       );
 
-      await Promise.all(
-        await removeLabelsFromPreviousPromptVersions({
+      const result = await Promise.all([
+        // Remove labels from other prompts
+        ...(await removeLabelsFromPreviousPromptVersions({
           prisma: tx,
           projectId,
           promptName,
           labelsToRemove: [...new Set(newLabels)],
-        }),
-      );
-
-      const updatedPrompt = tx.prompt.update({
-        where: {
-          id: prompt.id,
-          projectId,
-        },
-        data: {
-          labels: {
-            set: Array.from(newLabelsSet),
+        })),
+        // Update prompt
+        tx.prompt.update({
+          where: {
+            id: prompt.id,
+            projectId,
           },
-        },
-      });
+          data: {
+            labels: {
+              set: Array.from(newLabelsSet),
+            },
+          },
+        }),
+      ]);
 
-      return updatedPrompt;
+      return result[result.length - 1];
     });
 
     await promptService.invalidateCache({ projectId, promptName: promptName });

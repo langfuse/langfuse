@@ -157,6 +157,12 @@ export class PromptService {
     }
   }
 
+  /**
+   * Lock the cache so reads will go to the database and not to Redis
+   *
+   * This is useful in order to return consistent data during the
+   * invalidation of the cache where we are looping through the relevant cache keys
+   */
   public async lockCache(
     params: Pick<PromptParams, "projectId" | "promptName">,
   ): Promise<void> {
