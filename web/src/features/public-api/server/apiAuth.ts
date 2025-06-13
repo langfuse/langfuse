@@ -250,7 +250,7 @@ export class ApiAuthService {
             };
           }
         } catch (error: unknown) {
-          logger.error(
+          logger.info(
             `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
             error,
           );

@@ -115,10 +115,17 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
 
   if (!res.ok) {
-    logger.error(
-      `middleware intercepted error with code ${res.error.code}`,
-      res.error,
-    );
+    if (res.error.code === "NOT_FOUND") {
+      logger.info(
+        `middleware intercepted error with code ${res.error.code}`,
+        res.error,
+      );
+    } else {
+      logger.error(
+        `middleware intercepted error with code ${res.error.code}`,
+        res.error,
+      );
+    }
 
     // Throw a new TRPC error with:
     // - The same error code as the original error
