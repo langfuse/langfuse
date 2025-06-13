@@ -4,6 +4,9 @@ import { type Prisma } from "@langfuse/shared";
 const MAX_PREVIEW_ROWS = 10;
 const PREVIEW_FILE_SIZE_BYTES = 1024 * 1024 * 2; // 2MB
 
+// Common CSV delimiters to try
+const COMMON_DELIMITERS = [",", ";", "\t", "|"];
+
 type ColumnType =
   | "string"
   | "number"
@@ -43,8 +46,75 @@ type ParseOptions = {
   processor?: RowProcessor;
 };
 
+// Function to detect the best delimiter by analyzing first 5 lines to find delimiter with most consistent column count (lowest variance)
+function detectDelimiter(sample: string): string {
+  const lines = sample.split("\n").slice(0, 5);
+  let bestDelimiter = ",";
+  let maxColumns = 0;
+  let minVariance = Infinity;
+
+  for (const delimiter of COMMON_DELIMITERS) {
+    const columnCounts = lines
+      .filter((line) => line.trim().length > 0)
+      .map((line) => {
+        return countColumnsWithQuotes(line, delimiter);
+      });
+
+    if (columnCounts.length === 0) continue;
+
+    const avgColumns =
+      columnCounts.reduce((a, b) => a + b, 0) / columnCounts.length;
+    const variance =
+      columnCounts.reduce(
+        (acc, count) => acc + Math.pow(count - avgColumns, 2),
+        0,
+      ) / columnCounts.length;
+
+    const isCurrentBetter =
+      (variance === 0 && minVariance > 0) ||
+      (variance === minVariance && avgColumns > maxColumns) ||
+      (variance < minVariance && avgColumns >= 2);
+
+    if (isCurrentBetter) {
+      bestDelimiter = delimiter;
+      maxColumns = avgColumns;
+      minVariance = variance;
+    }
+  }
+
+  return bestDelimiter;
+}
+
+// Helper function to count columns while respecting quoted fields
+function countColumnsWithQuotes(line: string, delimiter: string): number {
+  let columnCount = 1;
+  let inQuotes = false;
+  let quoteChar = "";
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (!inQuotes && (char === '"' || char === "'")) {
+      inQuotes = true;
+      quoteChar = char;
+    } else if (inQuotes && char === quoteChar) {
+      if (i + 1 < line.length && line[i + 1] === quoteChar) {
+        i++;
+      } else {
+        inQuotes = false;
+        quoteChar = "";
+      }
+    } else if (!inQuotes && char === delimiter) {
+      columnCount++;
+    }
+  }
+
+  return columnCount;
+}
+
 // Shared parser configuration
-const getParserConfig = (options: ParseOptions) => ({
+const getParserConfig = (options: ParseOptions, delimiter: string = ",") => ({
+  delimiter,
   skip_empty_lines: true,
   trim: true,
   bom: true,
@@ -59,13 +129,14 @@ const createParser = async (
   resolve: (result: CsvPreviewResult) => void,
   reject: (error: Error) => void,
   fileName?: string,
+  delimiter: string = ",",
 ) => {
   const columnSamples = new Map<string, string[]>();
   let headerRow: string[] = [];
   const previewRows: string[][] = [];
   let rowCount = 0;
 
-  const parser = parse(getParserConfig(options));
+  const parser = parse(getParserConfig(options, delimiter));
 
   parser.on("data", async (row: string[]) => {
     const currentRowIndex = rowCount++;
@@ -142,8 +213,18 @@ export async function parseCsvClient(
     const reader = new FileReader();
 
     reader.onload = async () => {
-      const parser = await createParser(options, resolve, reject, file.name);
-      parser.write(reader.result as string);
+      const content = reader.result as string;
+
+      const delimiter = detectDelimiter(content);
+
+      const parser = await createParser(
+        options,
+        resolve,
+        reject,
+        file.name,
+        delimiter,
+      );
+      parser.write(content);
       parser.end();
     };
 
