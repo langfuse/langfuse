@@ -229,10 +229,13 @@ export const processEventBatch = async (
     throw new Error("Redis not initialized, aborting event processing");
   }
 
-  const queue = IngestionQueue.getInstance();
   await Promise.all(
-    Object.keys(sortedBatchByEventBodyId).map(async (id) =>
-      queue
+    Object.keys(sortedBatchByEventBodyId).map(async (id) => {
+      const eventData = sortedBatchByEventBodyId[id];
+      const shardingKey = `${authCheck.scope.projectId}-${eventData.eventBodyId}`;
+      const queue = IngestionQueue.getInstance(shardingKey);
+      
+      return queue
         ? queue.add(
             QueueJobs.IngestionJob,
             {
@@ -241,13 +244,13 @@ export const processEventBatch = async (
               name: QueueJobs.IngestionJob as const,
               payload: {
                 data: {
-                  type: sortedBatchByEventBodyId[id].type,
-                  eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
-                  fileKey: sortedBatchByEventBodyId[id].key,
+                  type: eventData.type,
+                  eventBodyId: eventData.eventBodyId,
+                  fileKey: eventData.key,
                   skipS3List:
                     source === "otel" &&
                     getClickhouseEntityType(
-                      sortedBatchByEventBodyId[id].type,
+                      eventData.type,
                     ) === "observation",
                 },
                 authCheck: authCheck as {
@@ -261,8 +264,8 @@ export const processEventBatch = async (
             },
             { delay: getDelay(delay) },
           )
-        : Promise.reject("Failed to instantiate queue"),
-    ),
+        : Promise.reject("Failed to instantiate queue");
+    }),
   );
 
   return aggregateBatchResult(

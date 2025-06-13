@@ -29,6 +29,7 @@ import {
   logger,
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
+  IngestionQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -202,13 +203,17 @@ if (env.QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED === "true") {
 }
 
 if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.IngestionQueue,
-    ingestionQueueProcessorBuilder(true), // this might redirect to secondary queue
-    {
-      concurrency: env.LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
-    },
-  );
+  // Register workers for all ingestion queue shards
+  const shardNames = IngestionQueue.getShardNames();
+  shardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      ingestionQueueProcessorBuilder(true), // this might redirect to secondary queue
+      {
+        concurrency: env.LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED === "true") {

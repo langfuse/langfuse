@@ -1,12 +1,12 @@
-import { Job, Processor, Queue, Worker, WorkerOptions } from "bullmq";
+import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
-  getQueue,
+  // getQueue,
   convertQueueNameToMetricName,
   createNewRedisInstance,
   getQueuePrefix,
   logger,
   QueueName,
-  recordGauge,
+  // recordGauge,
   recordHistogram,
   recordIncrement,
   redisQueueRetryOptions,
@@ -15,10 +15,6 @@ import {
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
-
-  private static getQueue(queueName: QueueName): Queue | null {
-    return getQueue(queueName);
-  }
 
   private static metricWrapper(
     processor: Processor,
@@ -36,27 +32,27 @@ export class WorkerManager {
         },
       );
       const result = await processor(job);
-      const queue = WorkerManager.getQueue(queueName);
-      await Promise.allSettled([
-        queue?.count().then((count) => {
-          recordGauge(
-            convertQueueNameToMetricName(queueName) + ".length",
-            count,
-            {
-              unit: "records",
-            },
-          );
-        }),
-        queue?.getFailedCount().then((count) => {
-          recordGauge(
-            convertQueueNameToMetricName(queueName) + ".dlq_length",
-            count,
-            {
-              unit: "records",
-            },
-          );
-        }),
-      ]);
+      // const queue = getQueue(queueName);
+      // await Promise.allSettled([
+      //   queue?.count().then((count) => {
+      //     recordGauge(
+      //       convertQueueNameToMetricName(queueName) + ".length",
+      //       count,
+      //       {
+      //         unit: "records",
+      //       },
+      //     );
+      //   }),
+      //   queue?.getFailedCount().then((count) => {
+      //     recordGauge(
+      //       convertQueueNameToMetricName(queueName) + ".dlq_length",
+      //       count,
+      //       {
+      //         unit: "records",
+      //       },
+      //     );
+      //   }),
+      // ]);
       recordHistogram(
         convertQueueNameToMetricName(queueName) + ".processing_time",
         Date.now() - startTime,
