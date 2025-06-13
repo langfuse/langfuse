@@ -476,7 +476,6 @@ export function DatasetCompareRunsTable(props: {
           children: (row?: DatasetCompareRunRowData) => (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
-              datasetId={props.datasetId}
               scoreKeyToDisplayName={scoreKeyToDisplayName}
               runsData={props.runsData ?? []}
               selectedMetrics={selectedMetrics}
