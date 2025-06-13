@@ -23,7 +23,6 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 
 export type PeekDatasetCompareDetailProps = {
   projectId: string;
-  datasetId: string;
   runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics?: DatasetRunMetric[];
@@ -32,7 +31,6 @@ export type PeekDatasetCompareDetailProps = {
 
 export const PeekDatasetCompareDetail = ({
   projectId,
-  datasetId,
   runsData,
   scoreKeyToDisplayName,
   selectedMetrics = ["scores", "resourceMetrics"],
