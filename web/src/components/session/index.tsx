@@ -262,7 +262,7 @@ export const SessionPage: React.FC<{
         ),
       }}
     >
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-end gap-2">
         <SessionUsers projectId={projectId} users={session.data?.users} />
         <Badge variant="outline">Traces: {session.data?.traces.length}</Badge>
         {session.data && (
