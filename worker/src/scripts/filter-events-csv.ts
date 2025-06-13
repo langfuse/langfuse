@@ -24,6 +24,7 @@ const OUTPUT_FILE = "events_filtered.csv";
 const JSON_OUTPUT_FILE = "events_filtered.json";
 
 // Redis configuration
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 const REDIS_URL = process.env.REDIS_URL || "rediss://default:....?ssl=true";
 const QUEUE_NAME = QueueName.IngestionSecondaryQueue;
 const JOB_NAME = QueueJobs.IngestionJob;
