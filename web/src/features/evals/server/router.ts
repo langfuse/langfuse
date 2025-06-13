@@ -1,4 +1,7 @@
 import { z } from "zod/v4";
+// We continue to use zod v3 for langchainjs.
+// Corresponding issue report: https://github.com/langchain-ai/langchainjs/issues/8357.
+import { z as zv3 } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -832,9 +835,9 @@ export const evalRouter = createTRPCRouter({
               adapter: matchingLLMKey.adapter,
               ...input.modelParams,
             },
-            structuredOutputSchema: z.object({
-              score: z.string(),
-              reasoning: z.string(),
+            structuredOutputSchema: zv3.object({
+              score: zv3.string(),
+              reasoning: zv3.string(),
             }),
             config: matchingLLMKey.config,
           })
