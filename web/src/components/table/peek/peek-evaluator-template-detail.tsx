@@ -37,6 +37,7 @@ export const PeekViewEvaluatorTemplateDetail = ({
           existingEvalTemplate={template}
           isEditing={false}
           preventRedirect={true}
+          useDialog={false}
         />
       </div>
     </div>

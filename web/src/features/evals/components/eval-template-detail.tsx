@@ -119,6 +119,7 @@ export const EvalTemplateDetail = () => {
       ) : isEditing ? (
         <div className="overflow-y-auto p-3 pt-1">
           <EvalTemplateForm
+            useDialog={false}
             projectId={projectId}
             existingEvalTemplate={displayTemplate}
             isEditing={isEditing}
@@ -129,6 +130,7 @@ export const EvalTemplateDetail = () => {
         <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden contain-layout">
           <div className="flex max-h-full min-h-0 flex-col overflow-y-auto px-3 pt-1">
             <EvalTemplateForm
+              useDialog={false}
               projectId={projectId}
               existingEvalTemplate={displayTemplate}
               isEditing={isEditing}

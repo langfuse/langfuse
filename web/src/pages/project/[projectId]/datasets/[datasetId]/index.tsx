@@ -306,6 +306,7 @@ export default function Dataset() {
               Evaluator
             </DialogTitle>
             <EvaluatorForm
+              useDialog={true}
               projectId={projectId}
               evalTemplates={evalTemplates.data?.templates ?? []}
               templateId={selectedEvaluatorData.templateId}
