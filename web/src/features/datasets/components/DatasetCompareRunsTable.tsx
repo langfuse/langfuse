@@ -379,11 +379,9 @@ export function DatasetCompareRunsTable(props: {
       columns,
     );
 
-  const urlPathname = `/project/${props.projectId}/datasets/${props.datasetId}/compare`;
-
-  const { setPeekView } = useDatasetComparePeekState(urlPathname);
+  const { setPeekView } = useDatasetComparePeekState();
   const { getNavigationPath, shouldUpdateRowOnDetailPageNavigation } =
-    useDatasetComparePeekNavigation(urlPathname);
+    useDatasetComparePeekNavigation();
 
   return (
     <>
@@ -467,7 +465,6 @@ export function DatasetCompareRunsTable(props: {
         }}
         peekView={{
           itemType: "DATASET_ITEM",
-          urlPathname,
           tableDataUpdatedAt: Math.max(
             baseDatasetItems.dataUpdatedAt,
             ...runs.map(({ items }) => items.dataUpdatedAt),
