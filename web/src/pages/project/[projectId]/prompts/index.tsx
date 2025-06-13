@@ -1,5 +1,7 @@
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
+import { ExportPromptsButton } from "@/src/features/prompts/components/ExportPromptsButton";
+import { ImportPromptsButton } from "@/src/features/prompts/components/ImportPromptsButton";
 import Page from "@/src/components/layouts/page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
@@ -56,19 +58,23 @@ export default function Prompts() {
           href: "https://langfuse.com/docs/prompts",
         },
         actionButtonsRight: (
-          <ActionButton
-            icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
-            hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/prompts/new`}
-            variant="default"
-            limit={promptLimit}
-            limitValue={Number(count?.totalCount ?? 0)}
-            onClick={() => {
-              capture("prompts:new_form_open");
-            }}
-          >
-            New prompt
-          </ActionButton>
+          <div className="flex space-x-2">
+            <ImportPromptsButton projectId={projectId} />
+            <ExportPromptsButton projectId={projectId} />
+            <ActionButton
+              icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+              hasAccess={hasCUDAccess}
+              href={`/project/${projectId}/prompts/new`}
+              variant="default"
+              limit={promptLimit}
+              limitValue={Number(count?.totalCount ?? 0)}
+              onClick={() => {
+                capture("prompts:new_form_open");
+              }}
+            >
+              New prompt
+            </ActionButton>
+          </div>
         ),
       }}
       scrollable={showOnboarding}
