@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const BedrockConfigSchema = z.object({ region: z.string() });
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;

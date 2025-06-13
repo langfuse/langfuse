@@ -1,4 +1,4 @@
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { convertDateToClickhouseDateTime } from "@langfuse/shared/src/server";
 import {
   type QueryType,
@@ -727,7 +727,7 @@ export class QueryBuilder {
     const parseResult = queryModel.safeParse(query);
     if (!parseResult.success) {
       throw new InvalidRequestError(
-        `Invalid query: ${JSON.stringify(parseResult.error.errors)}`,
+        `Invalid query: ${JSON.stringify(parseResult.error.issues)}`,
       );
     }
 

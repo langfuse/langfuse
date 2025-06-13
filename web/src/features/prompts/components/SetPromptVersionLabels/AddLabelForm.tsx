@@ -1,7 +1,7 @@
 import React from "react";
 import { PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   Form,
   FormControl,
@@ -23,8 +23,6 @@ const AddLabelFormSchema = z.object({
   ),
 });
 
-type AddLabelFromSchemaType = z.infer<typeof AddLabelFormSchema>;
-
 export const AddLabelForm = (props: {
   setLabels: React.Dispatch<React.SetStateAction<string[]>>;
   setSelectedLabels: React.Dispatch<React.SetStateAction<string[]>>;
@@ -32,7 +30,7 @@ export const AddLabelForm = (props: {
 }) => {
   const capture = usePostHogClientCapture();
 
-  const form = useForm<AddLabelFromSchemaType>({
+  const form = useForm({
     resolver: zodResolver(AddLabelFormSchema),
     defaultValues: {
       newLabel: "",

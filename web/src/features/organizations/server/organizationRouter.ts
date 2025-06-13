@@ -5,7 +5,7 @@ import {
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
-import * as z from "zod";
+import * as z from "zod/v4";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";

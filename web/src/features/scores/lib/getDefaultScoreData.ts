@@ -6,6 +6,8 @@ import {
 import { ScoreSource } from "@langfuse/shared";
 import { type APIScoreV2, type ValidatedScoreConfig } from "@langfuse/shared";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
+import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
+import { type z } from "zod/v4";
 
 const filterTraceAnnotationScores =
   ({ traceId, observationId }: ScoreTargetTrace) =>
@@ -31,7 +33,7 @@ export const getDefaultAnnotationScoreData = ({
   emptySelectedConfigIds: string[];
   configs: ValidatedScoreConfig[];
   scoreTarget: ScoreTarget;
-}) => {
+}): z.infer<typeof AnnotationScoreDataSchema>[] => {
   const isValidScore = isTraceScore(scoreTarget)
     ? filterTraceAnnotationScores(scoreTarget)
     : filterSessionAnnotationScores(scoreTarget);

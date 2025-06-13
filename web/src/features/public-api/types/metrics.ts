@@ -5,7 +5,7 @@ import {
   singleFilter,
 } from "@langfuse/shared";
 import { stringDateTime } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { dimension, granularities, metric, views } from "@/src/features/query";
 
 /**
@@ -77,7 +77,7 @@ export const GetMetricsV1Query = z.object({
 });
 
 export const GetMetricsV1Response = z.object({
-  data: z.array(z.record(z.unknown())),
+  data: z.array(z.record(z.string(), z.unknown())),
   // meta: paginationMetaResponseZod,
 });
 

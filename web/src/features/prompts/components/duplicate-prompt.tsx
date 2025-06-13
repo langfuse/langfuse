@@ -25,7 +25,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/src/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
@@ -38,7 +38,7 @@ enum CopySettings {
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  isCopySingleVersion: z.nativeEnum(CopySettings),
+  isCopySingleVersion: z.enum(CopySettings),
 });
 
 const DuplicatePromptForm: React.FC<{
@@ -50,7 +50,7 @@ const DuplicatePromptForm: React.FC<{
 }> = ({ projectId, promptId, promptName, promptVersion, onFormSuccess }) => {
   const capture = usePostHogClientCapture();
   const router = useRouter();
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: promptName + "-copy",

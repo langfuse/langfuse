@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import { sql } from "kysely";
-import { z } from "zod";
+import { z } from "zod/v4";
+// We continue to use zod v3 for langchainjs.
+// Corresponding issue report: https://github.com/langchain-ai/langchainjs/issues/8357.
+import { z as zv3 } from "zod";
 import { JobConfigState } from "@prisma/client";
 import {
   QueueJobs,
@@ -494,10 +497,10 @@ export const evaluate = async ({
     `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`,
   );
 
-  const parsedOutputSchema = z
+  const parsedOutputSchema = zv3
     .object({
-      score: z.string(),
-      reasoning: z.string(),
+      score: zv3.string(),
+      reasoning: zv3.string(),
     })
     .parse(template.outputSchema);
 
@@ -505,9 +508,9 @@ export const evaluate = async ({
     throw new InvalidRequestError("Output schema not found");
   }
 
-  const evalScoreSchema = z.object({
-    reasoning: z.string().describe(parsedOutputSchema.reasoning),
-    score: z.number().describe(parsedOutputSchema.score),
+  const evalScoreSchema = zv3.object({
+    reasoning: zv3.string().describe(parsedOutputSchema.reasoning),
+    score: zv3.number().describe(parsedOutputSchema.score),
   });
 
   const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(

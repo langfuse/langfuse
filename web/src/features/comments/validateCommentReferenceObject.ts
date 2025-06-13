@@ -1,5 +1,5 @@
 import { CommentObjectType, type CreateCommentData } from "@langfuse/shared";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { getObservationById, getTraceById } from "@langfuse/shared/src/server";
 
 const isObservationOrTrace = (objectType: CommentObjectType) => {

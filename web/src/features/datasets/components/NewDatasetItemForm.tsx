@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import * as z from "zod";
+import * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -82,6 +82,22 @@ const formSchema = z.object({
   ),
 });
 
+const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
+  if (value === undefined) return "";
+
+  if (typeof value === "string") {
+    try {
+      // Parse the string and re-stringify with proper formatting
+      const parsed = JSON.parse(value);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      // If it's not valid JSON, stringify the string itself
+      return JSON.stringify(value, null, 2);
+    }
+  }
+  return JSON.stringify(value, null, 2);
+};
+
 export const NewDatasetItemForm = (props: {
   projectId: string;
   traceId?: string;
@@ -96,13 +112,13 @@ export const NewDatasetItemForm = (props: {
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       datasetIds: props.datasetId ? [props.datasetId] : [],
-      input: props.input ? JSON.stringify(props.input, null, 2) : "",
-      expectedOutput: props.output ? JSON.stringify(props.output, null, 2) : "",
-      metadata: props.metadata ? JSON.stringify(props.metadata, null, 2) : "",
+      input: formatJsonValue(props.input),
+      expectedOutput: formatJsonValue(props.output),
+      metadata: formatJsonValue(props.metadata),
     },
   });
 

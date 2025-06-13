@@ -1,4 +1,7 @@
-import { z } from "zod";
+import { z } from "zod/v4";
+// We continue to use zod v3 for langchainjs.
+// Corresponding issue report: https://github.com/langchain-ai/langchainjs/issues/8357.
+import { z as zv3 } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -59,8 +62,8 @@ const ConfigWithTemplateSchema = z.object({
   variableMapping: z.array(variableMapping),
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
-  status: z.nativeEnum(JobConfigState),
-  jobType: z.nativeEnum(JobType),
+  status: z.enum(JobConfigState),
+  jobType: z.enum(JobType),
   createdAt: z.date(),
   updatedAt: z.date(),
   timeScope: TimeScopeSchema,
@@ -120,7 +123,7 @@ export const CreateEvalTemplate = z.object({
   }),
   cloneSourceId: z.string().optional(),
   referencedEvaluators: z
-    .nativeEnum(EvalReferencedEvaluators)
+    .enum(EvalReferencedEvaluators)
     .optional()
     .default(EvalReferencedEvaluators.PERSIST),
 });
@@ -129,7 +132,7 @@ const CreateEvalJobSchema = z.object({
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
-  target: z.string(z.enum(["trace", "dataset-run-item"])),
+  target: z.string(), // should be z.enum(["trace", "dataset-run-item"])
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(variableMapping),
   sampling: z.number().gt(0).lte(1),
@@ -143,7 +146,7 @@ const UpdateEvalJobSchema = z.object({
   variableMapping: z.array(variableMapping).optional(),
   sampling: z.number().gt(0).lte(1).optional(),
   delay: z.number().gte(0).optional(),
-  status: z.nativeEnum(EvaluatorStatus).optional(),
+  status: z.enum(EvaluatorStatus).optional(),
   timeScope: TimeScopeSchema.optional(),
 });
 
@@ -832,9 +835,9 @@ export const evalRouter = createTRPCRouter({
               adapter: matchingLLMKey.adapter,
               ...input.modelParams,
             },
-            structuredOutputSchema: z.object({
-              score: z.string(),
-              reasoning: z.string(),
+            structuredOutputSchema: zv3.object({
+              score: zv3.string(),
+              reasoning: zv3.string(),
             }),
             config: matchingLLMKey.config,
           })
@@ -991,7 +994,7 @@ export const evalRouter = createTRPCRouter({
         projectId: z.string(),
         evalTemplateId: z.string(),
         datasetId: z.string(),
-        newStatus: z.nativeEnum(EvaluatorStatus),
+        newStatus: z.enum(EvaluatorStatus),
       }),
     )
     .mutation(

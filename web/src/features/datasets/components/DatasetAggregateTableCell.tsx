@@ -216,7 +216,7 @@ const DatasetAggregateCell = ({
                   </div>
                 </DialogBody>
 
-                <DialogFooter className="static mt-auto">
+                <DialogFooter>
                   <Button
                     onClick={() => {
                       setIsOpen(false);

@@ -31,7 +31,7 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] z-50 flex w-full flex-col translate-x-[-50%] translate-y-[-50%] bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+  "fixed left-[50%] top-[50%] overflow-hidden z-50 flex w-full flex-col translate-x-[-50%] translate-y-[-50%] bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
   {
     variants: {
       size: {
@@ -75,10 +75,12 @@ const DialogContent = React.forwardRef<
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 z-20 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
+        <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:z-20">
+          <DialogPrimitive.Close className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        </div>
       </DialogPrimitive.Content>
     </DialogPortal>
   ),
@@ -91,11 +93,20 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "sticky top-0 z-10 flex flex-shrink-0 flex-col space-y-1.5 border-b bg-background p-6 pb-4 text-center sm:text-left",
+      "dialog-header sticky top-0 z-30 flex flex-shrink-0 flex-col space-y-1.5 rounded-t-lg border-b bg-background p-6 pb-4 text-center sm:text-left",
       className,
     )}
     {...props}
-  />
+  >
+    <DialogPrimitive.Close
+      className="absolute right-3 top-3 z-20 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+      tabIndex={-1}
+    >
+      <X className="h-4 w-4" />
+      <span className="sr-only">Close</span>
+    </DialogPrimitive.Close>
+    {props.children}
+  </div>
 );
 DialogHeader.displayName = "DialogHeader";
 
@@ -106,7 +117,7 @@ const DialogBody = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "flex flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6 [&:has(+.dialog-footer)]:pb-0",
+      "flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-4",
       className,
     )}
     {...props}
@@ -120,7 +131,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "dialog-footer sticky bottom-0 z-10 flex flex-shrink-0 flex-col-reverse border-t bg-background p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
+      "dialog-footer sticky bottom-0 z-10 flex flex-shrink-0 flex-col-reverse rounded-b-lg border-t bg-background p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
       className,
     )}
     {...props}

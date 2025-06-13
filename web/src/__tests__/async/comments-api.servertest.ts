@@ -7,7 +7,7 @@ import {
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { prisma } from "@langfuse/shared/src/db";
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   createObservationsCh,
   createTracesCh,
@@ -101,7 +101,7 @@ describe("Create and get comments", () => {
       );
     } catch (error) {
       expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"too_small\",\"minimum\":1,\"type\":\"string\",\"inclusive\":true,\"exact\":false,\"message\":\"String must contain at least 1 character(s)\",\"path\":[\"content\"]}]}`,
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"origin\":\"string\",\"code\":\"too_small\",\"minimum\":1,\"inclusive\":true,\"path\":[\"content\"],\"message\":\"Too small: expected string to have >=1 characters\"}]}`,
       );
     }
   });
@@ -124,7 +124,7 @@ describe("Create and get comments", () => {
       );
     } catch (error) {
       expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"too_big\",\"maximum\":3000,\"type\":\"string\",\"inclusive\":true,\"exact\":false,\"message\":\"String must contain at most 3000 character(s)\",\"path\":[\"content\"]}]}`,
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"origin\":\"string\",\"code\":\"too_big\",\"maximum\":3000,\"inclusive\":true,\"path\":[\"content\"],\"message\":\"Too big: expected string to have <=3000 characters\"}]}`,
       );
     }
   });
@@ -302,7 +302,7 @@ describe("GET /api/public/comments API Endpoint", () => {
       );
     } catch (error) {
       expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"custom\",\"message\":\"objectType is required when objectId is provided\",\"path\":[\"objectType\"]}]}`,
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"custom\",\"path\":[\"objectType\"],\"message\":\"objectType is required when objectId is provided\"}]}`,
       );
     }
   });

@@ -9,7 +9,7 @@ import {
   encoding_for_model,
 } from "tiktoken";
 
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   instrumentSync,
   logger,
@@ -124,9 +124,12 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
     });
   } else {
     result = isString(parsedText)
-      ? getTokensByModel(config.data.tokenizerModel, parsedText)
+      ? getTokensByModel(
+          config.data.tokenizerModel as TiktokenModel,
+          parsedText,
+        )
       : getTokensByModel(
-          config.data.tokenizerModel,
+          config.data.tokenizerModel as TiktokenModel,
           JSON.stringify(parsedText),
         );
   }

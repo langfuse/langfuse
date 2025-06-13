@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
@@ -17,8 +17,8 @@ export const AnnotationQueueItemSchema = z
     id: z.string(),
     queueId: z.string(),
     objectId: z.string(),
-    objectType: z.nativeEnum(AnnotationQueueObjectType),
-    status: z.nativeEnum(AnnotationQueueStatus),
+    objectType: z.enum(AnnotationQueueObjectType),
+    status: z.enum(AnnotationQueueStatus),
     completedAt: z.coerce.date().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
@@ -71,7 +71,7 @@ export const GetAnnotationQueueItemsQuery = z
   .object({
     ...publicApiPaginationZod,
     queueId: z.string(),
-    status: z.nativeEnum(AnnotationQueueStatus).optional(),
+    status: z.enum(AnnotationQueueStatus).optional(),
   })
   .strict();
 
@@ -96,9 +96,9 @@ export const GetAnnotationQueueItemByIdResponse = AnnotationQueueItemSchema;
 export const CreateAnnotationQueueItemBody = z
   .object({
     objectId: z.string(),
-    objectType: z.nativeEnum(AnnotationQueueObjectType),
+    objectType: z.enum(AnnotationQueueObjectType),
     status: z
-      .nativeEnum(AnnotationQueueStatus)
+      .enum(AnnotationQueueStatus)
       .optional()
       .default(AnnotationQueueStatus.PENDING),
   })
@@ -109,7 +109,7 @@ export const CreateAnnotationQueueItemResponse = AnnotationQueueItemSchema;
 // PATCH /annotation-queues/:queueId/items/:itemId
 export const UpdateAnnotationQueueItemBody = z
   .object({
-    status: z.nativeEnum(AnnotationQueueStatus).optional(),
+    status: z.enum(AnnotationQueueStatus).optional(),
   })
   .strict();
 

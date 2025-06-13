@@ -21,7 +21,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const isItemLocked = (item: AnnotationQueueItem) => {
   return (
@@ -232,7 +232,7 @@ export const queueItemRouter = createTRPCRouter({
         objectIds: z
           .array(z.string())
           .min(1, "Minimum 1 object_id is required."),
-        objectType: z.nativeEnum(AnnotationQueueObjectType),
+        objectType: z.enum(AnnotationQueueObjectType),
         query: BatchActionQuerySchema.optional(),
         isBatchAction: z.boolean().default(false),
       }),

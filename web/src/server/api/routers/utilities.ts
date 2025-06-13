@@ -1,5 +1,5 @@
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { promises as dns } from "dns";
 import { Address4, Address6 } from "ip-address";
 import { logger } from "@langfuse/shared/src/server";

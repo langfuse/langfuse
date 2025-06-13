@@ -71,7 +71,7 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
@@ -147,7 +147,7 @@ export const CreateExperimentsForm = ({
     availableProviders,
   } = useModelParams();
 
-  const form = useForm<CreateExperiment>({
+  const form = useForm({
     resolver: zodResolver(CreateExperimentData),
     defaultValues: {
       promptId: "",
@@ -804,6 +804,7 @@ export const CreateExperimentsForm = ({
             </DialogTitle>
             <EvaluatorForm
               projectId={projectId}
+              useDialog={true}
               evalTemplates={evalTemplates.data?.templates ?? []}
               templateId={selectedEvaluatorData.templateId}
               existingEvaluator={selectedEvaluatorData.evaluator}

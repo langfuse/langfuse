@@ -90,6 +90,7 @@ export function CommandMenu({
         order: "DESC",
       },
       limit: 100,
+      page: 0,
     },
     {
       enabled: open && Boolean(project?.id),
