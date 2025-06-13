@@ -145,7 +145,7 @@ const BlobStorageIntegrationSettingsForm = ({
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
-  const blobStorageForm = useForm<BlobStorageIntegrationFormSchema>({
+  const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
     defaultValues: {
       type: state?.type || BlobStorageIntegrationType.S3,

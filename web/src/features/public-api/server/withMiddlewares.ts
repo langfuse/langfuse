@@ -1,7 +1,7 @@
 import { isPrismaException } from "@/src/utils/exceptions";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type ZodError } from "zod";
+import { type ZodError } from "zod/v4";
 import { BaseError, MethodNotAllowedError } from "@langfuse/shared";
 import { logger, traceException } from "@langfuse/shared/src/server";
 
@@ -63,7 +63,7 @@ export function withMiddlewares(handlers: Handlers) {
       if (isZodError(error)) {
         return res.status(400).json({
           message: "Invalid request data",
-          error: error.errors,
+          error: error.issues,
         });
       }
 

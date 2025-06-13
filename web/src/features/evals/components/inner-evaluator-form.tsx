@@ -1,4 +1,4 @@
-import { useFieldArray, useForm } from "react-hook-form";
+import { type UseFormReturn, useFieldArray, useForm } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -29,7 +29,7 @@ import {
   availableDatasetEvalVariables,
   type ObservationType,
 } from "@langfuse/shared";
-import * as z from "zod";
+import { z } from "zod/v4";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -44,6 +44,7 @@ import { cn } from "@/src/utils/tailwind";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   evalConfigFormSchema,
+  type EvalFormType,
   isTraceOrDatasetObject,
   isTraceTarget,
   type LangfuseObject,
@@ -139,7 +140,7 @@ export const InnerEvaluatorForm = (props: {
   const router = useRouter();
   const traceId = router.query.traceId as string;
 
-  const form = useForm<z.infer<typeof evalConfigFormSchema>>({
+  const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
     disabled: props.disabled,
     defaultValues: {
@@ -173,7 +174,7 @@ export const InnerEvaluatorForm = (props: {
           ["NEW", "EXISTING"].includes(option),
       ),
     },
-  });
+  }) as UseFormReturn<EvalFormType>;
 
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
     { projectId: props.projectId },

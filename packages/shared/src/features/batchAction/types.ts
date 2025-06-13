@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
@@ -32,11 +32,11 @@ export const CreateBatchActionSchema = z.object({
   actionId: ActionIdSchema,
   targetId: z.string().optional(),
   query: BatchActionQuerySchema,
-  tableName: z.nativeEnum(BatchTableNames),
+  tableName: z.enum(BatchTableNames),
 });
 
 export const GetIsBatchActionInProgressSchema = z.object({
   projectId: z.string(),
   actionId: ActionIdSchema,
-  tableName: z.nativeEnum(BatchTableNames),
+  tableName: z.enum(BatchTableNames),
 });

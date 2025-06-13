@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import * as z from "zod";
+import { z } from "zod/v4";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -124,7 +124,7 @@ const formSchema = z.object({
   outputScore: z.string().min(1, "Enter a score function"),
   outputReasoning: z.string().min(1, "Enter a reasoning function"),
   referencedEvaluators: z
-    .nativeEnum(EvalReferencedEvaluators)
+    .enum(EvalReferencedEvaluators)
     .optional()
     .default(EvalReferencedEvaluators.PERSIST),
   shouldUseDefaultModel: z.boolean().default(true),
@@ -199,7 +199,7 @@ export const InnerEvalTemplateForm = (props: {
 
   // updates the form based on the pre-filled data
   // either form update or from langfuse-generated template
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     disabled: !props.isEditing,
     defaultValues: {
@@ -302,7 +302,7 @@ export const InnerEvalTemplateForm = (props: {
 
       if (!parsedModel.success) {
         setFormError(
-          `${parsedModel.error.errors[0].path}: ${parsedModel.error.errors[0].message}`,
+          `${parsedModel.error.issues[0].path}: ${parsedModel.error.issues[0].message}`,
         );
         return;
       }

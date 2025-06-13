@@ -78,7 +78,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     initialPromptVariant = null;
   }
 
-  const defaultValues: NewPromptFormSchemaType = {
+  const defaultValues = {
     type: initialPromptVariant?.type ?? PromptType.Text,
     chatPrompt:
       initialPromptVariant?.type === PromptType.Chat
@@ -91,9 +91,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     name: initialPrompt?.name ?? "",
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
     isActive: !Boolean(initialPrompt),
+    commitMessage: initialPrompt?.commitMessage ?? undefined,
   };
 
-  const form = useForm<NewPromptFormSchemaType>({
+  const form = useForm({
     resolver: zodResolver(NewPromptFormSchema),
     mode: "onTouched",
     defaultValues,

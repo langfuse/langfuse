@@ -44,6 +44,8 @@ export function SelectDashboardDialog({
         column: "updatedAt",
         order: "DESC",
       },
+      page: 0,
+      limit: 100,
     },
     {
       enabled: Boolean(projectId) && open,

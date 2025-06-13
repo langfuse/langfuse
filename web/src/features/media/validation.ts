@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export enum MediaEnabledFields {
   Input = "input",
@@ -76,7 +76,7 @@ export enum MediaFileExtension {
 export const GetMediaUploadUrlQuerySchema = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
-  contentType: z.nativeEnum(MediaContentType, {
+  contentType: z.enum(MediaContentType, {
     message: `Invalid content type. Only supporting ${Object.values(
       MediaContentType,
     ).join(", ")}`,
@@ -88,7 +88,7 @@ export const GetMediaUploadUrlQuerySchema = z.object({
       /^[A-Za-z0-9+/=]{44}$/,
       "Must be a 44 character base64 encoded SHA-256 hash",
     ),
-  field: z.nativeEnum(MediaEnabledFields, {
+  field: z.enum(MediaEnabledFields, {
     message: `Invalid field. Only supporting ${Object.values(
       MediaEnabledFields,
     ).join(", ")}`,
@@ -136,11 +136,11 @@ export type GetMediaResponse = z.infer<typeof GetMediaResponseSchema>;
 
 export const MediaReturnSchema = z.object({
   mediaId: z.string(),
-  contentType: z.nativeEnum(MediaContentType),
+  contentType: z.enum(MediaContentType),
   contentLength: z.coerce.number(),
   url: z.string(),
   urlExpiry: z.string(),
-  field: z.nativeEnum(MediaEnabledFields),
+  field: z.enum(MediaEnabledFields),
 });
 
 export type MediaReturnType = z.infer<typeof MediaReturnSchema>;

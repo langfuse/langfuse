@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { makeZodVerifiedAPICallSilent } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";

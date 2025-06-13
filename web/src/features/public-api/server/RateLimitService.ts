@@ -1,5 +1,5 @@
 import type Redis from "ioredis";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 import {
