@@ -1055,7 +1055,8 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     isLangfuseSDKSpan: boolean,
   ): Record<string, unknown> {
-    if (isLangfuseSDKSpan) {
+    const hasLangfuseUsageDetails = attributes[LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS];
+    if (hasLangfuseUsageDetails) {
       try {
         return JSON.parse(
           attributes[
@@ -1099,7 +1100,8 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     isLangfuseSDKSpan: boolean,
   ): Record<string, unknown> {
-    if (isLangfuseSDKSpan) {
+    const hasLangfuseCostDetails = attributes[LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS];
+    if (hasLangfuseCostDetails) {
       try {
         return JSON.parse(
           attributes[
