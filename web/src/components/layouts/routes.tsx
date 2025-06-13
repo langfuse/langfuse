@@ -96,6 +96,7 @@ export const ROUTES: Route[] = [
       {
         title: "Scores",
         pathname: `/project/[projectId]/scores`,
+        show: ({ organization }) => false,
       },
     ],
   },
@@ -105,6 +106,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/annotation-queues`,
     productModule: "evaluation",
     projectRbacScopes: ["annotationQueues:read", "evalJob:read"],
+    show: ({ organization }) => false,
     items: [
       {
         title: "Human Annotation",
@@ -130,18 +132,21 @@ export const ROUTES: Route[] = [
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
+    show: ({ organization }) => false,
   },
   {
     title: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
+    show: ({ organization }) => false,
   },
   {
     title: "Datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
     productModule: "datasets",
+    show: ({ organization }) => false,
   },
   {
     title: "Upgrade",
@@ -150,7 +155,8 @@ export const ROUTES: Route[] = [
     bottom: true,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    show: ({ organization }) => false,
+    // show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
     title: "Upgrade",
@@ -159,13 +165,15 @@ export const ROUTES: Route[] = [
     bottom: true,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    show: ({ organization }) => false,
+    // show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
     title: "Cloud Status",
     bottom: true,
     pathname: "",
     menuNode: <CloudStatusMenu />,
+    show: ({ organization }) => false,
   },
   {
     title: "Settings",
@@ -185,6 +193,7 @@ export const ROUTES: Route[] = [
     bottom: true,
     pathname: "", // Empty pathname since this is a dropdown
     menuNode: <SupportMenuDropdown />,
+    show: ({ organization }) => false,
   },
 ];
 
