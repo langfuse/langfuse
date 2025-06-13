@@ -18,7 +18,7 @@ import {
   useQueryParam,
   StringParam,
 } from "use-query-params";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -446,6 +446,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                   : undefined
               }
               shouldWrapVariables={true}
+              useDialog={true}
               mode="edit"
               onFormSuccess={() => {
                 setEditConfigId(null);

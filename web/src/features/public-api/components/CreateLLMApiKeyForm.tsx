@@ -137,7 +137,7 @@ export function CreateLLMApiKeyForm({
 
   const formSchema = createFormSchema(mode);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues:
       mode === "update" && existingKey

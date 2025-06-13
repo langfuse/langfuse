@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const base = z.object({
   domain: z.string().refine((v) => v === v.toLowerCase(), {

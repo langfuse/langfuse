@@ -5,6 +5,7 @@ import { type PartialConfig } from "@/src/features/evals/types";
 export const EvaluatorForm = (props: {
   projectId: string;
   evalTemplates: EvalTemplate[];
+  useDialog: boolean;
   disabled?: boolean;
   existingEvaluator?: PartialConfig & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
@@ -36,6 +37,7 @@ export const EvaluatorForm = (props: {
         mode={props.mode}
         preventRedirect={props.preventRedirect ?? true}
         preprocessFormValues={props.preprocessFormValues}
+        useDialog={props.useDialog}
       />
     </>
   );

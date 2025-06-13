@@ -194,7 +194,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   const capture = usePostHogClientCapture();
   const router = useRouter();
 
-  const form = useForm<AnnotateFormSchemaType>({
+  const form = useForm({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
       scoreData: getDefaultAnnotationScoreData({

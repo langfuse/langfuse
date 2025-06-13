@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { prisma } from "@langfuse/shared/src/db";
 import langfuseDashboards from "../constants/langfuse-dashboards.json";
 import {

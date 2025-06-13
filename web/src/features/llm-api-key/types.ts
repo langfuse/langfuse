@@ -1,10 +1,10 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { LLMAdapter, BedrockConfigSchema } from "@langfuse/shared";
 
 export const LlmApiKeySchema = z.object({
   projectId: z.string(),
   provider: z.string().min(1),
-  adapter: z.nativeEnum(LLMAdapter),
+  adapter: z.enum(LLMAdapter),
   baseURL: z.string().url().optional(),
   withDefaultModels: z.boolean().optional(),
   customModels: z.array(z.string().min(1)).optional(),

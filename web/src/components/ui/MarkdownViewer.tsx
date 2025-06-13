@@ -27,7 +27,7 @@ import {
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
 } from "@/src/components/schemas/ChatMlSchema";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media/validation";

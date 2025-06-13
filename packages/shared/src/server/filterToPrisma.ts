@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { ColumnDefinition, type TableNames } from "../tableDefinitions";
 import { FilterState } from "../types";
 import { filterOperators, timeFilter } from "../interfaces/filters";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { logger } from "./index";
 
 const operatorReplacements = {

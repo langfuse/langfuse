@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { PlusIcon, Trash } from "lucide-react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { type UseFormReturn, useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
@@ -39,7 +39,7 @@ import {
 } from "@/src/features/scores/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const Category = z.object({
   label: z.string().min(1),
@@ -118,7 +118,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
       setFormError(error.message ?? "An error occurred while creating config."),
   });
 
-  const form = useForm<CreateConfig>({
+  const form = useForm({
     resolver: zodResolver(createConfigSchema),
     defaultValues: {
       dataType: ScoreDataType.NUMERIC,
@@ -126,7 +126,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
       maxValue: undefined,
       name: "",
     },
-  });
+  }) as UseFormReturn<CreateConfig>;
 
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,

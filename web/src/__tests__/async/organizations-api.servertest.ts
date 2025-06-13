@@ -5,7 +5,7 @@ import {
   makeAPICall,
 } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import {
   createAndAddApiKeysToDb,
@@ -749,7 +749,7 @@ describe("Admin Organizations API", () => {
 const OrganizationProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
-  metadata: z.record(z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

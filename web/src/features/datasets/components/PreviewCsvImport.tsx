@@ -9,7 +9,7 @@ import { ImportCard } from "./ImportCard";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { findDefaultColumn } from "../lib/findDefaultColumn";
 import { type DragEndEvent } from "@dnd-kit/core";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { useEffect, useState } from "react";
 import {
   parseCsvClient,

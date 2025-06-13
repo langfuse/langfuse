@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import * as z from "zod";
+import * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
@@ -96,7 +96,7 @@ export const EditDatasetItem = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetItem?.id]);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       input: "",

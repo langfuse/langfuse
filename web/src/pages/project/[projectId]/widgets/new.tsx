@@ -9,7 +9,7 @@ import {
   type views,
   type metricAggregations,
 } from "@/src/features/query/types";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { useState } from "react";
 

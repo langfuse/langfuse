@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowUpRight } from "lucide-react";
-import * as z from "zod";
+import * as z from "zod/v4";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -65,7 +65,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
 
   const [open, setOpen] = useState(false);
 
-  const form = useForm<FormValues>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: props.defaultValues ?? {
       name: "",
