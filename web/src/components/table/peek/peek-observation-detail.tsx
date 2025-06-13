@@ -12,7 +12,7 @@ export const PeekViewObservationDetail = ({
   projectId: string;
   row?: ObservationsTableRow;
 }) => {
-  const { peekId, timestamp } = useObservationPeekState("observations");
+  const { peekId, timestamp } = useObservationPeekState();
   const effectiveTimestamp = row?.timestamp ?? timestamp;
 
   const trace = usePeekData({

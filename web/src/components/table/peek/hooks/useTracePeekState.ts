@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useCallback } from "react";
 
-export const useTracePeekState = (pathname: string) => {
+export const useTracePeekState = () => {
   const router = useRouter();
   const { peek, timestamp } = router.query;
 
@@ -9,6 +9,7 @@ export const useTracePeekState = (pathname: string) => {
     (open: boolean, id?: string, time?: string) => {
       const url = new URL(window.location.href);
       const params = new URLSearchParams(url.search);
+      const pathname = window.location.pathname;
 
       if (!open || !id) {
         // close peek view
@@ -35,7 +36,7 @@ export const useTracePeekState = (pathname: string) => {
         { shallow: true },
       );
     },
-    [router, pathname, peek, timestamp],
+    [router, peek, timestamp],
   );
 
   return {
