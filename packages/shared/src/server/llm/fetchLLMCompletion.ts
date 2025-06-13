@@ -1,4 +1,6 @@
-import { type ZodSchema } from "zod/v4";
+// We continue to use zod v3 for langchainjs.
+// Corresponding issue report: https://github.com/langchain-ai/langchainjs/issues/8357.
+import { type ZodSchema } from "zod";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
