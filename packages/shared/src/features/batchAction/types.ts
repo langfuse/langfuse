@@ -2,6 +2,7 @@ import z from "zod";
 import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
+import { TracingSearchType } from "../../interfaces/search";
 
 /* eslint-disable no-unused-vars */
 export enum BatchActionType {
@@ -20,6 +21,8 @@ export type ActionId = z.infer<typeof ActionIdSchema>;
 export const BatchActionQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),
   orderBy,
+  searchQuery: z.string().optional(),
+  searchType: z.array(TracingSearchType).optional(),
 });
 
 export type BatchActionQuery = z.infer<typeof BatchActionQuerySchema>;

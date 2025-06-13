@@ -13,6 +13,8 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type RouterOutputs } from "@/src/utils/api";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { BatchExportTableName } from "@langfuse/shared";
 
 type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
 
@@ -123,6 +125,15 @@ export function AuditLogsTable(props: { projectId: string }) {
         columns={columns}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={[
+          <BatchExportTableButton
+            key="audit-logs-export"
+            projectId={props.projectId}
+            tableName={BatchExportTableName.AuditLogs}
+            filterState={[]}
+            orderByState={{ column: "createdAt", order: "DESC" }}
+          />,
+        ]}
         className="px-0"
       />
       <SettingsTableCard>

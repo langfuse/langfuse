@@ -182,6 +182,62 @@ describe("select all test suite", () => {
     expect(scores).toHaveLength(0);
   });
 
+  it("should handle trace deletions with search query", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: uuidv4(),
+        name: "search-target-trace",
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: uuidv4(),
+        name: "other-trace",
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const selectAllJob = {
+      payload: {
+        projectId,
+        actionId: "trace-delete",
+        tableName: BatchExportTableName.Traces,
+        query: {
+          filter: [],
+          orderBy: { column: "timestamp", order: "DESC" },
+          searchQuery: "search-target",
+          searchType: ["id"],
+        },
+        cutoffCreatedAt: new Date("2024-01-02"),
+        type: BatchActionType.Delete,
+      },
+    } as any;
+
+    await handleBatchActionJob(selectAllJob);
+
+    // Verify only the trace matching the search query was deleted
+    const stream = await getDatabaseReadStream({
+      projectId,
+      tableName: BatchExportTableName.Traces,
+      cutoffCreatedAt: new Date("2024-01-02"),
+      filter: [],
+      orderBy: { column: "timestamp", order: "DESC" },
+    });
+
+    const remainingRows: any[] = [];
+    for await (const chunk of stream) {
+      remainingRows.push(chunk);
+    }
+
+    expect(remainingRows).toHaveLength(1);
+    expect(remainingRows[0].name).toBe("other-trace");
+  });
+
   it("should create eval jobs for historic traces", async () => {
     // remove all jobs from the evaluation execution queue
     const queue = getQueue(QueueName.CreateEvalQueue);
