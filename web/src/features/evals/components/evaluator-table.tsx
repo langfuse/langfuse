@@ -446,6 +446,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                   : undefined
               }
               shouldWrapVariables={true}
+              useDialog={true}
               mode="edit"
               onFormSuccess={() => {
                 setEditConfigId(null);
