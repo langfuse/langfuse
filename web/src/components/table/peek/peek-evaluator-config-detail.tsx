@@ -91,6 +91,7 @@ export const PeekViewEvaluatorConfigDetail = ({
           }
           disabled={true}
           shouldWrapVariables={true}
+          useDialog={false}
         />
       </div>
     </div>
