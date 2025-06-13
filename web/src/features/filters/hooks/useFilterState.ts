@@ -18,6 +18,7 @@ import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
+import { datasetItemsTableCols } from "@/src/server/api/definitions/datasetItemsTable";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -141,6 +142,7 @@ const tableCols = {
   users: usersTableCols,
   eval_configs: evalConfigFilterColumns,
   job_executions: evalExecutionsFilterCols,
+  dataset_items: datasetItemsTableCols,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },
