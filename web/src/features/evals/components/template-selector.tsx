@@ -143,21 +143,32 @@ export const TemplateSelector = ({
     <>
       <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={isPopoverOpen}
-            className={cn("w-full justify-between px-2 font-normal", className)}
-          >
-            <div className="flex items-center gap-1 overflow-hidden">
-              <span className="mr-1 truncate">
-                {activeTemplates.length > 0
-                  ? `${activeTemplates.length} active evaluators`
-                  : "Select evaluators"}
-              </span>
-            </div>
-            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={isPopoverOpen}
+                className={cn(
+                  "w-full justify-between px-2 font-normal",
+                  className,
+                )}
+              >
+                <div className="flex items-center gap-1 overflow-hidden">
+                  <span className="mr-1 truncate">
+                    {activeTemplates.length > 0
+                      ? `${activeTemplates.length} active evaluators`
+                      : "Select evaluators"}
+                  </span>
+                </div>
+                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Configure evaluators that will automatically run when dataset
+              experiments are executed
+            </TooltipContent>
+          </Tooltip>
         </PopoverTrigger>
         <PopoverContent className="w-[300px] p-0" align="start">
           <InputCommand>

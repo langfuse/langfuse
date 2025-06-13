@@ -23,16 +23,25 @@ export function TimeScopeDescription(props: {
     return "Select a time scope to run this configuration on.";
   }
 
+  const isDatasetTarget = props.target === "dataset_item";
+  const targetDescription = isDatasetTarget ? "dataset experiments" : "traces";
+  const itemDescription = isDatasetTarget ? "experiment runs" : "traces";
+
   return (
     <div>
-      This configuration will target{" "}
+      This evaluator will run on{" "}
       {props.timeScope?.includes("NEW") && props.timeScope?.includes("EXISTING")
         ? "all future and existing"
         : props.timeScope?.includes("NEW")
           ? "all future"
           : "all existing"}{" "}
-      {props.target === "trace" ? "traces" : "dataset run items"} that match
-      these filters.{" "}
+      {itemDescription} that match these filters.{" "}
+      {isDatasetTarget && (
+        <span className="text-muted-foreground">
+          Note: Dataset evaluators are triggered when {targetDescription} are
+          executed, not when the evaluator is created.
+        </span>
+      )}
     </div>
   );
 }

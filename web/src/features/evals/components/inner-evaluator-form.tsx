@@ -463,11 +463,16 @@ export const InnerEvaluatorForm = (props: {
                                 htmlFor="newObjects"
                                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
-                                New{" "}
                                 {form.watch("target") === "trace"
-                                  ? "traces"
-                                  : "dataset run items"}
+                                  ? "New traces"
+                                  : "Future experiments"}
                               </label>
+                              {form.watch("target") === "dataset" && (
+                                <p className="text-xs text-muted-foreground">
+                                  Triggered when new dataset experiments are
+                                  executed
+                                </p>
+                              )}
                             </div>
                           </div>
                           <div className="items-top flex space-x-2">
@@ -486,16 +491,23 @@ export const InnerEvaluatorForm = (props: {
                                   field.value.includes("EXISTING"))
                               }
                             />
-                            <div className="flex items-center gap-1.5 leading-none">
-                              <label
-                                htmlFor="existingObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                              >
-                                Existing{" "}
-                                {form.watch("target") === "trace"
-                                  ? "traces"
-                                  : "dataset run items"}
-                              </label>
+                            <div className="flex items-start gap-1.5 leading-none">
+                              <div className="grid gap-1.5">
+                                <label
+                                  htmlFor="existingObjects"
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  {form.watch("target") === "trace"
+                                    ? "Existing traces"
+                                    : "Historical experiments"}
+                                </label>
+                                {form.watch("target") === "dataset" && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Run on all existing experiment data
+                                    immediately
+                                  </p>
+                                )}
+                              </div>
                               {field.value.includes("EXISTING") &&
                                 props.mode !== "edit" &&
                                 !props.disabled && (
@@ -556,11 +568,16 @@ export const InnerEvaluatorForm = (props: {
                               value="dataset"
                               disabled={props.disabled || props.mode === "edit"}
                             >
-                              Experiment runs
+                              Dataset experiments
                             </TabsTrigger>
                           </TabsList>
                         </Tabs>
                       </FormControl>
+                      <FormDescription>
+                        {field.value === "dataset"
+                          ? "This evaluator will be triggered when dataset experiments are executed. It will not run immediately upon creation."
+                          : "This evaluator will run on live trace data as it's received by Langfuse."}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
