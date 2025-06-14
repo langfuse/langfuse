@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { v4 as uuidv4 } from "uuid";
 import {
   GetDatasetItemsV1Query,
   GetDatasetItemsV1Response,
@@ -16,6 +15,7 @@ import {
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { DatasetItemIdService } from "@/src/features/datasets/server/dataset-item-id-service";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -45,7 +45,9 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Dataset not found");
       }
 
-      const itemId = id ?? uuidv4();
+      const itemId =
+        id ??
+        (await DatasetItemIdService.generateFriendlyId(auth.scope.projectId));
 
       let item: DatasetItem;
       try {
@@ -78,21 +80,46 @@ export default withMiddlewares({
           },
         });
       } catch (e) {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === "P2025"
-        ) {
-          // this case happens when a dataset item was created for a different dataset.
-          // In the database, the uniqueness constraint is on (id, projectId) only.
-          // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
-          // If this record does not exist, the database will throw an error.
-          logger.warn(
-            `Failed to upsert dataset item. Dataset item ${itemId} in project ${auth.scope.projectId} already exists for a different dataset than ${dataset.id}`,
-          );
-          throw new LangfuseNotFoundError(
-            `The dataset item with id ${itemId} already exists in a dataset other than ${dataset.name}`,
-          );
+        if (e instanceof Prisma.PrismaClientKnownRequestError) {
+          switch (e.code) {
+            case "P2025":
+              // this case happens when a dataset item was created for a different dataset.
+              // In the database, the uniqueness constraint is on (id, projectId) only.
+              // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
+              // If this record does not exist, the database will throw an error.
+              logger.warn(
+                `Failed to upsert dataset item. Dataset item ${itemId} in project ${auth.scope.projectId} already exists for a different dataset than ${dataset.id}`,
+              );
+              throw new LangfuseNotFoundError(
+                `The dataset item with id ${itemId} already exists in a dataset other than ${dataset.name}`,
+              );
+            case "P2003":
+              // Foreign key constraint violation
+              const fieldName = e.meta?.field_name as string | undefined;
+              if (fieldName?.includes("source_trace_id")) {
+                throw new LangfuseNotFoundError(
+                  `The source trace with id ${sourceTraceId} does not exist`,
+                );
+              }
+              if (fieldName?.includes("source_observation_id")) {
+                throw new LangfuseNotFoundError(
+                  `The source observation with id ${sourceObservationId} does not exist`,
+                );
+              }
+              throw new LangfuseNotFoundError(
+                `Foreign key constraint violation: ${e.message}`,
+              );
+            default:
+              logger.error(
+                `Failed to upsert dataset item. Error code: ${e.code}, Message: ${e.message}`,
+                e,
+              );
+              throw new LangfuseNotFoundError(
+                `Failed to create dataset item: ${e.message}`,
+              );
+          }
         }
+        logger.error("Unexpected error while creating dataset item", e);
         throw e;
       }
 

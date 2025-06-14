@@ -15,6 +15,7 @@ import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { encrypt } from "../src/encryption";
 import { redis } from "../src/server/redis/redis";
 import { randomUUID } from "crypto";
+import { v4 as uuidv4 } from "uuid";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -565,6 +566,7 @@ export async function createDatasets(
         }
         const datasetItem = await prisma.datasetItem.create({
           data: {
+            id: uuidv4(),
             projectId,
             datasetId: dataset.id,
             sourceTraceId: sourceObservation?.traceId,
@@ -1367,7 +1369,7 @@ function getGenerationInputOutput(): {
       {
         role: "user",
         content: [
-          { text: "What’s depicted in this image?", type: "text" },
+          { text: "What's depicted in this image?", type: "text" },
           {
             type: "image_url",
             image_url: {
