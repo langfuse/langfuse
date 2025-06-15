@@ -190,9 +190,6 @@ importers:
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
-      '@types/react':
-        specifier: ~18.2.79
-        version: 18.2.79
       axios:
         specifier: ^1.8.2
         version: 1.8.2
@@ -275,6 +272,9 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.11.10
+      '@types/react':
+        specifier: 18.2.79
+        version: 18.2.79
       '@types/uuid':
         specifier: ^9.0.8
         version: 9.0.8

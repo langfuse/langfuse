@@ -101,6 +101,7 @@
     "@types/node": "^20.11.29",
     "@types/nodemailer": "^6.4.16",
     "@types/pg": "^8.11.10",
+    "@types/react": "18.2.79",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",
