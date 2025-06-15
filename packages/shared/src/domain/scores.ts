@@ -1,5 +1,5 @@
 import { ScoreDataType } from "@prisma/client";
-import z from "zod";
+import z from "zod/v4";
 import { MetadataDomain } from "./traces";
 
 export const ScoreSource = {
@@ -31,7 +31,7 @@ export const ScoreSchema = z.object({
   queueId: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
-  dataType: z.nativeEnum(ScoreDataType),
+  dataType: z.enum(ScoreDataType),
 });
 
 export type ScoreDomain = z.infer<typeof ScoreSchema>;

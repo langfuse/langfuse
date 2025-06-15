@@ -6,7 +6,7 @@ import {
   publicApiPaginationZod,
 } from "@langfuse/shared";
 import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 /**
  * Objects
@@ -67,7 +67,7 @@ export const GetTracesV1Query = z.object({
       const [column, order] = v.split(".");
       return { column, order: order?.toUpperCase() };
     })
-    .pipe(orderBy.nullish()),
+    .pipe(orderBy.nullable()),
 });
 export const GetTracesV1Response = z
   .object({

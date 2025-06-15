@@ -189,30 +189,22 @@ export function DataTableToolbar<TData, TValue>({
                         : "IDs / Names"}
                       <DocPopup
                         description={
-                          <>
+                          searchConfig.tableAllowsFullTextSearch &&
+                          (searchConfig.searchType ?? []).includes(
+                            "content",
+                          ) ? (
                             <p className="text-xs font-normal text-primary">
-                              <strong>Metadata search:</strong>{" "}
-                              {searchConfig.metadataSearchFields.join(", ")}
+                              Searches in Input/Output and{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}.
+                              For improved performance, please filter the table
+                              down.
                             </p>
-                            {searchConfig.tableAllowsFullTextSearch ? (
-                              <>
-                                <p className="text-xs font-normal text-primary">
-                                  <strong>Full text search:</strong> Input,
-                                  Output
-                                </p>
-                                <br />
-                                <p className="text-xs font-normal text-primary">
-                                  For improved performance, filter the table
-                                  before searching.
-                                </p>
-                              </>
-                            ) : (
-                              <p className="mt-2 text-xs font-normal text-primary">
-                                Full text search (Input, Output) is not
-                                available for this table.
-                              </p>
-                            )}
-                          </>
+                          ) : (
+                            <p className="text-xs font-normal text-primary">
+                              Searches in{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}.
+                            </p>
+                          )
                         }
                       />
                     </span>
@@ -262,14 +254,6 @@ export function DataTableToolbar<TData, TValue>({
             setDateRangeAndOption={setDateRangeAndOption}
           />
         )}
-        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
-          <PopoverFilterBuilder
-            columns={filterColumnDefinition}
-            filterState={filterState}
-            onChange={setFilterState}
-            columnsWithCustomSelect={columnsWithCustomSelect}
-          />
-        )}
         {environmentFilter && (
           <MultiSelect
             title="Environment"
@@ -278,6 +262,14 @@ export function DataTableToolbar<TData, TValue>({
             onValueChange={environmentFilter.onValueChange}
             options={environmentFilter.options}
             className="my-0 w-auto overflow-hidden"
+          />
+        )}
+        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
+          <PopoverFilterBuilder
+            columns={filterColumnDefinition}
+            filterState={filterState}
+            onChange={setFilterState}
+            columnsWithCustomSelect={columnsWithCustomSelect}
           />
         )}
 

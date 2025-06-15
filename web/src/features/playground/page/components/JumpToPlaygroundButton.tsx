@@ -1,7 +1,7 @@
 import { Terminal } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { Button } from "@/src/components/ui/button";
@@ -139,7 +139,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
 const ParsedChatMessageListSchema = z.array(
   z.object({
-    role: z.nativeEnum(ChatMessageRole),
+    role: z.enum(ChatMessageRole),
     content: z.union([
       z.string(),
       z

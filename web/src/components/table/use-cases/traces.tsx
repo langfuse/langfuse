@@ -378,6 +378,8 @@ export default function TracesTable({
       query: {
         filter: filterState,
         orderBy: orderByState,
+        searchQuery: searchQuery || undefined,
+        searchType,
       },
       isBatchAction: selectAll,
     });
@@ -411,8 +413,10 @@ export default function TracesTable({
 
   const displayCount = totalCountQuery.isLoading ? (
     <span className="inline-block font-mono">...</span>
-  ) : (
+  ) : selectAll ? (
     compactNumberFormatter(totalCountQuery.data?.totalCount)
+  ) : (
+    compactNumberFormatter(Object.keys(selectedRows).length)
   );
 
   const tableActions: TableAction[] = [

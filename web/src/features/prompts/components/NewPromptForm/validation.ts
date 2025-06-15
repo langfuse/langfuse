@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   PromptChatMessageListSchema,
@@ -10,7 +10,7 @@ import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 const NewPromptBaseSchema = z.object({
   name: PromptNameSchema,
   isActive: z.boolean({
-    required_error: "Enter whether the prompt should go live",
+    error: "Enter whether the prompt should go live",
   }),
   config: z.string().refine(validateJson, "Config needs to be valid JSON"),
   commitMessage: z
@@ -36,7 +36,7 @@ const NewTextPromptSchema = NewPromptBaseSchema.extend({
   textPrompt: TextPromptSchema,
 });
 
-export const NewPromptFormSchema = z.union([
+export const NewPromptFormSchema = z.discriminatedUnion("type", [
   NewChatPromptSchema,
   NewTextPromptSchema,
 ]);

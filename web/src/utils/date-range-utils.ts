@@ -1,5 +1,5 @@
 import { type DateRange } from "react-day-picker";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { addMinutes } from "date-fns";
 import { type DateTrunc } from "@langfuse/shared/src/server";
 

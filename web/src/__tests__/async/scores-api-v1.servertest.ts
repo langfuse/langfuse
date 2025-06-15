@@ -19,7 +19,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
-import { z } from "zod";
+import { z } from "zod/v4";
 import waitForExpect from "wait-for-expect";
 
 describe("/api/public/scores API Endpoint", () => {
@@ -916,7 +916,7 @@ describe("/api/public/scores API Endpoint", () => {
             );
           } catch (error) {
             expect((error as Error).message).toBe(
-              `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"received\":\"op\",\"code\":\"invalid_enum_value\",\"options\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid enum value. Expected '<' | '>' | '<=' | '>=' | '!=' | '=', received 'op'\"}]}`,
+              `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"invalid_value\",\"values\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid option: expected one of \\\"<\\\"|\\\">\\\"|\\\"<=\\\"|\\\">=\\\"|\\\"!=\\\"|\\\"=\\\"\"}]}`,
             );
           }
         });
@@ -935,7 +935,7 @@ describe("/api/public/scores API Endpoint", () => {
             );
           } catch (error) {
             expect((error as Error).message).toBe(
-              'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"code":"invalid_type","expected":"number","received":"nan","path":["value"],"message":"Expected number, received nan"}]}',
+              'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"expected":"number","code":"invalid_type","received":"NaN","path":["value"],"message":"Invalid input: expected number, received NaN"}]}',
             );
           }
         });

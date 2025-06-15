@@ -30,7 +30,11 @@ export default function NewTemplatesPage() {
         ],
       }}
     >
-      <EvalTemplateForm projectId={projectId} isEditing={true} />
+      <EvalTemplateForm
+        projectId={projectId}
+        isEditing={true}
+        useDialog={false}
+      />
     </Page>
   );
 }

@@ -68,7 +68,8 @@ export async function sendResetPasswordVerificationRequest(
 ) {
   const { identifier, token, provider } = params as SendVerificationRequestParams & { token: string };
   const transport = createTransport(provider.server);
-  const htmlTemplate = render(<ResetPasswordTemplate token={token} />);
+  const htmlTemplate = await render(<ResetPasswordTemplate token={token} />);
+        
   const result = await transport.sendMail({
     to: identifier,
     from: provider.from,

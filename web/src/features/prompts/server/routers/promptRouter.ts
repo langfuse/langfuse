@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
@@ -797,7 +797,7 @@ export const promptRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        type: z.nativeEnum(PromptType).optional(),
+        type: z.enum(PromptType).optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
