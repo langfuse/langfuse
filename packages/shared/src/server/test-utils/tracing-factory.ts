@@ -5,7 +5,9 @@ import {
   ScoreRecordInsertType,
 } from "../repositories/definitions";
 
-export const createTrace = (trace: Partial<TraceRecordInsertType>) => {
+export const createTrace = (
+  trace: Partial<TraceRecordInsertType>,
+): TraceRecordInsertType => {
   return {
     id: v4(),
     project_id: v4(),
@@ -33,7 +35,7 @@ export const createTrace = (trace: Partial<TraceRecordInsertType>) => {
 
 export const createObservation = (
   observation: Partial<ObservationRecordInsertType>,
-) => {
+): ObservationRecordInsertType => {
   return {
     id: v4(),
     trace_id: v4(),
@@ -72,7 +74,9 @@ export const createObservation = (
   };
 };
 
-export const createScore = (score: Partial<ScoreRecordInsertType>) => {
+export const createTraceScore = (
+  score: Partial<ScoreRecordInsertType>,
+): ScoreRecordInsertType => {
   return {
     id: v4(),
     project_id: v4(),
@@ -84,11 +88,66 @@ export const createScore = (score: Partial<ScoreRecordInsertType>) => {
     value: 100.5,
     source: "API",
     comment: "comment",
+    metadata: { "test-key": "test-value" },
     data_type: "NUMERIC" as const,
     created_at: Date.now(),
     updated_at: Date.now(),
     event_ts: Date.now(),
     is_deleted: 0,
     ...score,
+    session_id: null,
+    dataset_run_id: null,
+  };
+};
+
+export const createSessionScore = (
+  score: Partial<ScoreRecordInsertType>,
+): ScoreRecordInsertType => {
+  return {
+    id: v4(),
+    project_id: v4(),
+    session_id: v4(),
+    environment: "default",
+    name: "test-session-score" + v4(),
+    timestamp: Date.now(),
+    value: 100.5,
+    source: "API",
+    comment: "comment",
+    metadata: { "test-key": "test-value" },
+    data_type: "NUMERIC" as const,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    event_ts: Date.now(),
+    is_deleted: 0,
+    ...score,
+    observation_id: null,
+    trace_id: null,
+    dataset_run_id: null,
+  };
+};
+
+export const createDatasetRunScore = (
+  score: Partial<ScoreRecordInsertType>,
+): ScoreRecordInsertType => {
+  return {
+    id: v4(),
+    project_id: v4(),
+    dataset_run_id: v4(),
+    environment: "default",
+    name: "test-run-score" + v4(),
+    timestamp: Date.now(),
+    value: 100.5,
+    source: "API",
+    comment: "comment",
+    metadata: { "test-key": "test-value" },
+    data_type: "NUMERIC" as const,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    event_ts: Date.now(),
+    is_deleted: 0,
+    ...score,
+    observation_id: null,
+    trace_id: null,
+    session_id: null,
   };
 };

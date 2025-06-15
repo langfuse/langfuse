@@ -242,3 +242,30 @@ const getAuthProviderIdForSsoConfig = (
   if (!dbSsoConfig.authConfig) return dbSsoConfig.authProvider;
   return `${dbSsoConfig.domain}.${dbSsoConfig.authProvider}`;
 };
+
+export const findMultiTenantSsoConfig = async ({
+  providerId,
+}: {
+  providerId: string;
+}): Promise<
+  | {
+      isMultiTenantSsoProvider: true;
+      domain: string;
+    }
+  | {
+      isMultiTenantSsoProvider: false;
+      domain: null;
+    }
+> => {
+  const allConfigs = await getSsoConfigs();
+
+  const config = allConfigs
+    .filter((config) => Boolean(config.authConfig)) // exclude all that don't use custom credentials (enforcement of social login)
+    .find((c) => getAuthProviderIdForSsoConfig(c) === providerId);
+
+  if (config) {
+    return { isMultiTenantSsoProvider: true, domain: config.domain };
+  } else {
+    return { isMultiTenantSsoProvider: false, domain: null };
+  }
+};

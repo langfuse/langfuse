@@ -2,10 +2,24 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 
-export type PeekViewProps<TData> = Omit<
-  DataTablePeekViewProps<TData>,
-  "selectedRowId" | "row"
->;
+/**
+ * Props for configuring a peek view in a data table.
+ *
+ * @template TData The type of data in the table rows
+ *
+ * @property isTableDataComplete - Indicates whether all data (including asynchronously loaded data like metrics)
+ * has finished loading. This is critical for proper table memoization - when false, it ensures the table
+ * continues to re-render as additional data loads, even when the primary data reference remains stable.
+ * Set this to true only when ALL data needed for rendering the table is fully loaded.
+ *
+ * Common usage pattern:
+ * ```
+ * isTableDataComplete: !metricsQuery.isLoading && metricsQuery.data !== undefined
+ * ```
+ */
+export type PeekViewProps<TData> = DataTablePeekViewProps<TData> & {
+  tableDataUpdatedAt: number;
+};
 
 function getInitialRow<TData>(
   peekViewId: string | undefined,
@@ -23,7 +37,6 @@ function getInitialRow<TData>(
 type UsePeekViewProps<TData> = {
   getRow: (id: string) => TData | undefined;
   peekView?: PeekViewProps<TData>;
-  shouldUpdateRowOnDetailPageNavigation?: boolean;
 };
 
 /**
@@ -31,12 +44,11 @@ type UsePeekViewProps<TData> = {
  *
  * @param getRow - The React Table's getRow function
  * @param peekView - Optional configuration for the peek view
- * @param shouldUpdateRowOnDetailPageNavigation - Whether to update the row when the peekViewId changes on detail page navigation. If you do not require the row data to be updated, set this to false. Be mindful of this setting as it adds one extra re-render to the table when the detail page is navigated to.
  *
  * @returns An object containing:
  * - handleOnRowClickPeek: Function to handle row clicks for peek view
- * - inflatedPeekView: The peek view props with the selected row data
  * - peekViewId: The ID of the currently selected row for peek view
+ * - row: The currently selected row for peek view
  *
  * The peek view allows users to preview details of a row without navigating away from the table.
  * It manages the URL state via query parameters and handles row selection/deselection.
@@ -45,7 +57,6 @@ type UsePeekViewProps<TData> = {
 export const usePeekView = <TData extends object>({
   getRow,
   peekView,
-  shouldUpdateRowOnDetailPageNavigation = false,
 }: UsePeekViewProps<TData>) => {
   const router = useRouter();
 
@@ -74,25 +85,21 @@ export const usePeekView = <TData extends object>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const inflatedPeekView = peekView
-    ? { ...peekView, selectedRowId: peekViewId, row }
-    : undefined;
-
   // Update the row state when the user clicks on a row
   const handleOnRowClickPeek = (row: TData) => {
-    if (inflatedPeekView) {
+    if (peekView) {
       const rowId =
         "id" in row && typeof row.id === "string" ? row.id : undefined;
       // If clicking the same row that's already open, close it
-      if (rowId === inflatedPeekView.selectedRowId) {
-        inflatedPeekView.onOpenChange(false);
+      if (rowId === peekViewId) {
+        peekView.onOpenChange(false);
         setRow(undefined);
       }
       // If clicking a different row update the row data and URL
       else {
         const timestamp =
           "timestamp" in row ? (row.timestamp as Date) : undefined;
-        inflatedPeekView.onOpenChange(true, rowId, timestamp?.toISOString());
+        peekView.onOpenChange(true, rowId, timestamp?.toISOString());
         setRow(row);
       }
     }
@@ -100,13 +107,13 @@ export const usePeekView = <TData extends object>({
 
   // Update the row state when the peekViewId changes on detail page navigation
   useEffect(() => {
-    if (!shouldUpdateRowOnDetailPageNavigation || !peekView) return;
+    if (!peekView || !peekView.shouldUpdateRowOnDetailPageNavigation) return;
 
     const rowId =
       row && "id" in row && typeof row.id === "string" ? row.id : undefined;
 
     if (peekViewId !== rowId) {
-      if (peekViewId && inflatedPeekView) {
+      if (peekViewId && peekView) {
         try {
           const row = getRow(peekViewId);
           if (row) {
@@ -122,7 +129,7 @@ export const usePeekView = <TData extends object>({
 
   return {
     handleOnRowClickPeek: peekView ? handleOnRowClickPeek : undefined,
-    inflatedPeekView,
     peekViewId,
+    row,
   };
 };

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -62,7 +62,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string().min(1).max(35),
-        dataType: z.nativeEnum(ScoreDataType),
+        dataType: z.enum(ScoreDataType),
         minValue: z.number().optional(),
         maxValue: z.number().optional(),
         categories: z.array(Category).optional(),

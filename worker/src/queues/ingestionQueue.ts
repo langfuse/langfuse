@@ -4,14 +4,13 @@ import {
   getClickhouseEntityType,
   getCurrentSpan,
   getQueue,
+  getS3EventStorageClient,
   IngestionEventType,
   logger,
   QueueName,
   recordDistribution,
   recordIncrement,
   redis,
-  StorageService,
-  StorageServiceFactory,
   TQueueJobTypes,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -22,22 +21,6 @@ import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
-
-let s3StorageServiceClient: StorageService;
-
-const getS3StorageServiceClient = (bucketName: string): StorageService => {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3StorageServiceClient;
-};
 
 export const ingestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
@@ -71,20 +54,23 @@ export const ingestionQueueProcessorBuilder = (
 
       // We write the new file into the ClickHouse event log to keep track for retention and deletions
       const clickhouseWriter = ClickhouseWriter.getInstance();
-      const fileName = job.data.payload.data.fileKey
-        ? `${job.data.payload.data.fileKey}.json`
-        : "";
-      clickhouseWriter.addToQueue(TableName.EventLog, {
-        id: randomUUID(),
-        project_id: job.data.payload.authCheck.scope.projectId,
-        entity_type: getClickhouseEntityType(job.data.payload.data.type),
-        entity_id: job.data.payload.data.eventBodyId,
-        event_id: job.data.payload.data.fileKey ?? null,
-        bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-        bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
-        created_at: new Date().getTime(),
-        updated_at: new Date().getTime(),
-      });
+
+      if (job.data.payload.data.fileKey && job.data.payload.data.fileKey) {
+        const fileName = `${job.data.payload.data.fileKey}.json`;
+        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
+          id: randomUUID(),
+          project_id: job.data.payload.authCheck.scope.projectId,
+          entity_type: getClickhouseEntityType(job.data.payload.data.type),
+          entity_id: job.data.payload.data.eventBodyId,
+          event_id: job.data.payload.data.fileKey,
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          event_ts: new Date().getTime(),
+          is_deleted: 0,
+        });
+      }
 
       // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
       if (
@@ -128,11 +114,11 @@ export const ingestionQueueProcessorBuilder = (
         }
       }
 
-      const s3Client = getS3StorageServiceClient(
+      const s3Client = getS3EventStorageClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
 
-      logger.info(
+      logger.debug(
         `Processing ingestion event ${
           enableRedirectToSecondaryQueue ? "" : "secondary"
         }`,
@@ -146,9 +132,45 @@ export const ingestionQueueProcessorBuilder = (
       const clickhouseEntityType = getClickhouseEntityType(
         job.data.payload.data.type,
       );
-      const eventFiles = await s3Client.listFiles(
-        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
-      );
+
+      let eventFiles: { file: string; createdAt: Date }[] = [];
+      const events: IngestionEventType[] = [];
+
+      // Check if we should skip S3 list operation
+      // The producer sets skipS3List to true if it's an OTel observation
+      const shouldSkipS3List =
+        job.data.payload.data.skipS3List && job.data.payload.data.fileKey;
+
+      const s3Prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`;
+
+      if (shouldSkipS3List) {
+        // Direct file download - skip S3 list operation
+        const filePath = `${s3Prefix}${job.data.payload.data.fileKey}.json`;
+        eventFiles = [{ file: filePath, createdAt: new Date() }];
+
+        const file = await s3Client.download(filePath);
+        const parsedFile = JSON.parse(file);
+        events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
+      } else {
+        eventFiles = await s3Client.listFiles(s3Prefix);
+
+        // Process files in batches
+        // If a user has 5k events, this will likely take 100 seconds.
+        const downloadAndParseFile = async (fileRef: { file: string }) => {
+          const file = await s3Client.download(fileRef.file);
+          const parsedFile = JSON.parse(file);
+          return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
+        };
+
+        const S3_CONCURRENT_READS = env.LANGFUSE_S3_CONCURRENT_READS;
+        const batches = chunk(eventFiles, S3_CONCURRENT_READS);
+        for (const batch of batches) {
+          const batchEvents = await Promise.all(
+            batch.map(downloadAndParseFile),
+          );
+          events.push(...batchEvents.flat());
+        }
+      }
 
       recordDistribution(
         "langfuse.ingestion.count_files_distribution",
@@ -168,23 +190,6 @@ export const ingestionQueueProcessorBuilder = (
           .map((fileRef) => fileRef.createdAt)
           .sort()
           .shift() ?? new Date();
-
-      const S3_CONCURRENT_READS = env.LANGFUSE_S3_CONCURRENT_READS;
-      const events: IngestionEventType[] = [];
-
-      // Process files in batches
-      // If a user has 5k events, this will likely take 100 seconds.
-      const downloadAndParseFile = async (fileRef: { file: string }) => {
-        const file = await s3Client.download(fileRef.file);
-        const parsedFile = JSON.parse(file);
-        return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
-      };
-
-      const batches = chunk(eventFiles, S3_CONCURRENT_READS);
-      for (const batch of batches) {
-        const batchEvents = await Promise.all(batch.map(downloadAndParseFile));
-        events.push(...batchEvents.flat());
-      }
 
       if (events.length === 0) {
         logger.warn(
@@ -211,16 +216,12 @@ export const ingestionQueueProcessorBuilder = (
       // Perform merge of those events
       if (!redis) throw new Error("Redis not available");
       if (!prisma) throw new Error("Prisma not available");
+
       await new IngestionService(
         redis,
         prisma,
         clickhouseWriter,
-        clickhouseClient({
-          tags: {
-            feature: "ingestion",
-            projectId: job.data.payload.authCheck.scope.projectId,
-          },
-        }),
+        clickhouseClient(),
       ).mergeAndWrite(
         getClickhouseEntityType(events[0].type),
         job.data.payload.authCheck.scope.projectId,

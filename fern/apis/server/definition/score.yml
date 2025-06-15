@@ -7,77 +7,13 @@ service:
   base-path: /api/public
   endpoints:
     create:
-      docs: Create a score
+      docs: Create a score (supports both trace and session scores)
       method: POST
       path: /scores
       request: CreateScoreRequest
       response: CreateScoreResponse
-    get:
-      docs: Get a list of scores
-      method: GET
-      path: /scores
-      request:
-        name: GetScoresRequest
-        query-parameters:
-          page:
-            type: optional<integer>
-            docs: Page number, starts at 1.
-          limit:
-            type: optional<integer>
-            docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
-          userId:
-            type: optional<string>
-            docs: Retrieve only scores with this userId associated to the trace.
-          name:
-            type: optional<string>
-            docs: Retrieve only scores with this name.
-          fromTimestamp:
-            type: optional<datetime>
-            docs: Optional filter to only include scores created on or after a certain datetime (ISO 8601)
-          toTimestamp:
-            type: optional<datetime>
-            docs: Optional filter to only include scores created before a certain datetime (ISO 8601)
-          environment:
-            type: optional<string>
-            allow-multiple: true
-            docs: Optional filter for scores where the environment is one of the provided values.
-          source:
-            type: optional<commons.ScoreSource>
-            docs: Retrieve only scores from a specific source.
-          operator:
-            type: optional<string>
-            docs: Retrieve only scores with <operator> value.
-          value:
-            type: optional<double>
-            docs: Retrieve only scores with <operator> value.
-          scoreIds:
-            type: optional<string>
-            docs: Comma-separated list of score IDs to limit the results to.
-          configId:
-            type: optional<string>
-            docs: Retrieve only scores with a specific configId.
-          queueId:
-            type: optional<string>
-            docs: Retrieve only scores with a specific annotation queueId.
-          dataType:
-            type: optional<commons.ScoreDataType>
-            docs: Retrieve only scores with a specific dataType.
-          traceTags:
-            type: optional<string>
-            allow-multiple: true
-            docs: Only scores linked to traces that include all of these tags will be returned.
-      response: GetScoresResponse
-    get-by-id:
-      docs: Get a score
-      method: GET
-      path: /scores/{scoreId}
-      path-parameters:
-        scoreId:
-          type: string
-          docs: The unique langfuse identifier of a score
-      response: commons.Score
     delete:
-      docs: Delete a score
+      docs: Delete a score (supports both trace and session scores)
       method: DELETE
       path: /scores/{scoreId}
       path-parameters:
@@ -88,13 +24,16 @@ types:
   CreateScoreRequest:
     properties:
       id: optional<string>
-      traceId: string
+      traceId: optional<string>
+      sessionId: optional<string>
+      observationId: optional<string>
+      datasetRunId: optional<string>
       name: string
       value:
         type: commons.CreateScoreValue
         docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
-      observationId: optional<string>
       comment: optional<string>
+      metadata: optional<unknown>
       environment:
         type: optional<string>
         docs: The environment of the score. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
@@ -148,41 +87,3 @@ types:
       id:
         type: string
         docs: The id of the created object in Langfuse
-  GetScoresResponseTraceData:
-    properties:
-      userId:
-        type: optional<string>
-        docs: The user ID associated with the trace referenced by score
-      tags:
-        type: optional<list<string>>
-        docs: A list of tags associated with the trace referenced by score
-      environment:
-        type: optional<string>
-        docs: The environment of the trace referenced by score
-
-  GetScoresResponseDataNumeric:
-    extends: commons.NumericScore
-    properties:
-      trace: GetScoresResponseTraceData
-
-  GetScoresResponseDataCategorical:
-    extends: commons.CategoricalScore
-    properties:
-      trace: GetScoresResponseTraceData
-
-  GetScoresResponseDataBoolean:
-    extends: commons.BooleanScore
-    properties:
-      trace: GetScoresResponseTraceData
-
-  GetScoresResponseData:
-    discriminant: dataType
-    union:
-      NUMERIC: GetScoresResponseDataNumeric
-      CATEGORICAL: GetScoresResponseDataCategorical
-      BOOLEAN: GetScoresResponseDataBoolean
-
-  GetScoresResponse:
-    properties:
-      data: list<GetScoresResponseData>
-      meta: pagination.MetaResponse

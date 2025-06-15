@@ -194,3 +194,23 @@
     appearance: none;
   }
 }
+
+/* Custom styles for react-grid-layout resize handle */
+.react-resizable-handle {
+  position: absolute;
+  bottom: 5px !important;
+  right: 5px !important;
+  background-image: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: hsl(var(--muted-foreground));
+}
+
+.react-resizable-handle::after {
+  content: "";
+  width: 10px !important;
+  height: 10px !important;
+  border-right: 2px solid currentColor !important;
+  border-bottom: 2px solid currentColor !important;
+}

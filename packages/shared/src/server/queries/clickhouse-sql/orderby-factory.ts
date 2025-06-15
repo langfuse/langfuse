@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { OrderByState } from "../../../interfaces/orderBy";
 import { UiColumnMappings } from "../../../tableDefinitions";
 import { logger } from "../../logger";

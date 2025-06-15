@@ -183,11 +183,28 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     if (!network) return;
 
     if (selectedNodeName) {
-      network.selectNodes([selectedNodeName]);
+      // Validate that the node exists before trying to select it
+      const nodeExists = graphData.nodes.includes(selectedNodeName);
+
+      if (nodeExists) {
+        try {
+          network.selectNodes([selectedNodeName]);
+        } catch (error) {
+          console.error("Error selecting node:", selectedNodeName, error);
+          // Fallback to clearing selection
+          network.unselectAll();
+        }
+      } else {
+        console.warn(
+          "Cannot select node that doesn't exist:",
+          selectedNodeName,
+        );
+        network.unselectAll();
+      }
     } else {
       network.unselectAll();
     }
-  }, [selectedNodeName]);
+  }, [selectedNodeName, graphData.nodes]);
 
   if (!graphData.nodes.length) {
     return (

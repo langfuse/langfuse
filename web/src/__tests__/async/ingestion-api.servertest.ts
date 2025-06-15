@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import {
-  getEventLogByProjectAndEntityId,
+  getBlobStorageByProjectAndEntityId,
   getObservationById,
   getScoreById,
   getTraceById,
@@ -94,7 +94,10 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const trace = await getTraceById(entity.body.id, projectId);
+        const trace = await getTraceById({
+          traceId: entity.body.id,
+          projectId,
+        });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(entity.body.id);
         expect(trace!.projectId).toBe(projectId);
@@ -128,7 +131,7 @@ describe("/api/public/ingestion API Endpoint", () => {
   //
   //   expect(response.status).toBe(207);
   //   await waitForExpect(async () => {
-  //     const trace = await getTraceById(entity.body.id, projectId);
+  //     const trace = await getTraceById({ traceId: entity.body.id, projectId });
   //     expect(trace).toBeDefined();
   //     expect(trace!.id).toBe(entity.body.id);
   //     expect(trace!.projectId).toBe(projectId);
@@ -212,11 +215,11 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const observation = await getObservationById(
-          entity.body.id,
+        const observation = await getObservationById({
+          id: entity.body.id,
           projectId,
-          true,
-        );
+          fetchWithInputOutput: true,
+        });
         expect(observation).toBeDefined();
         expect(observation!.id).toBe(entity.body.id);
         expect(observation!.projectId).toBe(projectId);
@@ -273,7 +276,10 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const score = await getScoreById(projectId, entity.body.id);
+        const score = await getScoreById({
+          projectId,
+          scoreId: entity.body.id,
+        });
         expect(score).toBeDefined();
         expect(score!.id).toBe(entity.body.id);
         expect(score!.projectId).toBe(projectId);
@@ -330,7 +336,10 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.status).toBe(207);
 
     await waitForExpect(async () => {
-      const trace = await getTraceById(`${traceId}-${char}-test`, projectId);
+      const trace = await getTraceById({
+        traceId: `${traceId}-${char}-test`,
+        projectId,
+      });
       expect(trace).toBeDefined();
       expect(trace!.id).toBe(`${traceId}-${char}-test`);
       expect(trace!.projectId).toBe(projectId);
@@ -486,7 +495,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.status).toBe(207);
 
     await waitForExpect(async () => {
-      const logs = await getEventLogByProjectAndEntityId(
+      const logs = await getBlobStorageByProjectAndEntityId(
         projectId,
         "trace",
         traceId,
@@ -526,7 +535,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const trace = await getTraceById(traceId, projectId);
+        const trace = await getTraceById({ traceId, projectId });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(traceId);
         expect(JSON.stringify(trace!.metadata)).toBe(
@@ -566,14 +575,55 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const observation = await getObservationById(
-          observationId,
+        const observation = await getObservationById({
+          id: observationId,
           projectId,
-          true,
-        );
+          fetchWithInputOutput: true,
+        });
         expect(observation).toBeDefined();
         expect(observation!.id).toBe(observationId);
         expect(JSON.stringify(observation!.metadata)).toBe(
+          JSON.stringify(metadataValue),
+        );
+      });
+    },
+  );
+
+  it.each([
+    ["string", { testId: "this is a string metadata" }],
+    ["big-number", { testId: "1983516295378495150" }],
+    ["small-number", { testId: 5 }],
+    ["float-number", { testId: 5.5 }],
+  ])(
+    "#6123: should treat %s metadata for scores as such",
+    async (_type, metadataValue) => {
+      const scoreId = randomUUID();
+      const traceId = randomUUID();
+
+      const entity = {
+        id: randomUUID(),
+        type: "score-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: scoreId,
+          name: "score-name",
+          traceId: traceId,
+          value: 100.5,
+          metadata: metadataValue,
+        },
+      };
+
+      const response = await makeAPICall("POST", "/api/public/ingestion", {
+        batch: [entity],
+      });
+
+      expect(response.status).toBe(207);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.id).toBe(scoreId);
+        expect(JSON.stringify(score!.metadata)).toBe(
           JSON.stringify(metadataValue),
         );
       });
@@ -617,7 +667,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.status).toBe(207);
 
     await waitForExpect(async () => {
-      const score = await getScoreById(projectId, scoreId);
+      const score = await getScoreById({ projectId, scoreId });
       expect(score).toBeDefined();
       expect(score!.id).toBe(scoreId);
       expect(score!.projectId).toBe(projectId);

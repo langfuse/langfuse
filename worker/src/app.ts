@@ -28,6 +28,7 @@ import {
   QueueName,
   logger,
   BlobStorageIntegrationQueue,
+  DeadLetterRetryQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -51,6 +52,7 @@ import {
 } from "./queues/dataRetentionQueue";
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
+import { DlqRetryService } from "./services/dlq/dlqRetryService";
 
 const app = express();
 
@@ -126,7 +128,7 @@ if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 2 min
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
-      duration: 120_000,
+      duration: env.LANGFUSE_CLICKHOUSE_TRACE_DELETION_CONCURRENCY_DURATION_MS,
     },
   });
 }
@@ -137,7 +139,7 @@ if (env.QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 15 seconds
       max: env.LANGFUSE_SCORE_DELETE_CONCURRENCY,
-      duration: 120_000,
+      duration: env.LANGFUSE_CLICKHOUSE_TRACE_DELETION_CONCURRENCY_DURATION_MS,
     },
   });
 }
@@ -146,9 +148,10 @@ if (env.QUEUE_CONSUMER_PROJECT_DELETE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.ProjectDelete, projectDeleteProcessor, {
     concurrency: env.LANGFUSE_PROJECT_DELETE_CONCURRENCY,
     limiter: {
-      // Process at most `max` delete jobs per 3 seconds
+      // Process at most `max` delete jobs per LANGFUSE_CLICKHOUSE_PROJECT_DELETION_CONCURRENCY_DURATION_MS (default 10 min)
       max: env.LANGFUSE_PROJECT_DELETE_CONCURRENCY,
-      duration: 120_000,
+      duration:
+        env.LANGFUSE_CLICKHOUSE_PROJECT_DELETION_CONCURRENCY_DURATION_MS,
     },
   });
 }
@@ -264,6 +267,11 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
     postHogIntegrationProcessingProcessor,
     {
       concurrency: 1,
+      limiter: {
+        // Process at most one PostHog job globally per 10s.
+        max: 1,
+        duration: 10_000,
+      },
     },
   );
 }
@@ -300,6 +308,25 @@ if (env.QUEUE_CONSUMER_DATA_RETENTION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.DataRetentionProcessingQueue,
     dataRetentionProcessingProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // Process at most `max` delete jobs per LANGFUSE_CLICKHOUSE_PROJECT_DELETION_CONCURRENCY_DURATION_MS (default 10 min)
+        max: env.LANGFUSE_PROJECT_DELETE_CONCURRENCY,
+        duration:
+          env.LANGFUSE_CLICKHOUSE_PROJECT_DELETION_CONCURRENCY_DURATION_MS,
+      },
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  DeadLetterRetryQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.DeadLetterRetryQueue,
+    DlqRetryService.retryDeadLetterQueue,
     {
       concurrency: 1,
     },

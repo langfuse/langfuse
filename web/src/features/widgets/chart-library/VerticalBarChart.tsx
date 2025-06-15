@@ -1,9 +1,5 @@
 import React from "react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
+import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -48,7 +44,10 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           radius={[4, 4, 0, 0]}
           className="fill-[--color-metric]"
         />
-        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+        <ChartTooltip
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
       </BarChart>
     </ChartContainer>
   );

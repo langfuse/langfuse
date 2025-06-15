@@ -1,4 +1,4 @@
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { convertDateToClickhouseDateTime } from "@langfuse/shared/src/server";
 import {
   type QueryType,
@@ -13,6 +13,7 @@ import {
   FilterList,
   createFilterFromFilterState,
 } from "@langfuse/shared/src/server";
+import { InvalidRequestError } from "@langfuse/shared";
 
 type AppliedDimensionType = {
   table: string;
@@ -29,34 +30,44 @@ type AppliedMetricType = {
 };
 
 export class QueryBuilder {
-  private translateAggregation(
-    aggregation: z.infer<typeof metricAggregations>,
-  ): string {
-    switch (aggregation) {
+  private chartConfig?: { bins?: number; row_limit?: number };
+
+  constructor(chartConfig?: { bins?: number; row_limit?: number }) {
+    this.chartConfig = chartConfig;
+  }
+
+  private translateAggregation(metric: AppliedMetricType): string {
+    switch (metric.aggregation) {
       case "sum":
-        return "sum";
+        return `sum(${metric.alias || metric.sql})`;
       case "avg":
-        return "avg";
+        return `avg(${metric.alias || metric.sql})`;
       case "count":
-        return "count";
+        return `count(${metric.alias || metric.sql})`;
       case "max":
-        return "max";
+        return `max(${metric.alias || metric.sql})`;
       case "min":
-        return "min";
+        return `min(${metric.alias || metric.sql})`;
       case "p50":
-        return "quantile(0.5)";
+        return `quantile(0.5)(${metric.alias || metric.sql})`;
       case "p75":
-        return "quantile(0.75)";
+        return `quantile(0.75)(${metric.alias || metric.sql})`;
       case "p90":
-        return "quantile(0.9)";
+        return `quantile(0.9)(${metric.alias || metric.sql})`;
       case "p95":
-        return "quantile(0.95)";
+        return `quantile(0.95)(${metric.alias || metric.sql})`;
       case "p99":
-        return "quantile(0.99)";
+        return `quantile(0.99)(${metric.alias || metric.sql})`;
+      case "histogram":
+        // Get histogram bins from chart config, fallback to 10
+        const bins = this.chartConfig?.bins ?? 10;
+        return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
       default:
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = aggregation;
-        throw new Error(`Invalid aggregation: ${aggregation}`);
+        const exhaustiveCheck: never = metric.aggregation;
+        throw new InvalidRequestError(
+          `Invalid aggregation: ${metric.aggregation}`,
+        );
     }
   }
 
@@ -64,7 +75,7 @@ export class QueryBuilder {
     viewName: z.infer<typeof views>,
   ): ViewDeclarationType {
     if (!(viewName in viewDeclarations)) {
-      throw new Error(
+      throw new InvalidRequestError(
         `Invalid view. Must be one of ${Object.keys(viewDeclarations)}`,
       );
     }
@@ -77,7 +88,7 @@ export class QueryBuilder {
   ): AppliedDimensionType[] {
     return dimensions.map((dimension) => {
       if (!(dimension.field in view.dimensions)) {
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid dimension ${dimension.field}. Must be one of ${Object.keys(view.dimensions)}`,
         );
       }
@@ -95,7 +106,7 @@ export class QueryBuilder {
   ): AppliedMetricType[] {
     return metrics.map((metric) => {
       if (!(metric.measure in view.measures)) {
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid metric ${metric.measure}. Must be one of ${Object.keys(view.measures)}`,
         );
       }
@@ -119,7 +130,7 @@ export class QueryBuilder {
       if (filter.column in view.dimensions) {
         const dimension = view.dimensions[filter.column];
         clickhouseSelect = dimension.sql;
-        type = dimension.type;
+        type = "string";
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
         }
@@ -134,8 +145,17 @@ export class QueryBuilder {
       } else if (filter.column === view.timeDimension) {
         clickhouseSelect = view.timeDimension;
         type = "datetime";
+      } else if (filter.column === "metadata") {
+        clickhouseSelect = "metadata";
+        type = "stringObject";
+      } else if (filter.column.endsWith("Name")) {
+        // Sometimes, the filter does not update correctly and sends us scoreName instead of name for scores, etc.
+        // If this happens, none of the conditions above apply, and we use this fallback to avoid raising an error.
+        // As this is hard to catch, we include this workaround. (LFE-4838).
+        clickhouseSelect = "name";
+        type = "string";
       } else {
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${view.timeDimension}`,
         );
       }
@@ -278,7 +298,7 @@ export class QueryBuilder {
     const relationJoins = [];
     for (const relationTableName of relationTables) {
       if (!(relationTableName in view.tableRelations)) {
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid relationTable: ${relationTableName}. Must be one of ${Object.keys(view.tableRelations)}`,
         );
       }
@@ -390,7 +410,7 @@ export class QueryBuilder {
       default:
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const exhaustiveCheck: never = granularity;
-        throw new Error(
+        throw new InvalidRequestError(
           `Invalid time granularity: ${granularity}. Must be one of minute, hour, day, week, month`,
         );
     }
@@ -481,7 +501,7 @@ export class QueryBuilder {
 
   private buildOuterMetricsPart(appliedMetrics: AppliedMetricType[]) {
     return appliedMetrics.length > 0
-      ? `${appliedMetrics.map((metric) => `${this.translateAggregation(metric.aggregation)}(${metric.alias || metric.sql}) as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}`
+      ? `${appliedMetrics.map((metric) => `${this.translateAggregation(metric)} as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}`
       : "count(*) as count";
   }
 
@@ -656,7 +676,7 @@ export class QueryBuilder {
         }
       }
 
-      throw new Error(
+      throw new InvalidRequestError(
         `Invalid orderBy field: ${item.field}. Must be one of the dimension or metric fields.`,
       );
     });
@@ -706,8 +726,8 @@ export class QueryBuilder {
     // Run zod validation
     const parseResult = queryModel.safeParse(query);
     if (!parseResult.success) {
-      throw new Error(
-        `Invalid query: ${JSON.stringify(parseResult.error.errors)}`,
+      throw new InvalidRequestError(
+        `Invalid query: ${JSON.stringify(parseResult.error.issues)}`,
       );
     }
 

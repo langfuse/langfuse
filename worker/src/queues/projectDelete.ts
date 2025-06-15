@@ -1,12 +1,12 @@
 import { Job, Processor } from "bullmq";
 import {
-  deleteEventLogByProjectId,
   deleteObservationsByProjectId,
   deleteScoresByProjectId,
   deleteTracesByProjectId,
-  getEventLogByProjectId,
+  getCurrentSpan,
   logger,
   QueueName,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   StorageService,
   StorageServiceFactory,
   TQueueJobTypes,
@@ -26,35 +26,36 @@ const getS3MediaStorageClient = (bucketName: string): StorageService => {
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
+      awsSse: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
+      awsSseKmsKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
     });
   }
   return s3MediaStorageClient;
-};
-
-let s3EventStorageClient: StorageService;
-
-const getS3EventStorageClient = (bucketName: string): StorageService => {
-  if (!s3EventStorageClient) {
-    s3EventStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3EventStorageClient;
 };
 
 export const projectDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.ProjectDelete]>,
 ): Promise<void> => {
   const { orgId, projectId } = job.data.payload;
+
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute("messaging.bullmq.job.input.id", job.data.id);
+    span.setAttribute(
+      "messaging.bullmq.job.input.projectId",
+      job.data.payload.projectId,
+    );
+    span.setAttribute(
+      "messaging.bullmq.job.input.orgId",
+      job.data.payload.orgId,
+    );
+  }
+
   logger.info(`Deleting ${projectId} in org ${orgId}`);
 
   // Delete media data from S3 for project
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
+    logger.info(`Deleting media for ${projectId} in org ${orgId}`);
     const mediaFilesToDelete = await prisma.media.findMany({
       select: {
         id: true,
@@ -75,30 +76,24 @@ export const projectDeleteProcessor: Processor = async (
     // No need to delete from table as this will be done below via Prisma
   }
 
+  logger.info(`Deleting S3 event logs for ${projectId} in org ${orgId}`);
+
   // Remove event files from S3
-  const eventLogStream = getEventLogByProjectId(projectId);
-  let eventLogPaths: string[] = [];
-  const eventStorageClient = getS3EventStorageClient(
-    env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
+    projectId,
+    undefined,
   );
-  for await (const eventLog of eventLogStream) {
-    eventLogPaths.push(eventLog.bucket_path);
-    if (eventLogPaths.length > 500) {
-      // Delete the current batch and reset the list
-      await eventStorageClient.deleteFiles(eventLogPaths);
-      eventLogPaths = [];
-    }
-  }
-  // Delete any remaining files
-  await eventStorageClient.deleteFiles(eventLogPaths);
+
+  logger.info(`Deleting ClickHouse data for ${projectId} in org ${orgId}`);
 
   // Delete project data from ClickHouse first
   await Promise.all([
     deleteTracesByProjectId(projectId),
     deleteObservationsByProjectId(projectId),
     deleteScoresByProjectId(projectId),
-    deleteEventLogByProjectId(projectId),
   ]);
+
+  logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);
 
   // Finally, delete the project itself which should delete all related
   // resources due to the referential actions defined via Prisma
@@ -122,6 +117,9 @@ export const projectDeleteProcessor: Processor = async (
       },
     });
   } catch (e) {
+    logger.error(`Error deleting project ${projectId} in org ${orgId}: ${e}`, {
+      stack: e instanceof Error ? e.stack : undefined,
+    });
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025" || e.code === "P2016") {
         logger.warn(

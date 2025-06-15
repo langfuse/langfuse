@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { AnnotationQueueObjectType, type APIScore } from "@langfuse/shared";
+import { AnnotationQueueObjectType, type APIScoreV2 } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -9,14 +9,13 @@ import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { Fragment, useMemo, useState } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -34,6 +33,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useRouter } from "next/router";
+import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
 
 export const ObservationPreview = ({
   observations,
@@ -47,7 +47,7 @@ export const ObservationPreview = ({
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
-  scores: APIScore[];
+  scores: APIScoreV2[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;
@@ -64,7 +64,7 @@ export const ObservationPreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
-  const hasEntitlement = useHasEntitlement("annotation-queues");
+
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
   const router = useRouter();
@@ -122,13 +122,19 @@ export const ObservationPreview = ({
     <div className="ph-no-capture col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
         <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
-          <div className="flex w-full flex-row items-start gap-2">
+          <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type={preloadedObservation.type} isSmall />
             </div>
-            <span className="mb-0 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
+            <span className="mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
               {preloadedObservation.name}
             </span>
+            <CopyIdsPopover
+              idItems={[
+                { id: preloadedObservation.traceId, name: "Trace ID" },
+                { id: preloadedObservation.id, name: "Observation ID" },
+              ]}
+            />
           </div>
           <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
             {observationWithInputAndOutput.data && (
@@ -148,21 +154,23 @@ export const ObservationPreview = ({
                   <AnnotateDrawer
                     key={"annotation-drawer" + preloadedObservation.id}
                     projectId={projectId}
-                    traceId={traceId}
-                    observationId={preloadedObservation.id}
+                    scoreTarget={{
+                      type: "trace",
+                      traceId: traceId,
+                      observationId: preloadedObservation.id,
+                    }}
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    type="observation"
-                    hasGroupedButton={hasEntitlement}
+                    hasGroupedButton={true}
+                    environment={preloadedObservation.environment}
                   />
-                  {hasEntitlement && (
-                    <CreateNewAnnotationQueueItem
-                      projectId={projectId}
-                      objectId={preloadedObservation.id}
-                      objectType={AnnotationQueueObjectType.OBSERVATION}
-                    />
-                  )}
+
+                  <CreateNewAnnotationQueueItem
+                    projectId={projectId}
+                    objectId={preloadedObservation.id}
+                    objectType={AnnotationQueueObjectType.OBSERVATION}
+                  />
                 </div>
                 {observationWithInputAndOutput.data?.type === "GENERATION" && (
                   <JumpToPlaygroundButton
@@ -234,7 +242,7 @@ export const ObservationPreview = ({
                       </Badge>
                     </BreakdownTooltip>
                   ) : undefined}
-                  {totalCost && totalCost !== thisCost ? (
+                  {totalCost && (!thisCost || !totalCost.equals(thisCost)) ? (
                     <Badge variant="tertiary">
                       ∑ {usdFormatter(totalCost.toNumber())}
                     </Badge>

@@ -68,7 +68,7 @@ export const ModelCostTable = ({
 
   const totalTokenCost = metrics.data?.reduce(
     (acc, curr) =>
-      acc + (curr.sum_total_cost ? (curr.sum_total_cost as number) : 0),
+      acc + (curr.sum_totalCost ? (curr.sum_totalCost as number) : 0),
     0,
   );
 
@@ -83,13 +83,13 @@ export const ModelCostTable = ({
             {truncate(item.providedModelName as string, 30)}
           </LeftAlignedCell>,
           <RightAlignedCell key={`${i}-tokens`}>
-            {item.sum_total_tokens
-              ? compactNumberFormatter(item.sum_total_tokens as number)
+            {item.sum_totalTokens
+              ? compactNumberFormatter(item.sum_totalTokens as number)
               : "0"}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-cost`}>
-            {item.sum_total_cost
-              ? totalCostDashboardFormatted(item.sum_total_cost as number)
+            {item.sum_totalCost
+              ? totalCostDashboardFormatted(item.sum_totalCost as number)
               : "$0"}
           </RightAlignedCell>,
         ])

@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
       - name: Get app name
         uses: winterjung/split@v2
         id: split
@@ -52,7 +56,7 @@ jobs:
             --build-arg NEXT_PUBLIC_BUILD_ID=${{ github.sha }} \
             --build-arg NEXT_PUBLIC_POSTHOG_KEY=${{ vars.NEXT_PUBLIC_POSTHOG_KEY }} \
             --build-arg NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }} \
-            --build-arg NEXT_PUBLIC_CRISP_WEBSITE_ID=${{ vars.NEXT_PUBLIC_CRISP_WEBSITE_ID }} \
+            --build-arg NEXT_PUBLIC_PLAIN_APP_ID=${{ vars.NEXT_PUBLIC_PLAIN_APP_ID }} \
             --build-arg SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} \
             --build-arg SENTRY_ORG=${{ vars.SENTRY_ORG }} \
             --build-arg SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }} \

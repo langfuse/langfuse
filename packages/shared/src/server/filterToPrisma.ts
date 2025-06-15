@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { ColumnDefinition, type TableNames } from "../tableDefinitions";
 import { FilterState } from "../types";
 import { filterOperators, timeFilter } from "../interfaces/filters";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { logger } from "./index";
 
 const operatorReplacements = {
@@ -109,6 +109,10 @@ export function tableColumnsToSqlFilter(
       case "boolean":
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
+      case "categoryOptions":
+        // LFE-4815: Support category options in postgres
+        logger.warn("Category options not supported in postgres yet");
+        throw new Error("Category options not supported in postgres yet");
       case "null":
         valuePrisma = Prisma.sql``;
         break;

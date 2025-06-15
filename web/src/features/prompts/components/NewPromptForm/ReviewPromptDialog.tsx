@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -47,7 +48,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
       : JSON.stringify(
           newPromptValue?.chatPrompt.map((m) =>
             Object.fromEntries(
-              Object.entries(m).filter(([k, _]) => k !== "id"),
+              Object.entries(m).filter(([k, _]) => k !== "id" && k !== "type"),
             ),
           ) ?? "{}",
           null,
@@ -63,7 +64,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
   return (
     <Dialog open={open} onOpenChange={(open) => setOpen(open)}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-w-screen-xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>Review Prompt Changes</DialogTitle>
           <DialogDescription className="flex items-center gap-2">
@@ -71,30 +72,32 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <h3 className="mb-2 text-base font-medium">Content</h3>
-                <DiffViewer
-                  oldString={initialPromptContent}
-                  newString={newPromptContent}
-                  oldLabel={`Previous content (v${initialPrompt.version})`}
-                  newLabel="New content (draft)"
-                />
-              </div>
-              <div>
-                <h3 className="mb-2 text-base font-medium">Config</h3>
-                <DiffViewer
-                  oldString={JSON.stringify(initialPrompt.config, null, 2)}
-                  newString={newConfig ?? "failed"}
-                  oldLabel={`Previous config (v${initialPrompt.version})`}
-                  newLabel="New config (draft)"
-                />
+        <DialogBody>
+          <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="mb-2 text-base font-medium">Content</h3>
+                  <DiffViewer
+                    oldString={initialPromptContent}
+                    newString={newPromptContent}
+                    oldLabel={`Previous content (v${initialPrompt.version})`}
+                    newLabel="New content (draft)"
+                  />
+                </div>
+                <div>
+                  <h3 className="mb-2 text-base font-medium">Config</h3>
+                  <DiffViewer
+                    oldString={JSON.stringify(initialPrompt.config, null, 2)}
+                    newString={newConfig ?? "failed"}
+                    oldLabel={`Previous config (v${initialPrompt.version})`}
+                    newLabel="New config (draft)"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </DialogBody>
 
         <DialogFooter className="flex flex-row">
           <Button

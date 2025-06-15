@@ -5,21 +5,21 @@ import {
   transformDbToApiObservation,
 } from "@/src/features/public-api/types/observations";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Observation",
     querySchema: GetObservationV1Query,
     responseSchema: GetObservationV1Response,
     fn: async ({ query, auth }) => {
-      const clickhouseObservation = await getObservationById(
-        query.observationId,
-        auth.scope.projectId,
-        true,
-      );
+      const clickhouseObservation = await getObservationById({
+        id: query.observationId,
+        projectId: auth.scope.projectId,
+        fetchWithInputOutput: true,
+      });
       if (!clickhouseObservation) {
         throw new LangfuseNotFoundError(
           "Observation not found within authorized project",

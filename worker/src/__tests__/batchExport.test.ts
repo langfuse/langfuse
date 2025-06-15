@@ -4,7 +4,7 @@ import {
   createObservation,
   createObservationsCh,
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -35,7 +35,7 @@ describe("batch export test suite", () => {
       }),
     ];
 
-    const score = createScore({
+    const score = createTraceScore({
       project_id: projectId,
       trace_id: randomUUID(),
       observation_id: observations[0].id,
@@ -190,7 +190,7 @@ describe("batch export test suite", () => {
       }),
     ];
 
-    const score = createScore({
+    const score = createTraceScore({
       project_id: projectId,
       trace_id: randomUUID(),
       observation_id: generations[0].id,
@@ -375,7 +375,7 @@ describe("batch export test suite", () => {
       }),
     ];
 
-    const score = createScore({
+    const score = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
       observation_id: generations[0].id,
@@ -383,7 +383,7 @@ describe("batch export test suite", () => {
       value: 123,
     });
 
-    const qualitativeScore = createScore({
+    const qualitativeScore = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
       observation_id: generations[0].id,
@@ -545,7 +545,7 @@ describe("batch export test suite", () => {
 
     // Create scores with different names and values
     const scores = [
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[0].id,
         observation_id: observations[0].id,
@@ -553,7 +553,7 @@ describe("batch export test suite", () => {
         value: 0.85,
         timestamp: new Date("2024-01-01").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[0].id,
         observation_id: observations[0].id,
@@ -561,7 +561,7 @@ describe("batch export test suite", () => {
         value: 0.75,
         timestamp: new Date("2024-01-01").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[1].id,
         observation_id: observations[1].id,
@@ -569,7 +569,7 @@ describe("batch export test suite", () => {
         value: 0.92,
         timestamp: new Date("2024-01-02").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[1].id,
         observation_id: observations[1].id,
@@ -645,14 +645,14 @@ describe("batch export test suite", () => {
 
     // Create scores with string values
     const scores = [
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
         name: "category",
         string_value: "excellent",
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
@@ -728,7 +728,7 @@ describe("batch export test suite", () => {
 
     // Create scores with different timestamps
     const scores = [
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
@@ -736,7 +736,7 @@ describe("batch export test suite", () => {
         value: 0.5,
         timestamp: new Date("2024-01-01T10:00:00Z").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
@@ -744,7 +744,7 @@ describe("batch export test suite", () => {
         value: 0.6,
         timestamp: new Date("2024-01-15T10:00:00Z").getTime(),
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: trace.id,
         observation_id: observation.id,
@@ -834,7 +834,7 @@ describe("batch export test suite", () => {
 
     // Create scores with different attributes
     const scores = [
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[0].id,
         observation_id: observations[0].id,
@@ -842,7 +842,7 @@ describe("batch export test suite", () => {
         value: 0.7,
         source: "API",
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[0].id,
         observation_id: observations[0].id,
@@ -850,7 +850,7 @@ describe("batch export test suite", () => {
         value: 0.8,
         source: "UI",
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[1].id,
         observation_id: observations[1].id,
@@ -858,7 +858,7 @@ describe("batch export test suite", () => {
         value: 0.9,
         source: "API",
       }),
-      createScore({
+      createTraceScore({
         project_id: projectId,
         trace_id: traces[1].id,
         observation_id: observations[1].id,
@@ -910,5 +910,110 @@ describe("batch export test suite", () => {
     expect(rows[0].source).toBe("API");
     expect(rows[0].value).toBe(0.9);
     expect(rows[0].traceId).toBe(traces[1].id);
+  });
+
+  it("should export audit logs", async () => {
+    const { projectId, orgId } = await createOrgProjectAndApiKey();
+
+    // Create some audit log entries directly in the database
+    const auditLogEntries = [
+      {
+        id: randomUUID(),
+        projectId: projectId,
+        orgId: orgId,
+        type: "USER" as const,
+        userId: randomUUID(),
+        userOrgRole: "OWNER",
+        userProjectRole: "ADMIN",
+        resourceType: "trace",
+        resourceId: randomUUID(),
+        action: "CREATE",
+        before: null,
+        after: JSON.stringify({ name: "test-trace", version: 1 }),
+        createdAt: new Date("2024-01-01T10:00:00Z"),
+        updatedAt: new Date("2024-01-01T10:00:00Z"),
+      },
+      {
+        id: randomUUID(),
+        projectId: projectId,
+        orgId: orgId,
+        type: "API_KEY" as const,
+        apiKeyId: randomUUID(),
+        resourceType: "score",
+        resourceId: randomUUID(),
+        action: "UPDATE",
+        before: JSON.stringify({ value: 0.5 }),
+        after: JSON.stringify({ value: 0.8 }),
+        createdAt: new Date("2024-01-02T10:00:00Z"),
+        updatedAt: new Date("2024-01-02T10:00:00Z"),
+      },
+      {
+        id: randomUUID(),
+        projectId: projectId,
+        orgId: orgId,
+        type: "USER" as const,
+        userId: randomUUID(),
+        userOrgRole: "MEMBER",
+        userProjectRole: "VIEWER",
+        resourceType: "prompt",
+        resourceId: randomUUID(),
+        action: "DELETE",
+        before: JSON.stringify({ name: "old-prompt", content: "Hello World" }),
+        after: null,
+        createdAt: new Date("2024-01-03T10:00:00Z"),
+        updatedAt: new Date("2024-01-03T10:00:00Z"),
+      },
+    ];
+
+    // Insert audit log entries
+    await prisma.auditLog.createMany({
+      data: auditLogEntries,
+    });
+
+    // Export audit logs
+    const stream = await getDatabaseReadStream({
+      projectId: projectId,
+      tableName: BatchExportTableName.AuditLogs,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(3);
+
+    // Verify the audit logs are sorted by createdAt DESC
+    expect(rows[0].action).toBe("DELETE");
+    expect(rows[0].resourceType).toBe("prompt");
+    expect(rows[0].type).toBe("USER");
+    expect(rows[0].before).toBe(
+      JSON.stringify({ name: "old-prompt", content: "Hello World" }),
+    );
+    expect(rows[0].after).toBe(null);
+
+    expect(rows[1].action).toBe("UPDATE");
+    expect(rows[1].resourceType).toBe("score");
+    expect(rows[1].type).toBe("API_KEY");
+    expect(rows[1].before).toBe(JSON.stringify({ value: 0.5 }));
+    expect(rows[1].after).toBe(JSON.stringify({ value: 0.8 }));
+
+    expect(rows[2].action).toBe("CREATE");
+    expect(rows[2].resourceType).toBe("trace");
+    expect(rows[2].type).toBe("USER");
+    expect(rows[2].before).toBe(null);
+    expect(rows[2].after).toBe(
+      JSON.stringify({ name: "test-trace", version: 1 }),
+    );
+
+    // Verify all rows have the correct project ID
+    rows.forEach((row) => {
+      expect(row.projectId).toBe(projectId);
+      expect(row.orgId).toBe(orgId);
+    });
   });
 });

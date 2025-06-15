@@ -19,27 +19,17 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
-import {
-  type UiCustomizationOption,
-  useUiCustomization,
-} from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
-import {
-  chatAvailable,
-  chatIsVisible,
-  showChat,
-  hideChat,
-} from "@/src/features/support-chat/chat";
-import { Switch } from "@/src/components/ui/switch";
 import { SiDiscord } from "react-icons/si";
 import { env } from "@/src/env.mjs";
+import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 
 type SupportMenuItem = {
   title: string;
   pathname: string;
   icon: LucideIcon | React.ElementType;
   menuNode?: ReactNode;
-  customizableHref?: UiCustomizationOption;
 };
 
 export const SupportMenuDropdown = () => {
@@ -54,7 +44,6 @@ export const SupportMenuDropdown = () => {
       },
     ];
 
-    const chatVisible = chatIsVisible();
     if (uiCustomization?.supportHref) {
       items.push({
         title: "Support",
@@ -67,21 +56,9 @@ export const SupportMenuDropdown = () => {
           title: "Chat",
           pathname: "#",
           menuNode: (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" onClick={() => openChat()}>
               <MessageCircle className="h-4 w-4" />
-              <span>Chat</span>
-              <Switch
-                defaultChecked={chatVisible}
-                onClick={(e) => e.stopPropagation()}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    showChat();
-                  } else {
-                    hideChat();
-                  }
-                }}
-                className="ml-auto"
-              />
+              <span>Open Chat</span>
             </div>
           ),
           icon: MessageCircle,
@@ -103,9 +80,9 @@ export const SupportMenuDropdown = () => {
     items.push("separator");
     items.push({
       title: "Docs",
-      pathname: "https://langfuse.com/docs",
+      pathname:
+        uiCustomization?.documentationHref ?? "https://langfuse.com/docs",
       icon: LibraryBig,
-      customizableHref: "documentationHref",
     });
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       items.push({
@@ -161,21 +138,23 @@ export const SupportMenuDropdown = () => {
           if (item === "separator") {
             return <DropdownMenuSeparator key={`separator-${index}`} />;
           }
-          const url = item.customizableHref
-            ? (uiCustomization?.[item.customizableHref] ?? item.pathname)
-            : item.pathname;
+
           return (
             <DropdownMenuItem key={item.title} asChild>
               {item.menuNode ?? (
                 <a
-                  href={url}
-                  target={url.startsWith("http") ? "_blank" : undefined}
-                  rel={url.startsWith("http") ? "noopener" : undefined}
+                  href={item.pathname}
+                  target={
+                    item.pathname.startsWith("http") ? "_blank" : undefined
+                  }
+                  rel={
+                    item.pathname.startsWith("http") ? "noopener" : undefined
+                  }
                   className="flex cursor-pointer items-center"
                 >
                   <item.icon className="mr-2 h-4 w-4" />
                   {item.title}
-                  {url.startsWith("http") && (
+                  {item.pathname.startsWith("http") && (
                     <ArrowUpRight className="ml-1 h-3 w-3" />
                   )}
                 </a>

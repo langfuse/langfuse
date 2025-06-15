@@ -1,29 +1,26 @@
 import { v4 } from "uuid";
 
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  GetScoresQuery,
-  GetScoresResponse,
-  legacyFilterAndValidateV1GetScoreList,
-  PostScoresBody,
-  PostScoresResponse,
+  GetScoresQueryV1,
+  GetScoresResponseV1,
+  filterAndValidateV1GetScoreList,
+  PostScoresBodyV1,
+  PostScoresResponseV1,
 } from "@langfuse/shared";
 import {
   eventTypes,
   logger,
   processEventBatch,
 } from "@langfuse/shared/src/server";
-import {
-  generateScoresForPublicApi,
-  getScoresCountForPublicApi,
-} from "@/src/features/public-api/server/scores";
+import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Score",
-    bodySchema: PostScoresBody,
-    responseSchema: PostScoresResponse,
+    bodySchema: PostScoresBodyV1,
+    responseSchema: PostScoresResponseV1,
     fn: async ({ body, auth, res }) => {
       const event = {
         id: v4(),
@@ -49,11 +46,13 @@ export default withMiddlewares({
       return { id: event.body.id };
     },
   }),
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
-    querySchema: GetScoresQuery,
-    responseSchema: GetScoresResponse,
+    querySchema: GetScoresQueryV1,
+    responseSchema: GetScoresResponseV1,
     fn: async ({ query, auth }) => {
+      const scoresApiService = new ScoresApiService("v1");
+
       const scoreParams = {
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
@@ -74,14 +73,16 @@ export default withMiddlewares({
         scoreIds: query.scoreIds ?? undefined,
       };
       const [items, count] = await Promise.all([
-        generateScoresForPublicApi(scoreParams),
-        getScoresCountForPublicApi(scoreParams),
+        scoresApiService.generateScoresForPublicApi(scoreParams),
+        scoresApiService.getScoresCountForPublicApi(scoreParams),
       ]);
 
       const finalCount = count ? count : 0;
 
       return {
-        data: legacyFilterAndValidateV1GetScoreList(items),
+        // As these are traces scores, we expect all scores to have a traceId set
+        // For type consistency, we validate the scores against the v1 schema which requires a traceId
+        data: filterAndValidateV1GetScoreList(items),
         meta: {
           page: query.page,
           limit: query.limit,

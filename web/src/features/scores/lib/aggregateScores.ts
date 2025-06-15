@@ -1,7 +1,7 @@
 import {
   type ScoreAggregate,
   type ScoreSimplified,
-  type APIScore,
+  type APIScoreV2,
   type ScoreSourceType,
   type ScoreDataType,
 } from "@langfuse/shared";
@@ -20,7 +20,11 @@ export const composeAggregateScoreKey = ({
   return `${formattedName}-${source}-${dataType}`;
 };
 
-export const aggregateScores = <T extends APIScore | ScoreSimplified>(
+type ScoreToAggregate = (APIScoreV2 | ScoreSimplified) & {
+  hasMetadata?: boolean;
+};
+
+export const aggregateScores = <T extends ScoreToAggregate>(
   scores: T[],
 ): ScoreAggregate => {
   const groupedScores: Record<string, T[]> = scores.reduce(
@@ -40,6 +44,10 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
   );
 
   // step 2: for each group, determine if the score is categorical or numeric & compute aggregate for group
+  /* IMPORTANT
+   * Some ScoreAggregates have a single value, and then include extra fields: comment, id, hasMetadata.
+   * When the aggregate contains multiple values, these extra fields are undefined.
+   */
   return Object.entries(groupedScores).reduce((acc, [key, scores]) => {
     if (scores[0].dataType === "NUMERIC") {
       const values = scores.map((score) => score.value ?? 0);
@@ -50,6 +58,8 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
         values,
         average,
         comment: values.length === 1 ? scores[0].comment : undefined,
+        id: values.length === 1 ? scores[0].id : undefined,
+        hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
       };
     } else {
       const values = scores.map((score) => score.stringValue ?? "n/a");
@@ -69,6 +79,8 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
           count,
         })),
         comment: values.length === 1 ? scores[0].comment : undefined,
+        id: values.length === 1 ? scores[0].id : undefined,
+        hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
       };
     }
     return acc;

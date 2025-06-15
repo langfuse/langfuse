@@ -27,7 +27,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
-  createScore,
+  createTraceScore,
   createScoresCh,
   ScoreDeleteQueue,
   BatchActionQueue,
@@ -79,7 +79,7 @@ describe("scores trpc", () => {
   describe("scores.deleteMany", () => {
     it("should delete scores by ids", async () => {
       // Setup
-      const createdScore = createScore({
+      const createdScore = createTraceScore({
         project_id: projectId,
       });
       await createScoresCh([createdScore]);
@@ -91,8 +91,10 @@ describe("scores trpc", () => {
         scoreIds: [createdScore.id],
       });
 
+      expect(scoreDeleteQueue).not.toBeNull();
+
       // Then
-      expect(scoreDeleteQueue.add).toHaveBeenCalledWith(
+      expect(scoreDeleteQueue!.add).toHaveBeenCalledWith(
         QueueJobs.ScoreDelete,
         expect.objectContaining({
           payload: expect.objectContaining({
@@ -106,7 +108,7 @@ describe("scores trpc", () => {
     it("should delete scores via batch query", async () => {
       // Setup
       const scoreName = randomUUID();
-      const createdScore = createScore({
+      const createdScore = createTraceScore({
         project_id: projectId,
         name: scoreName,
       });
@@ -131,8 +133,10 @@ describe("scores trpc", () => {
         },
       });
 
+      expect(batchActionQueue).not.toBeNull();
+
       // Then
-      expect(batchActionQueue.add).toHaveBeenCalledWith(
+      expect(batchActionQueue!.add).toHaveBeenCalledWith(
         QueueJobs.BatchActionProcessingJob,
         expect.objectContaining({
           payload: expect.objectContaining({

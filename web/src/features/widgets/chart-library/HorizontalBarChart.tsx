@@ -1,11 +1,8 @@
 import React from "react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
+import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
 
 /**
  * HorizontalBarChart component
@@ -46,13 +43,18 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          tickFormatter={formatAxisLabel}
+          width={90}
         />
         <Bar
           dataKey="metric"
           radius={[0, 4, 4, 0]}
           className="fill-[--color-metric]"
         />
-        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+        <ChartTooltip
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
       </BarChart>
     </ChartContainer>
   );

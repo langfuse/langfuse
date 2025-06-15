@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   blobStorageIntegrationFormSchema,
@@ -35,6 +35,8 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -44,7 +46,6 @@ import {
 export default function BlobStorageIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const entitled = useHasEntitlement("integration-blobstorage");
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
@@ -52,10 +53,13 @@ export default function BlobStorageIntegrationSettings() {
   const state = api.blobStorageIntegration.get.useQuery(
     { projectId },
     {
-      enabled: hasAccess && entitled,
+      enabled: hasAccess,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 50 * 60 * 1000, // 50 minutes
     },
   );
-  if (!entitled) return null;
 
   const status =
     state.isInitialLoading || !hasAccess
@@ -67,7 +71,7 @@ export default function BlobStorageIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Blob Storage Integration (Beta)",
+        title: "Blob Storage Integration",
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
@@ -87,7 +91,10 @@ export default function BlobStorageIntegrationSettings() {
       <p className="mb-4 text-sm text-primary">
         Configure scheduled exports of your trace data to AWS S3, S3-compatible
         storages, or Azure Blob Storage. Set up a hourly, daily, or weekly
-        export to your own storage for data analysis or backup purposes.
+        export to your own storage for data analysis or backup purposes. Use the
+        &quot;Validate&quot; button to test your configuration by uploading a
+        small test file, and the &quot;Run Now&quot; button to trigger an
+        immediate export.
       </p>
       {!hasAccess && (
         <p className="text-sm">
@@ -135,7 +142,10 @@ const BlobStorageIntegrationSettingsForm = ({
   const [integrationType, setIntegrationType] =
     useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
-  const blobStorageForm = useForm<BlobStorageIntegrationFormSchema>({
+  // Check if this is a self-hosted instance (no cloud region set)
+  const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+  const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
     defaultValues: {
       type: state?.type || BlobStorageIntegrationType.S3,
@@ -186,6 +196,22 @@ const BlobStorageIntegrationSettingsForm = ({
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();
+    },
+  });
+  const mutRunNow = api.blobStorageIntegration.runNow.useMutation({
+    onSuccess: () => {
+      utils.blobStorageIntegration.invalidate();
+    },
+  });
+  const mutValidate = api.blobStorageIntegration.validate.useMutation({
+    onSuccess: (data) => {
+      showSuccessToast({
+        title: data.message,
+        description: `Test file: ${data.testFileName}`,
+      });
+    },
+    onError: (error) => {
+      showErrorToast("Validation failed", error.message);
     },
   });
 
@@ -344,6 +370,10 @@ const BlobStorageIntegrationSettingsForm = ({
                   : integrationType === "S3"
                     ? "AWS Access Key ID"
                     : "Access Key ID"}
+                {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
+                {isSelfHosted && integrationType === "S3" && (
+                  <span className="text-muted-foreground"> (optional)</span>
+                )}
               </FormLabel>
               <FormControl>
                 <Input {...field} />
@@ -352,7 +382,9 @@ const BlobStorageIntegrationSettingsForm = ({
                 {integrationType === "AZURE_BLOB_STORAGE"
                   ? "Your Azure storage account name"
                   : integrationType === "S3"
-                    ? "Your AWS IAM user access key ID"
+                    ? isSelfHosted
+                      ? "Your AWS IAM user access key ID. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
+                      : "Your AWS IAM user access key ID"
                     : "Access key for your S3-compatible storage"}
               </FormDescription>
               <FormMessage />
@@ -371,6 +403,10 @@ const BlobStorageIntegrationSettingsForm = ({
                   : integrationType === "S3"
                     ? "AWS Secret Access Key"
                     : "Secret Access Key"}
+                {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
+                {isSelfHosted && integrationType === "S3" && (
+                  <span className="text-muted-foreground"> (optional)</span>
+                )}
               </FormLabel>
               <FormControl>
                 <PasswordInput
@@ -383,7 +419,9 @@ const BlobStorageIntegrationSettingsForm = ({
                 {integrationType === "AZURE_BLOB_STORAGE"
                   ? "Your Azure storage account access key"
                   : integrationType === "S3"
-                    ? "Your AWS IAM user secret access key"
+                    ? isSelfHosted
+                      ? "Your AWS IAM user secret access key. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
+                      : "Your AWS IAM user secret access key"
                     : "Secret key for your S3-compatible storage"}
               </FormDescription>
               <FormMessage />
@@ -490,6 +528,33 @@ const BlobStorageIntegrationSettingsForm = ({
           disabled={isLoading}
         >
           Save
+        </Button>
+        <Button
+          variant="secondary"
+          loading={mutValidate.isLoading}
+          disabled={isLoading || !state}
+          title="Test your saved configuration by uploading a small test file to your storage"
+          onClick={() => {
+            mutValidate.mutate({ projectId });
+          }}
+        >
+          Validate
+        </Button>
+        <Button
+          variant="secondary"
+          loading={mutRunNow.isLoading}
+          disabled={isLoading || !state?.enabled}
+          title="Trigger an immediate export of all data since the last sync"
+          onClick={() => {
+            if (
+              confirm(
+                "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
+              )
+            )
+              mutRunNow.mutate({ projectId });
+          }}
+        >
+          Run Now
         </Button>
         <Button
           variant="ghost"

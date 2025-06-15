@@ -1,7 +1,8 @@
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   type ColumnDefinition,
-  type OptionsDefinition,
+  type SingleValueOption,
+  formatColumnOptions,
 } from "@langfuse/shared";
 
 export const promptsTableCols: ColumnDefinition[] = [
@@ -53,8 +54,8 @@ export const promptsTableCols: ColumnDefinition[] = [
 ];
 
 export type PromptOptions = {
-  tags: Array<OptionsDefinition>;
-  labels: Array<OptionsDefinition>;
+  tags: Array<SingleValueOption>;
+  labels: Array<SingleValueOption>;
 };
 
 export function promptsTableColsWithOptions(
@@ -62,10 +63,10 @@ export function promptsTableColsWithOptions(
 ): ColumnDefinition[] {
   return promptsTableCols.map((col) => {
     if (col.id === "tags") {
-      return { ...col, options: options?.tags ?? [] };
+      return formatColumnOptions(col, options?.tags ?? []);
     }
     if (col.id === "labels") {
-      return { ...col, options: options?.labels ?? [] };
+      return formatColumnOptions(col, options?.labels ?? []);
     }
     return col;
   });

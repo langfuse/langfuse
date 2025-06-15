@@ -15,7 +15,6 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -27,12 +26,12 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const entitled = useHasEntitlement("integration-posthog");
+
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
@@ -40,10 +39,9 @@ export default function PosthogIntegrationSettings() {
   const state = api.posthogIntegration.get.useQuery(
     { projectId },
     {
-      enabled: hasAccess && entitled,
+      enabled: hasAccess,
     },
   );
-  if (!entitled) return null;
 
   const status =
     state.isInitialLoading || !hasAccess
@@ -124,7 +122,7 @@ const PostHogIntegrationSettings = ({
   isLoading: boolean;
 }) => {
   const capture = usePostHogClientCapture();
-  const posthogForm = useForm<z.infer<typeof posthogIntegrationFormSchema>>({
+  const posthogForm = useForm({
     resolver: zodResolver(posthogIntegrationFormSchema),
     defaultValues: {
       posthogHostname: state?.posthogHostName ?? "",

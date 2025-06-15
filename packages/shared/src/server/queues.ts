@@ -1,23 +1,23 @@
 /* eslint-disable no-unused-vars */
-import { z } from "zod";
-import { eventTypes } from ".";
+import { z } from "zod/v4";
+import { eventTypes } from "./ingestion/types";
 import {
   BatchActionQuerySchema,
   BatchActionType,
 } from "../features/batchAction/types";
-import { BatchExportTableName } from "../features/batchExport/types";
+import { BatchTableNames } from "../interfaces/tableNames";
 
 export const IngestionEvent = z.object({
   data: z.object({
-    type: z.nativeEnum(eventTypes),
+    type: z.enum(Object.values(eventTypes)),
     eventBodyId: z.string(),
     fileKey: z.string().optional(),
+    skipS3List: z.boolean().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
     scope: z.object({
       projectId: z.string(),
-      accessLevel: z.enum(["all", "scores"]),
     }),
   }),
 });
@@ -76,28 +76,28 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       actionId: z.literal("score-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
-      tableName: z.nativeEnum(BatchExportTableName),
+      tableName: z.enum(BatchTableNames),
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
-      type: z.nativeEnum(BatchActionType),
+      type: z.enum(BatchActionType),
     }),
     z.object({
       actionId: z.literal("trace-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
-      tableName: z.nativeEnum(BatchExportTableName),
+      tableName: z.enum(BatchTableNames),
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
-      type: z.nativeEnum(BatchActionType),
+      type: z.enum(BatchActionType),
     }),
     z.object({
       actionId: z.literal("trace-add-to-annotation-queue"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
-      tableName: z.nativeEnum(BatchExportTableName),
+      tableName: z.enum(BatchTableNames),
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
-      type: z.nativeEnum(BatchActionType),
+      type: z.enum(BatchActionType),
     }),
     z.object({
       actionId: z.literal("eval-create"),
@@ -120,9 +120,14 @@ export const CreateEvalQueueEventSchema = DatasetRunItemUpsertEventSchema.and(
     z.object({
       timestamp: z.date(),
       configId: z.string(),
+      exactTimestamp: z.date().optional(),
     }),
   ),
 );
+
+export const DeadLetterRetryQueueEventSchema = z.object({
+  timestamp: z.date(),
+});
 
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
@@ -152,6 +157,9 @@ export type BatchActionProcessingEventType = z.infer<
 export type BlobStorageIntegrationProcessingEventType = z.infer<
   typeof BlobStorageIntegrationProcessingEventSchema
 >;
+export type DeadLetterRetryQueueEventType = z.infer<
+  typeof DeadLetterRetryQueueEventSchema
+>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -175,6 +183,7 @@ export enum QueueName {
   BatchActionQueue = "batch-action-queue",
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
+  DeadLetterRetryQueue = "dead-letter-retry-queue",
 }
 
 export enum QueueJobs {
@@ -199,6 +208,7 @@ export enum QueueJobs {
   BatchActionProcessingJob = "batch-action-processing-job",
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
+  DeadLetterRetryJob = "dead-letter-retry-job",
 }
 
 export type TQueueJobTypes = {
@@ -291,5 +301,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: BlobStorageIntegrationProcessingEventType;
     name: QueueJobs.BlobStorageIntegrationProcessingJob;
+  };
+  [QueueName.DeadLetterRetryQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: DeadLetterRetryQueueEventType;
+    name: QueueJobs.DeadLetterRetryJob;
   };
 };

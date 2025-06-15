@@ -4,7 +4,7 @@ import {
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import * as z from "zod";
+import * as z from "zod/v4";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
@@ -86,10 +86,10 @@ export const membersRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         email: z.string().email(),
-        orgRole: z.nativeEnum(Role),
+        orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
-        projectRole: z.nativeEnum(Role).optional(),
+        projectRole: z.enum(Role).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -465,7 +465,7 @@ export const membersRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         orgMembershipId: z.string(),
-        role: z.nativeEnum(Role),
+        role: z.enum(Role),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -539,7 +539,7 @@ export const membersRouter = createTRPCRouter({
         orgMembershipId: z.string(),
         userId: z.string(),
         projectId: z.string(),
-        projectRole: z.nativeEnum(Role).nullable(),
+        projectRole: z.enum(Role).nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {

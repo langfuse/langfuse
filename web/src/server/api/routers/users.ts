@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import {
   createTRPCRouter,
@@ -45,7 +45,7 @@ export const userRouter = createTRPCRouter({
           input.filter ?? [],
           input.searchQuery ?? undefined,
           input.limit,
-          input.page,
+          input.page * input.limit,
           undefined,
         ),
         getTotalUserCount(

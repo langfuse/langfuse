@@ -5,11 +5,11 @@ import {
   clickhouseClient,
   createObservation,
   createObservationsCh,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
-  getEventLogByProjectAndEntityId,
+  getBlobStorageByProjectAndEntityId,
   getObservationById,
   getScoreById,
   getTraceById,
@@ -28,7 +28,7 @@ describe("DataRetentionProcessingJob", () => {
     storageService = StorageServiceFactory.getInstance({
       accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
-      bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+      bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
@@ -50,7 +50,7 @@ describe("DataRetentionProcessingJob", () => {
     });
 
     await clickhouseClient().insert({
-      table: "event_log",
+      table: "blob_storage_file_log",
       format: "JSONEachRow",
       values: [
         {
@@ -76,7 +76,7 @@ describe("DataRetentionProcessingJob", () => {
     const files = await storageService.listFiles("");
     expect(files.map((file) => file.file)).toContain(fileName);
 
-    const eventLogRecord = await getEventLogByProjectAndEntityId(
+    const eventLogRecord = await getBlobStorageByProjectAndEntityId(
       projectId,
       "trace",
       `${baseId}-trace`,
@@ -99,7 +99,7 @@ describe("DataRetentionProcessingJob", () => {
     });
 
     await clickhouseClient().insert({
-      table: "event_log",
+      table: "blob_storage_file_log",
       format: "JSONEachRow",
       values: [
         {
@@ -125,7 +125,7 @@ describe("DataRetentionProcessingJob", () => {
     const files = await storageService.listFiles("");
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
-    const eventLogRecord = await getEventLogByProjectAndEntityId(
+    const eventLogRecord = await getBlobStorageByProjectAndEntityId(
       projectId,
       "trace",
       `${baseId}-trace`,
@@ -155,7 +155,7 @@ describe("DataRetentionProcessingJob", () => {
         projectId,
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 days in the past
         bucketPath: fileName,
-        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
       },
@@ -181,7 +181,7 @@ describe("DataRetentionProcessingJob", () => {
     expect(files.map((file) => file.file)).toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { projectId, id: mediaId } },
     });
     expect(media).toBeDefined();
 
@@ -213,7 +213,7 @@ describe("DataRetentionProcessingJob", () => {
         projectId,
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30), // 30 days in the past
         bucketPath: fileName,
-        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
       },
@@ -239,7 +239,7 @@ describe("DataRetentionProcessingJob", () => {
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { projectId, id: mediaId } },
     });
     expect(media).toBeNull();
 
@@ -270,9 +270,15 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const traceOld = await getTraceById(`${baseId}-trace-old`, projectId);
+    const traceOld = await getTraceById({
+      traceId: `${baseId}-trace-old`,
+      projectId,
+    });
     expect(traceOld).toBeUndefined();
-    const traceNew = await getTraceById(`${baseId}-trace-new`, projectId);
+    const traceNew = await getTraceById({
+      traceId: `${baseId}-trace-new`,
+      projectId,
+    });
     expect(traceNew).toBeDefined();
   });
 
@@ -298,12 +304,12 @@ describe("DataRetentionProcessingJob", () => {
 
     // Then
     expect(() =>
-      getObservationById(`${baseId}-observation-old`, projectId),
+      getObservationById({ id: `${baseId}-observation-old`, projectId }),
     ).rejects.toThrowError("not found");
-    const observationNew = await getObservationById(
-      `${baseId}-observation-new`,
+    const observationNew = await getObservationById({
+      id: `${baseId}-observation-new`,
       projectId,
-    );
+    });
     expect(observationNew).toBeDefined();
   });
 
@@ -311,12 +317,12 @@ describe("DataRetentionProcessingJob", () => {
     // Setup
     const baseId = randomUUID();
     await createScoresCh([
-      createScore({
+      createTraceScore({
         id: `${baseId}-score-old`,
         project_id: projectId,
         timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).getTime(), // 30 days in the past
       }),
-      createScore({
+      createTraceScore({
         id: `${baseId}-score-new`,
         project_id: projectId,
       }),
@@ -328,9 +334,15 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const scoresOld = await getScoreById(projectId, `${baseId}-score-old`);
+    const scoresOld = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score-old`,
+    });
     expect(scoresOld).toBeUndefined();
-    const scoresNew = await getScoreById(projectId, `${baseId}-score-new`);
+    const scoresNew = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score-new`,
+    });
     expect(scoresNew).toBeDefined();
   });
 });

@@ -48,7 +48,7 @@ import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
+import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 
@@ -78,7 +78,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     initialPromptVariant = null;
   }
 
-  const defaultValues: NewPromptFormSchemaType = {
+  const defaultValues = {
     type: initialPromptVariant?.type ?? PromptType.Text,
     chatPrompt:
       initialPromptVariant?.type === PromptType.Chat
@@ -91,9 +91,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     name: initialPrompt?.name ?? "",
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
     isActive: !Boolean(initialPrompt),
+    commitMessage: initialPrompt?.commitMessage ?? undefined,
   };
 
-  const form = useForm<NewPromptFormSchemaType>({
+  const form = useForm({
     resolver: zodResolver(NewPromptFormSchema),
     mode: "onTouched",
     defaultValues,

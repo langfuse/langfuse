@@ -72,8 +72,9 @@ if (env.LANGFUSE_INIT_ORG_ID) {
       ) {
         await createAndAddApiKeysToDb({
           prisma,
-          projectId: env.LANGFUSE_INIT_PROJECT_ID,
+          entityId: env.LANGFUSE_INIT_PROJECT_ID,
           note: "Provisioned API Key",
+          scope: "PROJECT",
           predefinedKeys: {
             secretKey: env.LANGFUSE_INIT_PROJECT_SECRET_KEY,
             publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY,

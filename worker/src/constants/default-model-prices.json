@@ -1508,5 +1508,346 @@
       "input_cache_read": 37.5e-6,
       "output": 150e-6
     }
+  },
+  {
+    "id": "cm7nusn643377tvmzh27m33kl",
+    "model_name": "gpt-4.1",
+    "match_pattern": "(?i)^(gpt-4.1)$",
+    "created_at": "2025-04-15T10:26:54.132Z",
+    "updated_at": "2025-04-15T10:26:54.132Z",
+    "prices": {
+      "input": 2e-6,
+      "input_cached_tokens": 0.5e-6,
+      "input_cached_text_tokens": 0.5e-6,
+      "input_cache_read": 0.5e-6,
+      "output": 8e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm7qahw732891bpmzy45r3x70",
+    "model_name": "gpt-4.1-2025-04-14",
+    "match_pattern": "(?i)^(gpt-4.1-2025-04-14)$",
+    "created_at": "2025-04-15T10:26:54.132Z",
+    "updated_at": "2025-04-15T10:26:54.132Z",
+    "prices": {
+      "input": 2e-6,
+      "input_cached_tokens": 0.5e-6,
+      "input_cached_text_tokens": 0.5e-6,
+      "input_cache_read": 0.5e-6,
+      "output": 8e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm7sglt825463kxnza72p6v81",
+    "model_name": "gpt-4.1-mini-2025-04-14",
+    "match_pattern": "(?i)^(gpt-4.1-mini-2025-04-14)$",
+    "created_at": "2025-04-15T10:26:54.132Z",
+    "updated_at": "2025-04-15T10:26:54.132Z",
+    "prices": {
+      "input": 0.4e-6,
+      "input_cached_tokens": 0.1e-6,
+      "input_cached_text_tokens": 0.1e-6,
+      "input_cache_read": 0.1e-6,
+      "output": 1.6e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm7vxpz967124dhjtb95w8f92",
+    "model_name": "gpt-4.1-nano-2025-04-14",
+    "match_pattern": "(?i)^(gpt-4.1-nano-2025-04-14)$",
+    "created_at": "2025-04-15T10:26:54.132Z",
+    "updated_at": "2025-04-15T10:26:54.132Z",
+    "prices": {
+      "input": 0.1e-6,
+      "input_cached_tokens": 0.025e-6,
+      "input_cached_text_tokens": 0.025e-6,
+      "input_cache_read": 0.025e-6,
+      "output": 0.4e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm7wmny967124dhjtb95w8f81",
+    "model_name": "o3",
+    "match_pattern": "(?i)^(o3)$",
+    "created_at": "2025-04-16T23:26:54.132Z",
+    "updated_at": "2025-06-10T23:26:54.132Z",
+    "prices": {
+      "input": 2e-6,
+      "input_cached_tokens": 0.5e-6,
+      "input_cache_read": 0.5e-6,
+      "output": 8e-6,
+      "output_reasoning_tokens": 8e-6,
+      "output_reasoning": 8e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm7wopq3327124dhjtb95w8f81",
+    "model_name": "o3-2025-04-16",
+    "match_pattern": "(?i)^(o3-2025-04-16)$",
+    "created_at": "2025-04-16T23:26:54.132Z",
+    "updated_at": "2025-06-10T23:26:54.132Z",
+    "prices": {
+      "input": 2e-6,
+      "input_cached_tokens": 0.5e-6,
+      "input_cache_read": 0.5e-6,
+      "output": 8e-6,
+      "output_reasoning_tokens": 8e-6,
+      "output_reasoning": 8e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm7wqrs1327124dhjtb95w8f81",
+    "model_name": "o4-mini",
+    "match_pattern": "(?i)^(o4-mini)$",
+    "created_at": "2025-04-16T23:26:54.132Z",
+    "updated_at": "2025-04-16T23:26:54.132Z",
+    "prices": {
+      "input": 1.1e-6,
+      "input_cached_tokens": 0.275e-6,
+      "input_cache_read": 0.275e-6,
+      "output": 4.4e-6,
+      "output_reasoning_tokens": 4.4e-6,
+      "output_reasoning": 4.4e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm7zqrs1327124dhjtb95w8f82",
+    "model_name": "o4-mini-2025-04-16",
+    "match_pattern": "(?i)^(o4-mini-2025-04-16)$",
+    "created_at": "2025-04-16T23:26:54.132Z",
+    "updated_at": "2025-04-16T23:26:54.132Z",
+    "prices": {
+      "input": 1.1e-6,
+      "input_cached_tokens": 0.275e-6,
+      "input_cache_read": 0.275e-6,
+      "output": 4.4e-6,
+      "output_reasoning_tokens": 4.4e-6,
+      "output_reasoning": 4.4e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm7zrrs1327124dhjtb95w8f13",
+    "model_name": "gemini-2.0-pro-exp",
+    "match_pattern": "(?i)^(gemini-2.0-pro-exp)(@[a-zA-Z0-9]+)?$",
+    "created_at": "2025-04-22T10:11:35.241Z",
+    "updated_at": "2025-04-22T10:11:35.241Z",
+    "prices": {},
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm7zsrs1327124dhjtb95w8f74",
+    "model_name": "gemini-2.0-flash",
+    "match_pattern": "(?i)^(gemini-2.0-flash)(@[a-zA-Z0-9]+)?$",
+    "created_at": "2025-04-22T10:11:35.241Z",
+    "updated_at": "2025-04-22T10:11:35.241Z",
+    "prices": {
+      "input": 0.1e-6,
+      "output": 0.4e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm7ztrs1327124dhjtb95w8f19",
+    "model_name": "gemini-2.0-flash-lite-preview",
+    "match_pattern": "(?i)^(gemini-2.0-flash-lite-preview)(@[a-zA-Z0-9]+)?$",
+    "created_at": "2025-04-22T10:11:35.241Z",
+    "updated_at": "2025-04-22T10:11:35.241Z",
+    "prices": {
+      "input": 0.075e-6,
+      "output": 0.3e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm7zxrs1327124dhjtb95w8f45",
+    "model_name": "gpt-4.1-nano",
+    "match_pattern": "(?i)^(gpt-4.1-nano)$",
+    "created_at": "2025-04-22T10:11:35.241Z",
+    "updated_at": "2025-04-22T10:11:35.241Z",
+    "prices": {
+      "input": 0.1e-6,
+      "input_cached_tokens": 0.025e-6,
+      "input_cached_text_tokens": 0.025e-6,
+      "input_cache_read": 0.025e-6,
+      "output": 0.4e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm7zzrs1327124dhjtb95w8p96",
+    "model_name": "gpt-4.1-mini",
+    "match_pattern": "(?i)^(gpt-4.1-mini)$",
+    "created_at": "2025-04-22T10:11:35.241Z",
+    "updated_at": "2025-04-22T10:11:35.241Z",
+    "prices": {
+      "input": 0.4e-6,
+      "input_cached_tokens": 0.1e-6,
+      "input_cached_text_tokens": 0.1e-6,
+      "input_cache_read": 0.1e-6,
+      "output": 1.6e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cmazmkzlm00000djp1e1qe4k4",
+    "model_name": "claude-sonnet-4-20250514",
+    "match_pattern": "(?i)^(claude-sonnet-4-20250514|anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
+    "created_at": "2025-05-22T17:09:02.131Z",
+    "updated_at": "2025-05-26T23:09:02.131Z",
+    "prices": {
+      "input": 3e-6,
+      "input_tokens": 3e-6,
+      "output": 15e-6,
+      "output_tokens": 15e-6,
+      "cache_creation_input_tokens": 3.75e-6,
+      "input_cache_creation": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6,
+      "input_cache_read": 0.3e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": "claude"
+  },
+  {
+    "id": "cmazmlbnv00010djpazed91va",
+    "model_name": "claude-sonnet-4-latest",
+    "match_pattern": "(?i)^(claude-sonnet-4-latest)$",
+    "created_at": "2025-05-22T17:09:02.131Z",
+    "updated_at": "2025-05-22T17:09:02.131Z",
+    "prices": {
+      "input": 3e-6,
+      "input_tokens": 3e-6,
+      "output": 15e-6,
+      "output_tokens": 15e-6,
+      "cache_creation_input_tokens": 3.75e-6,
+      "input_cache_creation": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6,
+      "input_cache_read": 0.3e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": "claude"
+  },
+  {
+    "id": "cmazmlm2p00020djpa9s64jw5",
+    "model_name": "claude-opus-4-20250514",
+    "match_pattern": "(?i)^(claude-opus-4-20250514|anthropic\\.claude-opus-4-20250514-v1:0|claude-opus-4@20250514)$",
+    "created_at": "2025-05-22T17:09:02.131Z",
+    "updated_at": "2025-05-22T17:09:02.131Z",
+    "prices": {
+      "input": 15e-6,
+      "input_tokens": 15e-6,
+      "output": 75e-6,
+      "output_tokens": 75e-6,
+      "cache_creation_input_tokens": 18.75e-6,
+      "input_cache_creation": 18.75e-6,
+      "cache_read_input_tokens": 1.5e-6,
+      "input_cache_read": 1.5e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": "claude"
+  },
+  {
+    "id": "cmz9x72kq55721pqrs83y4n2bx",
+    "model_name": "o3-pro",
+    "match_pattern": "(?i)^(o3-pro)$",
+    "created_at": "2025-06-10T22:26:54.132Z",
+    "updated_at": "2025-06-10T22:26:54.132Z",
+    "prices": {
+      "input": 20e-6,
+      "output": 80e-6,
+      "output_reasoning_tokens": 80e-6,
+      "output_reasoning": 80e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cmz9x72kq55721pqrs83y4n2by",
+    "model_name": "o3-pro-2025-06-10",
+    "match_pattern": "(?i)^(o3-pro-2025-06-10)$",
+    "created_at": "2025-06-10T22:26:54.132Z",
+    "updated_at": "2025-06-10T22:26:54.132Z",
+    "prices": {
+      "input": 20e-6,
+      "output": 80e-6,
+      "output_reasoning_tokens": 80e-6,
+      "output_reasoning": 80e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cmbrold5b000107lbftb9fdoo",
+    "model_name": "o1-pro",
+    "match_pattern": "(?i)^(o1-pro)$",
+    "created_at": "2025-06-10T22:26:54.132Z",
+    "updated_at": "2025-06-10T22:26:54.132Z",
+    "prices": {
+      "input": 150e-6,
+      "output": 600e-6,
+      "output_reasoning_tokens": 600e-6,
+      "output_reasoning": 600e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cmbrolpax000207lb3xkedysz",
+    "model_name": "o1-pro-2025-03-19",
+    "match_pattern": "(?i)^(o1-pro-2025-03-19)$",
+    "created_at": "2025-06-10T22:26:54.132Z",
+    "updated_at": "2025-06-10T22:26:54.132Z",
+    "prices": {
+      "input": 150e-6,
+      "output": 600e-6,
+      "output_reasoning_tokens": 600e-6,
+      "output_reasoning": 600e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
   }
 ]

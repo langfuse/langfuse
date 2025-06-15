@@ -10,17 +10,15 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
-import { type RowSelectionState } from "@tanstack/react-table";
+import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
-import {
-  NumberParam,
-  StringParam,
-  useQueryParam,
-  useQueryParams,
-  withDefault,
-} from "use-query-params";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
@@ -32,15 +30,15 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
-  type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevelType,
   BatchExportTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { MemoizedIOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
@@ -74,7 +72,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import TableId from "@/src/components/table/table-id";
+import TableIdOrName from "@/src/components/table/table-id";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
@@ -82,43 +80,50 @@ import {
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { type TableDateRange } from "@/src/utils/date-range-utils";
 
 export type TracesTableRow = {
+  // Shown by default
   bookmarked: boolean;
-  id: string;
   timestamp: Date;
   name: string;
-  userId: string;
-  level?: ObservationLevelType;
-  observationCount?: bigint;
+  // i/o and metadata not set explicitly, but fetched from the server from the cell
+  input?: unknown;
+  output?: unknown;
   levelCounts: {
     errorCount?: bigint;
     warningCount?: bigint;
     debugCount?: bigint;
     defaultCount?: bigint;
   };
+  latency?: number;
+  tokenDetails?: Record<string, number>;
+  totalCost?: Decimal;
+  costDetails?: Record<string, number>;
+  environment?: string;
+  tags: string[];
+  metadata?: unknown;
   // scores holds grouped column with individual scores
   scores?: ScoreAggregate;
-  latency?: number;
-  release?: string;
-  version?: string;
+  // Hidden by default
   sessionId?: string;
-  environment?: string;
-  // i/o and metadata not set explicitly, but fetched from the server from the cell
-  input?: unknown;
-  output?: unknown;
-  metadata?: unknown;
-  tags: string[];
+  userId: string;
+  observationCount?: bigint;
+  level?: ObservationLevelType;
+  version?: string;
+  release?: string;
+  id: string;
   usage: {
     inputUsage?: bigint;
     outputUsage?: bigint;
     totalUsage?: bigint;
   };
-  usageDetails?: Record<string, number>;
-  costDetails?: Record<string, number>;
-  inputCost?: Decimal;
-  outputCost?: Decimal;
-  totalCost?: Decimal;
+  cost?: {
+    inputCost?: Decimal;
+    outputCost?: Decimal;
+  };
 };
 
 export type TracesTableProps = {
@@ -126,27 +131,36 @@ export type TracesTableProps = {
   userId?: string;
   omittedFilter?: string[];
   pinFirstColumn?: boolean;
+  hideControls?: boolean;
+  externalFilterState?: FilterState;
+  externalDateRange?: TableDateRange;
 };
 
 export default function TracesTable({
   projectId,
   userId,
   omittedFilter = [],
+  hideControls = false,
+  externalFilterState,
+  externalDateRange,
 }: TracesTableProps) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
-  const [searchQuery, setSearchQuery] = useQueryParam(
-    "search",
-    withDefault(StringParam, null),
-  );
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
+
+  const {
+    selectedOption,
+    dateRange: tableDateRange,
+    setDateRangeAndOption,
+  } = useTableDateRange(projectId);
+  const dateRange = externalDateRange ?? tableDateRange;
+
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "traces",
     projectId,
   );
+
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
     order: "DESC",
@@ -196,39 +210,53 @@ export default function TracesTable({
     selectedEnvironments,
   );
 
-  const filterState = userFilterState.concat(
+  const combinedFilterState = userFilterState.concat(
     userIdFilter,
     dateRangeFilter,
     environmentFilter,
   );
+
+  // Use external filter state if provided, otherwise use combined filter state
+  const filterState = externalFilterState || combinedFilterState;
+
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch();
+
   const tracesAllCountFilter = {
     projectId,
     filter: filterState,
-    searchQuery,
-    // "empty" values as they do not matter for total count
+    searchQuery: searchQuery,
+    searchType: searchType,
     page: 0,
     limit: 0,
     orderBy: null,
   };
 
+  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
+
   const tracesAllQueryFilter = {
     ...tracesAllCountFilter,
+    searchQuery: searchQuery,
+    searchType: searchType,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
   };
+
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
     enabled: environmentFilterOptions.data !== undefined,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
-  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
-    enabled: environmentFilterOptions.data !== undefined,
-  });
+
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -237,6 +265,8 @@ export default function TracesTable({
     },
     {
       enabled: traces.data !== undefined,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
     },
   );
 
@@ -266,20 +296,11 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
+
+  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
+    { projectId },
     {
-      projectId,
-      timestampFilter:
-        dateRangeFilter[0]?.type === "datetime"
-          ? dateRangeFilter[0]
-          : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
@@ -287,15 +308,23 @@ export default function TracesTable({
     },
   );
 
-  const transformFilterOptions = (
-    traceFilterOptions: TraceOptions | undefined,
-  ) => {
-    return tracesTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name),
-    );
-  };
+  const traceFilterOptions = traceFilterOptionsResponse.data;
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
+  const transformedFilterOptions = useMemo(() => {
+    return tracesTableColsWithOptions(traceFilterOptions).filter(
+      (c) =>
+        c.id !== "environment" &&
+        !omittedFilter?.includes(c.name) &&
+        !omittedFilter?.includes(c.id),
+    );
+  }, [traceFilterOptions, omittedFilter]);
+
+  const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "traces",
+    "s",
+  );
+  const rowHeight = hideControls ? "s" : storedRowHeight;
+
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<TracesTableRow>({
       projectId,
@@ -349,6 +378,8 @@ export default function TracesTable({
       query: {
         filter: filterState,
         orderBy: orderByState,
+        searchQuery: searchQuery || undefined,
+        searchType,
       },
       isBatchAction: selectAll,
     });
@@ -380,6 +411,14 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
+  const displayCount = totalCountQuery.isLoading ? (
+    <span className="inline-block font-mono">...</span>
+  ) : selectAll ? (
+    compactNumberFormatter(totalCountQuery.data?.totalCount)
+  ) : (
+    compactNumberFormatter(Object.keys(selectedRows).length)
+  );
+
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [
@@ -387,8 +426,7 @@ export default function TracesTable({
             id: "trace-delete",
             type: BatchActionType.Delete,
             label: "Delete Traces",
-            description:
-              "This action permanently deletes traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.",
+            description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.`,
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",
@@ -406,51 +444,39 @@ export default function TracesTable({
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
-        entitlement: "annotation-queues",
       },
     },
   ];
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     selectActionColumn,
-    {
-      accessorKey: "bookmarked",
-      header: undefined,
-      id: "bookmarked",
-      size: 30,
-      isPinned: true,
-      cell: ({ row }) => {
-        const bookmarked: TracesTableRow["bookmarked"] =
-          row.getValue("bookmarked");
-        const traceId = row.getValue("id");
-        return typeof traceId === "string" &&
-          typeof bookmarked === "boolean" ? (
-          <StarTraceToggle
-            tracesFilter={tracesAllQueryFilter}
-            traceId={traceId}
-            projectId={projectId}
-            value={bookmarked}
-            size="icon-xs"
-          />
-        ) : undefined;
-      },
-      enableSorting: true,
-    },
-    {
-      accessorKey: "id",
-      header: "ID",
-      id: "id",
-      size: 90,
-      isPinned: true,
-      cell: ({ row }) => {
-        const value: TracesTableRow["id"] = row.getValue("id");
-
-        return value && typeof value === "string" ? (
-          <TableId value={value} />
-        ) : undefined;
-      },
-      enableSorting: true,
-    },
+    ...(hideControls
+      ? []
+      : [
+          {
+            accessorKey: "bookmarked",
+            header: undefined,
+            id: "bookmarked",
+            size: 30,
+            isPinned: true,
+            cell: ({ row }: { row: Row<TracesTableRow> }) => {
+              const bookmarked: TracesTableRow["bookmarked"] =
+                row.getValue("bookmarked");
+              const traceId = row.getValue("id");
+              return typeof traceId === "string" &&
+                typeof bookmarked === "boolean" ? (
+                <StarTraceToggle
+                  tracesFilter={tracesAllQueryFilter}
+                  traceId={traceId}
+                  projectId={projectId}
+                  value={bookmarked}
+                  size="icon-xs"
+                />
+              ) : undefined;
+            },
+            enableSorting: true,
+          },
+        ]),
     {
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -468,6 +494,148 @@ export default function TracesTable({
       header: "Name",
       id: "name",
       size: 150,
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: TracesTableRow["name"] = row.getValue("name");
+        return value ? (
+          <span className="truncate" title={value}>
+            {value}
+          </span>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "input",
+      header: "Input",
+      id: "input",
+      size: 400,
+      cell: ({ row }) => {
+        const traceId: TracesTableRow["id"] = row.getValue("id");
+        const traceTimestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
+        return (
+          <TracesDynamicCell
+            traceId={traceId}
+            projectId={projectId}
+            timestamp={new Date(traceTimestamp)}
+            col="input"
+            singleLine={rowHeight === "s"}
+          />
+        );
+      },
+      enableHiding: true,
+    },
+    {
+      accessorKey: "output",
+      header: "Output",
+      id: "output",
+      size: 400,
+      cell: ({ row }) => {
+        const traceId: TracesTableRow["id"] = row.getValue("id");
+        const traceTimestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
+        return (
+          <TracesDynamicCell
+            traceId={traceId}
+            projectId={projectId}
+            timestamp={new Date(traceTimestamp)}
+            col="output"
+            singleLine={rowHeight === "s"}
+          />
+        );
+      },
+      enableHiding: true,
+    },
+    {
+      accessorKey: "levelCounts",
+      id: "levelCounts",
+      header: "Observation Levels",
+      size: 150,
+      cell: ({ row }) => {
+        const value: TracesTableRow["levelCounts"] =
+          row.getValue("levelCounts");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+
+        const counts: LevelCount[] = Object.entries(value).map(
+          ([level, count]) => ({
+            level: formatAsLabel(level),
+            count,
+            symbol: LevelSymbols[formatAsLabel(level)],
+          }),
+        );
+
+        return <LevelCountsDisplay counts={counts} />;
+      },
+      enableHiding: true,
+    },
+    {
+      accessorKey: "latency",
+      id: "latency",
+      header: "Latency",
+      size: 100,
+      // add seconds to the end of the latency
+      cell: ({ row }) => {
+        const value: TracesTableRow["latency"] = row.getValue("latency");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        return value !== undefined ? (
+          <span className="text-nowrap">{formatIntervalSeconds(value)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+
+    {
+      accessorKey: "tokens",
+      header: "Tokens",
+      id: "tokens",
+      size: 180,
+      cell: ({ row }) => {
+        const value: TracesTableRow["usage"] = row.getValue("usage");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
+          return null;
+        }
+
+        return (
+          <BreakdownTooltip details={row.original.tokenDetails ?? []}>
+            <div className="flex items-center gap-1">
+              <TokenUsageBadge
+                inputUsage={Number(value.inputUsage ?? 0)}
+                outputUsage={Number(value.outputUsage ?? 0)}
+                totalUsage={Number(value.totalUsage ?? 0)}
+                inline
+              />
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+    },
+    {
+      accessorKey: "totalCost",
+      id: "totalCost",
+      header: "Total Cost",
+      size: 130,
+      cell: ({ row }) => {
+        const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        return cost != null ? (
+          <BreakdownTooltip details={row.original.costDetails ?? []} isCost>
+            <div className="flex items-center gap-1">
+              {cost ? (
+                <span>{usdFormatter(cost.toNumber())}</span>
+              ) : (
+                <span>-</span>
+              )}
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
+        ) : null;
+      },
       enableHiding: true,
       enableSorting: true,
     },
@@ -491,240 +659,32 @@ export default function TracesTable({
       },
     },
     {
-      accessorKey: "userId",
-      header: "User",
-      id: "userId",
+      accessorKey: "tags",
+      id: "tags",
+      header: "Tags",
       size: 150,
       headerTooltip: {
-        description: "Add `userId` to traces to track users.",
-        href: "https://langfuse.com/docs/tracing-features/users",
+        description: "Group traces with tags.",
+        href: "https://langfuse.com/docs/tracing-features/tags",
       },
       cell: ({ row }) => {
-        const value: TracesTableRow["userId"] = row.getValue("userId");
-        return value && typeof value === "string" ? (
-          <TableId value={value} />
-        ) : undefined;
-      },
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "sessionId",
-      enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
-      id: "sessionId",
-      header: "Session",
-      size: 150,
-      headerTooltip: {
-        description: "Add `sessionId` to traces to track sessions.",
-        href: "https://langfuse.com/docs/tracing-features/sessions",
-      },
-      cell: ({ row }) => {
-        const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
-        return value && typeof value === "string" ? (
-          <TableId value={value} />
-        ) : undefined;
-      },
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "latency",
-      id: "latency",
-      header: "Latency",
-      size: 70,
-      // add seconds to the end of the latency
-      cell: ({ row }) => {
-        const value: TracesTableRow["latency"] = row.getValue("latency");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return value !== undefined ? (
-          <span>{formatIntervalSeconds(value)}</span>
-        ) : undefined;
-      },
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "inputTokens",
-      id: "inputTokens",
-      header: "Input Tokens",
-      size: 110,
-      cell: ({ row }) => {
-        const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "outputTokens",
-      id: "outputTokens",
-      header: "Output Tokens",
-      size: 110,
-      cell: ({ row }) => {
-        const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "totalTokens",
-      id: "totalTokens",
-      header: "Total Tokens",
-      size: 110,
-      cell: ({ row }) => {
-        const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "usage",
-      header: "Usage",
-      id: "usage",
-      size: 220,
-      cell: ({ row }) => {
-        const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return (
-          <BreakdownTooltip details={row.original.usageDetails ?? []}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={Number(value.inputUsage ?? 0)}
-                outputUsage={Number(value.outputUsage ?? 0)}
-                totalUsage={Number(value.totalUsage ?? 0)}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
-      enableSorting: true,
-      enableHiding: true,
-    },
-    {
-      ...getScoreGroupColumnProps(isColumnLoading || !traceMetrics.data),
-      columns: scoreColumns,
-    },
-    {
-      accessorKey: "inputCost",
-      id: "inputCost",
-      header: "Input Cost",
-      size: 100,
-      cell: ({ row }) => {
-        const cost: TracesTableRow["inputCost"] = row.getValue("inputCost");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return (
-          <div>
-            {cost ? (
-              <span>{usdFormatter(cost.toNumber())}</span>
-            ) : (
-              <span>-</span>
-            )}
-          </div>
-        );
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "outputCost",
-      id: "outputCost",
-      header: "Output Cost",
-      size: 100,
-      cell: ({ row }) => {
-        const cost: TracesTableRow["outputCost"] = row.getValue("outputCost");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return (
-          <div>
-            {cost ? (
-              <span>{usdFormatter(cost.toNumber())}</span>
-            ) : (
-              <span>-</span>
-            )}
-          </div>
-        );
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "totalCost",
-      id: "totalCost",
-      header: "Total Cost",
-      size: 100,
-      cell: ({ row }) => {
-        const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return cost != null ? (
-          <BreakdownTooltip details={row.original.costDetails ?? []} isCost>
-            <div className="flex items-center gap-1">
-              {cost ? (
-                <span>{usdFormatter(cost.toNumber())}</span>
-              ) : (
-                <span>-</span>
-              )}
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        ) : null;
-      },
-      enableHiding: true,
-      enableSorting: true,
-    },
-    {
-      accessorKey: "input",
-      header: "Input",
-      id: "input",
-      size: 400,
-      cell: ({ row }) => {
+        const tags: TracesTableRow["tags"] = row.getValue("tags");
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        const traceTimestamp: TracesTableRow["timestamp"] =
-          row.getValue("timestamp");
+        const filterOptionTags = traceFilterOptions?.tags ?? [];
+        const allTags = filterOptionTags.map((t) => t.value);
         return (
-          <TracesDynamicCell
-            traceId={traceId}
+          <TagTracePopover
+            tags={tags}
+            availableTags={allTags}
             projectId={projectId}
-            timestamp={new Date(traceTimestamp)}
-            col="input"
-            singleLine={rowHeight === "s"}
+            traceId={traceId}
+            tracesFilter={tracesAllQueryFilter}
+            className={cn(rowHeight !== "s" && "flex-wrap")}
+            hideControls={hideControls}
           />
         );
       },
       enableHiding: true,
-      defaultHidden: true,
-    },
-    {
-      accessorKey: "output",
-      header: "Output",
-      id: "output",
-      size: 400,
-      cell: ({ row }) => {
-        const traceId: TracesTableRow["id"] = row.getValue("id");
-        const traceTimestamp: TracesTableRow["timestamp"] =
-          row.getValue("timestamp");
-        return (
-          <TracesDynamicCell
-            traceId={traceId}
-            projectId={projectId}
-            timestamp={new Date(traceTimestamp)}
-            col="output"
-            singleLine={rowHeight === "s"}
-          />
-        );
-      },
-      enableHiding: true,
-      defaultHidden: true,
     },
     {
       accessorKey: "metadata",
@@ -749,7 +709,70 @@ export default function TracesTable({
         );
       },
       enableHiding: true,
+    },
+    ...(hideControls
+      ? []
+      : [
+          {
+            ...getScoreGroupColumnProps(isColumnLoading || !traceMetrics.data),
+            columns: scoreColumns,
+          },
+        ]),
+    {
+      accessorKey: "sessionId",
+      enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
+      id: "sessionId",
+      header: "Session",
+      size: 150,
+      headerTooltip: {
+        description: "Add `sessionId` to traces to track sessions.",
+        href: "https://langfuse.com/docs/tracing-features/sessions",
+      },
+      cell: ({ row }) => {
+        const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
+        return value && typeof value === "string" ? (
+          <TableIdOrName value={value} />
+        ) : undefined;
+      },
       defaultHidden: true,
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "userId",
+      header: "User",
+      id: "userId",
+      size: 150,
+      headerTooltip: {
+        description: "Add `userId` to traces to track users.",
+        href: "https://langfuse.com/docs/tracing-features/users",
+      },
+      cell: ({ row }) => {
+        const value: TracesTableRow["userId"] = row.getValue("userId");
+        return value && typeof value === "string" ? (
+          <TableIdOrName value={value} />
+        ) : undefined;
+      },
+      defaultHidden: true,
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "observationCount",
+      id: "observationCount",
+      header: "Observations",
+      size: 120,
+      headerTooltip: {
+        description: "The number of observations in the trace.",
+      },
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: TracesTableRow["observationCount"] =
+          row.getValue("observationCount");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        return <span>{numberFormatter(value, 0)}</span>;
+      },
     },
     {
       accessorKey: "level",
@@ -773,48 +796,9 @@ export default function TracesTable({
           <span>-</span>
         );
       },
-      enableHiding: true,
       defaultHidden: true,
+      enableHiding: true,
       enableSorting: true,
-    },
-    {
-      accessorKey: "levelCounts",
-      id: "levelCounts",
-      header: "Observation Levels",
-      size: 75,
-      cell: ({ row }) => {
-        const value: TracesTableRow["levelCounts"] =
-          row.getValue("levelCounts");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-
-        const counts: LevelCount[] = Object.entries(value).map(
-          ([level, count]) => ({
-            level: formatAsLabel(level),
-            count,
-            symbol: LevelSymbols[formatAsLabel(level)],
-          }),
-        );
-
-        return <LevelCountsDisplay counts={counts} />;
-      },
-      enableHiding: true,
-    },
-    {
-      accessorKey: "observationCount",
-      id: "observationCount",
-      header: "Observations",
-      size: 120,
-      headerTooltip: {
-        description: "The number of observations in the trace.",
-      },
-      enableHiding: true,
-      defaultHidden: true,
-      cell: ({ row }) => {
-        const value: TracesTableRow["observationCount"] =
-          row.getValue("observationCount");
-        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{numberFormatter(value, 0)}</span>;
-      },
     },
     {
       accessorKey: "version",
@@ -825,9 +809,9 @@ export default function TracesTable({
         description: "Track changes via the version tag.",
         href: "https://langfuse.com/docs/experimentation",
       },
+      defaultHidden: true,
       enableHiding: true,
       enableSorting: true,
-      defaultHidden: true,
     },
     {
       accessorKey: "release",
@@ -838,77 +822,184 @@ export default function TracesTable({
         description: "Track changes to your application via the release tag.",
         href: "https://langfuse.com/docs/experimentation",
       },
+      defaultHidden: true,
       enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "id",
+      header: "Trace ID",
+      id: "id",
+      size: 90,
+      cell: ({ row }) => {
+        const value: TracesTableRow["id"] = row.getValue("id");
+
+        return value && typeof value === "string" ? (
+          <TableIdOrName value={value} />
+        ) : undefined;
+      },
       defaultHidden: true,
-    },
-    {
-      accessorKey: "tags",
-      id: "tags",
-      header: "Tags",
-      size: 150,
-      headerTooltip: {
-        description: "Group traces with tags.",
-        href: "https://langfuse.com/docs/tracing-features/tags",
-      },
-      cell: ({ row }) => {
-        const tags: TracesTableRow["tags"] = row.getValue("tags");
-        const traceId: TracesTableRow["id"] = row.getValue("id");
-        const filterOptionTags = traceFilterOptions.data?.tags ?? [];
-        const allTags = filterOptionTags.map((t) => t.value);
-        return (
-          <TagTracePopover
-            tags={tags}
-            availableTags={allTags}
-            projectId={projectId}
-            traceId={traceId}
-            tracesFilter={tracesAllQueryFilter}
-            className={cn(rowHeight !== "s" && "flex-wrap")}
-          />
-        );
-      },
       enableHiding: true,
+      enableSorting: true,
     },
     {
-      accessorKey: "action",
-      header: "Action",
-      size: 70,
-      isPinned: true,
-      cell: ({ row }) => {
-        const traceId: TracesTableRow["id"] = row.getValue("id");
-        return (
-          traceId &&
-          typeof traceId === "string" && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem asChild>
-                  <DeleteTraceButton
-                    itemId={traceId}
-                    projectId={projectId}
-                    isTableAction
-                  />
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )
-        );
+      accessorKey: "cost",
+      header: "Cost",
+      id: "cost",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return traceMetrics.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
+      columns: [
+        {
+          accessorKey: "inputCost",
+          id: "inputCost",
+          header: "Input Cost",
+          size: 100,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const cost: TracesTableRow["cost"] = row.getValue("cost");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return (
+              <div>
+                {cost?.inputCost ? (
+                  <span>{usdFormatter(cost.inputCost.toNumber())}</span>
+                ) : (
+                  <span>-</span>
+                )}
+              </div>
+            );
+          },
+          defaultHidden: true,
+          enableHiding: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "outputCost",
+          id: "outputCost",
+          header: "Output Cost",
+          size: 100,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const cost: TracesTableRow["cost"] = row.getValue("cost");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return (
+              <div>
+                {cost?.outputCost ? (
+                  <span>{usdFormatter(cost.outputCost.toNumber())}</span>
+                ) : (
+                  <span>-</span>
+                )}
+              </div>
+            );
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+      ],
     },
+    {
+      accessorKey: "usage",
+      header: "Usage",
+      id: "usage",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return traceMetrics.isLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: [
+        {
+          accessorKey: "inputTokens",
+          id: "inputTokens",
+          header: "Input Tokens",
+          size: 110,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const value: TracesTableRow["usage"] = row.getValue("usage");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "outputTokens",
+          id: "outputTokens",
+          header: "Output Tokens",
+          size: 110,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const value: TracesTableRow["usage"] = row.getValue("usage");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "totalTokens",
+          id: "totalTokens",
+          header: "Total Tokens",
+          size: 110,
+          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            const value: TracesTableRow["usage"] = row.getValue("usage");
+            if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+      ],
+    },
+    ...(hideControls
+      ? []
+      : [
+          {
+            accessorKey: "action",
+            header: "Action",
+            size: 70,
+            isPinned: true,
+            cell: ({ row }: { row: Row<TracesTableRow> }) => {
+              const traceId: TracesTableRow["id"] = row.getValue("id");
+              return (
+                traceId &&
+                typeof traceId === "string" && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem asChild>
+                        <DeleteTraceButton
+                          itemId={traceId}
+                          projectId={projectId}
+                          isTableAction
+                        />
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )
+              );
+            },
+          },
+        ]),
   ];
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
-      `tracesColumnVisibility-${projectId}`,
+      `traceColumnVisibility-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
-    "tracesColumnOrder",
+    `traceColumnOrder-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
     columns,
   );
 
@@ -918,6 +1009,51 @@ export default function TracesTable({
 
   const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
   const { setPeekView } = useTracePeekState(urlPathname);
+
+  const peekConfig = useMemo(() => {
+    if (hideControls) return undefined;
+    return {
+      itemType: "TRACE" as const,
+      listKey: "traces",
+      urlPathname,
+      peekEventOptions: {
+        ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
+      },
+      onOpenChange: setPeekView,
+      onExpand: expandPeek,
+      getNavigationPath,
+      children: <PeekViewTraceDetail projectId={projectId} />,
+      tableDataUpdatedAt: Math.max(
+        traces.dataUpdatedAt,
+        traceMetrics.dataUpdatedAt,
+      ),
+    };
+  }, [
+    projectId,
+    hideControls,
+    setPeekView,
+    expandPeek,
+    getNavigationPath,
+    urlPathname,
+    traces.dataUpdatedAt,
+    traceMetrics.dataUpdatedAt,
+  ]);
+
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Traces,
+    projectId,
+    stateUpdaters: {
+      setOrderBy: setOrderByState,
+      setFilters: setUserFilterState,
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+      setSearchQuery: setSearchQuery,
+    },
+    validationContext: {
+      columns,
+      filterColumnDefinition: transformedFilterOptions,
+    },
+  });
 
   const rows = useMemo(() => {
     return traces.isSuccess
@@ -941,13 +1077,18 @@ export default function TracesTable({
               outputUsage: trace.completionTokens,
               totalUsage: trace.totalTokens,
             },
+            tokens: {
+              inputUsage: trace.promptTokens,
+              outputUsage: trace.completionTokens,
+              totalUsage: trace.totalTokens,
+            },
             levelCounts: {
               errorCount: trace.errorCount,
               warningCount: trace.warningCount,
               defaultCount: trace.defaultCount,
               debugCount: trace.debugCount,
             },
-            usageDetails: trace.usageDetails,
+            tokenDetails: trace.usageDetails,
             costDetails: trace.costDetails,
             scores: trace.scores
               ? verifyAndPrefixScoreDataAgainstKeys(
@@ -955,71 +1096,88 @@ export default function TracesTable({
                   trace.scores,
                 )
               : undefined,
-            inputCost: trace.calculatedInputCost ?? undefined,
-            outputCost: trace.calculatedOutputCost ?? undefined,
+            cost: {
+              inputCost: trace.calculatedInputCost ?? undefined,
+              outputCost: trace.calculatedOutputCost ?? undefined,
+            },
             totalCost: trace.calculatedTotalCost ?? undefined,
           };
         }) ?? [])
       : [];
-  }, [traces, traceRowData, scoreKeysAndProps]);
+  }, [traces.isSuccess, traceRowData?.rows, scoreKeysAndProps]);
+
+  const setFilterState = useDebounce(setUserFilterState);
+
   return (
     <>
-      <DataTableToolbar
-        columns={columns}
-        filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
-        searchConfig={{
-          placeholder: "Search (by id, name, trace name, user id)",
-          updateQuery: setSearchQuery,
-          currentQuery: searchQuery ?? undefined,
-        }}
-        filterState={userFilterState}
-        setFilterState={useDebounce(setUserFilterState)}
-        columnsWithCustomSelect={["name", "tags"]}
-        actionButtons={[
-          Object.keys(selectedRows).filter((traceId) =>
-            traces.data?.traces.map((t) => t.id).includes(traceId),
-          ).length > 0 ? (
-            <TableActionMenu
-              key="traces-multi-select-actions"
-              projectId={projectId}
-              actions={tableActions}
+      {!hideControls && (
+        <DataTableToolbar
+          columns={columns}
+          viewConfig={{
+            tableName: TableViewPresetTableName.Traces,
+            projectId,
+            controllers: viewControllers,
+          }}
+          filterColumnDefinition={transformedFilterOptions}
+          searchConfig={{
+            metadataSearchFields: ["ID", "Trace Name", "User ID"],
+            updateQuery: setSearchQuery,
+            currentQuery: searchQuery ?? undefined,
+            tableAllowsFullTextSearch: true,
+            setSearchType,
+            searchType,
+          }}
+          filterState={userFilterState}
+          setFilterState={setFilterState}
+          columnsWithCustomSelect={["name", "tags"]}
+          actionButtons={[
+            Object.keys(selectedRows).filter((traceId) =>
+              traces.data?.traces.map((t) => t.id).includes(traceId),
+            ).length > 0 ? (
+              <TableActionMenu
+                key="traces-multi-select-actions"
+                projectId={projectId}
+                actions={tableActions}
+                tableName={BatchExportTableName.Traces}
+              />
+            ) : null,
+            <BatchExportTableButton
+              {...{ projectId, filterState, orderByState }}
               tableName={BatchExportTableName.Traces}
-            />
-          ) : null,
-          <BatchExportTableButton
-            {...{ projectId, filterState, orderByState }}
-            tableName={BatchExportTableName.Traces}
-            key="batchExport"
-          />,
-        ]}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
-        rowHeight={rowHeight}
-        setRowHeight={setRowHeight}
-        selectedOption={selectedOption}
-        setDateRangeAndOption={setDateRangeAndOption}
-        multiSelect={{
-          selectAll,
-          setSelectAll,
-          selectedRowIds: Object.keys(selectedRows).filter((traceId) =>
-            traces.data?.traces.map((t) => t.id).includes(traceId),
-          ),
-          setRowSelection: setSelectedRows,
-          totalCount,
-          ...paginationState,
-        }}
-        environmentFilter={{
-          values: selectedEnvironments,
-          onValueChange: setSelectedEnvironments,
-          options: environmentOptions.map((env) => ({ value: env })),
-        }}
-      />
+              key="batchExport"
+            />,
+          ]}
+          orderByState={orderByState}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          selectedOption={selectedOption}
+          setDateRangeAndOption={setDateRangeAndOption}
+          multiSelect={{
+            selectAll,
+            setSelectAll,
+            selectedRowIds: Object.keys(selectedRows).filter((traceId) =>
+              traces.data?.traces.map((t) => t.id).includes(traceId),
+            ),
+            setRowSelection: setSelectedRows,
+            totalCount,
+            ...paginationState,
+          }}
+          environmentFilter={{
+            values: selectedEnvironments,
+            onValueChange: setSelectedEnvironments,
+            options: environmentOptions.map((env) => ({ value: env })),
+          }}
+        />
+      )}
       <DataTable
         columns={columns}
+        hidePagination={hideControls}
         data={
-          traces.isLoading
+          traces.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : traces.isError
               ? {
@@ -1047,19 +1205,8 @@ export default function TracesTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
-        pinFirstColumn
-        peekView={{
-          itemType: "TRACE",
-          listKey: "traces",
-          urlPathname,
-          peekEventOptions: {
-            ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
-          },
-          onOpenChange: setPeekView,
-          onExpand: expandPeek,
-          getNavigationPath,
-          children: <PeekViewTraceDetail projectId={projectId} />,
-        }}
+        pinFirstColumn={!hideControls}
+        peekView={peekConfig}
       />
     </>
   );
@@ -1081,25 +1228,22 @@ const TracesDynamicCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId, projectId, timestamp },
     {
-      enabled: typeof traceId === "string",
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
     },
   );
+
+  const data =
+    col === "output"
+      ? trace.data?.output
+      : col === "input"
+        ? trace.data?.input
+        : trace.data?.metadata;
+
   return (
-    <IOTableCell
+    <MemoizedIOTableCell
       isLoading={trace.isLoading}
-      data={
-        col === "output"
-          ? trace.data?.output
-          : col === "input"
-            ? trace.data?.input
-            : trace.data?.metadata
-      }
+      data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />

@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.48.1",
+  "version": "3.68.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -15,14 +15,13 @@
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 32",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/refill-ingestion-events.ts",
+    "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/s3-ingestion-event-relpay.ts",
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.7.3",
-    "@clickhouse/client": "^1.4.0",
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.53.0",
@@ -57,7 +56,7 @@
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
     "uuid": "^9.0.1",
-    "zod": "^3.23.8"
+    "zod": "^3.25.62"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

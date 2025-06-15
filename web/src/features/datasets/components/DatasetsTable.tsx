@@ -12,17 +12,25 @@ import {
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import {
+  useQueryParams,
+  withDefault,
+  NumberParam,
+  useQueryParam,
+  StringParam,
+} from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { MoreVertical } from "lucide-react";
 import { useEffect } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { type Prisma } from "@langfuse/shared";
+import { TableViewPresetTableName, type Prisma } from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 
 type RowData = {
   key: {
@@ -39,19 +47,33 @@ type RowData = {
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
-
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
-
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const [searchQuery, setSearchQuery] = useQueryParam(
+    "search",
+    withDefault(StringParam, null),
+  );
+
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
+    searchQuery,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+
+  const metrics = api.datasets.allDatasetsMetrics.useQuery(
+    {
+      projectId: props.projectId,
+      datasetIds: datasets.data?.datasets.map((t) => t.id) ?? [],
+    },
+    {
+      enabled: datasets.isSuccess,
+    },
+  );
 
   useEffect(() => {
     if (datasets.isSuccess) {
@@ -184,17 +206,26 @@ export function DatasetsTable(props: { projectId: string }) {
     },
   ];
 
+  type CoreOutput = RouterOutput["datasets"]["allDatasets"]["datasets"][number];
+  type MetricsOutput =
+    RouterOutput["datasets"]["allDatasetsMetrics"]["metrics"][number];
+
+  const datasetsRowData = joinTableCoreAndMetrics<CoreOutput, MetricsOutput>(
+    datasets.data?.datasets,
+    metrics.data?.metrics,
+  );
+
   const convertToTableRow = (
-    item: RouterOutput["datasets"]["allDatasets"]["datasets"][number],
+    row: CoreOutput & Partial<MetricsOutput>,
   ): RowData => {
     return {
-      key: { id: item.id, name: item.name },
-      description: item.description ?? "",
-      createdAt: item.createdAt,
-      lastRunAt: item.lastRunAt ?? undefined,
-      countItems: item.countDatasetItems,
-      countRuns: item.countDatasetRuns,
-      metadata: item.metadata,
+      key: { id: row.id, name: row.name },
+      description: row.description ?? "",
+      createdAt: row.createdAt,
+      lastRunAt: row.lastRunAt ?? undefined,
+      countItems: row.countDatasetItems ?? 0,
+      countRuns: row.countDatasetRuns ?? 0,
+      metadata: row.metadata,
     };
   };
 
@@ -208,6 +239,19 @@ export function DatasetsTable(props: { projectId: string }) {
     columns,
   );
 
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Datasets,
+    projectId: props.projectId,
+    stateUpdaters: {
+      setColumnOrder: setColumnOrder,
+      setColumnVisibility: setColumnVisibility,
+      setSearchQuery: setSearchQuery,
+    },
+    validationContext: {
+      columns,
+    },
+  });
+
   return (
     <>
       <DataTableToolbar
@@ -218,11 +262,24 @@ export function DatasetsTable(props: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        searchConfig={{
+          metadataSearchFields: ["Name"],
+          updateQuery: setSearchQuery,
+          currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
+        }}
+        viewConfig={{
+          tableName: TableViewPresetTableName.Datasets,
+          projectId: props.projectId,
+          controllers: viewControllers,
+        }}
       />
       <DataTable
         columns={columns}
         data={
-          datasets.isLoading
+          datasets.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
             : datasets.isError
               ? {
@@ -233,7 +290,9 @@ export function DatasetsTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: datasets.data.datasets.map((t) => convertToTableRow(t)),
+                  data: (datasetsRowData.rows ?? []).map((t) =>
+                    convertToTableRow(t),
+                  ),
                 }
         }
         pagination={{

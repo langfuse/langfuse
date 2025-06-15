@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetDatasetsV1Query,
   GetDatasetsV1Response,
@@ -9,10 +9,11 @@ import {
 } from "@/src/features/public-api/types/datasets";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create or Update Dataset",
     bodySchema: PostDatasetsV1Body,
     responseSchema: PostDatasetsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ body, auth }) => {
       const { name, description, metadata } = body;
 
@@ -42,10 +43,11 @@ export default withMiddlewares({
       };
     },
   }),
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Datasets",
     querySchema: GetDatasetsV1Query,
     responseSchema: GetDatasetsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { limit, page } = query;
 

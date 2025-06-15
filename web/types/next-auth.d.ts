@@ -30,6 +30,7 @@ declare module "next-auth" {
     id: PrismaUser["id"];
     name?: PrismaUser["name"];
     email?: PrismaUser["email"];
+    emailSupportHash?: string | null;
     image?: PrismaUser["image"];
     admin?: PrismaUser["admin"];
     emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
@@ -40,11 +41,13 @@ declare module "next-auth" {
       role: Role;
       cloudConfig: CloudConfigSchema | undefined;
       plan: Plan;
+      metadata: Record<string, unknown>;
       projects: {
         id: PrismaProject["id"];
         name: PrismaProject["name"];
         deletedAt: PrismaProject["deletedAt"];
         retentionDays: PrismaProject["retentionDays"];
+        metadata: Record<string, unknown>;
         role: Role; // include only projects where user has a role
       }[];
     }[];

@@ -14,13 +14,16 @@ types:
   CreateScoreRequest:
     properties:
       id: optional<string>
-      traceId: string
+      traceId: optional<string>
+      sessionId: optional<string>
+      observationId: optional<string>
+      datasetRunId: optional<string>
       name: string
       value:
         type: CreateScoreValue
         docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
-      observationId: optional<string>
       comment: optional<string>
+      metadata: optional<unknown>
       dataType:
         type: optional<ScoreDataType>
         docs: When set, must match the score value's type. If not set, will be inferred from the score value or config
@@ -64,62 +67,15 @@ types:
           dataType: "BOOLEAN"
           configId: "1234-5678-90ab-cdef"
           traceId: "cdef-1234-5678-90ab"
-  BaseScore:
-    properties:
-      id: string
-      traceId: string
-      name: string
-      source: ScoreSource
-      observationId: optional<string>
-      timestamp: datetime
-      createdAt: datetime
-      updatedAt: datetime
-      authorUserId: optional<string>
-      comment: optional<string>
-      configId:
-        type: optional<string>
-        docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
-  NumericScore:
-    extends: BaseScore
-    properties:
-      value:
-        type: double
-        docs: The numeric value of the score
-  BooleanScore:
-    extends: BaseScore
-    properties:
-      value:
-        type: double
-        docs: The numeric value of the score. Equals 1 for "True" and 0 for "False"
-      stringValue:
-        type: string
-        docs: The string representation of the score value. Is inferred from the numeric value and equals "True" or "False"
-  CategoricalScore:
-    extends: BaseScore
-    properties:
-      value:
-        type: optional<double>
-        docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
-      stringValue:
-        type: string
-        docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
-  Score:
-    discriminant: "dataType"
-    union:
-      NUMERIC:
-        type: NumericScore
-        docs: "Score with NUMERIC data type"
-      CATEGORICAL:
-        type: CategoricalScore
-        docs: "Score with CATEGORICAL data type"
-      BOOLEAN:
-        type: BooleanScore
-        docs: "Score with BOOLEAN data type"
-  ScoreSource:
-    enum:
-      - ANNOTATION
-      - API
-      - EVAL
+      - value:
+          name: "contextrelevant"
+          value: "not relevant"
+          sessionId: "abyt-1234-5678-80ab"
+      - value:
+          name: "hallucination"
+          value: 0
+          datasetRunId: "7891-5678-90ab-hijk"
+
   ScoreDataType:
     enum:
       - NUMERIC

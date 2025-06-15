@@ -168,6 +168,59 @@ export class StringOptionsFilter implements Filter {
   }
 }
 
+export class CategoryOptionsFilter implements Filter {
+  public clickhouseTable: string;
+  public field: string;
+  public key: string;
+  public values: string[];
+  public operator: (typeof filterOperators.categoryOptions)[number];
+  protected tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators.categoryOptions)[number];
+    key: string;
+    values: string[];
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.key = opts.key;
+    this.values = opts.values;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+  }
+
+  apply(): ClickhouseFilter {
+    const uid = clickhouseCompliantRandomCharacters();
+    const varName = `categoryOptionsFilter${uid}`;
+
+    // Flatten the hierarchical structure into array of "parent:child" strings for improved query performance
+    const flattenedValues: string[] = [];
+    this.values.forEach((child) => {
+      flattenedValues.push(`${this.key}:${child}`);
+    });
+
+    const fieldRef = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+
+    switch (this.operator) {
+      case "any of":
+        return {
+          query: `hasAny(${fieldRef}, {${varName}: Array(String)})`,
+          params: { [varName]: flattenedValues },
+        };
+      case "none of":
+        return {
+          query: `NOT hasAny(${fieldRef}, {${varName}: Array(String)})`,
+          params: { [varName]: flattenedValues },
+        };
+      default:
+        throw new Error(`Unsupported operator: ${this.operator}`);
+    }
+  }
+}
+
 // stringObject filter is used when we want to filter on a key value pair in a clickhouse map.
 // As we use the MAP form clickhouse, we can only filter efficiently on the first level of a json obj.
 export class StringObjectFilter implements Filter {

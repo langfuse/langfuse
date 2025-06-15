@@ -237,7 +237,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
               onClick={toggleRole}
               type="button"
               variant="ghost"
-              className="h-6 w-full px-1 py-0 text-[10px] font-semibold text-gray-500 hover:bg-gray-50"
+              className="h-6 w-full px-1 py-0 text-[10px] font-semibold text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
               {capitalize(message.role)}
             </Button>

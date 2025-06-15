@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import type * as z from "zod";
+import type * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -23,7 +23,7 @@ export const NewOrganizationForm = ({
 }) => {
   const { update: updateSession } = useSession();
 
-  const form = useForm<z.infer<typeof organizationNameSchema>>({
+  const form = useForm({
     resolver: zodResolver(organizationNameSchema),
     defaultValues: {
       name: "",

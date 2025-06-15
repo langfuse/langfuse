@@ -13,7 +13,10 @@ import {
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
@@ -61,7 +64,7 @@ export function NumericScoreTimeSeriesChart(props: {
       },
     ],
     timeDimension: {
-      granularity: "auto",
+      granularity: dashboardDateRangeAggregationSettings[props.agg].date_trunc,
     },
     fromTimestamp: props.fromTimestamp.toISOString(),
     toTimestamp: props.toTimestamp.toISOString(),

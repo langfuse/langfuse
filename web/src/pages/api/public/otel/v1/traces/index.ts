@@ -1,13 +1,13 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   type IngestionEventType,
   logger,
   processEventBatch,
 } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
-import { convertOtelSpanToIngestionEvent } from "@/src/features/otel/server";
+import { OtelIngestionProcessor } from "@/src/features/otel/server/OtelIngestionProcessor";
 import { gunzip } from "node:zlib";
 
 export const config = {
@@ -17,7 +17,7 @@ export const config = {
 };
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "OTel Traces",
     querySchema: z.any(),
     responseSchema: z.any(),
@@ -89,11 +89,17 @@ export default withMiddlewares({
         }
       }
 
-      const events: IngestionEventType[] = resourceSpans.flatMap(
-        convertOtelSpanToIngestionEvent,
-      );
+      // Create and process OTEL resource spans to ingestion events
+      const processor = new OtelIngestionProcessor({
+        projectId: auth.scope.projectId,
+        publicKey: auth.scope.publicKey,
+      });
+      const events: IngestionEventType[] =
+        await processor.processToIngestionEvents(resourceSpans);
+
       // We set a delay of 0 for OTel, as we never expect updates.
-      return processEventBatch(events, auth, 0);
+      // We also set the source to "otel" which helps us with metric tracking and skipping list calls for S3.
+      return processEventBatch(events, auth, 0, "otel");
     },
   }),
 });

@@ -22,6 +22,16 @@
       "persistent": true,
       "dependsOn": ["db:generate", "@langfuse/shared#build"]
     },
+    "dev:worker": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["db:generate", "@langfuse/shared#build"]
+    },
+    "dev:web": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["db:generate", "@langfuse/shared#build"]
+    },
     "db:generate": {
       "cache": false,
       "dependsOn": ["^db:generate"]

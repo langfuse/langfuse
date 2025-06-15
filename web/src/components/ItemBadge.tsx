@@ -11,12 +11,12 @@ import {
   FlaskConical,
   ListTodo,
   WandSparkles,
-  Cog,
   TestTubeDiagonal,
   Clock,
+  Bot,
 } from "lucide-react";
 import { cva } from "class-variance-authority";
-import { ObservationType } from "@langfuse/shared";
+import { type ObservationType } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
 export type LangfuseItemType =
@@ -31,13 +31,13 @@ export type LangfuseItemType =
   | "ANNOTATION_QUEUE"
   | "PROMPT"
   | "EVALUATOR"
-  | "EVAL_TEMPLATE";
+  | "RUNNING_EVALUATOR";
 
-const iconMap: Record<LangfuseItemType, React.ElementType> = {
+const iconMap = {
   TRACE: ListTree,
-  [ObservationType.GENERATION]: Fan,
-  [ObservationType.EVENT]: CircleDot,
-  [ObservationType.SPAN]: MoveHorizontal,
+  GENERATION: Fan,
+  EVENT: CircleDot,
+  SPAN: MoveHorizontal,
   SESSION: Clock,
   USER: User,
   QUEUE_ITEM: ClipboardPen,
@@ -46,17 +46,17 @@ const iconMap: Record<LangfuseItemType, React.ElementType> = {
   DATASET_ITEM: TestTubeDiagonal,
   ANNOTATION_QUEUE: ListTodo,
   PROMPT: FileText,
+  RUNNING_EVALUATOR: Bot,
   EVALUATOR: WandSparkles,
-  EVAL_TEMPLATE: Cog,
 } as const;
 
 const iconVariants = cva(cn("h-4 w-4"), {
   variants: {
     type: {
       TRACE: "text-dark-green",
-      [ObservationType.GENERATION]: "text-muted-magenta",
-      [ObservationType.EVENT]: "text-muted-green",
-      [ObservationType.SPAN]: "text-muted-blue",
+      GENERATION: "text-muted-magenta",
+      EVENT: "text-muted-green",
+      SPAN: "text-muted-blue",
       SESSION: "text-primary-accent",
       USER: "text-primary-accent",
       QUEUE_ITEM: "text-primary-accent",
@@ -66,7 +66,7 @@ const iconVariants = cva(cn("h-4 w-4"), {
       ANNOTATION_QUEUE: "text-primary-accent",
       PROMPT: "text-primary-accent",
       EVALUATOR: "text-primary-accent",
-      EVAL_TEMPLATE: "text-primary-accent",
+      RUNNING_EVALUATOR: "text-primary-accent",
     },
   },
 });
@@ -91,7 +91,8 @@ export function ItemBadge({
     className,
   );
 
-  const label = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+  const label =
+    String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
 
   return (
     <Badge
