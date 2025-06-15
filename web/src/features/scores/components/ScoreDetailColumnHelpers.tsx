@@ -10,7 +10,7 @@ import {
   type NumericAggregate,
   type ScoreAggregate,
 } from "@langfuse/shared";
-import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/[promptName]/metrics";
+import type { PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/metrics";
 import { type ScoreDataType } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
