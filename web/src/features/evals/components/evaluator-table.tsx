@@ -318,9 +318,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const urlPathname = `/project/${projectId}/evals`;
-  const { getNavigationPath } = useRunningEvaluatorsPeekNavigation(urlPathname);
-  const { setPeekView } = usePeekState(urlPathname);
+  const { getNavigationPath } = useRunningEvaluatorsPeekNavigation();
+  const { setPeekView } = usePeekState();
 
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
@@ -376,7 +375,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         peekView={{
           itemType: "RUNNING_EVALUATOR",
           listKey: "evals",
-          urlPathname,
           onOpenChange: setPeekView,
           shouldUpdateRowOnDetailPageNavigation: true,
           peekEventOptions: {

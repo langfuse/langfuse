@@ -1003,19 +1003,14 @@ export default function TracesTable({
     columns,
   );
 
-  const urlPathname = userId
-    ? `/project/${projectId}/users/${userId}`
-    : `/project/${projectId}/traces`;
-
-  const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
-  const { setPeekView } = useTracePeekState(urlPathname);
+  const { getNavigationPath, expandPeek } = useTracePeekNavigation();
+  const { setPeekView } = useTracePeekState();
 
   const peekConfig = useMemo(() => {
     if (hideControls) return undefined;
     return {
       itemType: "TRACE" as const,
       listKey: "traces",
-      urlPathname,
       peekEventOptions: {
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
@@ -1034,7 +1029,6 @@ export default function TracesTable({
     setPeekView,
     expandPeek,
     getNavigationPath,
-    urlPathname,
     traces.dataUpdatedAt,
     traceMetrics.dataUpdatedAt,
   ]);
