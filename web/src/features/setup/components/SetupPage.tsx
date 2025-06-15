@@ -22,7 +22,7 @@ import {
   inviteMembersRoute,
   setupTracingRoute,
 } from "@/src/features/setup/setupRoutes";
-import { showChat } from "@/src/features/support-chat/chat";
+import { showChat } from "@/src/features/support-chat/PlainChat";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
@@ -242,12 +242,12 @@ const TracingSetup = ({
   hasAnyTrace?: boolean;
 }) => {
   const [apiKeys, setApiKeys] = useState<
-    RouterOutput["apiKeys"]["create"] | null
+    RouterOutput["projectApiKeys"]["create"] | null
   >(null);
   const utils = api.useUtils();
-  const mutCreateApiKey = api.apiKeys.create.useMutation({
+  const mutCreateApiKey = api.projectApiKeys.create.useMutation({
     onSuccess: (data) => {
-      utils.apiKeys.invalidate();
+      utils.projectApiKeys.invalidate();
       setApiKeys(data);
       showChat();
     },
@@ -270,7 +270,7 @@ const TracingSetup = ({
           more keys later in the project settings.
         </p>
         {apiKeys ? (
-          <ApiKeyRender generatedKeys={apiKeys} />
+          <ApiKeyRender generatedKeys={apiKeys} scope={"project"} />
         ) : (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">

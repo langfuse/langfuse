@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import type * as z from "zod";
+import type * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -14,9 +14,9 @@ import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { chatRunTrigger } from "@/src/features/support-chat/chat";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showChat } from "@/src/features/support-chat/PlainChat";
 
 export const NewProjectForm = ({
   orgId,
@@ -28,7 +28,7 @@ export const NewProjectForm = ({
   const capture = usePostHogClientCapture();
   const { update: updateSession } = useSession();
 
-  const form = useForm<z.infer<typeof projectNameSchema>>({
+  const form = useForm({
     resolver: zodResolver(projectNameSchema),
     defaultValues: {
       name: "",
@@ -57,7 +57,7 @@ export const NewProjectForm = ({
       .catch((error) => {
         console.error(error);
       });
-    chatRunTrigger("after-project-creation");
+    showChat();
   }
   return (
     <Form {...form}>

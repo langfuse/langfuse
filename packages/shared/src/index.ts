@@ -15,16 +15,18 @@ export * from "./utils/objects";
 export * from "./utils/typeChecks";
 export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
+export * from "./tableDefinitions/typeHelpers";
 
 // llm api
 export * from "./server/llm/types";
 
 // evals
 export * from "./features/evals/types";
-
+export * from "./features/evals/utilities";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
+export { BatchTableNames } from "./interfaces/tableNames";
 
 // annotation
 export * from "./features/annotation/types";
@@ -46,7 +48,14 @@ export * from "@prisma/client";
 export { type DB } from "../prisma/generated/types";
 export * from "./server/repositories/types";
 
+// metadata conversion
+export * from "./server/utils/metadata_conversion";
+
 // errors
 export * from "./errors/index";
 
 export * from "./utils/environment";
+export * from "./interfaces/search";
+
+// domain
+export * from "./domain";

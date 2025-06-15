@@ -15,10 +15,7 @@ import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
 import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
-import {
-  useEntitlements,
-  useHasEntitlement,
-} from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
@@ -46,11 +43,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     "prompt-protected-labels",
   );
 
-  const entitlements = useEntitlements();
-  const showLLMConnectionsSettings =
-    entitlements.includes("playground") ||
-    entitlements.includes("model-based-evaluations");
-
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -60,7 +52,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     organization,
     showBillingSettings,
     showRetentionSettings,
-    showLLMConnectionsSettings,
+    showLLMConnectionsSettings: true,
     showProtectedLabelsSettings,
   });
 }
@@ -73,8 +65,8 @@ export const getProjectSettingsPages = ({
   showLLMConnectionsSettings,
   showProtectedLabelsSettings,
 }: {
-  project: { id: string; name: string };
-  organization: { id: string; name: string };
+  project: { id: string; name: string; metadata: Record<string, unknown> };
+  organization: { id: string; name: string; metadata: Record<string, unknown> };
   showBillingSettings: boolean;
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
@@ -94,8 +86,16 @@ export const getProjectSettingsPages = ({
           <JSONView
             title="Metadata"
             json={{
-              project: { name: project.name, id: project.id },
-              org: { name: organization.name, id: organization.id },
+              project: {
+                name: project.name,
+                id: project.id,
+                ...project.metadata,
+              },
+              org: {
+                name: organization.name,
+                id: organization.id,
+                ...organization.metadata,
+              },
             }}
           />
         </div>
@@ -124,7 +124,7 @@ export const getProjectSettingsPages = ({
     cmdKKeywords: ["auth", "public key", "secret key"],
     content: (
       <div className="flex flex-col gap-6">
-        <ApiKeyList projectId={project.id} />
+        <ApiKeyList entityId={project.id} scope="project" />
       </div>
     ),
   },
@@ -242,10 +242,6 @@ export default function SettingsPage() {
 }
 
 const Integrations = (props: { projectId: string }) => {
-  const hasPosthogEntitlement = useHasEntitlement("integration-posthog");
-  const hasBlobStorageEntitlement = useHasEntitlement(
-    "integration-blobstorage",
-  );
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "integrations:CRUD",
@@ -266,7 +262,6 @@ const Integrations = (props: { projectId: string }) => {
             <ActionButton
               variant="secondary"
               hasAccess={hasAccess}
-              hasEntitlement={hasPosthogEntitlement}
               href={`/project/${props.projectId}/settings/integrations/posthog`}
             >
               Configure
@@ -283,7 +278,7 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <span className="font-semibold">Blob Storage (Beta)</span>
+          <span className="font-semibold">Blob Storage</span>
           <p className="mb-4 text-sm text-primary">
             Configure scheduled exports of your trace data to S3 compatible
             storages or Azure Blob Storage. Set up a scheduled export to your
@@ -293,7 +288,6 @@ const Integrations = (props: { projectId: string }) => {
             <ActionButton
               variant="secondary"
               hasAccess={hasAccess}
-              hasEntitlement={hasBlobStorageEntitlement}
               href={`/project/${props.projectId}/settings/integrations/blobstorage`}
             >
               Configure

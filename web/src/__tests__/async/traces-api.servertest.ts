@@ -1,6 +1,7 @@
 import {
   createObservation,
-  createScore,
+  createTraceScore,
+  createSessionScore,
   createScoresCh,
   createTrace,
   getTraceById,
@@ -218,13 +219,13 @@ describe("/api/public/traces API Endpoint", () => {
     ]);
 
     await createScoresCh([
-      createScore({
+      createTraceScore({
         trace_id: traceId,
         environment,
         project_id: projectId,
       }),
       // Create one that does not belong to the same environment
-      createScore({
+      createTraceScore({
         trace_id: traceId,
         environment: "default",
         project_id: projectId,
@@ -242,6 +243,67 @@ describe("/api/public/traces API Endpoint", () => {
     const trace = traces.body.data[0];
     expect(trace.projectId).toBe(projectId);
     expect(trace.observations.length).toBe(1);
+    expect(trace.scores.length).toBe(1);
+  });
+
+  it("should fetch traces with trace scores only", async () => {
+    const environment = randomUUID();
+    const traceId = randomUUID();
+    const createdTrace = createTrace({
+      id: traceId,
+      name: "trace-name",
+      project_id: projectId,
+      metadata: { key: "value" },
+      environment,
+    });
+
+    await createTracesCh([createdTrace]);
+
+    await createObservationsCh([
+      createObservation({
+        trace_id: traceId,
+        environment,
+        project_id: projectId,
+      }),
+      // Create one that does not belong to the same environment
+      createObservation({
+        trace_id: traceId,
+        environment: "default",
+        project_id: projectId,
+      }),
+    ]);
+
+    await createScoresCh([
+      createTraceScore({
+        trace_id: traceId,
+        environment,
+        project_id: projectId,
+      }),
+      // Create one that does not belong to the same environment
+      createTraceScore({
+        trace_id: traceId,
+        environment: "default",
+        project_id: projectId,
+      }),
+      createSessionScore({
+        session_id: randomUUID(),
+        environment,
+        project_id: projectId,
+      }),
+    ]);
+
+    const traces = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
+      "GET",
+      `/api/public/traces?environment=${environment}`,
+    );
+
+    expect(traces.body.meta.totalItems).toBe(1);
+    expect(traces.body.data.length).toBe(1);
+    const trace = traces.body.data[0];
+    expect(trace.projectId).toBe(projectId);
+    expect(trace.observations.length).toBe(1);
+    // Despite having the correct environment, the session score is not included in the response
     expect(trace.scores.length).toBe(1);
   });
 
@@ -345,6 +407,16 @@ describe("/api/public/traces API Endpoint", () => {
     expect(response.status).toBe(400);
   });
 
+  it("should return 400 error when page=0", async () => {
+    const response = await makeZodVerifiedAPICallSilent(
+      GetTracesV1Response,
+      "GET",
+      "/api/public/traces?page=0&limit=10",
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   it("LFE-3699: should fetch a single trace with unescaped metadata via traces list", async () => {
     const traceId = randomUUID();
     const trace = createTrace({
@@ -417,6 +489,58 @@ describe("/api/public/traces API Endpoint", () => {
     });
   });
 
+  it("should return 5XX if observations are too large when fetching single trace", async () => {
+    // See LFE-4882 for context
+    const traceId = randomUUID();
+    const trace = createTrace({
+      id: traceId,
+      name: "trace-name1",
+      project_id: projectId,
+      metadata: { key: JSON.stringify({ foo: "bar" }) },
+      input: JSON.stringify({
+        args: [
+          {
+            foo: "bar",
+          },
+        ],
+      }),
+    });
+
+    await createTracesCh([trace]);
+    await createObservationsCh([
+      createObservation({
+        trace_id: traceId,
+        project_id: projectId,
+        input: "a".repeat(30e6),
+        output: "b".repeat(30e6),
+        metadata: {
+          foo: "c".repeat(30e6),
+        },
+      }),
+    ]);
+    await createObservationsCh([
+      createObservation({
+        trace_id: traceId,
+        project_id: projectId,
+        input: "a".repeat(30e6),
+        output: "b".repeat(30e6),
+        metadata: {
+          foo: "c".repeat(30e6),
+        },
+      }),
+    ]);
+
+    await expect(
+      makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${traceId}`,
+      ),
+    ).rejects.toThrow(
+      "Observations in trace are too large: 90.00MB exceeds limit of 80.00MB",
+    );
+  });
+
   it("should delete a single trace via DELETE /traces/:traceId", async () => {
     // Setup
     const createdTrace = createTrace({
@@ -435,7 +559,7 @@ describe("/api/public/traces API Endpoint", () => {
     // Then
     expect(deleteResponse.status).toBe(200);
     await waitForExpect(async () => {
-      const trace = await getTraceById(createdTrace.id, projectId);
+      const trace = await getTraceById({ traceId: createdTrace.id, projectId });
       expect(trace).toBeUndefined();
     }, 10_000);
   }, 10_000);
@@ -465,9 +589,15 @@ describe("/api/public/traces API Endpoint", () => {
     // Then
     expect(deleteResponse.status).toBe(200);
     await waitForExpect(async () => {
-      const trace1 = await getTraceById(createdTrace1.id, projectId);
+      const trace1 = await getTraceById({
+        traceId: createdTrace1.id,
+        projectId,
+      });
       expect(trace1).toBeUndefined();
-      const trace2 = await getTraceById(createdTrace2.id, projectId);
+      const trace2 = await getTraceById({
+        traceId: createdTrace2.id,
+        projectId,
+      });
       expect(trace2).toBeUndefined();
     }, 40_000);
   }, 60_000);

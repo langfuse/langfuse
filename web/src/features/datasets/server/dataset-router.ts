@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -19,8 +19,10 @@ import {
 import {
   getDatasetRunItemsTableCount,
   logger,
+  getRunScoresGroupedByNameSourceType,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -33,6 +35,24 @@ const formatDatasetItemData = (data: string | null | undefined) => {
     );
     return undefined;
   }
+};
+
+/**
+ * Adds a case-insensitive search condition to a Kysely query
+ * @param query The Kysely query to modify
+ * @param searchQuery The search term (optional)
+ * @param columnName The column to search in (defaults to "datasets.name")
+ * @returns The modified query
+ */
+const addSearchCondition = <T extends Record<string, any>>(
+  query: T,
+  searchQuery?: string | null,
+  columnName: string = "datasets.name",
+): T => {
+  if (!searchQuery || searchQuery.trim() === "") return query;
+
+  // Add case-insensitive search condition
+  return query.where(columnName, "ilike", `%${searchQuery}%`) as T;
 };
 
 export const datasetRouter = createTRPCRouter({
@@ -70,10 +90,70 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        searchQuery: z.string().nullable(),
         ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
+      // Base query for both datasets and count
+      const baseQuery = DB.selectFrom("datasets").where(
+        "datasets.project_id",
+        "=",
+        input.projectId,
+      );
+
+      // Apply search condition to the base query
+      const baseQueryWithSearch = addSearchCondition(
+        baseQuery,
+        input.searchQuery,
+      );
+
+      // Query for datasets
+      const datasetsQuery = baseQueryWithSearch
+        .select(({}) => [
+          "datasets.id",
+          "datasets.name",
+          "datasets.description",
+          "datasets.created_at as createdAt",
+          "datasets.updated_at as updatedAt",
+          "datasets.metadata",
+        ])
+        .orderBy("datasets.created_at", "desc")
+        .limit(input.limit)
+        .offset(input.page * input.limit);
+
+      const compiledDatasetsQuery = datasetsQuery.compile();
+
+      // Query for count
+      const countQuery = baseQueryWithSearch.select(({ fn }) => [
+        fn.count("datasets.id").as("count"),
+      ]);
+
+      const compiledCountQuery = countQuery.compile();
+
+      const [datasets, countResult] = await Promise.all([
+        ctx.prisma.$queryRawUnsafe<Array<Dataset>>(
+          compiledDatasetsQuery.sql,
+          ...compiledDatasetsQuery.parameters,
+        ),
+        ctx.prisma.$queryRawUnsafe<[{ count: string }]>(
+          compiledCountQuery.sql,
+          ...compiledCountQuery.parameters,
+        ),
+      ]);
+
+      const totalDatasets = parseInt(countResult[0].count);
+
+      return {
+        totalDatasets,
+        datasets,
+      };
+    }),
+  allDatasetsMetrics: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetIds: z.array(z.string()) }))
+    .query(async ({ input, ctx }) => {
+      if (input.datasetIds.length === 0) return { metrics: [] };
+
       const query = DB.selectFrom("datasets")
         .leftJoin("dataset_items", (join) =>
           join
@@ -87,50 +167,26 @@ export const datasetRouter = createTRPCRouter({
         )
         .select(({ eb }) => [
           "datasets.id",
-          "datasets.name",
-          "datasets.description",
-          "datasets.metadata",
-          "datasets.created_at as createdAt",
-          "datasets.updated_at as updatedAt",
           eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
           eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
           eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
         ])
         .where("datasets.project_id", "=", input.projectId)
-        .groupBy([
-          "datasets.id",
-          "datasets.name",
-          "datasets.description",
-          "datasets.metadata",
-          "datasets.created_at",
-          "datasets.updated_at",
-        ])
-        .orderBy("datasets.created_at", "desc")
-        .limit(input.limit)
-        .offset(input.page * input.limit);
+        .where("datasets.id", "in", input.datasetIds)
+        .groupBy("datasets.id");
 
       const compiledQuery = query.compile();
 
-      const datasets = await ctx.prisma.$queryRawUnsafe<
-        Array<
-          Dataset & {
-            countDatasetItems: number;
-            countDatasetRuns: number;
-            lastRunAt: Date | null;
-          }
-        >
+      const metrics = await ctx.prisma.$queryRawUnsafe<
+        Array<{
+          id: string;
+          countDatasetItems: number;
+          countDatasetRuns: number;
+          lastRunAt: Date | null;
+        }>
       >(compiledQuery.sql, ...compiledQuery.parameters);
 
-      const totalDatasets = await ctx.prisma.dataset.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
-
-      return {
-        totalDatasets,
-        datasets,
-      };
+      return { metrics };
     }),
   // counts all dataset run items that match the filter
   countAllDatasetItems: protectedProjectProcedure
@@ -288,7 +344,7 @@ export const datasetRouter = createTRPCRouter({
           expectedOutput: true,
           metadata: true,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: input.limit,
         skip: input.page * input.limit,
       });
@@ -810,7 +866,8 @@ export const datasetRouter = createTRPCRouter({
           dri.project_id = ${input.projectId}
           ${filterQuery}
         ORDER BY 
-          di.created_at DESC
+          di.created_at DESC,
+          di.id DESC
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
       `;
@@ -919,5 +976,59 @@ export const datasetRouter = createTRPCRouter({
           }),
         ),
       );
+    }),
+  getRunLevelScoreKeysAndProps: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+        select: {
+          id: true,
+          createdAt: true,
+        },
+      });
+
+      if (!dataset) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
+      }
+
+      const datasetRuns = await ctx.prisma.datasetRuns.findMany({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (datasetRuns.length === 0) {
+        return [];
+      }
+
+      const res = await getRunScoresGroupedByNameSourceType(
+        input.projectId,
+        datasetRuns.map((dr) => dr.id),
+        dataset.createdAt,
+      );
+      return res.map(({ name, source, dataType }) => ({
+        key: composeAggregateScoreKey({ name, source, dataType }),
+        name: name,
+        source: source,
+        dataType: dataType,
+      }));
     }),
 });

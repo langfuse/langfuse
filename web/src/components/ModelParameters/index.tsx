@@ -40,6 +40,7 @@ export type ModelParamsContext = {
   setModelParamEnabled?: (key: keyof UIModelParams, enabled: boolean) => void;
   formDisabled?: boolean;
   modelParamsDescription?: string;
+  customHeader?: React.ReactNode;
 };
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
@@ -50,6 +51,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   setModelParamEnabled,
   formDisabled = false,
   modelParamsDescription,
+  customHeader,
 }) => {
   const projectId = useProjectIdFromURL();
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
@@ -59,7 +61,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     const hasEnabledModelSetting = Object.keys(modelParams).some(
       (key) =>
         !["adapter", "provider", "model"].includes(key) &&
-        modelParams[key as keyof typeof modelParams].enabled === true,
+        modelParams[key as keyof typeof modelParams].enabled,
     );
 
     if (hasEnabledModelSetting) {
@@ -74,9 +76,13 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   if (availableProviders.length === 0) {
     return (
       <div className="flex flex-col space-y-4 pr-1">
-        <div className="flex items-center justify-between">
-          <p className="font-semibold">Model</p>
-        </div>
+        {customHeader ? (
+          customHeader
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="font-semibold">Model</p>
+          </div>
+        )}
         <p className="text-xs">No LLM API key set in project. </p>
         <CreateLLMApiKeyDialog />
       </div>
@@ -86,7 +92,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   return (
     <div className="flex flex-col space-y-2 pb-1 pr-1 pt-2">
       <div className="flex items-center justify-between">
-        <p className="font-semibold">Model</p>
+        {customHeader ? customHeader : <p className="font-semibold">Model</p>}
         <Popover open={modelSettingsOpen} onOpenChange={setModelSettingsOpen}>
           <PopoverTrigger asChild>
             <Button

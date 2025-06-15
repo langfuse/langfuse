@@ -12,6 +12,7 @@ import {
   streamTransformations,
   type BatchExportJobType,
   logger,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
@@ -26,6 +27,17 @@ export const handleBatchExportJob = async (
   }
 
   const { projectId, batchExportId } = batchExportJob;
+
+  logger.info(`Starting batch export for ${projectId} and ${batchExportId}`);
+
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute(
+      "messaging.bullmq.job.input.batchExportId",
+      batchExportId,
+    );
+    span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+  }
 
   // Get job details from DB
   const jobDetails = await prisma.batchExport.findFirst({
@@ -104,6 +116,8 @@ export const handleBatchExportJob = async (
     externalEndpoint: env.LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT,
     region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
     forcePathStyle: env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
+    awsSse: env.LANGFUSE_S3_BATCH_EXPORT_SSE,
+    awsSseKmsKeyId: env.LANGFUSE_S3_BATCH_EXPORT_SSE_KMS_KEY_ID,
   }).uploadFile({
     fileName,
     fileType:
@@ -144,6 +158,8 @@ export const handleBatchExportJob = async (
       batchExportName: jobDetails.name,
     });
 
-    logger.info(`Batch export success email sent to user ${user.id}`);
+    logger.info(
+      `Batch export with id ${batchExportId} for project ${projectId} successful. Email sent to user ${user.id}`,
+    );
   }
 };

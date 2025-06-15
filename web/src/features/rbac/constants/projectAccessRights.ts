@@ -33,6 +33,9 @@ const projectScopes = [
   "prompts:read",
   "promptProtectedLabels:CUD",
 
+  "dashboards:read",
+  "dashboards:CUD",
+
   "models:CUD",
 
   "batchExports:create",
@@ -43,9 +46,12 @@ const projectScopes = [
   "evalJob:read",
   "evalJob:CUD",
   "evalJobExecution:read",
+  "evalDefaultModel:read",
+  "evalDefaultModel:CUD",
 
   "llmApiKeys:read",
   "llmApiKeys:create",
+  "llmApiKeys:update",
   "llmApiKeys:delete",
 
   "llmSchemas:CUD",
@@ -61,6 +67,9 @@ const projectScopes = [
   "promptExperiments:read",
 
   "auditLogs:read",
+
+  "TableViewPresets:CUD",
+  "TableViewPresets:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -93,8 +102,11 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalJob:CUD",
     "evalJob:read",
     "evalJobExecution:read",
+    "evalDefaultModel:CUD",
+    "evalDefaultModel:read",
     "llmApiKeys:read",
     "llmApiKeys:create",
+    "llmApiKeys:update",
     "llmApiKeys:delete",
     "llmSchemas:CUD",
     "llmSchemas:read",
@@ -109,6 +121,10 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "auditLogs:read",
+    "dashboards:read",
+    "dashboards:CUD",
+    "TableViewPresets:CUD",
+    "TableViewPresets:read",
   ],
   ADMIN: [
     "project:read",
@@ -135,8 +151,11 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalJob:CUD",
     "evalJob:read",
     "evalJobExecution:read",
+    "evalDefaultModel:CUD",
+    "evalDefaultModel:read",
     "llmApiKeys:read",
     "llmApiKeys:create",
+    "llmApiKeys:update",
     "llmApiKeys:delete",
     "llmSchemas:CUD",
     "llmSchemas:read",
@@ -151,6 +170,10 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "auditLogs:read",
+    "dashboards:read",
+    "dashboards:CUD",
+    "TableViewPresets:CUD",
+    "TableViewPresets:read",
   ],
   MEMBER: [
     "project:read",
@@ -170,6 +193,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalJob:read",
     "evalJob:CUD",
     "evalJobExecution:read",
+    "evalDefaultModel:read",
+    "evalDefaultModel:CUD",
     "llmApiKeys:read",
     "llmSchemas:read",
     "llmTools:read",
@@ -181,6 +206,10 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueues:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
+    "dashboards:read",
+    "dashboards:CUD",
+    "TableViewPresets:CUD",
+    "TableViewPresets:read",
   ],
   VIEWER: [
     "project:read",
@@ -189,12 +218,15 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "scoreConfigs:read",
     "evalJob:read",
     "evalJobExecution:read",
+    "evalDefaultModel:read",
     "llmApiKeys:read",
     "llmSchemas:read",
     "llmTools:read",
     "comments:read",
     "annotationQueues:read",
     "promptExperiments:read",
+    "dashboards:read",
+    "TableViewPresets:read",
   ],
   NONE: [],
 };

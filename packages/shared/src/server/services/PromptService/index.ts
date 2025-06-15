@@ -56,10 +56,10 @@ export class PromptService {
     if ((await this.shouldUseCache(params)) && dbPrompt) {
       await this.cachePrompt({ ...params, prompt: dbPrompt });
 
-      this.logInfo("Successfully cached prompt for params", params);
+      this.logDebug("Successfully cached prompt for params", params);
     }
 
-    this.logInfo("Returning DB prompt for params", params);
+    this.logDebug("Returning DB prompt for params", params);
 
     return dbPrompt;
   }
@@ -100,7 +100,7 @@ export class PromptService {
     return null;
   }
 
-  private async resolvePrompt(
+  public async resolvePrompt(
     prompt: Prompt | null,
   ): Promise<PromptResult | null> {
     if (!prompt) return prompt;
@@ -157,6 +157,12 @@ export class PromptService {
     }
   }
 
+  /**
+   * Lock the cache so reads will go to the database and not to Redis
+   *
+   * This is useful in order to return consistent data during the
+   * invalidation of the cache where we are looping through the relevant cache keys
+   */
   public async lockCache(
     params: Pick<PromptParams, "projectId" | "promptName">,
   ): Promise<void> {

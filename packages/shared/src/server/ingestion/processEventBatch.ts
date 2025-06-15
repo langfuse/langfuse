@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { type Model } from "../../db";
 import { env } from "../../env";
@@ -13,7 +13,6 @@ import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import {
   getCurrentSpan,
   instrumentAsync,
-  instrumentSync,
   recordDistribution,
   recordIncrement,
   traceException,
@@ -39,6 +38,8 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
       endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
+      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
     });
   }
   return s3StorageServiceClient;
@@ -78,11 +79,13 @@ const getDelay = (delay: number | null) => {
  * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
  * @param authCheck - AuthHeaderValidVerificationResult
  * @param delay - (Optional) Delay in ms to wait before processing events in the batch.
+ * @param source - (Optional) Source of the events for metrics tracking (e.g., "otel", "api").
  */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResult,
   delay: number | null = null,
+  source: "api" | "otel" = "api",
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -94,35 +97,32 @@ export const processEventBatch = async (
 }> => {
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
-  recordIncrement("langfuse.ingestion.event", input.length);
-  recordDistribution("langfuse.ingestion.event_distribution", input.length);
+  recordIncrement("langfuse.ingestion.event", input.length, { source });
+  recordDistribution("langfuse.ingestion.event_distribution", input.length, {
+    source,
+  });
 
   currentSpan?.setAttribute("langfuse.ingestion.batch_size", input.length);
-  currentSpan?.setAttribute("langfuse.project.id", authCheck.scope.projectId);
+  currentSpan?.setAttribute(
+    "langfuse.project.id",
+    authCheck.scope.projectId ?? "",
+  );
   currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
   currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
 
   /**************
    * VALIDATION *
    **************/
+  if (!authCheck.scope.projectId) {
+    throw new UnauthorizedError("Missing project ID");
+  }
+
   const validationErrors: { id: string; error: unknown }[] = [];
   const authenticationErrors: { id: string; error: unknown }[] = [];
 
   const batch: z.infer<typeof ingestionEvent>[] = input
     .flatMap((event) => {
-      const parsed = instrumentSync(
-        { name: "ingestion-zod-parse-individual-event" },
-        (span) => {
-          const parsedBody = ingestionEvent.safeParse(event);
-          if (parsedBody.data?.id !== undefined) {
-            span.setAttribute(
-              "langfuse.ingestion.entity.id",
-              parsedBody.data.id,
-            );
-          }
-          return parsedBody;
-        },
-      );
+      const parsed = ingestionEvent.safeParse(event);
       if (!parsed.success) {
         validationErrors.push({
           id:
@@ -244,8 +244,19 @@ export const processEventBatch = async (
                   type: sortedBatchByEventBodyId[id].type,
                   eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
                   fileKey: sortedBatchByEventBodyId[id].key,
+                  skipS3List:
+                    source === "otel" &&
+                    getClickhouseEntityType(
+                      sortedBatchByEventBodyId[id].type,
+                    ) === "observation",
                 },
-                authCheck,
+                authCheck: authCheck as {
+                  validKey: true;
+                  scope: {
+                    projectId: string;
+                    accessLevel: "project" | "scores";
+                  };
+                },
               },
             },
             { delay: getDelay(delay) },
@@ -272,11 +283,11 @@ const isAuthorized = (
   if (event.type === eventTypes.SCORE_CREATE) {
     return (
       authScope.scope.accessLevel === "scores" ||
-      authScope.scope.accessLevel === "all"
+      authScope.scope.accessLevel === "project"
     );
   }
 
-  return authScope.scope.accessLevel === "all";
+  return authScope.scope.accessLevel === "project";
 };
 
 /**

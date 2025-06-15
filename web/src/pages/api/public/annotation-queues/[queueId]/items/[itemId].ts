@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetAnnotationQueueItemByIdQuery,
   GetAnnotationQueueItemByIdResponse,
@@ -13,7 +13,7 @@ import { LangfuseNotFoundError } from "@langfuse/shared";
 import { AnnotationQueueStatus } from "@langfuse/shared";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get annotation queue item by ID",
     querySchema: GetAnnotationQueueItemByIdQuery,
     responseSchema: GetAnnotationQueueItemByIdResponse,
@@ -54,7 +54,7 @@ export default withMiddlewares({
       };
     },
   }),
-  PATCH: createAuthedAPIRoute({
+  PATCH: createAuthedProjectAPIRoute({
     name: "Update annotation queue item",
     querySchema: GetAnnotationQueueItemByIdQuery,
     bodySchema: UpdateAnnotationQueueItemBody,
@@ -114,7 +114,7 @@ export default withMiddlewares({
       };
     },
   }),
-  DELETE: createAuthedAPIRoute({
+  DELETE: createAuthedProjectAPIRoute({
     name: "Delete annotation queue item",
     querySchema: DeleteAnnotationQueueItemQuery,
     responseSchema: DeleteAnnotationQueueItemResponse,

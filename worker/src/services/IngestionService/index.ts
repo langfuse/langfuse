@@ -184,9 +184,14 @@ export class IngestionService {
             value: validatedScore.value,
             source: validatedScore.source,
             trace_id: validatedScore.traceId,
+            session_id: validatedScore.sessionId,
+            dataset_run_id: validatedScore.datasetRunId,
             data_type: validatedScore.dataType,
             observation_id: validatedScore.observationId,
             comment: validatedScore.comment,
+            metadata: scoreEvent.body.metadata
+              ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
+              : {},
             string_value: validatedScore.stringValue,
             created_at: Date.now(),
             updated_at: Date.now(),
@@ -454,6 +459,11 @@ export class IngestionService {
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
       immutableEntityKeys[TableName.Scores],
+    );
+
+    // If metadata exists, it is an object due to previous parsing
+    mergedRecord.metadata = convertRecordValuesToString(
+      (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
 
     return scoreRecordInsertSchema.parse(mergedRecord);
@@ -894,6 +904,12 @@ export class IngestionService {
           `,
           format: "JSONEachRow",
           query_params: { projectId, entityId, ...additionalFilters.params },
+          clickhouse_settings: {
+            log_comment: JSON.stringify({
+              feature: "ingestion",
+              projectId,
+            }),
+          },
         });
 
         const result = await queryResult.json();

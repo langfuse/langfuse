@@ -1,6 +1,7 @@
 import { env } from "../env";
 import winston from "winston";
 import { getCurrentSpan } from "./instrumentation";
+import { propagation, context } from "@opentelemetry/api";
 
 const tracingFormat = function () {
   return winston.format((info) => {
@@ -12,6 +13,12 @@ const tracingFormat = function () {
       info["dd.span_id"] = BigInt(`0x${spanId}`).toString();
       info["trace_id"] = traceId;
       info["span_id"] = spanId;
+    }
+    const baggage = propagation.getBaggage(context.active());
+    if (baggage) {
+      const headerObj: Record<string, string> = {};
+      baggage.getAllEntries().forEach(([k, v]) => (headerObj[k] = v.value));
+      if (Object.keys(headerObj).length) info = { ...headerObj, ...info };
     }
     return info;
   })();

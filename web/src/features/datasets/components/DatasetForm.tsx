@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import * as z from "zod";
+import * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -11,13 +11,15 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
 import { useRouter } from "next/router";
+import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
+import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
@@ -78,7 +80,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues:
       props.mode === "update"
@@ -101,6 +103,24 @@ export const DatasetForm = (props: DatasetFormProps) => {
   const createMutation = api.datasets.createDataset.useMutation();
   const renameMutation = api.datasets.updateDataset.useMutation();
   const deleteMutation = api.datasets.deleteDataset.useMutation();
+
+  const allDatasets = api.datasets.allDatasetMeta.useQuery(
+    { projectId: props.projectId },
+    {
+      enabled: props.mode === "create" || props.mode === "update",
+    },
+  );
+
+  const allDatasetNames = useMemo(() => {
+    return allDatasets.data?.map((dataset) => ({ value: dataset.name })) ?? [];
+  }, [allDatasets.data]);
+
+  useUniqueNameValidation({
+    currentName: form.watch("name"),
+    allNames: allDatasetNames,
+    form,
+    errorMessage: "Dataset name already exists.",
+  });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const trimmedValues = {
@@ -183,89 +203,94 @@ export const DatasetForm = (props: DatasetFormProps) => {
             props.mode === "delete" ? handleDelete : form.handleSubmit(onSubmit)
           }
         >
-          {props.mode === "delete" ? (
-            <div className="mb-8 grid w-full gap-1.5">
-              <Label htmlFor="delete-confirmation">
-                Type &quot;{props.datasetName}&quot; to confirm deletion
-              </Label>
-              <Input
-                id="delete-confirmation"
-                value={deleteConfirmationInput}
-                onChange={(e) => setDeleteConfirmationInput(e.target.value)}
-              />
-            </div>
-          ) : (
-            <div className="mb-8 space-y-6">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description (optional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="metadata"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Metadata (optional)</FormLabel>
-                    <FormControl>
-                      <CodeMirrorEditor
-                        mode="json"
-                        value={field.value}
-                        onChange={(v) => {
-                          field.onChange(v);
-                        }}
-                        minHeight="none"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          )}
-          <Button
-            type="submit"
-            variant={props.mode === "delete" ? "destructive" : "default"}
-            loading={
-              (props.mode === "create" && createMutation.isLoading) ||
-              (props.mode === "delete" && deleteMutation.isLoading)
-            }
-            className="w-full"
-          >
-            {props.mode === "create"
-              ? "Create dataset"
-              : props.mode === "delete"
-                ? "Delete Dataset"
-                : "Update dataset"}
-          </Button>
+          <DialogBody>
+            {props.mode === "delete" ? (
+              <div className="mb-8 grid w-full gap-1.5">
+                <Label htmlFor="delete-confirmation">
+                  Type &quot;{props.datasetName}&quot; to confirm deletion
+                </Label>
+                <Input
+                  id="delete-confirmation"
+                  value={deleteConfirmationInput}
+                  onChange={(e) => setDeleteConfirmationInput(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="mb-8 space-y-6">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="metadata"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Metadata (optional)</FormLabel>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          mode="json"
+                          value={field.value}
+                          onChange={(v) => {
+                            field.onChange(v);
+                          }}
+                          minHeight="none"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="submit"
+              variant={props.mode === "delete" ? "destructive" : "default"}
+              disabled={!!form.formState.errors.name}
+              loading={
+                (props.mode === "create" && createMutation.isLoading) ||
+                (props.mode === "delete" && deleteMutation.isLoading)
+              }
+              className="w-full"
+            >
+              {props.mode === "create"
+                ? "Create dataset"
+                : props.mode === "delete"
+                  ? "Delete Dataset"
+                  : "Update dataset"}
+            </Button>
+            {formError && (
+              <p className="mt-4 text-center text-sm text-red-500">
+                <span className="font-bold">Error:</span> {formError}
+              </p>
+            )}
+          </DialogFooter>
         </form>
       </Form>
-      {formError && (
-        <p className="mt-4 text-center text-sm text-red-500">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
-      )}
     </div>
   );
 };

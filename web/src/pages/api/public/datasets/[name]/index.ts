@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetDatasetV1Query,
   GetDatasetV1Response,
@@ -9,10 +9,11 @@ import {
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Dataset",
     querySchema: GetDatasetV1Query,
     responseSchema: GetDatasetV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { name } = query;
 

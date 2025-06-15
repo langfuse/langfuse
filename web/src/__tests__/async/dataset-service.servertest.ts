@@ -7,7 +7,7 @@ import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createObservation,
-  createScore,
+  createTraceScore,
   createTrace,
 } from "@langfuse/shared/src/server";
 import {
@@ -159,14 +159,14 @@ describe("Fetch datasets for UI presentation", () => {
       observation4,
       observation5,
     ]);
-    const score = createScore({
+    const score = createTraceScore({
       id: scoreId,
       observation_id: observationId,
       trace_id: traceId,
       project_id: projectId,
       name: scoreName,
     });
-    const score2 = createScore({
+    const score2 = createTraceScore({
       id: scoreId2,
       observation_id: null,
       trace_id: traceId,
@@ -178,7 +178,7 @@ describe("Fetch datasets for UI presentation", () => {
     const observationId2 = v4(); // this one is not related to a run
     const anotherScoreName = v4();
 
-    const score3 = createScore({
+    const score3 = createTraceScore({
       id: scoreId3,
       observation_id: observationId2,
       trace_id: traceId,
@@ -216,12 +216,17 @@ describe("Fetch datasets for UI presentation", () => {
         type: "NUMERIC",
         values: expect.arrayContaining([1, 100.5]),
         average: 50.75,
+        id: undefined,
+        comment: undefined,
+        hasMetadata: undefined,
       },
       [`${anotherScoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
+        id: score3.id,
         type: "NUMERIC",
         values: expect.arrayContaining([1]),
         average: 1,
         comment: "some other comment for non run related score",
+        hasMetadata: true,
       },
     };
 
@@ -315,7 +320,7 @@ describe("Fetch datasets for UI presentation", () => {
     });
 
     const scoreName = v4();
-    const score = createScore({
+    const score = createTraceScore({
       id: scoreId,
       observation_id: null,
       trace_id: traceId,
@@ -349,10 +354,13 @@ describe("Fetch datasets for UI presentation", () => {
 
     const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
+        id: score.id,
         type: "NUMERIC",
         values: expect.arrayContaining([100.5]),
         average: 100.5,
         comment: "comment",
+        // createScore adds metadata to the score
+        hasMetadata: true,
       },
     };
 
@@ -459,7 +467,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     await createObservationsCh([observation]);
 
-    const score = createScore({
+    const score = createTraceScore({
       observation_id: observation2.id,
       trace_id: traceId2,
       project_id: projectId,
@@ -506,10 +514,13 @@ describe("Fetch datasets for UI presentation", () => {
 
     const expectedObject = {
       [`${score.name.replaceAll("-", "_")}-API-NUMERIC`]: {
+        id: score.id,
         type: "NUMERIC",
         values: expect.arrayContaining([100.5]),
         average: 100.5,
         comment: "comment",
+        // createScore adds metadata to the score
+        hasMetadata: true,
       },
     };
 

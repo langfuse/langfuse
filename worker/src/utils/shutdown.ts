@@ -1,4 +1,4 @@
-import { logger } from "@langfuse/shared/src/server";
+import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
 import { redis } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
@@ -22,6 +22,9 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
 
   // Shutdown background migrations
   await BackgroundMigrationManager.close();
+
+  // Shutdown clickhouse connections
+  await ClickHouseClientManager.getInstance().closeAllConnections();
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
   await ClickhouseWriter.getInstance().shutdown();

@@ -213,6 +213,8 @@ jobs:
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
+          echo "ADMIN_API_KEY=admin-api-key" >> .env
+          echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
       - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
@@ -339,14 +341,28 @@ jobs:
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
           docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
+      - name: Ensure Docker dependencies are healthy
+        run: |
+          if docker-compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
       - name: Seed DB
         run: |
           pnpm run db:migrate
+          pnpm --filter=shared run ch:up
           pnpm run db:seed
       - name: Build
         run: pnpm run build

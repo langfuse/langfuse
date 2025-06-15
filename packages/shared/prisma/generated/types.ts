@@ -4,6 +4,11 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export const ApiKeyScope = {
+    ORGANIZATION: "ORGANIZATION",
+    PROJECT: "PROJECT"
+} as const;
+export type ApiKeyScope = (typeof ApiKeyScope)[keyof typeof ApiKeyScope];
 export const Role = {
     OWNER: "OWNER",
     ADMIN: "ADMIN",
@@ -92,6 +97,23 @@ export const BlobStorageIntegrationType = {
     AZURE_BLOB_STORAGE: "AZURE_BLOB_STORAGE"
 } as const;
 export type BlobStorageIntegrationType = (typeof BlobStorageIntegrationType)[keyof typeof BlobStorageIntegrationType];
+export const DashboardWidgetViews = {
+    TRACES: "TRACES",
+    OBSERVATIONS: "OBSERVATIONS",
+    SCORES_NUMERIC: "SCORES_NUMERIC",
+    SCORES_CATEGORICAL: "SCORES_CATEGORICAL"
+} as const;
+export type DashboardWidgetViews = (typeof DashboardWidgetViews)[keyof typeof DashboardWidgetViews];
+export const DashboardWidgetChartType = {
+    LINE_TIME_SERIES: "LINE_TIME_SERIES",
+    BAR_TIME_SERIES: "BAR_TIME_SERIES",
+    HORIZONTAL_BAR: "HORIZONTAL_BAR",
+    VERTICAL_BAR: "VERTICAL_BAR",
+    PIE: "PIE",
+    NUMBER: "NUMBER",
+    HISTOGRAM: "HISTOGRAM"
+} as const;
+export type DashboardWidgetChartType = (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
 export type Account = {
     id: string;
     user_id: string;
@@ -143,7 +165,9 @@ export type ApiKey = {
     display_secret_key: string;
     last_used_at: Timestamp | null;
     expires_at: Timestamp | null;
-    project_id: string;
+    project_id: string | null;
+    organization_id: string | null;
+    scope: Generated<ApiKeyScope>;
 };
 export type AuditLog = {
     id: string;
@@ -205,8 +229,8 @@ export type BlobStorageIntegration = {
     type: BlobStorageIntegrationType;
     bucket_name: string;
     prefix: string;
-    access_key_id: string;
-    secret_access_key: string;
+    access_key_id: string | null;
+    secret_access_key: string | null;
     region: string;
     endpoint: string | null;
     force_path_style: boolean;
@@ -233,6 +257,33 @@ export type CronJobs = {
     last_run: Timestamp | null;
     job_started_at: Timestamp | null;
     state: string | null;
+};
+export type Dashboard = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    created_by: string | null;
+    updated_by: string | null;
+    project_id: string | null;
+    name: string;
+    description: string;
+    definition: unknown;
+};
+export type DashboardWidget = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    created_by: string | null;
+    updated_by: string | null;
+    project_id: string | null;
+    name: string;
+    description: string;
+    view: DashboardWidgetViews;
+    dimensions: unknown;
+    metrics: unknown;
+    filters: unknown;
+    chart_type: DashboardWidgetChartType;
+    chart_config: unknown;
 };
 export type Dataset = {
     id: string;
@@ -276,17 +327,29 @@ export type DatasetRuns = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
-export type EvalTemplate = {
+export type DefaultLlmModel = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     project_id: string;
+    llm_api_key_id: string;
+    provider: string;
+    adapter: string;
+    model: string;
+    model_params: unknown | null;
+};
+export type EvalTemplate = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string | null;
     name: string;
     version: number;
     prompt: string;
-    model: string;
-    provider: string;
-    model_params: unknown;
+    partner: string | null;
+    model: string | null;
+    provider: string | null;
+    model_params: unknown | null;
     vars: Generated<string[]>;
     output_schema: unknown;
 };
@@ -312,6 +375,7 @@ export type JobExecution = {
     updated_at: Generated<Timestamp>;
     project_id: string;
     job_configuration_id: string;
+    job_template_id: string | null;
     status: JobExecutionStatus;
     start_time: Timestamp | null;
     end_time: Timestamp | null;
@@ -482,6 +546,7 @@ export type Organization = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     cloud_config: unknown | null;
+    metadata: unknown | null;
 };
 export type OrganizationMembership = {
     id: string;
@@ -515,6 +580,7 @@ export type Project = {
     deleted_at: Timestamp | null;
     name: string;
     retention_days: number | null;
+    metadata: unknown | null;
 };
 export type ProjectMembership = {
     org_membership_id: string;
@@ -583,6 +649,21 @@ export type SsoConfig = {
     auth_provider: string;
     auth_config: unknown | null;
 };
+export type TableViewPreset = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    table_name: string;
+    created_by: string | null;
+    updated_by: string | null;
+    filters: unknown;
+    column_order: unknown;
+    column_visibility: unknown;
+    search_query: string | null;
+    order_by: unknown | null;
+};
 export type TraceMedia = {
     id: string;
     project_id: string;
@@ -630,10 +711,13 @@ export type DB = {
     blob_storage_integrations: BlobStorageIntegration;
     comments: Comment;
     cron_jobs: CronJobs;
+    dashboard_widgets: DashboardWidget;
+    dashboards: Dashboard;
     dataset_items: DatasetItem;
     dataset_run_items: DatasetRunItems;
     dataset_runs: DatasetRuns;
     datasets: Dataset;
+    default_llm_models: DefaultLlmModel;
     eval_templates: EvalTemplate;
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
@@ -658,6 +742,7 @@ export type DB = {
     scores: LegacyPrismaScore;
     Session: Session;
     sso_configs: SsoConfig;
+    table_view_presets: TableViewPreset;
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: LegacyPrismaTrace;

@@ -9,7 +9,7 @@ import {
 } from "@/src/server/api/trpc";
 import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),

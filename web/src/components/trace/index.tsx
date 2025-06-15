@@ -1,4 +1,4 @@
-import { type ObservationLevelType, type Trace } from "@langfuse/shared";
+import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -14,10 +14,9 @@ import { Settings2, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { useCallback, useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScore, ObservationLevel } from "@langfuse/shared";
+import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
-import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/isLanggraphTrace";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Switch } from "@/src/components/ui/switch";
 import { Button } from "@/src/components/ui/button";
@@ -53,11 +52,12 @@ const getNestedObservationKeys = (
 
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<Trace, "input" | "output"> & {
-    input: string | undefined;
-    output: string | undefined;
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+    input: string | null;
+    output: string | null;
+    metadata: string | null;
   };
-  scores: APIScore[];
+  scores: APIScoreV2[];
   projectId: string;
   viewType?: "detailed" | "focused";
   isValidObservationId?: boolean;
@@ -132,6 +132,31 @@ export function Trace(props: {
       enabled: isAuthenticatedAndProjectMember,
     },
   );
+
+  const observationStartTimes = props.observations.map((o) =>
+    o.startTime.getTime(),
+  );
+  const minStartTime = new Date(
+    Math.min(...observationStartTimes, Date.now()), // the Date now is a guard for empty obs list
+  ).toISOString();
+  const maxStartTime = new Date(
+    Math.max(...observationStartTimes, 0), // the zero is a guard for empty obs list
+  ).toISOString();
+
+  const agentGraphDataQuery = api.traces.getAgentGraphData.useQuery(
+    {
+      projectId: props.trace.projectId,
+      traceId: props.trace.id,
+      minStartTime,
+      maxStartTime,
+    },
+    {
+      enabled: props.observations.length > 0,
+    },
+  );
+
+  const agentGraphData = agentGraphDataQuery.data ?? [];
+  const isGraphViewAvailable = agentGraphData.length > 0;
 
   const toggleCollapsedObservation = useCallback(
     (id: string) => {
@@ -245,7 +270,7 @@ export function Trace(props: {
                     <DropdownMenuLabel>Settings</DropdownMenuLabel>
                     <DropdownMenuSeparator />
 
-                    {isLanggraphTrace(props.observations) && (
+                    {isGraphViewAvailable && (
                       <>
                         <DropdownMenuItem
                           asChild
@@ -376,7 +401,7 @@ export function Trace(props: {
           <div className="h-full overflow-hidden">
             {props.selectedTab?.includes("timeline") ? (
               <div className="h-full w-full flex-1 flex-col overflow-hidden">
-                {isLanggraphTrace(props.observations) && showGraph ? (
+                {isGraphViewAvailable && showGraph ? (
                   <div className="flex h-full w-full flex-col overflow-hidden">
                     <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden">
                       <TraceTimelineView
@@ -400,10 +425,7 @@ export function Trace(props: {
                     <div className="h-1/2 w-full overflow-hidden border-t">
                       <TraceGraphView
                         key={`graph-timeline-${props.trace.id}`}
-                        trace={props.trace}
-                        scores={props.scores}
-                        observations={props.observations}
-                        projectId={props.trace.projectId}
+                        agentGraphData={agentGraphData}
                       />
                     </div>
                   </div>
@@ -431,7 +453,7 @@ export function Trace(props: {
               </div>
             ) : (
               <div className="h-full w-full flex-1 flex-col overflow-hidden">
-                {isLanggraphTrace(props.observations) && showGraph ? (
+                {isGraphViewAvailable && showGraph ? (
                   <div className="flex h-full w-full flex-col overflow-hidden">
                     <div className="h-1/2 w-full overflow-y-auto">
                       <ObservationTree
@@ -458,10 +480,7 @@ export function Trace(props: {
                     <div className="h-1/2 w-full overflow-hidden border-t">
                       <TraceGraphView
                         key={`graph-tree-${props.trace.id}`}
-                        trace={props.trace}
-                        scores={props.scores}
-                        observations={props.observations}
-                        projectId={props.trace.projectId}
+                        agentGraphData={agentGraphData}
                       />
                     </div>
                   </div>

@@ -27,7 +27,7 @@ The maintainers are available on [Discord](https://langfuse.com/discord) in case
 
 ## Making a change
 
-_Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone. Large changes that were not discussed in an issue may be rejected.
+_Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone. Changes that were not discussed in an issue may be rejected.
 
 Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
 
@@ -83,7 +83,7 @@ Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/pri
 We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https://turbo.build/repo/docs) to manage the dependencies and build process. The monorepo contains the following packages:
 
 - `web`: is the main application package providing Frontend and Backend APIs for Langfuse.
-- `worker` (no production yet): contains an application for asynchronous processing of tasks. This package is not yet used in production.
+- `worker`: contains an application for asynchronous processing of tasks.
 - `packages`:
   - `shared`: contains shared code between the above packages.
   - `config-eslint`: contains eslint configurations which are shared between the above packages.

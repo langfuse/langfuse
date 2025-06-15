@@ -7,28 +7,26 @@ import {
   DeleteTracesV1Response,
 } from "@/src/features/public-api/types/traces";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { processEventBatch } from "@langfuse/shared/src/server";
-
 import {
   eventTypes,
   logger,
   QueueJobs,
   TraceDeleteQueue,
 } from "@langfuse/shared/src/server";
-
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
+import { TRPCError } from "@trpc/server";
+import { randomUUID } from "crypto";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   generateTracesForPublicApi,
   getTracesCountForPublicApi,
 } from "@/src/features/public-api/server/traces";
-import { TRPCError } from "@trpc/server";
-import { randomUUID } from "crypto";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
-  POST: createAuthedAPIRoute({
+  POST: createAuthedProjectAPIRoute({
     name: "Create Trace (Legacy)",
     bodySchema: PostTracesV1Body,
     responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
@@ -60,7 +58,7 @@ export default withMiddlewares({
     },
   }),
 
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Traces",
     querySchema: GetTracesV1Query,
     responseSchema: GetTracesV1Response,
@@ -81,13 +79,19 @@ export default withMiddlewares({
       };
 
       const [items, count] = await Promise.all([
-        generateTracesForPublicApi(filterProps, query.orderBy ?? null),
-        getTracesCountForPublicApi(filterProps),
+        generateTracesForPublicApi({
+          props: filterProps,
+          orderBy: query.orderBy ?? null,
+        }),
+        getTracesCountForPublicApi({ props: filterProps }),
       ]);
 
       const finalCount = count || 0;
       return {
-        data: items,
+        data: items.map((item) => ({
+          ...item,
+          externalId: null,
+        })),
         meta: {
           page: query.page,
           limit: query.limit,
@@ -98,7 +102,7 @@ export default withMiddlewares({
     },
   }),
 
-  DELETE: createAuthedAPIRoute({
+  DELETE: createAuthedProjectAPIRoute({
     name: "Delete Multiple Traces",
     bodySchema: DeleteTracesV1Body,
     responseSchema: DeleteTracesV1Response,

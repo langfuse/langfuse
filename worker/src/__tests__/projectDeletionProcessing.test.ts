@@ -5,11 +5,11 @@ import {
   convertDateToClickhouseDateTime,
   createObservation,
   createObservationsCh,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
-  getEventLogByProjectAndEntityId,
+  getBlobStorageByProjectAndEntityId,
   getObservationById,
   getScoreById,
   getTraceById,
@@ -29,7 +29,7 @@ describe("ProjectDeletionProcessingJob", () => {
     storageService = StorageServiceFactory.getInstance({
       accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
-      bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+      bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
@@ -121,7 +121,7 @@ describe("ProjectDeletionProcessingJob", () => {
         }),
       ]),
       createScoresCh([
-        createScore({
+        createTraceScore({
           id: `${baseId}-score`,
           trace_id: `${baseId}-trace`,
           project_id: projectId,
@@ -135,12 +135,18 @@ describe("ProjectDeletionProcessingJob", () => {
     } as Job);
 
     // Then
-    const trace = await getTraceById(`${baseId}-trace`, projectId);
+    const trace = await getTraceById({
+      traceId: `${baseId}-trace`,
+      projectId,
+    });
     expect(trace).toBeUndefined();
     expect(() =>
-      getObservationById(`${baseId}-observation`, projectId),
+      getObservationById({ id: `${baseId}-observation`, projectId }),
     ).rejects.toThrowError("not found");
-    const score = await getScoreById(projectId, `${baseId}-score`);
+    const score = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score`,
+    });
     expect(score).toBeUndefined();
   });
 
@@ -176,7 +182,7 @@ describe("ProjectDeletionProcessingJob", () => {
       false,
     );
 
-    const eventLogRecord = await getEventLogByProjectAndEntityId(
+    const eventLogRecord = await getBlobStorageByProjectAndEntityId(
       projectId,
       "trace",
       `${baseId}-trace`,
@@ -215,7 +221,7 @@ describe("ProjectDeletionProcessingJob", () => {
         projectId,
         createdAt: new Date(),
         bucketPath: fileName,
-        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
       },
@@ -241,7 +247,7 @@ describe("ProjectDeletionProcessingJob", () => {
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { id: mediaId, projectId } },
     });
     expect(media).toBeNull();
 

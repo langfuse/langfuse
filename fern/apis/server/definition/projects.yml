@@ -12,6 +12,85 @@ service:
       path: /projects
       response: Projects
 
+    create:
+      docs: Create a new project (requires organization-scoped API key)
+      method: POST
+      path: /projects
+      request:
+        name: CreateProjectRequest
+        body:
+          properties:
+            name: string
+            metadata:
+              type: optional<map<string, unknown>>
+              docs: Optional metadata for the project
+            retention:
+              type: integer
+              docs: Number of days to retain data. Must be 0 or at least 3 days. Requires data-retention entitlement for non-zero values. Optional.
+      response: Project
+
+    update:
+      docs: Update a project by ID (requires organization-scoped API key).
+      method: PUT
+      path: /projects/{projectId}
+      path-parameters:
+        projectId: string
+      request:
+        name: UpdateProjectRequest
+        body:
+          properties:
+            name: string
+            metadata:
+              type: optional<map<string, unknown>>
+              docs: Optional metadata for the project
+            retention:
+              type: integer
+              docs: Number of days to retain data. Must be 0 or at least 3 days. Requires data-retention entitlement for non-zero values. Optional.
+      response: Project
+
+    delete:
+      docs: Delete a project by ID (requires organization-scoped API key). Project deletion is processed asynchronously.
+      method: DELETE
+      path: /projects/{projectId}
+      path-parameters:
+        projectId: string
+      response:
+        status-code: 202
+        type: ProjectDeletionResponse
+
+    # API Key endpoints
+    getApiKeys:
+      docs: Get all API keys for a project (requires organization-scoped API key)
+      method: GET
+      path: /projects/{projectId}/apiKeys
+      path-parameters:
+        projectId: string
+      response: ApiKeyList
+
+    createApiKey:
+      docs: Create a new API key for a project (requires organization-scoped API key)
+      method: POST
+      path: /projects/{projectId}/apiKeys
+      path-parameters:
+        projectId: string
+      request:
+        name: CreateApiKeyRequest
+        body:
+          properties:
+            note:
+              type: optional<string>
+              docs: Optional note for the API key
+      response: ApiKeyResponse
+
+    deleteApiKey:
+      docs: Delete an API key for a project (requires organization-scoped API key)
+      method: DELETE
+      path: /projects/{projectId}/apiKeys/{apiKeyId}
+      path-parameters:
+        projectId: string
+        apiKeyId: string
+      response: ApiKeyDeletionResponse
+
 types:
   Projects:
     properties:
@@ -21,3 +100,45 @@ types:
     properties:
       id: string
       name: string
+      metadata:
+        type: map<string, unknown>
+        docs: Metadata for the project
+      retentionDays:
+        type: optional<integer>
+        docs: Number of days to retain data. Null or 0 means no retention. Omitted if no retention is configured.
+
+  ProjectDeletionResponse:
+    properties:
+      success: boolean
+      message: string
+
+  ApiKeyList:
+    docs: List of API keys for a project
+    properties:
+      apiKeys: list<ApiKeySummary>
+
+  ApiKeySummary:
+    docs: Summary of an API key
+    properties:
+      id: string
+      createdAt: datetime
+      expiresAt: optional<datetime>
+      lastUsedAt: optional<datetime>
+      note: optional<string>
+      publicKey: string
+      displaySecretKey: string
+
+  ApiKeyResponse:
+    docs: Response for API key creation
+    properties:
+      id: string
+      createdAt: datetime
+      publicKey: string
+      secretKey: string
+      displaySecretKey: string
+      note: optional<string>
+
+  ApiKeyDeletionResponse:
+    docs: Response for API key deletion
+    properties:
+      success: boolean

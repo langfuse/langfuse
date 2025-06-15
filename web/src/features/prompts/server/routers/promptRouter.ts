@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
@@ -16,7 +16,11 @@ import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
-import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  optionalPaginationZod,
+  paginationZod,
+} from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import {
@@ -236,6 +240,12 @@ export const promptRouter = createTRPCRouter({
         return prompt;
       } catch (e) {
         logger.error(e);
+        if (e instanceof InvalidRequestError) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: e.message,
+          });
+        }
         throw e;
       }
     }),
@@ -604,12 +614,19 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        const toBeLabeledPrompt = await ctx.prisma.prompt.findUniqueOrThrow({
+        const toBeLabeledPrompt = await ctx.prisma.prompt.findUnique({
           where: {
             id: input.promptId,
             projectId,
           },
         });
+
+        if (!toBeLabeledPrompt) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Prompt not found.",
+          });
+        }
 
         const { name: promptName } = toBeLabeledPrompt;
         const newLabelSet = new Set(input.labels);
@@ -773,7 +790,7 @@ export const promptRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        type: z.nativeEnum(PromptType).optional(),
+        type: z.enum(PromptType).optional(),
       }),
     )
     .query(async ({ input, ctx }) => {

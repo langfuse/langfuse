@@ -104,7 +104,7 @@ export function PopoverFilterBuilder({
         }}
       >
         <PopoverTrigger asChild>
-          <Button variant="outline">
+          <Button variant="outline" type="button">
             <span>Filters</span>
             {filterState.length > 0 && filterState.length < 3 ? (
               <InlineFilterState
@@ -142,8 +142,9 @@ export function PopoverFilterBuilder({
         <Button
           onClick={() => setWipFilterState([])}
           variant="ghost"
+          type="button"
           size="icon"
-          className="ml-2"
+          className="ml-0.5"
         >
           <X className="h-4 w-4" />
         </Button>
@@ -303,10 +304,12 @@ function FilterBuilderForm({
                         role="combobox"
                         type="button"
                         disabled={disabled}
-                        className="w-full min-w-32 justify-between"
+                        className="flex w-full min-w-32 items-center justify-between gap-2"
                       >
-                        {column ? column.name : "Column"}
-                        <ChevronDown className="h-4 w-4 opacity-50" />
+                        <span className="truncate">
+                          {column ? column.name : "Column"}
+                        </span>
+                        <ChevronDown className="h-4 w-4 flex-shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -374,7 +377,7 @@ function FilterBuilderForm({
                   (column?.type === "numberObject" ||
                     column?.type === "stringObject") ? (
                     column.keyOptions ? (
-                      // selector of the key of the object to be filtered
+                      // Case 1: object with keyOptions - selector of the key of the object
                       <Select
                         disabled={!filter.column}
                         onValueChange={(value) => {
@@ -396,6 +399,7 @@ function FilterBuilderForm({
                         </SelectContent>
                       </Select>
                     ) : (
+                      // Case 2: object without keyOptions - text input
                       <Input
                         value={filter.key ?? ""}
                         placeholder="key"
@@ -408,6 +412,26 @@ function FilterBuilderForm({
                         }
                       />
                     )
+                  ) : filter.type === "categoryOptions" &&
+                    column?.type === "categoryOptions" ? (
+                    // Case 3: categoryOptions
+                    <Select
+                      onValueChange={(value) => {
+                        handleFilterChange({ ...filter, key: value }, i);
+                      }}
+                      value={filter.key ?? ""}
+                    >
+                      <SelectTrigger className="min-w-[60px]">
+                        <SelectValue placeholder="" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {column?.options.map((option) => (
+                          <SelectItem key={option.label} value={option.label}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : null}
                 </td>
                 <td className="p-1">
@@ -509,6 +533,26 @@ function FilterBuilderForm({
                         columnsWithCustomSelect.includes(column.id)
                       }
                     />
+                  ) : filter.type === "categoryOptions" &&
+                    column?.type === "categoryOptions" ? (
+                    <MultiSelect
+                      title="Value"
+                      className="min-w-[100px]"
+                      options={
+                        column?.options
+                          .find((o) => o.label === filter.key)
+                          ?.values?.map((v) => ({ value: v })) ?? []
+                      }
+                      onValueChange={(value) =>
+                        handleFilterChange({ ...filter, value }, i)
+                      }
+                      values={Array.isArray(filter.value) ? filter.value : []}
+                      disabled={disabled}
+                      isCustomSelectEnabled={
+                        column?.type === filter.type &&
+                        columnsWithCustomSelect.includes(column.id)
+                      }
+                    />
                   ) : filter.type === "boolean" ? (
                     <Select
                       disabled={disabled}
@@ -543,6 +587,7 @@ function FilterBuilderForm({
                   <Button
                     onClick={() => removeFilter(i)}
                     variant="ghost"
+                    type="button"
                     disabled={disabled}
                     size="xs"
                   >
@@ -559,7 +604,7 @@ function FilterBuilderForm({
           onClick={() => addNewFilter()}
           type="button" // required as it will otherwise submit forms where this component is used
           className="mt-2"
-          variant="ghost"
+          variant="outline"
           size="sm"
         >
           <Plus className="mr-2 h-4 w-4" />

@@ -23,6 +23,7 @@ export const usePeekData = ({
         if (error.data?.code === "UNAUTHORIZED") return false;
         return failureCount < 3;
       },
+      staleTime: 60 * 1000, // 1 minute
     },
   );
 };

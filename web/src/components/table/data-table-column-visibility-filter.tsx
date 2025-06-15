@@ -1,32 +1,15 @@
 import React, {
   useCallback,
+  useMemo,
   type Dispatch,
   type SetStateAction,
-  useState,
 } from "react";
 import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-  DropdownMenuCheckboxItem,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuPortal,
-  DropdownMenuSubContent,
-  DropdownMenuSeparator,
-} from "@/src/components/ui/dropdown-menu";
 import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Component,
-  Menu,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Component, Menu, X } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -47,9 +30,23 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
-import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/src/utils/tailwind";
 import { isString } from "@/src/utils/types";
+import {
+  DrawerTrigger,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  Drawer,
+  DrawerClose,
+} from "@/src/components/ui/drawer";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { Separator } from "@/src/components/ui/separator";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -88,7 +85,7 @@ const calculateColumnCounts = <TData, TValue>(
   );
 };
 
-function ColumnVisibilityDropdownItem<TData, TValue>({
+function ColumnVisibilityListItem<TData, TValue>({
   column,
   toggleColumn,
   columnVisibility,
@@ -102,31 +99,42 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
   const { attributes, isDragging, listeners, setNodeRef, transform } =
     useSortable({
       id: column.accessorKey,
+      disabled: !isOrderable,
     });
 
+  const isChecked = columnVisibility[column.accessorKey] && column.enableHiding;
+
   return (
-    <DropdownMenuCheckboxItem
-      checked={columnVisibility[column.accessorKey] && column.enableHiding}
-      onCheckedChange={() => {
-        if (column.enableHiding) toggleColumn(column.accessorKey);
-      }}
+    <div
       ref={setNodeRef}
       className={cn(
+        "flex w-full items-center justify-between rounded-md p-2",
         isDragging ? "opacity-80" : "opacity-100",
-        "group whitespace-nowrap",
+        "group transition-colors hover:bg-muted/50",
       )}
       style={{
-        transform: transform ? CSS.Translate.toString(transform) : "none",
-        transition: "width transform 0.2s ease-in-out",
+        transform: transform
+          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+          : undefined,
+        transition: isDragging ? "none" : "transform 0.15s ease-in-out",
         zIndex: isDragging ? 1 : undefined,
       }}
     >
-      {!column.enableHiding && (
-        <Check className="absolute left-2 h-4 w-4 opacity-50" />
-      )}
-      <div className="mr-1">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={`col-${column.accessorKey}`}
+          checked={isChecked || !column.enableHiding}
+          onCheckedChange={() => {
+            if (column.enableHiding) toggleColumn(column.accessorKey);
+          }}
+          disabled={!column.enableHiding}
+          className="h-4 w-4"
+        />
         <span
-          className="capitalize"
+          className={cn(
+            "text-sm capitalize",
+            !column.enableHiding && "opacity-50",
+          )}
           title={
             !column.enableHiding ? "This column may not be hidden" : undefined
           }
@@ -142,62 +150,8 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
           />
         )}
       </div>
+
       {isOrderable && (
-        <Button
-          {...attributes}
-          {...listeners}
-          variant="ghost"
-          size="xs"
-          title="Drag and drop to reorder columns"
-          className="invisible ml-auto group-hover:visible"
-        >
-          <Menu className="h-3 w-3" />
-        </Button>
-      )}
-    </DropdownMenuCheckboxItem>
-  );
-}
-
-function GroupVisibilityDropdownHeader<TData, TValue>({
-  column,
-  groupTotalCount,
-  groupVisibleCount,
-}: {
-  column: LangfuseColumnDef<TData, TValue>;
-  groupTotalCount: number;
-  groupVisibleCount: number;
-}) {
-  const { attributes, isDragging, listeners, setNodeRef, transform } =
-    useSortable({
-      id: column.accessorKey,
-    });
-
-  return (
-    <DropdownMenuSubTrigger
-      hasCustomIcon
-      ref={setNodeRef}
-      className={cn(
-        isDragging ? "opacity-80" : "opacity-100",
-        "group flex w-full items-center justify-between whitespace-nowrap",
-      )}
-      style={{
-        transform: transform ? CSS.Translate.toString(transform) : "none",
-        transition: "width transform 0.2s ease-in-out",
-        zIndex: isDragging ? 1 : undefined,
-      }}
-    >
-      <div className="flex items-center">
-        <Component className="mr-2 h-4 w-4 opacity-50" />
-        <span>
-          {column.header && typeof column.header === "string"
-            ? column.header
-            : column.accessorKey}
-        </span>
-        <span className="ml-1.5 text-xs text-muted-foreground">
-          ({groupVisibleCount}/{groupTotalCount})
-        </span>
-      </div>
-      <div className="flex items-center">
         <Button
           {...attributes}
           {...listeners}
@@ -208,9 +162,99 @@ function GroupVisibilityDropdownHeader<TData, TValue>({
         >
           <Menu className="h-3 w-3" />
         </Button>
-        <ChevronRight className="h-4 w-4" />
-      </div>
-    </DropdownMenuSubTrigger>
+      )}
+    </div>
+  );
+}
+
+function GroupVisibilityHeader<TData, TValue>({
+  column,
+  groupTotalCount,
+  groupVisibleCount,
+  isOpen,
+  onToggle,
+  children,
+  toggleAll,
+}: {
+  column: LangfuseColumnDef<TData, TValue>;
+  groupTotalCount: number;
+  groupVisibleCount: number;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  toggleAll: () => void;
+}) {
+  const { attributes, isDragging, listeners, setNodeRef, transform } =
+    useSortable({
+      id: column.accessorKey,
+    });
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={onToggle}>
+      <CollapsibleTrigger asChild>
+        <div
+          ref={setNodeRef}
+          className={cn(
+            "flex w-full items-center justify-between gap-2 rounded-md bg-muted/30 p-2",
+            isDragging ? "opacity-80" : "opacity-100",
+            "group cursor-pointer hover:bg-muted",
+          )}
+          style={{
+            transform: transform
+              ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+              : undefined,
+            transition: isDragging ? "none" : "transform 0.15s ease-in-out",
+            zIndex: isDragging ? 1 : undefined,
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <Component className="h-4 w-4 opacity-50" />
+            <span className="text-sm font-medium">
+              {column.header && typeof column.header === "string"
+                ? column.header
+                : column.accessorKey}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              ({groupVisibleCount}/{groupTotalCount})
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {attributes && listeners && (
+              <Button
+                {...attributes}
+                {...listeners}
+                variant="ghost"
+                size="xs"
+                title="Drag and drop to reorder columns"
+                className="opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                <Menu className="h-3 w-3" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 py-1 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleAll();
+              }}
+            >
+              {groupVisibleCount === groupTotalCount
+                ? "Deselect All"
+                : "Select All"}
+            </Button>
+            {isOpen ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </div>
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pl-4 pt-1">{children}</CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -247,8 +291,21 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
-  const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
+    {},
+  );
+
+  const { defaultColumnOrder, defaultColumnVisibility } = useMemo(() => {
+    return {
+      defaultColumnOrder: columns.map((col) => col.accessorKey),
+      defaultColumnVisibility: columns.reduce((acc, col) => {
+        acc[col.accessorKey] = !col.defaultHidden;
+        return acc;
+      }, {} as VisibilityState),
+    };
+  }, [columns]);
+
   const toggleColumn = useCallback(
     (columnId: string) => {
       setColumnVisibility((old) => {
@@ -268,6 +325,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [setColumnVisibility],
   );
+
   const toggleAllColumns = useCallback(
     (count: number, total: number, groupName?: string) => {
       if (count === total) {
@@ -278,6 +336,13 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     },
     [setColumnVisibility, columns],
   );
+
+  const toggleGroup = (columnId: string) => {
+    setOpenGroups((prev) => ({
+      ...prev,
+      [columnId]: !prev[columnId],
+    }));
+  };
 
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -314,125 +379,135 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       onDragEnd={isColumnOrderingEnabled ? handleDragEnd : undefined}
       sensors={sensors}
     >
-      <DropdownMenu open={isOpen}>
-        <DropdownMenuTrigger
-          onClick={() => {
-            setIsOpen(!isOpen);
-          }}
-          className="select-none"
-          asChild
-        >
+      <Drawer modal={false}>
+        <DrawerTrigger asChild>
           <Button variant="outline" title="Show/hide columns">
             <span>Columns</span>
             <div className="ml-1 rounded-sm bg-input px-1 text-xs">{`${count}/${total}`}</div>
-            <ChevronDown className="ml-2 h-4 w-4" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          onPointerDownOutside={() => setIsOpen(false)}
-          className="max-h-[40dvh] overflow-y-auto"
-        >
-          <SortableContext
-            items={columnIdsOrder}
-            strategy={verticalListSortingStrategy}
-          >
-            <DropdownMenuCheckboxItem
-              checked={
-                count === total ? true : count === 0 ? false : "indeterminate"
-              }
-              onCheckedChange={() => toggleAllColumns(count, total)}
-            >
-              <span>{count === total ? "Deselect All" : "Select All"}</span>
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuSeparator />
-            {columnIdsOrder.map((columnId, index) => {
-              const column = columns.find(
-                (col) => col.accessorKey === columnId,
-              );
-              if (column) {
-                if (!!column.columns && Boolean(column.columns.length)) {
-                  const groupTotalCount = column.columns.length;
-                  const groupVisibleCount = column.columns.filter(
-                    (col) => columnVisibility[col.accessorKey],
-                  ).length;
-                  return (
-                    <DropdownMenuSub key={index}>
-                      {isColumnOrderingEnabled ? (
-                        <GroupVisibilityDropdownHeader
+        </DrawerTrigger>
+        <DrawerContent overlayClassName="bg-primary/10">
+          <div className="mx-auto w-full overflow-y-auto md:max-h-full">
+            <div className="sticky top-0 z-10">
+              <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
+                <DrawerTitle>Column Visibility</DrawerTitle>
+                <div className="flex flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (setColumnOrder) {
+                        setColumnOrder(defaultColumnOrder);
+                      }
+                      setColumnVisibility(defaultColumnVisibility);
+                    }}
+                  >
+                    Restore Defaults
+                  </Button>
+                  <DrawerClose asChild>
+                    <Button variant="outline" size="icon">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </DrawerClose>
+                </div>
+              </DrawerHeader>
+              <Separator />
+            </div>
+            <div>
+              <div
+                className="my-1 flex w-full cursor-pointer items-center justify-between rounded-md p-2 hover:bg-muted/50"
+                onClick={() => toggleAllColumns(count, total)}
+              >
+                <div className="flex items-center gap-2">
+                  <Button
+                    id="toggle-all-columns"
+                    variant="ghost"
+                    size="sm"
+                    className="hover:!bg-transparent"
+                    onClick={() => toggleAllColumns(count, total)}
+                  >
+                    <span className="text-sm font-medium">
+                      {count === total
+                        ? "Deselect All Columns"
+                        : "Select All Columns"}
+                    </span>
+                    <div className="ml-1 rounded-sm bg-input px-1 text-xs">{`${count}/${total}`}</div>
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <Separator />
+            <div data-vaul-no-drag className="px-3 py-2">
+              <SortableContext
+                items={columnIdsOrder}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {columnIdsOrder.map((columnId) => {
+                    const column = columns.find(
+                      (col) => col.accessorKey === columnId,
+                    );
+                    if (!column || column.isPinned) return null;
+
+                    if (!!column.columns && column.columns.length > 0) {
+                      // Column groups
+                      const groupTotalCount = column.columns.length;
+                      const groupVisibleCount = column.columns.filter(
+                        (col) => columnVisibility[col.accessorKey],
+                      ).length;
+
+                      return (
+                        <GroupVisibilityHeader
+                          key={column.accessorKey}
                           column={column}
                           groupTotalCount={groupTotalCount}
                           groupVisibleCount={groupVisibleCount}
-                        />
-                      ) : (
-                        <DropdownMenuSubTrigger hasCustomIcon>
-                          <Component className="mr-2 h-4 w-4 opacity-50" />
-                          <span>
-                            {column.header && typeof column.header === "string"
-                              ? column.header
-                              : column.accessorKey}
-                          </span>
-                        </DropdownMenuSubTrigger>
-                      )}
-                      <DropdownMenuPortal>
-                        <DropdownMenuSubContent className="max-h-[40dvh] overflow-y-auto">
-                          <DropdownMenuCheckboxItem
-                            checked={
-                              groupVisibleCount === groupTotalCount
-                                ? true
-                                : groupVisibleCount === 0
-                                  ? false
-                                  : "indeterminate"
+                          isOpen={!!openGroups[column.accessorKey]}
+                          onToggle={() => toggleGroup(column.accessorKey)}
+                          toggleAll={() => {
+                            if (
+                              column.header &&
+                              typeof column.header === "string"
+                            ) {
+                              toggleAllColumns(
+                                groupVisibleCount,
+                                groupTotalCount,
+                                column.header,
+                              );
                             }
-                            onCheckedChange={() => {
-                              if (
-                                column.header &&
-                                typeof column.header === "string"
-                              ) {
-                                toggleAllColumns(
-                                  groupVisibleCount,
-                                  groupTotalCount,
-                                  column.header,
-                                );
-                              }
-                            }}
-                          >
-                            <span>
-                              {groupTotalCount === groupVisibleCount
-                                ? "Deselect All"
-                                : "Select All"}
-                            </span>
-                          </DropdownMenuCheckboxItem>
-                          <DropdownMenuSeparator />
-                          {column.columns.map((col) => (
-                            <ColumnVisibilityDropdownItem
-                              key={col.accessorKey}
-                              column={col}
-                              columnVisibility={columnVisibility}
-                              toggleColumn={toggleColumn}
-                              isOrderable={false} // grouped columns are not orderable, group may only be ordered as a whole
-                            />
-                          ))}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuPortal>
-                    </DropdownMenuSub>
-                  );
-                } else if (!column.isPinned)
-                  return (
-                    <ColumnVisibilityDropdownItem
-                      key={column.accessorKey}
-                      column={column}
-                      columnVisibility={columnVisibility}
-                      toggleColumn={toggleColumn}
-                      isOrderable={isColumnOrderingEnabled}
-                    />
-                  );
-              }
-              return null;
-            })}
-          </SortableContext>
-        </DropdownMenuContent>
-      </DropdownMenu>
+                          }}
+                        >
+                          <div className="mt-1 space-y-1">
+                            {column.columns.map((col) => (
+                              <ColumnVisibilityListItem
+                                key={col.accessorKey}
+                                column={col}
+                                columnVisibility={columnVisibility}
+                                toggleColumn={toggleColumn}
+                                isOrderable={false}
+                              />
+                            ))}
+                          </div>
+                        </GroupVisibilityHeader>
+                      );
+                    } else {
+                      // Single columns
+                      return (
+                        <ColumnVisibilityListItem
+                          key={column.accessorKey}
+                          column={column}
+                          columnVisibility={columnVisibility}
+                          toggleColumn={toggleColumn}
+                          isOrderable={isColumnOrderingEnabled}
+                        />
+                      );
+                    }
+                  })}
+                </div>
+              </SortableContext>
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </DndContext>
   );
 }

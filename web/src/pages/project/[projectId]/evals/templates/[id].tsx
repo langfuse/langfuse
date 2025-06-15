@@ -1,3 +1,3 @@
-import { EvalTemplateDetail } from "@/src/ee/features/evals/components/eval-template-detail";
+import { EvalTemplateDetail } from "@/src/features/evals/components/eval-template-detail";
 
 export default EvalTemplateDetail;

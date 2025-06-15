@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -17,6 +17,8 @@ import {
   getObservationCostByTypeByTime,
   getObservationUsageByTypeByTime,
   queryClickhouse,
+  DashboardService,
+  DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
@@ -24,6 +26,49 @@ import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
+import { paginationZod, orderBy } from "@langfuse/shared";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+
+// Define the dashboard list input schema
+const ListDashboardsInput = z.object({
+  projectId: z.string(),
+  ...paginationZod,
+  orderBy: orderBy,
+});
+
+// Get dashboard by ID input schema
+const GetDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+});
+
+// Update dashboard definition input schema
+const UpdateDashboardDefinitionInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+  definition: DashboardDefinitionSchema,
+});
+
+// Update dashboard input schema
+const UpdateDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+  name: z.string().min(1, "Dashboard name is required"),
+  description: z.string(),
+});
+
+// Create dashboard input schema
+const CreateDashboardInput = z.object({
+  projectId: z.string(),
+  name: z.string().min(1, "Dashboard name is required"),
+  description: z.string(),
+});
+
+// Clone dashboard input schema
+const CloneDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+});
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
@@ -109,6 +154,164 @@ export const dashboardRouter = createTRPCRouter({
     .query(async ({ input }) => {
       return executeQuery(input.projectId, input.query as QueryType);
     }),
+
+  allDashboards: protectedProjectProcedure
+    .input(ListDashboardsInput)
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+
+      const result = await DashboardService.listDashboards({
+        projectId: input.projectId,
+        limit: input.limit,
+        page: input.page,
+        orderBy: input.orderBy,
+      });
+
+      return result;
+    }),
+
+  getDashboard: protectedProjectProcedure
+    .input(GetDashboardInput)
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+
+      const dashboard = await DashboardService.getDashboard(
+        input.dashboardId,
+        input.projectId,
+      );
+
+      if (!dashboard) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dashboard not found",
+        });
+      }
+
+      return dashboard;
+    }),
+
+  createDashboard: protectedProjectProcedure
+    .input(CreateDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.createDashboard(
+        input.projectId,
+        input.name,
+        input.description,
+        ctx.session.user.id,
+      );
+
+      return dashboard;
+    }),
+
+  updateDashboardDefinition: protectedProjectProcedure
+    .input(UpdateDashboardDefinitionInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.updateDashboardDefinition(
+        input.dashboardId,
+        input.projectId,
+        input.definition,
+        ctx.session.user.id,
+      );
+
+      return dashboard;
+    }),
+
+  updateDashboardMetadata: protectedProjectProcedure
+    .input(UpdateDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.updateDashboard(
+        input.dashboardId,
+        input.projectId,
+        input.name,
+        input.description,
+        ctx.session.user.id,
+      );
+
+      return dashboard;
+    }),
+
+  cloneDashboard: protectedProjectProcedure
+    .input(CloneDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      // Get the source dashboard
+      const sourceDashboard = await DashboardService.getDashboard(
+        input.dashboardId,
+        input.projectId,
+      );
+
+      if (!sourceDashboard) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Source dashboard not found",
+        });
+      }
+
+      // Create a new dashboard with the same data but modified name
+      const clonedDashboard = await DashboardService.createDashboard(
+        input.projectId,
+        `${sourceDashboard.name} (Clone)`,
+        sourceDashboard.description,
+        ctx.session.user.id,
+        sourceDashboard.definition,
+      );
+
+      return clonedDashboard;
+    }),
+
+  // Delete dashboard input schema
+  delete: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        dashboardId: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      await DashboardService.deleteDashboard(
+        input.dashboardId,
+        input.projectId,
+      );
+
+      return { success: true };
+    }),
 });
 
 /**
@@ -123,10 +326,9 @@ export async function executeQuery(
   query: QueryType,
 ): Promise<Array<Record<string, unknown>>> {
   try {
-    const { query: compiledQuery, parameters } = new QueryBuilder().build(
-      query,
-      projectId,
-    );
+    const { query: compiledQuery, parameters } = new QueryBuilder(
+      query.chartConfig,
+    ).build(query, projectId);
 
     const result = await queryClickhouse<Record<string, unknown>>({
       query: compiledQuery,

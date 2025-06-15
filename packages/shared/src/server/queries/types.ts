@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 import { optionalPaginationZod } from "../../utils/zod";

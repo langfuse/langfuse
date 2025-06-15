@@ -1,12 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { type DialogProps } from "@radix-ui/react-dialog";
+import { DialogTitle, type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogHeader,
+} from "@/src/components/ui/dialog";
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
@@ -36,12 +41,17 @@ const CommandDialog = ({
         className="overflow-hidden p-0 shadow-lg"
         closeOnInteractionOutside
       >
-        <Command
-          filter={filter}
-          className="pb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12"
-        >
-          {children}
-        </Command>
+        <DialogHeader className="sr-only p-0">
+          <DialogTitle>Search</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="p-0">
+          <Command
+            filter={filter}
+            className="pb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12"
+          >
+            {children}
+          </Command>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

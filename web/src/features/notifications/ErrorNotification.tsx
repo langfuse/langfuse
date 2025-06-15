@@ -1,9 +1,6 @@
 import { Button } from "@/src/components/ui/button";
+import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 import { AlertTriangle, X } from "lucide-react";
-import {
-  chatAvailable,
-  sendUserChatMessage,
-} from "@/src/features/support-chat/chat";
 
 interface ErrorNotificationProps {
   error: string;
@@ -27,14 +24,14 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
     ? "text-destructive-foreground"
     : "text-dark-yellow";
 
-  const handleReportIssueClick = () => {
-    if (chatAvailable) {
-      const currentUrl = window.location.href;
-      const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${path ? `Path: ${path}\n` : ""}URL: ${currentUrl}`;
-      sendUserChatMessage(message);
-      dismissToast(toast);
-    }
-  };
+  // const handleReportIssueClick = () => {
+  //   if (chatAvailable) {
+  //     const currentUrl = window.location.href;
+  //     const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${path ? `Path: ${path}\n` : ""}URL: ${currentUrl}`;
+  //     sendUserChatMessage(message);
+  //     dismissToast(toast);
+  //   }
+  // };
 
   return (
     <div className="flex justify-between">
@@ -63,7 +60,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
             variant="errorNotification"
             size={"sm"}
             onClick={() => {
-              handleReportIssueClick();
+              openChat();
             }}
           >
             Report issue to Langfuse team

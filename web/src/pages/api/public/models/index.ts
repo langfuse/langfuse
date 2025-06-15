@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetModelsV1Query,
   GetModelsV1Response,
@@ -11,9 +11,10 @@ import {
 import { InvalidRequestError } from "@langfuse/shared";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { type Decimal } from "decimal.js";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get model definitions",
     querySchema: GetModelsV1Query,
     responseSchema: GetModelsV1Response,
@@ -39,6 +40,11 @@ export default withMiddlewares({
             },
           },
         ],
+        include: {
+          Price: {
+            select: { usageType: true, price: true },
+          },
+        },
         take: query.limit,
         skip: (query.page - 1) * query.limit,
       });
@@ -67,7 +73,8 @@ export default withMiddlewares({
       };
     },
   }),
-  POST: createAuthedAPIRoute({
+
+  POST: createAuthedProjectAPIRoute({
     name: "Create custom model definition",
     bodySchema: PostModelsV1Body,
     responseSchema: PostModelsV1Response,
@@ -122,7 +129,15 @@ export default withMiddlewares({
         return createdModel;
       });
 
-      return prismaToApiModelDefinition(model);
+      return prismaToApiModelDefinition({
+        ...model,
+        Price: (["inputPrice", "outputPrice", "totalPrice"] as const)
+          .filter((key) => model[key] != null)
+          .map((key) => ({
+            usageType: key.split("Price")[0],
+            price: model[key] as Decimal,
+          })),
+      });
     },
   }),
 });

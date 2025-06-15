@@ -1,5 +1,5 @@
 import { type DateRange } from "react-day-picker";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { addMinutes } from "date-fns";
 import { type DateTrunc } from "@langfuse/shared/src/server";
 
@@ -83,7 +83,7 @@ export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregatio
       minutes: 30 * 24 * 60,
     },
     "7 days": {
-      date_trunc: "day",
+      date_trunc: "hour",
       minutes: 7 * 24 * 60,
     },
     "24 hours": {
@@ -91,7 +91,7 @@ export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregatio
       minutes: 24 * 60,
     },
     "3 hours": {
-      date_trunc: "hour",
+      date_trunc: "minute",
       minutes: 3 * 60,
     },
     "1 hour": {

@@ -14,6 +14,7 @@ import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { encrypt } from "../src/encryption";
 import { redis } from "../src/server/redis/redis";
+import { randomUUID } from "crypto";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -180,6 +181,7 @@ async function main() {
         publicKey: seedApiKey.public,
         hashedSecretKey: await hashSecretKey(seedApiKey.secret),
         displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
+        scope: "PROJECT",
         project: {
           connect: {
             id: project1.id,
@@ -241,6 +243,7 @@ async function main() {
           publicKey: secondKey.public,
           hashedSecretKey: await hashSecretKey(secondKey.secret),
           displaySecretKey: getDisplaySecretKey(secondKey.secret),
+          scope: "PROJECT",
           project: {
             connect: {
               id: project2.id,
@@ -375,6 +378,8 @@ async function main() {
 
     await createDatasets(project1, project2, observations);
 
+    await createDashboardsAndWidgets([project1, project2]);
+
     await prisma.llmSchema.createMany({
       data: [
         {
@@ -430,6 +435,85 @@ main()
     logger.info("Disconnected from postgres and redis");
     process.exit(1);
   });
+
+async function createDashboardsAndWidgets(projects: Project[]) {
+  logger.info("Creating dashboards and widgets");
+
+  // Process each project
+  for (const project of projects) {
+    const widget = await prisma.dashboardWidget.upsert({
+      where: { id: "cabc" },
+      create: {
+        id: "cabc",
+        projectId: project.id,
+        name: "Trace Counts",
+        description: "Trace Counts by Name Over Time",
+        view: "TRACES",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", agg: "count" }],
+        filters: [],
+        chartType: "BAR_TIME_SERIES",
+        chartConfig: {
+          type: "BAR_TIME_SERIES",
+        },
+      },
+      update: {},
+    });
+
+    const widget2 = await prisma.dashboardWidget.upsert({
+      where: { id: "cdef" },
+      create: {
+        id: "cdef",
+        projectId: project.id,
+        name: "Observation Latencies by Model",
+        description: "p95 Observation Latencies by Model Name",
+        view: "OBSERVATIONS",
+        dimensions: [{ field: "providedModelName" }],
+        metrics: [{ measure: "count", agg: "sum" }],
+        filters: [],
+        chartType: "LINE_TIME_SERIES",
+        chartConfig: {
+          type: "LINE_TIME_SERIES",
+        },
+      },
+      update: {},
+    });
+
+    // Create a dashboard with multiple widgets
+    await prisma.dashboard.upsert({
+      where: { id: "seed-dashboard" },
+      create: {
+        id: "seed-dashboard",
+        projectId: project.id,
+        name: "Performance Overview",
+        description: "Dashboard with various performance metrics",
+        definition: {
+          widgets: [
+            {
+              type: "widget",
+              id: randomUUID(),
+              widgetId: widget.id,
+              x: 0,
+              y: 0,
+              x_size: 6,
+              y_size: 6,
+            },
+            {
+              type: "widget",
+              id: randomUUID(),
+              widgetId: widget2.id,
+              x: 6,
+              y: 0,
+              x_size: 6,
+              y_size: 6,
+            },
+          ],
+        },
+      },
+      update: {},
+    });
+  }
+}
 
 export async function createDatasets(
   project1: {
@@ -770,6 +854,7 @@ function createObjects(
               source: "API",
               projectId,
               dataType: ScoreDataType.NUMERIC,
+              metadata: {},
             },
           ]
         : []),
@@ -785,6 +870,7 @@ function createObjects(
               dataType: ScoreDataType.CATEGORICAL,
               stringValue:
                 Math.floor(Math.random() * 2) === 1 ? "Fully" : "Partially",
+              metadata: {},
             },
           ]
         : []),

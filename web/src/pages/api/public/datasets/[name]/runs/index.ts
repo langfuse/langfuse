@@ -5,14 +5,15 @@ import {
   transformDbDatasetRunToAPIDatasetRun,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "get-dataset-runs",
     querySchema: GetDatasetRunsV1Query,
     responseSchema: GetDatasetRunsV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const dataset = await prisma.dataset.findFirst({
         where: {

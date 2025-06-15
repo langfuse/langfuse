@@ -1,7 +1,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 
 import {
   GetObservationsV1Query,
@@ -14,7 +14,7 @@ import {
 } from "@/src/features/public-api/server/observations";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Observations",
     querySchema: GetObservationsV1Query,
     responseSchema: GetObservationsV1Response,
@@ -39,7 +39,9 @@ export default withMiddlewares({
       ]);
       const uniqueModels: string[] = Array.from(
         new Set(
-          items.map((r) => r.modelId).filter((r): r is string => Boolean(r)),
+          items
+            .map((r) => r.internalModelId)
+            .filter((r): r is string => Boolean(r)),
         ),
       );
 
@@ -62,7 +64,7 @@ export default withMiddlewares({
       return {
         data: items
           .map((i) => {
-            const model = models.find((m) => m.id === i.modelId);
+            const model = models.find((m) => m.id === i.internalModelId);
             return {
               ...i,
               modelId: model?.id ?? null,

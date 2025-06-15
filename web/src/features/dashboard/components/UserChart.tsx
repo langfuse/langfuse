@@ -100,10 +100,10 @@ export const UserChart = ({
 
   const transformedNumberOfTraces: BarChartDataPoint[] = traces.data
     ? traces.data
-        .filter((item) => item.user_id !== undefined)
+        .filter((item) => item.userId !== undefined)
         .map((item) => {
           return {
-            name: item.user_id as string,
+            name: item.userId as string,
             value: item.count_count ? Number(item.count_count) : 0,
           };
         })
@@ -111,17 +111,17 @@ export const UserChart = ({
 
   const transformedCost: BarChartDataPoint[] = user.data
     ? user.data
-        .filter((item) => item.user_id !== undefined)
+        .filter((item) => item.userId !== undefined)
         .map((item) => {
           return {
-            name: (item.user_id as string | null | undefined) ?? "Unknown",
-            value: item.sum_total_cost ? Number(item.sum_total_cost) : 0,
+            name: (item.userId as string | null | undefined) ?? "Unknown",
+            value: item.sum_totalCost ? Number(item.sum_totalCost) : 0,
           };
         })
     : [];
 
   const totalCost = user.data?.reduce(
-    (acc, curr) => acc + (Number(curr.sum_total_cost) || 0),
+    (acc, curr) => acc + (Number(curr.sum_totalCost) || 0),
     0,
   );
 

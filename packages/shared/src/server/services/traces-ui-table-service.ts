@@ -18,11 +18,13 @@ import { ScoreAggregate } from "../../features/scores";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
-  ObservationLevelType,
-  reduceUsageOrCostDetails,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  reduceUsageOrCostDetails,
 } from "../repositories";
+import { TracingSearchType } from "../../interfaces/search";
+import { ObservationLevelType, TraceDomain } from "../../domain";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -40,20 +42,21 @@ export type TracesTableReturnType = Pick<
   | "public"
 >;
 
-export type TracesAllUiReturnType = {
-  id: string;
-  timestamp: Date;
-  name: string | null;
-  projectId: string;
-  userId: string | null;
-  release: string | null;
-  version: string | null;
-  public: boolean;
-  bookmarked: boolean;
-  environment: string | null;
-  sessionId: string | null;
-  tags: string[];
-};
+export type TracesTableUiReturnType = Pick<
+  TraceDomain,
+  | "id"
+  | "projectId"
+  | "timestamp"
+  | "tags"
+  | "bookmarked"
+  | "name"
+  | "release"
+  | "version"
+  | "userId"
+  | "environment"
+  | "sessionId"
+  | "public"
+>;
 
 export type TracesMetricsUiReturnType = {
   id: string;
@@ -78,7 +81,7 @@ export type TracesMetricsUiReturnType = {
 
 export const convertToUiTableRows = (
   row: TracesTableReturnType,
-): TracesAllUiReturnType => {
+): TracesTableUiReturnType => {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -154,80 +157,65 @@ export type TracesTableMetricsClickhouseReturnType = {
 };
 
 export type FetchTracesTableProps = {
-  select: "count" | "rows" | "metrics";
+  select: "count" | "rows" | "metrics" | "identifiers";
   projectId: string;
   filter: FilterState;
   searchQuery?: string;
+  searchType?: TracingSearchType[];
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
   tags?: Record<string, string>;
 };
 
-export const getTracesTableCount = async (props: {
-  projectId: string;
-  filter: FilterState;
-  searchQuery?: string;
-  orderBy?: OrderByState;
-  limit?: number;
-  page?: number;
-}) => {
-  const countRows = await getTracesTableGeneric<{ count: string }>({
-    select: "count",
-    tags: { kind: "count" },
-    ...props,
-  });
-
-  const converted = countRows.map((row) => ({
-    count: Number(row.count),
-  }));
-
-  return converted.length > 0 ? converted[0].count : 0;
+// Define return type mapping for better type safety
+type SelectReturnTypeMap = {
+  count: { count: string };
+  metrics: TracesTableMetricsClickhouseReturnType;
+  rows: TracesTableReturnType;
+  identifiers: { id: string; projectId: string; timestamp: string };
 };
 
-export const getTracesTableMetrics = async (props: {
-  projectId: string;
-  filter: FilterState;
-  searchQuery?: string;
-  orderBy?: OrderByState;
-  limit?: number;
-  page?: number;
-}): Promise<Array<Omit<TracesMetricsUiReturnType, "scores">>> => {
-  const countRows =
-    await getTracesTableGeneric<TracesTableMetricsClickhouseReturnType>({
-      select: "metrics",
-      tags: { kind: "analytic" },
-      ...props,
-    });
+// Function overloads for type-safe select-specific returns
+async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
+  props: FetchTracesTableProps & { select: "count" },
+): Promise<Array<SelectReturnTypeMap["count"]>>;
 
-  return countRows.map(convertToUITableMetrics);
-};
+async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
+  props: FetchTracesTableProps & { select: "metrics" },
+): Promise<Array<SelectReturnTypeMap["metrics"]>>;
 
-export const getTracesTable = async (
-  projectId: string,
-  filter: FilterState,
-  searchQuery?: string,
-  orderBy?: OrderByState,
-  limit?: number,
-  page?: number,
-) => {
-  const rows = await getTracesTableGeneric<TracesTableReturnType>({
-    select: "rows",
-    tags: { kind: "list" },
+async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
+  props: FetchTracesTableProps & { select: "rows" },
+): Promise<Array<SelectReturnTypeMap["rows"]>>;
+
+async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
+  props: FetchTracesTableProps & { select: "identifiers" },
+): Promise<Array<SelectReturnTypeMap["identifiers"]>>;
+
+// Implementation with union type for internal use
+async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
+  props: FetchTracesTableProps,
+): Promise<Array<SelectReturnTypeMap[keyof SelectReturnTypeMap]>>;
+
+async function getTracesTableGeneric(props: FetchTracesTableProps) {
+  const {
+    select,
     projectId,
     filter,
-    searchQuery,
     orderBy,
     limit,
     page,
-  });
-
-  return rows.map(convertToUiTableRows);
-};
-
-const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, page, searchQuery } =
-    props;
+    searchQuery,
+    searchType,
+    clickhouseConfigs,
+  } = props;
 
   let sqlSelect: string;
   switch (select) {
@@ -249,6 +237,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         os.debug_count as debug_count,
         os.observation_count as observation_count,
         s.scores_avg as scores_avg,
+        s.score_categories as score_categories,
         t.public as public`;
       break;
     case "rows":
@@ -265,6 +254,12 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         t.environment as environment,
         t.session_id as session_id,
         t.public as public`;
+      break;
+    case "identifiers":
+      sqlSelect = `
+        t.id as id,
+        t.project_id as projectId,
+        t.timestamp as timestamp`;
       break;
     default:
       throw new Error(`Unknown select type: ${select}`);
@@ -334,7 +329,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const scoresFilterRes = scoresFilter.apply();
   const observationFilterRes = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery);
+  const search = clickhouseSearchCondition(searchQuery, searchType);
 
   const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
   const orderByCols = [
@@ -406,25 +401,41 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       SELECT
         project_id,
         trace_id,
-        groupArray(tuple(name, avg_value)) AS "scores_avg"
+        -- For numeric scores, use tuples of (name, avg_value)
+        groupArrayIf(
+          tuple(name, avg_value),
+          data_type IN ('NUMERIC', 'BOOLEAN')
+        ) AS scores_avg,
+        -- For categorical scores, use name:value format for improved query performance
+        groupArrayIf(
+          concat(name, ':', string_value),
+          data_type = 'CATEGORICAL' AND notEmpty(string_value)
+        ) AS score_categories
       FROM (
-        SELECT project_id,
-                trace_id,
-                name,
-                avg(value) avg_value
+        SELECT 
+          project_id,
+          trace_id,
+          name,
+          data_type,
+          string_value,
+          avg(value) as avg_value
         FROM scores s FINAL 
-        WHERE project_id = {projectId: String}
-        ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
-        ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
-        GROUP BY project_id,
-                  trace_id,
-                  name
+        WHERE 
+          project_id = {projectId: String}
+          ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+          ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
+        GROUP BY 
+          project_id,
+          trace_id,
+          name,
+          data_type,
+          string_value
       ) tmp
       GROUP BY project_id, trace_id
     )
     SELECT ${sqlSelect}
     -- FINAL is used for non default ordering and count.
-    FROM traces t  ${["metrics", "rows"].includes(select) && defaultOrder ? "" : "FINAL"}
+    FROM traces t  ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "" : "FINAL"}
     ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
     ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
     WHERE t.project_id = {projectId: String}
@@ -433,11 +444,13 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     ${chOrderBy}
     -- This is used for metrics and row queries. Count has only one result.
     -- This is only used for default ordering. Otherwise, we use final.
-    ${["metrics", "rows"].includes(select) && defaultOrder ? "LIMIT 1 BY id, project_id" : ""}
+    ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "LIMIT 1 BY id, project_id" : ""}
     ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
-  const res = await queryClickhouse<T>({
+  const res = await queryClickhouse<
+    SelectReturnTypeMap[keyof SelectReturnTypeMap]
+  >({
     query: query,
     params: {
       limit: limit,
@@ -455,7 +468,124 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       type: "traces-table",
       projectId,
     },
+    clickhouseConfigs,
   });
 
   return res;
+}
+
+export const getTracesTableCount = async (props: {
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  searchType: TracingSearchType[];
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+}) => {
+  const countRows = await getTracesTableGeneric({
+    select: "count",
+    tags: { kind: "count" },
+    ...props,
+  });
+
+  const converted = countRows.map((row) => ({
+    count: Number(row.count),
+  }));
+
+  return converted.length > 0 ? converted[0].count : 0;
+};
+
+export const getTracesTableMetrics = async (props: {
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}): Promise<Array<Omit<TracesMetricsUiReturnType, "scores">>> => {
+  const countRows = await getTracesTableGeneric({
+    select: "metrics",
+    tags: { kind: "analytic" },
+    ...props,
+  });
+
+  return countRows.map(convertToUITableMetrics);
+};
+
+export const getTracesTable = async (p: {
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const {
+    projectId,
+    filter,
+    searchQuery,
+    searchType,
+    orderBy,
+    limit,
+    page,
+    clickhouseConfigs,
+  } = p;
+  const rows = await getTracesTableGeneric({
+    select: "rows",
+    tags: { kind: "list" },
+    projectId,
+    filter,
+    searchQuery,
+    searchType,
+    orderBy,
+    limit,
+    page,
+    clickhouseConfigs,
+  });
+
+  return rows.map(convertToUiTableRows);
+};
+
+export const getTraceIdentifiers = async (props: {
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const {
+    projectId,
+    filter,
+    searchQuery,
+    searchType,
+    orderBy,
+    limit,
+    page,
+    clickhouseConfigs,
+  } = props;
+  const identifiers = await getTracesTableGeneric({
+    select: "identifiers",
+    tags: { kind: "list" },
+    projectId,
+    filter,
+    searchQuery,
+    searchType,
+    orderBy,
+    limit,
+    page,
+    clickhouseConfigs,
+  });
+
+  return identifiers.map((row) => ({
+    id: row.id,
+    projectId: row.projectId,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  }));
 };

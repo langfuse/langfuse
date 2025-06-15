@@ -1,4 +1,4 @@
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
 import {
@@ -8,12 +8,12 @@ import {
   DeleteTraceV1Response,
 } from "@/src/features/public-api/types/traces";
 import {
-  filterAndValidateDbScoreList,
+  filterAndValidateDbTraceScoreList,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getObservationsViewForTrace,
+  getObservationsForTrace,
   getScoresForTraces,
   getTraceById,
   traceException,
@@ -26,20 +26,30 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 
 export default withMiddlewares({
-  GET: createAuthedAPIRoute({
+  GET: createAuthedProjectAPIRoute({
     name: "Get Single Trace",
     querySchema: GetTraceV1Query,
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const { traceId } = query;
-      const trace = await getTraceById(traceId, auth.scope.projectId);
+      const trace = await getTraceById({
+        traceId,
+        projectId: auth.scope.projectId,
+      });
+
+      if (!trace) {
+        throw new LangfuseNotFoundError(
+          `Trace ${traceId} not found within authorized project`,
+        );
+      }
+
       const [observations, scores] = await Promise.all([
-        getObservationsViewForTrace(
+        getObservationsForTrace({
           traceId,
-          auth.scope.projectId,
-          trace?.timestamp,
-          true,
-        ),
+          projectId: auth.scope.projectId,
+          timestamp: trace?.timestamp,
+          includeIO: true,
+        }),
         getScoresForTraces({
           projectId: auth.scope.projectId,
           traceIds: [traceId],
@@ -50,7 +60,7 @@ export default withMiddlewares({
       const uniqueModels: string[] = Array.from(
         new Set(
           observations
-            .map((r) => r.modelId)
+            .map((r) => r.internalModelId)
             .filter((r): r is string => Boolean(r)),
         ),
       );
@@ -71,7 +81,7 @@ export default withMiddlewares({
           : [];
 
       const observationsView = observations.map((o) => {
-        const model = models.find((m) => m.id === o.modelId);
+        const model = models.find((m) => m.id === o.internalModelId);
         const inputPrice =
           model?.Price.find((p) => p.usageType === "input")?.price ??
           new Decimal(0);
@@ -89,17 +99,13 @@ export default withMiddlewares({
         };
       });
 
-      if (!trace) {
-        throw new LangfuseNotFoundError(
-          `Trace ${traceId} not found within authorized project`,
-        );
-      }
-
       const outObservations = observationsView.map(transformDbToApiObservation);
-      const validatedScores = filterAndValidateDbScoreList(
+      // As these are traces scores, we expect all scores to have a traceId set
+      // For type consistency, we validate the scores against the v1 schema which requires a traceId
+      const validatedScores = filterAndValidateDbTraceScoreList({
         scores,
-        traceException,
-      );
+        onParseError: traceException,
+      });
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -121,11 +127,12 @@ export default withMiddlewares({
           : undefined;
       return {
         ...trace,
+        externalId: null,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : 0,
         observations: outObservations,
         htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
-        totalCost: observations
+        totalCost: outObservations
           .reduce(
             (acc, obs) => acc.add(obs.calculatedTotalCost ?? new Decimal(0)),
             new Decimal(0),
@@ -135,7 +142,7 @@ export default withMiddlewares({
     },
   }),
 
-  DELETE: createAuthedAPIRoute({
+  DELETE: createAuthedProjectAPIRoute({
     name: "Delete Single Trace",
     querySchema: DeleteTraceV1Query,
     responseSchema: DeleteTraceV1Response,

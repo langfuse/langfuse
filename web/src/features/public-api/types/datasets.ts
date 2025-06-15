@@ -9,7 +9,7 @@ import {
   type DatasetRunItems as DbDatasetRunItems,
   removeObjectKeys,
 } from "@langfuse/shared";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 /**
  * Objects
@@ -197,6 +197,19 @@ export const PostDatasetRunItemsV1Body = z
     path: ["observationId", "traceId"], // Specify the path of the error
   });
 export const PostDatasetRunItemsV1Response = APIDatasetRunItem.strict();
+
+// GET /dataset-run-items
+export const GetDatasetRunItemsV1Query = z.object({
+  datasetId: z.string(),
+  runName: z.string(),
+  ...publicApiPaginationZod,
+});
+export const GetDatasetRunItemsV1Response = z
+  .object({
+    data: z.array(APIDatasetRunItem),
+    meta: paginationMetaResponseZod,
+  })
+  .strict();
 
 /**
  * Deprecated endpoints replaced with v2, available for backward compatibility

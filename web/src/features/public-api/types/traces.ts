@@ -1,12 +1,12 @@
 import { APIObservation } from "@/src/features/public-api/types/observations";
 import {
-  APIScoreSchema,
+  APIScoreSchemaV1,
   paginationMetaResponseZod,
   orderBy,
   publicApiPaginationZod,
 } from "@langfuse/shared";
 import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 /**
  * Objects
@@ -67,7 +67,7 @@ export const GetTracesV1Query = z.object({
       const [column, order] = v.split(".");
       return { column, order: order?.toUpperCase() };
     })
-    .pipe(orderBy.nullish()),
+    .pipe(orderBy.nullable()),
 });
 export const GetTracesV1Response = z
   .object({
@@ -85,7 +85,7 @@ export const GetTraceV1Query = z.object({
   traceId: z.string(),
 });
 export const GetTraceV1Response = APIExtendedTrace.extend({
-  scores: z.array(APIScoreSchema),
+  scores: z.array(APIScoreSchemaV1),
   observations: z.array(APIObservation),
 }).strict();
 
