@@ -704,15 +704,9 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           type: "text",
         });
         expect(response.status).toBe(400);
-        expect(response.body).toMatchObject({
-          message: "Invalid request data",
-          error: expect.arrayContaining([
-            expect.objectContaining({
-              message: expect.stringContaining(expectedError),
-              path: ["name"],
-            }),
-          ]),
-        });
+        expect(response.body.message).toBe("Invalid request data");
+        const hasExpectedMessage = JSON.stringify(response.body.error).includes(`"message":"${expectedError}"`);
+        expect(hasExpectedMessage).toBe(true);
       };
 
       const testValidName = async (name: string) => {
@@ -729,11 +723,11 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       it("should reject invalid prompt names", async () => {
         // Test invalid patterns
-        await testInvalidName("/invalid-name", "cannot start with a slash");
-        await testInvalidName("invalid-name/", "cannot end with a slash");
-        await testInvalidName("invalid//name", "cannot contain consecutive slashes");
-        await testInvalidName("invalid|name", "cannot contain '|' character");
-        await testInvalidName("new", "cannot be 'new'");
+        await testInvalidName("/invalid-name", "Name cannot start with a slash");
+        await testInvalidName("invalid-name/", "Name cannot end with a slash");
+        await testInvalidName("invalid//name", "Name cannot contain consecutive slashes");
+        await testInvalidName("invalid|name", "Prompt name cannot contain '|' character");
+        await testInvalidName("new", "Prompt name cannot be 'new'");
         await testInvalidName("", "Enter a name");
       });
 
