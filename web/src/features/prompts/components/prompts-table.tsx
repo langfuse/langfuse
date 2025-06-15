@@ -99,7 +99,7 @@ export function PromptTable() {
     pageIndex: queryParams.pageIndex,
     pageSize: queryParams.pageSize,
   };
-  
+
   const currentFolderPath = queryParams.folder || '';
 
   const prompts = api.prompts.all.useQuery(
@@ -270,20 +270,25 @@ export function PromptTable() {
         if (isFolder(rowData)) {
           const displayName = getDisplayName(rowData.id, currentFolderPath);
           return (
-            <div
-              className="flex cursor-pointer items-center gap-2 font-medium hover:underline"
+            <TableLink
+              path={""}
+              value={displayName} // To satisfy table-link, fallback
+              className="flex items-center gap-2"
+              icon={
+                <>
+                  <Folder className="h-4 w-4" />
+                  {displayName}
+                </>
+              }
               onClick={() => {
-                setQueryParams({ 
+                setQueryParams({
                   folder: rowData.id,
                   pageIndex: 0,
-                  pageSize: queryParams.pageSize 
+                  pageSize: queryParams.pageSize
                 });
               }}
-              title={rowData.id}
-            >
-              <Folder className="h-4 w-4" />
-              {displayName}
-            </div>
+              title={displayName || ""}
+            />
           );
         }
 
@@ -291,6 +296,7 @@ export function PromptTable() {
           <TableLink
             path={`/project/${projectId}/prompts/${rowData.id}`}
             value={name}
+            icon={name}
           />
         ) : undefined;
       },
@@ -353,7 +359,8 @@ export function PromptTable() {
       enableSorting: true,
       size: 120,
       cell: (row) => {
-        if (isFolder(row.row.original)) return null;
+        // height h-6 to ensure consistent row height for normal & folder rows
+        if (isFolder(row.row.original)) return <div className="h-6" />;
 
         const tags = row.getValue();
         const promptId = row.row.original.id;
@@ -398,10 +405,10 @@ export function PromptTable() {
                 <BreadcrumbLink
                   className="cursor-pointer hover:underline"
                   onClick={() => {
-                    setQueryParams({ 
+                    setQueryParams({
                       folder: undefined,
                       pageIndex: 0,
-                      pageSize: queryParams.pageSize 
+                      pageSize: queryParams.pageSize
                     });
                   }}
                 >
@@ -421,10 +428,10 @@ export function PromptTable() {
                     <BreadcrumbLink
                       className="cursor-pointer hover:underline"
                       onClick={() => {
-                        setQueryParams({ 
+                        setQueryParams({
                           folder: item.folderPath,
                           pageIndex: 0,
-                          pageSize: queryParams.pageSize 
+                          pageSize: queryParams.pageSize
                         });
                       }}
                     >
