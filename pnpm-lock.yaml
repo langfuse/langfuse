@@ -180,11 +180,11 @@ importers:
         specifier: ^6.3.0
         version: 6.3.0(prisma@6.3.0(typescript@5.4.5))(typescript@5.4.5)
       '@react-email/components':
-        specifier: ^0.0.36
-        version: 0.0.36(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: ^0.0.42
+        version: 0.0.42(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@react-email/render':
-        specifier: ^1.0.6
-        version: 1.0.6(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: ^1.1.2
+        version: 1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
@@ -4185,8 +4185,8 @@ packages:
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/code-block@0.0.12':
-    resolution: {integrity: sha512-Faw3Ij9+/Qwq6moWaeHnV8Hn7ekc/EqyAzPi6yUar21dhcqYugCC4Da1x4d9nA9zC0H9KU3lYVJczh8D3cA+Eg==}
+  '@react-email/code-block@0.0.13':
+    resolution: {integrity: sha512-4DE4yPSgKEOnZMzcrDvRuD6mxsNxOex0hCYEG9F9q23geYgb2WCCeGBvIUXVzK69l703Dg4Vzrd5qUjl+JfcwA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
@@ -4203,8 +4203,8 @@ packages:
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/components@0.0.36':
-    resolution: {integrity: sha512-VMh+OQplAnG8JMLlJjdnjt+ThJZ+JVkp0q2YMS2NEz+T88N22bLD2p7DZO0QgtNaKgumOhJI/0a2Q7VzCrwu5g==}
+  '@react-email/components@0.0.42':
+    resolution: {integrity: sha512-KZtf7RjCoLgEwa5swrsbEF/liGrmfMlZCDNDXqaAjlgF3iRq0h5KY/HNMs6LbLmW7fEneRhnynrwApwbkEwe+A==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
@@ -4256,20 +4256,20 @@ packages:
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/markdown@0.0.14':
-    resolution: {integrity: sha512-5IsobCyPkb4XwnQO8uFfGcNOxnsg3311GRXhJ3uKv51P7Jxme4ycC/MITnwIZ10w2zx7HIyTiqVzTj4XbuIHbg==}
+  '@react-email/markdown@0.0.15':
+    resolution: {integrity: sha512-UQA9pVm5sbflgtg3EX3FquUP4aMBzmLReLbGJ6DZQZnAskBF36aI56cRykDq1o+1jT+CKIK1CducPYziaXliag==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/preview@0.0.12':
-    resolution: {integrity: sha512-g/H5fa9PQPDK6WUEG7iTlC19sAktI23qyoiJtMLqQiXFCfWeQMhqjLGKeLSKkfzszqmfJCjZtpSiKtBoOdxp3Q==}
+  '@react-email/preview@0.0.13':
+    resolution: {integrity: sha512-F7j9FJ0JN/A4d7yr+aw28p4uX7VLWs7hTHtLo7WRyw4G+Lit6Zucq4UWKRxJC8lpsUdzVmG7aBJnKOT+urqs/w==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/render@1.0.6':
-    resolution: {integrity: sha512-zNueW5Wn/4jNC1c5LFgXzbUdv5Lhms+FWjOvWAhal7gx5YVf0q6dPJ0dnR70+ifo59gcMLwCZEaTS9EEuUhKvQ==}
+  '@react-email/render@1.1.2':
+    resolution: {integrity: sha512-RnRehYN3v9gVlNMehHPHhyp2RQo7+pSkHDtXPvg3s0GbzM9SQMW4Qrf8GRNvtpLC4gsI+Wt0VatNRUFqjvevbw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
@@ -4287,14 +4287,14 @@ packages:
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/tailwind@1.0.4':
-    resolution: {integrity: sha512-tJdcusncdqgvTUYZIuhNC6LYTfL9vNTSQpwWdTCQhQ1lsrNCEE4OKCSdzSV3S9F32pi0i0xQ+YPJHKIzGjdTSA==}
+  '@react-email/tailwind@1.0.5':
+    resolution: {integrity: sha512-BH00cZSeFfP9HiDASl+sPHi7Hh77W5nzDgdnxtsVr/m3uQD9g180UwxcE3PhOfx0vRdLzQUU8PtmvvDfbztKQg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/text@0.1.1':
-    resolution: {integrity: sha512-Zo9tSEzkO3fODLVH1yVhzVCiwETfeEL5wU93jXKWo2DHoMuiZ9Iabaso3T0D0UjhrCB1PBMeq2YiejqeToTyIQ==}
+  '@react-email/text@0.1.5':
+    resolution: {integrity: sha512-o5PNHFSE085VMXayxH+SJ1LSOtGsTv+RpNKnTiJDrJUwoBu77G3PlKOsZZQHCNyD28WsQpl9v2WcJLbQudqwPg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
@@ -4324,7 +4324,7 @@ packages:
     resolution: {integrity: sha512-+tNWdlWKbpB3WgBN7ijjYkq9X5uhjmcvyjEght4NmH5fAU++zfQzAJ6wumLS+dNcvwEZhKx2Z+skY8m7v0wGSA==}
     engines: {node: '>=16.0.0 || 14 >= 14.17'}
     peerDependencies:
-      rollup: ^2.68.0||^3.0.0||^4.0.0
+      rollup: ^4.22.4
     peerDependenciesMeta:
       rollup:
         optional: true
@@ -9403,6 +9403,7 @@ packages:
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
+    deprecated: Use your platform's native DOMException instead
 
   node-fetch@2.6.12:
     resolution: {integrity: sha512-C/fGU2E8ToujUivIO0H+tpQ6HWo4eEmchoPIoXtxCrVghxdKq+QOHqEZW7tuP3KlV3bC8FRMO5nMCC7Zm1VP6g==}
@@ -11123,6 +11124,9 @@ packages:
 
   tar-fs@2.1.1:
     resolution: {integrity: sha512-V0r2Y9scmbDRLCNex/+hYzvp/zyYjvFbHPNgVTKfQvVrb6guiE/fxP+XblDNR011utopbkex2nM4dHNV6GDsng==}
+
+  tar-fs@2.1.3:
+    resolution: {integrity: sha512-090nwYJDmlhwFwEW3QQl+vaNnxsO2yVsd45eTKRBzSzu+hlb1w2K9inVq5b0ngXuLVqQ4ApvsUHHnu/zQNkWAg==}
 
   tar-stream@2.2.0:
     resolution: {integrity: sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==}
@@ -15838,7 +15842,7 @@ snapshots:
       https-proxy-agent: 5.0.1
       progress: 2.0.3
       proxy-from-env: 1.1.0
-      tar-fs: 2.1.1
+      tar-fs: 2.1.3
       unbzip2-stream: 1.4.3
       yargs: 17.7.1
     optionalDependencies:
@@ -16491,7 +16495,7 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@react-email/code-block@0.0.12(react@18.2.0)':
+  '@react-email/code-block@0.0.13(react@18.2.0)':
     dependencies:
       prismjs: 1.30.0
       react: 18.2.0
@@ -16504,11 +16508,11 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@react-email/components@0.0.36(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@react-email/components@0.0.42(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@react-email/body': 0.0.11(react@18.2.0)
       '@react-email/button': 0.0.19(react@18.2.0)
-      '@react-email/code-block': 0.0.12(react@18.2.0)
+      '@react-email/code-block': 0.0.13(react@18.2.0)
       '@react-email/code-inline': 0.0.5(react@18.2.0)
       '@react-email/column': 0.0.13(react@18.2.0)
       '@react-email/container': 0.0.15(react@18.2.0)
@@ -16519,13 +16523,13 @@ snapshots:
       '@react-email/html': 0.0.11(react@18.2.0)
       '@react-email/img': 0.0.11(react@18.2.0)
       '@react-email/link': 0.0.12(react@18.2.0)
-      '@react-email/markdown': 0.0.14(react@18.2.0)
-      '@react-email/preview': 0.0.12(react@18.2.0)
-      '@react-email/render': 1.0.6(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@react-email/markdown': 0.0.15(react@18.2.0)
+      '@react-email/preview': 0.0.13(react@18.2.0)
+      '@react-email/render': 1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@react-email/row': 0.0.12(react@18.2.0)
       '@react-email/section': 0.0.16(react@18.2.0)
-      '@react-email/tailwind': 1.0.4(react@18.2.0)
-      '@react-email/text': 0.1.1(react@18.2.0)
+      '@react-email/tailwind': 1.0.5(react@18.2.0)
+      '@react-email/text': 0.1.5(react@18.2.0)
       react: 18.2.0
     transitivePeerDependencies:
       - react-dom
@@ -16562,16 +16566,16 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@react-email/markdown@0.0.14(react@18.2.0)':
+  '@react-email/markdown@0.0.15(react@18.2.0)':
     dependencies:
       md-to-react-email: 5.0.5(react@18.2.0)
       react: 18.2.0
 
-  '@react-email/preview@0.0.12(react@18.2.0)':
+  '@react-email/preview@0.0.13(react@18.2.0)':
     dependencies:
       react: 18.2.0
 
-  '@react-email/render@1.0.6(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@react-email/render@1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.5.3
@@ -16587,11 +16591,11 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@react-email/tailwind@1.0.4(react@18.2.0)':
+  '@react-email/tailwind@1.0.5(react@18.2.0)':
     dependencies:
       react: 18.2.0
 
-  '@react-email/text@0.1.1(react@18.2.0)':
+  '@react-email/text@0.1.5(react@18.2.0)':
     dependencies:
       react: 18.2.0
 
@@ -24876,6 +24880,13 @@ snapshots:
   tapable@2.2.1: {}
 
   tar-fs@2.1.1:
+    dependencies:
+      chownr: 1.1.4
+      mkdirp-classic: 0.5.3
+      pump: 3.0.0
+      tar-stream: 2.2.0
+
+  tar-fs@2.1.3:
     dependencies:
       chownr: 1.1.4
       mkdirp-classic: 0.5.3
