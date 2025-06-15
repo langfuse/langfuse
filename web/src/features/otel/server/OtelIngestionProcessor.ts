@@ -586,6 +586,12 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.TRACE_SESSION_ID,
       LangfuseOtelSpanAttributes.TRACE_PUBLIC,
       LangfuseOtelSpanAttributes.TRACE_TAGS,
+      `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_user_id`,
+      `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
+      `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_tags`,
+      `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_session_id`,
+      `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_user_id`,
+      `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_tags`,
     ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
   }
 
@@ -965,7 +971,12 @@ export class OtelIngestionProcessor {
   private extractUserId(
     attributes: Record<string, unknown>,
   ): string | undefined {
-    const userIdKeys = ["langfuse.user.id", "user.id"];
+    const userIdKeys = [
+      "langfuse.user.id",
+      "user.id",
+      `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_user_id`,
+      `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_user_id`,
+    ];
 
     for (const key of userIdKeys) {
       if (attributes[key]) {
@@ -979,7 +990,12 @@ export class OtelIngestionProcessor {
   private extractSessionId(
     attributes: Record<string, unknown>,
   ): string | undefined {
-    const userIdKeys = ["langfuse.session.id", "session.id"];
+    const userIdKeys = [
+      "langfuse.session.id",
+      "session.id",
+      `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
+      `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_session_id`,
+    ];
 
     for (const key of userIdKeys) {
       if (attributes[key]) {
@@ -1130,7 +1146,11 @@ export class OtelIngestionProcessor {
   private extractTags(attributes: Record<string, unknown>): string[] {
     const tagsValue =
       attributes[LangfuseOtelSpanAttributes.TRACE_TAGS] ||
-      attributes["langfuse.tags"];
+      attributes["langfuse.tags"] ||
+      attributes[
+        `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_tags`
+      ] ||
+      attributes[`${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_tags`];
 
     if (tagsValue === undefined || tagsValue === null) {
       return [];

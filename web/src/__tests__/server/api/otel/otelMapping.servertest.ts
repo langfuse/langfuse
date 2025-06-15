@@ -2516,6 +2516,160 @@ describe("OTel Resource Span Mapping", () => {
       expect(traceEvent.body.metadata).toBeDefined();
     });
 
+    it("should create trace-create event when span has trace_metadata with user_id, session_id, and tags", async () => {
+      const traceId = "95f3b926c7d009925bcb5dbc27311120";
+      const seenTraces = new Set([traceId]);
+
+      const otelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "test-scope",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [131, 78, 40, 181, 145, 127, 190, 246],
+                  },
+                  name: "child-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.trace.metadata.langfuse_user_id",
+                      value: { stringValue: "user-123" },
+                    },
+                    {
+                      key: "langfuse.trace.metadata.langfuse_session_id",
+                      value: { stringValue: "session-456" },
+                    },
+                    {
+                      key: "langfuse.trace.metadata.langfuse_tags",
+                      value: { stringValue: "tag1,tag2" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, seenTraces, publicKey)))).flat();
+
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      expect(traceEvents.length).toBe(1);
+      expect(traceEvents[0].body.userId).toBe("user-123");
+      expect(traceEvents[0].body.sessionId).toBe("session-456");
+      expect(traceEvents[0].body.tags).toEqual(["tag1", "tag2"]);
+    });
+
+    it("should create trace-create event when span has observation_metadata with user_id, session_id, and tags", async () => {
+      const traceId = "95f3b926c7d009925bcb5dbc27311120";
+      const seenTraces = new Set([traceId]);
+
+      const otelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "test-scope",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  parentSpanId: {
+                    type: "Buffer",
+                    data: [131, 78, 40, 181, 145, 127, 190, 246],
+                  },
+                  name: "child-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.observation.metadata.langfuse_user_id",
+                      value: { stringValue: "user-789" },
+                    },
+                    {
+                      key: "langfuse.observation.metadata.langfuse_session_id",
+                      value: { stringValue: "session-abc" },
+                    },
+                    {
+                      key: "langfuse.observation.metadata.langfuse_tags",
+                      value: { stringValue: "tag3,tag4" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, seenTraces, publicKey)))).flat();
+
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      expect(traceEvents.length).toBe(1);
+      expect(traceEvents[0].body.userId).toBe("user-789");
+      expect(traceEvents[0].body.sessionId).toBe("session-abc");
+      expect(traceEvents[0].body.tags).toEqual(["tag3", "tag4"]);
+    });
+
     it("should create full trace for span with trace updates even when seenTraces contains traceId", async () => {
       const traceId = "95f3b926c7d009925bcb5dbc27311120";
       const seenTraces = new Set([traceId]);
