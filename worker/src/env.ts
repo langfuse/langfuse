@@ -76,16 +76,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3),
-  REDIS_HOST: z.string().nullish(),
-  REDIS_PORT: z.coerce
-    .number() // .env files convert numbers to strings, therefore we have to enforce them to be numbers
-    .positive()
-    .max(65536, `options.port should be >= 0 and < 65536`)
-    .default(6379)
-    .nullable(),
-  REDIS_AUTH: z.string().nullish(),
-  REDIS_CONNECTION_STRING: z.string().nullish(),
-  REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
 
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
@@ -225,11 +215,6 @@ const EnvSchema = z.object({
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-
-  // Whether to collect queue length metrics. Experimental flag to understand redis performance around this command.
-  LANGFUSE_COLLECT_QUEUE_LENGTH_METRICS: z
-    .enum(["true", "false"])
-    .default("true"),
 
   LANGFUSE_S3_CONCURRENT_READS: z.coerce.number().positive().default(50),
   LANGFUSE_CLICKHOUSE_PROJECT_DELETION_CONCURRENCY_DURATION_MS: z.coerce

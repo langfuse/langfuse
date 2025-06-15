@@ -171,12 +171,12 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
+    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
         node-version: [20]
         postgres-version: [12, 15]
-        blob-provider: ["", "-azure"]
+        deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -208,8 +208,8 @@ jobs:
           pnpm install
       - name: Load default env
         run: |
-          cp .env.dev${{ matrix.blob-provider }}.example .env
-          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
+          cp .env.dev${{ matrix.deploy-mode }}.example .env
+          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.deploy-mode }}.example > .env
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
@@ -217,7 +217,7 @@ jobs:
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
       - name: Run dev containers
         run: |
-          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
         env:
@@ -250,12 +250,12 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
+    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
         node-version: [20]
         postgres-version: [12, 15]
-        blob-provider: ["", "-azure"]
+        deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -287,12 +287,12 @@ jobs:
           which migrate
       - name: Load default env
         run: |
-          cp .env.dev${{ matrix.blob-provider }}.example .env
-          cp .env.dev${{ matrix.blob-provider }}.example web/.env
-          cp .env.dev${{ matrix.blob-provider }}.example worker/.env
+          cp .env.dev${{ matrix.deploy-mode }}.example .env
+          cp .env.dev${{ matrix.deploy-mode }}.example web/.env
+          cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
       - name: Ensure no unhealthy status
