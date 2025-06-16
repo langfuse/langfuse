@@ -23,7 +23,7 @@ import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlqRetryQueue";
 
 // IngestionQueue is sharded and requires a sharding key
-// Use IngestionQueue.getExistingInstance(queueName) directly instead
+// Use IngestionQueue.getInstance({ shardName: queueName }) directly instead
 export function getQueue(
   queueName: Exclude<QueueName, QueueName.IngestionQueue>,
 ): Queue | null {
