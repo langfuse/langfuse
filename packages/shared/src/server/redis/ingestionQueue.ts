@@ -22,13 +22,33 @@ export class IngestionQueue {
     );
   }
 
-  public static getInstance(
-    shardingKey: string,
-  ): Queue<TQueueJobTypes[QueueName.IngestionQueue]> | null {
+  static getShardIndexFromShardName(
+    shardName: string | undefined,
+  ): number | null {
+    if (!shardName) return null;
+
+    // Extract shard index from shard name
     const shardIndex =
-      env.REDIS_CLUSTER_ENABLED === "true"
+      shardName === QueueName.IngestionQueue
+        ? 0
+        : parseInt(shardName.replace(`${QueueName.IngestionQueue}-`, ""), 10);
+
+    if (isNaN(shardIndex)) return null;
+    return shardIndex;
+  }
+
+  public static getInstance({
+    shardingKey,
+    shardName,
+  }: {
+    shardingKey?: string;
+    shardName?: string;
+  }): Queue<TQueueJobTypes[QueueName.IngestionQueue]> | null {
+    const shardIndex =
+      IngestionQueue.getShardIndexFromShardName(shardName) ??
+      (env.REDIS_CLUSTER_ENABLED === "true" && shardingKey
         ? getShardIndex(shardingKey, env.LANGFUSE_INGESTION_QUEUE_SHARD_COUNT)
-        : 0;
+        : 0);
 
     // Check if we already have an instance for this shard
     if (IngestionQueue.instances.has(shardIndex)) {

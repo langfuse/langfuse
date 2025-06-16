@@ -233,8 +233,8 @@ export const processEventBatch = async (
     Object.keys(sortedBatchByEventBodyId).map(async (id) => {
       const eventData = sortedBatchByEventBodyId[id];
       const shardingKey = `${authCheck.scope.projectId}-${eventData.eventBodyId}`;
-      const queue = IngestionQueue.getInstance(shardingKey);
-      
+      const queue = IngestionQueue.getInstance({ shardingKey });
+
       return queue
         ? queue.add(
             QueueJobs.IngestionJob,
@@ -249,9 +249,7 @@ export const processEventBatch = async (
                   fileKey: eventData.key,
                   skipS3List:
                     source === "otel" &&
-                    getClickhouseEntityType(
-                      eventData.type,
-                    ) === "observation",
+                    getClickhouseEntityType(eventData.type) === "observation",
                 },
                 authCheck: authCheck as {
                   validKey: true;

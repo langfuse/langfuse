@@ -1,12 +1,13 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
-  // getQueue,
+  getQueue,
   convertQueueNameToMetricName,
   createNewRedisInstance,
   getQueuePrefix,
   logger,
   QueueName,
-  // recordGauge,
+  IngestionQueue,
+  recordGauge,
   recordHistogram,
   recordIncrement,
   redisQueueRetryOptions,
@@ -32,27 +33,31 @@ export class WorkerManager {
         },
       );
       const result = await processor(job);
-      // const queue = getQueue(queueName);
-      // await Promise.allSettled([
-      //   queue?.count().then((count) => {
-      //     recordGauge(
-      //       convertQueueNameToMetricName(queueName) + ".length",
-      //       count,
-      //       {
-      //         unit: "records",
-      //       },
-      //     );
-      //   }),
-      //   queue?.getFailedCount().then((count) => {
-      //     recordGauge(
-      //       convertQueueNameToMetricName(queueName) + ".dlq_length",
-      //       count,
-      //       {
-      //         unit: "records",
-      //       },
-      //     );
-      //   }),
-      // ]);
+      const queue = queueName.startsWith(QueueName.IngestionQueue)
+        ? IngestionQueue.getInstance({ shardName: queueName })
+        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
+      Promise.allSettled([
+        queue?.count().then((count) => {
+          recordGauge(
+            convertQueueNameToMetricName(queueName) + ".length",
+            count,
+            {
+              unit: "records",
+            },
+          );
+        }),
+        queue?.getFailedCount().then((count) => {
+          recordGauge(
+            convertQueueNameToMetricName(queueName) + ".dlq_length",
+            count,
+            {
+              unit: "records",
+            },
+          );
+        }),
+      ]).catch((err) => {
+        logger.error("Failed to record queue length", err);
+      });
       recordHistogram(
         convertQueueNameToMetricName(queueName) + ".processing_time",
         Date.now() - startTime,

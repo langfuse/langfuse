@@ -1,6 +1,11 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod/v4";
-import { logger, QueueName, getQueue } from "@langfuse/shared/src/server";
+import {
+  logger,
+  QueueName,
+  getQueue,
+  IngestionQueue,
+} from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/features/admin-api/server/adminApiAuth";
 
 /* 
@@ -56,7 +61,11 @@ export default async function handler(
       const queueCounts = await Promise.all(
         queues.map(async (queueName) => {
           try {
-            const queue = getQueue(queueName);
+            const queue = queueName.startsWith(QueueName.IngestionQueue)
+              ? IngestionQueue.getInstance({ shardName: queueName })
+              : getQueue(
+                  queueName as Exclude<QueueName, QueueName.IngestionQueue>,
+                );
             const jobCount = await queue?.getJobCounts();
             return { queueName, jobCount };
           } catch (e) {
@@ -74,7 +83,9 @@ export default async function handler(
       );
 
       for (const queueName of body.data.queueNames) {
-        const queue = getQueue(queueName as QueueName);
+        const queue = queueName.startsWith(QueueName.IngestionQueue)
+          ? IngestionQueue.getInstance({ shardName: queueName })
+          : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
 
         let totalCount = 0;
         let failedCountInLoop;
@@ -109,7 +120,9 @@ export default async function handler(
       );
 
       for (const queueName of body.data.queueNames) {
-        const queue = getQueue(queueName as QueueName);
+        const queue = queueName.startsWith(QueueName.IngestionQueue)
+          ? IngestionQueue.getInstance({ shardName: queueName })
+          : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
         const jobCount = await queue?.getJobCounts("failed");
         logger.info(
           `Retrying ${JSON.stringify(jobCount)} jobs for queue ${queueName}`,

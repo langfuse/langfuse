@@ -22,7 +22,11 @@ import { CreateEvalQueue } from "./createEvalQueue";
 import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlqRetryQueue";
 
-export function getQueue(queueName: QueueName): Queue | null {
+// IngestionQueue is sharded and requires a sharding key
+// Use IngestionQueue.getExistingInstance(queueName) directly instead
+export function getQueue(
+  queueName: Exclude<QueueName, QueueName.IngestionQueue>,
+): Queue | null {
   switch (queueName) {
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
@@ -38,10 +42,6 @@ export function getQueue(queueName: QueueName): Queue | null {
       return TraceUpsertQueue.getInstance();
     case QueueName.TraceDelete:
       return TraceDeleteQueue.getInstance();
-    case QueueName.IngestionQueue:
-      // IngestionQueue is sharded and requires a sharding key
-      // Use IngestionQueue.getInstance(shardingKey) directly instead
-      return null;
     case QueueName.ProjectDelete:
       return ProjectDeleteQueue.getInstance();
     case QueueName.PostHogIntegrationQueue:
