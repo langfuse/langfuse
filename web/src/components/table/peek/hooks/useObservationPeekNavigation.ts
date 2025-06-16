@@ -2,15 +2,16 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
 import { type ObservationsTableRow } from "@/src/components/table/use-cases/observations";
 
-export const useObservationPeekNavigation = (urlPathname: string) => {
+export const useObservationPeekNavigation = () => {
   const router = useRouter();
   const { projectId, peek } = router.query;
 
   const getNavigationPath = (entry: ListEntry) => {
     const url = new URL(window.location.href);
+    const pathname = window.location.pathname;
 
     // Update the path part
-    url.pathname = urlPathname;
+    url.pathname = pathname;
 
     // Keep all existing query params
     const params = new URLSearchParams(url.search);

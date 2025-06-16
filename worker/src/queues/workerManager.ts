@@ -1,4 +1,4 @@
-import { Job, Processor, Queue, Worker, WorkerOptions } from "bullmq";
+import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
   getQueue,
   convertQueueNameToMetricName,
@@ -6,6 +6,7 @@ import {
   getQueuePrefix,
   logger,
   QueueName,
+  IngestionQueue,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -15,10 +16,6 @@ import {
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
-
-  private static getQueue(queueName: QueueName): Queue | null {
-    return getQueue(queueName);
-  }
 
   private static metricWrapper(
     processor: Processor,
@@ -36,8 +33,10 @@ export class WorkerManager {
         },
       );
       const result = await processor(job);
-      const queue = WorkerManager.getQueue(queueName);
-      await Promise.allSettled([
+      const queue = queueName.startsWith(QueueName.IngestionQueue)
+        ? IngestionQueue.getInstance({ shardName: queueName })
+        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
+      Promise.allSettled([
         queue?.count().then((count) => {
           recordGauge(
             convertQueueNameToMetricName(queueName) + ".length",
@@ -56,7 +55,9 @@ export class WorkerManager {
             },
           );
         }),
-      ]);
+      ]).catch((err) => {
+        logger.error("Failed to record queue length", err);
+      });
       recordHistogram(
         convertQueueNameToMetricName(queueName) + ".processing_time",
         Date.now() - startTime,
