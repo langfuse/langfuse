@@ -118,7 +118,7 @@ export const TemplateForm = (props: {
   );
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    capture("dataset:template_form_submit");
+    capture("datasets:template_form_submit");
 
     updateDatasetTemplateMutation
       .mutateAsync({
