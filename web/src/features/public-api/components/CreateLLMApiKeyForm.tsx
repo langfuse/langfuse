@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BedrockConfig,
   type BedrockCredential,
+  type VertexAIConfig,
   LLMAdapter,
   type LlmApiKeys,
 } from "@langfuse/shared";
@@ -49,6 +50,7 @@ const createFormSchema = (mode: "create" | "update") =>
       awsAccessKeyId: z.string().optional(),
       awsSecretAccessKey: z.string().optional(),
       awsRegion: z.string().optional(),
+      vertexAIRegion: z.string().optional(),
       extraHeaders: z.array(
         z.object({
           key: z.string().min(1),
@@ -68,6 +70,13 @@ const createFormSchema = (mode: "create" | "update") =>
       {
         message: "AWS credentials are required when using Bedrock adapter.",
         path: ["adapter"],
+      },
+    )
+    .refine(
+      (data) => data.adapter !== LLMAdapter.VertexAI || data.vertexAIRegion,
+      {
+        message: "VertexAI region is required when using VertexAI adapter.",
+        path: ["vertexAIRegion"],
       },
     )
     .refine(
@@ -154,6 +163,8 @@ export function CreateLLMApiKeyForm({
             extraHeaders:
               existingKey.extraHeaderKeys?.map((key) => ({ key, value: "" })) ??
               [],
+            vertexAIRegion:
+              (existingKey.config as VertexAIConfig)?.region ?? "us-central1",
           }
         : {
             adapter: defaultAdapter,
@@ -163,6 +174,7 @@ export function CreateLLMApiKeyForm({
             withDefaultModels: true,
             customModels: [],
             extraHeaders: [],
+            vertexAIRegion: "us-central1",
           },
   });
 
@@ -213,7 +225,7 @@ export function CreateLLMApiKeyForm({
     }
 
     let secretKey = values.secretKey;
-    let config: BedrockConfig | undefined;
+    let config: BedrockConfig | VertexAIConfig | undefined;
 
     if (currentAdapter === LLMAdapter.Bedrock) {
       const credentials: BedrockCredential = {
@@ -224,6 +236,10 @@ export function CreateLLMApiKeyForm({
 
       config = {
         region: values.awsRegion ?? "",
+      };
+    } else if (currentAdapter === LLMAdapter.VertexAI) {
+      config = {
+        region: values.vertexAIRegion ?? "us-central1",
       };
     }
 
@@ -481,6 +497,31 @@ export function CreateLLMApiKeyForm({
                           ? existingKey?.displaySecretKey
                           : undefined
                       }
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {/* VertexAI Region */}
+          {currentAdapter === LLMAdapter.VertexAI && (
+            <FormField
+              control={form.control}
+              name="vertexAIRegion"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>VertexAI Region</FormLabel>
+                  <FormDescription>
+                    The GCP region where VertexAI models are deployed. Different
+                    regions have different model availability.
+                  </FormDescription>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="us-central1"
+                      defaultValue="us-central1"
                     />
                   </FormControl>
                   <FormMessage />

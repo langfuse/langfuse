@@ -22,6 +22,7 @@ import { ChatOpenAI, AzureChatOpenAI } from "@langchain/openai";
 import GCPServiceAccountKeySchema, {
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
@@ -254,6 +255,13 @@ export async function fetchLLMCompletion(
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
     const credentials = GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
 
+    // Parse the region from config, default to us-central1 if not provided
+    let location = "us-central1";
+    if (config) {
+      const vertexAIConfig = VertexAIConfigSchema.parse(config);
+      location = vertexAIConfig.region;
+    }
+
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
     chatModel = new ChatVertexAI({
@@ -263,6 +271,7 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
+      location: location,
       authOptions: {
         projectId: credentials.project_id,
         credentials,

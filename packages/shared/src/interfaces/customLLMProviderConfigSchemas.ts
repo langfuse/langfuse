@@ -1,7 +1,12 @@
 import { z } from "zod/v4";
 
 export const BedrockConfigSchema = z.object({ region: z.string() });
+
+// Add VertexAI config schema for region configuration
+export const VertexAIConfigSchema = z.object({ region: z.string() });
+
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
+export type VertexAIConfig = z.infer<typeof VertexAIConfigSchema>;
 
 export const BedrockCredentialSchema = z
   .object({

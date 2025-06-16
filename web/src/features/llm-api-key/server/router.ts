@@ -17,6 +17,7 @@ import {
   supportedModels,
   GCPServiceAccountKeySchema,
   BedrockConfigSchema,
+  VertexAIConfigSchema,
 } from "@langfuse/shared";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
@@ -80,6 +81,9 @@ async function testLLMConnection(
     if (params.config && params.adapter === LLMAdapter.Bedrock) {
       const bedrockConfig = BedrockConfigSchema.parse(params.config);
       parsedConfig = { region: bedrockConfig.region };
+    } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
+      const vertexAIConfig = VertexAIConfigSchema.parse(params.config);
+      parsedConfig = { region: vertexAIConfig.region };
     }
 
     await fetchLLMCompletion({
