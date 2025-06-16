@@ -798,10 +798,12 @@ export const CreateExperimentsForm = ({
           }}
         >
           <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
-            <DialogTitle>
-              {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
-              Evaluator
-            </DialogTitle>
+            <DialogHeader className="mt-2">
+              <DialogTitle>
+                {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
+                Evaluator
+              </DialogTitle>
+            </DialogHeader>
             <EvaluatorForm
               projectId={projectId}
               useDialog={true}
