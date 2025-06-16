@@ -57,7 +57,8 @@ export default async function handler(
     }
 
     if (req.method === "GET") {
-      const queues = Object.values(QueueName);
+      const queues: string[] = Object.values(QueueName);
+      queues.push(...IngestionQueue.getShardNames());
       const queueCounts = await Promise.all(
         queues.map(async (queueName) => {
           try {

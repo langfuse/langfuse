@@ -37,6 +37,11 @@ export class IngestionQueue {
     return shardIndex;
   }
 
+  /**
+   * Get the ingestion queue instance for the given sharding key or shard name.
+   * @param shardingKey - ShardingKey is being hashed and randomly allocated to a shard. Should be `projectId-eventBodyId`.
+   * @param shardName - Name of the shard. Should be `ingestion-queue-${shardIndex}` or plainly `ingestion-queue` for the first shard.
+   */
   public static getInstance({
     shardingKey,
     shardName,
