@@ -294,7 +294,7 @@ export function PromptTable() {
 
         return name ? (
           <TableLink
-            path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
+            path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.id)}`}
             value={name}
           />
         ) : undefined;
