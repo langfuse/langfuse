@@ -424,7 +424,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         }}
       >
         <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
-          <DialogHeader>
+          <DialogHeader className="mt-2">
             <DialogTitle>Edit configuration</DialogTitle>
           </DialogHeader>
           {existingEvaluator.isLoading ? (
