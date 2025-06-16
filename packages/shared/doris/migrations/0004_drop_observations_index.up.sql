@@ -1,0 +1,1 @@
+ALTER TABLE observations SET ("bloom_filter_columns" = "");
