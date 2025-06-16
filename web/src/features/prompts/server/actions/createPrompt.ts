@@ -154,6 +154,22 @@ export const createPrompt = async ({
   // Unlock cache
   await promptService.unlockCache({ projectId, promptName: name });
 
+  // Trigger webhooks for prompt creation
+  try {
+    const { promptChangeProcessor } = await import("../../../../worker/src/features/prompts/promptChangeProcessor");
+    await promptChangeProcessor({
+      id: createdPrompt.id,
+      projectId,
+      name: createdPrompt.name,
+      version: createdPrompt.version,
+      action: "create",
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    // Log error but don't fail the prompt creation
+    console.error("Failed to trigger prompt webhooks:", error);
+  }
+
   return createdPrompt;
 };
 

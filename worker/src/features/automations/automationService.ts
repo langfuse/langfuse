@@ -20,7 +20,8 @@ import { processAddToQueue } from "../batchAction/processAddToQueue";
 import { addObservationToAnnotationQueue } from "./annotation-queues";
 
 export enum TriggerEventSource {
-  ObservationCreated = "observation.created",
+  ObservationCreated = "observation.created", 
+  PromptChanged = "prompt.changed",
 }
 
 export interface AutomationServiceDelegates<T> {

@@ -443,6 +443,24 @@ export const promptRouter = createTRPCRouter({
 
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
+
+        // Trigger webhooks for prompt deletion
+        for (const prompt of prompts) {
+          try {
+            const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+            await promptChangeProcessor({
+              id: prompt.id,
+              projectId,
+              name: prompt.name,
+              version: prompt.version,
+              action: "delete",
+              timestamp: new Date(),
+            });
+          } catch (error) {
+            // Log error but don't fail the deletion
+            console.error("Failed to trigger prompt webhook for deletion:", error);
+          }
+        }
       } catch (e) {
         logger.error(e);
         throw e;
@@ -591,6 +609,22 @@ export const promptRouter = createTRPCRouter({
 
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
+
+        // Trigger webhooks for prompt version deletion
+        try {
+          const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+          await promptChangeProcessor({
+            id: promptVersion.id,
+            projectId,
+            name: promptVersion.name,
+            version: promptVersion.version,
+            action: "delete",
+            timestamp: new Date(),
+          });
+        } catch (error) {
+          // Log error but don't fail the deletion
+          console.error("Failed to trigger prompt webhook for version deletion:", error);
+        }
       } catch (e) {
         logger.error(e);
         throw e;
@@ -756,6 +790,22 @@ export const promptRouter = createTRPCRouter({
 
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
+
+        // Trigger webhooks for prompt label update
+        try {
+          const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+          await promptChangeProcessor({
+            id: toBeLabeledPrompt.id,
+            projectId,
+            name: toBeLabeledPrompt.name,
+            version: toBeLabeledPrompt.version,
+            action: "update",
+            timestamp: new Date(),
+          });
+        } catch (error) {
+          // Log error but don't fail the label update
+          console.error("Failed to trigger prompt webhook for label update:", error);
+        }
       } catch (e) {
         logger.error(`Failed to set prompt labels: ${e}`, e);
         throw e;
@@ -889,6 +939,28 @@ export const promptRouter = createTRPCRouter({
 
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
+
+        // Trigger webhooks for prompt tag update
+        try {
+          const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+          const prompts = await ctx.prisma.prompt.findMany({
+            where: { projectId, name: promptName },
+          });
+          
+          for (const prompt of prompts) {
+            await promptChangeProcessor({
+              id: prompt.id,
+              projectId,
+              name: prompt.name,
+              version: prompt.version,
+              action: "update",
+              timestamp: new Date(),
+            });
+          }
+        } catch (error) {
+          // Log error but don't fail the tag update
+          console.error("Failed to trigger prompt webhook for tag update:", error);
+        }
       } catch (error) {
         logger.error(error);
       }

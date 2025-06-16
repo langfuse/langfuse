@@ -137,6 +137,7 @@ export const ObservationUpsertQueueEventSchema = z.object({
   type: ObservationTypeDomain,
 });
 
+
 export const WebhookInputSchema = z
   .discriminatedUnion("type", [
     z.object({
@@ -145,6 +146,14 @@ export const WebhookInputSchema = z
       startTime: z.date(),
       traceId: z.string(),
       observationType: ObservationTypeDomain,
+    }),
+    z.object({
+      promptId: z.string(),
+      type: z.literal("prompt"),
+      promptName: z.string(),
+      version: z.number(),
+      action: z.enum(["create", "update", "delete"]),
+      timestamp: z.date(),
     }),
   ])
   .and(

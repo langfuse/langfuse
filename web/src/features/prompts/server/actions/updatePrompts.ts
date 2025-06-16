@@ -113,6 +113,23 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     await promptService.unlockCache({ projectId, promptName: promptName });
 
+    // Trigger webhooks for prompt update
+    try {
+      const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+      const updatedPrompt = res[res.length - 1] as any;
+      await promptChangeProcessor({
+        id: updatedPrompt.id,
+        projectId,
+        name: promptName,
+        version: promptVersion,
+        action: "update",
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      // Log error but don't fail the prompt update
+      console.error("Failed to trigger prompt webhooks:", error);
+    }
+
     return res[res.length - 1];
   } catch (e) {
     await promptService.unlockCache({ projectId, promptName: promptName });
