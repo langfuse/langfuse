@@ -1011,17 +1011,21 @@ export class OtelIngestionProcessor {
   ): Record<string, unknown> {
     if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS]) {
       try {
-        return JSON.parse(
-          attributes[
-            LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
-          ] as string,
+        return this.sanitizeModelParams(
+          JSON.parse(
+            attributes[
+              LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
+            ] as string,
+          ),
         );
       } catch {}
     }
 
     if (attributes["llm.invocation_parameters"]) {
       try {
-        return JSON.parse(attributes["llm.invocation_parameters"] as string);
+        return this.sanitizeModelParams(
+          JSON.parse(attributes["llm.invocation_parameters"] as string),
+        );
       } catch (e) {
         // fallthrough
       }
@@ -1029,7 +1033,9 @@ export class OtelIngestionProcessor {
 
     if (attributes["model_config"]) {
       try {
-        return JSON.parse(attributes["model_config"] as string);
+        return this.sanitizeModelParams(
+          JSON.parse(attributes["model_config"] as string),
+        );
       } catch (e) {
         // fallthrough
       }
@@ -1039,13 +1045,25 @@ export class OtelIngestionProcessor {
       key.startsWith("gen_ai.request."),
     );
 
-    return modelParameters.reduce((acc: any, key) => {
-      const modelParamKey = key.replace("gen_ai.request.", "");
-      if (modelParamKey !== "model") {
-        acc[modelParamKey] = attributes[key];
-      }
-      return acc;
-    }, {});
+    return this.sanitizeModelParams(
+      modelParameters.reduce((acc: any, key) => {
+        const modelParamKey = key.replace("gen_ai.request.", "");
+        if (modelParamKey !== "model") {
+          acc[modelParamKey] = attributes[key];
+        }
+        return acc;
+      }, {}),
+    );
+  }
+
+  private sanitizeModelParams<T>(params: T): Record<string, string> | T {
+    // Model params in Langfuse must be key value pairs where value is string
+    if (typeof params === "object" && params != null)
+      return Object.fromEntries(
+        Object.entries(params).map((e) => [e[0], JSON.stringify(e[1])]),
+      );
+
+    return params;
   }
 
   private extractModelName(
