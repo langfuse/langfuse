@@ -91,7 +91,11 @@ interface ResourceSpan {
 export class OtelIngestionProcessor {
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
-  private shallowTraceEventCount = 0;
+  private traceEventCounts = {
+    shallow: 0,
+    rootSpanClosed: 0,
+    traceUpdated: 0,
+  };
   private readonly projectId: string;
   private readonly publicKey?: string;
 
@@ -146,16 +150,21 @@ export class OtelIngestionProcessor {
 
           span.setAttribute("events_generated", finalEvents.length);
 
-          this.shallowTraceEventCount = Math.max(
-            this.shallowTraceEventCount -
+          this.traceEventCounts.shallow = Math.max(
+            this.traceEventCounts.shallow -
               (allEvents.length - finalEvents.length),
             0,
           );
 
-          recordIncrement(
-            "langfuse.ingestion.otel.shallow_trace_event",
-            this.shallowTraceEventCount,
-          );
+          for (const key of Object.keys(
+            this.traceEventCounts,
+          ) as (keyof typeof this.traceEventCounts)[]) {
+            recordIncrement(
+              "langfuse.ingestion.otel.trace_create_event",
+              this.traceEventCounts[key],
+              { reason: key },
+            );
+          }
 
           return finalEvents;
         } catch (error) {
@@ -477,9 +486,14 @@ export class OtelIngestionProcessor {
         environment: this.extractEnvironment(attributes, resourceAttributes),
         ...this.extractInputAndOutput(span?.events ?? [], attributes, "trace"),
       };
+    }
+
+    if (isRootSpan) {
+      this.traceEventCounts.rootSpanClosed += 1;
+    } else if (hasTraceUpdates) {
+      this.traceEventCounts.traceUpdated += 1;
     } else {
-      // Trace event is shallow, increase counter
-      this.shallowTraceEventCount += 1;
+      this.traceEventCounts.shallow += 1;
     }
 
     return {
