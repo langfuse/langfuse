@@ -7,6 +7,7 @@ import {
   redis,
   logger,
   instrumentAsync,
+  recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 
@@ -90,6 +91,11 @@ interface ResourceSpan {
 export class OtelIngestionProcessor {
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
+  private traceEventCounts = {
+    shallow: 0,
+    rootSpanClosed: 0,
+    traceUpdated: 0,
+  };
   private readonly projectId: string;
   private readonly publicKey?: string;
 
@@ -143,6 +149,22 @@ export class OtelIngestionProcessor {
           const finalEvents = this.filterRedundantShallowTraces(allEvents);
 
           span.setAttribute("events_generated", finalEvents.length);
+
+          this.traceEventCounts.shallow = Math.max(
+            this.traceEventCounts.shallow -
+              (allEvents.length - finalEvents.length),
+            0,
+          );
+
+          for (const key of Object.keys(
+            this.traceEventCounts,
+          ) as (keyof typeof this.traceEventCounts)[]) {
+            recordIncrement(
+              "langfuse.ingestion.otel.trace_create_event",
+              this.traceEventCounts[key],
+              { reason: key },
+            );
+          }
 
           return finalEvents;
         } catch (error) {
@@ -289,6 +311,10 @@ export class OtelIngestionProcessor {
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
       this.validatePublicKey(isLangfuseSDKSpans, scopeAttributes);
+
+      if (isLangfuseSDKSpans) {
+        recordIncrement("langfuse.otel.ingestion.langfuse_sdk_batch", 1);
+      }
 
       for (const span of scopeSpan?.spans ?? []) {
         const spanEvents = this.processSpan(
@@ -460,6 +486,14 @@ export class OtelIngestionProcessor {
         environment: this.extractEnvironment(attributes, resourceAttributes),
         ...this.extractInputAndOutput(span?.events ?? [], attributes, "trace"),
       };
+    }
+
+    if (isRootSpan) {
+      this.traceEventCounts.rootSpanClosed += 1;
+    } else if (hasTraceUpdates) {
+      this.traceEventCounts.traceUpdated += 1;
+    } else {
+      this.traceEventCounts.shallow += 1;
     }
 
     return {
