@@ -7,6 +7,7 @@ import {
   redis,
   logger,
   instrumentAsync,
+  recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 
@@ -90,6 +91,7 @@ interface ResourceSpan {
 export class OtelIngestionProcessor {
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
+  private shallowTraceEventCount = 0;
   private readonly projectId: string;
   private readonly publicKey?: string;
 
@@ -143,6 +145,17 @@ export class OtelIngestionProcessor {
           const finalEvents = this.filterRedundantShallowTraces(allEvents);
 
           span.setAttribute("events_generated", finalEvents.length);
+
+          this.shallowTraceEventCount = Math.max(
+            this.shallowTraceEventCount -
+              (allEvents.length - finalEvents.length),
+            0,
+          );
+
+          recordIncrement(
+            "langfuse.ingestion.otel.shallow_trace_event",
+            this.shallowTraceEventCount,
+          );
 
           return finalEvents;
         } catch (error) {
@@ -289,6 +302,10 @@ export class OtelIngestionProcessor {
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
       this.validatePublicKey(isLangfuseSDKSpans, scopeAttributes);
+
+      if (isLangfuseSDKSpans) {
+        recordIncrement("langfuse.otel.ingestion.langfuse_sdk_batch", 1);
+      }
 
       for (const span of scopeSpan?.spans ?? []) {
         const spanEvents = this.processSpan(
@@ -460,6 +477,9 @@ export class OtelIngestionProcessor {
         environment: this.extractEnvironment(attributes, resourceAttributes),
         ...this.extractInputAndOutput(span?.events ?? [], attributes, "trace"),
       };
+    } else {
+      // Trace event is shallow, increase counter
+      this.shallowTraceEventCount += 1;
     }
 
     return {
