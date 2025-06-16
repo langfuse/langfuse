@@ -48,9 +48,9 @@ const SubmitButton = () => {
   );
 
   return (
-    <div className="flex">
+    <div className="flex items-center">
       <Button
-        className="flex-1 rounded-r-none"
+        className="flex-1 rounded-r-none border-r-0"
         onClick={() => {
           handleSubmit(streamingEnabled).catch((err) => console.error(err));
         }}
@@ -61,20 +61,23 @@ const SubmitButton = () => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="outline"
-            size="icon"
-            className="rounded-l-none border-l-0 px-2"
+            variant="default"
+            size="sm"
+            className="h-8 rounded-l-none border-l border-primary-foreground/20 bg-primary px-2 py-1 hover:bg-primary/90"
             disabled={isStreaming}
+            tabIndex={-1}
           >
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="h-3.5 w-3.5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuItem
-            className="flex items-center justify-between"
+            className="flex cursor-pointer items-center justify-between py-2.5"
             onClick={(e) => e.preventDefault()}
           >
-            <span>Stream responses</span>
+            <div className="flex flex-col">
+              <span className="font-medium">Stream responses</span>
+            </div>
             <Switch
               checked={streamingEnabled}
               onCheckedChange={setStreamingEnabled}
