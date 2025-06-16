@@ -41,8 +41,6 @@ export type DataTablePeekViewProps<TData> = {
   customTitlePrefix?: string;
 
   // Navigation and URL handling
-  /** The base pathname for constructing URLs */
-  urlPathname: string;
   /** Function to get navigation path for a list entry */
   getNavigationPath?: (entry: ListEntry) => string;
   /** Whether to update the row when the peekViewId changes on detail page navigation. Defaults to false. */
