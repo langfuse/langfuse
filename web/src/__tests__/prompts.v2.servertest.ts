@@ -2106,6 +2106,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
           type: "text",
         },
         { name: "prompt with spaces", prompt: "Space content", type: "text" },
+        { name: "prompt/with/slashes", prompt: "Slash content", type: "text" },
       ];
 
       // Create all the special character prompts
@@ -2127,6 +2128,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       @@@langfusePrompt:name=prompt.with.dots|version=1@@@
       @@@langfusePrompt:name=prompt123WithNumbers|version=1@@@
       @@@langfusePrompt:name=prompt with spaces|version=1@@@
+      @@@langfusePrompt:name=prompt/with/slashes|version=1@@@
     `;
 
       await makeAPICall(
@@ -2160,6 +2162,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       Dot content
       Number content
       Space content
+      Slash content
     `;
       expect(parsedPrompt).toBe(expectedPrompt);
     }, 10_000);
