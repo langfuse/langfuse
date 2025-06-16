@@ -290,10 +290,8 @@ export default function EvalsTemplateTable({
       columns,
     );
 
-  const urlPathname = `/project/${projectId}/evals/templates`;
-  const { getNavigationPath, expandPeek } =
-    useEvalTemplatesPeekNavigation(urlPathname);
-  const { setPeekView } = usePeekState(urlPathname);
+  const { getNavigationPath, expandPeek } = useEvalTemplatesPeekNavigation();
+  const { setPeekView } = usePeekState();
 
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],
@@ -330,7 +328,6 @@ export default function EvalsTemplateTable({
         peekView={{
           itemType: "EVALUATOR",
           listKey: "eval-templates",
-          urlPathname,
           onOpenChange: setPeekView,
           onExpand: expandPeek,
           shouldUpdateRowOnDetailPageNavigation: true,
