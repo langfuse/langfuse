@@ -1060,7 +1060,12 @@ export class OtelIngestionProcessor {
     // Model params in Langfuse must be key value pairs where value is string
     if (typeof params === "object" && params != null)
       return Object.fromEntries(
-        Object.entries(params).map((e) => [e[0], JSON.stringify(e[1])]),
+        Object.entries(params).map((e) => [
+          e[0],
+          ["string", "number"].includes(typeof e[1])
+            ? e[1]
+            : JSON.stringify(e[1]),
+        ]),
       );
 
     return params;
