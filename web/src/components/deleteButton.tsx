@@ -403,6 +403,59 @@ export function DeleteEvaluationModelButton(
   );
 }
 
+export function DeleteEvalTemplateButton(props: DeleteButtonProps) {
+  const utils = api.useUtils();
+  const {
+    itemId,
+    projectId,
+    scope = "evalTemplate:CUD",
+    invalidateFunc = () => void utils.evals.invalidate(),
+  } = props;
+
+  const evaluatorMutation = api.evals.deleteEvalTemplate.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Evaluator template deleted",
+        description: "The evaluator template has been deleted successfully",
+      });
+      void utils.evals.templateNames.invalidate();
+    },
+  });
+
+  const executeDeleteMutation = async (onSuccess: () => void) => {
+    try {
+      await evaluatorMutation.mutateAsync({
+        evalTemplateId: itemId,
+        projectId,
+      });
+      onSuccess();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  };
+
+  return (
+    <DeleteButton
+      {...props}
+      scope={scope}
+      invalidateFunc={invalidateFunc}
+      captureDeleteOpen={(capture, isTableAction) =>
+        capture("eval_templates:delete_form_open", {
+          source: isTableAction ? "table-single-row" : "eval template detail",
+        })
+      }
+      captureDeleteSuccess={(capture, isTableAction) =>
+        capture("eval_templates:delete_template_button_click", {
+          source: isTableAction ? "table-single-row" : "eval template detail",
+        })
+      }
+      entityToDeleteName="evaluator template"
+      executeDeleteMutation={executeDeleteMutation}
+      isDeleteMutationLoading={evaluatorMutation.isLoading}
+    />
+  );
+}
+
 // TODO: Moved to LFE-4573
 // export function DeleteEvaluatorTemplateButton(props: DeleteButtonProps) {
 //   const utils = api.useUtils();

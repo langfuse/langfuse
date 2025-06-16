@@ -1200,52 +1200,62 @@ export const evalRouter = createTRPCRouter({
       });
     }),
 
-  // TODO: moved to LFE-4573
-  // deleteEvalTemplate: protectedProjectProcedure
-  //   .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
-  //   .mutation(async ({ ctx, input: { projectId, evalTemplateId } }) => {
-  //     throwIfNoEntitlement({
-  //       entitlement: "model-based-evaluations",
-  //       projectId: projectId,
-  //       sessionUser: ctx.session.user,
-  //     });
-  //     throwIfNoProjectAccess({
-  //       session: ctx.session,
-  //       projectId: projectId,
-  //       scope: "evalTemplate:CUD",
-  //     });
+  deleteEvalTemplate: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
+    .mutation(async ({ ctx, input: { projectId, evalTemplateId } }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: projectId,
+        scope: "evalTemplate:CUD",
+      });
 
-  //     const existingTemplate = await ctx.prisma.evalTemplate.findUnique({
-  //       where: {
-  //         id: evalTemplateId,
-  //         projectId: projectId,
-  //       },
-  //     });
+      const existingTemplate = await ctx.prisma.evalTemplate.findUnique({
+        where: {
+          id: evalTemplateId,
+          projectId: projectId,
+        },
+      });
 
-  //     if (!existingTemplate) {
-  //       logger.warn(
-  //         `Template for deletion not found for project ${projectId} and id ${evalTemplateId}`,
-  //       );
-  //       throw new TRPCError({
-  //         code: "NOT_FOUND",
-  //         message: "Template not found",
-  //       });
-  //     }
+      if (!existingTemplate) {
+        logger.warn(
+          `Template for deletion not found for project ${projectId} and id ${evalTemplateId}`,
+        );
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Template not found",
+        });
+      }
 
-  //     await auditLog({
-  //       session: ctx.session,
-  //       resourceType: "evalTemplate",
-  //       resourceId: evalTemplateId,
-  //       action: "delete",
-  //     });
+      // Check if there are any job configurations using this template
+      const jobConfigsUsingTemplate = await ctx.prisma.jobConfiguration.count({
+        where: {
+          evalTemplateId: evalTemplateId,
+          projectId: projectId,
+        },
+      });
 
-  //     await ctx.prisma.evalTemplate.delete({
-  //       where: {
-  //         id: evalTemplateId,
-  //         projectId: projectId,
-  //       },
-  //     });
-  //   }),
+      if (jobConfigsUsingTemplate > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot delete template as it is being used by ${jobConfigsUsingTemplate} evaluator configuration(s). Please delete or update those configurations first.`,
+        });
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "evalTemplate",
+        resourceId: evalTemplateId,
+        action: "delete",
+      });
+
+      await ctx.prisma.evalTemplate.delete({
+        where: {
+          id: evalTemplateId,
+          projectId: projectId,
+        },
+      });
+    }),
+
   getLogs: protectedProjectProcedure
     .input(
       z.object({

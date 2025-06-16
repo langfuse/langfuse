@@ -4,7 +4,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, Pen } from "lucide-react";
+import { Copy, Pen, MoreVertical } from "lucide-react";
 import {
   useQueryParams,
   withDefault,
@@ -28,6 +28,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -39,6 +46,7 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { DeleteEvalTemplateButton } from "@/src/components/deleteButton";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -222,6 +230,7 @@ export default function EvalsTemplateTable({
         const provider = row.original.provider ?? null;
         const model = row.original.model ?? null;
         const isInvalid = isTemplateInvalid({ provider, model });
+        const isUserMaintained = row.original.maintainer.includes("User");
 
         return (
           <div className="flex flex-row gap-2">
@@ -249,7 +258,7 @@ export default function EvalsTemplateTable({
             >
               Use Evaluator
             </ActionButton>
-            {!row.original.maintainer.includes("User") ? (
+            {!isUserMaintained ? (
               <Button
                 aria-label="clone"
                 variant="outline"
@@ -264,19 +273,42 @@ export default function EvalsTemplateTable({
                 <Copy className="h-3 w-3" />
               </Button>
             ) : (
-              <Button
-                aria-label="edit"
-                variant="outline"
-                size="icon-xs"
-                title="Edit"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setEditTemplateId(id);
-                }}
-              >
-                <Pen className="h-3 w-3" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
+                    aria-label="actions"
+                    disabled={!hasAccess}
+                  >
+                    <MoreVertical className="h-3 w-3" />
+                    <span className="sr-only">Actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    key={`edit-${id}`}
+                    aria-label="edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (id) setEditTemplateId(id);
+                    }}
+                  >
+                    <Pen className="mr-2 h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <DeleteEvalTemplateButton
+                      aria-label="delete"
+                      itemId={id as string}
+                      projectId={projectId}
+                      redirectUrl={`/project/${projectId}/evals/templates`}
+                      deleteConfirmation={row.original.name}
+                    />
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         );
@@ -337,7 +369,7 @@ export default function EvalsTemplateTable({
           ),
           peekEventOptions: {
             ignoredSelectors: [
-              "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
+              "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone'], [aria-label='delete']",
             ],
           },
           tableDataUpdatedAt: templates.dataUpdatedAt,
