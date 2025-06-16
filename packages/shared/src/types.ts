@@ -1,5 +1,6 @@
 import { type z } from "zod/v4";
 import { singleFilter, timeFilter } from "./interfaces/filters";
+import { Prisma } from "@prisma/client";
 
 // to be sent to the server
 export type TimeFilter = z.infer<typeof timeFilter>;
@@ -36,4 +37,11 @@ export type TableName =
   | "widgets"
   | "users"
   | "eval_configs"
-  | "job_executions";
+  | "job_executions"
+  | "dataset_items";
+
+export type DatasetTemplate = {
+  input: Prisma.JsonValue | null;
+  expectedOutput: Prisma.JsonValue | null;
+  metadata: Prisma.JsonValue | null;
+};

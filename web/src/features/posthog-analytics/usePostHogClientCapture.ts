@@ -122,6 +122,8 @@ const events = {
     "new_form_submit",
     "update_form_submit",
     "delete_form_submit",
+    "template_form_open",
+    "template_form_submit",
   ],
   organizations: ["new_form_submit", "new_form_open"],
   projects: ["new_form_submit", "new_form_open"],
