@@ -3349,6 +3349,132 @@ describe("queryBuilder", () => {
         expect(result.data[0].name).toBe("observation-basic");
         expect(result.data[0].count_count).toBe("1");
       });
+
+      it("should generate histogram with custom bin count for cost distribution", async () => {
+        // Setup
+        const projectId = randomUUID();
+
+        // Create traces with observations that have different costs
+        const traces = [];
+        const observations = [];
+
+        // Create trace for cost distribution test
+        const trace = createTrace({
+          project_id: projectId,
+          name: "cost-distribution-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        traces.push(trace);
+
+        // Create observations with varying costs to test histogram with custom bins
+        // Generate 30 observations with costs ranging from $0.001 to $1.00
+        const costValues = [
+          // Low cost cluster ($0.001-$0.01) - 10 observations
+          ...Array.from({ length: 10 }, (_, i) => 0.001 + i * 0.001),
+          // Medium cost cluster ($0.05-$0.20) - 10 observations
+          ...Array.from({ length: 10 }, (_, i) => 0.05 + i * 0.015),
+          // High cost cluster ($0.50-$1.00) - 10 observations
+          ...Array.from({ length: 10 }, (_, i) => 0.5 + i * 0.05),
+        ];
+
+        costValues.forEach((cost, index) => {
+          observations.push(
+            createObservation({
+              project_id: projectId,
+              trace_id: trace.id,
+              type: "generation",
+              name: `cost-observation-${index}`,
+              provided_model_name: "gpt-4",
+              environment: "default",
+              start_time: new Date().getTime(),
+              end_time: new Date().getTime() + 1000,
+              total_cost: cost,
+            }),
+          );
+        });
+
+        await createTracesCh(traces);
+        await createObservationsCh(observations);
+
+        // Test histogram with custom bin count (20 bins)
+        const customBinHistogramQuery: QueryType = {
+          view: "observations",
+          dimensions: [],
+          metrics: [
+            {
+              measure: "totalCost",
+              aggregation: "histogram",
+            },
+          ],
+          filters: [
+            {
+              column: "type",
+              operator: "=",
+              value: "generation",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+          chartConfig: { type: "HISTOGRAM", bins: 20 }, // Custom bin count
+        };
+
+        // Execute histogram query with custom bins
+        const queryBuilder = new QueryBuilder(customBinHistogramQuery.chartConfig);
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          customBinHistogramQuery,
+          projectId,
+        );
+
+        // Verify the generated SQL contains histogram function with custom bins
+        expect(compiledQuery).toContain("histogram(20)");
+        expect(compiledQuery).toContain("total_cost");
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert histogram results with custom bins
+        expect(result.data).toHaveLength(1);
+        const histogramData = result.data[0].histogram_totalCost;
+
+        // ClickHouse histogram returns array of tuples [lower, upper, height]
+        expect(Array.isArray(histogramData)).toBe(true);
+        expect(histogramData.length).toBeGreaterThan(0);
+        expect(histogramData.length).toBeLessThanOrEqual(20); // Should not exceed requested bins
+
+        // Verify histogram tuple structure and cost ranges
+        histogramData.forEach((bin: [number, number, number]) => {
+          expect(Array.isArray(bin)).toBe(true);
+          expect(bin).toHaveLength(3);
+          const [lower, upper, height] = bin;
+          expect(typeof lower).toBe("number");
+          expect(typeof upper).toBe("number");
+          expect(typeof height).toBe("number");
+          expect(lower).toBeLessThan(upper);
+          expect(height).toBeGreaterThan(0);
+          // Cost values should be in expected range
+          expect(lower).toBeGreaterThanOrEqual(0);
+          expect(upper).toBeLessThanOrEqual(1.1); // Allow some margin for ClickHouse binning
+        });
+
+        // Verify total count matches our data
+        const totalCount = histogramData.reduce(
+          (sum: number, bin: [number, number, number]) => sum + bin[2],
+          0,
+        );
+        expect(totalCount).toBe(30); // Should match our 30 observations
+      });
     });
   });
 });

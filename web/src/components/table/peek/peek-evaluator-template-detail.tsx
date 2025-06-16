@@ -1,16 +1,16 @@
 import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePeekEvalTemplateData } from "@/src/components/table/peek/hooks/usePeekEvalTemplateData";
-import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
-import { MaintainerTooltip } from "@/src/ee/features/evals/components/maintainer-tooltip";
-import { getMaintainer } from "@/src/ee/features/evals/utils/typeHelpers";
+import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
+import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 
 export const PeekViewEvaluatorTemplateDetail = ({
   projectId,
 }: {
   projectId: string;
 }) => {
-  const { peekId } = usePeekState("eval-templates");
+  const { peekId } = usePeekState();
 
   const { data: template } = usePeekEvalTemplateData({
     templateId: peekId,
@@ -37,6 +37,7 @@ export const PeekViewEvaluatorTemplateDetail = ({
           existingEvalTemplate={template}
           isEditing={false}
           preventRedirect={true}
+          useDialog={false}
         />
       </div>
     </div>

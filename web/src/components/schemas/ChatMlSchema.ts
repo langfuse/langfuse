@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 // OpenAI API Content Schema defined as per https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages, 28.04.2025
 const OpenAITextContentPart = z.object({
@@ -110,14 +110,14 @@ export const ChatMlMessageSchema = z
     name: z.string().optional(),
     content: z
       .union([
-        z.record(z.any()),
+        z.record(z.string(), z.any()),
         z.string(),
         z.array(z.any()),
         OpenAIContentSchema,
       ])
       .nullish(),
     audio: OpenAIOutputAudioSchema.optional(),
-    additional_kwargs: z.record(z.any()).optional(),
+    additional_kwargs: z.record(z.string(), z.any()).optional(),
   })
   .passthrough()
   .refine((value) => value.content !== null || value.role !== undefined)

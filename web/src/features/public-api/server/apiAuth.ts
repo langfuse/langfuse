@@ -16,17 +16,17 @@ import {
   type ApiKeyScope,
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { type Redis } from "ioredis";
+import { type Redis, type Cluster } from "ioredis";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { CloudConfigSchema, isPlan } from "@langfuse/shared";
 
 export class ApiAuthService {
   prisma: PrismaClient;
-  redis: Redis | null;
+  redis: Redis | Cluster | null;
 
-  constructor(prisma: PrismaClient, redis: Redis | null) {
+  constructor(prisma: PrismaClient, redis: Redis | Cluster | null) {
     this.prisma = prisma;
     this.redis = redis;
   }
@@ -250,7 +250,7 @@ export class ApiAuthService {
             };
           }
         } catch (error: unknown) {
-          logger.error(
+          logger.info(
             `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
             error,
           );

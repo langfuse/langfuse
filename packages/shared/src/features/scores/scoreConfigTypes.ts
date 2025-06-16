@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { ScoreConfig as ScoreConfigDbType } from "@prisma/client";
 
@@ -68,10 +68,10 @@ const CategoricalScoreConfig = z.object({
     const parseResult = Categories.safeParse(categories);
     if (!parseResult.success) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message:
           "Category must be an array of objects with label value pairs, where labels and values are unique.",
-      });
+      } as z.core.$ZodIssueCustom);
       return;
     }
 
@@ -198,7 +198,7 @@ export const GetScoreConfigResponse = ValidatedScoreConfigSchema;
 
 // POST /score-configs
 export const PostScoreConfigBody = z
-  .union([
+  .discriminatedUnion("dataType", [
     ScoreConfigPostBase.merge(CategoricalScoreConfig),
     ScoreConfigPostBase.merge(NumericScoreConfig),
     ScoreConfigPostBase.merge(

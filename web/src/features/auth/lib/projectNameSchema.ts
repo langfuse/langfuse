@@ -1,5 +1,5 @@
 import { noHtmlCheck } from "@langfuse/shared";
-import * as z from "zod";
+import * as z from "zod/v4";
 
 export const projectNameSchema = z.object({
   name: z

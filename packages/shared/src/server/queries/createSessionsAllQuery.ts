@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { Prisma } from "@prisma/client";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";

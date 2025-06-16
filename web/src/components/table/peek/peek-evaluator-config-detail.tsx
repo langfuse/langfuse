@@ -1,9 +1,9 @@
 import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
-import { type EvaluatorDataRow } from "@/src/ee/features/evals/components/evaluator-table";
+import { type EvaluatorDataRow } from "@/src/features/evals/components/evaluator-table";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import { CardDescription } from "@/src/components/ui/card";
-import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
+import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
 import {
   Tooltip,
@@ -13,7 +13,7 @@ import {
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { DeactivateEvalConfig } from "@/src/ee/features/evals/components/deactivate-config";
+import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -22,7 +22,7 @@ export const PeekViewEvaluatorConfigDetail = ({
   projectId: string;
   row?: EvaluatorDataRow;
 }) => {
-  const { peekId } = usePeekState("evals");
+  const { peekId } = usePeekState();
 
   const { data: evalConfig } = usePeekEvalConfigData({
     jobConfigurationId: peekId,
@@ -91,6 +91,7 @@ export const PeekViewEvaluatorConfigDetail = ({
           }
           disabled={true}
           shouldWrapVariables={true}
+          useDialog={false}
         />
       </div>
     </div>

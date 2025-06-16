@@ -4,7 +4,9 @@ import { useState } from "react";
 import { PlusIcon } from "lucide-react";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
@@ -106,12 +108,11 @@ export function CreateApiKeyButton(props: {
           Create new API keys
         </Button>
       </DialogTrigger>
-      <DialogContent
-        onPointerDownOutside={(e) => e.preventDefault()}
-        className="flex max-h-screen w-full flex-col md:max-w-xl"
-      >
-        <DialogTitle>API Keys</DialogTitle>
-        <div className="shrink overflow-x-hidden overflow-y-scroll">
+      <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>API Keys</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
           <ApiKeyRender
             scope={props.scope}
             generatedKeys={generatedKeys ?? undefined}
@@ -125,7 +126,7 @@ export function CreateApiKeyButton(props: {
               />
             </div>
           )}
-        </div>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

@@ -9,7 +9,7 @@ import {
   type views,
   type metricAggregations,
 } from "@/src/features/query/types";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { useState } from "react";
 
@@ -49,7 +49,7 @@ export default function NewWidget() {
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number };
+    chartConfig: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
   }) => {
     if (!widgetData.name.trim()) {
       showErrorToast("Error", "Widget name is required");
@@ -98,6 +98,7 @@ export default function NewWidget() {
           aggregation: "count",
           filters: [],
           chartType: "LINE_TIME_SERIES",
+          chartConfig: { type: "LINE_TIME_SERIES" },
         }}
         widgetId={undefined}
       />

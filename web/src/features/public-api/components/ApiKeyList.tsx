@@ -232,11 +232,11 @@ function DeleteApiKeyButton(props: {
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="mb-5">Delete API key</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete this API key? This action cannot be
+            undone.
+          </DialogDescription>
         </DialogHeader>
-        <DialogDescription>
-          Are you sure you want to delete this API key? This action cannot be
-          undone.
-        </DialogDescription>
         <DialogFooter>
           <Button
             variant="destructive"

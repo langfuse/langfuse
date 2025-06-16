@@ -6,7 +6,7 @@ import {
   useQueryParam,
   withDefault,
 } from "use-query-params";
-import type { z } from "zod";
+import type { z } from "zod/v4";
 import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
 import {
   TabsBar,
@@ -23,7 +23,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@langfuse/shared";
 import { PromptHistoryNode } from "./prompt-history";
-import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import Generations from "@/src/components/table/use-cases/observations";
 import { FlaskConical, MoreVertical, Plus } from "lucide-react";
@@ -35,9 +35,8 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useMemo, useState } from "react";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
 import Page from "@/src/components/layouts/page";
@@ -65,7 +64,7 @@ const getPythonCode = (
 # Initialize Langfuse client
 langfuse = Langfuse()
 
-# Get production prompt 
+# Get production prompt
 prompt = langfuse.get_prompt("${name}")
 
 # Get by label
@@ -85,7 +84,7 @@ const getJsCode = (
 // Initialize the Langfuse client
 const langfuse = new Langfuse();
 
-// Get production prompt 
+// Get production prompt
 const prompt = await langfuse.getPrompt("${name}");
 
 // Get by label
@@ -99,7 +98,20 @@ langfuse.getPrompt("${name}", ${version})
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
-  const promptName = decodeURIComponent(useRouter().query.promptName as string);
+  const router = useRouter();
+
+  // Handle both [promptName] route and catch-all [...folder] route
+  const promptName = router.query.promptName
+    ? decodeURIComponent(router.query.promptName as string)
+    : (() => {
+        const folder = router.query.folder;
+        if (Array.isArray(folder)) {
+          return folder.join('/');
+        } else if (typeof folder === 'string') {
+          return folder;
+        }
+        return '';
+      })();
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
     NumberParam,
@@ -122,7 +134,7 @@ export const PromptDetail = () => {
     projectId,
     scope: "prompts:CUD",
   });
-  const hasEntitlement = useHasEntitlement("prompt-experiments");
+
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
     scope: "promptExperiments:CUD",
@@ -386,11 +398,14 @@ export const PromptDetail = () => {
               <div className="flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
                 <JumpToPlaygroundButton
                   source="prompt"
-                  prompt={prompt}
+                  prompt={{
+                    ...prompt,
+                    resolvedPrompt: promptGraph.data?.resolvedPrompt,
+                  }}
                   analyticsEventName="prompt_detail:test_in_playground_button_click"
                   variant="outline"
                 />
-                {hasAccess && hasEntitlement && (
+                {hasAccess && (
                   <Dialog
                     open={isCreateExperimentDialogOpen}
                     onOpenChange={setIsCreateExperimentDialogOpen}

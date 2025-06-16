@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { jsonSchema } from "@langfuse/shared";
+import { z } from "zod/v4";
+import { jsonSchema, PromptNameSchema } from "@langfuse/shared";
 import type { Prompt } from "@langfuse/shared";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
@@ -21,13 +21,6 @@ export const PromptLabelSchema = z
     /^[a-z0-9_\-.]+$/,
     "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
   );
-
-export const PromptNameSchema = z
-  .string()
-  .min(1)
-  .regex(/^[^|]*$/, "Name cannot contain '|' character")
-  .transform((s) => s.trim())
-  .refine((s) => s.length > 0, "Name cannot be empty");
 
 const BaseCreateTextPromptSchema = z.object({
   name: PromptNameSchema,

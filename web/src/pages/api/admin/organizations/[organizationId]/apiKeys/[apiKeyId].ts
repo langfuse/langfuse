@@ -4,7 +4,7 @@ import { AdminApiAuthService } from "@/src/features/admin-api/server/adminApiAut
 import {
   validateQueryParams,
   handleDeleteApiKey,
-} from "@/src/ee/features/admin-api/organizations/apiKeys/apiKeyById";
+} from "@/src/features/admin-api/organizations/apiKeys/apiKeyById";
 import { prisma } from "@langfuse/shared/src/db";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";

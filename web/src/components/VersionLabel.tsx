@@ -52,6 +52,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
   const selfHostedPlanLabel = !isLangfuseCloud
     ? plan && isSelfHostedPlan(plan)
       ? // self-host plan
+        // TODO: clean up to use planLabels in packages/shared/src/features/entitlements/plans.ts
         {
           short: plan === "self-hosted:pro" ? "Pro" : "EE",
           long: planLabels[plan],

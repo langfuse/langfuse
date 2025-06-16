@@ -1,7 +1,7 @@
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import type * as z from "zod";
+import type * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -31,7 +31,7 @@ export default function ConfigureRetention() {
   });
   const hasEntitlement = useHasEntitlement("data-retention");
 
-  const form = useForm<z.infer<typeof projectRetentionSchema>>({
+  const form = useForm({
     resolver: zodResolver(projectRetentionSchema),
     defaultValues: {
       retention: project?.retentionDays ?? 0,
@@ -66,8 +66,8 @@ export default function ConfigureRetention() {
       <Card className="mb-4 p-3">
         <p className="mb-4 text-sm text-primary">
           Data retention automatically deletes events older than the specified
-          number of days. The value must be 0 or at least 3 days. Set to 0
-          to retain data indefinitely. The deletion happens asynchronously, i.e.
+          number of days. The value must be 0 or at least 3 days. Set to 0 to
+          retain data indefinitely. The deletion happens asynchronously, i.e.
           event may be available for a while after they expired.
         </p>
         {Boolean(form.getValues().retention) &&
@@ -76,9 +76,9 @@ export default function ConfigureRetention() {
             Your Project&#39;s retention will be set from &quot;
             {project?.retentionDays ?? "Indefinite"}
             &quot; to &quot;
-            {Number(form.watch().retention) === 0
+            {Number(form.watch("retention")) === 0
               ? "Indefinite"
-              : form.watch().retention}
+              : Number(form.watch("retention"))}
             &quot; days.
           </p>
         ) : !Boolean(project?.retentionDays) ? (
@@ -111,7 +111,7 @@ export default function ConfigureRetention() {
                         step="1"
                         placeholder={project?.retentionDays?.toString() ?? ""}
                         {...field}
-                        value={field.value ?? ""}
+                        value={(field.value as number) ?? ""}
                         className="flex-1"
                         disabled={!hasAccess || !hasEntitlement}
                       />

@@ -5,7 +5,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
 export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
-  const { peekId, timestamp } = useTracePeekState("traces");
+  const { peekId, timestamp } = useTracePeekState();
   const trace = usePeekData({
     projectId,
     traceId: peekId,

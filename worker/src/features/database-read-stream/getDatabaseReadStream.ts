@@ -1,10 +1,12 @@
 import {
-  BatchExportTableName,
+  BatchTableNames,
   FilterCondition,
   TimeFilter,
   BatchExportQueryType,
   ScoreDomain,
   evalDatasetFormFilterCols,
+  OrderByState,
+  TracingSearchType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -21,24 +23,27 @@ import {
   getTracesByIds,
   getScoresForTraces,
   tableColumnsToSqlFilterAndPrefix,
+  getTraceIdentifiers,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
 import { BatchExportTracesRow, BatchExportSessionsRow } from "./types";
 
-const tableNameToTimeFilterColumn: Record<BatchExportTableName, string> = {
+const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
+  audit_logs: "createdAt",
 };
-const tableNameToTimeFilterColumnCh: Record<BatchExportTableName, string> = {
+const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
+  audit_logs: "createdAt",
 };
 const isGenerationTimestampFilter = (
   filter: FilterCondition,
@@ -84,11 +89,15 @@ export const getDatabaseReadStream = async ({
   filter,
   orderBy,
   cutoffCreatedAt,
-  exportLimit = env.BATCH_EXPORT_ROW_LIMIT,
+  searchQuery,
+  searchType,
+  rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
 }: {
   projectId: string;
   cutoffCreatedAt: Date;
-  exportLimit?: number;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  rowLimit?: number;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
   const createdAtCutoffFilter: FilterCondition = {
@@ -145,7 +154,7 @@ export const getDatabaseReadStream = async ({
           }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
       );
     }
 
@@ -206,7 +215,7 @@ export const getDatabaseReadStream = async ({
           });
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
       );
     case "observations": {
       let emptyScoreColumns: Record<string, null>;
@@ -262,7 +271,7 @@ export const getDatabaseReadStream = async ({
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
       );
     }
     case "traces": {
@@ -289,7 +298,8 @@ export const getDatabaseReadStream = async ({
             filter: filter
               ? [...filter, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
-            searchType: ["id" as const],
+            searchQuery,
+            searchType: searchType ?? ["id" as const],
             orderBy,
             limit: pageSize,
             page: Math.floor(offset / pageSize),
@@ -370,7 +380,7 @@ export const getDatabaseReadStream = async ({
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
       );
     }
 
@@ -420,7 +430,47 @@ export const getDatabaseReadStream = async ({
           }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
-        exportLimit,
+        rowLimit,
+      );
+    }
+
+    case "audit_logs": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const auditLogs = await prisma.auditLog.findMany({
+            where: {
+              projectId: projectId,
+              createdAt: {
+                lt: cutoffCreatedAt,
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            skip: offset,
+            take: pageSize,
+          });
+
+          return auditLogs.map((log) => ({
+            id: log.id,
+            createdAt: log.createdAt,
+            updatedAt: log.updatedAt,
+            type: log.type,
+            apiKeyId: log.apiKeyId,
+            userId: log.userId,
+            orgId: log.orgId,
+            userOrgRole: log.userOrgRole,
+            projectId: log.projectId,
+            userProjectRole: log.userProjectRole,
+            resourceType: log.resourceType,
+            resourceId: log.resourceId,
+            action: log.action,
+            before: log.before,
+            after: log.after,
+          }));
+        },
+        env.BATCH_EXPORT_PAGE_SIZE,
+        rowLimit,
       );
     }
     default:
@@ -459,3 +509,60 @@ export function prepareScoresForOutput(
     {} as Record<string, string[] | number[]>,
   );
 }
+
+export type TraceIdentifiers = {
+  id: string;
+  projectId: string;
+  timestamp: Date;
+};
+
+export const getTraceIdentifierStream = async (props: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterCondition[];
+  orderBy: OrderByState;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  rowLimit?: number;
+}): Promise<DatabaseReadStream<Array<TraceIdentifiers>>> => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter,
+    orderBy,
+    searchQuery,
+    searchType,
+    rowLimit,
+  } = props;
+
+  const createdAtCutoffFilter: FilterCondition = {
+    column: "timestamp",
+    operator: "<",
+    value: cutoffCreatedAt,
+    type: "datetime",
+  };
+
+  const clickhouseConfigs = {
+    request_timeout: 120_000,
+  };
+
+  return new DatabaseReadStream<TraceIdentifiers>(
+    async (pageSize: number, offset: number) => {
+      const identifiers = await getTraceIdentifiers({
+        projectId,
+        filter: filter
+          ? [...filter, createdAtCutoffFilter]
+          : [createdAtCutoffFilter],
+        searchQuery,
+        searchType: searchType ?? ["id" as const],
+        orderBy,
+        limit: pageSize,
+        page: Math.floor(offset / pageSize),
+        clickhouseConfigs,
+      });
+      return identifiers;
+    },
+    env.BATCH_EXPORT_PAGE_SIZE,
+    rowLimit,
+  );
+};

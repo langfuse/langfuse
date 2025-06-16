@@ -4,6 +4,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -69,22 +70,24 @@ export const DeleteDatasetRunButton = ({
             deleted manually.
           </DialogDescription>
         </DialogHeader>
-        <Button
-          variant="destructive"
-          loading={mutDelete.isLoading}
-          disabled={mutDelete.isLoading}
-          onClick={async (event) => {
-            event.preventDefault();
-            capture("dataset_run:delete_form_submit");
-            await mutDelete.mutateAsync({
-              projectId,
-              datasetRunIds: [datasetRunId],
-            });
-            setIsDialogOpen(false);
-          }}
-        >
-          Delete Dataset Run
-        </Button>
+        <DialogFooter>
+          <Button
+            variant="destructive"
+            loading={mutDelete.isLoading}
+            disabled={mutDelete.isLoading}
+            onClick={async (event) => {
+              event.preventDefault();
+              capture("dataset_run:delete_form_submit");
+              await mutDelete.mutateAsync({
+                projectId,
+                datasetRunIds: [datasetRunId],
+              });
+              setIsDialogOpen(false);
+            }}
+          >
+            Delete Dataset Run
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   ) : (

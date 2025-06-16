@@ -117,7 +117,7 @@ export function DeleteButton({
       </PopoverTrigger>
       <PopoverContent onClick={(e) => e.stopPropagation()}>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
-        <p className="mb-3 text-sm">
+        <p className="mb-3 max-w-72 text-sm">
           {customDeletePrompt ??
             `This action cannot be undone and removes all the data associated with
             this ${entityToDeleteName}.`}
@@ -292,7 +292,7 @@ export function DeleteDashboardButton(props: DeleteButtonProps) {
   );
 }
 
-export function DeleteEvaluatorButton(props: DeleteButtonProps) {
+export function DeleteEvalConfigButton(props: DeleteButtonProps) {
   const utils = api.useUtils();
   const {
     itemId,
@@ -300,21 +300,29 @@ export function DeleteEvaluatorButton(props: DeleteButtonProps) {
     scope = "evalJob:CUD",
     invalidateFunc = () => void utils.evals.invalidate(),
   } = props;
-  const evaluatorMutation = api.evals.deleteEvalJob.useMutation();
+
+  const evaluatorMutation = api.evals.deleteEvalJob.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Running evaluator deleted",
+        description: "The running evaluator has been deleted successfully",
+      });
+      void utils.evals.invalidate();
+    },
+  });
+
   const executeDeleteMutation = async (onSuccess: () => void) => {
     try {
       await evaluatorMutation.mutateAsync({
         evalConfigId: itemId,
         projectId,
       });
+      onSuccess();
     } catch (error) {
       return Promise.reject(error);
     }
-    onSuccess();
   };
-  const hasModelBasedEvaluationEntitlement = useHasEntitlement(
-    "model-based-evaluations",
-  );
+
   return (
     <DeleteButton
       {...props}
@@ -322,18 +330,17 @@ export function DeleteEvaluatorButton(props: DeleteButtonProps) {
       invalidateFunc={invalidateFunc}
       captureDeleteOpen={(capture, isTableAction) =>
         capture("eval_config:delete_form_open", {
-          source: isTableAction ? "table-single-row" : "evaluator",
+          source: isTableAction ? "table-single-row" : "eval config detail",
         })
       }
       captureDeleteSuccess={(capture, isTableAction) =>
         capture("eval_config:delete_evaluator_button_click", {
-          source: isTableAction ? "table-single-row" : "evaluator",
+          source: isTableAction ? "table-single-row" : "eval config detail",
         })
       }
-      entityToDeleteName="evaluator"
+      entityToDeleteName="running evaluator"
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={evaluatorMutation.isLoading}
-      enabled={hasModelBasedEvaluationEntitlement}
     />
   );
 }
@@ -370,9 +377,7 @@ export function DeleteEvaluationModelButton(
     }
     onSuccess();
   };
-  const hasModelBasedEvaluationEntitlement = useHasEntitlement(
-    "model-based-evaluations",
-  );
+
   return (
     <DeleteButton
       {...props}
@@ -394,7 +399,6 @@ export function DeleteEvaluationModelButton(
       deleteConfirmation="delete"
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={isLoading}
-      enabled={hasModelBasedEvaluationEntitlement}
     />
   );
 }

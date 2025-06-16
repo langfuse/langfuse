@@ -23,7 +23,7 @@ export const PieChart: React.FC<ChartProps> = ({
 }) => {
   // Calculate total metric value for center label
   const totalValue = useMemo(() => {
-    return data.reduce((acc, curr) => acc + curr.metric, 0);
+    return data.reduce((acc, curr) => acc + (curr.metric as number), 0);
   }, [data]);
 
   // Transform data for PieChart

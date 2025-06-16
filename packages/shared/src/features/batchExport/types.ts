@@ -1,9 +1,10 @@
-import z from "zod";
+import z from "zod/v4";
 
 import { BatchExport } from "@prisma/client";
 
 import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
+import { BatchTableNames } from "../../interfaces/tableNames";
 
 export enum BatchExportStatus {
   QUEUED = "QUEUED",
@@ -18,13 +19,9 @@ export enum BatchExportFileFormat {
   JSONL = "JSONL",
 }
 
-export enum BatchExportTableName {
-  Scores = "scores",
-  Sessions = "sessions",
-  Traces = "traces",
-  Observations = "observations",
-  DatasetRunItems = "dataset_run_items",
-}
+// Use shared BatchTableNames enum for consistency across batch operations
+// Keep BatchExportTableName as alias for backward compatibility
+export { BatchTableNames as BatchExportTableName };
 
 export const exportOptions: Record<
   BatchExportFileFormat,
@@ -44,7 +41,7 @@ export const exportOptions: Record<
 } as const;
 
 export const BatchExportQuerySchema = z.object({
-  tableName: z.nativeEnum(BatchExportTableName),
+  tableName: z.enum(BatchTableNames),
   filter: z.array(singleFilter).nullable(),
   orderBy,
   limit: z.number().optional(),
@@ -57,7 +54,7 @@ export const CreateBatchExportSchema = z.object({
   projectId: z.string(),
   name: z.string(),
   query: BatchExportQuerySchema,
-  format: z.nativeEnum(BatchExportFileFormat),
+  format: z.enum(BatchExportFileFormat),
 });
 
 export const BatchExportSchema = z.object({
@@ -69,9 +66,9 @@ export const BatchExportSchema = z.object({
   finishedAt: z.date().nullable(),
   expiresAt: z.date().nullable(),
   name: z.string(),
-  status: z.nativeEnum(BatchExportStatus),
+  status: z.enum(BatchExportStatus),
   query: BatchExportQuerySchema,
-  format: z.nativeEnum(BatchExportFileFormat),
+  format: z.enum(BatchExportFileFormat),
   url: z.string().nullable(),
   log: z.string().nullable(),
 });

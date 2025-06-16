@@ -202,7 +202,7 @@
   {
     "id": "cmal6wart010lynrdtpv6olai",
     "created_at": "2025-05-20T18:16:12.000Z",
-    "updated_at": "2025-05-20T18:16:12.000Z",
+    "updated_at": "2025-05-25T18:16:12.000Z",
     "name": "SQL Semantic Equivalence",
     "partner": "ragas",
     "version": 1,
@@ -210,7 +210,7 @@
       "score": "Score between 0 and 1 based on the equivalence of the two SQL queries",
       "reasoning": "One sentence reasoning for the score"
     },
-    "prompt": "Explain and compare two SQL queries (Q1 and Q2) based on the provided database schema. First, explain each query, then determine if they have significant logical differences.\nDatabase Schema: {{database_schema}}\nQ1: {{q1}}\nQ2: {{q2}}"
+    "prompt": "Explain and compare two SQL queries (Q1 and Q2) based on the provided database schema. First, explain each query, then determine if they have significant logical differences.\nDatabase Schema: {{database_schema}}\nQ1: {{question_one}}\nQ2: {{question_two}}"
   },
   {
     "id": "cmal6wart010lynrdtpv6olaj",

@@ -395,7 +395,7 @@ describe("Authenticate API calls", () => {
       // Parse should fail because the scope is missing
       expect(() => {
         OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
-      }).toThrow("invalid_union_discriminator");
+      }).toThrow("invalid_union");
 
       // Auth should still succeed by falling back to Postgres
       const verification = await new ApiAuthService(

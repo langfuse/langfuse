@@ -26,6 +26,7 @@ export * from "./features/evals/utilities";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
+export { BatchTableNames } from "./interfaces/tableNames";
 
 // annotation
 export * from "./features/annotation/types";
@@ -41,6 +42,7 @@ export * from "./features/experiments/utils";
 
 // prompts
 export * from "./features/prompts/parsePromptDependencyTags";
+export * from "./features/prompts/validation";
 
 // export db types only
 export * from "@prisma/client";

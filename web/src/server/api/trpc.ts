@@ -20,7 +20,7 @@ import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import * as z from "zod";
+import * as z from "zod/v4";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
 
@@ -75,7 +75,7 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
  */
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import { ZodError } from "zod";
+import { ZodError } from "zod/v4";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
 import { getTraceById, logger } from "@langfuse/shared/src/server";
@@ -115,10 +115,17 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
 
   if (!res.ok) {
-    logger.error(
-      `middleware intercepted error with code ${res.error.code}`,
-      res.error,
-    );
+    if (res.error.code === "NOT_FOUND") {
+      logger.info(
+        `middleware intercepted error with code ${res.error.code}`,
+        res.error,
+      );
+    } else {
+      logger.error(
+        `middleware intercepted error with code ${res.error.code}`,
+        res.error,
+      );
+    }
 
     // Throw a new TRPC error with:
     // - The same error code as the original error

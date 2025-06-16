@@ -6,7 +6,7 @@
 
 import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const requestSchema = z.object({
   domain: z.string().min(1),

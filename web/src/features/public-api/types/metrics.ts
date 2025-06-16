@@ -5,7 +5,7 @@ import {
   singleFilter,
 } from "@langfuse/shared";
 import { stringDateTime } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { dimension, granularities, metric, views } from "@/src/features/query";
 
 /**
@@ -41,6 +41,12 @@ export const MetricsQueryObject = z
       .nullable()
       .optional()
       .default(null),
+    config: z
+      .object({
+        bins: z.number().int().min(1).max(100).optional(),
+        row_limit: z.number().int().positive().lte(1000).optional(),
+      })
+      .optional(),
   })
   .refine(
     (query) =>
@@ -71,7 +77,7 @@ export const GetMetricsV1Query = z.object({
 });
 
 export const GetMetricsV1Response = z.object({
-  data: z.array(z.record(z.unknown())),
+  data: z.array(z.record(z.string(), z.unknown())),
   // meta: paginationMetaResponseZod,
 });
 
