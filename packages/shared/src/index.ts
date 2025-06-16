@@ -42,6 +42,7 @@ export * from "./features/experiments/utils";
 
 // prompts
 export * from "./features/prompts/parsePromptDependencyTags";
+export * from "./features/prompts/validation";
 
 // export db types only
 export * from "@prisma/client";
