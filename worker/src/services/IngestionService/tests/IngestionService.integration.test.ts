@@ -15,13 +15,13 @@ import {
   traceRecordReadSchema,
   TraceRecordReadType,
   ingestionEvent,
-  logger,
 } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "../../../__tests__/utils";
 import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
+import { Cluster } from "ioredis";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const environment = "default";
@@ -34,7 +34,12 @@ describe("Ingestion end-to-end tests", () => {
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
     await pruneDatabase();
-    await redis.flushall();
+
+    if (redis instanceof Cluster) {
+      await Promise.all(redis.nodes("master").map((node) => node.flushall()));
+    } else {
+      await redis.flushall();
+    }
 
     clickhouseWriter = ClickhouseWriter.getInstance();
 
