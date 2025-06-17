@@ -12,7 +12,7 @@ import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
 import {
   TRACE_FIELD_GROUPS,
-  TraceFieldGroup,
+  type TraceFieldGroup,
 } from "@/src/features/public-api/types/traces";
 
 export type TraceQueryType = {
