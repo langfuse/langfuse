@@ -14,6 +14,7 @@ import {
   TrashIcon,
   CopyIcon,
   GripVerticalIcon,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { startCase } from "lodash";
@@ -241,12 +242,22 @@ export function DashboardWidget({
               </button>
             </>
           )}
-          {/* Download button - always available */}
-          <DownloadDropdown
-            data={transformedData}
-            fileName={widget.data.name}
-            className="hidden group-hover:block"
-          />
+          {/* Download button or loading indicator - always available */}
+          {queryResult.isLoading ? (
+            <div
+              className="text-muted-foreground"
+              aria-label="Loading chart data"
+              title="Loading..."
+            >
+              <Loader2 size={16} className="animate-spin" />
+            </div>
+          ) : (
+            <DownloadDropdown
+              data={transformedData}
+              fileName={widget.data.name}
+              className="hidden group-hover:block"
+            />
+          )}
         </div>
       </div>
       <div
