@@ -1,4 +1,3 @@
--- New: getUserMetrics() using pre-aggregated data from exp_traces_amt and exp_spans
 WITH stats as (
   SELECT
     t.user_id as user_id,
@@ -11,8 +10,8 @@ WITH stats as (
   FROM exp_traces_amt t FINAL
   WHERE
     t.project_id = {projectId: String}
-    AND t.start_time >= {fromTimestamp: DateTime64(3)}
-    AND t.start_time <= {toTimestamp: DateTime64(3)}
+    AND t.start_time >= '2025-06-01'
+    AND t.start_time <= now()
     -- Optional timestamp filter for spans (matching original logic)
   GROUP BY t.user_id
 )
@@ -24,7 +23,6 @@ SELECT
   trace_count,
   user_id,
   environment,
-  sum_total_cost,
   max_timestamp,
   min_timestamp
 FROM

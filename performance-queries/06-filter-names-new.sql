@@ -1,11 +1,10 @@
--- New: Query exp_traces_amt directly
 SELECT
   name,
   count(*) as count
 FROM exp_traces_amt
 WHERE project_id = {projectId: String}
-  AND start_time >= {fromTimestamp: DateTime64(3)}
-  AND start_time <= {toTimestamp: DateTime64(3)}
+  AND start_time >= '2025-06-01'
+  AND start_time <= now()
 GROUP BY name
 ORDER BY count DESC
 LIMIT 1000

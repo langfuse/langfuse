@@ -1,8 +1,7 @@
--- New: Query exp_spans for detailed observation tree
 SELECT
   id,
   trace_id,
-  parent_observation_id,
+  parent_span_id,
   type,
   name,
   start_time,
@@ -11,7 +10,6 @@ SELECT
   status_message,
   version,
   metadata,
-  model_name,
   input,
   output,
   model_parameters,
@@ -22,10 +20,10 @@ SELECT
   prompt_id,
   prompt_name,
   prompt_version
-FROM exp_spans FINAL
+FROM exp_spans FINAL -- Also try without final
 WHERE trace_id = {traceId: String}
   AND project_id = {projectId: String}
-  AND start_time >= {fromTimestamp: DateTime64(3)} - INTERVAL 2 DAY
-  AND start_time <= {toTimestamp: DateTime64(3)} + INTERVAL 2 DAY
+  AND start_time >= '2025-06-01' - INTERVAL 2 DAY
+  AND start_time <= now() + INTERVAL 2 DAY
 ORDER BY start_time ASC
 SETTINGS log_comment='{"ticket": "LFE-4969", "endpoint": "trpc.traces.byIdWithObservationsAndScores", "schema": "new", "pattern": "trace_observations_lookup"}'

@@ -1,4 +1,3 @@
--- Current: getUserMetrics() - Complex CTE with window functions and JOINs
 WITH stats as (
   SELECT
     t.user_id as user_id,
@@ -26,17 +25,17 @@ WITH stats as (
         observations o
       WHERE
         o.project_id = {projectId: String}
-        AND o.start_time >= {traceTimestamp: DateTime64(3)} - INTERVAL 2 DAY
+        AND o.start_time >= '2025-06-01' - INTERVAL 2 DAY
         AND o.trace_id in (
           SELECT
             distinct id
           from
             traces
           where
-            user_id IN ({userIds: Array(String)})
-            AND project_id = {projectId: String}
-            AND timestamp >= {fromTimestamp: DateTime64(3)}
-            AND timestamp <= {toTimestamp: DateTime64(3)}
+            -- user_id IN ({userIds: Array(String)}) AND 
+            project_id = {projectId: String}
+            AND timestamp >= '2025-06-01'
+            AND timestamp <= now()
         )
         AND o.type = 'GENERATION'
     ) as o
@@ -55,10 +54,10 @@ WITH stats as (
       FROM
         traces t
       WHERE
-        t.user_id IN ({userIds: Array(String)})
-        AND t.project_id = {projectId: String}
-        AND t.timestamp >= {fromTimestamp: DateTime64(3)}
-        AND t.timestamp <= {toTimestamp: DateTime64(3)}
+        -- t.user_id IN ({userIds: Array(String)}) AND 
+        t.project_id = {projectId: String}
+        AND t.timestamp >= '2025-06-01'
+        AND t.timestamp <= now()
     ) as t on t.id = o.trace_id
     and t.project_id = o.project_id
   WHERE

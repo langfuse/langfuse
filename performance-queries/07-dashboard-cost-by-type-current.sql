@@ -1,17 +1,16 @@
--- Current: getObservationCostByTypeByTime() - Complex aggregation
 SELECT
   toStartOfHour(start_time) as start_time,
   type,
   sum(total_cost) as sum_total_cost,
   count(*) as count_observations
-FROM observations FINAL
+FROM observations FINAL -- also compare without final
 WHERE project_id = {projectId: String}
-  AND start_time >= {fromTimestamp: DateTime64(3)}
-  AND start_time <= {toTimestamp: DateTime64(3)}
+  AND start_time >= '2025-06-01'
+  AND start_time <= now()
   -- Additional filter placeholders
-  AND provided_model_name = {modelFilter: String})
+  -- AND provided_model_name = {modelFilter: String})
 GROUP BY 
-  toStartOfHour(start_time),
+  start_time,
   type
 ORDER BY start_time ASC, type ASC
 SETTINGS log_comment='{"ticket": "LFE-4969", "endpoint": "trpc.dashboard.chart", "schema": "current", "pattern": "cost_by_type_timeseries"}'
