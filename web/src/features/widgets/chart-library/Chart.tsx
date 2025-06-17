@@ -56,15 +56,7 @@ export const Chart = ({
       case "HISTOGRAM":
         return <HistogramChart data={renderedData} />;
       case "NUMBER": {
-        // Show the sum of all metrics, or just the first metric if only one
-        const value =
-          renderedData.length === 1
-            ? renderedData[0].metric
-            : renderedData.reduce(
-                (acc, d) => acc + ((d.metric as number) || 0),
-                0,
-              );
-        return <BigNumber metric={value} />;
+        return <BigNumber data={renderedData} />;
       }
       default:
         return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
