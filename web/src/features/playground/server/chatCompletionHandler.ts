@@ -25,7 +25,8 @@ export default async function chatCompletionHandler(req: NextRequest) {
     const body = validateChatCompletionBody(await req.json());
     const { userId } = await authorizeRequestOrThrow(body.projectId);
 
-    const { messages, modelParams, tools, structuredOutputSchema } = body;
+    const { messages, modelParams, tools, structuredOutputSchema, streaming } =
+      body;
 
     const LLMApiKey = await prisma.llmApiKeys.findFirst({
       where: {
@@ -68,12 +69,21 @@ export default async function chatCompletionHandler(req: NextRequest) {
       return NextResponse.json(completion);
     }
 
-    const { completion } = await fetchLLMCompletion({
-      ...fetchLLMCompletionParams,
-      streaming: true,
-    });
+    if (streaming) {
+      const { completion } = await fetchLLMCompletion({
+        ...fetchLLMCompletionParams,
+        streaming,
+      });
 
-    return new StreamingTextResponse(completion);
+      return new StreamingTextResponse(completion);
+    } else {
+      const { completion } = await fetchLLMCompletion({
+        ...fetchLLMCompletionParams,
+        streaming,
+      });
+
+      return NextResponse.json({ content: completion });
+    }
   } catch (err) {
     logger.error("Failed to handle chat completion", err);
 
