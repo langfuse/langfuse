@@ -11,6 +11,7 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
+import { DownloadDropdown } from "@/src/features/widgets/chart-library/DownloadDropdown";
 
 export const Chart = ({
   chartType,
@@ -92,8 +93,9 @@ export const Chart = ({
   );
 
   return (
-    <CardContent className="h-full p-0">
+    <CardContent className="relative group h-full p-0">
       {shouldWarn ? renderWarning() : renderChart()}
+      <DownloadDropdown data={renderedData} />
     </CardContent>
   );
 };
