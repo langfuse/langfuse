@@ -22,7 +22,8 @@ export default function PromptsWithFolder() {
   // Determine view type based on route segments
   // NOTE: there is a bug here, that if the user directly accesses a prompt name which ends in `/metrics`,
   // the prompt metrics page will be shown for a non-existing prompt name. Doesn't happen if the user clicks
-  // this in the UI (we URL encode here and don't strip metrics).
+  // this in the UI (we URL encode here and don't strip metrics). We could resolve this with another API call
+  // to check the prompt name existance.
   const segmentsArray = Array.isArray(routeSegments) ? routeSegments : [];
   const isMetricsPage = segmentsArray.length > 0 && segmentsArray[segmentsArray.length - 1] === 'metrics';
   const promptNameFromRoute = segmentsArray.length > 0
