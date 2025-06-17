@@ -1,4 +1,5 @@
-import { Download } from "lucide-react";
+import { Download, Check } from "lucide-react";
+import { useState } from "react";
 
 export function DownloadButton({
   data,
@@ -9,6 +10,8 @@ export function DownloadButton({
   fileName?: string;
   className?: string;
 }) {
+  const [isDownloaded, setIsDownloaded] = useState(false);
+
   const escapeCsvValue = (value: any): string => {
     const stringValue = String(value ?? "");
     if (
@@ -31,6 +34,12 @@ export function DownloadButton({
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+
+    // Show checkmark for 1 second
+    setIsDownloaded(true);
+    setTimeout(() => {
+      setIsDownloaded(false);
+    }, 1000);
   };
 
   const downloadCsv = () => {
@@ -53,12 +62,18 @@ export function DownloadButton({
 
   return (
     <button
-      onClick={downloadCsv}
+      onClick={() => {
+        if (isDownloaded) {
+          return;
+        }
+        downloadCsv();
+      }}
       className={`text-muted-foreground hover:text-foreground ${className || ""}`}
       aria-label="Download chart data as CSV"
       title="Download CSV"
+      disabled={isDownloaded}
     >
-      <Download size={16} />
+      {isDownloaded ? <Check size={16} /> : <Download size={16} />}
     </button>
   );
 }
