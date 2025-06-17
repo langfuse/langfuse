@@ -158,6 +158,7 @@ model Project {
   DashboardWidget        DashboardWidget[]
   TableViewPreset        TableViewPreset[]
   DefaultLlmModel        DefaultLlmModel[]
+  SequenceCounter        SequenceCounter[]
 
   @@index([orgId])
   @@map("projects")
@@ -567,7 +568,7 @@ model Dataset {
 }
 
 model DatasetItem {
-  id                  String            @default(cuid())
+  id                  String
   projectId           String            @map("project_id")
   status              DatasetStatus     @default(ACTIVE)
   input               Json?
@@ -635,6 +636,19 @@ model DatasetRunItems {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("dataset_run_items")
+}
+
+model SequenceCounter {
+  projectId  String   @map("project_id")
+  entityType String   @map("entity_type")
+  prefix     String
+  sequence   Int      @default(1)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+  Project    Project  @relation(fields: [projectId], references: [id])
+
+  @@id([projectId, entityType, prefix])
+  @@map("sequence_counters")
 }
 
 model Comment {
