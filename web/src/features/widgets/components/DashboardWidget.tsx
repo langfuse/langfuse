@@ -20,7 +20,7 @@ import { useRouter } from "next/router";
 import { startCase } from "lodash";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { DownloadDropdown } from "@/src/features/widgets/chart-library/DownloadDropdown";
+import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 
 export interface WidgetPlacement {
   id: string;
@@ -252,7 +252,7 @@ export function DashboardWidget({
               <Loader2 size={16} className="animate-spin" />
             </div>
           ) : (
-            <DownloadDropdown
+            <DownloadButton
               data={transformedData}
               fileName={widget.data.name}
               className="hidden group-hover:block"

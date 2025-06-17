@@ -1,6 +1,6 @@
 import { Download } from "lucide-react";
 
-export function DownloadDropdown({
+export function DownloadButton({
   data,
   fileName = "chart-data",
   className,
