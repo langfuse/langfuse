@@ -93,7 +93,7 @@ export const Chart = ({
   );
 
   return (
-    <CardContent className="relative group h-full p-0">
+    <CardContent className="group relative h-full p-0">
       {shouldWarn ? renderWarning() : renderChart()}
       <DownloadDropdown data={renderedData} />
     </CardContent>
