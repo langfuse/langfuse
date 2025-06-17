@@ -11,7 +11,6 @@ import {
   createTracesCh,
 } from "@langfuse/shared/src/server";
 import {
-  makeAPICall,
   makeZodVerifiedAPICall,
   makeZodVerifiedAPICallSilent,
 } from "@/src/__tests__/test-utils";
@@ -692,7 +691,11 @@ describe("/api/public/traces API Endpoint", () => {
       await createObservationsCh([observation]);
       await createScoresCh([score]);
 
-      const traces = await makeAPICall("GET", "/api/public/traces?fields=core");
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        "/api/public/traces?fields=core",
+      );
 
       const trace = traces.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
@@ -730,7 +733,8 @@ describe("/api/public/traces API Endpoint", () => {
 
       await createTracesCh([createdTrace]);
 
-      const traces = await makeAPICall(
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,io",
       );
@@ -771,7 +775,8 @@ describe("/api/public/traces API Endpoint", () => {
       await createTracesCh([createdTrace]);
       await createScoresCh([score]);
 
-      const traces = await makeAPICall(
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,scores",
       );
@@ -812,7 +817,8 @@ describe("/api/public/traces API Endpoint", () => {
       await createTracesCh([createdTrace]);
       await createObservationsCh([observation]);
 
-      const traces = await makeAPICall(
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,observations",
       );
@@ -854,7 +860,8 @@ describe("/api/public/traces API Endpoint", () => {
       await createTracesCh([createdTrace]);
       await createObservationsCh([observation]);
 
-      const traces = await makeAPICall(
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,metrics",
       );
@@ -877,7 +884,8 @@ describe("/api/public/traces API Endpoint", () => {
     });
 
     it("should handle invalid field names gracefully", async () => {
-      const traces = await makeAPICall(
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,invalid,scores",
       );

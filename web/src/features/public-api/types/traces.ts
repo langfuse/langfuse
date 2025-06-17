@@ -16,10 +16,10 @@ export const TRACE_FIELD_GROUPS = [
   "io",
   "scores",
   "observations",
-  "metrics"
+  "metrics",
 ] as const;
 
-export type TraceFieldGroup = typeof TRACE_FIELD_GROUPS[number];
+export type TraceFieldGroup = (typeof TRACE_FIELD_GROUPS)[number];
 
 /**
  * Objects
@@ -49,10 +49,10 @@ export const APITrace = z
   .strict();
 
 const APIExtendedTrace = APITrace.extend({
-  observations: z.array(z.string()),
-  scores: z.array(z.string()),
-  totalCost: z.number(),
-  latency: z.number(),
+  observations: z.array(z.string()).nullish(),
+  scores: z.array(z.string()).nullish(),
+  totalCost: z.number().nullish(),
+  latency: z.number().nullish(),
   htmlPath: z.string(),
 }).strict();
 
@@ -86,7 +86,10 @@ export const GetTracesV1Query = z.object({
     .nullish()
     .transform((v) => {
       if (!v) return null;
-      return v.split(',').map(f => f.trim()).filter(f => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
+      return v
+        .split(",")
+        .map((f) => f.trim())
+        .filter((f) => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
     })
     .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
 });
