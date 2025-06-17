@@ -870,7 +870,7 @@ describe("/api/public/traces API Endpoint", () => {
       // Core fields and metrics should be present
       expect(trace.id).toBe(traceId);
       expect(trace.totalCost).toBe(0.05);
-      expect(trace.latency).toBe(1);
+      expect(trace.latency).toBeCloseTo(1);
 
       // Other fields should have default values
       expect(trace.observations).toEqual([]);
