@@ -9,6 +9,19 @@ import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
 /**
+ * Field groups for selective field fetching
+ */
+export const TRACE_FIELD_GROUPS = [
+  "core",
+  "io",
+  "scores",
+  "observations",
+  "metrics"
+] as const;
+
+export type TraceFieldGroup = typeof TRACE_FIELD_GROUPS[number];
+
+/**
  * Objects
  */
 
@@ -68,6 +81,14 @@ export const GetTracesV1Query = z.object({
       return { column, order: order?.toUpperCase() };
     })
     .pipe(orderBy.nullable()),
+  fields: z
+    .string()
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      return v.split(',').map(f => f.trim()).filter(f => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
+    })
+    .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
 });
 export const GetTracesV1Response = z
   .object({

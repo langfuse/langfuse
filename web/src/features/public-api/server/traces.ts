@@ -11,6 +11,19 @@ import {
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
 
+// Field groups for selective field fetching
+const VALID_FIELD_GROUPS = ["core", "io", "scores", "observations", "metrics"] as const;
+type FieldGroup = typeof VALID_FIELD_GROUPS[number];
+
+const parseFields = (fields?: string[]): FieldGroup[] => {
+  if (!fields || fields.length === 0) {
+    return [...VALID_FIELD_GROUPS]; // Default: include all fields
+  }
+  return fields.filter((f): f is FieldGroup =>
+    VALID_FIELD_GROUPS.includes(f as FieldGroup)
+  );
+};
+
 export type TraceQueryType = {
   page: number;
   limit: number;
@@ -26,6 +39,7 @@ export type TraceQueryType = {
   environment?: string | string[];
   fromTimestamp?: string;
   toTimestamp?: string;
+  fields?: string[];
 };
 
 export const generateTracesForPublicApi = async ({
@@ -35,6 +49,11 @@ export const generateTracesForPublicApi = async ({
   props: TraceQueryType;
   orderBy: OrderByState;
 }) => {
+  const requestedFields = parseFields(props.fields);
+  const includeIO = requestedFields.includes("io");
+  const includeScores = requestedFields.includes("scores");
+  const includeObservations = requestedFields.includes("observations");
+  const includeMetrics = requestedFields.includes("metrics");
   const filter = convertApiProvidedFilterToClickhouseFilter(
     props,
     filterParams,
@@ -71,8 +90,12 @@ export const generateTracesForPublicApi = async ({
       "ORDER BY t.timestamp desc") +
     (shouldUseSkipIndexes ? ", t.event_ts desc" : "");
 
-  const query = `
-    WITH observation_stats AS (
+  // Build CTEs conditionally based on requested fields
+  const ctes = [];
+
+  if (includeObservations || includeMetrics) {
+    ctes.push(`
+    observation_stats AS (
       SELECT
         trace_id,
         project_id,
@@ -84,7 +107,12 @@ export const generateTracesForPublicApi = async ({
       ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
-    ), score_stats AS (
+    )`);
+  }
+
+  if (includeScores) {
+    ctes.push(`
+    score_stats AS (
       SELECT
         trace_id,
         project_id,
@@ -96,19 +124,23 @@ export const generateTracesForPublicApi = async ({
       ${timeFilter ? `AND timestamp >= {cteTimeFilter: DateTime64(3)}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
-    )
+    )`);
+  }
+
+  const withClause = ctes.length > 0 ? `WITH ${ctes.join(', ')}` : '';
+
+  const query = `
+    ${withClause}
 
     SELECT
+      -- Core fields (always included)
       t.id as id,
       CONCAT('/project/', t.project_id, '/traces/', t.id) as "htmlPath",
       t.project_id as project_id,
       t.timestamp as timestamp,
       t.name as name,
       t.environment as environment,
-      t.input as input,
-      t.output as output,
       t.session_id as session_id,
-      t.metadata as metadata,
       t.user_id as user_id,
       t.release as release,
       t.version as version,
@@ -116,14 +148,18 @@ export const generateTracesForPublicApi = async ({
       t.public as public,
       t.tags as tags,
       t.created_at as created_at,
-      t.updated_at as updated_at,
-      s.score_ids as scores,
-      o.observation_ids as observations,
-      COALESCE(o.latency_milliseconds / 1000, 0) as latency,
-      COALESCE(o.total_cost, 0) as totalCost
+      t.updated_at as updated_at
+      -- IO fields (conditional)
+      ${includeIO ? ', t.input as input, t.output as output, t.metadata as metadata' : ''}
+      -- Scores (conditional)
+      ${includeScores ? ', s.score_ids as scores' : ''}
+      -- Observations (conditional)
+      ${includeObservations ? ', o.observation_ids as observations' : ''}
+      -- Metrics (conditional)
+      ${includeMetrics ? ', COALESCE(o.latency_milliseconds / 1000, 0) as latency, COALESCE(o.total_cost, 0) as totalCost' : ''}
     FROM traces t ${shouldUseSkipIndexes ? "" : "FINAL"}
-    LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id
-    LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id
+    ${includeObservations || includeMetrics ? 'LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id' : ''}
+    ${includeScores ? 'LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id' : ''}
     WHERE t.project_id = {projectId: String}
     ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
     ${chOrderBy}
@@ -133,10 +169,10 @@ export const generateTracesForPublicApi = async ({
 
   const result = await queryClickhouse<
     TraceRecordReadType & {
-      observations: string[];
-      scores: string[];
-      totalCost: number;
-      latency: number;
+      observations?: string[];
+      scores?: string[];
+      totalCost?: number;
+      latency?: number;
       htmlPath: string;
     }
   >({
@@ -157,14 +193,45 @@ export const generateTracesForPublicApi = async ({
     },
   });
 
-  return result.map((trace) => ({
-    ...convertClickhouseToDomain(trace),
-    observations: trace.observations,
-    scores: trace.scores,
-    totalCost: trace.totalCost,
-    latency: trace.latency,
-    htmlPath: trace.htmlPath,
-  }));
+  return result.map((trace) => {
+    // Create a partial trace record for conversion, only including selected fields
+    const partialTrace: Partial<TraceRecordReadType> = {
+      id: trace.id,
+      project_id: trace.project_id,
+      timestamp: trace.timestamp,
+      name: trace.name,
+      environment: trace.environment,
+      session_id: trace.session_id,
+      user_id: trace.user_id,
+      release: trace.release,
+      version: trace.version,
+      bookmarked: trace.bookmarked,
+      public: trace.public,
+      tags: trace.tags,
+      created_at: trace.created_at,
+      updated_at: trace.updated_at,
+      // Only include IO fields if they were requested
+      ...(includeIO && {
+        input: (trace as any).input,
+        output: (trace as any).output,
+        metadata: (trace as any).metadata,
+      }),
+    };
+
+    const baseTrace = convertClickhouseToDomain(partialTrace as TraceRecordReadType);
+
+    return {
+      ...baseTrace,
+      // Conditionally include additional fields based on request
+      ...(includeObservations && { observations: trace.observations || [] }),
+      ...(includeScores && { scores: trace.scores || [] }),
+      ...(includeMetrics && {
+        totalCost: trace.totalCost || 0,
+        latency: trace.latency || 0
+      }),
+      htmlPath: trace.htmlPath,
+    };
+  });
 };
 
 export const getTracesCountForPublicApi = async ({

@@ -76,6 +76,7 @@ export default withMiddlewares({
         release: query.release ?? undefined,
         fromTimestamp: query.fromTimestamp ?? undefined,
         toTimestamp: query.toTimestamp ?? undefined,
+        fields: query.fields ?? undefined,
       };
 
       const [items, count] = await Promise.all([
@@ -91,6 +92,11 @@ export default withMiddlewares({
         data: items.map((item) => ({
           ...item,
           externalId: null,
+          // Ensure all required fields are present with defaults
+          observations: item.observations || [],
+          scores: item.scores || [],
+          totalCost: item.totalCost || 0,
+          latency: item.latency || 0,
         })),
         meta: {
           page: query.page,
