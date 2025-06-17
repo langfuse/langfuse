@@ -383,7 +383,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     ],
   );
 
-  useCommandEnter(!isStreaming, handleSubmit);
+  // Command enter handling moved to Messages component to access streaming preference
 
   const updatePromptVariableValue = useCallback(
     (variable: string, value: string) => {
