@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { PasswordInput } from "@/src/components/ui/password-input";
 import {
   Select,
   SelectContent,
@@ -433,7 +434,7 @@ export function CreateLLMApiKeyForm({
                   <FormItem>
                     <FormLabel>AWS Secret Access Key</FormLabel>
                     <FormControl>
-                      <Input {...field} type="password" />
+                      <PasswordInput {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -474,7 +475,7 @@ export function CreateLLMApiKeyForm({
                     </FormDescription>
                   )}
                   <FormControl>
-                    <Input
+                    <PasswordInput
                       {...field}
                       placeholder={
                         mode === "update"
