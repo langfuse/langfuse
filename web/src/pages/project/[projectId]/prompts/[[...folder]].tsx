@@ -63,9 +63,9 @@ export default function PromptsWithFolder() {
   // Decide what to render: metrics, detail, or folder view
   if (promptNameFromRoute.length > 0) {
     if (isMetricsPage) {
-      return <PromptMetrics />;
+      return <PromptMetrics promptName={promptNameFromRoute} />;
     }
-    return <PromptDetail />;
+    return <PromptDetail promptName={promptNameFromRoute} />;
   }
 
   return (

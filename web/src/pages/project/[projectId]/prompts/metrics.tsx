@@ -77,23 +77,14 @@ function joinPromptCoreAndMetricData(
   return { status: "success", combinedData };
 }
 
-export default function PromptVersionTable() {
+export default function PromptVersionTable({ promptName: promptNameProp }: { promptName?: string } = {}) {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  // Decide prompt name if direct route or catchall (through click on metrics tab)
-  const promptName = router.query.promptName
-    ? decodeURIComponent(router.query.promptName as string)
-    : (() => {
-        const folder = router.query.folder;
-        if (Array.isArray(folder)) {
-          const segments = folder[folder.length - 1] === 'metrics' ? folder.slice(0, -1) : folder;
-          return segments.join('/');
-        }
-        if (typeof folder === 'string') {
-          return folder;
-        }
-        return '';
-      })();
+  const promptName = promptNameProp || (
+    router.query.promptName
+      ? decodeURIComponent(router.query.promptName as string)
+      : ''
+  );
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
