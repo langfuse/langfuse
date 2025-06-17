@@ -11,6 +11,7 @@ import {
   createTracesCh,
 } from "@langfuse/shared/src/server";
 import {
+  makeAPICall,
   makeZodVerifiedAPICall,
   makeZodVerifiedAPICallSilent,
 } from "@/src/__tests__/test-utils";
@@ -691,11 +692,7 @@ describe("/api/public/traces API Endpoint", () => {
       await createObservationsCh([observation]);
       await createScoresCh([score]);
 
-      const traces = await makeZodVerifiedAPICall(
-        GetTracesV1Response,
-        "GET",
-        "/api/public/traces?fields=core",
-      );
+      const traces = await makeAPICall("GET", "/api/public/traces?fields=core");
 
       const trace = traces.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
@@ -713,10 +710,10 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.input).toBeNull();
       expect(trace.output).toBeNull();
       expect(trace.metadata).toEqual({});
-      expect(trace.observations).toEqual([]);
-      expect(trace.scores).toEqual([]);
-      expect(trace.totalCost).toBe(0);
-      expect(trace.latency).toBe(0);
+      expect(trace.observations).toBeUndefined();
+      expect(trace.scores).toBeUndefined();
+      expect(trace.totalCost).toBeUndefined();
+      expect(trace.latency).toBeUndefined();
     });
 
     it("should fetch traces with IO fields when fields=core,io", async () => {
@@ -733,8 +730,7 @@ describe("/api/public/traces API Endpoint", () => {
 
       await createTracesCh([createdTrace]);
 
-      const traces = await makeZodVerifiedAPICall(
-        GetTracesV1Response,
+      const traces = await makeAPICall(
         "GET",
         "/api/public/traces?fields=core,io",
       );
@@ -751,10 +747,10 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.metadata).toEqual({ key: "value" });
 
       // Other fields should have default values
-      expect(trace.observations).toEqual([]);
-      expect(trace.scores).toEqual([]);
-      expect(trace.totalCost).toBe(0);
-      expect(trace.latency).toBe(0);
+      expect(trace.observations).toBeUndefined();
+      expect(trace.scores).toBeUndefined();
+      expect(trace.totalCost).toBeUndefined();
+      expect(trace.latency).toBeUndefined();
     });
 
     it("should fetch traces with scores when fields=core,scores", async () => {
@@ -775,8 +771,7 @@ describe("/api/public/traces API Endpoint", () => {
       await createTracesCh([createdTrace]);
       await createScoresCh([score]);
 
-      const traces = await makeZodVerifiedAPICall(
-        GetTracesV1Response,
+      const traces = await makeAPICall(
         "GET",
         "/api/public/traces?fields=core,scores",
       );
@@ -793,9 +788,9 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.input).toBeNull();
       expect(trace.output).toBeNull();
       expect(trace.metadata).toEqual({});
-      expect(trace.observations).toEqual([]);
-      expect(trace.totalCost).toBe(0);
-      expect(trace.latency).toBe(0);
+      expect(trace.observations).toBeUndefined();
+      expect(trace.totalCost).toBeUndefined();
+      expect(trace.latency).toBeUndefined();
     });
 
     it("should fetch traces with observations when fields=core,observations", async () => {
@@ -817,8 +812,7 @@ describe("/api/public/traces API Endpoint", () => {
       await createTracesCh([createdTrace]);
       await createObservationsCh([observation]);
 
-      const traces = await makeZodVerifiedAPICall(
-        GetTracesV1Response,
+      const traces = await makeAPICall(
         "GET",
         "/api/public/traces?fields=core,observations",
       );
@@ -835,9 +829,9 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.input).toBeNull();
       expect(trace.output).toBeNull();
       expect(trace.metadata).toEqual({});
-      expect(trace.scores).toEqual([]);
-      expect(trace.totalCost).toBe(0);
-      expect(trace.latency).toBe(0);
+      expect(trace.scores).toBeUndefined();
+      expect(trace.totalCost).toBeUndefined();
+      expect(trace.latency).toBeUndefined();
     });
 
     it("should fetch traces with metrics when fields=core,metrics", async () => {
@@ -860,8 +854,7 @@ describe("/api/public/traces API Endpoint", () => {
       await createTracesCh([createdTrace]);
       await createObservationsCh([observation]);
 
-      const traces = await makeZodVerifiedAPICall(
-        GetTracesV1Response,
+      const traces = await makeAPICall(
         "GET",
         "/api/public/traces?fields=core,metrics",
       );
@@ -879,13 +872,12 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.input).toBeNull();
       expect(trace.output).toBeNull();
       expect(trace.metadata).toEqual({});
-      expect(trace.observations).toEqual([]);
-      expect(trace.scores).toEqual([]);
+      expect(trace.observations).toBeUndefined();
+      expect(trace.scores).toBeUndefined();
     });
 
     it("should handle invalid field names gracefully", async () => {
-      const traces = await makeZodVerifiedAPICall(
-        GetTracesV1Response,
+      const traces = await makeAPICall(
         "GET",
         "/api/public/traces?fields=core,invalid,scores",
       );

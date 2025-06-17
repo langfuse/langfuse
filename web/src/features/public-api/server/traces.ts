@@ -10,19 +10,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
-
-// Field groups for selective field fetching
-const VALID_FIELD_GROUPS = ["core", "io", "scores", "observations", "metrics"] as const;
-type FieldGroup = typeof VALID_FIELD_GROUPS[number];
-
-const parseFields = (fields?: string[]): FieldGroup[] => {
-  if (!fields || fields.length === 0) {
-    return [...VALID_FIELD_GROUPS]; // Default: include all fields
-  }
-  return fields.filter((f): f is FieldGroup =>
-    VALID_FIELD_GROUPS.includes(f as FieldGroup)
-  );
-};
+import {
+  TRACE_FIELD_GROUPS,
+  TraceFieldGroup,
+} from "@/src/features/public-api/types/traces";
 
 export type TraceQueryType = {
   page: number;
@@ -39,7 +30,7 @@ export type TraceQueryType = {
   environment?: string | string[];
   fromTimestamp?: string;
   toTimestamp?: string;
-  fields?: string[];
+  fields?: TraceFieldGroup[];
 };
 
 export const generateTracesForPublicApi = async ({
@@ -49,11 +40,12 @@ export const generateTracesForPublicApi = async ({
   props: TraceQueryType;
   orderBy: OrderByState;
 }) => {
-  const requestedFields = parseFields(props.fields);
+  const requestedFields = props.fields ?? TRACE_FIELD_GROUPS;
   const includeIO = requestedFields.includes("io");
   const includeScores = requestedFields.includes("scores");
   const includeObservations = requestedFields.includes("observations");
   const includeMetrics = requestedFields.includes("metrics");
+
   const filter = convertApiProvidedFilterToClickhouseFilter(
     props,
     filterParams,
@@ -127,7 +119,7 @@ export const generateTracesForPublicApi = async ({
     )`);
   }
 
-  const withClause = ctes.length > 0 ? `WITH ${ctes.join(', ')}` : '';
+  const withClause = ctes.length > 0 ? `WITH ${ctes.join(", ")}` : "";
 
   const query = `
     ${withClause}
@@ -150,16 +142,16 @@ export const generateTracesForPublicApi = async ({
       t.created_at as created_at,
       t.updated_at as updated_at
       -- IO fields (conditional)
-      ${includeIO ? ', t.input as input, t.output as output, t.metadata as metadata' : ''}
+      ${includeIO ? ", t.input as input, t.output as output, t.metadata as metadata" : ""}
       -- Scores (conditional)
-      ${includeScores ? ', s.score_ids as scores' : ''}
+      ${includeScores ? ", s.score_ids as scores" : ""}
       -- Observations (conditional)
-      ${includeObservations ? ', o.observation_ids as observations' : ''}
+      ${includeObservations ? ", o.observation_ids as observations" : ""}
       -- Metrics (conditional)
-      ${includeMetrics ? ', COALESCE(o.latency_milliseconds / 1000, 0) as latency, COALESCE(o.total_cost, 0) as totalCost' : ''}
+      ${includeMetrics ? ", COALESCE(o.latency_milliseconds / 1000, 0) as latency, COALESCE(o.total_cost, 0) as totalCost" : ""}
     FROM traces t ${shouldUseSkipIndexes ? "" : "FINAL"}
-    ${includeObservations || includeMetrics ? 'LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id' : ''}
-    ${includeScores ? 'LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id' : ''}
+    ${includeObservations || includeMetrics ? "LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
+    ${includeScores ? "LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
     WHERE t.project_id = {projectId: String}
     ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
     ${chOrderBy}
@@ -194,40 +186,14 @@ export const generateTracesForPublicApi = async ({
   });
 
   return result.map((trace) => {
-    // Create a partial trace record for conversion, only including selected fields
-    const partialTrace: Partial<TraceRecordReadType> = {
-      id: trace.id,
-      project_id: trace.project_id,
-      timestamp: trace.timestamp,
-      name: trace.name,
-      environment: trace.environment,
-      session_id: trace.session_id,
-      user_id: trace.user_id,
-      release: trace.release,
-      version: trace.version,
-      bookmarked: trace.bookmarked,
-      public: trace.public,
-      tags: trace.tags,
-      created_at: trace.created_at,
-      updated_at: trace.updated_at,
-      // Only include IO fields if they were requested
-      ...(includeIO && {
-        input: (trace as any).input,
-        output: (trace as any).output,
-        metadata: (trace as any).metadata,
-      }),
-    };
-
-    const baseTrace = convertClickhouseToDomain(partialTrace as TraceRecordReadType);
-
     return {
-      ...baseTrace,
+      ...convertClickhouseToDomain(trace),
       // Conditionally include additional fields based on request
-      ...(includeObservations && { observations: trace.observations || [] }),
-      ...(includeScores && { scores: trace.scores || [] }),
+      ...(includeObservations && { observations: trace.observations ?? null }),
+      ...(includeScores && { scores: trace.scores ?? null }),
       ...(includeMetrics && {
-        totalCost: trace.totalCost || 0,
-        latency: trace.latency || 0
+        totalCost: trace.totalCost ?? null,
+        latency: trace.latency ?? null,
       }),
       htmlPath: trace.htmlPath,
     };
