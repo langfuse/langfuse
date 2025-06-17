@@ -142,6 +142,10 @@ export const evalJobExecutorQueueProcessor = async (
 
     // do not log expected errors (api failures + missing api keys not provided by the user)
     if (
+      (e instanceof BaseError &&
+        e.message.includes(
+          "Could not parse response content as the length limit was reached",
+        )) || // output tokens too long
       (e instanceof BaseError && e.message.includes("API key for provider")) || // api key not provided
       (e instanceof BaseError &&
         e.message.includes(
