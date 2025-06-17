@@ -182,8 +182,8 @@ importers:
         specifier: ^6.3.0
         version: 6.3.0(prisma@6.3.0(typescript@5.4.5))(typescript@5.4.5)
       '@react-email/components':
-        specifier: ^0.0.42
-        version: 0.0.42(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: ^0.1.0
+        version: 0.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@react-email/render':
         specifier: ^1.1.2
         version: 1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -325,7 +325,7 @@ importers:
         version: 5.4.5
       vitest:
         specifier: ^2.1.2
-        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.42.0)
+        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.43.0)
 
   web:
     dependencies:
@@ -1035,7 +1035,7 @@ importers:
         version: 5.4.5
       vitest:
         specifier: ^2.1.2
-        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.42.0)
+        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.43.0)
       wait-for-expect:
         specifier: ^3.0.2
         version: 3.0.2
@@ -4236,14 +4236,14 @@ packages:
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/button@0.0.19':
-    resolution: {integrity: sha512-HYHrhyVGt7rdM/ls6FuuD6XE7fa7bjZTJqB2byn6/oGsfiEZaogY77OtoLL/mrQHjHjZiJadtAMSik9XLcm7+A==}
+  '@react-email/button@0.1.0':
+    resolution: {integrity: sha512-fg4LtgTu5zXxaRSly9cuv6sHVF/hi1lElbRaIA8EPx5coWOBhCto6rCPfawcXpaN2oER7rNHUrcNBkI+lz5F9A==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/code-block@0.0.13':
-    resolution: {integrity: sha512-4DE4yPSgKEOnZMzcrDvRuD6mxsNxOex0hCYEG9F9q23geYgb2WCCeGBvIUXVzK69l703Dg4Vzrd5qUjl+JfcwA==}
+  '@react-email/code-block@0.1.0':
+    resolution: {integrity: sha512-jSpHFsgqnQXxDIssE4gvmdtFncaFQz5D6e22BnVjcCPk/udK+0A9jRwGFEG8JD2si9ZXBmU4WsuqQEczuZn4ww==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
@@ -4260,8 +4260,8 @@ packages:
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/components@0.0.42':
-    resolution: {integrity: sha512-KZtf7RjCoLgEwa5swrsbEF/liGrmfMlZCDNDXqaAjlgF3iRq0h5KY/HNMs6LbLmW7fEneRhnynrwApwbkEwe+A==}
+  '@react-email/components@0.1.0':
+    resolution: {integrity: sha512-Rx0eZk0XuzLKXC5NoMm8xuH72ALVsPYNb/BvcdCJx4EZAoVpQISb4sCqpo9blVYVIazNr4MqWroqFb3ZNrCLMQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
@@ -11297,8 +11297,8 @@ packages:
       uglify-js:
         optional: true
 
-  terser@5.42.0:
-    resolution: {integrity: sha512-UYCvU9YQW2f/Vwl+P0GfhxJxbUGLwd+5QrrGgLajzWAtC/23AX0vcise32kkP7Eu0Wu9VlzzHAXkLObgjQfFlQ==}
+  terser@5.43.0:
+    resolution: {integrity: sha512-CqNNxKSGKSZCunSvwKLTs8u8sGGlp27sxNZ4quGh0QeNuyHM0JSEM/clM9Mf4zUp6J+tO2gUXhgXT2YMMkwfKQ==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -16520,11 +16520,11 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@react-email/button@0.0.19(react@18.2.0)':
+  '@react-email/button@0.1.0(react@18.2.0)':
     dependencies:
       react: 18.2.0
 
-  '@react-email/code-block@0.0.13(react@18.2.0)':
+  '@react-email/code-block@0.1.0(react@18.2.0)':
     dependencies:
       prismjs: 1.30.0
       react: 18.2.0
@@ -16537,11 +16537,11 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@react-email/components@0.0.42(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@react-email/components@0.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@react-email/body': 0.0.11(react@18.2.0)
-      '@react-email/button': 0.0.19(react@18.2.0)
-      '@react-email/code-block': 0.0.13(react@18.2.0)
+      '@react-email/button': 0.1.0(react@18.2.0)
+      '@react-email/code-block': 0.1.0(react@18.2.0)
       '@react-email/code-inline': 0.0.5(react@18.2.0)
       '@react-email/column': 0.0.13(react@18.2.0)
       '@react-email/container': 0.0.15(react@18.2.0)
@@ -18366,14 +18366,14 @@ snapshots:
       chai: 5.1.1
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.2(@vitest/spy@2.1.2)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.42.0))':
+  '@vitest/mocker@2.1.2(@vitest/spy@2.1.2)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.43.0))':
     dependencies:
       '@vitest/spy': 2.1.2
       estree-walker: 3.0.3
       magic-string: 0.30.11
     optionalDependencies:
       msw: 2.6.5(@types/node@20.11.29)(typescript@5.4.5)
-      vite: 5.2.14(@types/node@20.11.29)(terser@5.42.0)
+      vite: 5.2.14(@types/node@20.11.29)(terser@5.43.0)
 
   '@vitest/mocker@2.1.2(@vitest/spy@2.1.2)(vite@5.2.14(@types/node@20.10.5))':
     dependencies:
@@ -25142,10 +25142,10 @@ snapshots:
       jest-worker: 27.5.1
       schema-utils: 4.3.2
       serialize-javascript: 6.0.2
-      terser: 5.42.0
+      terser: 5.43.0
       webpack: 5.97.1
 
-  terser@5.42.0:
+  terser@5.43.0:
     dependencies:
       '@jridgewell/source-map': 0.3.6
       acorn: 8.15.0
@@ -25655,12 +25655,12 @@ snapshots:
       - terser
     optional: true
 
-  vite-node@2.1.2(@types/node@20.11.29)(terser@5.42.0):
+  vite-node@2.1.2(@types/node@20.11.29)(terser@5.43.0):
     dependencies:
       cac: 6.7.14
       debug: 4.3.7(supports-color@5.5.0)
       pathe: 1.1.2
-      vite: 5.2.14(@types/node@20.11.29)(terser@5.42.0)
+      vite: 5.2.14(@types/node@20.11.29)(terser@5.43.0)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -25698,7 +25698,7 @@ snapshots:
       fsevents: 2.3.3
     optional: true
 
-  vite@5.2.14(@types/node@20.11.29)(terser@5.42.0):
+  vite@5.2.14(@types/node@20.11.29)(terser@5.43.0):
     dependencies:
       esbuild: 0.20.2
       postcss: 8.5.3
@@ -25706,7 +25706,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.11.29
       fsevents: 2.3.3
-      terser: 5.42.0
+      terser: 5.43.0
 
   vite@5.2.14(@types/node@20.14.8):
     dependencies:
@@ -25752,10 +25752,10 @@ snapshots:
       - terser
     optional: true
 
-  vitest@2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.42.0):
+  vitest@2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.43.0):
     dependencies:
       '@vitest/expect': 2.1.2
-      '@vitest/mocker': 2.1.2(@vitest/spy@2.1.2)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.42.0))
+      '@vitest/mocker': 2.1.2(@vitest/spy@2.1.2)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.43.0))
       '@vitest/pretty-format': 2.1.2
       '@vitest/runner': 2.1.2
       '@vitest/snapshot': 2.1.2
@@ -25770,8 +25770,8 @@ snapshots:
       tinyexec: 0.3.0
       tinypool: 1.0.1
       tinyrainbow: 1.2.0
-      vite: 5.2.14(@types/node@20.11.29)(terser@5.42.0)
-      vite-node: 2.1.2(@types/node@20.11.29)(terser@5.42.0)
+      vite: 5.2.14(@types/node@20.11.29)(terser@5.43.0)
+      vite-node: 2.1.2(@types/node@20.11.29)(terser@5.43.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 20.11.29
