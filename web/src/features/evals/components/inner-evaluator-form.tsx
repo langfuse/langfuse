@@ -666,6 +666,24 @@ export const InnerEvaluatorForm = (props: {
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="delay"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Delay (seconds)</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="number" />
+                  </FormControl>
+                  <FormDescription>
+                    Time between first Trace/Dataset run event and evaluation
+                    execution to ensure all data is available
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         </Card>
       )}
