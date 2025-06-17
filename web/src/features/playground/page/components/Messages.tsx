@@ -7,8 +7,9 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Switch } from "@/src/components/ui/switch";
-import { ChevronDown } from "lucide-react";
+import { Settings } from "lucide-react";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { env } from "@/src/env.mjs";
 
 import { GenerationOutput } from "./GenerationOutput";
 import { ChatMessages } from "@/src/components/ChatMessages";
@@ -42,15 +43,17 @@ export const Messages: React.FC<MessagesContext> = (props) => {
 
 const SubmitButton = () => {
   const { handleSubmit, isStreaming } = usePlaygroundContext();
+  const defaultStreamingEnabled =
+    env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT === "true";
   const [streamingEnabled, setStreamingEnabled] = useLocalStorage(
     "langfuse-playground-streaming",
-    true,
+    defaultStreamingEnabled,
   );
 
   return (
-    <div className="flex items-center">
+    <div className="flex items-center gap-2">
       <Button
-        className="flex-1 rounded-r-none border-r-0"
+        className="flex-1"
         onClick={() => {
           handleSubmit(streamingEnabled).catch((err) => console.error(err));
         }}
@@ -61,13 +64,12 @@ const SubmitButton = () => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="default"
-            size="sm"
-            className="h-8 rounded-l-none border-l border-primary-foreground/20 bg-primary px-2 py-1 hover:bg-primary/90"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 focus:outline-none focus:ring-0 focus-visible:ring-0"
             disabled={isStreaming}
-            tabIndex={-1}
           >
-            <ChevronDown className="h-3.5 w-3.5" />
+            <Settings className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
@@ -77,6 +79,11 @@ const SubmitButton = () => {
           >
             <div className="flex flex-col">
               <span className="font-medium">Stream responses</span>
+              <span className="text-xs text-muted-foreground">
+                {streamingEnabled
+                  ? "Real-time response streaming"
+                  : "Complete response at once"}
+              </span>
             </div>
             <Switch
               checked={streamingEnabled}
