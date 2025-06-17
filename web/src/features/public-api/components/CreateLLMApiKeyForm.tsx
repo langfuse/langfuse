@@ -7,7 +7,7 @@ import {
   type LlmApiKeys,
 } from "@langfuse/shared";
 import { PlusIcon, TrashIcon } from "lucide-react";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,

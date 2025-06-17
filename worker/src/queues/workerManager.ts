@@ -1,24 +1,21 @@
-import { Job, Processor, Queue, Worker, WorkerOptions } from "bullmq";
+import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
   getQueue,
   convertQueueNameToMetricName,
   createNewRedisInstance,
+  getQueuePrefix,
   logger,
   QueueName,
+  IngestionQueue,
   recordGauge,
   recordHistogram,
   recordIncrement,
   redisQueueRetryOptions,
   traceException,
 } from "@langfuse/shared/src/server";
-import { env } from "../env";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
-
-  private static getQueue(queueName: QueueName): Queue | null {
-    return getQueue(queueName);
-  }
 
   private static metricWrapper(
     processor: Processor,
@@ -36,33 +33,31 @@ export class WorkerManager {
         },
       );
       const result = await processor(job);
-
-      // Collect queue metrics if enabled (defaults to true)
-      const collectQueueMetrics =
-        env.LANGFUSE_COLLECT_QUEUE_LENGTH_METRICS !== "false";
-      if (collectQueueMetrics) {
-        const queue = WorkerManager.getQueue(queueName);
-        await Promise.allSettled([
-          queue?.count().then((count) => {
-            recordGauge(
-              convertQueueNameToMetricName(queueName) + ".length",
-              count,
-              {
-                unit: "records",
-              },
-            );
-          }),
-          queue?.getFailedCount().then((count) => {
-            recordGauge(
-              convertQueueNameToMetricName(queueName) + ".dlq_length",
-              count,
-              {
-                unit: "records",
-              },
-            );
-          }),
-        ]);
-      }
+      const queue = queueName.startsWith(QueueName.IngestionQueue)
+        ? IngestionQueue.getInstance({ shardName: queueName })
+        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
+      Promise.allSettled([
+        queue?.count().then((count) => {
+          recordGauge(
+            convertQueueNameToMetricName(queueName) + ".length",
+            count,
+            {
+              unit: "records",
+            },
+          );
+        }),
+        queue?.getFailedCount().then((count) => {
+          recordGauge(
+            convertQueueNameToMetricName(queueName) + ".dlq_length",
+            count,
+            {
+              unit: "records",
+            },
+          );
+        }),
+      ]).catch((err) => {
+        logger.error("Failed to record queue length", err);
+      });
       recordHistogram(
         convertQueueNameToMetricName(queueName) + ".processing_time",
         Date.now() - startTime,
@@ -102,6 +97,7 @@ export class WorkerManager {
       WorkerManager.metricWrapper(processor, queueName),
       {
         connection: redisInstance,
+        prefix: getQueuePrefix(queueName),
         ...additionalOptions,
       },
     );

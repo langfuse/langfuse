@@ -1,4 +1,4 @@
-import type Redis from "ioredis";
+import { type Redis, type Cluster } from "ioredis";
 import { type z } from "zod/v4";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
@@ -24,7 +24,7 @@ import { type NextApiResponse } from "next";
 // - isRateLimited returns false for self-hosters
 // - sendRestResponseIfLimited sends a 429 response with headers if the rate limit is exceeded. Return this from the route handler.
 export class RateLimitService {
-  private static redis: Redis | null;
+  private static redis: Redis | Cluster | null;
   private static instance: RateLimitService | null = null;
 
   public static getInstance(redis: Redis | null = null) {
