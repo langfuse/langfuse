@@ -67,7 +67,9 @@ const formatBigNumber = (
         )
       : 2;
     return {
-      formatted: value.toFixed(decimals).replace(/\.?0+$/, ""),
+      formatted: value
+        .toFixed(Math.max(0, Math.min(3, decimals)))
+        .replace(/\.?0+$/, ""),
       unit: "",
     };
   } else if (absValue > 0) {
@@ -84,7 +86,9 @@ const formatBigNumber = (
     const decimals = Math.min(neededDecimals, maxAllowedDecimals, 8); // Max 8 decimal places
 
     return {
-      formatted: value.toFixed(decimals).replace(/\.?0+$/, ""),
+      formatted: value
+        .toFixed(Math.max(0, Math.min(3, decimals)))
+        .replace(/\.?0+$/, ""),
       unit: "",
     };
   } else {

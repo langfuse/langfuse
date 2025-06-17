@@ -20,6 +20,7 @@ export function RunEvaluatorForm({
         evalTemplates={evalTemplates}
         templateId={evaluatorId}
         preventRedirect={false}
+        useDialog={false}
       />
     </Card>
   );

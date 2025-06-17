@@ -6,7 +6,7 @@ import {
   type TraceParams,
 } from "@langfuse/shared/src/server";
 import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
-import { z, ZodSchema } from "zod";
+import { z, ZodSchema } from "zod/v4";
 import { decrypt } from "@langfuse/shared/encryption";
 import { tokenCount } from "./tokenisation/usage";
 import Handlebars from "handlebars";

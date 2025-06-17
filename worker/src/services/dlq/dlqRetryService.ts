@@ -12,7 +12,7 @@ export class DlqRetryService {
     QueueName.ScoreDelete,
     QueueName.BatchActionQueue,
     QueueName.DataRetentionProcessingQueue,
-  ];
+  ] as const;
 
   // called each 10 minutes, defined by the bull cron job
   public static async retryDeadLetterQueue() {
@@ -23,7 +23,7 @@ export class DlqRetryService {
     );
     const retryQueues = DlqRetryService.retryQueues;
     for (const queueName of retryQueues) {
-      const queue = getQueue(queueName as QueueName);
+      const queue = getQueue(queueName);
 
       if (!queue) {
         logger.error(`Queue ${queueName} not found`);

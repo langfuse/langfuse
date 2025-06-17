@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { singleFilter } from "@langfuse/shared";
 
 export type ViewDeclarationType = z.infer<typeof viewDeclaration>;
@@ -12,6 +12,7 @@ export const viewDeclaration = z.object({
   // This is the basic statement that we query from. Usually, this should be the view_name + FINAL or a more complex subquery.
   baseCte: z.string(),
   dimensions: z.record(
+    z.string(),
     z.object({
       sql: z.string(),
       alias: z.string().optional(),
@@ -22,6 +23,7 @@ export const viewDeclaration = z.object({
     }),
   ),
   measures: z.record(
+    z.string(),
     z.object({
       sql: z.string(),
       alias: z.string().optional(),
@@ -32,6 +34,7 @@ export const viewDeclaration = z.object({
     }),
   ),
   tableRelations: z.record(
+    z.string(),
     z.object({
       name: z.string(),
       joinConditionSql: z.string(),

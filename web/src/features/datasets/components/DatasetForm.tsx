@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import * as z from "zod";
+import * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -80,7 +80,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues:
       props.mode === "update"

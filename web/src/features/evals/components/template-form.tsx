@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import * as z from "zod";
+import { z } from "zod/v4";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -46,6 +46,7 @@ type PartialEvalTemplate = Omit<
 
 export const EvalTemplateForm = (props: {
   projectId: string;
+  useDialog: boolean;
   existingEvalTemplate?: PartialEvalTemplate;
   onFormSuccess?: (template?: EvalTemplate) => void;
   onBeforeSubmit?: (
@@ -124,7 +125,7 @@ const formSchema = z.object({
   outputScore: z.string().min(1, "Enter a score function"),
   outputReasoning: z.string().min(1, "Enter a reasoning function"),
   referencedEvaluators: z
-    .nativeEnum(EvalReferencedEvaluators)
+    .enum(EvalReferencedEvaluators)
     .optional()
     .default(EvalReferencedEvaluators.PERSIST),
   shouldUseDefaultModel: z.boolean().default(true),
@@ -149,6 +150,7 @@ export type EvalTemplateFormPreFill = {
 
 export const InnerEvalTemplateForm = (props: {
   projectId: string;
+  useDialog: boolean;
   // pre-filled values from langfuse-defined template or template from db
   preFilledFormValues?: EvalTemplateFormPreFill;
   // template to be updated
@@ -199,7 +201,7 @@ export const InnerEvalTemplateForm = (props: {
 
   // updates the form based on the pre-filled data
   // either form update or from langfuse-generated template
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     disabled: !props.isEditing,
     defaultValues: {
@@ -302,7 +304,7 @@ export const InnerEvalTemplateForm = (props: {
 
       if (!parsedModel.success) {
         setFormError(
-          `${parsedModel.error.errors[0].path}: ${parsedModel.error.errors[0].message}`,
+          `${parsedModel.error.issues[0].path}: ${parsedModel.error.issues[0].message}`,
         );
         return;
       }
@@ -345,6 +347,190 @@ export const InnerEvalTemplateForm = (props: {
         }
       });
   }
+
+  const formBody = (
+    <>
+      {!props.existingEvalTemplateId ? (
+        <>
+          <div className="col-span-1 row-span-1 lg:col-span-2">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <>
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Select a template name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </>
+              )}
+            />
+          </div>
+          <div className="lg:col-span-0 col-span-1 row-span-1"></div>
+        </>
+      ) : undefined}
+
+      {/* Model Selection Section */}
+      <Card>
+        <CardContent>
+          <p className="my-2 font-semibold">Model</p>
+          <FormField
+            control={form.control}
+            name="shouldUseDefaultModel"
+            render={({ field }) => (
+              <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={!props.isEditing}
+                  />
+                </FormControl>
+                <div className="space-y-0 leading-none">
+                  <FormLabel>Use default evaluation model</FormLabel>
+                  <FormDescription className="text-xs">
+                    <ManageDefaultEvalModel
+                      projectId={props.projectId}
+                      variant="color-coded"
+                      setUpMessage="No default model set. Set up default evaluation model"
+                      className="text-sm font-normal"
+                    />
+                  </FormDescription>
+                </div>
+              </FormItem>
+            )}
+          />
+          {/* Only show model parameters if using custom model */}
+          {!useDefaultModel &&
+            (!props.isEditing && !isCustomModelValid ? (
+              <div className="mt-2 flex items-center space-x-1 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                <p>
+                  This evaluator is configured to use{" "}
+                  {modelParams.provider.value}s models but no API key exists.
+                  Add a key or choose another provider.
+                </p>
+              </div>
+            ) : (
+              <ModelParameters
+                customHeader={
+                  <p className="text-sm font-medium leading-none">
+                    Custom model configuration
+                  </p>
+                }
+                {...{
+                  modelParams,
+                  availableModels,
+                  availableProviders,
+                  updateModelParamValue: updateModelParamValue,
+                  setModelParamEnabled,
+                  modelParamsDescription:
+                    "Select a model which supports function calling.",
+                }}
+                formDisabled={!props.isEditing}
+              />
+            ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <p className="my-2 font-semibold">Prompt</p>
+            <FormField
+              control={form.control}
+              name="prompt"
+              render={({ field }) => (
+                <>
+                  <FormItem>
+                    <FormLabel>Evaluation prompt</FormLabel>
+                    <FormDescription>
+                      Define your llm-as-a-judge evaluation template. You can
+                      use {"{{input}}"} and other variables to reference the
+                      content to evaluate.
+                    </FormDescription>
+                    <FormControl>
+                      <CodeMirrorEditor
+                        value={field.value}
+                        onChange={field.onChange}
+                        editable={props.isEditing}
+                        mode="prompt"
+                        minHeight={200}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    <PromptVariableListPreview
+                      variables={extractedVariables ?? []}
+                    />
+                  </FormItem>
+                </>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="outputReasoning"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Score reasoning prompt</FormLabel>
+                <FormDescription>
+                  Define how the LLM should explain its evaluation. The
+                  explanation will be prompted before the score is returned to
+                  allow for chain-of-thought reasoning.
+                </FormDescription>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="outputScore"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Score range prompt</FormLabel>
+                <FormDescription>
+                  Define how the LLM should return the evaluation score in
+                  natural language. Needs to yield a numeric value.
+                </FormDescription>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  const formFooter = (
+    <>
+      {props.isEditing && (
+        <Button
+          type="submit"
+          loading={createEvalTemplateMutation.isLoading}
+          className="w-full"
+        >
+          Save
+        </Button>
+      )}
+      {formError ? (
+        <p className="text-red text-center">
+          <span className="font-bold">Error:</span> {formError}
+        </p>
+      ) : null}
+    </>
+  );
+
   return (
     <Form {...form}>
       <form
@@ -352,187 +538,13 @@ export const InnerEvalTemplateForm = (props: {
         onSubmit={form.handleSubmit(onSubmit)}
         className="mt-2 space-y-4"
       >
-        <DialogBody>
-          {!props.existingEvalTemplateId ? (
-            <>
-              <div className="col-span-1 row-span-1 lg:col-span-2">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <>
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Select a template name"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    </>
-                  )}
-                />
-              </div>
-              <div className="lg:col-span-0 col-span-1 row-span-1"></div>
-            </>
-          ) : undefined}
+        {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
 
-          {/* Model Selection Section */}
-          <Card>
-            <CardContent>
-              <p className="my-2 font-semibold">Model</p>
-              <FormField
-                control={form.control}
-                name="shouldUseDefaultModel"
-                render={({ field }) => (
-                  <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={!props.isEditing}
-                      />
-                    </FormControl>
-                    <div className="space-y-0 leading-none">
-                      <FormLabel>Use default evaluation model</FormLabel>
-                      <FormDescription className="text-xs">
-                        <ManageDefaultEvalModel
-                          projectId={props.projectId}
-                          variant="color-coded"
-                          setUpMessage="No default model set. Set up default evaluation model"
-                          className="text-sm font-normal"
-                        />
-                      </FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
-              {/* Only show model parameters if using custom model */}
-              {!useDefaultModel &&
-                (!props.isEditing && !isCustomModelValid ? (
-                  <div className="mt-2 flex items-center space-x-1 text-sm text-destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <p>
-                      This evaluator is configured to use{" "}
-                      {modelParams.provider.value}s models but no API key
-                      exists. Add a key or choose another provider.
-                    </p>
-                  </div>
-                ) : (
-                  <ModelParameters
-                    customHeader={
-                      <p className="text-sm font-medium leading-none">
-                        Custom model configuration
-                      </p>
-                    }
-                    {...{
-                      modelParams,
-                      availableModels,
-                      availableProviders,
-                      updateModelParamValue: updateModelParamValue,
-                      setModelParamEnabled,
-                      modelParamsDescription:
-                        "Select a model which supports function calling.",
-                    }}
-                    formDisabled={!props.isEditing}
-                  />
-                ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <p className="my-2 font-semibold">Prompt</p>
-                <FormField
-                  control={form.control}
-                  name="prompt"
-                  render={({ field }) => (
-                    <>
-                      <FormItem>
-                        <FormLabel>Evaluation prompt</FormLabel>
-                        <FormDescription>
-                          Define your llm-as-a-judge evaluation template. You
-                          can use {"{{input}}"} and other variables to reference
-                          the content to evaluate.
-                        </FormDescription>
-                        <FormControl>
-                          <CodeMirrorEditor
-                            value={field.value}
-                            onChange={field.onChange}
-                            editable={props.isEditing}
-                            mode="prompt"
-                            minHeight={200}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                        <PromptVariableListPreview
-                          variables={extractedVariables ?? []}
-                        />
-                      </FormItem>
-                    </>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="outputReasoning"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Score reasoning prompt</FormLabel>
-                    <FormDescription>
-                      Define how the LLM should explain its evaluation. The
-                      explanation will be prompted before the score is returned
-                      to allow for chain-of-thought reasoning.
-                    </FormDescription>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="outputScore"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Score range prompt</FormLabel>
-                    <FormDescription>
-                      Define how the LLM should return the evaluation score in
-                      natural language. Needs to yield a numeric value.
-                    </FormDescription>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-        </DialogBody>
-
-        <DialogFooter>
-          {props.isEditing && (
-            <Button
-              type="submit"
-              loading={createEvalTemplateMutation.isLoading}
-              className="w-full"
-            >
-              Save
-            </Button>
-          )}
-          {formError ? (
-            <p className="text-red text-center">
-              <span className="font-bold">Error:</span> {formError}
-            </p>
-          ) : null}
-        </DialogFooter>
+        {props.useDialog ? (
+          <DialogFooter>{formFooter}</DialogFooter>
+        ) : (
+          formFooter
+        )}
       </form>
     </Form>
   );

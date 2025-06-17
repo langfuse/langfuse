@@ -22,7 +22,7 @@ export const PeekViewEvaluatorConfigDetail = ({
   projectId: string;
   row?: EvaluatorDataRow;
 }) => {
-  const { peekId } = usePeekState("evals");
+  const { peekId } = usePeekState();
 
   const { data: evalConfig } = usePeekEvalConfigData({
     jobConfigurationId: peekId,
@@ -91,6 +91,7 @@ export const PeekViewEvaluatorConfigDetail = ({
           }
           disabled={true}
           shouldWrapVariables={true}
+          useDialog={false}
         />
       </div>
     </div>

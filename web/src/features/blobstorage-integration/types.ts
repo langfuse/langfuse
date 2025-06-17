@@ -1,11 +1,11 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
 } from "@langfuse/shared";
 
 export const blobStorageIntegrationFormSchema = z.object({
-  type: z.nativeEnum(BlobStorageIntegrationType),
+  type: z.enum(BlobStorageIntegrationType),
   bucketName: z.string().min(1, { message: "Bucket name is required" }),
   endpoint: z.string().url().optional().nullable(),
   region: z.string().default("auto"),
@@ -22,7 +22,7 @@ export const blobStorageIntegrationFormSchema = z.object({
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
   fileType: z
-    .nativeEnum(BlobStorageIntegrationFileType)
+    .enum(BlobStorageIntegrationFileType)
     .default(BlobStorageIntegrationFileType.JSONL),
 });
 

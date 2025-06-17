@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { jsonSchema, publicApiPaginationZod } from "../../../../utils/zod";
 import { stringDateTime } from "../../../../utils/typeChecks";
 import { applyScoreValidation } from "../../../../utils/scores";

@@ -1135,6 +1135,33 @@ export const SEED_PROMPTS = [
     labels: ["production", "latest"],
     tags: ["tag1", "tag2"],
   },
+  {
+    id: `folder-customer-prompt-1`,
+    createdBy: "user-1",
+    prompt: "Folder prompt 1 content",
+    name: "folder/customer/prompt-1",
+    version: 1,
+    labels: ["production", "latest"],
+    tags: ["tag1", "tag2"],
+  },
+  {
+    id: `folder-customer-prompt-2`,
+    createdBy: "user-1",
+    prompt: "Folder prompt 2 content",
+    name: "folder/customer/prompt-2",
+    version: 1,
+    labels: ["production", "latest"],
+    tags: ["tag1", "tag2"],
+  },
+  {
+    id: `folder-prompt-1`,
+    createdBy: "user-1",
+    prompt: "Folder prompt 1 content",
+    name: "folder/prompt-1",
+    version: 1,
+    labels: ["production", "latest"],
+    tags: ["tag1", "tag2"],
+  },
 ];
 
 export const PROMPT_IDS: string[] = [];

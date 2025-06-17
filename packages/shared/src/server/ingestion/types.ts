@@ -1,5 +1,5 @@
 import lodash from "lodash";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
@@ -20,7 +20,7 @@ export const Usage = z.object({
   input: z.number().int().nullish(),
   output: z.number().int().nullish(),
   total: z.number().int().nullish(),
-  unit: z.nativeEnum(ModelUsageUnit).nullish(),
+  unit: z.enum(ModelUsageUnit).nullish(),
   inputCost: z.number().nullish(),
   outputCost: z.number().nullish(),
   totalCost: z.number().nullish(),
@@ -30,7 +30,7 @@ const MixedUsage = z.object({
   input: z.number().int().nullish(),
   output: z.number().int().nullish(),
   total: z.number().int().nullish(),
-  unit: z.nativeEnum(ModelUsageUnit).nullish(),
+  unit: z.enum(ModelUsageUnit).nullish(),
   promptTokens: z.number().int().nullish(),
   completionTokens: z.number().int().nullish(),
   totalTokens: z.number().int().nullish(),
@@ -128,8 +128,7 @@ const OpenAICompletionUsageSchema = z
     }
 
     return result;
-  })
-  .pipe(RawUsageDetails);
+  });
 
 // The new OpenAI Response API uses a new Usage schema that departs from the Completion API Usage schema
 const OpenAIResponseUsageSchema = z
@@ -184,8 +183,7 @@ const OpenAIResponseUsageSchema = z
     }
 
     return result;
-  })
-  .pipe(RawUsageDetails);
+  });
 
 export const UsageDetails = z
   .union([
@@ -266,7 +264,7 @@ export const CreateGenerationBody = CreateSpanBody.extend({
           z.number(),
           z.boolean(),
           z.array(z.string()),
-          z.record(z.string()),
+          z.record(z.string(), z.string()),
         ])
         .nullish(),
     )
@@ -296,7 +294,7 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
           z.number(),
           z.boolean(),
           z.array(z.string()),
-          z.record(z.string()),
+          z.record(z.string(), z.string()),
         ])
         .nullish(),
     )

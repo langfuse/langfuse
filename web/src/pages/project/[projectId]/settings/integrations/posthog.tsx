@@ -26,7 +26,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
@@ -122,7 +122,7 @@ const PostHogIntegrationSettings = ({
   isLoading: boolean;
 }) => {
   const capture = usePostHogClientCapture();
-  const posthogForm = useForm<z.infer<typeof posthogIntegrationFormSchema>>({
+  const posthogForm = useForm({
     resolver: zodResolver(posthogIntegrationFormSchema),
     defaultValues: {
       posthogHostname: state?.posthogHostName ?? "",

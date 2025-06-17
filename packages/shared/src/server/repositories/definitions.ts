@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 
 export const clickhouseStringDateSchema = z
   .string()
@@ -38,7 +38,7 @@ export const observationRecordBaseSchema = z.object({
   parent_observation_id: z.string().nullish(),
   environment: z.string().default("default"),
   name: z.string().nullish(),
-  metadata: z.record(z.string()),
+  metadata: z.record(z.string(), z.string()),
   level: z.string().nullish(),
   status_message: z.string().nullish(),
   version: z.string().nullish(),
@@ -92,7 +92,7 @@ export const traceRecordBaseSchema = z.object({
   id: z.string(),
   name: z.string().nullish(),
   user_id: z.string().nullish(),
-  metadata: z.record(z.string()),
+  metadata: z.record(z.string(), z.string()),
   release: z.string().nullish(),
   version: z.string().nullish(),
   project_id: z.string(),
@@ -134,7 +134,7 @@ export const scoreRecordBaseSchema = z.object({
   value: z.number().nullish(),
   source: z.string(),
   comment: z.string().nullish(),
-  metadata: z.record(z.string()),
+  metadata: z.record(z.string(), z.string()),
   author_user_id: z.string().nullish(),
   config_id: z.string().nullish(),
   data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),

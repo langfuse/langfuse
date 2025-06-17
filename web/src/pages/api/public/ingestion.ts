@@ -1,6 +1,6 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   traceException,
   redis,
@@ -150,10 +150,10 @@ export default async function handler(
     }
 
     if (error instanceof z.ZodError) {
-      logger.error(`Zod exception`, error.errors);
+      logger.error(`Zod exception`, error.issues);
       return res.status(400).json({
         message: "Invalid request data",
-        error: error.errors,
+        error: error.issues,
       });
     }
 

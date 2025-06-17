@@ -1,6 +1,6 @@
 import { singleFilter } from "../interfaces/filters";
 import { orderBy } from "../interfaces/orderBy";
-import z from "zod";
+import z from "zod/v4";
 
 export enum TableViewPresetTableName {
   Traces = "traces",
@@ -17,7 +17,7 @@ const TableViewPresetDomainSchema = z.object({
   updatedAt: z.date(),
   createdBy: z.string().nullable(),
   name: z.string(),
-  tableName: z.nativeEnum(TableViewPresetTableName),
+  tableName: z.enum(TableViewPresetTableName),
   filters: z.array(singleFilter),
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),

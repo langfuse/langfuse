@@ -15,7 +15,7 @@ import {
 } from "@langfuse/shared";
 import { getObservationById, logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const queueRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -217,7 +217,7 @@ export const queueRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         objectId: z.string(),
-        objectType: z.nativeEnum(AnnotationQueueObjectType),
+        objectType: z.enum(AnnotationQueueObjectType),
       }),
     )
     .query(async ({ input, ctx }) => {
