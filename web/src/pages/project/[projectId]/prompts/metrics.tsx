@@ -80,15 +80,13 @@ function joinPromptCoreAndMetricData(
 export default function PromptVersionTable() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  // Decide prompt name if direct route or catchall (through click on metrics tab)
   const promptName = router.query.promptName
-    // direct route / query param call
     ? decodeURIComponent(router.query.promptName as string)
-    // catchall route through click on metrics tab in prompt details page
     : (() => {
         const folder = router.query.folder;
         if (Array.isArray(folder)) {
-          // Remove 'metrics' from the end if present, as it's not part of the prompt name
-          const segments = folder.filter(segment => segment !== 'metrics');
+          const segments = folder[folder.length - 1] === 'metrics' ? folder.slice(0, -1) : folder;
           return segments.join('/');
         }
         if (typeof folder === 'string') {

@@ -106,8 +106,8 @@ export const PromptDetail = () => {
     : (() => {
         const folder = router.query.folder;
         if (Array.isArray(folder)) {
-          // 'metrics' is not part of the prompt name
-          const segments = folder.filter(segment => segment !== 'metrics');
+          // Remove 'metrics' from the end if present, as it's not part of the prompt name
+          const segments = folder[folder.length - 1] === 'metrics' ? folder.slice(0, -1) : folder;
           return segments.join('/');
         } else if (typeof folder === 'string') {
           return folder;
