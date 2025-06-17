@@ -655,7 +655,7 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.observations).toHaveLength(1);
       expect(trace.scores).toHaveLength(1);
       expect(trace.totalCost).toBeDefined();
-      expect(trace.latency).toBeDefined();
+      expect(trace.latency).toBeCloseTo(1);
     });
 
     it("should fetch traces with only core fields when fields=core", async () => {
@@ -832,6 +832,9 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.observations).toHaveLength(1);
 
       // Other fields should have default values
+      expect(trace.input).toBeNull();
+      expect(trace.output).toBeNull();
+      expect(trace.metadata).toEqual({});
       expect(trace.scores).toEqual([]);
       expect(trace.totalCost).toBe(0);
       expect(trace.latency).toBe(0);
@@ -873,6 +876,9 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.latency).toBeCloseTo(1);
 
       // Other fields should have default values
+      expect(trace.input).toBeNull();
+      expect(trace.output).toBeNull();
+      expect(trace.metadata).toEqual({});
       expect(trace.observations).toEqual([]);
       expect(trace.scores).toEqual([]);
     });
