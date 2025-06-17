@@ -647,3 +647,37 @@ graph TB
 - [ ] Performance benchmarks meet or exceed current system
 - [ ] Materialized views maintain < 1 minute lag during normal operations
 - [ ] Zero downtime migration execution
+
+## Performance Comparison Queries
+
+The following queries represent the most critical access patterns for performance testing. Each query has been separated into individual SQL files in the `performance-queries/` directory for easier management and execution.
+
+### 1. TRPC traces.all - Main Traces Table Listing
+
+- **Current**: [`performance-queries/01-traces-all-current.sql`](performance-queries/01-traces-all-current.sql) - Complex CTE with observation_stats and score_stats JOINs
+- **New**: [`performance-queries/01-traces-all-new.sql`](performance-queries/01-traces-all-new.sql) - Direct query on exp_traces_amt with pre-aggregated metrics
+- **Expected improvement**: 60-80% faster
+
+### 2. TRPC traces.byId - Single Trace Details
+
+- **Current**: [`performance-queries/02-traces-byid-current.sql`](performance-queries/02-traces-byid-current.sql) - Simple SELECT from traces table
+- **New**: [`performance-queries/02-traces-byid-new.sql`](performance-queries/02-traces-byid-new.sql) - Direct query on exp_traces_amt
+- **Expected improvement**: Similar performance, potentially 10-20% faster
+
+### 3. TRPC traces.byIdWithObservationsAndScores - Trace Detail Page
+
+- **Current**: [`performance-queries/03-observations-for-trace-current.sql`](performance-queries/03-observations-for-trace-current.sql) + [`performance-queries/04-scores-for-trace-current.sql`](performance-queries/04-scores-for-trace-current.sql)
+- **New**: [`performance-queries/03-observations-for-trace-new.sql`](performance-queries/03-observations-for-trace-new.sql) + [`performance-queries/04-scores-for-trace-new.sql`](performance-queries/04-scores-for-trace-new.sql)
+- **Expected improvement**: 10-30% faster
+
+### 4. TRPC traces.filterOptions - Filter Dropdown Options
+
+- **Names Current**: [`performance-queries/06-filter-names-current.sql`](performance-queries/06-filter-names-current.sql) - GROUP BY on traces
+- **Names New**: [`performance-queries/06-filter-names-new.sql`](performance-queries/06-filter-names-new.sql) - Direct aggregation on exp_traces_amt
+- **Expected improvement**: 70-90% faster
+
+### 5. Dashboard Analytics - TRPC dashboard.chart
+
+- **Current**: [`performance-queries/07-dashboard-cost-by-type-current.sql`](performance-queries/07-dashboard-cost-by-type-current.sql) - Complex aggregation with JOINs
+- **New**: [`performance-queries/07-dashboard-cost-by-type-new.sql`](performance-queries/07-dashboard-cost-by-type-new.sql) - Pre-aggregated data from exp_spans
+- **Expected improvement**: 50-70% faster
