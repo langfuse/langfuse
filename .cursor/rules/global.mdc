@@ -4,7 +4,7 @@ globs:
 alwaysApply: true
 ---
 ## Project setup
-- This project is a Truborepo monorepo
+- This project is a Turborepo monorepo
 - We build two containers, web (./web) and worker (./worker)
 - We have shared code between these two in the shared package (./packages/shared). For that package, we have different entry points [package.json](mdc:packages/shared/package.json).
 
