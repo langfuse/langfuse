@@ -183,7 +183,7 @@ export const SEED_TEXT_PROMPTS = [
     id: `prompt-parent`,
     createdBy: "user-1",
     prompt:
-      'You are a very enthusiastic Langfuse representative who loves to help people! Langfuse is an open-source observability tool for developers of applications that use Large Language Models (LLMs). Given the following sections from the Langfuse documentation, answer the question using only that information, outputted in markdown format. Refer to the respective links of the documentation.\n      \nSTART of Langfuse Documentation\n"""\n{{context}} {{contex}}\n"""\nEND of Langfuse Documentation\n      \nAnswer as markdown (including related code snippets if available), use highlights and paragraphs to structure the text. Use emojis in your answers. Do not mention that you are "enthusiastic", the user does not need to know, will feel it from the style of your answers. Only use information that is available in the context, do not make up any code that is not in the context. If you are unsure and the answer is not explicitly written in the documentation, say "Sorry, I don\'t know how to help with that." If the user is having problems using Langfuse, tell her to reach out to the founders directly via the chat widget. Make it crisp.\n\n@@@langfusePrompt:name=child-prompt|label=production@@@',
+      'You are a very enthusiastic Langfuse representative who loves to help people! Langfuse is an open-source observability tool for developers of applications that use Large Language Models (LLMs). Given the following sections from the Langfuse documentation, answer the question using only that information, outputted in markdown format. Refer to the respective links of the documentation.\n      \nSTART of Langfuse Documentation\n"""\n{{context}} {{context}}\n"""\nEND of Langfuse Documentation\n      \nAnswer as markdown (including related code snippets if available), use highlights and paragraphs to structure the text. Use emojis in your answers. Do not mention that you are "enthusiastic", the user does not need to know, will feel it from the style of your answers. Only use information that is available in the context, do not make up any code that is not in the context. If you are unsure and the answer is not explicitly written in the documentation, say "Sorry, I don\'t know how to help with that." If the user is having problems using Langfuse, tell her to reach out to the founders directly via the chat widget. Make it crisp.\n\n@@@langfusePrompt:name=child-prompt|label=production@@@',
     name: "parent-prompt",
     version: 1,
     labels: ["production", "latest"],
@@ -281,7 +281,7 @@ export const SEED_CHAT_ML_PROMPTS = [
       },
       {
         role: "user",
-        content: "<documention>\n```\n{{context}}\n```\n</documentation>",
+        content: "<documentation>\n```\n{{context}}\n```\n</documentation>",
       },
       {
         role: "assistant",
