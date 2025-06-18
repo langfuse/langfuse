@@ -4,13 +4,13 @@ import {
   ScoreDataType,
   JobConfiguration,
   JobExecutionStatus,
-} from "../src/index";
+} from "../../src/index";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 import { v4 } from "uuid";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
-import { encrypt } from "../src/encryption";
-import { redis } from "../src/server/redis/redis";
+import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import { encrypt } from "../../src/encryption";
+import { redis } from "../../src/server/redis/redis";
 import { randomUUID } from "crypto";
 import {
   SEED_CHAT_ML_PROMPTS,
@@ -19,13 +19,13 @@ import {
   SEED_EVALUATOR_TEMPLATES,
   SEED_PROMPT_VERSIONS,
   SEED_TEXT_PROMPTS,
-} from "./seeder/postgres-seed-constants";
+} from "./utils/postgres-seed-constants";
 import {
   generateDatasetRunTraceId,
   generateEvalObservationId,
   generateEvalScoreId,
   generateEvalTraceId,
-} from "./seeder/seed-helpers";
+} from "./utils/seed-helpers";
 
 type ConfigCategory = {
   label: string;

@@ -1,6 +1,6 @@
 import { prisma } from "../../src/db";
 import { redis } from "../../src/server";
-import { prepareClickhouse } from "../../scripts/prepare-clickhouse";
+import { prepareClickhouse } from "./prepare-clickhouse";
 
 async function main() {
   try {

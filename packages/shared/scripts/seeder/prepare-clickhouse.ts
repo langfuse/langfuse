@@ -1,6 +1,6 @@
-import { SeederOrchestrator } from "./seeder/seeder-orchestrator";
-import { SeederOptions } from "./seeder/types";
-import { logger } from "../src/server";
+import { SeederOrchestrator } from "./utils/seeder-orchestrator";
+import { SeederOptions } from "./utils/types";
+import { logger } from "../../src/server";
 
 /**
  * ClickHouse data preparation using the seeder abstraction.
