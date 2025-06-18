@@ -4,11 +4,12 @@ import {
   DateTimeFilter,
   ArrayOptionsFilter,
   StringOptionsFilter,
+  CategoryOptionsFilter,
   StringFilter,
   NumberFilter,
   type ClickhouseOperator,
 } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export type ApiColumnMapping = {
   id: string;
@@ -83,6 +84,31 @@ export function convertApiProvidedFilterToClickhouseFilter(
             });
           }
           break;
+        case "CategoryOptionsFilter":
+          if (Array.isArray(value)) {
+            const availableOperatorsCategory = z.enum(
+              filterOperators.categoryOptions,
+            );
+            const parsedOperatorCategory = availableOperatorsCategory.safeParse(
+              filter.operator,
+            );
+
+            if (
+              parsedOperatorCategory.success &&
+              typeof filter.key === "string"
+            ) {
+              filterInstance = new CategoryOptionsFilter({
+                clickhouseTable: columnMapping.clickhouseTable,
+                field: columnMapping.clickhouseSelect,
+                key: filter.key,
+                operator: parsedOperatorCategory.data,
+                values: value,
+                tablePrefix: columnMapping.clickhousePrefix,
+              });
+            }
+          }
+          break;
+
         case "StringFilter":
           if (typeof value === "string") {
             filterInstance = new StringFilter({

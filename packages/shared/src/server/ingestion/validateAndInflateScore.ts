@@ -162,7 +162,7 @@ function validateConfigAgainstBody(
   });
 
   if (!rangeValidation.success) {
-    const errorDetails = rangeValidation.error.errors
+    const errorDetails = rangeValidation.error.issues
       .map((error) => `${error.path.join(".")} - ${error.message}`)
       .join(", ");
 

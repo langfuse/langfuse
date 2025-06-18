@@ -5,16 +5,24 @@ import {
   type metricAggregations,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { PencilIcon, TrashIcon } from "lucide-react";
+import {
+  PencilIcon,
+  TrashIcon,
+  CopyIcon,
+  GripVerticalIcon,
+  Loader2,
+} from "lucide-react";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { startCase } from "lodash";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 
-interface WidgetPlacement {
+export interface WidgetPlacement {
   id: string;
   widgetId: string;
   x: number;
@@ -24,25 +32,25 @@ interface WidgetPlacement {
   type: "widget";
 }
 
-// Generate grid classes for each widget based on position and size
-const getGridClasses = (widget: WidgetPlacement) => {
-  return `col-start-${widget.x + 1} col-span-${widget.x_size} row-start-${widget.y + 1} row-span-${widget.y_size}`;
-};
-
 export function DashboardWidget({
   projectId,
+  dashboardId,
   placement,
   dateRange,
   filterState,
   onDeleteWidget,
+  dashboardOwner,
 }: {
   projectId: string;
+  dashboardId: string;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
+  dashboardOwner: "LANGFUSE" | "PROJECT";
 }) {
   const router = useRouter();
+  const utils = api.useUtils();
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -52,11 +60,9 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-
-  const hasCUDAccess = useHasProjectAccess({
-    projectId,
-    scope: "dashboards:CUD",
-  });
+  const hasCUDAccess =
+    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
+    dashboardOwner !== "LANGFUSE";
 
   const fromTimestamp = dateRange
     ? dateRange.from
@@ -89,6 +95,7 @@ export function DashboardWidget({
         fromTimestamp: fromTimestamp.toISOString(),
         toTimestamp: toTimestamp.toISOString(),
         orderBy: null,
+        chartConfig: widget.data?.chartConfig,
       },
     },
     {
@@ -115,21 +122,66 @@ export function DashboardWidget({
         agg: "count",
       };
       const metricField = `${metric.agg}_${metric.measure}`;
+      const metricValue = item[metricField];
 
       return {
-        dimension: item[dimensionField]
-          ? (item[dimensionField] as string)
-          : startCase(metricField === "count_count" ? "Count" : metricField),
-        metric: Number(item[metricField] || 0),
+        dimension:
+          item[dimensionField] !== undefined
+            ? (() => {
+                const val = item[dimensionField];
+                if (typeof val === "string") return val;
+                if (val === null || val === undefined || val === "")
+                  return "n/a";
+                if (Array.isArray(val)) return val.join(", ");
+                // Objects / numbers / booleans are stringified to avoid React key issues
+                return String(val);
+              })()
+            : startCase(metricField === "count_count" ? "Count" : metricField),
+        metric: Array.isArray(metricValue)
+          ? metricValue
+          : Number(metricValue || 0),
         time_dimension: item["time_dimension"],
       };
     });
   }, [queryResult.data, widget.data]);
 
+  const handleEdit = () => {
+    router.push(
+      `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
+    );
+  };
+
+  const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
+    onSuccess: (data) => {
+      utils.dashboard.getDashboard.invalidate().then(() => {
+        router.push(
+          `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
+        );
+      });
+    },
+    onError: (e) => {
+      showErrorToast("Failed to clone widget", e.message);
+    },
+  });
+  const handleCopy = () => {
+    copyMutation.mutate({
+      projectId,
+      widgetId: placement.widgetId,
+      dashboardId: router.query.dashboardId as string,
+      placementId: placement.id,
+    });
+  };
+
+  const handleDelete = () => {
+    if (onDeleteWidget && confirm("Please confirm deletion")) {
+      onDeleteWidget(placement.id);
+    }
+  };
+
   if (widget.isLoading) {
     return (
       <div
-        className={`${getGridClasses(placement)} flex items-center justify-center rounded-lg border bg-background p-4`}
+        className={`flex items-center justify-center rounded-lg border bg-background p-4`}
       >
         <div className="text-muted-foreground">Loading...</div>
       </div>
@@ -139,49 +191,79 @@ export function DashboardWidget({
   if (!widget.data) {
     return (
       <div
-        className={`${getGridClasses(placement)} flex items-center justify-center rounded-lg border bg-background p-4`}
+        className={`flex items-center justify-center rounded-lg border bg-background p-4`}
       >
         <div className="text-muted-foreground">Widget not found</div>
       </div>
     );
   }
 
-  const handleEdit = () => {
-    router.push(`/project/${projectId}/widgets/${placement.widgetId}`);
-  };
-
-  const handleDelete = () => {
-    if (onDeleteWidget && confirm("Please confirm deletion")) {
-      onDeleteWidget(placement.id);
-    }
-  };
-
   return (
     <div
-      className={`${getGridClasses(placement)} group flex flex-col overflow-hidden rounded-lg border bg-background p-4`}
+      className={`group flex h-full w-full flex-col overflow-hidden rounded-lg border bg-background p-4`}
     >
-      <div className="mb-2 flex items-center justify-between">
-        <span className="font-medium">{widget.data.name}</span>
+      <div className="flex items-center justify-between">
+        <span className="truncate font-medium" title={widget.data.name}>
+          {widget.data.name}{" "}
+          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
+            ? " ( 🪢 )"
+            : null}
+        </span>
         <div className="flex space-x-2">
-          <button
-            onClick={handleEdit}
-            className="hidden text-muted-foreground hover:text-foreground group-hover:block"
-            aria-label="Edit widget"
-            disabled={!hasCUDAccess}
-          >
-            <PencilIcon size={16} />
-          </button>
-          <button
-            onClick={handleDelete}
-            className="hidden text-muted-foreground hover:text-destructive group-hover:block"
-            aria-label="Delete widget"
-            disabled={!hasCUDAccess}
-          >
-            <TrashIcon size={16} />
-          </button>
+          {hasCUDAccess && (
+            <>
+              <GripVerticalIcon
+                size={16}
+                className="drag-handle hidden cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing lg:group-hover:block"
+              />
+              {widget.data.owner === "PROJECT" ? (
+                <button
+                  onClick={handleEdit}
+                  className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                  aria-label="Edit widget"
+                >
+                  <PencilIcon size={16} />
+                </button>
+              ) : widget.data.owner === "LANGFUSE" ? (
+                <button
+                  onClick={handleCopy}
+                  className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                  aria-label="Copy widget"
+                >
+                  <CopyIcon size={16} />
+                </button>
+              ) : null}
+              <button
+                onClick={handleDelete}
+                className="hidden text-muted-foreground hover:text-destructive group-hover:block"
+                aria-label="Delete widget"
+              >
+                <TrashIcon size={16} />
+              </button>
+            </>
+          )}
+          {/* Download button or loading indicator - always available */}
+          {queryResult.isLoading ? (
+            <div
+              className="text-muted-foreground"
+              aria-label="Loading chart data"
+              title="Loading..."
+            >
+              <Loader2 size={16} className="animate-spin" />
+            </div>
+          ) : (
+            <DownloadButton
+              data={transformedData}
+              fileName={widget.data.name}
+              className="hidden group-hover:block"
+            />
+          )}
         </div>
       </div>
-      <div className="mb-4 text-sm text-muted-foreground">
+      <div
+        className="mb-4 truncate text-sm text-muted-foreground"
+        title={widget.data.description}
+      >
         {widget.data.description}
       </div>
       <div className="min-h-0 flex-1">

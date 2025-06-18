@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { Plan, plans } from "../../features/entitlements/plans";
 import { CloudConfigRateLimit } from "../../interfaces/rate-limits";
 import { ApiKeyScope } from "../../";
@@ -55,4 +55,5 @@ export type ApiAccessScope = {
   plan: Plan;
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   apiKeyId: string;
+  publicKey: string;
 };

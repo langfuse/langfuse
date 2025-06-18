@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
@@ -13,6 +13,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -27,9 +28,10 @@ export function JSONView(props: {
   media?: MediaReturnType[];
   scrollable?: boolean;
   projectIdForPromptButtons?: string;
+  controlButtons?: React.ReactNode;
 }) {
   // some users ingest stringified json nested in json, parse it
-  const parsedJson = deepParseJson(props.json);
+  const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
   const capture = usePostHogClientCapture();
@@ -40,7 +42,8 @@ export function JSONView(props: {
       : (props.collapseStringsAfterLength ?? 500);
 
   const handleOnCopy = () => {
-    void navigator.clipboard.writeText(stringifyJsonNode(parsedJson));
+    const textToCopy = stringifyJsonNode(parsedJson);
+    void copyTextToClipboard(textToCopy);
   };
 
   const handleOnValueChange = () => {
@@ -129,6 +132,7 @@ export function JSONView(props: {
           canEnableMarkdown={props.canEnableMarkdown ?? false}
           handleOnValueChange={handleOnValueChange}
           handleOnCopy={handleOnCopy}
+          controlButtons={props.controlButtons}
         />
       ) : null}
       {props.scrollable ? (
@@ -156,11 +160,11 @@ export function CodeView(props: {
 
   const handleCopy = () => {
     setIsCopied(true);
-    void navigator.clipboard.writeText(
+    const content =
       typeof props.content === "string"
         ? props.content
-        : (props.content?.join("\n") ?? ""),
-    );
+        : (props.content?.join("\n") ?? "");
+    void copyTextToClipboard(content);
     setTimeout(() => setIsCopied(false), 1000);
   };
 
@@ -299,6 +303,8 @@ export const IOTableCell = ({
     </>
   );
 };
+
+export const MemoizedIOTableCell = memo(IOTableCell);
 
 export const JsonSkeleton = ({
   className,

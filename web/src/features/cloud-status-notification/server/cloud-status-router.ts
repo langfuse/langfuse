@@ -2,7 +2,7 @@ import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import { CloudStatus } from "@/src/features/cloud-status-notification/types";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 // Cache the response for 1 minute
 let statusCache: { status: CloudStatus | null; timestamp: number } | null =

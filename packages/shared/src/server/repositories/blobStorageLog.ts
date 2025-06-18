@@ -1,26 +1,25 @@
 import {
   commandClickhouse,
-  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
 } from "./clickhouse";
-import { EventLogRecordReadType } from "./definitions";
+import { BlobStorageFileRefRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 export const getBlobStorageByProjectAndEntityId = async (
   projectId: string,
   entityType: string,
   entityId: string,
-): Promise<EventLogRecordReadType[]> => {
+): Promise<BlobStorageFileRefRecordReadType[]> => {
   const query = `
     select *
-    from blob_storage_file_log
+    from blob_storage_file_log FINAL
     where project_id = {projectId: String}
     and entity_type = {entityType: String}
     and entity_id = {entityId: String}
   `;
 
-  return queryClickhouse<EventLogRecordReadType>({
+  return queryClickhouse<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -37,14 +36,14 @@ export const getBlobStorageByProjectAndEntityId = async (
 
 export const getBlobStorageByProjectId = (
   projectId: string,
-): AsyncGenerator<EventLogRecordReadType> => {
+): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     select *
-    from blob_storage_file_log
+    from blob_storage_file_log FINAL
     where project_id = {projectId: String}
   `;
 
-  return queryClickhouseStream<EventLogRecordReadType>({
+  return queryClickhouseStream<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -60,15 +59,15 @@ export const getBlobStorageByProjectId = (
 export const getBlobStorageByProjectIdBeforeDate = (
   projectId: string,
   beforeDate: Date,
-): AsyncGenerator<EventLogRecordReadType> => {
+): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
         select *
-        from blob_storage_file_log
+        from blob_storage_file_log FINAL
         where project_id = {projectId: String}
         and created_at <= {beforeDate: DateTime64(3)}
     `;
 
-  return queryClickhouseStream<EventLogRecordReadType>({
+  return queryClickhouseStream<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -86,16 +85,16 @@ export const getBlobStorageByProjectIdAndEntityIds = (
   projectId: string,
   entityType: "observation" | "trace" | "score",
   entityIds: string[],
-): AsyncGenerator<EventLogRecordReadType> => {
+): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     select *
-    from blob_storage_file_log
+    from blob_storage_file_log FINAL
     where project_id = {projectId: String}
       and entity_type = {entityType: String}
       and entity_id in ({entityIds: Array(String)})
   `;
 
-  return queryClickhouseStream<EventLogRecordReadType>({
+  return queryClickhouseStream<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -116,7 +115,7 @@ export const getBlobStorageByProjectIdAndEntityIds = (
 export const getBlobStorageByProjectIdAndTraceIds = (
   projectId: string,
   traceIds: string[],
-): AsyncGenerator<EventLogRecordReadType> => {
+): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     with filtered_traces as (
       select distinct
@@ -156,13 +155,13 @@ export const getBlobStorageByProjectIdAndTraceIds = (
     -- We use a semi join because we only use the 'filtered_events' as a filter.
     -- There is no need to build the cartesian product (i.e. the combination) between the event log and the events.
     select el.*
-    from blob_storage_file_log el
+    from blob_storage_file_log el FINAL
     left semi join filtered_events fe
     on el.project_id = fe.project_id and el.entity_id = fe.entity_id and el.entity_type = fe.entity_type
     where el.project_id = {projectId: String}
   `;
 
-  return queryClickhouseStream<EventLogRecordReadType>({
+  return queryClickhouseStream<BlobStorageFileRefRecordReadType>({
     query,
     params: {
       projectId,
@@ -174,87 +173,6 @@ export const getBlobStorageByProjectIdAndTraceIds = (
     tags: {
       feature: "eventLog",
       kind: "list",
-      projectId,
-    },
-  });
-};
-
-/**
- * Deletes event log records by projectId and the _eventLog_.id
- * @param projectId - Project ID
- * @param ids - ID record of the event log table to be deleted
- */
-export const deleteBlobStorageByProjectIdAndIds = async (
-  projectId: string,
-  ids: string[],
-): Promise<void> => {
-  const query = `  
-    delete from blob_storage_file_log
-    where project_id = {projectId: String}
-    and id in ({ids: Array(String)});
-  `;
-
-  await commandClickhouse({
-    query,
-    params: {
-      projectId,
-      ids,
-    },
-    clickhouseConfigs: {
-      request_timeout: 300_000, // 5 minutes
-    },
-    tags: {
-      feature: "eventLog",
-      kind: "delete",
-      projectId,
-    },
-  });
-};
-
-export const deleteBlobStorageByProjectId = async (
-  projectId: string,
-): Promise<void> => {
-  const query = `
-    DELETE FROM blob_storage_file_log
-    WHERE project_id = {projectId: String};
-  `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-    },
-    clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
-    },
-    tags: {
-      feature: "eventLog",
-      kind: "delete",
-      projectId,
-    },
-  });
-};
-
-export const deleteBlobStorageByProjectIdBeforeDate = async (
-  projectId: string,
-  beforeDate: Date,
-): Promise<void> => {
-  const query = `
-    DELETE FROM blob_storage_file_log
-    WHERE project_id = {projectId: String}
-    AND created_at <= {beforeDate: DateTime64(3)};
-  `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-      beforeDate: convertDateToClickhouseDateTime(beforeDate),
-    },
-    clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
-    },
-    tags: {
-      feature: "eventLog",
-      kind: "delete",
       projectId,
     },
   });
@@ -328,5 +246,8 @@ export const findS3RefsByPrimaryKey = async (primaryKey: {
       AND entity_id = {entity_id: String}
       AND bucket_path = {bucket_path: String}
   `;
-  return queryClickhouse<EventLogRecordReadType>({ query, params: primaryKey });
+  return queryClickhouse<BlobStorageFileRefRecordReadType>({
+    query,
+    params: primaryKey,
+  });
 };

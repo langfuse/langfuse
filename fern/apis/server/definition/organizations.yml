@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    getOrganizationMemberships:
+      docs: Get all memberships for the organization associated with the API key (requires organization-scoped API key)
+      method: GET
+      path: /organizations/memberships
+      response: MembershipsResponse
+
+    updateOrganizationMembership:
+      docs: Create or update a membership for the organization associated with the API key (requires organization-scoped API key)
+      method: PUT
+      path: /organizations/memberships
+      request: MembershipRequest
+      response: MembershipResponse
+
+    getProjectMemberships:
+      docs: Get all memberships for a specific project (requires organization-scoped API key)
+      method: GET
+      path: /projects/{projectId}/memberships
+      path-parameters:
+        projectId: string
+      response: MembershipsResponse
+
+    updateProjectMembership:
+      docs: Create or update a membership for a specific project (requires organization-scoped API key). The user must already be a member of the organization.
+      method: PUT
+      path: /projects/{projectId}/memberships
+      path-parameters:
+        projectId: string
+      request: MembershipRequest
+      response: MembershipResponse
+
+    getOrganizationProjects:
+      docs: Get all projects for the organization associated with the API key (requires organization-scoped API key)
+      method: GET
+      path: /organizations/projects
+      response: OrganizationProjectsResponse
+
+types:
+  MembershipRole:
+    enum:
+      - OWNER
+      - ADMIN
+      - MEMBER
+      - VIEWER
+
+  MembershipRequest:
+    properties:
+      userId: string
+      role: MembershipRole
+
+  MembershipResponse:
+    properties:
+      userId: string
+      role: MembershipRole
+      email: string
+      name: string
+
+  MembershipsResponse:
+    properties:
+      memberships: list<MembershipResponse>
+
+  OrganizationProject:
+    properties:
+      id: string
+      name: string
+      metadata: optional<map<string, unknown>>
+      createdAt: datetime
+      updatedAt: datetime
+
+  OrganizationProjectsResponse:
+    properties:
+      projects: list<OrganizationProject>

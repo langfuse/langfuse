@@ -342,9 +342,12 @@ const UsersTable = () => {
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         searchConfig={{
-          placeholder: "Search by user id",
+          metadataSearchFields: ["User ID"],
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
         }}
         environmentFilter={{
           values: selectedEnvironments,

@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { cn } from "@/src/utils/tailwind";
 import { Check, Copy } from "lucide-react";
 import { type FC, memo, useState } from "react";
@@ -50,7 +51,7 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
   const [isCopied, setIsCopied] = useState(false);
   const handleCopy = () => {
     setIsCopied(true);
-    void navigator.clipboard.writeText(value ?? "");
+    void copyTextToClipboard(value ?? "");
     setTimeout(() => setIsCopied(false), 1000);
   };
 

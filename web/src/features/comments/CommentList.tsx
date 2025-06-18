@@ -24,7 +24,7 @@ import { useSession } from "next-auth/react";
 import React, { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { BsMarkdown } from "react-icons/bs";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 
 export function CommentList({
   projectId,
@@ -59,7 +59,7 @@ export function CommentList({
     { enabled: hasReadAccess && session.status === "authenticated" },
   );
 
-  const form = useForm<z.infer<typeof CreateCommentData>>({
+  const form = useForm({
     resolver: zodResolver(CreateCommentData),
     defaultValues: {
       content: "",
@@ -139,7 +139,7 @@ export function CommentList({
       {hasWriteAccess && (
         <div className="mx-2 mb-2 mt-2 rounded-md border">
           <div className="flex flex-row border-b px-3 py-1 text-sm">
-            <div className="flex-1 font-medium">New comment</div>
+            <div className="flex-1 text-sm font-medium">New comment</div>
             <div className="text-xs text-muted-foreground">
               supports markdown
             </div>
@@ -203,7 +203,7 @@ export function CommentList({
             </Avatar>
             <div className="relative rounded-md">
               <div className="flex h-8 flex-row items-center justify-between px-1 py-1 text-sm">
-                <div className="font-medium">
+                <div className="text-sm font-medium">
                   {comment.authorUserName ?? comment.authorUserId ?? "User"}
                 </div>
                 <div className="flex flex-row items-center gap-2">

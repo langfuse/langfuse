@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { type Model } from "../../db";
 import { env } from "../../env";
@@ -13,7 +13,6 @@ import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import {
   getCurrentSpan,
   instrumentAsync,
-  instrumentSync,
   recordDistribution,
   recordIncrement,
   traceException,
@@ -39,6 +38,8 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
       endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
+      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
     });
   }
   return s3StorageServiceClient;
@@ -78,11 +79,13 @@ const getDelay = (delay: number | null) => {
  * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
  * @param authCheck - AuthHeaderValidVerificationResult
  * @param delay - (Optional) Delay in ms to wait before processing events in the batch.
+ * @param source - (Optional) Source of the events for metrics tracking (e.g., "otel", "api").
  */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResult,
   delay: number | null = null,
+  source: "api" | "otel" = "api",
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -94,8 +97,10 @@ export const processEventBatch = async (
 }> => {
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
-  recordIncrement("langfuse.ingestion.event", input.length);
-  recordDistribution("langfuse.ingestion.event_distribution", input.length);
+  recordIncrement("langfuse.ingestion.event", input.length, { source });
+  recordDistribution("langfuse.ingestion.event_distribution", input.length, {
+    source,
+  });
 
   currentSpan?.setAttribute("langfuse.ingestion.batch_size", input.length);
   currentSpan?.setAttribute(
@@ -117,19 +122,7 @@ export const processEventBatch = async (
 
   const batch: z.infer<typeof ingestionEvent>[] = input
     .flatMap((event) => {
-      const parsed = instrumentSync(
-        { name: "ingestion-zod-parse-individual-event" },
-        (span) => {
-          const parsedBody = ingestionEvent.safeParse(event);
-          if (parsedBody.data?.id !== undefined) {
-            span.setAttribute(
-              "langfuse.ingestion.entity.id",
-              parsedBody.data.id,
-            );
-          }
-          return parsedBody;
-        },
-      );
+      const parsed = ingestionEvent.safeParse(event);
       if (!parsed.success) {
         validationErrors.push({
           id:
@@ -236,10 +229,13 @@ export const processEventBatch = async (
     throw new Error("Redis not initialized, aborting event processing");
   }
 
-  const queue = IngestionQueue.getInstance();
   await Promise.all(
-    Object.keys(sortedBatchByEventBodyId).map(async (id) =>
-      queue
+    Object.keys(sortedBatchByEventBodyId).map(async (id) => {
+      const eventData = sortedBatchByEventBodyId[id];
+      const shardingKey = `${authCheck.scope.projectId}-${eventData.eventBodyId}`;
+      const queue = IngestionQueue.getInstance({ shardingKey });
+
+      return queue
         ? queue.add(
             QueueJobs.IngestionJob,
             {
@@ -248,9 +244,12 @@ export const processEventBatch = async (
               name: QueueJobs.IngestionJob as const,
               payload: {
                 data: {
-                  type: sortedBatchByEventBodyId[id].type,
-                  eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
-                  fileKey: sortedBatchByEventBodyId[id].key,
+                  type: eventData.type,
+                  eventBodyId: eventData.eventBodyId,
+                  fileKey: eventData.key,
+                  skipS3List:
+                    source === "otel" &&
+                    getClickhouseEntityType(eventData.type) === "observation",
                 },
                 authCheck: authCheck as {
                   validKey: true;
@@ -263,8 +262,8 @@ export const processEventBatch = async (
             },
             { delay: getDelay(delay) },
           )
-        : Promise.reject("Failed to instantiate queue"),
-    ),
+        : Promise.reject("Failed to instantiate queue");
+    }),
   );
 
   return aggregateBatchResult(

@@ -5,7 +5,7 @@ import {
   createObservation,
   createObservationsCh,
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -14,7 +14,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
-import { handleBlobStorageIntegrationProjectJob } from "../ee/integrations/blobstorage/handleBlobStorageIntegrationProjectJob";
+import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -122,7 +122,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         }),
       ]),
       createScoresCh([
-        createScore({
+        createTraceScore({
           id: scoreId,
           trace_id: traceId,
           project_id: projectId,
@@ -334,7 +334,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         }),
       ]),
       createScoresCh([
-        createScore({
+        createTraceScore({
           id: scoreId,
           trace_id: traceId,
           project_id: projectId,

@@ -845,6 +845,71 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
+    get:
+      description: List dataset run items
+      operationId: datasetRunItems_list
+      tags:
+        - DatasetRunItems
+      parameters:
+        - name: datasetId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: runName
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: response
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/PaginatedDatasetRunItems'
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/v2/datasets:
     get:
       description: Get all datasets
@@ -1499,281 +1564,71 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GetMediaUploadUrlRequest'
-  /api/public/organizations/memberships:
+  /api/public/metrics:
     get:
-      description: >-
-        Get all memberships for the organization associated with the API key
-        (requires organization-scoped API key)
-      operationId: memberships_getOrganizationMemberships
-      tags:
-        - Memberships
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MembershipsResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-    put:
-      description: >-
-        Create or update a membership for the organization associated with the
-        API key (requires organization-scoped API key)
-      operationId: memberships_updateOrganizationMembership
-      tags:
-        - Memberships
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MembershipResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MembershipRequest'
-  /api/public/projects/{projectId}/memberships:
-    get:
-      description: >-
-        Get all memberships for a specific project (requires organization-scoped
-        API key)
-      operationId: memberships_getProjectMemberships
-      tags:
-        - Memberships
-      parameters:
-        - name: projectId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MembershipsResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-    put:
-      description: >-
-        Create or update a membership for a specific project (requires
-        organization-scoped API key). The user must already be a member of the
-        organization.
-      operationId: memberships_updateProjectMembership
-      tags:
-        - Memberships
-      parameters:
-        - name: projectId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MembershipResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MembershipRequest'
-  /api/public/metrics/daily:
-    get:
-      description: Get daily metrics of the Langfuse project
-      operationId: metrics_daily
+      description: Get metrics from the Langfuse project using a query object
+      operationId: metrics_metrics
       tags:
         - Metrics
       parameters:
-        - name: page
-          in: query
-          description: page number, starts at 1
-          required: false
-          schema:
-            type: integer
-            nullable: true
-        - name: limit
-          in: query
-          description: limit of items per page
-          required: false
-          schema:
-            type: integer
-            nullable: true
-        - name: traceName
-          in: query
-          description: Optional filter by the name of the trace
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: userId
-          in: query
-          description: Optional filter by the userId associated with the trace
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: tags
-          in: query
-          description: Optional filter for metrics where traces include all of these tags
-          required: false
-          schema:
-            type: array
-            items:
-              type: string
-              nullable: true
-        - name: environment
+        - name: query
           in: query
           description: >-
-            Optional filter for metrics where events include any of these
-            environments
-          required: false
-          schema:
-            type: array
-            items:
-              type: string
-              nullable: true
-        - name: fromTimestamp
-          in: query
-          description: >-
-            Optional filter to only include traces and observations on or after
-            a certain datetime (ISO 8601)
-          required: false
+            JSON string containing the query parameters with the following
+            structure:
+
+            ```json
+
+            {
+              "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
+              "dimensions": [           // Optional. Default: []
+                {
+                  "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
+                }
+              ],
+              "metrics": [              // Required. At least one metric must be provided
+                {
+                  "measure": string,    // What to measure, e.g. "count", "latency", "value"
+                  "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95", "histogram"
+                }
+              ],
+              "filters": [              // Optional. Default: []
+                {
+                  "column": string,     // Column to filter on
+                  "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
+                  "value": any,         // Value to compare against
+                  "type": string,       // Data type, e.g. "string", "number", "stringObject"
+                  "key": string         // Required only when filtering on metadata
+                }
+              ],
+              "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                "granularity": string   // One of "minute", "hour", "day", "week", "month", "auto"
+              },
+              "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+              "toTimestamp": string,    // Required. ISO datetime string for end of time range
+              "orderBy": [              // Optional. Default: null
+                {
+                  "field": string,      // Field to order by
+                  "direction": string   // "asc" or "desc"
+                }
+              ],
+              "config": {               // Optional. Query-specific configuration
+                "bins": number,         // Optional. Number of bins for histogram (1-100), default: 10
+                "row_limit": number     // Optional. Row limit for results (1-1000)
+              }
+            }
+
+            ```
+          required: true
           schema:
             type: string
-            format: date-time
-            nullable: true
-        - name: toTimestamp
-          in: query
-          description: >-
-            Optional filter to only include traces and observations before a
-            certain datetime (ISO 8601)
-          required: false
-          schema:
-            type: string
-            format: date-time
-            nullable: true
       responses:
         '200':
           description: ''
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DailyMetrics'
+                $ref: '#/components/schemas/MetricsResponse'
         '400':
           description: ''
           content:
@@ -2108,7 +1963,7 @@ paths:
         - name: fromStartTime
           in: query
           description: >-
-            Retrieve only observations with a start_time or or after this
+            Retrieve only observations with a start_time on or after this
             datetime (ISO 8601).
           required: false
           schema:
@@ -2139,6 +1994,242 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ObservationsViews'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/organizations/memberships:
+    get:
+      description: >-
+        Get all memberships for the organization associated with the API key
+        (requires organization-scoped API key)
+      operationId: organizations_getOrganizationMemberships
+      tags:
+        - Organizations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: >-
+        Create or update a membership for the organization associated with the
+        API key (requires organization-scoped API key)
+      operationId: organizations_updateOrganizationMembership
+      tags:
+        - Organizations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipRequest'
+  /api/public/projects/{projectId}/memberships:
+    get:
+      description: >-
+        Get all memberships for a specific project (requires organization-scoped
+        API key)
+      operationId: organizations_getProjectMemberships
+      tags:
+        - Organizations
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: >-
+        Create or update a membership for a specific project (requires
+        organization-scoped API key). The user must already be a member of the
+        organization.
+      operationId: organizations_updateProjectMembership
+      tags:
+        - Organizations
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipRequest'
+  /api/public/organizations/projects:
+    get:
+      description: >-
+        Get all projects for the organization associated with the API key
+        (requires organization-scoped API key)
+      operationId: organizations_getOrganizationProjects
+      tags:
+        - Organizations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationProjectsResponse'
         '400':
           description: ''
           content:
@@ -2264,7 +2355,7 @@ paths:
                 retention:
                   type: integer
                   description: >-
-                    Number of days to retain data. Must be 0 or at least 7 days.
+                    Number of days to retain data. Must be 0 or at least 3 days.
                     Requires data-retention entitlement for non-zero values.
                     Optional.
               required:
@@ -2333,7 +2424,7 @@ paths:
                 retention:
                   type: integer
                   description: >-
-                    Number of days to retain data. Must be 0 or at least 7 days.
+                    Number of days to retain data. Must be 0 or at least 3 days.
                     Requires data-retention entitlement for non-zero values.
                     Optional.
               required:
@@ -3318,58 +3409,12 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
-  /api/public/scores:
-    post:
-      description: Create a score
-      operationId: score_create
-      tags:
-        - Score
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreateScoreResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateScoreRequest'
+  /api/public/v2/scores:
     get:
-      description: Get a list of scores
-      operationId: score_get
+      description: Get a list of scores (supports both trace and session scores)
+      operationId: scoreV2_get
       tags:
-        - Score
+        - ScoreV2
       parameters:
         - name: page
           in: query
@@ -3527,12 +3572,12 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
-  /api/public/scores/{scoreId}:
+  /api/public/v2/scores/{scoreId}:
     get:
-      description: Get a score
-      operationId: score_get-by-id
+      description: Get a score (supports both trace and session scores)
+      operationId: scoreV2_get-by-id
       tags:
-        - Score
+        - ScoreV2
       parameters:
         - name: scoreId
           in: path
@@ -3574,8 +3619,56 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/scores:
+    post:
+      description: Create a score (supports both trace and session scores)
+      operationId: score_create
+      tags:
+        - Score
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateScoreResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScoreRequest'
+  /api/public/scores/{scoreId}:
     delete:
-      description: Delete a score
+      description: Delete a score (supports both trace and session scores)
       operationId: score_delete
       tags:
         - Score
@@ -3952,6 +4045,17 @@ paths:
             items:
               type: string
               nullable: true
+        - name: fields
+          in: query
+          description: >-
+            Comma-separated list of fields to include in the response. Available
+            field groups are 'core' (always included), 'io' (input, output,
+            metadata), 'scores', 'observations', 'metrics'. If not provided, all
+            fields are included. Example: 'core,scores,metrics'
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -4343,7 +4447,7 @@ components:
         scores:
           type: array
           items:
-            $ref: '#/components/schemas/Score'
+            $ref: '#/components/schemas/ScoreV1'
           description: List of scores
       required:
         - htmlPath
@@ -4657,8 +4761,8 @@ components:
       required:
         - value
         - label
-    BaseScore:
-      title: BaseScore
+    BaseScoreV1:
+      title: BaseScoreV1
       type: object
       properties:
         id:
@@ -4712,6 +4816,160 @@ components:
       required:
         - id
         - traceId
+        - name
+        - source
+        - timestamp
+        - createdAt
+        - updatedAt
+    NumericScoreV1:
+      title: NumericScoreV1
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: The numeric value of the score
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV1'
+    BooleanScoreV1:
+      title: BooleanScoreV1
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: >-
+            The numeric value of the score. Equals 1 for "True" and 0 for
+            "False"
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. Is inferred from the
+            numeric value and equals "True" or "False"
+      required:
+        - value
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV1'
+    CategoricalScoreV1:
+      title: CategoricalScoreV1
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Only defined if a config is linked. Represents the numeric category
+            mapping of the stringValue
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. If no config is
+            linked, can be any string. Otherwise, must map to a config category
+      required:
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV1'
+    ScoreV1:
+      title: ScoreV1
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/NumericScoreV1'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/CategoricalScoreV1'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/BooleanScoreV1'
+          required:
+            - dataType
+    BaseScore:
+      title: BaseScore
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        observationId:
+          type: string
+          nullable: true
+        datasetRunId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        timestamp:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
+          nullable: true
+        comment:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. When set, config and score name
+            must be equal and value must comply to optionally defined numerical
+            range
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            Reference an annotation queue on a score. Populated if the score was
+            initially created in an annotation queue.
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment from which this score originated. Can be any
+            lowercase alphanumeric string with hyphens and underscores that does
+            not start with 'langfuse'.
+      required:
+        - id
         - name
         - source
         - timestamp
@@ -5025,19 +5283,19 @@ components:
           type: number
           format: double
           nullable: true
-          description: Price (USD) per input unit
+          description: Deprecated. See 'prices' instead. Price (USD) per input unit
         outputPrice:
           type: number
           format: double
           nullable: true
-          description: Price (USD) per output unit
+          description: Deprecated. See 'prices' instead. Price (USD) per output unit
         totalPrice:
           type: number
           format: double
           nullable: true
           description: >-
-            Price (USD) per total unit. Cannot be set if input or output price
-            is set.
+            Deprecated. See 'prices' instead. Price (USD) per total unit. Cannot
+            be set if input or output price is set.
         tokenizerId:
           type: string
           nullable: true
@@ -5051,11 +5309,26 @@ components:
             JSON. See docs for more details.
         isLangfuseManaged:
           type: boolean
+        prices:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ModelPrice'
+          description: Price (USD) by usage type
       required:
         - id
         - modelName
         - matchPattern
         - isLangfuseManaged
+        - prices
+    ModelPrice:
+      title: ModelPrice
+      type: object
+      properties:
+        price:
+          type: number
+          format: double
+      required:
+        - price
     ModelUsageUnit:
       title: ModelUsageUnit
       type: string
@@ -5195,6 +5468,19 @@ components:
       required:
         - runName
         - datasetItemId
+    PaginatedDatasetRunItems:
+      title: PaginatedDatasetRunItems
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetRunItem'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
     PaginatedDatasets:
       title: PaginatedDatasets
       type: object
@@ -5662,7 +5948,16 @@ components:
           nullable: true
         traceId:
           type: string
-          example: cdef-1234-5678-90ab
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        observationId:
+          type: string
+          nullable: true
+        datasetRunId:
+          type: string
+          nullable: true
         name:
           type: string
           example: novelty
@@ -5675,9 +5970,6 @@ components:
             The value of the score. Must be passed as string for categorical
             scores, and numeric for boolean and numeric scores. Boolean score
             values must equal either 1 or 0 (true or false)
-        observationId:
-          type: string
-          nullable: true
         comment:
           type: string
           nullable: true
@@ -5699,7 +5991,6 @@ components:
             config category. Numeric scores might be constrained by the score
             config's max and min values
       required:
-        - traceId
         - name
         - value
     BaseEvent:
@@ -6059,125 +6350,24 @@ components:
         - application/xml
         - application/octet-stream
       description: The MIME type of the media record
-    MembershipRole:
-      title: MembershipRole
-      type: string
-      enum:
-        - OWNER
-        - ADMIN
-        - MEMBER
-        - VIEWER
-    MembershipRequest:
-      title: MembershipRequest
-      type: object
-      properties:
-        userId:
-          type: string
-        role:
-          $ref: '#/components/schemas/MembershipRole'
-      required:
-        - userId
-        - role
-    MembershipResponse:
-      title: MembershipResponse
-      type: object
-      properties:
-        userId:
-          type: string
-        role:
-          $ref: '#/components/schemas/MembershipRole'
-        email:
-          type: string
-        name:
-          type: string
-      required:
-        - userId
-        - role
-        - email
-        - name
-    MembershipsResponse:
-      title: MembershipsResponse
-      type: object
-      properties:
-        memberships:
-          type: array
-          items:
-            $ref: '#/components/schemas/MembershipResponse'
-      required:
-        - memberships
-    DailyMetrics:
-      title: DailyMetrics
+    MetricsResponse:
+      title: MetricsResponse
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/DailyMetricsDetails'
-          description: A list of daily metrics, only days with ingested data are included.
-        meta:
-          $ref: '#/components/schemas/utilsMetaResponse'
+            type: object
+            additionalProperties: true
+          description: >-
+            The metrics data. Each item in the list contains the metric values
+            and dimensions requested in the query.
+
+            Format varies based on the query parameters.
+
+            Histograms will return an array with [lower, upper, height] tuples.
       required:
         - data
-        - meta
-    DailyMetricsDetails:
-      title: DailyMetricsDetails
-      type: object
-      properties:
-        date:
-          type: string
-          format: date
-        countTraces:
-          type: integer
-        countObservations:
-          type: integer
-        totalCost:
-          type: number
-          format: double
-          description: Total model cost in USD
-        usage:
-          type: array
-          items:
-            $ref: '#/components/schemas/UsageByModel'
-      required:
-        - date
-        - countTraces
-        - countObservations
-        - totalCost
-        - usage
-    UsageByModel:
-      title: UsageByModel
-      type: object
-      description: >-
-        Daily usage of a given model. Usage corresponds to the unit set for the
-        specific model (e.g. tokens).
-      properties:
-        model:
-          type: string
-          nullable: true
-        inputUsage:
-          type: integer
-          description: Total number of generation input units (e.g. tokens)
-        outputUsage:
-          type: integer
-          description: Total number of generation output units (e.g. tokens)
-        totalUsage:
-          type: integer
-          description: Total number of generation total units (e.g. tokens)
-        countTraces:
-          type: integer
-        countObservations:
-          type: integer
-        totalCost:
-          type: number
-          format: double
-          description: Total model cost in USD
-      required:
-        - inputUsage
-        - outputUsage
-        - totalUsage
-        - countTraces
-        - countObservations
-        - totalCost
     PaginatedModels:
       title: PaginatedModels
       type: object
@@ -6274,6 +6464,85 @@ components:
       required:
         - data
         - meta
+    MembershipRole:
+      title: MembershipRole
+      type: string
+      enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        - VIEWER
+    MembershipRequest:
+      title: MembershipRequest
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+      required:
+        - userId
+        - role
+    MembershipResponse:
+      title: MembershipResponse
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+        email:
+          type: string
+        name:
+          type: string
+      required:
+        - userId
+        - role
+        - email
+        - name
+    MembershipsResponse:
+      title: MembershipsResponse
+      type: object
+      properties:
+        memberships:
+          type: array
+          items:
+            $ref: '#/components/schemas/MembershipResponse'
+      required:
+        - memberships
+    OrganizationProject:
+      title: OrganizationProject
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+    OrganizationProjectsResponse:
+      title: OrganizationProjectsResponse
+      type: object
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationProject'
+      required:
+        - projects
     Projects:
       title: Projects
       type: object
@@ -6298,6 +6567,7 @@ components:
           description: Metadata for the project
         retentionDays:
           type: integer
+          nullable: true
           description: >-
             Number of days to retain data. Null or 0 means no retention. Omitted
             if no retention is configured.
@@ -6305,7 +6575,6 @@ components:
         - id
         - name
         - metadata
-        - retentionDays
     ProjectDeletionResponse:
       title: ProjectDeletionResponse
       type: object
@@ -6967,67 +7236,6 @@ components:
       required:
         - name
         - dataType
-    CreateScoreRequest:
-      title: CreateScoreRequest
-      type: object
-      properties:
-        id:
-          type: string
-          nullable: true
-        traceId:
-          type: string
-          example: cdef-1234-5678-90ab
-        name:
-          type: string
-          example: novelty
-        value:
-          $ref: '#/components/schemas/CreateScoreValue'
-          description: >-
-            The value of the score. Must be passed as string for categorical
-            scores, and numeric for boolean and numeric scores. Boolean score
-            values must equal either 1 or 0 (true or false)
-        observationId:
-          type: string
-          nullable: true
-        comment:
-          type: string
-          nullable: true
-        metadata:
-          nullable: true
-        environment:
-          type: string
-          nullable: true
-          description: >-
-            The environment of the score. Can be any lowercase alphanumeric
-            string with hyphens and underscores that does not start with
-            'langfuse'.
-        dataType:
-          $ref: '#/components/schemas/ScoreDataType'
-          nullable: true
-          description: >-
-            The data type of the score. When passing a configId this field is
-            inferred. Otherwise, this field must be passed or will default to
-            numeric.
-        configId:
-          type: string
-          nullable: true
-          description: >-
-            Reference a score config on a score. The unique langfuse identifier
-            of a score config. When passing this field, the dataType and
-            stringValue fields are automatically populated.
-      required:
-        - traceId
-        - name
-        - value
-    CreateScoreResponse:
-      title: CreateScoreResponse
-      type: object
-      properties:
-        id:
-          type: string
-          description: The id of the created object in Langfuse
-      required:
-        - id
     GetScoresResponseTraceData:
       title: GetScoresResponseTraceData
       type: object
@@ -7052,8 +7260,7 @@ components:
       properties:
         trace:
           $ref: '#/components/schemas/GetScoresResponseTraceData'
-      required:
-        - trace
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/NumericScore'
     GetScoresResponseDataCategorical:
@@ -7062,8 +7269,7 @@ components:
       properties:
         trace:
           $ref: '#/components/schemas/GetScoresResponseTraceData'
-      required:
-        - trace
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/CategoricalScore'
     GetScoresResponseDataBoolean:
@@ -7072,8 +7278,7 @@ components:
       properties:
         trace:
           $ref: '#/components/schemas/GetScoresResponseTraceData'
-      required:
-        - trace
+          nullable: true
       allOf:
         - $ref: '#/components/schemas/BooleanScore'
     GetScoresResponseData:
@@ -7125,6 +7330,72 @@ components:
       required:
         - data
         - meta
+    CreateScoreRequest:
+      title: CreateScoreRequest
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        observationId:
+          type: string
+          nullable: true
+        datasetRunId:
+          type: string
+          nullable: true
+        name:
+          type: string
+          example: novelty
+        value:
+          $ref: '#/components/schemas/CreateScoreValue'
+          description: >-
+            The value of the score. Must be passed as string for categorical
+            scores, and numeric for boolean and numeric scores. Boolean score
+            values must equal either 1 or 0 (true or false)
+        comment:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment of the score. Can be any lowercase alphanumeric
+            string with hyphens and underscores that does not start with
+            'langfuse'.
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
+          description: >-
+            The data type of the score. When passing a configId this field is
+            inferred. Otherwise, this field must be passed or will default to
+            numeric.
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. The unique langfuse identifier
+            of a score config. When passing this field, the dataType and
+            stringValue fields are automatically populated.
+      required:
+        - name
+        - value
+    CreateScoreResponse:
+      title: CreateScoreResponse
+      type: object
+      properties:
+        id:
+          type: string
+          description: The id of the created object in Langfuse
+      required:
+        - id
     PaginatedSessions:
       title: PaginatedSessions
       type: object

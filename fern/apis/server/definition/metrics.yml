@@ -6,71 +6,64 @@ service:
   auth: true
   base-path: /api/public
   endpoints:
-    daily:
-      docs: Get daily metrics of the Langfuse project
+    metrics:
+      docs: Get metrics from the Langfuse project using a query object
       method: GET
-      path: /metrics/daily
+      path: /metrics
       request:
-        name: GetDailyMetricsRequest
+        name: GetMetricsRequest
         query-parameters:
-          page:
-            type: optional<integer>
-            docs: page number, starts at 1
-          limit:
-            type: optional<integer>
-            docs: limit of items per page
-          traceName:
-            type: optional<string>
-            docs: Optional filter by the name of the trace
-          userId:
-            type: optional<string>
-            docs: Optional filter by the userId associated with the trace
-          tags:
-            type: optional<string>
-            allow-multiple: true
-            docs: Optional filter for metrics where traces include all of these tags
-          environment:
-            type: optional<string>
-            allow-multiple: true
-            docs: Optional filter for metrics where events include any of these environments
-          fromTimestamp:
-            type: optional<datetime>
-            docs: Optional filter to only include traces and observations on or after a certain datetime (ISO 8601)
-          toTimestamp:
-            type: optional<datetime>
-            docs: Optional filter to only include traces and observations before a certain datetime (ISO 8601)
-      response: DailyMetrics
+          query:
+            type: string
+            docs: |
+              JSON string containing the query parameters with the following structure:
+              ```json
+              {
+                "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
+                "dimensions": [           // Optional. Default: []
+                  {
+                    "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
+                  }
+                ],
+                "metrics": [              // Required. At least one metric must be provided
+                  {
+                    "measure": string,    // What to measure, e.g. "count", "latency", "value"
+                    "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95", "histogram"
+                  }
+                ],
+                "filters": [              // Optional. Default: []
+                  {
+                    "column": string,     // Column to filter on
+                    "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
+                    "value": any,         // Value to compare against
+                    "type": string,       // Data type, e.g. "string", "number", "stringObject"
+                    "key": string         // Required only when filtering on metadata
+                  }
+                ],
+                "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                  "granularity": string   // One of "minute", "hour", "day", "week", "month", "auto"
+                },
+                "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+                "toTimestamp": string,    // Required. ISO datetime string for end of time range
+                "orderBy": [              // Optional. Default: null
+                  {
+                    "field": string,      // Field to order by
+                    "direction": string   // "asc" or "desc"
+                  }
+                ],
+                "config": {               // Optional. Query-specific configuration
+                  "bins": number,         // Optional. Number of bins for histogram (1-100), default: 10
+                  "row_limit": number     // Optional. Row limit for results (1-1000)
+                }
+              }
+              ```
+      response: MetricsResponse
 types:
-  DailyMetrics:
+  MetricsResponse:
     properties:
       data:
-        type: list<DailyMetricsDetails>
-        docs: A list of daily metrics, only days with ingested data are included.
-      meta: pagination.MetaResponse
-  DailyMetricsDetails:
-    properties:
-      date: date
-      countTraces: integer
-      countObservations: integer
-      totalCost:
-        type: double
-        docs: Total model cost in USD
-      usage: list<UsageByModel>
-  UsageByModel:
-    docs: Daily usage of a given model. Usage corresponds to the unit set for the specific model (e.g. tokens).
-    properties:
-      model: optional<string>
-      inputUsage:
-        type: integer
-        docs: Total number of generation input units (e.g. tokens)
-      outputUsage:
-        type: integer
-        docs: Total number of generation output units (e.g. tokens)
-      totalUsage:
-        type: integer
-        docs: Total number of generation total units (e.g. tokens)
-      countTraces: integer
-      countObservations: integer
-      totalCost:
-        type: double
-        docs: Total model cost in USD
+        type: list<map<string, unknown>>
+        docs: |
+          The metrics data. Each item in the list contains the metric values and dimensions requested in the query.
+          Format varies based on the query parameters.
+          Histograms will return an array with [lower, upper, height] tuples.

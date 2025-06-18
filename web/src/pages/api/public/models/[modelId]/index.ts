@@ -35,6 +35,11 @@ export default withMiddlewares({
             },
           ],
         },
+        include: {
+          Price: {
+            select: { usageType: true, price: true },
+          },
+        },
       });
       if (!model) {
         throw new LangfuseNotFoundError("No model with this id found.");

@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { makeZodVerifiedAPICallSilent } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
@@ -187,7 +187,7 @@ describe("Media Upload API", () => {
     } finally {
       if (mediaId) {
         result.mediaRecord = await prisma.media.findUnique({
-          where: { id: mediaId },
+          where: { projectId_id: { id: mediaId, projectId } },
         });
         result.traceMediaRecord = await prisma.traceMedia.findUnique({
           where: {

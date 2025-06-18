@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import * as z from "zod/v4";
 import Head from "next/head";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -57,7 +57,7 @@ export function ResetPasswordPage({
     session.data?.user?.emailVerified,
   );
 
-  const form = useForm<z.infer<typeof resetPasswordSchema>>({
+  const form = useForm({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
       email: session.data?.user?.email ?? "",

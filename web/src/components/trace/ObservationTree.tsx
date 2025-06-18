@@ -1,7 +1,7 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import {
-  type APIScore,
+  type APIScoreV2,
   ObservationLevel,
   type ObservationLevelType,
   type TraceDomain,
@@ -42,12 +42,13 @@ export const ObservationTree = ({
   toggleCollapsedObservation: (id: string) => void;
   collapseAll: () => void;
   expandAll: () => void;
-  trace: Omit<TraceDomain, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     latency?: number;
     input: string | null;
     output: string | null;
+    metadata: string | null;
   };
-  scores: APIScore[];
+  scores: APIScoreV2[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics: boolean;
@@ -128,14 +129,15 @@ export const ObservationTree = ({
 };
 
 const ObservationTreeTraceNode = (props: {
-  trace: Omit<TraceDomain, "input" | "output"> & {
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     input: string | null;
     output: string | null;
+    metadata: string | null;
     latency?: number;
   };
   expandAll: () => void;
   collapseAll: () => void;
-  scores: APIScore[];
+  scores: APIScoreV2[];
   comments: Map<string, number> | undefined;
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
@@ -188,12 +190,18 @@ const ObservationTreeTraceNode = (props: {
           {props.showMetrics && (
             <div className="flex gap-2">
               {props.trace.latency ? (
-                <span className="text-xs text-muted-foreground">
+                <span
+                  className="text-xs text-muted-foreground"
+                  title="Aggregated duration of all observations"
+                >
                   {formatIntervalSeconds(props.trace.latency)}
                 </span>
               ) : null}
               {props.totalCost ? (
-                <span className="text-xs text-muted-foreground">
+                <span
+                  className="text-xs text-muted-foreground"
+                  title="Aggregated cost of all observations"
+                >
                   {usdFormatter(props.totalCost.toNumber())}
                 </span>
               ) : null}
@@ -239,7 +247,7 @@ const ObservationTreeNode = (props: {
   observations: NestedObservation[];
   collapsedObservations: string[];
   toggleCollapsedObservation: (id: string) => void;
-  scores: APIScore[];
+  scores: APIScoreV2[];
   comments?: Map<string, number> | undefined;
   indentationLevel: number;
   currentObservationId: string | undefined;
@@ -312,7 +320,7 @@ const ObservationTreeNodeCard = ({
   observation: NestedObservation;
   collapsed: boolean;
   toggleCollapsedObservation: (id: string) => void;
-  scores: APIScore[];
+  scores: APIScoreV2[];
   comments?: Map<string, number> | undefined;
   indentationLevel: number;
   currentObservationId: string | undefined;
@@ -422,6 +430,11 @@ const ObservationTreeNodeCard = ({
                 <div className="flex w-full flex-wrap gap-2">
                   {duration ? (
                     <span
+                      title={
+                        observation.children.length > 0
+                          ? "Aggregated duration of all child observations"
+                          : undefined
+                      }
                       className={cn(
                         "text-xs text-muted-foreground",
                         parentTotalDuration &&
@@ -445,6 +458,11 @@ const ObservationTreeNodeCard = ({
                   ) : null}
                   {totalCost ? (
                     <span
+                      title={
+                        observation.children.length > 0
+                          ? "Aggregated cost of all child observations"
+                          : undefined
+                      }
                       className={cn(
                         "text-xs text-muted-foreground",
                         parentTotalCost &&
@@ -455,6 +473,7 @@ const ObservationTreeNodeCard = ({
                           }),
                       )}
                     >
+                      {observation.children.length > 0 ? "∑ " : ""}
                       {usdFormatter(totalCost.toNumber())}
                     </span>
                   ) : null}

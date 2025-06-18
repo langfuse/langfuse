@@ -58,16 +58,30 @@ See this [diagram](https://langfuse.com/self-hosting#architecture) for an overvi
 ### Network Overview
 
 ```mermaid
-flowchart LR
-   Browser ---|Web UI & TRPC API| App
-   Integrations/SDKs ---|Public HTTP API| App
-   subgraph i1["Application Network"]
-      App["Langfuse Application"]
-   end
-   subgraph i2["Database Network"]
-      DB["Postgres Database"]
-   end
-   App --- DB
+flowchart TB
+    User["UI, API, SDKs"]
+    subgraph vpc["VPC"]
+        Web["Web Server<br/>(langfuse/langfuse)"]
+        Worker["Async Worker<br/>(langfuse/worker)"]
+        Postgres["Postgres - OLTP<br/>(Transactional Data)"]
+        Cache["Redis/Valkey<br/>(Cache, Queue)"]
+        Clickhouse["Clickhouse - OLAP<br/>(Observability Data)"]
+        S3["S3 / Blob Storage<br/>(Raw events, multi-modal attachments)"]
+    end
+    LLM["LLM API/Gateway<br/>(optional)"]
+
+    User --> Web
+    Web --> S3
+    Web --> Postgres
+    Web --> Cache
+    Web --> Clickhouse
+    Web -.->|"optional for playground"| LLM
+
+    Cache --> Worker
+    Worker --> Clickhouse
+    Worker --> Postgres
+    Worker --> S3
+    Worker -.->|"optional for evals"| LLM
 ```
 
 ### Database Overview
@@ -83,7 +97,7 @@ Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/pri
 We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https://turbo.build/repo/docs) to manage the dependencies and build process. The monorepo contains the following packages:
 
 - `web`: is the main application package providing Frontend and Backend APIs for Langfuse.
-- `worker` (no production yet): contains an application for asynchronous processing of tasks. This package is not yet used in production.
+- `worker`: contains an application for asynchronous processing of tasks.
 - `packages`:
   - `shared`: contains shared code between the above packages.
   - `config-eslint`: contains eslint configurations which are shared between the above packages.

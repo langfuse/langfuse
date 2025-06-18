@@ -1,12 +1,25 @@
 import { APIObservation } from "@/src/features/public-api/types/observations";
 import {
-  APIScoreSchema,
+  APIScoreSchemaV1,
   paginationMetaResponseZod,
   orderBy,
   publicApiPaginationZod,
 } from "@langfuse/shared";
 import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
+
+/**
+ * Field groups for selective field fetching
+ */
+export const TRACE_FIELD_GROUPS = [
+  "core",
+  "io",
+  "scores",
+  "observations",
+  "metrics",
+] as const;
+
+export type TraceFieldGroup = (typeof TRACE_FIELD_GROUPS)[number];
 
 /**
  * Objects
@@ -36,10 +49,10 @@ export const APITrace = z
   .strict();
 
 const APIExtendedTrace = APITrace.extend({
-  observations: z.array(z.string()),
-  scores: z.array(z.string()),
-  totalCost: z.number(),
-  latency: z.number(),
+  observations: z.array(z.string()).nullish(),
+  scores: z.array(z.string()).nullish(),
+  totalCost: z.number().nullish(),
+  latency: z.number().nullish(),
   htmlPath: z.string(),
 }).strict();
 
@@ -67,7 +80,18 @@ export const GetTracesV1Query = z.object({
       const [column, order] = v.split(".");
       return { column, order: order?.toUpperCase() };
     })
-    .pipe(orderBy.nullish()),
+    .pipe(orderBy.nullable()),
+  fields: z
+    .string()
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      return v
+        .split(",")
+        .map((f) => f.trim())
+        .filter((f) => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
+    })
+    .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
 });
 export const GetTracesV1Response = z
   .object({
@@ -85,7 +109,7 @@ export const GetTraceV1Query = z.object({
   traceId: z.string(),
 });
 export const GetTraceV1Response = APIExtendedTrace.extend({
-  scores: z.array(APIScoreSchema),
+  scores: z.array(APIScoreSchemaV1),
   observations: z.array(APIObservation),
 }).strict();
 

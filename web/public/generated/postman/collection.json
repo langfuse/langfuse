@@ -642,6 +642,57 @@
             }
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "List dataset run items",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/dataset-run-items?datasetId=&runName=&page=&limit=&response=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-run-items"
+              ],
+              "query": [
+                {
+                  "key": "datasetId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "runName",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                },
+                {
+                  "key": "response",
+                  "value": "",
+                  "description": null
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
@@ -1198,205 +1249,28 @@
     {
       "_type": "container",
       "description": null,
-      "name": "Memberships",
-      "item": [
-        {
-          "_type": "endpoint",
-          "name": "Get Organization Memberships",
-          "request": {
-            "description": "Get all memberships for the organization associated with the API key (requires organization-scoped API key)",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/organizations/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "organizations",
-                "memberships"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "GET",
-            "auth": null,
-            "body": null
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Update Organization Membership",
-          "request": {
-            "description": "Create or update a membership for the organization associated with the API key (requires organization-scoped API key)",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/organizations/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "organizations",
-                "memberships"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "PUT",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Get Project Memberships",
-          "request": {
-            "description": "Get all memberships for a specific project (requires organization-scoped API key)",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "projects",
-                ":projectId",
-                "memberships"
-              ],
-              "query": [],
-              "variable": [
-                {
-                  "key": "projectId",
-                  "value": "",
-                  "description": null
-                }
-              ]
-            },
-            "header": [],
-            "method": "GET",
-            "auth": null,
-            "body": null
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Update Project Membership",
-          "request": {
-            "description": "Create or update a membership for a specific project (requires organization-scoped API key). The user must already be a member of the organization.",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "projects",
-                ":projectId",
-                "memberships"
-              ],
-              "query": [],
-              "variable": [
-                {
-                  "key": "projectId",
-                  "value": "",
-                  "description": null
-                }
-              ]
-            },
-            "header": [],
-            "method": "PUT",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "_type": "container",
-      "description": null,
       "name": "Metrics",
       "item": [
         {
           "_type": "endpoint",
-          "name": "Daily",
+          "name": "Metrics",
           "request": {
-            "description": "Get daily metrics of the Langfuse project",
+            "description": "Get metrics from the Langfuse project using a query object",
             "url": {
-              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=&environment=&fromTimestamp=&toTimestamp=",
+              "raw": "{{baseUrl}}/api/public/metrics?query=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
-                "metrics",
-                "daily"
+                "metrics"
               ],
               "query": [
                 {
-                  "key": "page",
+                  "key": "query",
                   "value": "",
-                  "description": "page number, starts at 1"
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "limit of items per page"
-                },
-                {
-                  "key": "traceName",
-                  "value": "",
-                  "description": "Optional filter by the name of the trace"
-                },
-                {
-                  "key": "userId",
-                  "value": "",
-                  "description": "Optional filter by the userId associated with the trace"
-                },
-                {
-                  "key": "tags",
-                  "value": "",
-                  "description": "Optional filter for metrics where traces include all of these tags"
-                },
-                {
-                  "key": "environment",
-                  "value": "",
-                  "description": "Optional filter for metrics where events include any of these environments"
-                },
-                {
-                  "key": "fromTimestamp",
-                  "value": "",
-                  "description": "Optional filter to only include traces and observations on or after a certain datetime (ISO 8601)"
-                },
-                {
-                  "key": "toTimestamp",
-                  "value": "",
-                  "description": "Optional filter to only include traces and observations before a certain datetime (ISO 8601)"
+                  "description": "JSON string containing the query parameters with the following structure:\n```json\n{\n  \"view\": string,           // Required. One of \"traces\", \"observations\", \"scores-numeric\", \"scores-categorical\"\n  \"dimensions\": [           // Optional. Default: []\n    {\n      \"field\": string       // Field to group by, e.g. \"name\", \"userId\", \"sessionId\"\n    }\n  ],\n  \"metrics\": [              // Required. At least one metric must be provided\n    {\n      \"measure\": string,    // What to measure, e.g. \"count\", \"latency\", \"value\"\n      \"aggregation\": string // How to aggregate, e.g. \"count\", \"sum\", \"avg\", \"p95\", \"histogram\"\n    }\n  ],\n  \"filters\": [              // Optional. Default: []\n    {\n      \"column\": string,     // Column to filter on\n      \"operator\": string,   // Operator, e.g. \"=\", \">\", \"<\", \"contains\"\n      \"value\": any,         // Value to compare against\n      \"type\": string,       // Data type, e.g. \"string\", \"number\", \"stringObject\"\n      \"key\": string         // Required only when filtering on metadata\n    }\n  ],\n  \"timeDimension\": {        // Optional. Default: null. If provided, results will be grouped by time\n    \"granularity\": string   // One of \"minute\", \"hour\", \"day\", \"week\", \"month\", \"auto\"\n  },\n  \"fromTimestamp\": string,  // Required. ISO datetime string for start of time range\n  \"toTimestamp\": string,    // Required. ISO datetime string for end of time range\n  \"orderBy\": [              // Optional. Default: null\n    {\n      \"field\": string,      // Field to order by\n      \"direction\": string   // \"asc\" or \"desc\"\n    }\n  ],\n  \"config\": {               // Optional. Query-specific configuration\n    \"bins\": number,         // Optional. Number of bins for histogram (1-100), default: 10\n    \"row_limit\": number     // Optional. Row limit for results (1-1000)\n  }\n}\n```"
                 }
               ],
               "variable": []
@@ -1646,7 +1520,7 @@
                 {
                   "key": "fromStartTime",
                   "value": "",
-                  "description": "Retrieve only observations with a start_time or or after this datetime (ISO 8601)."
+                  "description": "Retrieve only observations with a start_time on or after this datetime (ISO 8601)."
                 },
                 {
                   "key": "toStartTime",
@@ -1659,6 +1533,173 @@
                   "description": "Optional filter to only include observations with a certain version."
                 }
               ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Organizations",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get Organization Memberships",
+          "request": {
+            "description": "Get all memberships for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Organization Membership",
+          "request": {
+            "description": "Create or update a membership for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Project Memberships",
+          "request": {
+            "description": "Get all memberships for a specific project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Project Membership",
+          "request": {
+            "description": "Create or update a membership for a specific project (requires organization-scoped API key). The user must already be a member of the organization.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Organization Projects",
+          "request": {
+            "description": "Get all projects for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "projects"
+              ],
+              "query": [],
               "variable": []
             },
             "header": [],
@@ -2460,54 +2501,22 @@
     {
       "_type": "container",
       "description": null,
-      "name": "Score",
+      "name": "Score V 2",
       "item": [
-        {
-          "_type": "endpoint",
-          "name": "Create",
-          "request": {
-            "description": "Create a score",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/scores",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "scores"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "POST",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"name\": \"novelty\",\n    \"value\": 0.9,\n    \"traceId\": \"cdef-1234-5678-90ab\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
         {
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get a list of scores",
+            "description": "Get a list of scores (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
+              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "scores"
               ],
               "query": [
@@ -2600,15 +2609,16 @@
           "_type": "endpoint",
           "name": "Get By Id",
           "request": {
-            "description": "Get a score",
+            "description": "Get a score (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores/:scoreId",
+              "raw": "{{baseUrl}}/api/public/v2/scores/:scoreId",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "scores",
                 ":scoreId"
               ],
@@ -2627,12 +2637,52 @@
             "body": null
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Score",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a score (supports both trace and session scores)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/scores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scores"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"novelty\",\n    \"value\": 0.9,\n    \"traceId\": \"cdef-1234-5678-90ab\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         },
         {
           "_type": "endpoint",
           "name": "Delete",
           "request": {
-            "description": "Delete a score",
+            "description": "Delete a score (supports both trace and session scores)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores/:scoreId",
               "host": [
@@ -2827,7 +2877,7 @@
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=&environment=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=&environment=&fields=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2896,6 +2946,11 @@
                   "key": "environment",
                   "value": "",
                   "description": "Optional filter for traces where the environment is one of the provided values."
+                },
+                {
+                  "key": "fields",
+                  "value": "",
+                  "description": "Comma-separated list of fields to include in the response. Available field groups are 'core' (always included), 'io' (input, output, metadata), 'scores', 'observations', 'metrics'. If not provided, all fields are included. Example: 'core,scores,metrics'"
                 }
               ],
               "variable": []

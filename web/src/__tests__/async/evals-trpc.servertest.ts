@@ -123,6 +123,11 @@ describe("evals trpc", () => {
 
       const response = await caller.evals.allConfigs({
         projectId: project.id,
+        filter: [],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
         limit: 10,
         page: 0,
       });

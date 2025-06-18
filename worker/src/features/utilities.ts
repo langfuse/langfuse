@@ -6,7 +6,7 @@ import {
   type TraceParams,
 } from "@langfuse/shared/src/server";
 import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
-import { z, ZodSchema } from "zod";
+import { z, ZodSchema } from "zod/v4";
 import { decrypt } from "@langfuse/shared/encryption";
 import { tokenCount } from "./tokenisation/usage";
 import Handlebars from "handlebars";
@@ -46,7 +46,7 @@ export async function callStructuredLLM<T extends ZodSchema>(
     ) {
       throw new ApiError(e.name, 429);
     }
-    logger.error(`Job ${jeId} failed to call LLM. Eval will fail.`, e);
+
     throw new ApiError(
       `Failed to call LLM: ${e}`,
       (e as any)?.response?.status ?? (e as any)?.status,

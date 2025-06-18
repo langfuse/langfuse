@@ -1,4 +1,4 @@
-import { Redis } from "ioredis";
+import { Redis, Cluster } from "ioredis";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 import {
@@ -89,7 +89,7 @@ export class IngestionService {
   private promptService: PromptService;
 
   constructor(
-    private redis: Redis,
+    private redis: Redis | Cluster,
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
     private clickhouseClient: ClickhouseClientType,
@@ -184,6 +184,8 @@ export class IngestionService {
             value: validatedScore.value,
             source: validatedScore.source,
             trace_id: validatedScore.traceId,
+            session_id: validatedScore.sessionId,
+            dataset_run_id: validatedScore.datasetRunId,
             data_type: validatedScore.dataType,
             observation_id: validatedScore.observationId,
             comment: validatedScore.comment,
@@ -902,6 +904,12 @@ export class IngestionService {
           `,
           format: "JSONEachRow",
           query_params: { projectId, entityId, ...additionalFilters.params },
+          clickhouse_settings: {
+            log_comment: JSON.stringify({
+              feature: "ingestion",
+              projectId,
+            }),
+          },
         });
 
         const result = await queryResult.json();

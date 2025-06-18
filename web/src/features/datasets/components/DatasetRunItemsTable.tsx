@@ -11,7 +11,10 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useEffect, useMemo } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import {
+  IOTableCell,
+  MemoizedIOTableCell,
+} from "@/src/components/ui/CodeJsonViewer";
 import { ListTree } from "lucide-react";
 import {
   getScoreGroupColumnProps,
@@ -184,12 +187,14 @@ export function DatasetRunItemsTable(
       enableHiding: true,
       cell: ({ row }) => {
         const trace: DatasetRunItemRowData["trace"] = row.getValue("trace");
+        const runAt: DatasetRunItemRowData["runAt"] = row.getValue("runAt");
         return trace ? (
           <TraceObservationIOCell
             traceId={trace.traceId}
             projectId={props.projectId}
             observationId={trace.observationId}
             io="input"
+            fromTimestamp={runAt}
             singleLine={rowHeight === "s"}
           />
         ) : null;
@@ -203,12 +208,14 @@ export function DatasetRunItemsTable(
       enableHiding: true,
       cell: ({ row }) => {
         const trace: DatasetRunItemRowData["trace"] = row.getValue("trace");
+        const runAt: DatasetRunItemRowData["runAt"] = row.getValue("runAt");
         return trace ? (
           <TraceObservationIOCell
             traceId={trace.traceId}
             projectId={props.projectId}
             observationId={trace.observationId}
             io="output"
+            fromTimestamp={runAt}
             singleLine={rowHeight === "s"}
           />
         ) : null;
@@ -324,25 +331,28 @@ const TraceObservationIOCell = ({
   projectId,
   observationId,
   io,
+  fromTimestamp,
   singleLine = false,
 }: {
   traceId: string;
   projectId: string;
   observationId?: string;
   io: "input" | "output";
+  fromTimestamp: Date;
   singleLine?: boolean;
 }) => {
+  // Subtract 1 day from the fromTimestamp as a buffer in case the trace happened before the run
+  const fromTimestampModified = new Date(
+    fromTimestamp.getTime() - 24 * 60 * 60 * 1000,
+  );
+
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId, projectId, fromTimestamp: fromTimestampModified },
     {
       enabled: observationId === undefined,
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
       onError: () => {},
     },
   );
@@ -354,12 +364,8 @@ const TraceObservationIOCell = ({
     },
     {
       enabled: observationId !== undefined,
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
       onError: () => {},
     },
   );
@@ -367,7 +373,7 @@ const TraceObservationIOCell = ({
   const data = observationId === undefined ? trace.data : observation.data;
 
   return (
-    <IOTableCell
+    <MemoizedIOTableCell
       isLoading={
         (!!!observationId ? trace.isLoading : observation.isLoading) || !data
       }

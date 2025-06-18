@@ -189,11 +189,25 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."metadata"',
   },
+  // Scores column duplicated to allow renaming column name. Will be removed once session storage cache is outdated
+  // Column names are cached in user sessions - changing them breaks existing filters
   {
     uiTableName: "Scores",
     uiTableId: "scores",
-    clickhouseTableName: "observations",
-    clickhouseSelect: "s_avg.scores_avg",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.scores_avg",
+  },
+  {
+    uiTableName: "Scores (numeric)",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.scores_avg",
+  },
+  {
+    uiTableName: "Scores (categorical)",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.score_categories",
   },
   {
     uiTableName: "Version",

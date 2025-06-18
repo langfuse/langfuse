@@ -1,20 +1,24 @@
 import { BatchExportTableName } from "@langfuse/shared";
 import { BatchActionType } from "@langfuse/shared";
 import { expect, describe, it, vi } from "vitest";
-import { randomUUID } from "crypto";
+import { v4 as uuidv4 } from "uuid";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
-import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
+import {
+  getDatabaseReadStream,
+  getTraceIdentifierStream,
+} from "../features/database-read-stream/getDatabaseReadStream";
 import {
   createOrgProjectAndApiKey,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
   getQueue,
   getScoresByIds,
-  logger,
+  queryClickhouse,
   QueueJobs,
   QueueName,
+  logger,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Decimal } from "decimal.js";
@@ -28,7 +32,7 @@ describe("select all test suite", () => {
     const traces = Array.from({ length: 2500 }).map(() =>
       createTrace({
         project_id: projectId,
-        id: randomUUID(),
+        id: uuidv4(),
         timestamp: new Date("2024-01-01").getTime(),
       }),
     );
@@ -61,8 +65,31 @@ describe("select all test suite", () => {
 
     const remainingRows: any[] = [];
     for await (const chunk of stream) {
-      remainingRows.push(chunk);
+      remainingRows.push({
+        id: chunk.id,
+        timestamp: chunk.timestamp,
+        projectId: chunk.projectId,
+      });
     }
+
+    const ideStream = await getTraceIdentifierStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date("2024-01-02"),
+      filter: [],
+      orderBy: { column: "timestamp", order: "DESC" },
+      exportLimit: 1000,
+    });
+
+    const remainingRows2: any[] = [];
+    for await (const chunk of ideStream) {
+      remainingRows2.push({
+        id: chunk.id,
+        timestamp: chunk.timestamp,
+        projectId: chunk.projectId,
+      });
+    }
+
+    expect(remainingRows2).toHaveLength(0);
     expect(remainingRows).toHaveLength(0);
   });
 
@@ -72,13 +99,13 @@ describe("select all test suite", () => {
     const traces = [
       createTrace({
         project_id: projectId,
-        id: randomUUID(),
+        id: uuidv4(),
         user_id: "user1",
         timestamp: new Date("2024-01-01").getTime(),
       }),
       createTrace({
         project_id: projectId,
-        id: randomUUID(),
+        id: uuidv4(),
         user_id: "user2",
         timestamp: new Date("2024-01-01").getTime(),
       }),
@@ -129,12 +156,12 @@ describe("select all test suite", () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
 
-    const score = createScore({ project_id: projectId });
+    const score = createTraceScore({ project_id: projectId });
     await createScoresCh([score]);
 
     // When
     await handleBatchActionJob({
-      id: randomUUID(),
+      id: uuidv4(),
       timestamp: new Date(),
       name: QueueJobs.BatchActionProcessingJob as const,
       payload: {
@@ -155,6 +182,62 @@ describe("select all test suite", () => {
     expect(scores).toHaveLength(0);
   });
 
+  it("should handle trace deletions with search query", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: uuidv4(),
+        name: "search-target-trace",
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: uuidv4(),
+        name: "other-trace",
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const selectAllJob = {
+      payload: {
+        projectId,
+        actionId: "trace-delete",
+        tableName: BatchExportTableName.Traces,
+        query: {
+          filter: [],
+          orderBy: { column: "timestamp", order: "DESC" },
+          searchQuery: "search-target",
+          searchType: ["id"],
+        },
+        cutoffCreatedAt: new Date("2024-01-02"),
+        type: BatchActionType.Delete,
+      },
+    } as any;
+
+    await handleBatchActionJob(selectAllJob);
+
+    // Verify only the trace matching the search query was deleted
+    const stream = await getDatabaseReadStream({
+      projectId,
+      tableName: BatchExportTableName.Traces,
+      cutoffCreatedAt: new Date("2024-01-02"),
+      filter: [],
+      orderBy: { column: "timestamp", order: "DESC" },
+    });
+
+    const remainingRows: any[] = [];
+    for await (const chunk of stream) {
+      remainingRows.push(chunk);
+    }
+
+    expect(remainingRows).toHaveLength(1);
+    expect(remainingRows[0].name).toBe("other-trace");
+  });
+
   it("should create eval jobs for historic traces", async () => {
     // remove all jobs from the evaluation execution queue
     const queue = getQueue(QueueName.CreateEvalQueue);
@@ -162,7 +245,7 @@ describe("select all test suite", () => {
 
     const { projectId } = await createOrgProjectAndApiKey();
 
-    const traceId1 = randomUUID();
+    const traceId1 = uuidv4();
     const traces = [
       createTrace({
         project_id: projectId,
@@ -172,7 +255,7 @@ describe("select all test suite", () => {
       }),
       createTrace({
         project_id: projectId,
-        id: randomUUID(),
+        id: uuidv4(),
         user_id: "user2",
         timestamp: new Date().getTime(),
       }),
@@ -180,7 +263,7 @@ describe("select all test suite", () => {
 
     await createTracesCh(traces);
 
-    const templateId = randomUUID();
+    const templateId = uuidv4();
 
     await prisma.evalTemplate.create({
       data: {
@@ -199,7 +282,7 @@ describe("select all test suite", () => {
       },
     });
 
-    const configId = randomUUID();
+    const configId = uuidv4();
     await prisma.jobConfiguration.create({
       data: {
         id: configId,
@@ -223,7 +306,7 @@ describe("select all test suite", () => {
     });
 
     const payload = {
-      id: randomUUID(),
+      id: uuidv4(),
       timestamp: new Date(),
       name: QueueJobs.BatchActionProcessingJob as const,
       payload: {
@@ -279,8 +362,8 @@ describe("select all test suite", () => {
   it("should create eval jobs for historic datasets", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
-    const traceId1 = randomUUID();
-    const traceId2 = randomUUID();
+    const traceId1 = uuidv4();
+    const traceId2 = uuidv4();
 
     const traces = [
       createTrace({
@@ -299,10 +382,10 @@ describe("select all test suite", () => {
 
     await createTracesCh(traces);
 
-    const datasetName = randomUUID();
+    const datasetName = uuidv4();
     const dataset = await prisma.dataset.create({
       data: {
-        id: randomUUID(),
+        id: uuidv4(),
         projectId,
         name: datasetName,
       },
@@ -310,7 +393,7 @@ describe("select all test suite", () => {
 
     const datasetItem1 = await prisma.datasetItem.create({
       data: {
-        id: randomUUID(),
+        id: uuidv4(),
         datasetId: dataset.id,
         input: "Hello, world!",
         projectId,
@@ -319,14 +402,14 @@ describe("select all test suite", () => {
 
     const datasetItem2 = await prisma.datasetItem.create({
       data: {
-        id: randomUUID(),
+        id: uuidv4(),
         datasetId: dataset.id,
         input: "Hello, world!",
         projectId,
       },
     });
 
-    const runId = randomUUID();
+    const runId = uuidv4();
 
     const datasetRun = await prisma.datasetRuns.create({
       data: {
@@ -339,7 +422,7 @@ describe("select all test suite", () => {
 
     await prisma.datasetRunItems.create({
       data: {
-        id: randomUUID(),
+        id: uuidv4(),
         datasetItemId: datasetItem1.id,
         projectId,
         traceId: traceId1,
@@ -349,7 +432,7 @@ describe("select all test suite", () => {
 
     await prisma.datasetRunItems.create({
       data: {
-        id: randomUUID(),
+        id: uuidv4(),
         datasetItemId: datasetItem2.id,
         projectId,
         traceId: traceId2,
@@ -357,7 +440,7 @@ describe("select all test suite", () => {
       },
     });
 
-    const templateId = randomUUID();
+    const templateId = uuidv4();
 
     await prisma.evalTemplate.create({
       data: {
@@ -376,7 +459,7 @@ describe("select all test suite", () => {
       },
     });
 
-    const configId = randomUUID();
+    const configId = uuidv4();
     await prisma.jobConfiguration.create({
       data: {
         id: configId,
@@ -403,7 +486,7 @@ describe("select all test suite", () => {
     await queue?.obliterate({ force: true });
 
     const payload = {
-      id: randomUUID(),
+      id: uuidv4(),
       timestamp: new Date(),
       name: QueueJobs.BatchActionProcessingJob as const,
       payload: {
@@ -450,6 +533,56 @@ describe("select all test suite", () => {
         logger.error(e);
         throw e;
       }
+    });
+  });
+
+  it("should not create evals if config does not exist", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create a trace
+    const traceId = uuidv4();
+    await createTracesCh([
+      createTrace({
+        project_id: projectId,
+        id: traceId,
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+    ]);
+
+    // Use a non-existent config ID
+    const nonExistentConfigId = uuidv4();
+
+    const queue = getQueue(QueueName.CreateEvalQueue);
+    // Clear any existing jobs
+    await queue?.obliterate({ force: true });
+
+    const payload = {
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "eval-create" as const,
+        targetObject: "trace" as const,
+        configId: nonExistentConfigId,
+        cutoffCreatedAt: new Date(),
+        query: {
+          filter: [],
+          orderBy: {
+            column: "timestamp",
+            order: "DESC" as const,
+          },
+        },
+      },
+    };
+
+    // This should not throw
+    await expect(handleBatchActionJob(payload)).resolves.not.toThrow();
+
+    // Verify no jobs were created
+    await waitForExpect(async () => {
+      const jobs = await queue?.getJobs();
+      expect(jobs).toHaveLength(0);
     });
   });
 });

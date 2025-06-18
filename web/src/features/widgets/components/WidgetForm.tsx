@@ -22,9 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
 import { viewDeclarations } from "@/src/features/query/dataModel";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
 import { startCase } from "lodash";
@@ -44,12 +45,79 @@ import {
   PieChart,
   LineChart,
   BarChartHorizontal,
+  Hash,
+  BarChart3,
 } from "lucide-react";
+import {
+  buildWidgetName,
+  buildWidgetDescription,
+} from "@/src/features/widgets/utils";
+
+type ChartType = {
+  group: "time-series" | "total-value";
+  name: string;
+  value: DashboardWidgetChartType;
+  icon: React.ElementType;
+  supportsBreakdown: boolean;
+};
+
+const chartTypes: ChartType[] = [
+  {
+    group: "total-value",
+    name: "Big Number",
+    value: "NUMBER",
+    icon: Hash,
+    supportsBreakdown: false,
+  },
+  {
+    group: "time-series",
+    name: "Line Chart",
+    value: "LINE_TIME_SERIES",
+    icon: LineChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "time-series",
+    name: "Vertical Bar Chart",
+    value: "BAR_TIME_SERIES",
+    icon: BarChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Horizontal Bar Chart",
+    value: "HORIZONTAL_BAR",
+    icon: BarChartHorizontal,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Vertical Bar Chart",
+    value: "VERTICAL_BAR",
+    icon: BarChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Histogram",
+    value: "HISTOGRAM",
+    icon: BarChart3,
+    supportsBreakdown: false,
+  },
+  {
+    group: "total-value",
+    name: "Pie Chart",
+    value: "PIE",
+    icon: PieChart,
+    supportsBreakdown: true,
+  },
+];
 
 export function WidgetForm({
   initialValues,
   projectId,
   onSave,
+  widgetId,
 }: {
   initialValues: {
     name: string;
@@ -60,7 +128,11 @@ export function WidgetForm({
     dimension: string;
     filters?: FilterState;
     chartType: DashboardWidgetChartType;
-    chartConfig?: { type: DashboardWidgetChartType; row_limit?: number };
+    chartConfig?: {
+      type: DashboardWidgetChartType;
+      row_limit?: number;
+      bins?: number;
+    };
   };
   projectId: string;
   onSave: (widgetData: {
@@ -71,14 +143,26 @@ export function WidgetForm({
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number };
+    chartConfig: {
+      type: DashboardWidgetChartType;
+      row_limit?: number;
+      bins?: number;
+    };
   }) => void;
+  widgetId?: string;
 }) {
   // State for form fields
   const [widgetName, setWidgetName] = useState<string>(initialValues.name);
   const [widgetDescription, setWidgetDescription] = useState<string>(
     initialValues.description,
   );
+
+  // Determine if this is an existing widget (editing mode)
+  const isExistingWidget = Boolean(widgetId);
+
+  // Disables further auto-updates once the user edits name or description
+  const [autoLocked, setAutoLocked] = useState<boolean>(isExistingWidget);
+
   const [selectedView, setSelectedView] = useState<z.infer<typeof views>>(
     initialValues.view,
   );
@@ -98,10 +182,13 @@ export function WidgetForm({
   const [rowLimit, setRowLimit] = useState<number>(
     initialValues.chartConfig?.row_limit ?? 100,
   );
+  const [histogramBins, setHistogramBins] = useState<number>(
+    initialValues.chartConfig?.bins ?? 10,
+  );
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange();
+    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
   const [userFilterState, setUserFilterState] = useState<FilterState>(
     initialValues.filters ?? [],
   );
@@ -168,6 +255,12 @@ export function WidgetForm({
       internal: "internalValue",
     },
     {
+      name: "Score Name",
+      id: "scoreName",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
       name: "Tags",
       id: "tags",
       type: "arrayOptions",
@@ -187,6 +280,12 @@ export function WidgetForm({
       internal: "internalValue",
     },
     {
+      name: "Metadata",
+      id: "metadata",
+      type: "stringObject",
+      internal: "internalValue",
+    },
+    {
       name: "Release",
       id: "release",
       type: "string",
@@ -200,68 +299,71 @@ export function WidgetForm({
     },
   ];
 
-  // Chart type options
-  type ChartType = {
-    group: "time-series" | "total-value";
-    name: string;
-    value: DashboardWidgetChartType;
-    icon: React.ElementType;
-  };
-
-  const chartTypes: ChartType[] = useMemo(
-    () => [
-      {
-        group: "time-series",
-        name: "Line Chart",
-        value: "LINE_TIME_SERIES",
-        icon: LineChart,
-      },
-      {
-        group: "time-series",
-        name: "Vertical Bar Chart",
-        value: "BAR_TIME_SERIES",
-        icon: BarChart,
-      },
-      {
-        group: "total-value",
-        name: "Horizontal Bar Chart",
-        value: "HORIZONTAL_BAR",
-        icon: BarChartHorizontal,
-      },
-      {
-        group: "total-value",
-        name: "Vertical Bar Chart",
-        value: "VERTICAL_BAR",
-        icon: BarChart,
-      },
-      { group: "total-value", name: "Pie Chart", value: "PIE", icon: PieChart },
-    ],
-    [],
-  );
-
-  // Set aggregation to "count" when metric is "count"
+  // When chart type does not support breakdown, wipe the breakdown dimension
   useEffect(() => {
-    if (selectedMeasure === "count") {
+    if (
+      chartTypes.find((c) => c.value === selectedChartType)
+        ?.supportsBreakdown === false &&
+      selectedDimension !== "none"
+    ) {
+      setSelectedDimension("none");
+    }
+  }, [selectedChartType, selectedDimension]);
+
+  // Set aggregation based on chart type and metric, with histogram chart type taking priority
+  useEffect(() => {
+    // Histogram chart type always takes priority
+    if (
+      selectedChartType === "HISTOGRAM" &&
+      selectedAggregation !== "histogram"
+    ) {
+      setSelectedAggregation("histogram");
+    }
+    // If switching away from histogram chart type and aggregation is still histogram, reset to appropriate default
+    else if (
+      selectedChartType !== "HISTOGRAM" &&
+      selectedAggregation === "histogram"
+    ) {
+      if (selectedMeasure === "count") {
+        setSelectedAggregation("count");
+      } else {
+        setSelectedAggregation("sum"); // Default aggregation for non-count metrics
+      }
+    }
+    // Only set to "count" for count metric if not using histogram chart type
+    else if (
+      selectedMeasure === "count" &&
+      selectedChartType !== "HISTOGRAM" &&
+      selectedAggregation !== "count"
+    ) {
       setSelectedAggregation("count");
     }
-  }, [selectedMeasure]);
+  }, [selectedMeasure, selectedAggregation, selectedChartType]);
 
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.measures).map(([key]) => ({
-      value: key,
-      label: startCase(key),
-    }));
+    return Object.entries(viewDeclaration.measures)
+      .map(([key]) => ({
+        value: key,
+        label: startCase(key),
+      }))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+      );
   }, [selectedView]);
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
     const viewDeclaration = viewDeclarations[selectedView];
-    return Object.entries(viewDeclaration.dimensions).map(([key]) => ({
-      value: key,
-      label: startCase(key),
-    }));
+    return Object.entries(viewDeclaration.dimensions)
+      .map(([key]) => ({
+        value: key,
+        label: startCase(key),
+      }))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+      );
   }, [selectedView]);
 
   // Create a dynamic query based on the selected view
@@ -276,7 +378,12 @@ export function WidgetForm({
       view: selectedView,
       dimensions:
         selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
-      metrics: [{ measure: selectedMeasure, aggregation: selectedAggregation }],
+      metrics: [
+        {
+          measure: selectedMeasure,
+          aggregation: selectedAggregation,
+        },
+      ],
       filters: [...mapLegacyUiTableFilterToView(selectedView, userFilterState)],
       timeDimension: isTimeSeriesChart(
         selectedChartType as DashboardWidgetChartType,
@@ -286,6 +393,10 @@ export function WidgetForm({
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
       orderBy: null,
+      chartConfig:
+        selectedChartType === "HISTOGRAM"
+          ? { type: selectedChartType, bins: histogramBins }
+          : { type: selectedChartType },
     };
   }, [
     selectedView,
@@ -295,6 +406,7 @@ export function WidgetForm({
     userFilterState,
     dateRange,
     selectedChartType,
+    histogramBins,
   ]);
 
   const queryResult = api.dashboard.executeQuery.useQuery(
@@ -319,12 +431,23 @@ export function WidgetForm({
         const dimensionField = selectedDimension;
         // Get the metric field (first metric in the query with its aggregation)
         const metricField = `${selectedAggregation}_${selectedMeasure}`;
+        const metric = item[metricField];
 
         return {
-          dimension: item[dimensionField]
-            ? (item[dimensionField] as string)
-            : startCase(metricField === "count_count" ? "Count" : metricField),
-          metric: Number(item[metricField] || 0),
+          dimension:
+            item[dimensionField] !== undefined
+              ? (() => {
+                  const val = item[dimensionField];
+                  if (typeof val === "string") return val;
+                  if (val === null || val === undefined || val === "")
+                    return "n/a";
+                  if (Array.isArray(val)) return val.join(", ");
+                  return String(val);
+                })()
+              : startCase(
+                  metricField === "count_count" ? "Count" : metricField,
+                ),
+          metric: Array.isArray(metric) ? metric : Number(metric || 0),
           time_dimension: item["time_dimension"],
         };
       }) ?? [],
@@ -343,19 +466,71 @@ export function WidgetForm({
       view: selectedView,
       dimensions:
         selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
-      metrics: [{ measure: selectedMeasure, agg: selectedAggregation }],
+      metrics: [
+        {
+          measure: selectedMeasure,
+          agg: selectedAggregation,
+        },
+      ],
       filters: mapLegacyUiTableFilterToView(selectedView, userFilterState),
       chartType: selectedChartType as DashboardWidgetChartType,
       chartConfig: isTimeSeriesChart(
         selectedChartType as DashboardWidgetChartType,
       )
         ? { type: selectedChartType as DashboardWidgetChartType }
-        : {
-            type: selectedChartType as DashboardWidgetChartType,
-            row_limit: rowLimit,
-          },
+        : selectedChartType === "HISTOGRAM"
+          ? {
+              type: selectedChartType as DashboardWidgetChartType,
+              bins: histogramBins,
+            }
+          : {
+              type: selectedChartType as DashboardWidgetChartType,
+              row_limit: rowLimit,
+            },
     });
   };
+
+  // Update widget name when selection changes, unless locked
+  useEffect(() => {
+    if (autoLocked) return;
+
+    const suggested = buildWidgetName({
+      aggregation: selectedAggregation,
+      measure: selectedMeasure,
+      dimension: selectedDimension,
+      view: selectedView,
+    });
+
+    setWidgetName(suggested);
+  }, [
+    autoLocked,
+    selectedAggregation,
+    selectedMeasure,
+    selectedDimension,
+    selectedView,
+  ]);
+
+  // Update widget description when selection or filters change, unless locked
+  useEffect(() => {
+    if (autoLocked) return;
+
+    const suggested = buildWidgetDescription({
+      aggregation: selectedAggregation,
+      measure: selectedMeasure,
+      dimension: selectedDimension,
+      view: selectedView,
+      filters: userFilterState,
+    });
+
+    setWidgetDescription(suggested);
+  }, [
+    autoLocked,
+    selectedAggregation,
+    selectedMeasure,
+    selectedDimension,
+    selectedView,
+    userFilterState,
+  ]);
 
   return (
     <div className="flex h-full gap-4">
@@ -392,9 +567,12 @@ export function WidgetForm({
                   </SelectTrigger>
                   <SelectContent>
                     {views.options.map((view) => (
-                      <SelectItem key={view} value={view}>
-                        {startCase(view)}
-                      </SelectItem>
+                      <WidgetPropertySelectItem
+                        key={view}
+                        value={view}
+                        label={startCase(view)}
+                        description={viewDeclarations[view].description}
+                      />
                     ))}
                   </SelectContent>
                 </Select>
@@ -411,33 +589,53 @@ export function WidgetForm({
                     <SelectValue placeholder="Select metrics" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableMetrics.map((metric) => (
-                      <SelectItem key={metric.value} value={metric.value}>
-                        {metric.label}
-                      </SelectItem>
-                    ))}
+                    {availableMetrics.map((metric) => {
+                      const meta =
+                        viewDeclarations[selectedView]?.measures?.[
+                          metric.value
+                        ];
+                      return (
+                        <WidgetPropertySelectItem
+                          key={metric.value}
+                          value={metric.value}
+                          label={metric.label}
+                          description={meta?.description}
+                          unit={meta?.unit}
+                          type={meta?.type}
+                        />
+                      );
+                    })}
                   </SelectContent>
                 </Select>
                 {selectedMeasure !== "count" && (
-                  <Select
-                    value={selectedAggregation}
-                    onValueChange={(value) =>
-                      setSelectedAggregation(
-                        value as z.infer<typeof metricAggregations>,
-                      )
-                    }
-                  >
-                    <SelectTrigger id="aggregation-select">
-                      <SelectValue placeholder="Select Aggregation" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {metricAggregations.options.map((aggregation) => (
-                        <SelectItem key={aggregation} value={aggregation}>
-                          {startCase(aggregation)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-1">
+                    <Select
+                      value={selectedAggregation}
+                      disabled={selectedChartType === "HISTOGRAM"} // Disable when histogram chart type is selected
+                      onValueChange={(value) =>
+                        setSelectedAggregation(
+                          value as z.infer<typeof metricAggregations>,
+                        )
+                      }
+                    >
+                      <SelectTrigger id="aggregation-select">
+                        <SelectValue placeholder="Select Aggregation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {metricAggregations.options.map((aggregation) => (
+                          <SelectItem key={aggregation} value={aggregation}>
+                            {startCase(aggregation)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedChartType === "HISTOGRAM" && (
+                      <p className="text-xs text-muted-foreground">
+                        Aggregation is automatically set to
+                        &quot;histogram&quot; for histogram charts
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -454,27 +652,41 @@ export function WidgetForm({
               </div>
 
               {/* Dimension Selection (Breakdown) */}
-              <div className="space-y-2">
-                <Label htmlFor="dimension-select">
-                  Breakdown Dimension (Optional)
-                </Label>
-                <Select
-                  value={selectedDimension}
-                  onValueChange={setSelectedDimension}
-                >
-                  <SelectTrigger id="dimension-select">
-                    <SelectValue placeholder="Select a dimension" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {availableDimensions.map((dimension) => (
-                      <SelectItem key={dimension.value} value={dimension.value}>
-                        {dimension.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {chartTypes.find((c) => c.value === selectedChartType)
+                ?.supportsBreakdown && (
+                <div className="space-y-2">
+                  <Label htmlFor="dimension-select">
+                    Breakdown Dimension (Optional)
+                  </Label>
+                  <Select
+                    value={selectedDimension}
+                    onValueChange={setSelectedDimension}
+                  >
+                    <SelectTrigger id="dimension-select">
+                      <SelectValue placeholder="Select a dimension" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {availableDimensions.map((dimension) => {
+                        const meta =
+                          viewDeclarations[selectedView]?.dimensions?.[
+                            dimension.value
+                          ];
+                        return (
+                          <WidgetPropertySelectItem
+                            key={dimension.value}
+                            value={dimension.value}
+                            label={dimension.label}
+                            description={meta?.description}
+                            unit={meta?.unit}
+                            type={meta?.type}
+                          />
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {/* Visualization Section */}
@@ -487,7 +699,10 @@ export function WidgetForm({
                 <Input
                   id="widget-name"
                   value={widgetName}
-                  onChange={(e) => setWidgetName(e.target.value)}
+                  onChange={(e) => {
+                    if (!autoLocked) setAutoLocked(true);
+                    setWidgetName(e.target.value);
+                  }}
                   placeholder="Enter widget name"
                 />
               </div>
@@ -498,7 +713,10 @@ export function WidgetForm({
                 <Input
                   id="widget-description"
                   value={widgetDescription}
-                  onChange={(e) => setWidgetDescription(e.target.value)}
+                  onChange={(e) => {
+                    if (!autoLocked) setAutoLocked(true);
+                    setWidgetDescription(e.target.value);
+                  }}
                   placeholder="Enter widget description"
                 />
               </div>
@@ -521,7 +739,6 @@ export function WidgetForm({
                         .map((chart) => (
                           <SelectItem key={chart.value} value={chart.value}>
                             <div className="flex items-center">
-                              {" "}
                               {React.createElement(chart.icon, {
                                 className: "mr-2 w-4",
                               })}
@@ -537,7 +754,6 @@ export function WidgetForm({
                         .map((chart) => (
                           <SelectItem key={chart.value} value={chart.value}>
                             <div className="flex items-center">
-                              {" "}
                               {React.createElement(chart.icon, {
                                 className: "mr-2 w-4",
                               })}
@@ -560,30 +776,53 @@ export function WidgetForm({
                 />
               </div>
 
-              {/* Row Limit Selection - Only shown for non-time series charts */}
-              {!isTimeSeriesChart(
-                selectedChartType as DashboardWidgetChartType,
-              ) && (
+              {/* Histogram Bins Selection - Only shown for HISTOGRAM chart type */}
+              {selectedChartType === "HISTOGRAM" && (
                 <div className="space-y-2">
-                  <Label htmlFor="row-limit">
-                    Breakdown Row Limit (0-1000)
-                  </Label>
+                  <Label htmlFor="histogram-bins">Number of Bins (1-100)</Label>
                   <Input
-                    id="row-limit"
+                    id="histogram-bins"
                     type="number"
-                    min={0}
-                    max={1000}
-                    value={rowLimit}
+                    min={1}
+                    max={100}
+                    value={histogramBins}
                     onChange={(e) => {
                       const value = parseInt(e.target.value);
-                      if (!isNaN(value) && value >= 0 && value <= 1000) {
-                        setRowLimit(value);
+                      if (!isNaN(value) && value >= 1 && value <= 100) {
+                        setHistogramBins(value);
                       }
                     }}
-                    placeholder="Enter breakdown row limit (0-1000)"
+                    placeholder="Enter number of bins (1-100)"
                   />
                 </div>
               )}
+
+              {/* Row Limit Selection - Only shown for non-time series charts that support breakdown */}
+              {chartTypes.find((c) => c.value === selectedChartType)
+                ?.supportsBreakdown &&
+                !isTimeSeriesChart(
+                  selectedChartType as DashboardWidgetChartType,
+                ) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="row-limit">
+                      Breakdown Row Limit (0-1000)
+                    </Label>
+                    <Input
+                      id="row-limit"
+                      type="number"
+                      min={0}
+                      max={1000}
+                      value={rowLimit}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 0 && value <= 1000) {
+                          setRowLimit(value);
+                        }
+                      }}
+                      placeholder="Enter breakdown row limit (0-1000)"
+                    />
+                  </div>
+                )}
             </div>
           </CardContent>
           <CardFooter className="mt-auto">
@@ -596,10 +835,14 @@ export function WidgetForm({
 
       {/* Right column - Chart */}
       <div className="w-2/3">
-        <Card>
+        <Card className={"aspect-video"}>
           <CardHeader>
-            <CardTitle>{widgetName}</CardTitle>
-            <CardDescription>{widgetDescription}</CardDescription>
+            <CardTitle className="truncate" title={widgetName}>
+              {widgetName}
+            </CardTitle>
+            <CardDescription className="truncate" title={widgetDescription}>
+              {widgetDescription}
+            </CardDescription>
           </CardHeader>
           {queryResult.data ? (
             <Chart

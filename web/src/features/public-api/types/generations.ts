@@ -1,6 +1,6 @@
 // src/features/public-api/types/generations.ts
 
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   LegacyGenerationsCreateSchema,
   LegacyGenerationPatchSchema,

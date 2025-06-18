@@ -6,13 +6,14 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type views, type metricAggregations } from "@/src/features/query";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 
 export default function EditWidget() {
   const router = useRouter();
-  const { projectId, widgetId } = router.query as {
+  const { projectId, widgetId, dashboardId } = router.query as {
     projectId: string;
     widgetId: string;
+    dashboardId?: string;
   };
 
   // Fetch the widget details
@@ -34,8 +35,14 @@ export default function EditWidget() {
         title: "Widget updated successfully",
         description: "Your widget has been updated.",
       });
-      // Navigate back to widgets list
-      void router.push(`/project/${projectId}/widgets`);
+      // Navigate back to dashboard if provided else widgets list
+      if (dashboardId) {
+        void router.push(
+          `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${widgetId}`,
+        );
+      } else {
+        void router.push(`/project/${projectId}/widgets`);
+      }
     },
     onError: (error) => {
       showErrorToast("Failed to update widget", error.message);
@@ -51,7 +58,7 @@ export default function EditWidget() {
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number };
+    chartConfig: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
   }) => {
     if (!widgetId) return;
 
@@ -85,6 +92,7 @@ export default function EditWidget() {
       {!isWidgetLoading && widgetData ? (
         <WidgetForm
           projectId={projectId}
+          widgetId={widgetId}
           onSave={handleUpdateWidget}
           initialValues={{
             name: widgetData.name,

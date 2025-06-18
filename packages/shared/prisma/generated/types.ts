@@ -109,7 +109,9 @@ export const DashboardWidgetChartType = {
     BAR_TIME_SERIES: "BAR_TIME_SERIES",
     HORIZONTAL_BAR: "HORIZONTAL_BAR",
     VERTICAL_BAR: "VERTICAL_BAR",
-    PIE: "PIE"
+    PIE: "PIE",
+    NUMBER: "NUMBER",
+    HISTOGRAM: "HISTOGRAM"
 } as const;
 export type DashboardWidgetChartType = (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
 export type Account = {
@@ -227,8 +229,8 @@ export type BlobStorageIntegration = {
     type: BlobStorageIntegrationType;
     bucket_name: string;
     prefix: string;
-    access_key_id: string;
-    secret_access_key: string;
+    access_key_id: string | null;
+    secret_access_key: string | null;
     region: string;
     endpoint: string | null;
     force_path_style: boolean;
@@ -325,17 +327,29 @@ export type DatasetRuns = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
-export type EvalTemplate = {
+export type DefaultLlmModel = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     project_id: string;
+    llm_api_key_id: string;
+    provider: string;
+    adapter: string;
+    model: string;
+    model_params: unknown | null;
+};
+export type EvalTemplate = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string | null;
     name: string;
     version: number;
     prompt: string;
-    model: string;
-    provider: string;
-    model_params: unknown;
+    partner: string | null;
+    model: string | null;
+    provider: string | null;
+    model_params: unknown | null;
     vars: Generated<string[]>;
     output_schema: unknown;
 };
@@ -361,6 +375,7 @@ export type JobExecution = {
     updated_at: Generated<Timestamp>;
     project_id: string;
     job_configuration_id: string;
+    job_template_id: string | null;
     status: JobExecutionStatus;
     start_time: Timestamp | null;
     end_time: Timestamp | null;
@@ -634,6 +649,21 @@ export type SsoConfig = {
     auth_provider: string;
     auth_config: unknown | null;
 };
+export type TableViewPreset = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    table_name: string;
+    created_by: string | null;
+    updated_by: string | null;
+    filters: unknown;
+    column_order: unknown;
+    column_visibility: unknown;
+    search_query: string | null;
+    order_by: unknown | null;
+};
 export type TraceMedia = {
     id: string;
     project_id: string;
@@ -687,6 +717,7 @@ export type DB = {
     dataset_run_items: DatasetRunItems;
     dataset_runs: DatasetRuns;
     datasets: Dataset;
+    default_llm_models: DefaultLlmModel;
     eval_templates: EvalTemplate;
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
@@ -711,6 +742,7 @@ export type DB = {
     scores: LegacyPrismaScore;
     Session: Session;
     sso_configs: SsoConfig;
+    table_view_presets: TableViewPreset;
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: LegacyPrismaTrace;

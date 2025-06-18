@@ -4,12 +4,11 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { type LastUserScore, type APIScoreV2 } from "@langfuse/shared";
 import { BracesIcon, MessageCircleMoreIcon } from "lucide-react";
-
-import { type APIScore, type LastUserScore } from "@langfuse/shared";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
-const partitionScores = <T extends APIScore | LastUserScore>(
+const partitionScores = <T extends APIScoreV2 | LastUserScore>(
   scores: Record<string, T[]>,
   maxVisible?: number,
 ) => {
@@ -23,7 +22,20 @@ const partitionScores = <T extends APIScore | LastUserScore>(
   return { visibleScores, hiddenScores };
 };
 
-const ScoreGroupBadge = <T extends APIScore | LastUserScore>({
+const hasMetadata = (score: APIScoreV2 | LastUserScore) => {
+  if (!score.metadata) return false;
+  try {
+    const metadata =
+      typeof score.metadata === "string"
+        ? JSON.parse(score.metadata)
+        : score.metadata;
+    return Object.keys(metadata).length > 0;
+  } catch {
+    return false;
+  }
+};
+
+const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
   name,
   scores,
 }: {
@@ -51,17 +63,17 @@ const ScoreGroupBadge = <T extends APIScore | LastUserScore>({
                 <HoverCardTrigger className="inline-block">
                   <MessageCircleMoreIcon className="mb-[0.0625rem] !size-3" />
                 </HoverCardTrigger>
-                <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
+                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal">
                   <p className="whitespace-pre-wrap">{s.comment}</p>
                 </HoverCardContent>
               </HoverCard>
             )}
-            {s.metadata && Object.keys(s.metadata).length > 0 && (
+            {hasMetadata(s) && (
               <HoverCard>
                 <HoverCardTrigger className="inline-block">
                   <BracesIcon className="mb-[0.0625rem] !size-3" />
                 </HoverCardTrigger>
-                <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0">
+                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal rounded-md border-none p-0">
                   <JSONView codeClassName="!rounded-md" json={s.metadata} />
                 </HoverCardContent>
               </HoverCard>
@@ -74,7 +86,7 @@ const ScoreGroupBadge = <T extends APIScore | LastUserScore>({
   );
 };
 
-export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
+export const GroupedScoreBadges = <T extends APIScoreV2 | LastUserScore>({
   scores,
   maxVisible,
 }: {

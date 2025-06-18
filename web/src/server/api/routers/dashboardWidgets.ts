@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, orderBy, singleFilter } from "@langfuse/shared";
+import { orderBy, singleFilter, optionalPaginationZod } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DashboardWidgetChartType,
@@ -27,7 +27,7 @@ const CreateDashboardWidgetInput = z.object({
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
   filters: z.array(singleFilter),
-  chartType: z.nativeEnum(DashboardWidgetChartType),
+  chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
 
@@ -41,14 +41,14 @@ const UpdateDashboardWidgetInput = z.object({
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
   filters: z.array(singleFilter),
-  chartType: z.nativeEnum(DashboardWidgetChartType),
+  chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
 
 // Define the widget list input schema
 const ListDashboardWidgetsInput = z.object({
   projectId: z.string(),
-  ...paginationZod,
+  ...optionalPaginationZod,
   orderBy: orderBy,
 });
 
@@ -139,6 +139,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
       return {
         ...widget,
         view: reverseViewMapping[widget.view],
+        owner: widget.owner,
       };
     }),
 
@@ -172,6 +173,33 @@ export const dashboardWidgetRouter = createTRPCRouter({
         success: true,
         widget,
       };
+    }),
+
+  copyToProject: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        widgetId: z.string(),
+        dashboardId: z.string(),
+        placementId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const newWidgetId = await DashboardService.copyWidgetToProject({
+        sourceWidgetId: input.widgetId,
+        projectId: input.projectId,
+        dashboardId: input.dashboardId,
+        placementId: input.placementId,
+        userId: ctx.session.user?.id,
+      });
+
+      return { widgetId: newWidgetId };
     }),
 
   // Define delete widget input schema

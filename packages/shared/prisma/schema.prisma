@@ -86,6 +86,8 @@ model User {
   dashboardWidgetsUpdated DashboardWidget[]        @relation("UpdatedByUser")
   dashboardCreated        Dashboard[]              @relation("CreatedByUser")
   dashboardUpdated        Dashboard[]              @relation("UpdatedByUser")
+  tableViewPresetCreated  TableViewPreset[]        @relation("CreatedByUser")
+  tableViewPresetUpdated  TableViewPreset[]        @relation("UpdatedByUser")
 
   @@map("users")
 }
@@ -154,6 +156,8 @@ model Project {
   PromptProtectedLabels  PromptProtectedLabels[]
   Dashboard              Dashboard[]
   DashboardWidget        DashboardWidget[]
+  TableViewPreset        TableViewPreset[]
+  DefaultLlmModel        DefaultLlmModel[]
 
   @@index([orgId])
   @@map("projects")
@@ -219,8 +223,9 @@ model LlmApiKeys {
   extraHeaderKeys   String[] @default([]) @map("extra_header_keys")
   config            Json?
 
-  projectId String  @map("project_id")
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId       String            @map("project_id")
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
 
   @@unique([projectId, provider])
   @@map("llm_api_keys")
@@ -790,18 +795,22 @@ model EvalTemplate {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  projectId String  @map("project_id")
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String?  @map("project_id")
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  name             String
-  version          Int
-  prompt           String
-  model            String
-  provider         String
-  modelParams      Json               @map("model_params")
+  name    String
+  version Int
+  prompt  String
+
+  partner String? // e.g. "ragas", describes the partner that created the template
+
+  model            String?
+  provider         String?
+  modelParams      Json?              @map("model_params")
   vars             String[]           @default([])
   outputSchema     Json               @map("output_schema")
   JobConfiguration JobConfiguration[]
+  JobExecution     JobExecution[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -861,6 +870,9 @@ model JobExecution {
   jobConfigurationId String           @map("job_configuration_id")
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
 
+  jobTemplateId String?       @map("job_template_id")
+  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull)
+
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")
   endTime   DateTime?          @map("end_time")
@@ -882,6 +894,26 @@ model JobExecution {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("job_executions")
+}
+
+model DefaultLlmModel {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  Project   Project @relation(fields: [projectId], references: [id])
+
+  llmApiKeyId String     @map("llm_api_key_id")
+  LlmApiKey   LlmApiKeys @relation("LlmApiKeyId", fields: [llmApiKeyId], references: [id], onDelete: Cascade)
+
+  provider    String
+  adapter     String // This controls the interface that is used to connect with the LLM, e.g. 'openai' or 'anthropic'
+  model       String
+  modelParams Json?  @map("model_params")
+
+  @@unique([projectId])
+  @@map("default_llm_models")
 }
 
 // Single Sign-On configuration for a domain
@@ -919,8 +951,8 @@ model BlobStorageIntegration {
   type            BlobStorageIntegrationType @map("type")
   bucketName      String                     @map("bucket_name")
   prefix          String                     @map("prefix")
-  accessKeyId     String                     @map("access_key_id")
-  secretAccessKey String                     @map("secret_access_key")
+  accessKeyId     String?                    @map("access_key_id")
+  secretAccessKey String?                    @map("secret_access_key")
   region          String                     @map("region")
   endpoint        String?                    @map("endpoint")
   forcePathStyle  Boolean                    @map("force_path_style")
@@ -979,7 +1011,7 @@ model BatchExport {
 }
 
 model Media {
-  id               String             @id @default(cuid())
+  id               String
   sha256Hash       String             @map("sha_256_hash") @db.Char(44)
   projectId        String             @map("project_id")
   project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -995,6 +1027,7 @@ model Media {
   TraceMedia       TraceMedia[]
   ObservationMedia ObservationMedia[]
 
+  @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
   @@map("media")
 }
@@ -1006,11 +1039,12 @@ model TraceMedia {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   mediaId   String   @map("media_id")
-  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  media     Media    @relation(fields: [mediaId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId   String   @map("trace_id")
   field     String   @map("field")
 
   @@unique([projectId, traceId, mediaId, field])
+  @@index([projectId, mediaId])
   @@map("trace_media")
 }
 
@@ -1021,13 +1055,13 @@ model ObservationMedia {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
   mediaId       String   @map("media_id")
-  media         Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  media         Media    @relation(fields: [mediaId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId       String   @map("trace_id")
   observationId String   @map("observation_id")
   field         String   @map("field")
 
   @@unique([projectId, traceId, observationId, mediaId, field])
-  @@index([projectId, observationId])
+  @@index([projectId, mediaId])
   @@map("observation_media")
 }
 
@@ -1121,6 +1155,8 @@ enum DashboardWidgetChartType {
   HORIZONTAL_BAR
   VERTICAL_BAR
   PIE
+  NUMBER
+  HISTOGRAM
 }
 
 model DashboardWidget {
@@ -1149,4 +1185,31 @@ model DashboardWidget {
   chartConfig Json                     @map("chart_config")
 
   @@map("dashboard_widgets")
+}
+
+model TableViewPreset {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name      String @map("name")
+  tableName String @map("table_name")
+
+  createdBy     String? @map("created_by")
+  createdByUser User?   @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy     String? @map("updated_by")
+  updatedByUser User?   @relation("UpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  // view configuration
+  filters          Json    @map("filters")
+  columnOrder      Json    @map("column_order")
+  columnVisibility Json    @map("column_visibility")
+  searchQuery      String? @map("search_query")
+  orderBy          Json?   @map("order_by")
+
+  @@unique([projectId, tableName, name])
+  @@map("table_view_presets")
 }

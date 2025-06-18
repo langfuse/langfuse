@@ -19,6 +19,8 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
       region: env.LANGFUSE_S3_CORE_DATA_UPLOAD_REGION,
       forcePathStyle:
         env.LANGFUSE_S3_CORE_DATA_UPLOAD_FORCE_PATH_STYLE === "true",
+      awsSse: env.LANGFUSE_S3_CORE_DATA_UPLOAD_SSE,
+      awsSseKmsKeyId: env.LANGFUSE_S3_CORE_DATA_UPLOAD_SSE_KMS_KEY_ID,
     });
   }
   return s3StorageServiceClient;

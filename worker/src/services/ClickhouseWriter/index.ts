@@ -212,14 +212,14 @@ export class ClickhouseWriter {
   }): Promise<void> {
     const startTime = Date.now();
 
-    await (
-      ClickhouseWriter.client ??
-      clickhouseClient({ tags: { feature: "ingestion" } })
-    )
+    await (ClickhouseWriter.client ?? clickhouseClient())
       .insert({
         table: params.table,
         format: "JSONEachRow",
         values: params.records,
+        clickhouse_settings: {
+          log_comment: JSON.stringify({ feature: "ingestion" }),
+        },
       })
       .catch((err) => {
         logger.error(`ClickhouseWriter.writeToClickhouse ${err}`);

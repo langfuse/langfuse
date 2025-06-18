@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
+  PutObjectCommandInput,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
@@ -65,6 +66,8 @@ export class StorageServiceFactory {
    * @param params.useAzureBlob - Use Azure Blob Storage instead of S3
    * @param params.useGoogleCloudStorage - Use Google Cloud Storage instead of S3
    * @param params.googleCloudCredentials - Google Cloud Storage credentials JSON string or path to credentials file
+   * @param params.awsSse - Server-side encryption method (e.g., "aws:kms")
+   * @param params.awsSseKmsKeyId - SSE KMS Key ID when using KMS encryption
    */
   public static getInstance(params: {
     accessKeyId: string | undefined;
@@ -77,6 +80,8 @@ export class StorageServiceFactory {
     useAzureBlob?: boolean;
     useGoogleCloudStorage?: boolean;
     googleCloudCredentials?: string;
+    awsSse: string | undefined;
+    awsSseKmsKeyId: string | undefined;
   }): StorageService {
     if (params.useAzureBlob || env.LANGFUSE_USE_AZURE_BLOB === "true") {
       return new AzureBlobStorageService(params);
@@ -362,9 +367,10 @@ class AzureBlobStorageService implements StorageService {
 
 class S3StorageService implements StorageService {
   private client: S3Client;
+  private signedUrlClient: S3Client;
   private bucketName: string;
-  private endpoint: string | undefined;
-  private externalEndpoint: string | undefined;
+  private awsSse: string | undefined;
+  private awsSseKmsKeyId: string | undefined;
 
   constructor(params: {
     accessKeyId: string | undefined;
@@ -374,6 +380,8 @@ class S3StorageService implements StorageService {
     externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
+    awsSse: string | undefined;
+    awsSseKmsKeyId: string | undefined;
   }) {
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
     const { accessKeyId, secretAccessKey } = params;
@@ -385,6 +393,7 @@ class S3StorageService implements StorageService {
           }
         : undefined;
 
+    // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
       credentials,
       endpoint: params.endpoint,
@@ -396,9 +405,37 @@ class S3StorageService implements StorageService {
         },
       },
     });
+
+    // Create a separate client for generating presigned URLs
+    // If an external endpoint is provided, use it for the URL client
+    // Otherwise, use the same client for both operations
+    this.signedUrlClient = params.externalEndpoint
+      ? new S3Client({
+          credentials,
+          endpoint: params.externalEndpoint,
+          region: params.region,
+          forcePathStyle: params.forcePathStyle,
+          requestHandler: {
+            httpsAgent: {
+              maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
+            },
+          },
+        })
+      : this.client;
+
     this.bucketName = params.bucketName;
-    this.endpoint = params.endpoint;
-    this.externalEndpoint = params.externalEndpoint;
+    this.awsSse = params.awsSse;
+    this.awsSseKmsKeyId = params.awsSseKmsKeyId;
+  }
+
+  private addSSEToParams<T>(params: Record<string, unknown>): T {
+    if (this.awsSse) {
+      params.ServerSideEncryption = this.awsSse;
+      if (this.awsSse === "aws:kms" && this.awsSseKmsKeyId) {
+        params.SSEKMSKeyId = this.awsSseKmsKeyId;
+      }
+    }
+    return params as T;
   }
 
   public async uploadFile({
@@ -410,12 +447,12 @@ class S3StorageService implements StorageService {
     try {
       await new Upload({
         client: this.client,
-        params: {
+        params: this.addSSEToParams<PutObjectCommandInput>({
           Bucket: this.bucketName,
           Key: fileName,
           Body: data,
           ContentType: fileType,
-        },
+        }),
       }).done();
 
       const signedUrl = await this.getSignedUrl(fileName, expiresInSeconds);
@@ -423,17 +460,19 @@ class S3StorageService implements StorageService {
       return { signedUrl };
     } catch (err) {
       logger.error(`Failed to upload file to ${fileName}`, err);
-      throw new Error("Failed to upload to S3 or generate signed URL");
+      throw new Error(`Failed to upload to S3 or generate signed URL: ${err}`);
     }
   }
 
   public async uploadJson(path: string, body: Record<string, unknown>[]) {
-    const putCommand = new PutObjectCommand({
-      Bucket: this.bucketName,
-      Key: path,
-      Body: JSON.stringify(body),
-      ContentType: "application/json",
-    });
+    const putCommand = new PutObjectCommand(
+      this.addSSEToParams({
+        Bucket: this.bucketName,
+        Key: path,
+        Body: JSON.stringify(body),
+        ContentType: "application/json",
+      }),
+    );
 
     try {
       await this.client.send(putCommand);
@@ -487,8 +526,8 @@ class S3StorageService implements StorageService {
     asAttachment: boolean = true,
   ): Promise<string> {
     try {
-      let url = await getSignedUrl(
-        this.client,
+      return getSignedUrl(
+        this.signedUrlClient,
         new GetObjectCommand({
           Bucket: this.bucketName,
           Key: fileName,
@@ -498,17 +537,6 @@ class S3StorageService implements StorageService {
         }),
         { expiresIn: ttlSeconds },
       );
-
-      // Replace internal endpoint with external endpoint if configured
-      if (
-        this.externalEndpoint &&
-        this.endpoint &&
-        url.includes(this.endpoint)
-      ) {
-        url = url.replace(this.endpoint, this.externalEndpoint);
-      }
-
-      return url;
     } catch (err) {
       logger.error(`Failed to generate presigned URL for ${fileName}`, err);
       throw Error("Failed to generate signed URL");
@@ -566,28 +594,23 @@ class S3StorageService implements StorageService {
   }): Promise<string> {
     const { path, ttlSeconds, contentType, contentLength, sha256Hash } = params;
 
-    let url = await getSignedUrl(
-      this.client,
-      new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: path,
-        ContentType: contentType,
-        ChecksumSHA256: sha256Hash,
-        ContentLength: contentLength,
-      }),
+    return getSignedUrl(
+      this.signedUrlClient,
+      new PutObjectCommand(
+        this.addSSEToParams({
+          Bucket: this.bucketName,
+          Key: path,
+          ContentType: contentType,
+          ChecksumSHA256: sha256Hash,
+          ContentLength: contentLength,
+        }),
+      ),
       {
         expiresIn: ttlSeconds,
         signableHeaders: new Set(["content-type", "content-length"]),
         unhoistableHeaders: new Set(["x-amz-checksum-sha256"]),
       },
     );
-
-    // Replace internal endpoint with external endpoint if configured
-    if (this.externalEndpoint && this.endpoint && url.includes(this.endpoint)) {
-      url = url.replace(this.endpoint, this.externalEndpoint);
-    }
-
-    return url;
   }
 }
 

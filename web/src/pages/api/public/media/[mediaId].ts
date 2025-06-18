@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
 import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
@@ -28,10 +28,12 @@ export default withMiddlewares({
       const { projectId } = auth.scope;
       const { mediaId } = query;
 
-      const media = await prisma.media.findFirst({
+      const media = await prisma.media.findUnique({
         where: {
-          projectId,
-          id: mediaId,
+          projectId_id: {
+            projectId,
+            id: mediaId,
+          },
         },
       });
 
@@ -85,8 +87,10 @@ export default withMiddlewares({
       try {
         await prisma.media.update({
           where: {
-            projectId,
-            id: mediaId,
+            projectId_id: {
+              projectId,
+              id: mediaId,
+            },
           },
           data: {
             uploadedAt,

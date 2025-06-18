@@ -5,7 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   createObservation,
   createObservationsCh,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -121,7 +121,7 @@ describe("ProjectDeletionProcessingJob", () => {
         }),
       ]),
       createScoresCh([
-        createScore({
+        createTraceScore({
           id: `${baseId}-score`,
           trace_id: `${baseId}-trace`,
           project_id: projectId,
@@ -135,12 +135,18 @@ describe("ProjectDeletionProcessingJob", () => {
     } as Job);
 
     // Then
-    const trace = await getTraceById({ traceId: `${baseId}-trace`, projectId });
+    const trace = await getTraceById({
+      traceId: `${baseId}-trace`,
+      projectId,
+    });
     expect(trace).toBeUndefined();
     expect(() =>
-      getObservationById(`${baseId}-observation`, projectId),
+      getObservationById({ id: `${baseId}-observation`, projectId }),
     ).rejects.toThrowError("not found");
-    const score = await getScoreById(projectId, `${baseId}-score`);
+    const score = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score`,
+    });
     expect(score).toBeUndefined();
   });
 
@@ -241,7 +247,7 @@ describe("ProjectDeletionProcessingJob", () => {
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { id: mediaId, projectId } },
     });
     expect(media).toBeNull();
 

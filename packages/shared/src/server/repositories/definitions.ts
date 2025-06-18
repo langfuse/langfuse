@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 
 export const clickhouseStringDateSchema = z
   .string()
@@ -38,7 +38,7 @@ export const observationRecordBaseSchema = z.object({
   parent_observation_id: z.string().nullish(),
   environment: z.string().default("default"),
   name: z.string().nullish(),
-  metadata: z.record(z.string()),
+  metadata: z.record(z.string(), z.string()),
   level: z.string().nullish(),
   status_message: z.string().nullish(),
   version: z.string().nullish(),
@@ -92,7 +92,7 @@ export const traceRecordBaseSchema = z.object({
   id: z.string(),
   name: z.string().nullish(),
   user_id: z.string().nullish(),
-  metadata: z.record(z.string()),
+  metadata: z.record(z.string(), z.string()),
   release: z.string().nullish(),
   version: z.string().nullish(),
   project_id: z.string(),
@@ -125,14 +125,16 @@ export type TraceRecordInsertType = z.infer<typeof traceRecordInsertSchema>;
 export const scoreRecordBaseSchema = z.object({
   id: z.string(),
   project_id: z.string(),
-  trace_id: z.string(),
+  trace_id: z.string().nullish(),
+  session_id: z.string().nullish(),
   observation_id: z.string().nullish(),
+  dataset_run_id: z.string().nullish(),
   environment: z.string().default("default"),
   name: z.string(),
   value: z.number().nullish(),
   source: z.string(),
   comment: z.string().nullish(),
-  metadata: z.record(z.string()),
+  metadata: z.record(z.string(), z.string()),
   author_user_id: z.string().nullish(),
   config_id: z.string().nullish(),
   data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
@@ -169,13 +171,15 @@ export const blobStorageFileLogRecordBaseSchema = z.object({
   bucket_path: z.string(),
   is_deleted: z.number(),
 });
-export const eventLogRecordReadSchema =
+export const blobStorageFileRefRecordReadSchema =
   blobStorageFileLogRecordBaseSchema.extend({
     created_at: clickhouseStringDateSchema,
     updated_at: clickhouseStringDateSchema,
     event_ts: clickhouseStringDateSchema,
   });
-export type EventLogRecordReadType = z.infer<typeof eventLogRecordReadSchema>;
+export type BlobStorageFileRefRecordReadType = z.infer<
+  typeof blobStorageFileRefRecordReadSchema
+>;
 export const blobStorageFileLogRecordInsertSchema =
   blobStorageFileLogRecordBaseSchema.extend({
     created_at: z.number(),
@@ -350,6 +354,8 @@ export const convertPostgresScoreToInsert = (
     timestamp: score.timestamp?.getTime(),
     project_id: score.project_id,
     trace_id: score.trace_id,
+    session_id: null,
+    dataset_run_id: null,
     observation_id: score.observation_id,
     environment: score.environment,
     name: score.name,

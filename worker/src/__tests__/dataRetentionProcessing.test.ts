@@ -5,7 +5,7 @@ import {
   clickhouseClient,
   createObservation,
   createObservationsCh,
-  createScore,
+  createTraceScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -181,7 +181,7 @@ describe("DataRetentionProcessingJob", () => {
     expect(files.map((file) => file.file)).toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { projectId, id: mediaId } },
     });
     expect(media).toBeDefined();
 
@@ -239,7 +239,7 @@ describe("DataRetentionProcessingJob", () => {
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { projectId, id: mediaId } },
     });
     expect(media).toBeNull();
 
@@ -270,9 +270,15 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const traceOld = await getTraceById({ traceId: `${baseId}-trace-old`, projectId });
+    const traceOld = await getTraceById({
+      traceId: `${baseId}-trace-old`,
+      projectId,
+    });
     expect(traceOld).toBeUndefined();
-    const traceNew = await getTraceById({ traceId: `${baseId}-trace-new`, projectId });
+    const traceNew = await getTraceById({
+      traceId: `${baseId}-trace-new`,
+      projectId,
+    });
     expect(traceNew).toBeDefined();
   });
 
@@ -298,12 +304,12 @@ describe("DataRetentionProcessingJob", () => {
 
     // Then
     expect(() =>
-      getObservationById(`${baseId}-observation-old`, projectId),
+      getObservationById({ id: `${baseId}-observation-old`, projectId }),
     ).rejects.toThrowError("not found");
-    const observationNew = await getObservationById(
-      `${baseId}-observation-new`,
+    const observationNew = await getObservationById({
+      id: `${baseId}-observation-new`,
       projectId,
-    );
+    });
     expect(observationNew).toBeDefined();
   });
 
@@ -311,12 +317,12 @@ describe("DataRetentionProcessingJob", () => {
     // Setup
     const baseId = randomUUID();
     await createScoresCh([
-      createScore({
+      createTraceScore({
         id: `${baseId}-score-old`,
         project_id: projectId,
         timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).getTime(), // 30 days in the past
       }),
-      createScore({
+      createTraceScore({
         id: `${baseId}-score-new`,
         project_id: projectId,
       }),
@@ -328,9 +334,15 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const scoresOld = await getScoreById(projectId, `${baseId}-score-old`);
+    const scoresOld = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score-old`,
+    });
     expect(scoresOld).toBeUndefined();
-    const scoresNew = await getScoreById(projectId, `${baseId}-score-new`);
+    const scoresNew = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score-new`,
+    });
     expect(scoresNew).toBeDefined();
   });
 });

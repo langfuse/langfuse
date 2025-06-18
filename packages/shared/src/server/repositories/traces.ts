@@ -27,6 +27,7 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { recordDistribution } from "../instrumentation";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -41,12 +42,21 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
  * • Filters within ±2 day window
  * • Used for validating trace references before eval job creation
  */
-export const checkTraceExists = async (
-  projectId: string,
-  traceId: string,
-  timestamp: Date,
-  filter: FilterState,
-): Promise<boolean> => {
+export const checkTraceExists = async ({
+  projectId,
+  traceId,
+  timestamp,
+  filter,
+  maxTimeStamp,
+  exactTimestamp,
+}: {
+  projectId: string;
+  traceId: string;
+  timestamp: Date;
+  filter: FilterState;
+  maxTimeStamp: Date | undefined;
+  exactTimestamp?: Date;
+}): Promise<boolean> => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
   });
@@ -101,7 +111,9 @@ export const checkTraceExists = async (
     WHERE ${tracesFilterRes.query}
     AND t.project_id = {projectId: String}
     AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-    AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY
+    ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
+    ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
+    ${exactTimestamp ? `AND timestamp = {exactTimestamp: DateTime64(3)}` : ""}
     GROUP BY t.id, t.project_id
   `;
 
@@ -113,6 +125,12 @@ export const checkTraceExists = async (
       ...(observationFilterRes ? observationFilterRes.params : {}),
       ...(timestamp
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+      ...(maxTimeStamp
+        ? { maxTimeStamp: convertDateToClickhouseDateTime(maxTimeStamp) }
+        : {}),
+      ...(exactTimestamp
+        ? { exactTimestamp: convertDateToClickhouseDateTime(exactTimestamp) }
         : {}),
     },
     tags: {
@@ -208,7 +226,16 @@ export const getTracesBySessionId = async (
     },
   });
 
-  return records.map(convertClickhouseToDomain);
+  const traces = records.map(convertClickhouseToDomain);
+
+  traces.forEach((trace) => {
+    recordDistribution(
+      "langfuse.traces_by_session_id_age",
+      new Date().getTime() - trace.timestamp.getTime(),
+    );
+  });
+
+  return traces;
 };
 
 export const hasAnyTrace = async (projectId: string) => {
@@ -304,6 +331,10 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
 
 /**
  * Retrieves a trace record by its ID and associated project ID, with optional filtering by timestamp range.
+ * If no timestamp filters are provided, runs two queries in parallel:
+ * 1. One with a 7-day fromTimestamp filter (typically faster)
+ * 2. One without any timestamp filters (complete but slower)
+ * Returns the first non-empty result.
  */
 export const getTraceById = async ({
   traceId,
@@ -348,6 +379,16 @@ export const getTraceById = async ({
   });
 
   const res = records.map(convertClickhouseToDomain);
+
+  res.forEach((trace) => {
+    recordDistribution(
+      "langfuse.query_by_id_age",
+      new Date().getTime() - trace.timestamp.getTime(),
+      {
+        table: "traces",
+      },
+    );
+  });
 
   return res.shift();
 };
@@ -515,7 +556,8 @@ export const getTracesIdentifierForSession = async (
       user_id,
       name,
       timestamp,
-      project_id
+      project_id,
+      environment
     FROM traces
     WHERE (project_id = {projectId: String})
     AND (session_id = {sessionId: String})
@@ -528,6 +570,7 @@ export const getTracesIdentifierForSession = async (
     user_id: string;
     name: string;
     timestamp: string;
+    environment: string;
   }>({
     query: query,
     params: {
@@ -547,6 +590,7 @@ export const getTracesIdentifierForSession = async (
     userId: row.user_id,
     name: row.name,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    environment: row.environment,
   }));
 };
 
@@ -563,7 +607,7 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
       traceIds,
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",
@@ -590,7 +634,7 @@ export const deleteTracesOlderThanDays = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",
@@ -612,7 +656,7 @@ export const deleteTracesByProjectId = async (projectId: string) => {
       projectId,
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "tracing",
@@ -1000,3 +1044,66 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
     projectId: record.project_id,
   }));
 };
+
+export const traceWithSessionIdExists = async (
+  projectId: string,
+  sessionId: string,
+) => {
+  const query = `
+    SELECT id, project_id
+    FROM traces
+    WHERE session_id = {sessionId: String}
+    AND project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const result = await queryClickhouse<{ id: string; project_id: string }>({
+    query,
+    params: {
+      sessionId,
+      projectId,
+    },
+    tags: {
+      feature: "tracing",
+      type: "trace",
+      kind: "exists",
+      projectId,
+    },
+  });
+
+  return result.length > 0;
+};
+
+export async function getAgentGraphData(params: {
+  projectId: string;
+  traceId: string;
+  chMinStartTime: string;
+  chMaxStartTime: string;
+}) {
+  const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
+
+  const query = `
+          SELECT
+            id,
+            parent_observation_id,
+            metadata['langgraph_node'] AS node,
+            metadata['langgraph_step'] AS step
+          FROM
+            observations
+          WHERE
+            project_id = {projectId: String}
+            AND trace_id = {traceId: String}
+            AND start_time >= {chMinStartTime: DateTime64(3)}
+            AND start_time <= {chMaxStartTime: DateTime64(3)}
+        `;
+
+  return queryClickhouse({
+    query,
+    params: {
+      traceId,
+      projectId,
+      chMinStartTime,
+      chMaxStartTime,
+    },
+  });
+}
