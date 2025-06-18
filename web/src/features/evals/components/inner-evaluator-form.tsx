@@ -674,7 +674,7 @@ export const InnerEvaluatorForm = (props: {
                 <FormItem>
                   <FormLabel>Delay (seconds)</FormLabel>
                   <FormControl>
-                    <Input {...field} type="number" />
+                    <Input {...field} type="number" min={0} />
                   </FormControl>
                   <FormDescription>
                     Time between first Trace/Dataset run event and evaluation
