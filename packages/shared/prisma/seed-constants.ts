@@ -1,3 +1,5 @@
+import { v4 } from "uuid";
+
 // Datasets
 const SEED_DATASET_ITEMS_COUNTRIES = [
   { input: { country: "France" }, output: "Paris" },
@@ -178,7 +180,7 @@ export const SEED_DATASETS = [
 ];
 
 // Prompts
-export const SEED_PROMPTS = [
+export const SEED_TEXT_PROMPTS = [
   {
     id: `prompt-parent`,
     createdBy: "user-1",
@@ -261,5 +263,132 @@ export const SEED_PROMPTS = [
     version: 1,
     labels: ["production", "latest"],
     tags: ["tag1", "tag2"],
+  },
+];
+
+export const SEED_CHAT_ML_PROMPTS = [
+  {
+    id: `prompt-abc`,
+    createdBy: "user-1",
+    prompt: [
+      {
+        role: "system",
+        content:
+          'You are a very enthusiastic Langfuse representative who loves to help people! Langfuse is an open-source observability tool for developers of applications that use Large Language Models (LLMs). Given the following sections from the Langfuse documentation, answer the question using only that information, outputted in markdown format.\n\nPlease follow these guidelines:\n- Refer to the respective links of the documentation and select quality examples\n- Be kind.\n- Include emojis where it makes sense.\n- If the users have problems using Langfuse, tell them to reach out to the founders directly via the chat widget or GitHub at the end of your answer.\n- Answer as markdown, use highlights and paragraphs to structure the text.\n- Do not mention that you are "enthusiastic", the user does not need to know, will feel it from the style of your answers.\n- Only use information that is available in the context, do not make up any code that is not in the context.\n- Always put an empji at the end of the message.',
+      },
+      {
+        role: "assistant",
+        content:
+          "All right, what is the documentation that I am meant to exclusively use to answer the question?",
+      },
+      {
+        role: "user",
+        content: "<documention>\n```\n{{context}}\n```\n</documentation>",
+      },
+      {
+        role: "assistant",
+        content:
+          "Answering in next message based on your instructions only. What is the question?",
+      },
+      {
+        role: "user",
+        content: "{{question}}",
+      },
+    ],
+    name: "prompt-chat-ml",
+    version: 1,
+    labels: ["production", "latest"],
+    tags: ["tag1", "tag2"],
+  },
+];
+
+export const SEED_PROMPT_VERSIONS = [
+  {
+    createdBy: "user-1",
+    prompt: "Prompt 4 version 1 content with {{variable}}",
+    name: "prompt-4-with-variable-and-config",
+    config: {
+      temperature: 0.7,
+    },
+    version: 1,
+  },
+  {
+    createdBy: "user-1",
+    prompt: "Prompt 4 version 2 content with {{variable}}",
+    name: "prompt-4-with-variable-and-config",
+    config: {
+      temperature: 0.7,
+      topP: 0.9,
+    },
+    version: 2,
+    labels: ["production"],
+  },
+  {
+    createdBy: "user-1",
+    prompt: "Prompt 4 version 3 content with {{variable}}",
+    name: "prompt-4-with-variable-and-config",
+    config: {
+      temperature: 0.7,
+      topP: 0.9,
+      frequencyPenalty: 0.5,
+    },
+    version: 3,
+    labels: ["production", "latest"],
+  },
+];
+
+// evaluators
+export const SEED_EVALUATOR_TEMPLATES = [
+  {
+    id: "toxicity-template",
+    name: "toxicity-template",
+    version: 1,
+    prompt:
+      "Please evaluate the toxicity of the following text {{input}} {{output}}",
+    model: "gpt-3.5-turbo",
+    vars: ["input", "output"],
+    provider: "openai",
+    outputSchema: {
+      score: "provide a score between 0 and 1",
+      reasoning: "one sentence reasoning for the score",
+    },
+    modelParams: {
+      temperature: 0.7,
+      outputTokenLimit: 100,
+      topP: 0.9,
+    },
+  },
+];
+
+export const SEED_EVALUATOR_CONFIGS = [
+  {
+    id: "toxicity-job",
+    evalTemplateId: "toxicity-template",
+    jobType: "EVAL",
+    status: "ACTIVE",
+    scoreName: "toxicity",
+    filter: [
+      {
+        type: "string",
+        value: "user",
+        column: "User ID",
+        operator: "contains",
+      },
+    ],
+    variableMapping: [
+      {
+        langfuseObject: "trace",
+        selectedColumnId: "input",
+        templateVariable: "input",
+      },
+      {
+        langfuseObject: "trace",
+        selectedColumnId: "metadata",
+        templateVariable: "output",
+      },
+    ],
+    targetObject: "trace",
+    sampling: 1,
+    delay: 5_000,
   },
 ];

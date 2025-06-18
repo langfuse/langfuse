@@ -3,22 +3,27 @@ import {
   type Project,
   type Prisma,
   ScoreDataType,
-  AnnotationQueueObjectType,
+  JobConfiguration,
+  JobExecutionStatus,
 } from "../src/index";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 
 import { chunk } from "lodash";
 import { v4 } from "uuid";
-import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { encrypt } from "../src/encryption";
 import { redis } from "../src/server/redis/redis";
 import { randomUUID } from "crypto";
-import { SEED_DATASETS, SEED_PROMPTS } from "./seed-constants";
-import { generateTraceId } from "../utilities/seed-helpers";
-
-const LOAD_TRACE_VOLUME = 10_000;
+import {
+  SEED_CHAT_ML_PROMPTS,
+  SEED_DATASETS,
+  SEED_EVALUATOR_CONFIGS,
+  SEED_EVALUATOR_TEMPLATES,
+  SEED_PROMPT_VERSIONS,
+  SEED_TEXT_PROMPTS,
+} from "./seed-constants";
+import { generateDatasetRunTraceId } from "../utilities/seed-helpers";
 
 type ConfigCategory = {
   label: string;
@@ -297,75 +302,57 @@ async function main() {
     }
 
     // add eval objects
-    const evalTemplate = await prisma.evalTemplate.upsert({
-      where: {
-        projectId_name_version: {
+    for (const evalTemplate of SEED_EVALUATOR_TEMPLATES) {
+      await prisma.evalTemplate.upsert({
+        where: {
+          projectId_name_version: {
+            projectId: project1.id,
+            name: evalTemplate.name,
+            version: 1,
+          },
+        },
+        create: {
+          id: evalTemplate.id,
           projectId: project1.id,
-          name: "toxicity-template",
-          version: 1,
+          name: evalTemplate.name,
+          version: evalTemplate.version,
+          prompt: evalTemplate.prompt,
+          model: evalTemplate.model,
+          vars: evalTemplate.vars,
+          provider: evalTemplate.provider,
+          outputSchema: evalTemplate.outputSchema,
+          modelParams: evalTemplate.modelParams,
         },
-      },
-      create: {
-        projectId: project1.id,
-        name: "toxicity-template",
-        version: 1,
-        prompt:
-          "Please evaluate the toxicity of the following text {{input}} {{output}}",
-        model: "gpt-3.5-turbo",
-        vars: ["input", "output"],
-        provider: "openai",
-        outputSchema: {
-          score: "provide a score between 0 and 1",
-          reasoning: "one sentence reasoning for the score",
-        },
-        modelParams: {
-          temperature: 0.7,
-          outputTokenLimit: 100,
-          topP: 0.9,
-        },
-      },
-      update: {},
-    });
+        update: {},
+      });
+    }
 
-    await prisma.jobConfiguration.upsert({
-      where: {
-        id: "toxicity-job",
-      },
-      create: {
-        id: "toxicity-job",
-        evalTemplateId: evalTemplate.id,
-        projectId: project1.id,
-        jobType: "EVAL",
-        status: "ACTIVE",
-        scoreName: "toxicity",
-        filter: [
-          {
-            type: "string",
-            value: "user",
-            column: "User ID",
-            operator: "contains",
-          },
-        ],
-        variableMapping: [
-          {
-            langfuseObject: "trace",
-            selectedColumnId: "input",
-            templateVariable: "input",
-          },
-          {
-            langfuseObject: "trace",
-            selectedColumnId: "metadata",
-            templateVariable: "output",
-          },
-        ],
-        targetObject: "trace",
-        sampling: 1,
-        delay: 5_000,
-      },
-      update: {},
-    });
+    for (const evalConfig of SEED_EVALUATOR_CONFIGS) {
+      await prisma.jobConfiguration.upsert({
+        where: {
+          id: evalConfig.id,
+        },
+        create: {
+          id: evalConfig.id,
+          evalTemplateId: evalConfig.evalTemplateId,
+          projectId: project1.id,
+          jobType: evalConfig.jobType as any,
+          status: evalConfig.status as any,
+          scoreName: evalConfig.scoreName,
+          filter: evalConfig.filter,
+          variableMapping: evalConfig.variableMapping,
+          targetObject: evalConfig.targetObject,
+          sampling: evalConfig.sampling,
+          delay: evalConfig.delay,
+        },
+        update: {},
+      });
+    }
 
-    // await createDatasets(project1, project2, observations);
+    await generateEvalJobExecutions(
+      [project1, project2],
+      SEED_EVALUATOR_CONFIGS as unknown as Partial<JobConfiguration>[],
+    );
 
     await createDashboardsAndWidgets([project1, project2]);
 
@@ -613,7 +600,7 @@ export async function createDatasets(
               id: `${dataset.id}-${index}-${datasetRunNumber}`,
               projectId,
               datasetItemId: datasetItemIds[index],
-              traceId: `0-${generateTraceId(datasetName, index, projectId, datasetRunNumber)}`,
+              traceId: `0-${generateDatasetRunTraceId(datasetName, index, projectId, datasetRunNumber)}`,
               datasetRunId: datasetRun.id,
             },
             update: {},
@@ -707,11 +694,7 @@ function createObjects(
   const comments: Prisma.CommentCreateManyInput[] = [];
   const queueItems: Prisma.AnnotationQueueItemCreateManyInput[] = [];
 
-  // TODO: attach score configs to certain scores for traces
-  // TODO: attach prompts to certain traces
-  // TODO: attach sessions to certain traces
   // TODO: add comments to certain traces
-  // TODO: add certain traces to annotation queues
 
   // find unique sessions by id and projectid
   const uniqueSessions: Prisma.TraceSessionCreateManyInput[] = Array.from(
@@ -725,6 +708,29 @@ function createObjects(
     events,
     comments,
   };
+}
+
+async function generateEvalJobExecutions(
+  projects: Project[],
+  evalJobConfigurations: Partial<JobConfiguration>[],
+) {
+  for (const project of projects) {
+    for (let i = 0; i < 1000; i++) {
+      const jobConfiguration =
+        evalJobConfigurations[i % evalJobConfigurations.length];
+      await prisma.jobExecution.create({
+        data: {
+          projectId: project.id,
+          jobTemplateId: jobConfiguration.evalTemplateId,
+          jobInputTraceId: `trace-eval-${i}-${project.id.slice(-8)}`,
+          jobConfigurationId: jobConfiguration.id!,
+          status: JobExecutionStatus.COMPLETED,
+          jobOutputScoreId: `score-eval-${i}-${project.id.slice(-8)}`,
+          jobInputObservationId: `observation-eval-${i}-${project.id.slice(-8)}`,
+        },
+      });
+    }
+  }
 }
 
 async function generatePromptsForProject(projects: Project[]) {
@@ -743,85 +749,89 @@ export const PROMPT_IDS: string[] = [];
 
 async function generatePrompts(project: Project) {
   const promptIds = [];
-  for (const prompt of SEED_PROMPTS) {
-    await prisma.prompt.upsert({
-      where: {
-        projectId_name_version: {
-          projectId: prompt.id + project.id,
-          name: prompt.name,
-          version: prompt.version,
+  for (const prompt of SEED_TEXT_PROMPTS) {
+    const versions = Math.floor(Math.random() * 20) + 1;
+    for (let i = 1; i <= versions; i++) {
+      const promptId = `prompt-${v4()}`;
+      await prisma.prompt.upsert({
+        where: {
+          projectId_name_version: {
+            projectId: project.id,
+            name: prompt.name,
+            version: i,
+          },
+          id: promptId,
         },
-        id: prompt.id + project.id,
-      },
-      create: {
-        id: prompt.id + project.id,
-        projectId: project.id,
-        createdBy: prompt.createdBy,
-        prompt: prompt.prompt,
-        name: prompt.name,
-        version: prompt.version,
-        labels: prompt.labels,
-        tags: prompt.tags,
-      },
-      update: {},
-    });
-    promptIds.push(prompt.id);
+        create: {
+          id: promptId,
+          projectId: project.id,
+          createdBy: prompt.createdBy,
+          prompt: `${prompt.prompt} version ${i} content`,
+          name: prompt.name,
+          version: i,
+          labels: i === versions ? prompt.labels : [],
+        },
+        update: {
+          id: promptId,
+        },
+      });
+      promptIds.push(promptId);
+    }
   }
 
-  const promptVersionsWithVariables = [
-    {
-      id: `prompt-${v4()}`,
-      projectId: project.id,
-      createdBy: "user-1",
-      prompt: "Prompt 4 version 1 content with {{variable}}",
-      name: "Prompt 4 with variable and config",
-      config: {
-        temperature: 0.7,
-      },
-      version: 1,
-    },
-    {
-      id: `prompt-${v4()}`,
-      projectId: project.id,
-      createdBy: "user-1",
-      prompt: "Prompt 4 version 2 content with {{variable}}",
-      name: "Prompt 4 with variable and config",
-      config: {
-        temperature: 0.7,
-        topP: 0.9,
-      },
-      version: 2,
-      labels: ["production"],
-    },
-    {
-      id: `prompt-${v4()}`,
-      projectId: project.id,
-      createdBy: "user-1",
-      prompt: "Prompt 4 version 3 content with {{variable}}",
-      name: "Prompt 4 with variable and config",
-      config: {
-        temperature: 0.7,
-        topP: 0.9,
-        frequencyPenalty: 0.5,
-      },
-      version: 3,
-      labels: ["production", "latest"],
-    },
-  ];
+  for (const prompt of SEED_CHAT_ML_PROMPTS) {
+    const promptId = `prompt-${v4()}`;
+    const versions = Math.floor(Math.random() * 20) + 1;
+    for (let i = 1; i <= versions; i++) {
+      const versionAddition = [
+        {
+          role: "user",
+          content: "This is content for version " + i,
+        },
+      ];
 
-  for (const version of promptVersionsWithVariables) {
+      await prisma.prompt.upsert({
+        where: {
+          projectId_name_version: {
+            projectId: project.id,
+            name: prompt.name,
+            version: prompt.version,
+          },
+          id: promptId,
+        },
+        create: {
+          id: promptId,
+          projectId: project.id,
+          createdBy: prompt.createdBy,
+          prompt: [...prompt.prompt, ...versionAddition],
+          name: prompt.name,
+          version: i,
+          type: "chat",
+          labels: prompt.labels,
+          tags: prompt.tags,
+        },
+        update: {
+          id: promptId,
+        },
+      });
+      promptIds.push(promptId);
+    }
+  }
+
+  for (const version of SEED_PROMPT_VERSIONS) {
+    const id = `prompt-${v4()}`;
     await prisma.prompt.upsert({
       where: {
         projectId_name_version: {
-          projectId: version.projectId,
+          projectId: project.id,
           name: version.name,
           version: version.version,
         },
-        id: version.id,
+        id: id,
       },
       create: {
-        id: version.id,
-        projectId: version.projectId,
+        id: id,
+        projectId: project.id,
         createdBy: version.createdBy,
         prompt: version.prompt,
         name: version.name,
@@ -830,41 +840,12 @@ async function generatePrompts(project: Project) {
         labels: version.labels,
       },
       update: {
-        id: version.id,
+        id: id,
       },
     });
-    promptIds.push(version.id);
+    promptIds.push(id);
   }
-  const promptName = "Prompt with many versions";
-  const projectId = project.id;
-  const createdBy = "user-1";
 
-  for (let i = 1; i <= 20; i++) {
-    const promptId = `prompt-${v4()}`;
-    await prisma.prompt.upsert({
-      where: {
-        projectId_name_version: {
-          projectId: projectId,
-          name: promptName,
-          version: i,
-        },
-        id: promptId,
-      },
-      create: {
-        id: promptId,
-        projectId: projectId,
-        createdBy: createdBy,
-        prompt: `${promptName} version ${i} content`,
-        name: promptName,
-        version: i,
-        labels: i === 20 ? ["production", "latest"] : [],
-      },
-      update: {
-        id: promptId,
-      },
-    });
-    promptIds.push(promptId);
-  }
   return promptIds;
 }
 
@@ -960,67 +941,6 @@ async function generateConfigs(project: Project) {
   }
 
   return configNameAndId;
-}
-
-function getGenerationInputOutput(): {
-  input: Prisma.InputJsonValue;
-  output: Prisma.InputJsonValue;
-} {
-  if (Math.random() > 0.9) {
-    const input = [
-      {
-        role: "user",
-        content: [
-          { text: "What's depicted in this image?", type: "text" },
-          {
-            type: "image_url",
-            image_url: {
-              url: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
-            },
-          },
-          { text: "Describe the scene in detail.", type: "text" },
-        ],
-      },
-    ];
-
-    const output =
-      "The image depicts a serene landscape featuring a wooden pathway or boardwalk that winds through a lush green field. The field is filled with tall grass and surrounded by trees and shrubs. Above, the sky is bright with scattered clouds, suggesting a clear and pleasant day. The scene conveys a sense of tranquility and natural beauty.";
-
-    return { input, output };
-  }
-
-  const input =
-    Math.random() > 0.5
-      ? [
-          {
-            role: "system",
-            content: "Be a helpful assistant",
-          },
-          {
-            role: "user",
-            content: "How can i create a *React* component?",
-          },
-        ]
-      : {
-          input: "How can i create a React component?",
-          retrievedDocuments: [
-            {
-              title: "How to create a React component",
-              url: "https://www.google.com",
-              description: "A guide to creating React components",
-            },
-            {
-              title: "React component creation",
-              url: "https://www.google.com",
-              description: "A guide to creating React components",
-            },
-          ],
-        };
-
-  const output =
-    "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.\n\n**Image**\n\n![Languse Example Image](https://static.langfuse.com/langfuse-dev/langfuse-example-image.jpeg)\n\n1.  **Functional Component**:\n\nA functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:\n\n```javascript\nimport React from 'react';\nfunction Greeting(props) {\n  return <h1>Hello, {props.name}</h1>;\n}\nexport default Greeting;\n```\n\nTo use this component in another file, you can do:\n\n```javascript\nimport Greeting from './Greeting';\nfunction App() {\n  return (\n    <div>\n      <Greeting name=\"John\" />\n    </div>\n  );\n}\nexport default App;\n```\n\n2.  **Class Component**:\n\nYou can also define components as classes in React. These have some additional features compared to functional components:\n\n```javascript\nimport React, { Component } from 'react';\nclass Greeting extends Component {\n  render() {\n    return <h1>Hello, {this.props.name}</h1>;\n  }\n}\nexport default Greeting;\n```\n\nAnd here's how to use this component:\n\n```javascript\nimport Greeting from './Greeting';\nclass App extends Component {\n  render() {\n    return (\n      <div>\n        <Greeting name=\"John\" />\n      </div>\n    );\n  }\n}\nexport default App;\n```\n\nWith the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.\n\nRemember to import React at the top of your file whenever you're creating a component, because JSX transpiles to `React.createElement` calls under the hood.";
-
-  return { input, output };
 }
 
 async function generateQueuesForProject(

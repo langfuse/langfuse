@@ -1,4 +1,4 @@
-import { SEED_PROMPTS } from "../prisma/seed-constants";
+import { SEED_TEXT_PROMPTS } from "../prisma/seed-constants";
 import {
   REALISTIC_TRACE_NAMES,
   REALISTIC_SPAN_NAMES,
@@ -11,7 +11,7 @@ import { clickhouseClient, logger } from "../src/server";
 import path from "path";
 import { readFileSync } from "fs";
 import { v4 } from "uuid";
-import { generateTraceId } from "../utilities/seed-helpers";
+import { generateDatasetRunTraceId } from "../utilities/seed-helpers";
 
 function randn_bm(min: number, max: number, skew: number) {
   let u = 0,
@@ -31,7 +31,226 @@ function randn_bm(min: number, max: number, skew: number) {
   return num;
 }
 
-// New function to create dataset-based traces with experiment data
+export const createEvaluationData = async (projectIds: string[]) => {
+  logger.info(`Creating evaluation data for ${projectIds.length} projects.`);
+
+  for (const projectId of projectIds) {
+    logger.info(`Processing project ${projectId}`);
+
+    // Generate a fixed timestamp for this trace
+    const traceTimestamp = new Date(
+      Date.now() - Math.floor(Math.random() * 24 * 60 * 60 * 1000),
+    );
+    const observationStartTime = new Date(
+      traceTimestamp.getTime() + Math.floor(Math.random() * (500 - 10) + 10),
+    );
+
+    // Format timestamps for ClickHouse (YYYY-MM-DD HH:mm:ss)
+    const formatTimestamp = (date: Date) => {
+      return date.toISOString().split(".")[0].replace("T", " ");
+    };
+
+    const nestedJsonPath = path.join(
+      __dirname,
+      "../clickhouse/nested_json.json",
+    );
+    const heavyMarkdownPath = path.join(
+      __dirname,
+      "../clickhouse/markdown.txt",
+    );
+    const chatMlJsonPath = path.join(
+      __dirname,
+      "../clickhouse/chat_ml_json.json",
+    );
+
+    const nestedJsonContent = JSON.parse(readFileSync(nestedJsonPath, "utf-8"));
+    const heavyMarkdownContent = readFileSync(heavyMarkdownPath, "utf-8");
+    const chatMlJsonContent = JSON.parse(readFileSync(chatMlJsonPath, "utf-8"));
+
+    const truncatedNestedJson = {
+      ...nestedJsonContent,
+      products: nestedJsonContent.products?.slice(0, 3) || [],
+    };
+
+    const truncatedChatMlJson = {
+      ...chatMlJsonContent,
+      messages: chatMlJsonContent.messages?.slice(0, 4) || [],
+    };
+
+    const escapedHeavyMarkdownContent = heavyMarkdownContent.replace(
+      /'/g,
+      "''",
+    );
+    const escapedTruncatedNestedJson = JSON.stringify(
+      truncatedNestedJson,
+    ).replace(/'/g, "''");
+    const escapedTruncatedChatMlJson = JSON.stringify(
+      truncatedChatMlJson,
+    ).replace(/'/g, "''");
+
+    const evalObservationsPerProject = 1000;
+    const evalTracesPerProject = Math.floor(evalObservationsPerProject / 10); // One trace should have 10 observations
+    const evalScoresPerProject = 1000;
+
+    const evalTracesQuery = `
+    INSERT INTO traces
+    SELECT concat('trace-eval-', toString(number), '-${projectId.slice(-8)}') AS id,
+      toDateTime('${formatTimestamp(traceTimestamp)}') AS timestamp,
+      arrayElement(['${REALISTIC_TRACE_NAMES.map((name) => name.replace(/'/g, "''")).join("','")}'], 1 + (number % ${REALISTIC_TRACE_NAMES.length})) AS name,
+      if(randUniform(0, 1) < 0.3, concat('user_', toString(rand() % 1000)), NULL) AS user_id,
+      map('key', 'value') AS metadata,
+      if(randUniform(0, 1) < 0.4, concat('v', toString(randUniform(1, 5)), '.', toString(randUniform(0, 10))), NULL) AS release,
+      if(randUniform(0, 1) < 0.4, concat('v', toString(randUniform(1, 3)), '.', toString(randUniform(0, 20))), NULL) AS version,
+      '${projectId}' AS project_id,
+      'langfuse-evaluation' AS environment,
+      if(rand() < 0.8, true, false) as public,
+      if(rand() < 0.1, true, false) as bookmarked,
+      if(rand() < 0.3, array('production', 'ai-agent'), array()) as tags,
+      if(randUniform(0, 1) < 0.3, '${escapedHeavyMarkdownContent}',
+        '${escapedTruncatedChatMlJson}'
+      ) AS input,
+      if(randUniform(0, 1) < 0.2, '${escapedTruncatedNestedJson}',
+        '${escapedTruncatedChatMlJson}'
+      ) AS output,
+      NULL AS session_id,
+      timestamp AS created_at,
+      timestamp AS updated_at,
+      timestamp AS event_ts,
+      0 AS is_deleted
+    FROM numbers(${evalTracesPerProject});
+  `;
+
+    const evalObservationsQuery = `
+    INSERT INTO observations
+    SELECT concat('observation-eval-', toString(number), '-${projectId.slice(-8)}') AS id,
+      concat('trace-eval-', toString(number % ${evalTracesPerProject}), '-${projectId.slice(-8)}') AS trace_id,
+      '${projectId}' AS project_id,
+      'langfuse-evaluation' AS environment,
+      if(randUniform(0, 1) < 0.47, 'GENERATION', if(randUniform(0, 1) < 0.94, 'SPAN', 'EVENT')) AS type,
+      if(number % 6 = 0, NULL, toString(number - 1)) AS parent_observation_id,
+      toDateTime('${formatTimestamp(observationStartTime)}') AS start_time,
+      addMilliseconds(start_time,
+        case
+          when "type" = 'GENERATION' then floor(randUniform(5, 30))
+          when "type" = 'SPAN' then floor(randUniform(1, 50))
+          else floor(randUniform(1, 10))
+        end) AS end_time,
+      case
+        when "type" = 'GENERATION' then arrayElement(['${REALISTIC_GENERATION_NAMES.map((name) => name.replace(/'/g, "''")).join("','")}'], 1 + (number % ${REALISTIC_GENERATION_NAMES.length}))
+        when "type" = 'SPAN' then arrayElement(['${REALISTIC_SPAN_NAMES.map((name) => name.replace(/'/g, "''")).join("','")}'], 1 + (number % ${REALISTIC_SPAN_NAMES.length}))
+        else concat('event_', toString(number % 10))
+      end AS name,
+      map('key', 'value') AS metadata,
+      if(randUniform(0, 1) < 0.85, 'DEFAULT', if(randUniform(0, 1) < 0.7, 'DEBUG', if(randUniform(0, 1) < 0.3, 'ERROR', 'WARNING'))) AS level,
+      NULL AS status_message,
+      NULL AS version,
+      if(randUniform(0, 1) < 0.4, '${escapedHeavyMarkdownContent}',
+        '${escapedTruncatedChatMlJson}'
+      ) AS input,
+      if(randUniform(0, 1) < 0.3, '${escapedTruncatedNestedJson}',
+        '${escapedTruncatedChatMlJson}'
+      ) AS output,
+      if("type" = 'GENERATION',
+        arrayElement(['${REALISTIC_MODELS.map((model) => model.replace(/'/g, "''")).join("','")}'], 1 + (number % ${REALISTIC_MODELS.length})),
+        NULL) as provided_model_name,
+      if("type" = 'GENERATION',
+        concat('model_', toString(rand() % 1000)),
+        NULL) as internal_model_id,
+      if("type" = 'GENERATION',
+        '{"temperature": 0.7}',
+        '{}') AS model_parameters,
+      if("type" = 'GENERATION',
+        map('input', toUInt64(randUniform(20, 200)), 'output', toUInt64(randUniform(10, 100)), 'total', toUInt64(randUniform(30, 300))),
+        map()) AS provided_usage_details,
+      if("type" = 'GENERATION',
+        map('input', toUInt64(randUniform(20, 200)), 'output', toUInt64(randUniform(10, 100)), 'total', toUInt64(randUniform(30, 300))),
+        map()) AS usage_details,
+      if("type" = 'GENERATION',
+        map('input', toDecimal64(randUniform(0.00001, 0.001), 8), 'output', toDecimal64(randUniform(0.00001, 0.002), 8), 'total', toDecimal64(randUniform(0.00002, 0.003), 8)),
+        map()) AS provided_cost_details,
+      if("type" = 'GENERATION',
+        map('input', toDecimal64(randUniform(0.00001, 0.001), 8), 'output', toDecimal64(randUniform(0.00001, 0.002), 8), 'total', toDecimal64(randUniform(0.00002, 0.003), 8)),
+        map()) AS cost_details,
+      if("type" = 'GENERATION',
+        toDecimal64(randUniform(0.00002, 0.003), 8),
+        NULL) AS total_cost,
+      if("type" = 'GENERATION',
+        addMilliseconds(start_time, floor(randUniform(100, 500))),
+        NULL) AS completion_start_time,
+      if("type" = 'GENERATION' AND number % 10 = 0,
+        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => p.id).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
+        NULL) AS prompt_id,
+      if("type" = 'GENERATION' AND number % 10 = 0,
+        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => p.name).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
+        NULL) AS prompt_name,
+      if("type" = 'GENERATION' AND number % 10 = 0,
+        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => p.version).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
+        NULL) AS prompt_version,
+      start_time AS created_at,
+      start_time AS updated_at,
+      start_time AS event_ts,
+      0 AS is_deleted
+    FROM numbers(${evalObservationsPerProject});
+  `;
+
+    const evalScoresQuery = `
+    INSERT INTO scores
+    SELECT concat('score-eval-', toString(number), '-${projectId.slice(-8)}') AS id,
+      toDateTime('${formatTimestamp(observationStartTime)}') AS timestamp,
+      '${projectId}' AS project_id,
+      'langfuse-evaluation' AS environment,
+      concat('trace-eval-', toString(floor(randUniform(0, ${evalTracesPerProject}))), '-${projectId.slice(-8)}') AS trace_id,
+      NULL AS session_id,
+      NULL AS dataset_run_id,
+      NULL AS observation_id,
+      concat('name_', toString(rand() % 10)) AS name,
+      case
+        when score_type = 1 then NULL
+        when score_type = 2 then if(number % 2 = 0, 1, 0)
+        else randUniform(0, 100)
+      end as value,
+      'API' as source,
+      'comment' as comment,
+      map('prototype', 'test') AS metadata,
+      toString(rand() % 100) as author_user_id,
+      toString(rand() % 100) as config_id,
+      case
+        when score_type = 0 then 'NUMERIC'
+        when score_type = 1 then 'CATEGORICAL'
+        else 'BOOLEAN'
+      end as data_type,
+      case
+        when score_type = 0 then NULL
+        when score_type = 1 then concat('category_', toString(number % 5))
+        else if(number % 2 = 0, 'true', 'false')
+      end as string_value,
+      NULL as queue_id,
+      timestamp AS created_at,
+      timestamp AS updated_at,
+      timestamp AS event_ts,
+      0 AS is_deleted
+    FROM (
+      SELECT number,
+        number % 3 as score_type
+      FROM numbers(${evalScoresPerProject})
+    );
+  `;
+
+    const queries = [evalTracesQuery, evalObservationsQuery, evalScoresQuery];
+
+    for (const query of queries) {
+      logger.info(`Executing query: ${query}`);
+      await clickhouseClient().command({
+        query,
+        clickhouse_settings: {
+          wait_end_of_query: 1,
+        },
+      });
+    }
+  }
+};
+
+// Function to create dataset-based traces with experiment data
 export const createDatasetExperimentData = async (
   projectIds: string[],
   opts: {
@@ -59,7 +278,6 @@ export const createDatasetExperimentData = async (
           let traceInput: string;
           let traceOutput: string;
 
-          // TODO: improve to do perform insert query in batch
           if (seedDataset.name === "demo-countries-dataset") {
             const countryData = datasetItem as {
               input: { country: string };
@@ -87,7 +305,7 @@ export const createDatasetExperimentData = async (
           const escapedOutput = traceOutput.replace(/'/g, "''");
 
           // Create unique trace ID
-          const traceId = generateTraceId(
+          const traceId = generateDatasetRunTraceId(
             seedDataset.name,
             i,
             projectId,
@@ -210,8 +428,8 @@ export const prepareClickhouse = async (
     `Preparing Clickhouse for ${projectIds.length} projects and ${opts.numberOfDays} days.`,
   );
 
-  // First create dataset experiment data
   await createDatasetExperimentData(projectIds, opts);
+  await createEvaluationData(projectIds);
 
   const projectData = projectIds.map((projectId) => {
     const observationsPerProject = Math.ceil(
@@ -277,8 +495,6 @@ export const prepareClickhouse = async (
     const escapedTruncatedChatMlJson = JSON.stringify(
       truncatedChatMlJson,
     ).replace(/'/g, "''");
-
-    // TODO: fix chat ml not rendered as such in the UI (it's rendered as a string)
 
     const tracesQuery = `
     INSERT INTO traces
@@ -370,19 +586,19 @@ export const prepareClickhouse = async (
         addMilliseconds(start_time, floor(randUniform(100, 500))),
         NULL) AS completion_start_time,
       if("type" = 'GENERATION' AND rand() < 0.3,
-        array(${SEED_PROMPTS.map((p) => `concat('${p.id}',project_id)`).join(
+        array(${SEED_TEXT_PROMPTS.map((p) => `'${p.id}'`).join(
           ",",
-        )})[(number % ${SEED_PROMPTS.length})+1],
+        )})[(number % ${SEED_TEXT_PROMPTS.length})+1],
         NULL) AS prompt_id,
       if("type" = 'GENERATION' AND rand() < 0.3,
-        array(${SEED_PROMPTS.map((p) => `'${p.name}'`).join(
+        array(${SEED_TEXT_PROMPTS.map((p) => `'${p.name}'`).join(
           ",",
-        )})[(number % ${SEED_PROMPTS.length})+1],
+        )})[(number % ${SEED_TEXT_PROMPTS.length})+1],
         NULL) AS prompt_name,
       if("type" = 'GENERATION' AND rand() < 0.3,
-        array(${SEED_PROMPTS.map((p) => `'${p.version}'`).join(
+        array(${SEED_TEXT_PROMPTS.map((p) => `'${p.version}'`).join(
           ",",
-        )})[(number % ${SEED_PROMPTS.length})+1],
+        )})[(number % ${SEED_TEXT_PROMPTS.length})+1],
         NULL) AS prompt_version,
       start_time AS created_at,
       start_time AS updated_at,
@@ -406,20 +622,36 @@ export const prepareClickhouse = async (
         NULL
       ) AS observation_id,
       concat('name_', toString(rand() % 10)) AS name,
-      randUniform(0, 100) as value,
+      case
+        when score_type = 1 then NULL
+        when score_type = 2 then if(number % 2 = 0, 1, 0)
+        else randUniform(0, 100)
+      end as value,
       'API' as source,
       'comment' as comment,
       map('prototype', 'test') AS metadata,
       toString(rand() % 100) as author_user_id,
       toString(rand() % 100) as config_id,
-      if (rand() < 0.33, 'NUMERIC', if (rand() < 0.5, 'CATEGORICAL', 'BOOLEAN')) as data_type,
-      toString(rand() % 100) as string_value,
+      case
+        when score_type = 0 then 'NUMERIC'
+        when score_type = 1 then 'CATEGORICAL'
+        else 'BOOLEAN'
+      end as data_type,
+      case
+        when score_type = 0 then NULL
+        when score_type = 1 then concat('category_', toString(number % 5))
+        else if(number % 2 = 0, 'true', 'false')
+      end as string_value,
       NULL as queue_id,
       timestamp AS created_at,
       timestamp AS updated_at,
       timestamp AS event_ts,
       0 AS is_deleted
-    FROM numbers(${scoresPerProject});
+    FROM (
+      SELECT number,
+        number % 3 as score_type
+      FROM numbers(${scoresPerProject})
+    );
   `;
 
     const queries = [tracesQuery, scoresQuery, observationsQuery];

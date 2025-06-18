@@ -1,8 +1,29 @@
-export const generateTraceId = (
+export const generateDatasetRunTraceId = (
   datasetName: string,
   itemIndex: number,
   projectId: string,
   runNumber: number,
 ) => {
   return `trace-dataset-${datasetName}-${itemIndex}-${projectId.slice(-8)}-${runNumber}`;
+};
+
+export const generateEvalTraceId = (
+  evalTemplateId: string,
+  projectId: string,
+) => {
+  return `trace-eval-${evalTemplateId}-${projectId.slice(-8)}`;
+};
+
+export const generateEvalObservationId = (
+  evalTemplateId: string,
+  projectId: string,
+) => {
+  return `observation-eval-${evalTemplateId}-${projectId.slice(-8)}`;
+};
+
+export const generateEvalScoreId = (
+  evalTemplateId: string,
+  projectId: string,
+) => {
+  return `score-eval-${evalTemplateId}-${projectId.slice(-8)}`;
 };
