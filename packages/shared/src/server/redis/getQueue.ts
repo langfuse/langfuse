@@ -70,8 +70,6 @@ export function getQueue(queueName: QueueName): Queue | null {
       return ScoreDeleteQueue.getInstance();
     case QueueName.DeadLetterRetryQueue:
       return DeadLetterRetryQueue.getInstance();
-    case QueueName.ObservationUpsert:
-      return ObservationUpsertQueue.getInstance();
     case QueueName.WebhookQueue:
       return WebhookQueue.getInstance();
     default:

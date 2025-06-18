@@ -31,15 +31,3 @@ export type PlaygroundCache = {
   tools?: PlaygroundTool[];
   structuredOutputSchema?: PlaygroundSchema | null;
 } | null;
-
-// --------------------------------------------
-// A fully serialisable snapshot of a playground
-// --------------------------------------------
-export interface PlaygroundState {
-  id: string;
-  messages: ChatMessageWithId[];
-  modelParams: UIModelParams;
-  promptVariables: PromptVariable[];
-  tools: PlaygroundTool[];
-  structuredOutputSchema: PlaygroundSchema | null;
-}

@@ -137,7 +137,6 @@ export const ObservationUpsertQueueEventSchema = z.object({
   type: ObservationTypeDomain,
 });
 
-
 export const WebhookInputSchema = z
   .discriminatedUnion("type", [
     z.object({
@@ -226,7 +225,6 @@ export enum QueueName {
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
-  ObservationUpsert = "observation-upsert",
   WebhookQueue = "webhook-queue",
 }
 
@@ -253,7 +251,6 @@ export enum QueueJobs {
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
   DeadLetterRetryJob = "dead-letter-retry-job",
-  ObservationUpsertJob = "observation-upsert-job",
   WebhookJob = "webhook-job",
 }
 
@@ -353,12 +350,6 @@ export type TQueueJobTypes = {
     id: string;
     payload: DeadLetterRetryQueueEventType;
     name: QueueJobs.DeadLetterRetryJob;
-  };
-  [QueueName.ObservationUpsert]: {
-    timestamp: Date;
-    id: string;
-    payload: ObservationUpsertQueueEventType;
-    name: QueueJobs.ObservationUpsertJob;
   };
   [QueueName.WebhookQueue]: {
     timestamp: Date;
