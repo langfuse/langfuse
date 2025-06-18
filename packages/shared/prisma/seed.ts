@@ -15,6 +15,8 @@ import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { encrypt } from "../src/encryption";
 import { redis } from "../src/server/redis/redis";
 import { randomUUID } from "crypto";
+import { SEED_DATASETS, SEED_PROMPTS } from "./seed-constants";
+import { generateTraceId } from "../utilities/seed-helpers";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -265,25 +267,12 @@ async function main() {
 
     const promptIds = await generatePromptsForProject([project1, project2]);
 
-    const envTags = [null, "development", "staging", "production"];
-    const colorTags = [null, "red", "blue", "yellow"];
-
-    const traceVolume = environment === "load" ? LOAD_TRACE_VOLUME : 100;
-
-    const { traces, observations, scores, sessions, comments, queueItems } =
-      createObjects(
-        traceVolume,
-        envTags,
-        colorTags,
-        project1,
-        project2,
-        promptIds,
-        queueIds,
-        configIdsAndNames,
-      );
-
-    logger.info(
-      `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`,
+    const { sessions, comments, queueItems } = createObjects(
+      project1,
+      project2,
+      promptIds,
+      queueIds,
+      configIdsAndNames,
     );
 
     await uploadObjects(sessions, comments, queueItems);
@@ -376,7 +365,7 @@ async function main() {
       update: {},
     });
 
-    await createDatasets(project1, project2, observations);
+    // await createDatasets(project1, project2, observations);
 
     await createDashboardsAndWidgets([project1, project2]);
 
@@ -532,9 +521,9 @@ export async function createDatasets(
   },
   observations: { id?: string; projectId?: string; traceId?: string | null }[],
 ) {
-  for (let datasetNumber = 0; datasetNumber < 2; datasetNumber++) {
+  for (const data of SEED_DATASETS) {
     for (const projectId of [project1.id, project2.id]) {
-      const datasetName = `demo-dataset-${datasetNumber}`;
+      const datasetName = data.name;
 
       // check if ds already exists
       const dataset =
@@ -547,49 +536,47 @@ export async function createDatasets(
         (await prisma.dataset.create({
           data: {
             name: datasetName,
-            description:
-              datasetNumber === 0 ? "Dataset test description" : undefined,
+            description: data.description,
             projectId,
-            metadata: datasetNumber === 0 ? { key: "value" } : undefined,
+            metadata: data.metadata,
           },
         }));
 
-      const datasetItemIds = [];
-      for (let i = 0; i < 18; i++) {
+      const datasetItemIds: string[] = [];
+      for (let index = 0; index < data.items.length; index++) {
+        const item = data.items[index];
         const sourceObservation =
           Math.random() > 0.3
             ? observations[Math.floor(Math.random() * observations.length)]
             : undefined;
-        if (!sourceObservation) {
-          continue;
-        }
-        const datasetItem = await prisma.datasetItem.create({
-          data: {
+
+        // Use upsert to prevent duplicates
+        const datasetItem = await prisma.datasetItem.upsert({
+          where: {
+            id_projectId: {
+              id: `${dataset.id}-${index}`,
+              projectId,
+            },
+          },
+          create: {
             projectId,
+            id: `${dataset.id}-${index}`,
             datasetId: dataset.id,
-            sourceTraceId: sourceObservation?.traceId,
+            sourceTraceId: sourceObservation?.traceId ?? null,
             sourceObservationId:
-              Math.random() > 0.5 ? sourceObservation?.id : undefined,
-            input:
-              Math.random() > 0.3
-                ? [
-                    {
-                      role: "user",
-                      content: "How can i create a React component?",
-                    },
-                  ]
-                : undefined,
-            expectedOutput:
-              Math.random() > 0.3
-                ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
-                : undefined,
+              sourceObservation && Math.random() > 0.5
+                ? sourceObservation.id
+                : null,
+            input: item.input,
+            expectedOutput: item.output,
             metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
           },
+          update: {}, // Don't update if it exists
         });
         datasetItemIds.push(datasetItem.id);
       }
 
-      for (let datasetRunNumber = 0; datasetRunNumber < 5; datasetRunNumber++) {
+      for (let datasetRunNumber = 0; datasetRunNumber < 3; datasetRunNumber++) {
         const datasetRun = await prisma.datasetRuns.upsert({
           where: {
             datasetId_projectId_name: {
@@ -614,26 +601,22 @@ export async function createDatasets(
           update: {},
         });
 
-        for (const datasetItemId of datasetItemIds) {
-          const relevantObservations = observations.filter(
-            (o) => o.projectId === projectId,
-          );
-          const observation =
-            relevantObservations[
-              Math.floor(Math.random() * relevantObservations.length)
-            ];
-
-          if (!observation) {
-            continue;
-          }
-          await prisma.datasetRunItems.create({
-            data: {
+        for (let index = 0; index < datasetItemIds.length; index++) {
+          await prisma.datasetRunItems.upsert({
+            where: {
+              id_projectId: {
+                id: `${dataset.id}-${index}-${datasetRunNumber}`,
+                projectId,
+              },
+            },
+            create: {
+              id: `${dataset.id}-${index}-${datasetRunNumber}`,
               projectId,
-              datasetItemId,
-              traceId: observation.traceId as string,
-              observationId: Math.random() > 0.5 ? observation.id : undefined,
+              datasetItemId: datasetItemIds[index],
+              traceId: `0-${generateTraceId(datasetName, index, projectId, datasetRunNumber)}`,
               datasetRunId: datasetRun.id,
             },
+            update: {},
           });
         }
       }
@@ -704,9 +687,6 @@ async function uploadObjects(
 }
 
 function createObjects(
-  traceVolume: number,
-  envTags: (string | null)[],
-  colorTags: (string | null)[],
   project1: Project,
   project2: Project,
   promptIds: Map<string, string[]>,
@@ -721,364 +701,24 @@ function createObjects(
     }[]
   >,
 ) {
-  const traces: any[] = [];
-  const observations: any[] = [];
-  const scores: any[] = [];
   const sessions: Prisma.TraceSessionCreateManyInput[] = [];
   const events: any[] = [];
   const configs: Prisma.ScoreConfigCreateManyInput[] = [];
   const comments: Prisma.CommentCreateManyInput[] = [];
   const queueItems: Prisma.AnnotationQueueItemCreateManyInput[] = [];
 
-  for (let i = 0; i < traceVolume; i++) {
-    // print progress to console with a progress bar that refreshes every 10 iterations
-    // random date within last 90 days, with a linear bias towards more recent dates
-    const traceTs = new Date(
-      Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000),
-    );
+  // TODO: attach score configs to certain scores for traces
+  // TODO: attach prompts to certain traces
+  // TODO: attach sessions to certain traces
+  // TODO: add comments to certain traces
+  // TODO: add certain traces to annotation queues
 
-    const envTag = envTags[Math.floor(Math.random() * envTags.length)];
-    const colorTag = colorTags[Math.floor(Math.random() * colorTags.length)];
-
-    const tags = [envTag, colorTag].filter((tag) => tag !== null);
-
-    const projectId = [project1.id, project2.id][i % 2] as string;
-
-    const session =
-      Math.random() > 0.3
-        ? {
-            id: `session-${i % 3}`,
-            projectId: projectId,
-          }
-        : undefined;
-
-    if (session) {
-      sessions.push(session);
-    }
-
-    const trace = {
-      id: `trace-${v4()}`,
-      timestamp: traceTs,
-      createdAt: traceTs,
-      projectId: projectId,
-      name: ["generate-outreach", "label-inbound", "draft-response"][
-        i % 3
-      ] as string,
-      metadata: {
-        user: `user-${i}@langfuse.com`,
-        more: "1,2,3;4?6",
-      },
-      tags: tags as string[],
-      userId: Math.random() > 0.3 ? `user-${i % 60}` : undefined,
-      input:
-        Math.random() > 0.3 ? "I'm looking for a React component" : undefined,
-      output:
-        Math.random() > 0.3
-          ? "What kind of component are you looking for?"
-          : undefined,
-      ...(session ? { sessionId: session.id } : {}),
-    };
-
-    traces.push(trace);
-
-    const configArray = configParams.get(projectId) ?? [];
-    const randomIndex = Math.floor(Math.random() * 3);
-    const config =
-      configArray.length >= randomIndex - 1 && configArray[randomIndex];
-    const {
-      name: annotationScoreName,
-      id: configId,
-      dataType,
-      categories,
-    } = config || {
-      name: "manual-score",
-      id: undefined,
-      dataType: ScoreDataType.NUMERIC,
-      categories: null,
-    };
-
-    const value = Math.floor(Math.random() * 2);
-    const scoreNumericAndStringValue = {
-      ...(dataType === ScoreDataType.NUMERIC && { value }),
-      ...(dataType === ScoreDataType.CATEGORICAL && {
-        value,
-        stringValue: categories?.find((category) => category.value === value)
-          ?.label,
-      }),
-      ...(dataType === ScoreDataType.BOOLEAN && {
-        value,
-        stringValue: value === 1 ? "True" : "False",
-      }),
-    };
-
-    const queueItem = [
-      ...(Math.random() > 0.9 && queueIds.get(projectId)?.[0]
-        ? [
-            {
-              queueId: queueIds.get(projectId)?.[0] as string,
-              objectId: trace.id,
-              objectType: AnnotationQueueObjectType.TRACE,
-              projectId,
-            },
-          ]
-        : []),
-    ];
-
-    queueItems.push(...queueItem);
-
-    const traceScores = [
-      ...(Math.random() > 0.5
-        ? [
-            {
-              traceId: trace.id,
-              name: annotationScoreName,
-              timestamp: traceTs,
-              createdAt: traceTs,
-              source: "ANNOTATION",
-              projectId,
-              authorUserId: `user-${i}`,
-              dataType,
-              ...scoreNumericAndStringValue,
-              ...(configId ? { configId } : {}),
-            },
-          ]
-        : []),
-      ...(Math.random() > 0.7
-        ? [
-            {
-              traceId: trace.id,
-              name: "sentiment",
-              value: Math.floor(Math.random() * 10) - 5,
-              timestamp: traceTs,
-              createdAt: traceTs,
-              source: "API",
-              projectId,
-              dataType: ScoreDataType.NUMERIC,
-              metadata: {},
-            },
-          ]
-        : []),
-      ...(Math.random() < 0.8
-        ? [
-            {
-              traceId: trace.id,
-              name: "Completeness",
-              timestamp: traceTs,
-              createdAt: traceTs,
-              source: "API",
-              projectId,
-              dataType: ScoreDataType.CATEGORICAL,
-              stringValue:
-                Math.floor(Math.random() * 2) === 1 ? "Fully" : "Partially",
-              metadata: {},
-            },
-          ]
-        : []),
-    ];
-
-    if (Math.random() > 0.9)
-      comments.push({
-        projectId: trace.projectId,
-        objectId: trace.id,
-        objectType: "TRACE",
-        content: "Trace comment content",
-        ...(Math.random() > 0.5 ? { authorUserId: `user-${i}` } : {}),
-      });
-
-    scores.push(...traceScores);
-
-    const existingSpanIds: string[] = [];
-
-    for (let j = 0; j < Math.floor(Math.random() * 10) + 1; j++) {
-      // add between 1 and 30 ms to trace timestamp
-      const spanTsStart = new Date(
-        traceTs.getTime() + Math.floor(Math.random() * 30),
-      );
-      // random duration of upto 5000ms
-      const spanTsEnd = new Date(
-        spanTsStart.getTime() + Math.floor(Math.random() * 5000),
-      );
-
-      const span = {
-        type: "SPAN",
-        id: `span-${v4()}`,
-        startTime: spanTsStart,
-        createdAt: spanTsStart,
-        endTime: spanTsEnd,
-        name: `span-${i}-${j}`,
-        metadata: {
-          user: `user-${i}@langfuse.com`,
-        },
-        projectId: trace.projectId,
-        traceId: trace.id,
-        // if this is the first span or in 50% of cases, add no parent; otherwise randomly select parent from existing spans
-        ...(existingSpanIds.length === 0 || Math.random() > 0.5
-          ? {}
-          : {
-              parentObservationId:
-                existingSpanIds[
-                  Math.floor(Math.random() * existingSpanIds.length)
-                ],
-            }),
-      };
-
-      observations.push(span);
-
-      existingSpanIds.push(span.id);
-
-      for (let k = 0; k < Math.floor(Math.random() * 2) + 1; k++) {
-        // random start and end times within span
-        const generationTsStart = new Date(
-          spanTsStart.getTime() +
-            Math.floor(
-              Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
-            ),
-        );
-        const generationTsEnd = new Date(
-          generationTsStart.getTime() +
-            Math.floor(
-              Math.random() *
-                (spanTsEnd.getTime() - generationTsStart.getTime()),
-            ),
-        );
-        // somewhere in the middle
-        const generationTsCompletionStart = new Date(
-          generationTsStart.getTime() +
-            Math.floor(
-              (generationTsEnd.getTime() - generationTsStart.getTime()) / 3,
-            ),
-        );
-
-        const promptTokens = Math.floor(Math.random() * 1000) + 300;
-        const completionTokens = Math.floor(Math.random() * 500) + 100;
-
-        const models = [
-          "gpt-3.5-turbo",
-          "gpt-4",
-          "gpt-4-32k-0613",
-          "gpt-3.5-turbo-16k-0613",
-          "claude-instant-1",
-          "claude-2.1",
-          "gpt-4-vision-preview",
-          "MIXTRAL-8X7B",
-        ];
-
-        const model = models[Math.floor(Math.random() * models.length)];
-        const promptId =
-          promptIds.get(projectId)![
-            Math.floor(
-              Math.random() * Math.floor(promptIds.get(projectId)!.length / 2),
-            )
-          ];
-
-        const { input, output } = getGenerationInputOutput();
-
-        const generation = {
-          type: "GENERATION",
-          id: `generation-${v4()}`,
-          startTime: generationTsStart,
-          createdAt: generationTsStart,
-          endTime: generationTsEnd,
-          completionStartTime:
-            Math.random() > 0.5 ? generationTsCompletionStart : undefined,
-          name: `generation-${i}-${j}-${k}`,
-          projectId: trace.projectId,
-          promptId: promptId,
-          input,
-          output,
-          model: model,
-          internalModel: model,
-          modelParameters: {
-            temperature:
-              Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
-            topP: Math.random() > 0.9 ? undefined : Math.random().toFixed(2),
-            maxTokens:
-              Math.random() > 0.9
-                ? undefined
-                : Math.floor(Math.random() * 1000),
-          },
-          metadata: {
-            user: `user-${i}@langfuse.com`,
-          },
-          promptTokens,
-          completionTokens,
-          totalTokens: promptTokens + completionTokens,
-          parentObservationId: span.id,
-          traceId: trace.id,
-          ...{
-            ...(Math.random() > 0.5 ? { promptId: promptId } : {}),
-          },
-          unit: ModelUsageUnit.Tokens,
-        };
-
-        observations.push(generation);
-
-        if (Math.random() > 0.6)
-          scores.push({
-            name: "quality",
-            value: Math.random() * 2 - 1,
-            observationId: generation.id,
-            traceId: trace.id,
-            source: "API",
-            projectId: trace.projectId,
-            timestamp: generationTsEnd,
-            createdAt: traceTs,
-          });
-        if (Math.random() > 0.6)
-          scores.push({
-            name: "conciseness",
-            value: Math.random() * 2 - 1,
-            observationId: generation.id,
-            traceId: trace.id,
-            source: "API",
-            projectId: trace.projectId,
-            timestamp: generationTsEnd,
-            createdAt: traceTs,
-          });
-
-        if (Math.random() > 0.8)
-          comments.push({
-            projectId: trace.projectId,
-            objectId: generation.id,
-            objectType: "OBSERVATION",
-            content: "Observation comment content",
-          });
-
-        for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
-          // random start time within span
-          const eventTs = new Date(
-            spanTsStart.getTime() +
-              Math.floor(
-                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
-              ),
-          );
-
-          events.push({
-            type: "EVENT",
-            id: `event-${v4()}`,
-            startTime: eventTs,
-            createdAt: eventTs,
-            name: `event-${i}-${j}-${k}-${l}`,
-            metadata: {
-              user: `user-${i}@langfuse.com`,
-            },
-            parentObservationId: span.id,
-            traceId: trace.id,
-            projectId: trace.projectId,
-          });
-        }
-      }
-    }
-  }
   // find unique sessions by id and projectid
   const uniqueSessions: Prisma.TraceSessionCreateManyInput[] = Array.from(
     new Set(sessions.map((session) => JSON.stringify(session))),
   ).map((session) => JSON.parse(session) as Prisma.TraceSessionCreateManyInput);
 
   return {
-    traces,
-    observations,
-    scores,
     configs,
     queueItems,
     sessions: uniqueSessions,
@@ -1098,69 +738,6 @@ async function generatePromptsForProject(projects: Project[]) {
   );
   return promptIds;
 }
-
-export const SEED_PROMPTS = [
-  {
-    id: `prompt-123`,
-    createdBy: "user-1",
-    prompt: "Prompt 1 content",
-    name: "Prompt 1",
-    version: 1,
-    labels: ["production", "latest"],
-  },
-  {
-    id: `prompt-456`,
-    createdBy: "user-1",
-    prompt: "Prompt 2 content",
-    name: "Prompt 2",
-    version: 1,
-    labels: ["production", "latest"],
-  },
-  {
-    id: `prompt-789`,
-    createdBy: "API",
-    prompt: "Prompt 3 content",
-    name: "Prompt 3 by API",
-    version: 1,
-    labels: ["production", "latest"],
-  },
-  {
-    id: `prompt-abc`,
-    createdBy: "user-1",
-    prompt: "Prompt 4 content",
-    name: "Prompt 4",
-    version: 1,
-    labels: ["production", "latest"],
-    tags: ["tag1", "tag2"],
-  },
-  {
-    id: `folder-customer-prompt-1`,
-    createdBy: "user-1",
-    prompt: "Folder prompt 1 content",
-    name: "folder/customer/prompt-1",
-    version: 1,
-    labels: ["production", "latest"],
-    tags: ["tag1", "tag2"],
-  },
-  {
-    id: `folder-customer-prompt-2`,
-    createdBy: "user-1",
-    prompt: "Folder prompt 2 content",
-    name: "folder/customer/prompt-2",
-    version: 1,
-    labels: ["production", "latest"],
-    tags: ["tag1", "tag2"],
-  },
-  {
-    id: `folder-prompt-1`,
-    createdBy: "user-1",
-    prompt: "Folder prompt 1 content",
-    name: "folder/prompt-1",
-    version: 1,
-    labels: ["production", "latest"],
-    tags: ["tag1", "tag2"],
-  },
-];
 
 export const PROMPT_IDS: string[] = [];
 
@@ -1394,7 +971,7 @@ function getGenerationInputOutput(): {
       {
         role: "user",
         content: [
-          { text: "What’s depicted in this image?", type: "text" },
+          { text: "What's depicted in this image?", type: "text" },
           {
             type: "image_url",
             image_url: {

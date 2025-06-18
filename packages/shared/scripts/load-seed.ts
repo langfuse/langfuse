@@ -117,6 +117,7 @@ async function main() {
     await prepareClickhouse(createdProjectIds, {
       numberOfDays,
       totalObservations: totalObservations ?? 1000,
+      numberOfRuns: 3,
     });
 
     logger.info("Clickhouse preparation completed successfully.");

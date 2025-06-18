@@ -1,6 +1,17 @@
-import { SEED_PROMPTS } from "../prisma/seed";
+import { SEED_PROMPTS } from "../prisma/seed-constants";
+import {
+  REALISTIC_TRACE_NAMES,
+  REALISTIC_SPAN_NAMES,
+  REALISTIC_GENERATION_NAMES,
+  REALISTIC_MODELS,
+} from "../clickhouse/seed-constants";
+import { SEED_DATASETS } from "../prisma/seed-constants";
 import { prisma } from "../src/db";
 import { clickhouseClient, logger } from "../src/server";
+import path from "path";
+import { readFileSync } from "fs";
+import { v4 } from "uuid";
+import { generateTraceId } from "../utilities/seed-helpers";
 
 function randn_bm(min: number, max: number, skew: number) {
   let u = 0,
@@ -20,23 +31,194 @@ function randn_bm(min: number, max: number, skew: number) {
   return num;
 }
 
+// New function to create dataset-based traces with experiment data
+export const createDatasetExperimentData = async (
+  projectIds: string[],
+  opts: {
+    numberOfDays: number;
+    numberOfRuns: number;
+  },
+) => {
+  logger.info(
+    `Creating dataset experiment data for ${projectIds.length} projects.`,
+  );
+
+  for (const projectId of projectIds) {
+    logger.info(`Processing project ${projectId}`);
+
+    // Create datasets and dataset runs first
+    for (let runNumber = 0; runNumber < opts.numberOfRuns; runNumber++) {
+      logger.info(
+        `Processing run ${runNumber + 1}/${opts.numberOfRuns} for project ${projectId}`,
+      );
+
+      for (const seedDataset of SEED_DATASETS) {
+        // Now create traces, observations, and dataset run items
+        seedDataset.items.forEach(async (datasetItem, i) => {
+          // Create input and output based on dataset type
+          let traceInput: string;
+          let traceOutput: string;
+
+          // TODO: improve to do perform insert query in batch
+          if (seedDataset.name === "demo-countries-dataset") {
+            const countryData = datasetItem as {
+              input: { country: string };
+              output: string;
+            };
+            traceInput = `What is the capital of ${countryData.input.country}?`;
+            traceOutput = `The capital of ${countryData.input.country} is ${countryData.output}.`;
+          } else if (
+            seedDataset.name === "demo-english-transcription-dataset"
+          ) {
+            const ipaData = datasetItem as {
+              input: { word: string };
+              output: string;
+            };
+            traceInput = `What is the IPA transcription of the word "${ipaData.input.word}"?`;
+            traceOutput = `The IPA transcription of "${ipaData.input.word}" is ${ipaData.output}.`;
+          } else {
+            // Fallback for other datasets
+            traceInput = JSON.stringify(datasetItem.input);
+            traceOutput = JSON.stringify(datasetItem.output);
+          }
+
+          // Escape quotes for SQL
+          const escapedInput = traceInput.replace(/'/g, "''");
+          const escapedOutput = traceOutput.replace(/'/g, "''");
+
+          // Create unique trace ID
+          const traceId = generateTraceId(
+            seedDataset.name,
+            i,
+            projectId,
+            runNumber,
+          );
+
+          // Generate a fixed timestamp for this trace
+          const traceTimestamp = new Date(
+            Date.now() - Math.floor(Math.random() * 24 * 60 * 60 * 1000),
+          );
+          const observationStartTime = new Date(
+            traceTimestamp.getTime() +
+              Math.floor(Math.random() * (500 - 10) + 10),
+          );
+
+          // Format timestamps for ClickHouse (YYYY-MM-DD HH:mm:ss)
+          const formatTimestamp = (date: Date) => {
+            return date.toISOString().split(".")[0].replace("T", " ");
+          };
+
+          // Insert trace into ClickHouse
+          const traceQuery = `
+          INSERT INTO traces
+          SELECT concat(toString(number), '-${traceId}') AS id,
+            toDateTime('${formatTimestamp(traceTimestamp)}') AS timestamp,
+            'dataset-run-item-${v4()}' AS name,
+            NULL AS user_id,
+            map('experimentType', 'langfuse-prompt-experiments') AS metadata,
+            NULL AS release,
+            NULL AS version,
+            '${projectId}' AS project_id,
+            'langfuse-prompt-experiments' AS environment,
+            false as public,
+            false as bookmarked,
+            array() as tags,
+            '${escapedInput}' AS input,
+            '${escapedOutput}' AS output,
+            NULL AS session_id,
+            timestamp AS created_at,
+            timestamp AS updated_at,
+            timestamp AS event_ts,
+            0 AS is_deleted
+           FROM numbers(1);
+        `;
+
+          await clickhouseClient().command({
+            query: traceQuery,
+            clickhouse_settings: {
+              wait_end_of_query: 1,
+            },
+          });
+
+          // Create unique observation ID
+          const observationId = `observation-dataset-${seedDataset.name}-${i}-${projectId.slice(-8)}`;
+
+          const observationQuery = `
+          INSERT INTO observations
+          SELECT concat(toString(number), '-${observationId}') AS id,
+            concat(toString(number), '-${traceId}') AS trace_id,
+            '${projectId}' AS project_id,
+            'langfuse-prompt-experiments' AS environment,
+            'GENERATION' AS type,
+            NULL AS parent_observation_id,
+            toDateTime('${formatTimestamp(observationStartTime)}') AS start_time,
+            addMilliseconds(start_time,
+              case
+                when "type" = 'GENERATION' then floor(randUniform(5, 30))
+                when "type" = 'SPAN' then floor(randUniform(1, 50))
+                else floor(randUniform(1, 10))
+              end) AS end_time,
+            'dataset-generation-${i}' AS name,
+            map('experimentType', 'langfuse-prompt-experiments') AS metadata,
+            'DEFAULT' AS level,
+            NULL AS status_message,
+            NULL AS version,
+            '${escapedInput}' AS input,
+            '${escapedOutput}' AS output,
+            'gpt-3.5-turbo' as provided_model_name,
+            'model_123' as internal_model_id,
+            '{"temperature": 0.7}' AS model_parameters,
+            map('input', toUInt64(50), 'output', toUInt64(20), 'total', toUInt64(70)) AS provided_usage_details,
+            map('input', toUInt64(50), 'output', toUInt64(20), 'total', toUInt64(70)) AS usage_details,
+            map('input', toDecimal64(0.0001, 8), 'output', toDecimal64(0.0002, 8), 'total', toDecimal64(0.0003, 8)) AS provided_cost_details,
+            map('input', toDecimal64(0.0001, 8), 'output', toDecimal64(0.0002, 8), 'total', toDecimal64(0.0003, 8)) AS cost_details,
+            toDecimal64(0.0003, 8) AS total_cost,
+            if("type" = 'GENERATION',
+            addMilliseconds(start_time, floor(randUniform(100, 500))),
+            NULL) AS completion_start_time,
+            NULL AS prompt_id,
+            NULL AS prompt_name,
+            NULL AS prompt_version,
+            start_time AS created_at,
+            start_time AS updated_at,
+            start_time AS event_ts,
+            0 AS is_deleted
+          FROM numbers(1);
+        `;
+
+          await clickhouseClient().command({
+            query: observationQuery,
+            clickhouse_settings: {
+              wait_end_of_query: 1,
+            },
+          });
+        });
+      }
+    }
+  }
+};
+
 export const prepareClickhouse = async (
   projectIds: string[],
   opts: {
     numberOfDays: number;
     totalObservations: number;
+    numberOfRuns: number;
   },
 ) => {
   logger.info(
     `Preparing Clickhouse for ${projectIds.length} projects and ${opts.numberOfDays} days.`,
   );
 
+  // First create dataset experiment data
+  await createDatasetExperimentData(projectIds, opts);
+
   const projectData = projectIds.map((projectId) => {
     const observationsPerProject = Math.ceil(
       randn_bm(0, opts.totalObservations, 2),
     ); // Skew the number of observations
 
-    const tracesPerProject = Math.floor(observationsPerProject / 6); // On average, one trace should have 6 observations
+    const tracesPerProject = Math.floor(observationsPerProject / 25); // On average, one trace should have 25 observations
     const scoresPerProject = tracesPerProject * 10; // On average, one trace should have 10 scores
     return {
       projectId,
@@ -57,23 +239,68 @@ export const prepareClickhouse = async (
       `Preparing Clickhouse for ${projectId}: Traces: ${tracesPerProject}, Scores: ${scoresPerProject}, Observations: ${observationsPerProject}`,
     );
 
+    // Read content from files
+    const nestedJsonPath = path.join(
+      __dirname,
+      "../clickhouse/nested_json.json",
+    );
+    const heavyMarkdownPath = path.join(
+      __dirname,
+      "../clickhouse/markdown.txt",
+    );
+    const chatMlJsonPath = path.join(
+      __dirname,
+      "../clickhouse/chat_ml_json.json",
+    );
+
+    const nestedJsonContent = JSON.parse(readFileSync(nestedJsonPath, "utf-8"));
+    const heavyMarkdownContent = readFileSync(heavyMarkdownPath, "utf-8");
+    const chatMlJsonContent = JSON.parse(readFileSync(chatMlJsonPath, "utf-8"));
+
+    const truncatedNestedJson = {
+      ...nestedJsonContent,
+      products: nestedJsonContent.products?.slice(0, 3) || [],
+    };
+
+    const truncatedChatMlJson = {
+      ...chatMlJsonContent,
+      messages: chatMlJsonContent.messages?.slice(0, 4) || [],
+    };
+
+    const escapedHeavyMarkdownContent = heavyMarkdownContent.replace(
+      /'/g,
+      "''",
+    );
+    const escapedTruncatedNestedJson = JSON.stringify(
+      truncatedNestedJson,
+    ).replace(/'/g, "''");
+    const escapedTruncatedChatMlJson = JSON.stringify(
+      truncatedChatMlJson,
+    ).replace(/'/g, "''");
+
+    // TODO: fix chat ml not rendered as such in the UI (it's rendered as a string)
+
     const tracesQuery = `
     INSERT INTO traces
     SELECT toString(number) AS id,
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
-      concat('name_', toString(rand() % 100)) AS name,
-      concat('user_id_', toInt64(randExponential(1 / 100))) AS user_id,
-      map('prototype', 'test') AS metadata,
-      concat('release_', toString(randUniform(0, 100))) AS release,
-      concat('version_', toString(randUniform(0, 100))) AS version,
+      arrayElement(['${REALISTIC_TRACE_NAMES.map((name) => name.replace(/'/g, "''")).join("','")}'], 1 + (number % ${REALISTIC_TRACE_NAMES.length})) AS name,
+      if(randUniform(0, 1) < 0.3, concat('user_', toString(rand() % 1000)), NULL) AS user_id,
+      map('key', 'value') AS metadata,
+      if(randUniform(0, 1) < 0.4, concat('v', toString(randUniform(1, 5)), '.', toString(randUniform(0, 10))), NULL) AS release,
+      if(randUniform(0, 1) < 0.4, concat('v', toString(randUniform(1, 3)), '.', toString(randUniform(0, 20))), NULL) AS version,
       '${projectId}' AS project_id,
       'default' AS environment,
       if(rand() < 0.8, true, false) as public,
-      if(rand() < 0.8, true, false) as bookmarked,
-      array('tag1', 'tag2') as tags,
-      repeat('input', toInt64(randExponential(1 / 100))) AS input,
-      repeat('output', toInt64(randExponential(1 / 100))) AS output,
-      if(randUniform(0, 1) < 0.2, NULL, concat('session_', toString(rand() % 1000))) AS session_id,
+      if(rand() < 0.1, true, false) as bookmarked,
+      if(rand() < 0.3, array('production', 'ai-agent'), array()) as tags,
+      if(randUniform(0, 1) < 0.3, '${escapedHeavyMarkdownContent}',
+        '${escapedTruncatedChatMlJson}'
+      ) AS input,
+      if(randUniform(0, 1) < 0.2, '${escapedTruncatedNestedJson}',
+        '${escapedTruncatedChatMlJson}'
+      ) AS output,
+      if(randUniform(0, 1) < 0.3, NULL, concat('session_', toString(rand() % 1000))) AS session_id,
       timestamp AS created_at,
       timestamp AS updated_at,
       timestamp AS event_ts,
@@ -84,56 +311,79 @@ export const prepareClickhouse = async (
     const observationsQuery = `
     INSERT INTO observations
     SELECT toString(number) AS id,
-      toString(floor(randUniform(0, ${tracesPerProject}))) AS trace_id,
+      toString(number % ${tracesPerProject}) AS trace_id,
       '${projectId}' AS project_id,
       'default' AS environment,
       if(randUniform(0, 1) < 0.47, 'GENERATION', if(randUniform(0, 1) < 0.94, 'SPAN', 'EVENT')) AS type,
-      toString(rand()) AS parent_observation_id,
+      if(number % 6 = 0, NULL, toString(number - 1)) AS parent_observation_id,
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS start_time,
-      addSeconds(start_time, if(rand() < 0.6, floor(randUniform(0, 20)), floor(randUniform(0, 3600)))) AS end_time,
-      concat('name', toString(rand() % 100)) AS name,
-      map('prototype', 'test') AS metadata,
-      if(randUniform(0, 1) < 0.9, 'DEFAULT', if(randUniform(0, 1) < 0.5, 'ERROR', if(randUniform(0, 1) < 0.5, 'DEBUG', 'WARNING'))) AS level,
-      'status_message' AS status_message,
-      'version' AS version,
-      repeat('input', toInt64(randExponential(1 / 100))) AS input,
-      repeat('output', toInt64(randExponential(1 / 100))) AS output,
+      addMilliseconds(start_time,
+        case
+          when "type" = 'GENERATION' then floor(randUniform(5, 30))
+          when "type" = 'SPAN' then floor(randUniform(1, 50))
+          else floor(randUniform(1, 10))
+        end) AS end_time,
       case
-        when number % 2 = 0 then 'claude-3-haiku-20230407'
-        else 'gpt-4'
-      end as provided_model_name,
-      case
-        when number % 2 = 0 then 'cltra4wbs0000k1407g0ya3'
-        else '1cmtk9y0000y3y79x9jgxj'
-      end as internal_model_id,
+        when "type" = 'GENERATION' then arrayElement(['${REALISTIC_GENERATION_NAMES.map((name) => name.replace(/'/g, "''")).join("','")}'], 1 + (number % ${REALISTIC_GENERATION_NAMES.length}))
+        when "type" = 'SPAN' then arrayElement(['${REALISTIC_SPAN_NAMES.map((name) => name.replace(/'/g, "''")).join("','")}'], 1 + (number % ${REALISTIC_SPAN_NAMES.length}))
+        else concat('event_', toString(number % 10))
+      end AS name,
+      map('key', 'value') AS metadata,
+      if(randUniform(0, 1) < 0.85, 'DEFAULT', if(randUniform(0, 1) < 0.7, 'DEBUG', if(randUniform(0, 1) < 0.3, 'ERROR', 'WARNING'))) AS level,
+      NULL AS status_message,
+      NULL AS version,
       if("type" = 'GENERATION',
-        '{"temperature": 0.7, "max_tokens": 150}',
+        if(randUniform(0, 1) < 0.4, '${escapedHeavyMarkdownContent}',
+          '${escapedTruncatedChatMlJson}'
+        ),
+        NULL) AS input,
+      if("type" = 'GENERATION',
+        if(randUniform(0, 1) < 0.3, '${escapedTruncatedNestedJson}',
+          '${escapedTruncatedChatMlJson}'
+        ),
+        NULL) AS output,
+      if("type" = 'GENERATION',
+        arrayElement(['${REALISTIC_MODELS.map((model) => model.replace(/'/g, "''")).join("','")}'], 1 + (number % ${REALISTIC_MODELS.length})),
+        NULL) as provided_model_name,
+      if("type" = 'GENERATION',
+        concat('model_', toString(rand() % 1000)),
+        NULL) as internal_model_id,
+      if("type" = 'GENERATION',
+        '{"temperature": 0.7}',
         '{}') AS model_parameters,
       if("type" = 'GENERATION',
-        map('input', toUInt64(randUniform(0, 1000)), 'output', toUInt64(randUniform(0, 1000)), 'total', toUInt64(randUniform(0, 2000))),
+        map('input', toUInt64(randUniform(20, 200)), 'output', toUInt64(randUniform(10, 100)), 'total', toUInt64(randUniform(30, 300))),
         map()) AS provided_usage_details,
       if("type" = 'GENERATION',
-        map('input', toUInt64(randUniform(0, 1000)), 'output', toUInt64(randUniform(0, 1000)), 'total', toUInt64(randUniform(0, 2000))),
+        map('input', toUInt64(randUniform(20, 200)), 'output', toUInt64(randUniform(10, 100)), 'total', toUInt64(randUniform(30, 300))),
         map()) AS usage_details,
       if("type" = 'GENERATION',
-        map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)),
+        map('input', toDecimal64(randUniform(0.00001, 0.001), 8), 'output', toDecimal64(randUniform(0.00001, 0.002), 8), 'total', toDecimal64(randUniform(0.00002, 0.003), 8)),
         map()) AS provided_cost_details,
       if("type" = 'GENERATION',
-        map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)),
+        map('input', toDecimal64(randUniform(0.00001, 0.001), 8), 'output', toDecimal64(randUniform(0.00001, 0.002), 8), 'total', toDecimal64(randUniform(0.00002, 0.003), 8)),
         map()) AS cost_details,
       if("type" = 'GENERATION',
-        toDecimal64(randUniform(0, 2000), 12),
+        toDecimal64(randUniform(0.00002, 0.003), 8),
         NULL) AS total_cost,
-      addMilliseconds(start_time, if(rand() < 0.6, floor(randUniform(0, 500)), floor(randUniform(0, 600)))) AS completion_start_time,
-      array(${SEED_PROMPTS.map((p) => `concat('${p.id}',project_id)`).join(
-        ",",
-      )})[(number % ${SEED_PROMPTS.length})+1] AS prompt_id,
-      array(${SEED_PROMPTS.map((p) => `'${p.name}'`).join(
-        ",",
-      )})[(number % ${SEED_PROMPTS.length})+1] AS prompt_name,
-      array(${SEED_PROMPTS.map((p) => `'${p.version}'`).join(
-        ",",
-      )})[(number % ${SEED_PROMPTS.length})+1] AS prompt_version,
+      if("type" = 'GENERATION',
+        addMilliseconds(start_time, floor(randUniform(100, 500))),
+        NULL) AS completion_start_time,
+      if("type" = 'GENERATION' AND rand() < 0.3,
+        array(${SEED_PROMPTS.map((p) => `concat('${p.id}',project_id)`).join(
+          ",",
+        )})[(number % ${SEED_PROMPTS.length})+1],
+        NULL) AS prompt_id,
+      if("type" = 'GENERATION' AND rand() < 0.3,
+        array(${SEED_PROMPTS.map((p) => `'${p.name}'`).join(
+          ",",
+        )})[(number % ${SEED_PROMPTS.length})+1],
+        NULL) AS prompt_name,
+      if("type" = 'GENERATION' AND rand() < 0.3,
+        array(${SEED_PROMPTS.map((p) => `'${p.version}'`).join(
+          ",",
+        )})[(number % ${SEED_PROMPTS.length})+1],
+        NULL) AS prompt_version,
       start_time AS created_at,
       start_time AS updated_at,
       start_time AS event_ts,
@@ -187,7 +437,7 @@ export const prepareClickhouse = async (
 
     const sessionQuery = `
       SELECT session_id, project_id
-      FROM traces 
+      FROM traces
       WHERE session_id IS NOT NULL;
     `;
     const sessionResult = await clickhouseClient().query({

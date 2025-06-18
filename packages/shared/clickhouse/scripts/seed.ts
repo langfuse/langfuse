@@ -18,6 +18,7 @@ async function main() {
     await prepareClickhouse(projectIds, {
       numberOfDays: 3,
       totalObservations: 10000,
+      numberOfRuns: 3,
     });
 
     const project1 = await prisma.project.findFirst({
