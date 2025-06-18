@@ -70,8 +70,6 @@ export class ClickhouseWriter {
 
       this.isIntervalFlushInProgress = true;
 
-      logger.debug("Flush interval elapsed, flushing all queues...");
-
       this.flushAll().finally(() => {
         this.isIntervalFlushInProgress = false;
       });

@@ -50,54 +50,71 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  const requestStartTime = Date.now();
   try {
-    await runMiddleware(req, res, cors);
-
-    // add context of api call to the span
-    const currentSpan = getCurrentSpan();
-
-    // get x-langfuse-xxx headers and add them to the span
-    Object.keys(req.headers).forEach((header) => {
-      if (
-        header.toLowerCase().startsWith("x-langfuse") ||
-        header.toLowerCase().startsWith("x_langfuse")
-      ) {
-        currentSpan?.setAttributes({
-          [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
-            req.headers[header],
-        });
-      }
-    });
-
-    if (req.method !== "POST") throw new MethodNotAllowedError();
-
-    // CHECK AUTH FOR ALL EVENTS
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
-    }
-    if (!authCheck.scope.projectId) {
-      throw new UnauthorizedError(
-        "Missing projectId in scope. Are you using an organization key?",
-      );
-    }
-
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
-      projectId: authCheck.scope.projectId,
     });
     // Execute the rest of the handler within the context
     return opentelemetry.context.with(ctx, async () => {
+      logger.debug("Ingestion request started", {
+        method: req.method,
+        contentLength: req.headers["content-length"],
+        userAgent: req.headers["user-agent"],
+      });
+
+      await runMiddleware(req, res, cors);
+
+      // add context of api call to the span
+      const currentSpan = getCurrentSpan();
+
+      // get x-langfuse-xxx headers and add them to the span
+      Object.keys(req.headers).forEach((header) => {
+        if (
+          header.toLowerCase().startsWith("x-langfuse") ||
+          header.toLowerCase().startsWith("x_langfuse")
+        ) {
+          currentSpan?.setAttributes({
+            [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
+              req.headers[header],
+          });
+        }
+      });
+
+      if (req.method !== "POST") throw new MethodNotAllowedError();
+
+      // CHECK AUTH FOR ALL EVENTS
+      const authStartTime = Date.now();
+      const authCheck = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+      logger.debug("Authentication completed", {
+        authDurationMs: Date.now() - authStartTime,
+        validKey: authCheck.validKey,
+      });
+
+      if (!authCheck.validKey) {
+        throw new UnauthorizedError(authCheck.error);
+      }
+      if (!authCheck.scope.projectId) {
+        throw new UnauthorizedError(
+          "Missing projectId in scope. Are you using an organization key?",
+        );
+      }
+
       try {
+        const rateLimitStartTime = Date.now();
         const rateLimitCheck =
           await RateLimitService.getInstance().rateLimitRequest(
             authCheck.scope,
             "ingestion",
           );
+        logger.debug("Rate limit check completed", {
+          rateLimitDurationMs: Date.now() - rateLimitStartTime,
+          isRateLimited: rateLimitCheck?.isRateLimited(),
+          projectId: authCheck.scope.projectId,
+        });
 
         if (rateLimitCheck?.isRateLimited()) {
           return rateLimitCheck.sendRestResponseIfLimited(res);
@@ -113,7 +130,13 @@ export default async function handler(
         metadata: jsonSchema.nullish(),
       });
 
+      const validationStartTime = Date.now();
       const parsedSchema = batchType.safeParse(req.body);
+      logger.debug("Request validation completed", {
+        validationDurationMs: Date.now() - validationStartTime,
+        isValid: parsedSchema.success,
+        batchSize: parsedSchema.success ? parsedSchema.data.batch.length : 0,
+      });
 
       if (!parsedSchema.success) {
         logger.info("Invalid request data", parsedSchema.error);
@@ -124,16 +147,44 @@ export default async function handler(
       }
 
       await telemetry();
+
+      logger.info("Starting event batch processing", {
+        batchSize: parsedSchema.data.batch.length,
+        requestDurationSoFarMs: Date.now() - requestStartTime,
+      });
+
+      const processingStartTime = Date.now();
       const result = await processEventBatch(
         parsedSchema.data.batch,
         authCheck,
       );
+      const processingDurationMs = Date.now() - processingStartTime;
+      const totalDurationMs = Date.now() - requestStartTime;
+
+      logger.info("Event batch processing completed", {
+        batchSize: parsedSchema.data.batch.length,
+        processingDurationMs,
+        totalDurationMs,
+        successCount: result.successes.length,
+        errorCount: result.errors.length,
+      });
+
       return res.status(207).json(result);
     });
   } catch (error: unknown) {
+    const totalDurationMs = Date.now() - requestStartTime;
+
     if (!(error instanceof UnauthorizedError)) {
-      logger.error("error_handling_ingestion_event", error);
+      logger.error("error_handling_ingestion_event", {
+        totalDurationMs,
+        error,
+      });
       traceException(error);
+    } else {
+      logger.debug("Unauthorized ingestion request", {
+        totalDurationMs,
+        error: error.message,
+      });
     }
 
     if (error instanceof BaseError) {

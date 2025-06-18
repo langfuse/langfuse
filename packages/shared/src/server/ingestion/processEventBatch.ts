@@ -117,6 +117,7 @@ export const processEventBatch = async (
     throw new UnauthorizedError("Missing project ID");
   }
 
+  const validationStartTime = Date.now();
   const validationErrors: { id: string; error: unknown }[] = [];
   const authenticationErrors: { id: string; error: unknown }[] = [];
 
@@ -153,6 +154,16 @@ export const processEventBatch = async (
       return [event];
     });
 
+  logger.debug("Event validation completed", {
+    projectId: authCheck.scope.projectId,
+    validationDurationMs: Date.now() - validationStartTime,
+    originalBatchSize: input.length,
+    validEventsCount: batch.length,
+    validationErrorsCount: validationErrors.length,
+    authenticationErrorsCount: authenticationErrors.length,
+  });
+
+  const sortingStartTime = Date.now();
   const sortedBatch = sortBatch(batch);
 
   // We group events by eventBodyId which allows us to store and process them
@@ -188,30 +199,74 @@ export const processEventBatch = async (
     {},
   );
 
+  logger.debug("Event sorting and grouping completed", {
+    projectId: authCheck.scope.projectId,
+    sortingDurationMs: Date.now() - sortingStartTime,
+  });
+
   /********************
    * ASYNC PROCESSING *
    ********************/
   let s3UploadErrored = false;
+  const s3UploadStartTime = Date.now();
+  logger.debug("Starting S3 uploads", {
+    projectId: authCheck.scope.projectId,
+  });
+
   await instrumentAsync({ name: "s3-upload-events" }, async () => {
     // S3 Event Upload is blocking, but non-failing.
     // If a promise rejects, we log it below, but do not throw an error.
     // In this case, we upload the full batch into the Redis queue.
     const results = await Promise.allSettled(
       Object.keys(sortedBatchByEventBodyId).map(async (id) => {
+        const uploadStartTime = Date.now();
         // We upload the event in an array to the S3 bucket grouped by the eventBodyId.
         // That way we batch updates from the same invocation into a single file and reduce
         // write operations on S3.
         const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
         const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`;
-        return getS3StorageServiceClient(
-          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-        ).uploadJson(bucketPath, data);
+
+        try {
+          const result = await getS3StorageServiceClient(
+            env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          ).uploadJson(bucketPath, data);
+
+          logger.debug("S3 upload successful", {
+            projectId: authCheck.scope.projectId,
+            bucketPath,
+            eventCount: data.length,
+            uploadDurationMs: Date.now() - uploadStartTime,
+            eventBodyId,
+            type: getClickhouseEntityType(type),
+          });
+
+          return result;
+        } catch (error) {
+          logger.error("S3 upload failed", {
+            projectId: authCheck.scope.projectId,
+            bucketPath,
+            eventCount: data.length,
+            uploadDurationMs: Date.now() - uploadStartTime,
+            eventBodyId,
+            type: getClickhouseEntityType(type),
+            error,
+          });
+          throw error;
+        }
       }),
     );
+
+    logger.info("S3 uploads completed", {
+      projectId: authCheck.scope.projectId,
+      s3UploadDurationMs: Date.now() - s3UploadStartTime,
+      totalFiles: results.length,
+    });
+
     results.forEach((result) => {
       if (result.status === "rejected") {
         s3UploadErrored = true;
         logger.error("Failed to upload event to S3", {
+          projectId: authCheck.scope.projectId,
           error: result.reason,
         });
       }
@@ -228,6 +283,12 @@ export const processEventBatch = async (
   if (!redis) {
     throw new Error("Redis not initialized, aborting event processing");
   }
+
+  const queueStartTime = Date.now();
+  logger.debug("Starting queue operations", {
+    projectId: authCheck.scope.projectId,
+    queueJobCount: Object.keys(sortedBatchByEventBodyId).length,
+  });
 
   await Promise.all(
     Object.keys(sortedBatchByEventBodyId).map(async (id) => {
@@ -265,6 +326,10 @@ export const processEventBatch = async (
         : Promise.reject("Failed to instantiate queue");
     }),
   );
+  logger.debug("Queue operations completed", {
+    projectId: authCheck.scope.projectId,
+    queueDurationMs: Date.now() - queueStartTime,
+  });
 
   return aggregateBatchResult(
     [...validationErrors, ...authenticationErrors],
@@ -367,7 +432,14 @@ export const aggregateBatchResult = (
     traceException(errors);
     logger.error("Error processing events", {
       errors: returnedErrors,
+      errorCount: returnedErrors.length,
       "langfuse.project.id": projectId,
+      errorBreakdown: {
+        validationErrors: returnedErrors.filter((e) => e.status === 400).length,
+        authErrors: returnedErrors.filter((e) => e.status === 401).length,
+        notFoundErrors: returnedErrors.filter((e) => e.status === 404).length,
+        serverErrors: returnedErrors.filter((e) => e.status === 500).length,
+      },
     });
   }
 
