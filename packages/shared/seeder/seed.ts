@@ -1,7 +1,6 @@
 import {
   PrismaClient,
   type Project,
-  type Prisma,
   ScoreDataType,
   JobConfiguration,
   JobExecutionStatus,
@@ -9,7 +8,6 @@ import {
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
 
-import { chunk } from "lodash";
 import { v4 } from "uuid";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { encrypt } from "../src/encryption";
@@ -22,8 +20,8 @@ import {
   SEED_EVALUATOR_TEMPLATES,
   SEED_PROMPT_VERSIONS,
   SEED_TEXT_PROMPTS,
-} from "./seed-constants";
-import { generateDatasetRunTraceId } from "../utilities/seed-helpers";
+} from "./postgres-seed-constants";
+import { generateDatasetRunTraceId } from "./seed-helpers";
 
 type ConfigCategory = {
   label: string;
@@ -265,22 +263,11 @@ async function main() {
       project2,
     ]);
 
-    const queueIds = await generateQueuesForProject(
-      [project1, project2],
-      configIdsAndNames,
-    );
+    await generateQueuesForProject([project1, project2], configIdsAndNames);
+    await generatePromptsForProject([project1, project2]);
+    await createDatasets(project1, project2);
 
-    const promptIds = await generatePromptsForProject([project1, project2]);
-
-    const { sessions, comments, queueItems } = createObjects(
-      project1,
-      project2,
-      promptIds,
-      queueIds,
-      configIdsAndNames,
-    );
-
-    await uploadObjects(sessions, comments, queueItems);
+    // await uploadObjects(sessions, comments, queueItems);
 
     // If openai key is in environment, add it to the projects LLM API keys
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -506,7 +493,6 @@ export async function createDatasets(
     updatedAt: Date;
     name: string;
   },
-  observations: { id?: string; projectId?: string; traceId?: string | null }[],
 ) {
   for (const data of SEED_DATASETS) {
     for (const projectId of [project1.id, project2.id]) {
@@ -532,9 +518,9 @@ export async function createDatasets(
       const datasetItemIds: string[] = [];
       for (let index = 0; index < data.items.length; index++) {
         const item = data.items[index];
-        const sourceObservation =
+        const sourceTraceId =
           Math.random() > 0.3
-            ? observations[Math.floor(Math.random() * observations.length)]
+            ? `${Math.floor(Math.random() * 100)}`
             : undefined;
 
         // Use upsert to prevent duplicates
@@ -549,11 +535,8 @@ export async function createDatasets(
             projectId,
             id: `${dataset.id}-${index}`,
             datasetId: dataset.id,
-            sourceTraceId: sourceObservation?.traceId ?? null,
-            sourceObservationId:
-              sourceObservation && Math.random() > 0.5
-                ? sourceObservation.id
-                : null,
+            sourceTraceId: sourceTraceId ?? null,
+            sourceObservationId: null,
             input: item.input,
             expectedOutput: item.output,
             metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
@@ -611,104 +594,67 @@ export async function createDatasets(
   }
 }
 
-async function uploadObjects(
-  sessions: Prisma.TraceSessionCreateManyInput[],
-  comments: Prisma.CommentCreateManyInput[],
-  queueItems: Prisma.AnnotationQueueItemCreateManyInput[],
-) {
-  let promises: Prisma.PrismaPromise<unknown>[] = [];
+// async function uploadObjects(
+//   sessions: Prisma.TraceSessionCreateManyInput[],
+//   comments: Prisma.CommentCreateManyInput[],
+//   queueItems: Prisma.AnnotationQueueItemCreateManyInput[],
+// ) {
+//   let promises: Prisma.PrismaPromise<unknown>[] = [];
 
-  const chunkSize = 10_000;
+//   const chunkSize = 10_000;
 
-  chunk(sessions, 1).forEach((chunk) => {
-    promises.push(
-      prisma.traceSession.upsert({
-        where: {
-          id_projectId: { id: chunk[0]!.id!, projectId: chunk[0]!.projectId },
-        },
-        create: chunk[0]!,
-        update: {},
-      }),
-    );
-  });
+//   chunk(sessions, 1).forEach((chunk) => {
+//     promises.push(
+//       prisma.traceSession.upsert({
+//         where: {
+//           id_projectId: { id: chunk[0]!.id!, projectId: chunk[0]!.projectId },
+//         },
+//         create: chunk[0]!,
+//         update: {},
+//       }),
+//     );
+//   });
 
-  for (let i = 0; i < promises.length; i++) {
-    if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-      logger.info(
-        `Seeding of Sessions ${((i + 1) / promises.length) * 100}% complete`,
-      );
-    await promises[i];
-  }
+//   for (let i = 0; i < promises.length; i++) {
+//     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
+//       logger.info(
+//         `Seeding of Sessions ${((i + 1) / promises.length) * 100}% complete`,
+//       );
+//     await promises[i];
+//   }
 
-  promises = [];
-  chunk(comments, chunkSize).forEach((chunk) => {
-    promises.push(
-      prisma.comment.createMany({
-        data: chunk,
-      }),
-    );
-  });
-  for (let i = 0; i < promises.length; i++) {
-    if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-      logger.info(
-        `Seeding of Comments ${((i + 1) / promises.length) * 100}% complete`,
-      );
-    await promises[i];
-  }
+//   promises = [];
+//   chunk(comments, chunkSize).forEach((chunk) => {
+//     promises.push(
+//       prisma.comment.createMany({
+//         data: chunk,
+//       }),
+//     );
+//   });
+//   for (let i = 0; i < promises.length; i++) {
+//     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
+//       logger.info(
+//         `Seeding of Comments ${((i + 1) / promises.length) * 100}% complete`,
+//       );
+//     await promises[i];
+//   }
 
-  promises = [];
-  chunk(queueItems, chunkSize).forEach((chunk) => {
-    promises.push(
-      prisma.annotationQueueItem.createMany({
-        data: chunk,
-      }),
-    );
-  });
-  for (let i = 0; i < promises.length; i++) {
-    if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-      logger.info(
-        `Seeding of Annotation Queue Items ${((i + 1) / promises.length) * 100}% complete`,
-      );
-    await promises[i];
-  }
-}
-
-function createObjects(
-  project1: Project,
-  project2: Project,
-  promptIds: Map<string, string[]>,
-  queueIds: Map<string, string[]>,
-  configParams: Map<
-    string,
-    {
-      name: string;
-      id: string;
-      dataType: ScoreDataType;
-      categories: ConfigCategory[] | null;
-    }[]
-  >,
-) {
-  const sessions: Prisma.TraceSessionCreateManyInput[] = [];
-  const events: any[] = [];
-  const configs: Prisma.ScoreConfigCreateManyInput[] = [];
-  const comments: Prisma.CommentCreateManyInput[] = [];
-  const queueItems: Prisma.AnnotationQueueItemCreateManyInput[] = [];
-
-  // TODO: add comments to certain traces
-
-  // find unique sessions by id and projectid
-  const uniqueSessions: Prisma.TraceSessionCreateManyInput[] = Array.from(
-    new Set(sessions.map((session) => JSON.stringify(session))),
-  ).map((session) => JSON.parse(session) as Prisma.TraceSessionCreateManyInput);
-
-  return {
-    configs,
-    queueItems,
-    sessions: uniqueSessions,
-    events,
-    comments,
-  };
-}
+//   promises = [];
+//   chunk(queueItems, chunkSize).forEach((chunk) => {
+//     promises.push(
+//       prisma.annotationQueueItem.createMany({
+//         data: chunk,
+//       }),
+//     );
+//   });
+//   for (let i = 0; i < promises.length; i++) {
+//     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
+//       logger.info(
+//         `Seeding of Annotation Queue Items ${((i + 1) / promises.length) * 100}% complete`,
+//       );
+//     await promises[i];
+//   }
+// }
 
 async function generateEvalJobExecutions(
   projects: Project[],

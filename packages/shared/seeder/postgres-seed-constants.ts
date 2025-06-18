@@ -1,5 +1,3 @@
-import { v4 } from "uuid";
-
 // Datasets
 const SEED_DATASET_ITEMS_COUNTRIES = [
   { input: { country: "France" }, output: "Paris" },

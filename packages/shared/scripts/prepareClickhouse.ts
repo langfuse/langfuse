@@ -1,17 +1,19 @@
-import { SEED_TEXT_PROMPTS } from "../prisma/seed-constants";
+import {
+  SEED_TEXT_PROMPTS,
+  SEED_DATASETS,
+} from "../seeder/postgres-seed-constants";
 import {
   REALISTIC_TRACE_NAMES,
   REALISTIC_SPAN_NAMES,
   REALISTIC_GENERATION_NAMES,
   REALISTIC_MODELS,
-} from "../clickhouse/seed-constants";
-import { SEED_DATASETS } from "../prisma/seed-constants";
+} from "../seeder/clickhouse-seed-constants";
 import { prisma } from "../src/db";
 import { clickhouseClient, logger } from "../src/server";
 import path from "path";
 import { readFileSync } from "fs";
 import { v4 } from "uuid";
-import { generateDatasetRunTraceId } from "../utilities/seed-helpers";
+import { generateDatasetRunTraceId } from "../seeder/seed-helpers";
 
 function randn_bm(min: number, max: number, skew: number) {
   let u = 0,
