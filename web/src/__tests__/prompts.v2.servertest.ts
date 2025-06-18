@@ -18,6 +18,7 @@ import {
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
+  ChatMessageType,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 
@@ -459,7 +460,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const chatMessages = [
         { role: "system", content: "You are a helpful assistant with conversation context." },
         {
-          type: "placeholder",
+          type: ChatMessageType.Placeholder,
           name: "conversation_history"
         },
         { role: "user", content: "{{user_question}}" }
@@ -497,9 +498,9 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       // Verify the placeholder message structure is preserved
       const messages = validatedPrompt.prompt as ChatMessage[];
-      const placeholderMessage = messages.find(msg => 'type' in msg && msg.type === "placeholder");
+      const placeholderMessage = messages.find(msg => 'type' in msg && msg.type === ChatMessageType.Placeholder);
       expect(placeholderMessage).toBeDefined();
-      expect(placeholderMessage.type).toBe("placeholder");
+      expect(placeholderMessage.type).toBe(ChatMessageType.Placeholder);
       expect(placeholderMessage.name).toBe("conversation_history");
     });
 
