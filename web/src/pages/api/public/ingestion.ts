@@ -51,12 +51,13 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   const requestStartTime = Date.now();
-  try {
-    const ctx = contextWithLangfuseProps({
-      headers: req.headers,
-    });
-    // Execute the rest of the handler within the context
-    return opentelemetry.context.with(ctx, async () => {
+
+  const ctx = contextWithLangfuseProps({
+    headers: req.headers,
+  });
+  // Execute the rest of the handler within the context
+  return opentelemetry.context.with(ctx, async () => {
+    try {
       logger.debug("Ingestion request started", {
         method: req.method,
         contentLength: req.headers["content-length"],
@@ -170,49 +171,49 @@ export default async function handler(
       });
 
       return res.status(207).json(result);
-    });
-  } catch (error: unknown) {
-    const totalDurationMs = Date.now() - requestStartTime;
+    } catch (error: unknown) {
+      const totalDurationMs = Date.now() - requestStartTime;
 
-    if (!(error instanceof UnauthorizedError)) {
-      logger.error("error_handling_ingestion_event", {
-        totalDurationMs,
-        error,
-      });
-      traceException(error);
-    } else {
-      logger.debug("Unauthorized ingestion request", {
-        totalDurationMs,
-        error: error.message,
-      });
-    }
+      if (!(error instanceof UnauthorizedError)) {
+        logger.error("error_handling_ingestion_event", {
+          totalDurationMs,
+          error,
+        });
+        traceException(error);
+      } else {
+        logger.debug("Unauthorized ingestion request", {
+          totalDurationMs,
+          error: error.message,
+        });
+      }
 
-    if (error instanceof BaseError) {
-      return res.status(error.httpCode).json({
-        error: error.name,
-        message: error.message,
-      });
-    }
+      if (error instanceof BaseError) {
+        return res.status(error.httpCode).json({
+          error: error.name,
+          message: error.message,
+        });
+      }
 
-    if (isPrismaException(error)) {
-      return res.status(500).json({
-        error: "Internal Server Error",
-      });
-    }
+      if (isPrismaException(error)) {
+        return res.status(500).json({
+          error: "Internal Server Error",
+        });
+      }
 
-    if (error instanceof z.ZodError) {
-      logger.error(`Zod exception`, error.issues);
-      return res.status(400).json({
+      if (error instanceof z.ZodError) {
+        logger.error(`Zod exception`, error.issues);
+        return res.status(400).json({
+          message: "Invalid request data",
+          error: error.issues,
+        });
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(500).json({
         message: "Invalid request data",
-        error: error.issues,
+        errors: [errorMessage],
       });
     }
-
-    const errorMessage =
-      error instanceof Error ? error.message : "An unknown error occurred";
-    res.status(500).json({
-      message: "Invalid request data",
-      errors: [errorMessage],
-    });
-  }
+  });
 }
