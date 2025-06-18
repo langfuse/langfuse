@@ -21,6 +21,7 @@ export const ChatCompletionBodySchema = z.object({
   modelParams: ModelParamsSchema,
   tools: z.array(LLMToolDefinitionSchema).optional(),
   structuredOutputSchema: LLMJSONSchema.optional(),
+  streaming: z.boolean().optional().default(true),
 });
 
 export const validateChatCompletionBody = (input: unknown) => {

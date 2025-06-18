@@ -4045,6 +4045,17 @@ paths:
             items:
               type: string
               nullable: true
+        - name: fields
+          in: query
+          description: >-
+            Comma-separated list of fields to include in the response. Available
+            field groups are 'core' (always included), 'io' (input, output,
+            metadata), 'scores', 'observations', 'metrics'. If not provided, all
+            fields are included. Example: 'core,scores,metrics'
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''

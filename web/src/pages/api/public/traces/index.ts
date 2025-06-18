@@ -76,6 +76,7 @@ export default withMiddlewares({
         release: query.release ?? undefined,
         fromTimestamp: query.fromTimestamp ?? undefined,
         toTimestamp: query.toTimestamp ?? undefined,
+        fields: query.fields ?? undefined,
       };
 
       const [items, count] = await Promise.all([
