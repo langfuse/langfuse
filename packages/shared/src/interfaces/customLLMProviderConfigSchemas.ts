@@ -11,6 +11,9 @@ export const BedrockCredentialSchema = z
   .optional();
 export type BedrockCredential = z.infer<typeof BedrockCredentialSchema>;
 
+export const VertexAIConfigSchema = z.object({ location: z.string() });
+export type VertexAIConfig = z.infer<typeof VertexAIConfigSchema>;
+
 export const GCPServiceAccountKeySchema = z.object({
   type: z.literal("service_account"),
   project_id: z.string(),
