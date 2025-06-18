@@ -1,23 +1,9 @@
 import { z } from "zod/v4";
-import { jsonSchema, PromptNameSchema } from "@langfuse/shared";
+import { jsonSchema, PromptNameSchema, PromptChatMessageSchema } from "@langfuse/shared";
 import type { Prompt } from "@langfuse/shared";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
-const RegularChatMessageSchema = z.object({
-  role: z.string(),
-  content: z.string(),
-});
-
-const PlaceholderMessageSchema = z.object({
-  type: z.literal("placeholder"),
-  name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"),
-});
-
-export const ChatMessageSchema = z.union([
-  RegularChatMessageSchema,
-  PlaceholderMessageSchema,
-]);
-
+export const ChatMessageSchema = PromptChatMessageSchema;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 export enum PromptType {
@@ -53,7 +39,7 @@ const BaseCreateChatPromptSchema = z.object({
   name: PromptNameSchema,
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Chat),
-  prompt: z.array(ChatMessageSchema),
+  prompt: z.array(PromptChatMessageSchema),
   config: jsonSchema.nullable().default({}),
   tags: z.array(z.string()).nullish(),
 });
@@ -146,7 +132,7 @@ export const BaseChatPromptSchema = z.object({
   tags: z.array(z.string()),
   labels: z.array(PromptLabelSchema),
   type: z.literal(PromptType.Chat),
-  prompt: z.array(ChatMessageSchema),
+  prompt: z.array(PromptChatMessageSchema),
   config: jsonSchema,
 });
 
