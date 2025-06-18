@@ -7,6 +7,7 @@ import {
   redis,
   logger,
   instrumentAsync,
+  recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 
@@ -90,6 +91,11 @@ interface ResourceSpan {
 export class OtelIngestionProcessor {
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
+  private traceEventCounts = {
+    shallow: 0,
+    rootSpanClosed: 0,
+    traceUpdated: 0,
+  };
   private readonly projectId: string;
   private readonly publicKey?: string;
 
@@ -143,6 +149,22 @@ export class OtelIngestionProcessor {
           const finalEvents = this.filterRedundantShallowTraces(allEvents);
 
           span.setAttribute("events_generated", finalEvents.length);
+
+          this.traceEventCounts.shallow = Math.max(
+            this.traceEventCounts.shallow -
+              (allEvents.length - finalEvents.length),
+            0,
+          );
+
+          for (const key of Object.keys(
+            this.traceEventCounts,
+          ) as (keyof typeof this.traceEventCounts)[]) {
+            recordIncrement(
+              "langfuse.ingestion.otel.trace_create_event",
+              this.traceEventCounts[key],
+              { reason: key },
+            );
+          }
 
           return finalEvents;
         } catch (error) {
@@ -289,6 +311,10 @@ export class OtelIngestionProcessor {
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
       this.validatePublicKey(isLangfuseSDKSpans, scopeAttributes);
+
+      if (isLangfuseSDKSpans) {
+        recordIncrement("langfuse.otel.ingestion.langfuse_sdk_batch", 1);
+      }
 
       for (const span of scopeSpan?.spans ?? []) {
         const spanEvents = this.processSpan(
@@ -460,6 +486,14 @@ export class OtelIngestionProcessor {
         environment: this.extractEnvironment(attributes, resourceAttributes),
         ...this.extractInputAndOutput(span?.events ?? [], attributes, "trace"),
       };
+    }
+
+    if (isRootSpan) {
+      this.traceEventCounts.rootSpanClosed += 1;
+    } else if (hasTraceUpdates) {
+      this.traceEventCounts.traceUpdated += 1;
+    } else {
+      this.traceEventCounts.shallow += 1;
     }
 
     return {
@@ -1011,17 +1045,21 @@ export class OtelIngestionProcessor {
   ): Record<string, unknown> {
     if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS]) {
       try {
-        return JSON.parse(
-          attributes[
-            LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
-          ] as string,
+        return this.sanitizeModelParams(
+          JSON.parse(
+            attributes[
+              LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
+            ] as string,
+          ),
         );
       } catch {}
     }
 
     if (attributes["llm.invocation_parameters"]) {
       try {
-        return JSON.parse(attributes["llm.invocation_parameters"] as string);
+        return this.sanitizeModelParams(
+          JSON.parse(attributes["llm.invocation_parameters"] as string),
+        );
       } catch (e) {
         // fallthrough
       }
@@ -1029,7 +1067,9 @@ export class OtelIngestionProcessor {
 
     if (attributes["model_config"]) {
       try {
-        return JSON.parse(attributes["model_config"] as string);
+        return this.sanitizeModelParams(
+          JSON.parse(attributes["model_config"] as string),
+        );
       } catch (e) {
         // fallthrough
       }
@@ -1039,13 +1079,30 @@ export class OtelIngestionProcessor {
       key.startsWith("gen_ai.request."),
     );
 
-    return modelParameters.reduce((acc: any, key) => {
-      const modelParamKey = key.replace("gen_ai.request.", "");
-      if (modelParamKey !== "model") {
-        acc[modelParamKey] = attributes[key];
-      }
-      return acc;
-    }, {});
+    return this.sanitizeModelParams(
+      modelParameters.reduce((acc: any, key) => {
+        const modelParamKey = key.replace("gen_ai.request.", "");
+        if (modelParamKey !== "model") {
+          acc[modelParamKey] = attributes[key];
+        }
+        return acc;
+      }, {}),
+    );
+  }
+
+  private sanitizeModelParams<T>(params: T): Record<string, string> | T {
+    // Model params in Langfuse must be key value pairs where value is string
+    if (typeof params === "object" && params != null)
+      return Object.fromEntries(
+        Object.entries(params).map((e) => [
+          e[0],
+          ["string", "number"].includes(typeof e[1])
+            ? e[1]
+            : JSON.stringify(e[1]),
+        ]),
+      );
+
+    return params;
   }
 
   private extractModelName(

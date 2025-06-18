@@ -61,6 +61,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const { onFormSuccess, initialPrompt } = props;
   const projectId = useProjectIdFromURL();
   const [shouldLoadPlaygroundCache] = useQueryParam("loadPlaygroundCache");
+  const [folderPath] = useQueryParam("folder");
   const [formError, setFormError] = useState<string | null>(null);
   const { playgroundCache } = usePlaygroundCache();
   const [initialMessages, setInitialMessages] = useState<unknown>([]);
@@ -88,7 +89,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
       initialPromptVariant?.type === PromptType.Text
         ? initialPromptVariant?.prompt
         : "",
-    name: initialPrompt?.name ?? "",
+    name: initialPrompt?.name ?? (folderPath ? `${folderPath}/` : ""),
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
     isActive: !Boolean(initialPrompt),
     commitMessage: initialPrompt?.commitMessage ?? undefined,
@@ -213,8 +214,11 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 <div>
                   <FormItem>
                     <FormLabel>Name</FormLabel>
+                    <FormDescription>
+                      Use slashes &apos;/&apos; in prompt names to organize them into <a target="_blank" rel="noopener noreferrer" href="https://langfuse.com/docs/prompts/get-started#prompt-folders-for-organization"><i>folders</i></a>.
+                    </FormDescription>
                     <FormControl>
-                      <Input placeholder="Select a prompt name" {...field} />
+                      <Input placeholder="Name your prompt" {...field} />
                     </FormControl>
                     {/* Custom form message to include a link to the already existing prompt */}
                     {form.getFieldState("name").error ? (
