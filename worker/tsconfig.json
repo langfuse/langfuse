@@ -12,6 +12,6 @@
     "downlevelIteration": true,
     "resolveJsonModule": true
   },
-  "include": ["."],
+  "include": [".", "../packages/shared/src/__tests__/widgetRepresentationTransformer.test.ts"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
 }
