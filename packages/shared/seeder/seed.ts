@@ -21,7 +21,12 @@ import {
   SEED_PROMPT_VERSIONS,
   SEED_TEXT_PROMPTS,
 } from "./postgres-seed-constants";
-import { generateDatasetRunTraceId } from "./seed-helpers";
+import {
+  generateDatasetRunTraceId,
+  generateEvalObservationId,
+  generateEvalScoreId,
+  generateEvalTraceId,
+} from "./seed-helpers";
 
 type ConfigCategory = {
   label: string;
@@ -583,7 +588,7 @@ export async function createDatasets(
               id: `${dataset.id}-${index}-${datasetRunNumber}`,
               projectId,
               datasetItemId: datasetItemIds[index],
-              traceId: `0-${generateDatasetRunTraceId(datasetName, index, projectId, datasetRunNumber)}`,
+              traceId: `${generateDatasetRunTraceId(datasetName, index, projectId, datasetRunNumber)}`,
               datasetRunId: datasetRun.id,
             },
             update: {},
@@ -593,68 +598,6 @@ export async function createDatasets(
     }
   }
 }
-
-// async function uploadObjects(
-//   sessions: Prisma.TraceSessionCreateManyInput[],
-//   comments: Prisma.CommentCreateManyInput[],
-//   queueItems: Prisma.AnnotationQueueItemCreateManyInput[],
-// ) {
-//   let promises: Prisma.PrismaPromise<unknown>[] = [];
-
-//   const chunkSize = 10_000;
-
-//   chunk(sessions, 1).forEach((chunk) => {
-//     promises.push(
-//       prisma.traceSession.upsert({
-//         where: {
-//           id_projectId: { id: chunk[0]!.id!, projectId: chunk[0]!.projectId },
-//         },
-//         create: chunk[0]!,
-//         update: {},
-//       }),
-//     );
-//   });
-
-//   for (let i = 0; i < promises.length; i++) {
-//     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-//       logger.info(
-//         `Seeding of Sessions ${((i + 1) / promises.length) * 100}% complete`,
-//       );
-//     await promises[i];
-//   }
-
-//   promises = [];
-//   chunk(comments, chunkSize).forEach((chunk) => {
-//     promises.push(
-//       prisma.comment.createMany({
-//         data: chunk,
-//       }),
-//     );
-//   });
-//   for (let i = 0; i < promises.length; i++) {
-//     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-//       logger.info(
-//         `Seeding of Comments ${((i + 1) / promises.length) * 100}% complete`,
-//       );
-//     await promises[i];
-//   }
-
-//   promises = [];
-//   chunk(queueItems, chunkSize).forEach((chunk) => {
-//     promises.push(
-//       prisma.annotationQueueItem.createMany({
-//         data: chunk,
-//       }),
-//     );
-//   });
-//   for (let i = 0; i < promises.length; i++) {
-//     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-//       logger.info(
-//         `Seeding of Annotation Queue Items ${((i + 1) / promises.length) * 100}% complete`,
-//       );
-//     await promises[i];
-//   }
-// }
 
 async function generateEvalJobExecutions(
   projects: Project[],
@@ -668,11 +611,23 @@ async function generateEvalJobExecutions(
         data: {
           projectId: project.id,
           jobTemplateId: jobConfiguration.evalTemplateId,
-          jobInputTraceId: `trace-eval-${i}-${project.id.slice(-8)}`,
+          jobInputTraceId: generateEvalTraceId(
+            jobConfiguration.evalTemplateId!,
+            i,
+            project.id,
+          ),
           jobConfigurationId: jobConfiguration.id!,
           status: JobExecutionStatus.COMPLETED,
-          jobOutputScoreId: `score-eval-${i}-${project.id.slice(-8)}`,
-          jobInputObservationId: `observation-eval-${i}-${project.id.slice(-8)}`,
+          jobOutputScoreId: generateEvalScoreId(
+            jobConfiguration.evalTemplateId!,
+            i,
+            project.id,
+          ),
+          jobInputObservationId: generateEvalObservationId(
+            jobConfiguration.evalTemplateId!,
+            i,
+            project.id,
+          ),
         },
       });
     }

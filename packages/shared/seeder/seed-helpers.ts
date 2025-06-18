@@ -9,21 +9,24 @@ export const generateDatasetRunTraceId = (
 
 export const generateEvalTraceId = (
   evalTemplateId: string,
+  index: number,
   projectId: string,
 ) => {
-  return `trace-eval-${evalTemplateId}-${projectId.slice(-8)}`;
+  return `trace-eval-${evalTemplateId}-${projectId.slice(-8)}-${index}`;
 };
 
 export const generateEvalObservationId = (
   evalTemplateId: string,
+  index: number,
   projectId: string,
 ) => {
-  return `observation-eval-${evalTemplateId}-${projectId.slice(-8)}`;
+  return `observation-eval-${evalTemplateId}-${projectId.slice(-8)}-${index}`;
 };
 
 export const generateEvalScoreId = (
   evalTemplateId: string,
+  index: number,
   projectId: string,
 ) => {
-  return `score-eval-${evalTemplateId}-${projectId.slice(-8)}`;
+  return `score-eval-${evalTemplateId}-${projectId.slice(-8)}-${index}`;
 };
