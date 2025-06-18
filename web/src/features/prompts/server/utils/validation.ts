@@ -3,10 +3,22 @@ import { jsonSchema, PromptNameSchema } from "@langfuse/shared";
 import type { Prompt } from "@langfuse/shared";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
-export const ChatMessageSchema = z.object({
+const RegularChatMessageSchema = z.object({
   role: z.string(),
   content: z.string(),
 });
+
+const PlaceholderMessageSchema = z.object({
+  type: z.literal("placeholder"),
+  name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"),
+});
+
+export const ChatMessageSchema = z.union([
+  RegularChatMessageSchema,
+  PlaceholderMessageSchema,
+]);
+
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 export enum PromptType {
   Chat = "chat",

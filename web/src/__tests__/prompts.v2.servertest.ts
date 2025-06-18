@@ -8,6 +8,7 @@ import {
   PromptSchema,
   PromptType,
   type ValidatedPrompt,
+  type ChatMessage,
 } from "@/src/features/prompts/server/utils/validation";
 import { parsePromptDependencyTags } from "@langfuse/shared";
 import { generateId, nanoid } from "ai";
@@ -495,8 +496,8 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.commitMessage).toBe(commitMessage);
 
       // Verify the placeholder message structure is preserved
-      const messages = validatedPrompt.prompt as any[];
-      const placeholderMessage = messages.find(msg => msg.type === "placeholder");
+      const messages = validatedPrompt.prompt as ChatMessage[];
+      const placeholderMessage = messages.find(msg => 'type' in msg && msg.type === "placeholder");
       expect(placeholderMessage).toBeDefined();
       expect(placeholderMessage.type).toBe("placeholder");
       expect(placeholderMessage.name).toBe("conversation_history");
