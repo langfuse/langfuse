@@ -1,9 +1,6 @@
 import { prisma } from "../../src/db";
-import { ObservationRecordReadType, redis } from "../../src/server";
-import { prepareClickhouse } from "../../scripts/prepareClickhouse";
-import { createDatasets } from "../../seeder/seed";
-import { queryClickhouse } from "../../src/server/repositories/clickhouse";
-import { convertObservation } from "../../src/server/repositories/observations_converters";
+import { redis } from "../../src/server";
+import { prepareClickhouse } from "../../scripts/prepare-clickhouse";
 
 async function main() {
   try {

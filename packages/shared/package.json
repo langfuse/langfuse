@@ -51,7 +51,7 @@
     "load:setup": "dotenv -e ../../.env -- tsx scripts/load-seed.ts"
   },
   "prisma": {
-    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} seeder/seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} scripts/seed-postgres.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",

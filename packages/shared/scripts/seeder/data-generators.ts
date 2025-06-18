@@ -21,6 +21,14 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { SEED_EVALUATOR_CONFIGS } from "./postgres-seed-constants";
 
+/**
+ * Generates realistic test data for traces, observations, and scores.
+ *
+ * Use generateXxxTraces() for creating different data types:
+ * - generateDatasetTrace(): For dataset experiment runs (langfuse-prompt-experiments env)
+ * - generateEvaluationTraces(): For evaluation data (langfuse-evaluation env)
+ * - generateSyntheticTraces(): For large-scale synthetic data (default env)
+ */
 export class DataGenerator {
   private static instance: DataGenerator;
   private fileContent: FileContent | null = null;
@@ -48,7 +56,10 @@ export class DataGenerator {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  // Dataset-based generators
+  /**
+   * Creates traces from dataset items for experiment runs.
+   * Use for: Dataset experiments scenarios.
+   */
   generateDatasetTrace(input: DatasetItemInput, projectId: string): TraceData {
     const traceId = generateDatasetRunTraceId(
       input.datasetName,
@@ -87,6 +98,10 @@ export class DataGenerator {
     };
   }
 
+  /**
+   * Creates observations for dataset experiment traces with variable costs/latency.
+   * Use for: Dataset experiments requiring detailed observation tracking.
+   */
   generateDatasetObservation(
     trace: TraceData,
     input: DatasetItemInput,
@@ -127,7 +142,10 @@ export class DataGenerator {
     };
   }
 
-  // Standard synthetic data generators
+  /**
+   * Creates large-scale synthetic traces for performance testing.
+   * Use for: Load testing, dashboard demos, realistic usage simulation.
+   */
   generateSyntheticTraces(
     projectId: string,
     count: number,
@@ -249,6 +267,10 @@ export class DataGenerator {
     return observations;
   }
 
+  /**
+   * Creates synthetic observations with automatic prompt linking (5% rate).
+   * Use for: Large datasets, hierarchical observation structures, cost variation.
+   */
   generateSyntheticObservations(
     traces: TraceData[],
     observationsPerTrace: number = 5,
@@ -371,7 +393,10 @@ export class DataGenerator {
     return scores;
   }
 
-  // Evaluation-specific generators
+  /**
+   * Creates evaluation traces for testing evaluator configurations.
+   * Use for: Evaluation testing, score validation, evaluator development.
+   */
   generateEvaluationTraces(projectId: string, count: number): TraceData[] {
     const traces: TraceData[] = [];
 
@@ -461,7 +486,10 @@ export class DataGenerator {
       : JSON.stringify(this.fileContent.chatMlJson);
   }
 
-  // Generate exactly one score per evaluation trace with proper prefixed ID
+  /**
+   * Creates exactly one score per evaluation trace with prefixed IDs.
+   * Use for: Evaluation traces that need score validation, evaluator testing.
+   */
   generateEvaluationScores(
     traces: TraceData[],
     _observations: ObservationData[],

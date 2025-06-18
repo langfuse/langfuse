@@ -2,10 +2,19 @@ import { FileContent, SeederOptions } from "./types";
 import { DataGenerator } from "./data-generators";
 import { ClickHouseQueryBuilder } from "./clickhouse-builder";
 import { SEED_DATASETS } from "./postgres-seed-constants";
-import { clickhouseClient, logger } from "../src/server";
+import { clickhouseClient, logger } from "../../src/server";
 import path from "path";
 import { readFileSync } from "fs";
 
+/**
+ * Orchestrates seeding operations across ClickHouse and PostgreSQL.
+ *
+ * Use createXxxData() for specific data types:
+ * - createDatasetExperimentData(): Dataset runs in langfuse-prompt-experiments env
+ * - createEvaluationData(): Evaluation data in langfuse-evaluation env
+ * - createSyntheticData(): Large synthetic data in default env
+ * - executeFullSeed(): All data types together
+ */
 export class SeederOrchestrator {
   private dataGenerator: DataGenerator;
   private queryBuilder: ClickHouseQueryBuilder;
@@ -66,6 +75,10 @@ export class SeederOrchestrator {
     }
   }
 
+  /**
+   * Creates dataset experiment data for A/B testing and prompt comparisons.
+   * Use for: Experiment tracking, dataset-based evaluations, prompt testing.
+   */
   async createDatasetExperimentData(
     projectIds: string[],
     opts: SeederOptions,
@@ -136,6 +149,10 @@ export class SeederOrchestrator {
     }
   }
 
+  /**
+   * Creates evaluation data for testing evaluator configurations.
+   * Use for: Evaluator development, score validation, evaluation testing.
+   */
   async createEvaluationData(projectIds: string[]): Promise<void> {
     logger.info(`Creating evaluation data for ${projectIds.length} projects.`);
 
@@ -179,6 +196,10 @@ export class SeederOrchestrator {
     }
   }
 
+  /**
+   * Creates large-scale synthetic data for performance testing and demos.
+   * Use for: Load testing, dashboard demos, realistic usage simulation.
+   */
   async createSyntheticData(
     projectIds: string[],
     opts: SeederOptions,
@@ -261,6 +282,10 @@ export class SeederOrchestrator {
     }
   }
 
+  /**
+   * Executes complete seeding: datasets + evaluation + synthetic data.
+   * Use for: Full system setup, comprehensive testing, complete data reset.
+   */
   async executeFullSeed(
     projectIds: string[],
     opts: SeederOptions,

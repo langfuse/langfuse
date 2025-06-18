@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../src/db";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
-import { prepareClickhouse } from "./prepareClickhouse";
+import { prepareClickhouse } from "./prepare-clickhouse";
 import { redis } from "../src/server";
 
 const createRandomProjectId = () => randomUUID().toString();

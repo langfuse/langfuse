@@ -1,5 +1,5 @@
-import { SeederOrchestrator } from "../seeder/seeder-orchestrator";
-import { SeederOptions } from "../seeder/types";
+import { SeederOrchestrator } from "./seeder/seeder-orchestrator";
+import { SeederOptions } from "./seeder/types";
 import { logger } from "../src/server";
 
 /**

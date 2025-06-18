@@ -1,6 +1,12 @@
 import { SEED_TEXT_PROMPTS } from "./postgres-seed-constants";
 import { TraceData, ObservationData, ScoreData } from "./types";
 
+/**
+ * Builds ClickHouse SQL INSERT queries for seeding test data.
+ *
+ * Use buildXxxInsert() for small datasets (<1000 items) with detailed control.
+ * Use buildBulkXxxInsert() for large datasets (>1000 items) with better performance.
+ */
 export class ClickHouseQueryBuilder {
   private escapeString(str: string): string {
     return str.replace(/'/g, "''");
@@ -33,12 +39,17 @@ export class ClickHouseQueryBuilder {
     return `map(${entries.join(", ")})`;
   }
 
+  /**
+   * Creates INSERT query for trace data using VALUES syntax.
+   * Use for: Small datasets, detailed trace objects with all fields populated.
+   */
   buildTracesInsert(
     projectId: string,
     traces: TraceData[],
     batchSize: number = 1000,
   ): string {
     const chunks = this.chunkArray(traces, batchSize);
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
 
     return chunks
       .map((chunk) => {
@@ -46,7 +57,7 @@ export class ClickHouseQueryBuilder {
           .map(
             (trace) => `(
         '${trace.id}',
-        toDateTime('${new Date().toISOString().slice(0, 19).replace("T", " ")}'),
+        toDateTime('${now}'),
         ${this.formatValue(trace.name)},
         ${this.formatValue(trace.userId)},
         ${this.formatMap(trace.metadata || {})},
@@ -79,12 +90,17 @@ export class ClickHouseQueryBuilder {
       .join("\n");
   }
 
+  /**
+   * Creates INSERT query for observation data using VALUES syntax.
+   * Use for: Small datasets, observations that link to postgres data (e.g. dataset runs)
+   */
   buildObservationsInsert(
     projectId: string,
     observations: ObservationData[],
     batchSize: number = 1000,
   ): string {
     const chunks = this.chunkArray(observations, batchSize);
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
 
     return chunks
       .map((chunk) => {
@@ -97,8 +113,8 @@ export class ClickHouseQueryBuilder {
         '${obs.environment}',
         '${obs.type}',
         ${this.formatValue(obs.parentObservationId)},
-        toDateTime('${new Date().toISOString().slice(0, 19).replace("T", " ")}'),
-        addMilliseconds(toDateTime('${new Date().toISOString().slice(0, 19).replace("T", " ")}'), ${100 + Math.floor(Math.random() * 900)}),
+        toDateTime('${now}'),
+        addMilliseconds(toDateTime('${now}'), ${100 + Math.floor(Math.random() * 900)}),
         ${this.formatValue(obs.name)},
         ${this.formatMap({})},
         '${obs.level || "DEFAULT"}',
@@ -140,12 +156,17 @@ export class ClickHouseQueryBuilder {
       .join("\n");
   }
 
+  /**
+   * Creates INSERT query for score data using VALUES syntax.
+   * Use for: Small datasets, scores with custom values and metadata.
+   */
   buildScoresInsert(
     projectId: string,
     scores: ScoreData[],
     batchSize: number = 1000,
   ): string {
     const chunks = this.chunkArray(scores, batchSize);
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
 
     return chunks
       .map((chunk) => {
@@ -153,7 +174,7 @@ export class ClickHouseQueryBuilder {
           .map(
             (score) => `(
         '${score.id}',
-        toDateTime('${new Date().toISOString().slice(0, 19).replace("T", " ")}'),
+        toDateTime('${now}'),
         '${projectId}',
         '${score.environment}',
         ${this.formatValue(score.traceId)},
@@ -198,7 +219,10 @@ export class ClickHouseQueryBuilder {
     return chunks;
   }
 
-  // For large datasets, use the numbers() function approach for better performance
+  /**
+   * Creates INSERT using ClickHouse numbers() function.
+   * Use for: Large datasets (>1000 traces), realistic timestamps, bulk generation.
+   */
   buildBulkTracesInsert(
     projectId: string,
     count: number,
@@ -247,6 +271,10 @@ export class ClickHouseQueryBuilder {
     `;
   }
 
+  /**
+   * Creates observations with automatic prompt linking (10% rate).
+   * Use for: Large datasets, hierarchical observations, cost/latency variation.
+   */
   buildBulkObservationsInsert(
     projectId: string,
     tracesCount: number,
@@ -325,6 +353,10 @@ export class ClickHouseQueryBuilder {
     `;
   }
 
+  /**
+   * Creates scores with mixed data types (NUMERIC/BOOLEAN/CATEGORICAL).
+   * Use for: Large datasets, varied score distributions, synthetic metrics.
+   */
   buildBulkScoresInsert(
     projectId: string,
     tracesCount: number,

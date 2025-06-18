@@ -7,7 +7,6 @@ import {
 } from "../src/index";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
-
 import { v4 } from "uuid";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { encrypt } from "../src/encryption";
@@ -20,13 +19,13 @@ import {
   SEED_EVALUATOR_TEMPLATES,
   SEED_PROMPT_VERSIONS,
   SEED_TEXT_PROMPTS,
-} from "./postgres-seed-constants";
+} from "./seeder/postgres-seed-constants";
 import {
   generateDatasetRunTraceId,
   generateEvalObservationId,
   generateEvalScoreId,
   generateEvalTraceId,
-} from "./seed-helpers";
+} from "./seeder/seed-helpers";
 
 type ConfigCategory = {
   label: string;
