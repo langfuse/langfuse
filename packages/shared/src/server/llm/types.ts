@@ -172,6 +172,7 @@ export type ToolResultMessage = z.infer<typeof ToolResultMessageSchema>;
 export const PlaceholderMessageSchema = z.object({
   type: z.literal(ChatMessageType.Placeholder),
   name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"),
+  content: z.string().max(0).optional(),  // placeholder messages have no content, TODO: remove, this is a hack to make the schema work a lot easier
 });
 export type PlaceholderMessage = z.infer<typeof PlaceholderMessageSchema>;
 
@@ -183,6 +184,7 @@ export const ChatMessageSchema = z.union([
   AssistantTextMessageSchema,
   AssistantToolCallMessageSchema,
   ToolResultMessageSchema,
+  PlaceholderMessageSchema,
   z
     .object({
       role: z.union([ChatMessageDefaultRoleSchema, z.string()]), // Users may ingest any string as role via API/SDK

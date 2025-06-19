@@ -498,8 +498,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       // Verify the placeholder message structure is preserved
       const messages = validatedPrompt.prompt as ChatMessage[];
-      const placeholderMessage = messages.find(msg => 'type' in msg && msg.type === ChatMessageType.Placeholder);
-      expect(placeholderMessage).toBeDefined();
+      const placeholderMessage = messages[1] as { type: ChatMessageType.Placeholder; name: string };
       expect(placeholderMessage.type).toBe(ChatMessageType.Placeholder);
       expect(placeholderMessage.name).toBe("conversation_history");
     });
