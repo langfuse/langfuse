@@ -8,20 +8,27 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import { X, Plus } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod/v4";
+import { AvailableWebhookApiSchema } from "@langfuse/shared";
 
 export const webhookSchema = z.object({
   url: z.string().url("Invalid URL"),
-  headers: z
-    .array(
-      z.object({
-        name: z.string(),
-        value: z.string(),
-      }),
-    )
-    .default([]),
+  headers: z.array(
+    z.object({
+      name: z.string(),
+      value: z.string(),
+    }),
+  ),
+  apiVersion: AvailableWebhookApiSchema,
 });
 
 export type WebhookFormValues = z.infer<typeof webhookSchema>;
@@ -35,7 +42,6 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
   form,
   disabled,
 }) => {
-  // Set up field array for headers
   const {
     fields: headerFields,
     append: appendHeader,
@@ -71,6 +77,35 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             <FormDescription>
               The URL to call when the trigger fires. We will send a POST
               request to this URL.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="webhook.apiVersion.prompt"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>API Version</FormLabel>
+            <Select
+              onValueChange={field.onChange}
+              value={field.value}
+              disabled={disabled}
+            >
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select API version" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="v1">v1</SelectItem>
+              </SelectContent>
+            </Select>
+            <FormDescription>
+              The API version to use for the webhook payload format when prompt
+              events are triggered.
             </FormDescription>
             <FormMessage />
           </FormItem>

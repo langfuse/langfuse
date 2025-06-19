@@ -23,12 +23,18 @@ export type TriggerDomain = Omit<
 };
 
 // Zod schema for ActionType enum
-export const ActionTypeSchema = z.enum(["WEBHOOK", "ANNOTATION_QUEUE"]);
+export const ActionTypeSchema = z.enum(["WEBHOOK"]);
+
+export const AvailableWebhookApiSchema = z.record(
+  z.enum(["prompt"]),
+  z.enum(["v1"]),
+);
 
 export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
   url: z.string().url(),
   headers: z.record(z.string(), z.string()),
+  apiVersion: AvailableWebhookApiSchema,
 });
 
 export const ActionConfigSchema = z.discriminatedUnion("type", [

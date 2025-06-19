@@ -1,6 +1,5 @@
 import { z } from "zod/v4";
 import { webhookSchema } from "../components/actions/WebhookActionForm";
-import { annotationQueueSchema } from "../components/actions/AnnotationQueueActionForm";
 import {
   type JobConfigState,
   type ActionType,
@@ -18,27 +17,10 @@ export const triggerSchema = z.object({
 });
 
 // Combined form schema
-export const automationFormSchema = triggerSchema
-  .extend({
-    actionType: ActionTypeSchema,
-    webhook: webhookSchema.optional(),
-    annotationQueue: annotationQueueSchema.optional(),
-  })
-  .refine(
-    (data) => {
-      // Make sure proper fields are filled based on action type
-      if (data.actionType === "WEBHOOK") {
-        return !!data.webhook?.url;
-      } else if (data.actionType === "ANNOTATION_QUEUE") {
-        return !!data.annotationQueue?.queueId;
-      }
-      return false;
-    },
-    {
-      message: "Required fields for the selected action type are missing",
-      path: ["actionType"],
-    },
-  );
+export const automationFormSchema = triggerSchema.extend({
+  actionType: ActionTypeSchema,
+  webhook: webhookSchema,
+});
 
 export type AutomationFormValues = z.infer<typeof automationFormSchema>;
 
@@ -71,18 +53,12 @@ export const prepareFormDataForAPI = (
   }
 
   // Determine the action config based on action type
-  const actionConfig =
-    data.actionType === "WEBHOOK"
-      ? {
-          version: "1.0",
-          url: data.webhook?.url,
-          method: "POST", // Always POST
-          headers: headersObject,
-        }
-      : {
-          version: "1.0",
-          queueId: data.annotationQueue?.queueId,
-        };
+  const actionConfig = {
+    version: "1.0",
+    url: data.webhook?.url,
+    method: "POST", // Always POST
+    headers: headersObject,
+  };
 
   // Base payload for create/update operations
   const payload = {
@@ -91,8 +67,6 @@ export const prepareFormDataForAPI = (
     eventSource: data.eventSource,
     filter: data.filter && data.filter.length > 0 ? data.filter : null,
     status: data.status as JobConfigState,
-    sampling: data.sampling / 100, // Convert to decimal (0-1)
-    delay: data.delay,
     actionType: data.actionType as ActionType,
     actionConfig,
   };

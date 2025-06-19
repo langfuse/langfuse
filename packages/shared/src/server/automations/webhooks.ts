@@ -11,38 +11,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { Job, Processor } from "bullmq";
 import { backOff } from "exponential-backoff";
-import { z } from "zod/v4";
 import { ActionExecutionStatus } from "../../../prisma/generated/types";
-import { jsonSchema } from "../../utils/zod";
-import { EventActionSchema } from "../../domain";
-
-export const WebhookOutboundBaseSchema = z.object({
-  id: z.string(),
-  timestamp: z.date(),
-  type: z.literal("prompt"),
-  action: EventActionSchema,
-});
-
-export const PromptWebhookOutboundSchema = z
-  .object({
-    prompt: z.object({
-      id: z.string(),
-      name: z.string(),
-      version: z.number(),
-      projectId: z.string(),
-      labels: z.array(z.string()),
-      prompt: jsonSchema.nullable(),
-      type: z.string(),
-      config: z.record(z.string(), z.any()),
-      commitMessage: z.string().nullable(),
-      tags: z.array(z.string()),
-      createdAt: z.date(),
-      updatedAt: z.date(),
-    }),
-  })
-  .and(WebhookOutboundBaseSchema);
-
-export type PromptWebhookOutput = z.infer<typeof PromptWebhookOutboundSchema>;
+import { PromptWebhookOutboundSchema } from "../../domain";
 
 export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,

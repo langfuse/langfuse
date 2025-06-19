@@ -58,7 +58,7 @@ const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   eventSource: z.string().min(1, "Event source is required"),
   eventAction: z.array(z.string()),
-  status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
+  status: z.enum(["ACTIVE", "INACTIVE"]),
   filter: z.array(z.any()).optional(),
 });
 
@@ -123,7 +123,7 @@ export const AutomationForm = ({
   };
 
   // Get default values based on action type
-  const getDefaultValues = (): Partial<FormValues> => {
+  const getDefaultValues = (): FormValues => {
     const actionType = getActionType();
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
     const baseValues = {
@@ -131,9 +131,11 @@ export const AutomationForm = ({
       eventSource: isEditing
         ? automation?.trigger?.eventSource
         : TriggerEventSource.Prompt,
-      eventAction: isEditing ? automation?.trigger?.eventActions : [],
-      status: isEditing ? automation?.trigger?.status : "ACTIVE",
-      filter: isEditing ? automation?.trigger?.filter : [],
+      eventAction: isEditing ? automation?.trigger?.eventActions || [] : [],
+      status: (isEditing ? automation?.trigger?.status : "ACTIVE") as
+        | "ACTIVE"
+        | "INACTIVE",
+      filter: isEditing ? automation?.trigger?.filter || [] : [],
     };
 
     if (actionType === "WEBHOOK") {
@@ -142,8 +144,14 @@ export const AutomationForm = ({
       const webhookDefaults = handler.getDefaultValues(automation);
       return {
         ...baseValues,
-        actionType: "WEBHOOK",
-        webhook: webhookDefaults.webhook,
+        actionType: "WEBHOOK" as const,
+        webhook: {
+          url: webhookDefaults.webhook.url || "",
+          headers: webhookDefaults.webhook.headers || [],
+          apiVersion: webhookDefaults.webhook.apiVersion || {
+            prompt: "v1" as const,
+          },
+        },
       };
     } else {
       throw new Error("Invalid action type");
@@ -176,7 +184,7 @@ export const AutomationForm = ({
     try {
       // Use action handler to validate and build config
       const handler = ActionHandlerRegistry.getHandler(data.actionType);
-      const validation = handler.validateFormData(data);
+      const validation = handler.validateFormData(data as any);
 
       if (!validation.isValid) {
         showSuccessToast({
@@ -188,7 +196,7 @@ export const AutomationForm = ({
         return;
       }
 
-      const actionConfig = handler.buildActionConfig(data);
+      const actionConfig = handler.buildActionConfig(data as any);
 
       if (isEditing && automation) {
         // Update existing automation
@@ -242,7 +250,9 @@ export const AutomationForm = ({
   const handleActionTypeChange = (value: string) => {
     setActiveTab(value.toLowerCase());
     form.setValue("actionType", value as "WEBHOOK");
-    form.setValue("webhook", { url: "", headers: [] });
+    const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
+    const defaultValues = handler.getDefaultValues();
+    form.setValue("webhook", defaultValues.webhook);
   };
 
   // Handle cancel button click
@@ -363,9 +373,9 @@ export const AutomationForm = ({
                       values={field.value || []}
                       onValueChange={field.onChange}
                       options={[
-                        { value: TriggerEventAction.Created },
-                        { value: TriggerEventAction.Updated },
-                        { value: TriggerEventAction.Deleted },
+                        { value: "created" },
+                        { value: "updated" },
+                        { value: "deleted" },
                       ]}
                       className="my-0 w-auto overflow-hidden"
                       disabled={!hasAccess}

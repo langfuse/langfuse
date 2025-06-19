@@ -2,12 +2,11 @@ import React from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import { type BaseActionHandler } from "./BaseActionHandler";
+import { WebhookActionForm, formatWebhookHeaders } from "./WebhookActionForm";
 import {
-  WebhookActionForm,
-  formatWebhookHeaders,
-  type WebhookFormValues,
-} from "./WebhookActionForm";
-import { type WebhookActionConfig } from "@langfuse/shared";
+  type WebhookActionConfig,
+  AvailableWebhookApiSchema,
+} from "@langfuse/shared";
 import { z } from "zod/v4";
 
 // Define the form schema for webhook actions
@@ -22,6 +21,7 @@ const WebhookActionFormSchema = z.object({
         }),
       )
       .default([]),
+    apiVersion: AvailableWebhookApiSchema.default({ prompt: "v1" }),
   }),
 });
 
@@ -61,6 +61,17 @@ export class WebhookActionHandler
   }
 
   getDefaultValues(automation?: ActiveAutomation): WebhookActionFormData {
+    // Extract apiVersion from existing config
+    let apiVersion = { prompt: "v1" } as const;
+    if (
+      automation?.action?.type === "WEBHOOK" &&
+      automation?.action?.config &&
+      "apiVersion" in automation.action.config &&
+      automation.action.config.apiVersion
+    ) {
+      apiVersion = automation.action.config.apiVersion;
+    }
+
     return {
       webhook: {
         url:
@@ -70,6 +81,7 @@ export class WebhookActionHandler
             automation.action.config.url) ||
           "",
         headers: this.parseHeaders(automation),
+        apiVersion,
       },
     };
   }
@@ -117,6 +129,7 @@ export class WebhookActionHandler
       type: "WEBHOOK",
       url: formData.webhook?.url || "",
       headers: headersObject,
+      apiVersion: formData.webhook?.apiVersion || { prompt: "v1" },
     };
   }
 
