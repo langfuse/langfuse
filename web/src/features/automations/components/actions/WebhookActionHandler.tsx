@@ -8,7 +8,7 @@ import {
   type WebhookFormValues,
 } from "./WebhookActionForm";
 import { type WebhookActionConfig } from "@langfuse/shared";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 // Define the form schema for webhook actions
 const WebhookActionFormSchema = z.object({

@@ -1,16 +1,16 @@
 import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export enum TriggerEventSource {
   Prompt = "prompt",
 }
 
-export enum TriggerEventAction {
-  Created = "created",
-  Updated = "updated",
-  Deleted = "deleted",
-}
+export const EventActionSchema = z.enum(["created", "updated", "deleted"]);
+
+export type TriggerEventAction = z.infer<typeof EventActionSchema>;
+
+export const TriggerEventSourceSchema = z.enum([TriggerEventSource.Prompt]);
 
 export type TriggerDomain = Omit<
   Trigger,

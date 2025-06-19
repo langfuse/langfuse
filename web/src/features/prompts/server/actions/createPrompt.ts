@@ -67,6 +67,8 @@ export const createPrompt = async ({
   const promptService = new PromptService(prisma, redis);
   const promptDependencies = parsePromptDependencyTags(prompt);
 
+  const touchedPromptIds: string[] = [];
+
   try {
     await promptService.buildAndResolvePromptGraph({
       projectId,
@@ -117,30 +119,33 @@ export const createPrompt = async ({
     ),
   ];
 
-  if (finalLabels.length > 0)
+  if (finalLabels.length > 0) {
     // If we're creating a new labeled prompt, we must remove those labels on previous prompts since labels are unique
-    create.push(
-      ...(await removeLabelsFromPreviousPromptVersions({
+    const { touchedPromptIds, updates } =
+      await removeLabelsFromPreviousPromptVersions({
         prisma,
         projectId,
         promptName: name,
         labelsToRemove: finalLabels,
-      })),
-    );
+      });
+    touchedPromptIds.push(...touchedPromptIds);
+    create.push(...updates);
+  }
 
   const haveTagsChanged =
     JSON.stringify([...new Set(finalTags)].sort()) !==
     JSON.stringify([...new Set(latestPrompt?.tags)].sort());
-  if (haveTagsChanged)
+  if (haveTagsChanged) {
     // If we're creating a new prompt with tags, we must update those tags on previous prompts since tags are consistent across versions
-    create.push(
-      ...(await updatePromptTagsOnAllVersions({
-        prisma,
-        projectId,
-        promptName: name,
-        tags: finalTags,
-      })),
-    );
+    const { touchedPromptIds, updates } = await updatePromptTagsOnAllVersions({
+      prisma,
+      projectId,
+      promptName: name,
+      tags: finalTags,
+    });
+    touchedPromptIds.push(...touchedPromptIds);
+    create.push(...updates);
+  }
 
   // Lock and invalidate cache for _all_ versions and labels of the prompt name
   await promptService.lockCache({ projectId, promptName: name });
@@ -155,14 +160,18 @@ export const createPrompt = async ({
   // Unlock cache
   await promptService.unlockCache({ projectId, promptName: name });
 
-  await promptChangeEventSourcing(
-    createdPrompt, // Full prompt data
-    "created", // Event type
-    {
-      source: "api", // This is an API call
-      // Additional context could be added here (userId, etc.)
+  const updatedPrompts = await prisma.prompt.findMany({
+    where: {
+      id: { in: touchedPromptIds },
+      projectId,
     },
-  );
+  });
+
+  for (const prompt of updatedPrompts) {
+    await promptChangeEventSourcing(prompt, "updated");
+  }
+
+  await promptChangeEventSourcing(createdPrompt, "created");
 
   return createdPrompt;
 };
@@ -278,14 +287,7 @@ export const duplicatePrompt = async ({
   });
 
   promptsToCreate.forEach(async (prompt) => {
-    await promptChangeEventSourcing(
-      prompt, // Full prompt data
-      "created", // Event type
-      {
-        source: "api", // This is an API call
-        // Additional context could be added here (userId, etc.)
-      },
-    );
+    await promptChangeEventSourcing(prompt, "created");
   });
 
   return createdPrompt;

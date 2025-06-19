@@ -90,7 +90,7 @@ export const promptRouter = createTRPCRouter({
       );
 
       const pathFilter = input.pathPrefix
-        ? Prisma.sql` AND (p.name LIKE ${input.pathPrefix + '/%'} OR p.name = ${input.pathPrefix})`
+        ? Prisma.sql` AND (p.name LIKE ${input.pathPrefix + "/%"} OR p.name = ${input.pathPrefix})`
         : Prisma.empty;
 
       const [prompts, promptCount] = await Promise.all([
@@ -456,11 +456,7 @@ export const promptRouter = createTRPCRouter({
         for (const prompt of prompts) {
           await promptChangeEventSourcing(
             prompt, // Full prompt data
-            "deleted", // Event type
-            {
-              source: "api", // This is an API call
-              // Additional context could be added here (userId, etc.)
-            },
+            "deleted",
           );
         }
       } catch (e) {
@@ -613,25 +609,10 @@ export const promptRouter = createTRPCRouter({
         await promptService.unlockCache({ projectId, promptName });
 
         // Trigger webhooks for prompt version deletion
-        try {
-          const { promptChangeEventSourcing } = await import(
-            "../promptChangeProcessor"
-          );
-          await promptChangeEventSourcing(
-            promptVersion, // Full prompt data
-            "deleted", // Event type
-            {
-              source: "api", // This is an API call
-              // Additional context could be added here (userId, etc.)
-            },
-          );
-        } catch (error) {
-          // Log error but don't fail the deletion
-          console.error(
-            "Failed to trigger prompt webhook for version deletion:",
-            error,
-          );
-        }
+        await promptChangeEventSourcing(
+          promptVersion, // Full prompt data
+          "deleted",
+        );
       } catch (e) {
         logger.error(e);
         throw e;
@@ -743,6 +724,8 @@ export const promptRouter = createTRPCRouter({
           }
         }
 
+        const touchedPromptIds = [toBeLabeledPrompt.id];
+
         await auditLog(
           {
             session: ctx.session,
@@ -767,6 +750,8 @@ export const promptRouter = createTRPCRouter({
           orderBy: [{ version: "desc" }],
         });
 
+        touchedPromptIds.push(...previousLabeledPrompts.map((p) => p.id));
+
         const toBeExecuted = [
           ctx.prisma.prompt.update({
             where: {
@@ -781,6 +766,7 @@ export const promptRouter = createTRPCRouter({
 
         // Remove label from previous labeled prompts
         previousLabeledPrompts.forEach((prevPrompt) => {
+          touchedPromptIds.push(prevPrompt.id);
           toBeExecuted.push(
             ctx.prisma.prompt.update({
               where: {
@@ -806,26 +792,20 @@ export const promptRouter = createTRPCRouter({
         await promptService.unlockCache({ projectId, promptName });
 
         // Trigger webhooks for prompt label update
-        try {
-          const { promptChangeEventSourcing } = await import(
-            "../promptChangeProcessor"
-          );
-          const updatedPrompt = { ...toBeLabeledPrompt, labels: newLabels };
-          await promptChangeEventSourcing(
-            updatedPrompt, // Full prompt data
-            "updated", // Event type
-            {
-              source: "api", // This is an API call
-              // Additional context could be added here (userId, etc.)
-            },
-          );
-        } catch (error) {
-          // Log error but don't fail the label update
-          console.error(
-            "Failed to trigger prompt webhook for label update:",
-            error,
-          );
+
+        const updatedPrompt = { ...toBeLabeledPrompt, labels: newLabels };
+
+        const updatedPrompts = await ctx.prisma.prompt.findMany({
+          where: {
+            id: { in: touchedPromptIds },
+            projectId,
+          },
+        });
+
+        for (const prompt of updatedPrompts) {
+          await promptChangeEventSourcing(prompt, "updated");
         }
+        return updatedPrompt;
       } catch (e) {
         logger.error(`Failed to set prompt labels: ${e}`, e);
         throw e;
@@ -961,33 +941,17 @@ export const promptRouter = createTRPCRouter({
         await promptService.unlockCache({ projectId, promptName });
 
         // Trigger webhooks for prompt tag update
-        try {
-          const { promptChangeEventSourcing } = await import(
-            "../promptChangeProcessor"
-          );
-          const prompts = await ctx.prisma.prompt.findMany({
-            where: { projectId, name: promptName },
-          });
 
-          for (const prompt of prompts) {
-            await promptChangeEventSourcing(
-              prompt, // Full prompt data
-              "updated", // Event type
-              {
-                source: "api", // This is an API call
-                // Additional context could be added here (userId, etc.)
-              },
-            );
-          }
-        } catch (error) {
-          // Log error but don't fail the tag update
-          console.error(
-            "Failed to trigger prompt webhook for tag update:",
-            error,
-          );
+        const prompts = await ctx.prisma.prompt.findMany({
+          where: { projectId, name: promptName },
+        });
+
+        for (const prompt of prompts) {
+          await promptChangeEventSourcing(prompt, "updated");
         }
-      } catch (error) {
-        logger.error(error);
+      } catch (e) {
+        logger.error(`Failed to update prompt tags: ${e}`, e);
+        throw e;
       }
     }),
   allPromptMeta: protectedProjectProcedure

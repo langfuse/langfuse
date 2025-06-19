@@ -23,14 +23,21 @@ export const removeLabelsFromPreviousPromptVersions = async ({
     orderBy: [{ version: "desc" }],
   });
 
-  return previouslyLabeledPrompts.map((prevPrompt) =>
-    prisma.prompt.update({
-      where: { id: prevPrompt.id },
-      data: {
-        labels: prevPrompt.labels.filter(
-          (prevLabel) => !labelsToRemove.includes(prevLabel),
-        ),
-      },
-    }),
+  const touchedPromptIds = previouslyLabeledPrompts.map(
+    (prevPrompt) => prevPrompt.id,
   );
+
+  return {
+    touchedPromptIds,
+    updates: previouslyLabeledPrompts.map((prevPrompt) =>
+      prisma.prompt.update({
+        where: { id: prevPrompt.id },
+        data: {
+          labels: prevPrompt.labels.filter(
+            (prevLabel) => !labelsToRemove.includes(prevLabel),
+          ),
+        },
+      }),
+    ),
+  };
 };

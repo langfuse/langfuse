@@ -1,56 +1,31 @@
-import { TriggerEventSource, type Prompt } from "@langfuse/shared";
-import { AutomationService, logger } from "@langfuse/shared/src/server";
+import {
+  type TriggerEventAction,
+  TriggerEventSource,
+  type Prompt,
+} from "@langfuse/shared";
+import {
+  AutomationService,
+  logger,
+  type WebhookInput,
+} from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
-import { prisma } from "@langfuse/shared/src/db";
 import { anyPromptExists } from "@/src/features/prompts/server/repositories/promptRepository";
-
-export type PromptActionType = "created" | "updated" | "deleted";
-
-export interface PromptEvent {
-  eventId: string;
-  event: "prompt";
-  action: PromptActionType;
-  timestamp: Date;
-  projectId: string;
-  data: Prompt;
-  trigger: {
-    source: "api" | "ui";
-    userId?: string;
-    apiKeyId?: string;
-  };
-}
 
 export const promptChangeEventSourcing = async (
   promptData: Prompt,
-  action: PromptActionType,
-  triggerContext?: {
-    source: "api" | "ui";
-    userId?: string;
-    apiKeyId?: string;
-  },
+  action: TriggerEventAction,
 ) => {
   try {
     logger.info("Processing prompt change", {
       promptData,
       action,
-      triggerContext,
     });
-
-    const promptEvent: PromptEvent = {
-      eventId: `evt_${uuidv4()}`,
-      event: "prompt",
-      action: action,
-      timestamp: new Date(),
-      projectId: promptData.projectId,
-      data: promptData,
-      trigger: triggerContext || {
-        source: "api",
-      },
-    };
 
     logger.info("Creating automation service", {
       projectId: promptData.projectId,
     });
+
+    const eventId = `evt_${uuidv4()}`;
 
     const automationService = new AutomationService(promptData.projectId, {
       checkTriggerAppliesToEvent: async (trigger) => {
@@ -66,9 +41,9 @@ export const promptChangeEventSourcing = async (
           // Check if the action matches based on the operator
           const matches =
             operator === "any of"
-              ? filterValue.includes(promptEvent.action)
+              ? filterValue.includes(action)
               : operator === "none of"
-                ? !filterValue.includes(promptEvent.action)
+                ? !filterValue.includes(action)
                 : false;
 
           if (!matches) {
@@ -103,26 +78,26 @@ export const promptChangeEventSourcing = async (
         return `evt_${uuidv4()}`;
       },
       convertEventToActionInput: async (actionConfig, executionId) => {
-        return {
+        const queueInput: WebhookInput = {
           projectId: actionConfig.projectId,
           actionId: actionConfig.id,
           triggerId: actionConfig.triggerIds[0],
           executionId,
+          eventId: eventId,
+          payload: {
+            promptName: promptData.name,
+            promptVersion: promptData.version,
+            action: action,
+            type: "prompt",
+          },
         };
+        return queueInput;
       },
     });
 
     // Use the single prompt event source
     await automationService.triggerAction({
       eventSource: TriggerEventSource.Prompt,
-    });
-
-    logger.info("Prompt event processed", {
-      eventId: promptEvent.eventId,
-      event: promptEvent.event,
-      action: promptEvent.action,
-      promptId: promptData.id,
-      projectId: promptData.projectId,
     });
   } catch (error) {
     logger.error("Error processing prompt change. Failing silently.", error);

@@ -1,6 +1,6 @@
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   ActionConfigSchema,
   ActionType,

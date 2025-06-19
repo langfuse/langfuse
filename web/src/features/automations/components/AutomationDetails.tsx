@@ -1,15 +1,7 @@
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import {
-  Edit,
-  ArrowRight,
-  Webhook,
-  ListTodo,
-  Filter,
-  Zap,
-  Settings,
-} from "lucide-react";
+import { Edit, ArrowRight, Webhook, Filter, Zap, Settings } from "lucide-react";
 import { AutomationForm } from "./automationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { JobConfigState, type TriggerEventSource } from "@langfuse/shared";
@@ -250,13 +242,6 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                         {automation.action.type === "WEBHOOK"
                           ? "Webhook"
                           : "Annotation Queue"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <h4 className="text-sm font-medium">Action Name</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {automation.name}
                       </p>
                     </div>
 

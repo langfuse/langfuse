@@ -6,7 +6,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
-import { ObservationTypeDomain } from "../domain";
+import { EventActionSchema, ObservationTypeDomain } from "../domain";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -130,25 +130,21 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
-export const WebhookInputSchema = z
-  .discriminatedUnion("type", [
-    z.object({
-      promptId: z.string(),
-      type: z.literal("prompt"),
-      promptName: z.string(),
-      version: z.number(),
-      action: z.enum(["create", "update", "delete"]),
-      timestamp: z.date(),
-    }),
-  ])
-  .and(
-    z.object({
-      projectId: z.string(),
-      actionId: z.string(),
-      triggerId: z.string(),
-      executionId: z.string(),
-    }),
-  );
+export const WebhookOutboundEnvelopeSchema = z.object({
+  promptName: z.string(),
+  promptVersion: z.number(),
+  action: EventActionSchema,
+  type: z.literal("prompt"),
+});
+
+export const WebhookInputSchema = z.object({
+  eventId: z.string(),
+  projectId: z.string(),
+  actionId: z.string(),
+  triggerId: z.string(),
+  executionId: z.string(),
+  payload: WebhookOutboundEnvelopeSchema,
+});
 
 export type WebhookInput = z.infer<typeof WebhookInputSchema>;
 

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { webhookSchema } from "../components/actions/WebhookActionForm";
 import { annotationQueueSchema } from "../components/actions/AnnotationQueueActionForm";
 import {

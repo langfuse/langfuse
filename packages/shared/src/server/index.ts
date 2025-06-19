@@ -63,7 +63,6 @@ export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
 export * from "./automations/automationService";
-export * from "./automations/webhooks";
 
 // test utils
 export * from "./test-utils";

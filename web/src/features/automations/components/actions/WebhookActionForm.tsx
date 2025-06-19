@@ -10,7 +10,7 @@ import {
 } from "@/src/components/ui/form";
 import { X, Plus } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const webhookSchema = z.object({
   url: z.string().url("Invalid URL"),
