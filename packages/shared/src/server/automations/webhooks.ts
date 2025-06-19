@@ -1,18 +1,14 @@
-import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
-import {
-  getActionById,
-  logger,
-  PromptService,
-  QueueName,
-  recordIncrement,
-  TQueueJobTypes,
-  WebhookInput,
-} from "@langfuse/shared/src/server";
 import { Job, Processor } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { ActionExecutionStatus } from "../../../prisma/generated/types";
 import { PromptWebhookOutboundSchema } from "../../domain";
+import { prisma } from "../../db";
+import { recordIncrement } from "../instrumentation";
+import { TQueueJobTypes, QueueName, WebhookInput } from "../queues";
+import { getActionById } from "../repositories";
+import { PromptService } from "../services/PromptService";
+import { redis } from "../redis/redis";
+import { logger } from "..";
 
 export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
