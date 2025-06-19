@@ -3,7 +3,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useExtractVariables } from "@/src/features/evals/hooks/useExtractVariables";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { cn } from "@/src/utils/tailwind";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterOutput } from "@/src/utils/types";
 import { type EvalTemplate } from "@langfuse/shared";
 import Link from "next/link";
