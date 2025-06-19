@@ -146,11 +146,7 @@ export class DataGenerator {
    * Creates large-scale synthetic traces for performance testing.
    * Use for: Load testing, dashboard demos, realistic usage simulation.
    */
-  generateSyntheticTraces(
-    projectId: string,
-    count: number,
-    config: SeederOptions,
-  ): TraceData[] {
+  generateSyntheticTraces(projectId: string, count: number): TraceData[] {
     const traces: TraceData[] = [];
 
     for (let i = 0; i < count; i++) {

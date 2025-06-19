@@ -57,22 +57,6 @@ export interface DatasetItemInput {
   runNumber?: number;
 }
 
-export interface SeederStrategy {
-  name: string;
-  generateTraces(projectId: string, config: SeederOptions): TraceData[];
-  generateObservations(
-    projectId: string,
-    traces: TraceData[],
-    config: SeederOptions,
-  ): ObservationData[];
-  generateScores(
-    projectId: string,
-    traces: TraceData[],
-    observations: ObservationData[],
-    config: SeederOptions,
-  ): ScoreData[];
-}
-
 export interface FileContent {
   nestedJson: any;
   heavyMarkdown: string;

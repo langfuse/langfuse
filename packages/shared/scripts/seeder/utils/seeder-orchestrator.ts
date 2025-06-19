@@ -241,7 +241,6 @@ export class SeederOrchestrator {
         const traces = this.dataGenerator.generateSyntheticTraces(
           projectId,
           tracesPerProject,
-          opts,
         );
         const observations = this.dataGenerator.generateSyntheticObservations(
           traces,
