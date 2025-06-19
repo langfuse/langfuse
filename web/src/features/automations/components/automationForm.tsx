@@ -31,11 +31,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import {
-  type ActionTypes,
-  type JobConfigState,
-  TriggerEventAction,
-} from "@langfuse/shared";
+import { type ActionTypes, type JobConfigState } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -145,6 +141,7 @@ export const AutomationForm = ({
       return {
         ...baseValues,
         actionType: "WEBHOOK" as const,
+        eventSource: TriggerEventSource.Prompt,
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
@@ -184,7 +181,7 @@ export const AutomationForm = ({
     try {
       // Use action handler to validate and build config
       const handler = ActionHandlerRegistry.getHandler(data.actionType);
-      const validation = handler.validateFormData(data as any);
+      const validation = handler.validateFormData(data);
 
       if (!validation.isValid) {
         showSuccessToast({
@@ -196,7 +193,7 @@ export const AutomationForm = ({
         return;
       }
 
-      const actionConfig = handler.buildActionConfig(data as any);
+      const actionConfig = handler.buildActionConfig(data);
 
       if (isEditing && automation) {
         // Update existing automation
@@ -247,9 +244,9 @@ export const AutomationForm = ({
     : "Create Automation";
 
   // Update required fields based on action type
-  const handleActionTypeChange = (value: string) => {
+  const handleActionTypeChange = (value: ActionTypes) => {
     setActiveTab(value.toLowerCase());
-    form.setValue("actionType", value as "WEBHOOK");
+    form.setValue("actionType", value);
     const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
     const defaultValues = handler.getDefaultValues();
     form.setValue("webhook", defaultValues.webhook);

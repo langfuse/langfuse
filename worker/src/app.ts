@@ -54,7 +54,7 @@ import {
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
-import { webhookProcessor } from "../../packages/shared/src/server/automations/webhooks";
+import { webhookProcessor } from "@langfuse/shared";
 
 const app = express();
 
