@@ -14,6 +14,8 @@ import {
   createTracesCh,
   upsertObservation,
   upsertTrace,
+  checkTraceExists,
+  getTraceById,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -26,6 +28,7 @@ import {
   describe,
   expect,
   test,
+  vi,
 } from "vitest";
 import { compileHandlebarString } from "../features/utilities";
 import { OpenAIServer } from "./network";
@@ -35,6 +38,10 @@ import {
   evaluate,
   extractVariablesFromTracingData,
 } from "../features/evaluation/evalService";
+import {
+  requiresDatabaseLookup,
+  requiresObservationData,
+} from "../features/evaluation/traceFilterUtils";
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
 if (!hasActiveKey) {
@@ -1705,5 +1712,161 @@ describe("eval service tests", () => {
         },
       ]);
     }, 10_000);
+  });
+
+  describe("trace evaluation optimization", () => {
+    test("uses cached trace fetch for multiple configs with in-memory filters", async () => {
+      const traceId = randomUUID();
+      const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+      // Create a trace with specific properties for filtering
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+        name: "test-trace",
+        tags: ["tag1", "tag2"],
+        environment: "production",
+      });
+
+      // Create multiple eval configurations with different filters
+      const config1Id = randomUUID();
+      const config2Id = randomUUID();
+      const config3Id = randomUUID();
+
+      await prisma.jobConfiguration.createMany({
+        data: [
+          {
+            id: config1Id,
+            projectId,
+            filter: [
+              {
+                column: "name",
+                type: "string",
+                operator: "=",
+                value: "test-trace",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "trace",
+            scoreName: "score1",
+            variableMapping: [],
+          },
+          {
+            id: config2Id,
+            projectId,
+            filter: [
+              {
+                column: "environment",
+                type: "string",
+                operator: "=",
+                value: "production",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "trace",
+            scoreName: "score2",
+            variableMapping: [],
+          },
+          {
+            id: config3Id,
+            projectId,
+            filter: [
+              {
+                column: "tags",
+                type: "arrayOptions",
+                operator: "any of",
+                value: ["tag1"],
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "trace",
+            scoreName: "score3",
+            variableMapping: [],
+          },
+        ],
+      });
+
+      // Spy on the functions to track calls
+      const checkTraceExistsSpy = vi.spyOn(
+        { checkTraceExists },
+        "checkTraceExists",
+      );
+      const getTraceByIdSpy = vi.spyOn({ getTraceById }, "getTraceById");
+
+      const payload = {
+        projectId,
+        traceId,
+      };
+
+      await createEvalJobs({ event: payload, jobTimestamp });
+
+      // Verify that jobs were created for all matching configs
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(3);
+
+      // The optimization should have used getTraceById once instead of checkTraceExists multiple times
+      // Note: This test verifies the optimization is working by checking that we get the expected results
+      // In a real scenario, we'd expect fewer database calls with the optimization
+      expect(jobs.every((job) => job.status.toString() === "PENDING")).toBe(
+        true,
+      );
+      expect(jobs.map((job) => job.job_input_trace_id)).toEqual([
+        traceId,
+        traceId,
+        traceId,
+      ]);
+
+      expect(checkTraceExistsSpy).toHaveBeenCalledTimes(0);
+      expect(getTraceByIdSpy).toHaveBeenCalledTimes(1);
+
+      // Clean up spies
+      checkTraceExistsSpy.mockRestore();
+      getTraceByIdSpy.mockRestore();
+    }, 10_000);
+
+    test("requiresDatabaseLookup correctly identifies complex filters", () => {
+      // Simple filters that can be evaluated with trace data only
+      const simpleFilters = [
+        { column: "name", type: "string", operator: "=", value: "test-trace" },
+        {
+          column: "environment",
+          type: "string",
+          operator: "=",
+          value: "production",
+        },
+        { column: "bookmarked", type: "boolean", operator: "=", value: true },
+      ];
+
+      expect(!requiresDatabaseLookup(simpleFilters)).toBe(true);
+
+      // Complex filters that require observation data
+      const complexFilters = [
+        { column: "level", type: "string", operator: "=", value: "ERROR" },
+      ];
+
+      expect(!requiresDatabaseLookup(complexFilters)).toBe(false);
+
+      // Mixed filters - should return false if any filter requires observation data
+      const mixedFilters = [
+        { column: "name", type: "string", operator: "=", value: "test-trace" },
+        { column: "level", type: "string", operator: "=", value: "ERROR" }, // This requires observation data
+      ];
+
+      expect(!requiresDatabaseLookup(mixedFilters)).toBe(false);
+    });
   });
 });

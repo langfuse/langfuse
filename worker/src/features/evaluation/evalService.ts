@@ -24,7 +24,12 @@ import {
   DefaultEvalModelService,
   getTraceById,
   getObservationForTraceIdByName,
+  InMemoryFilterService,
 } from "@langfuse/shared/src/server";
+import {
+  mapTraceFilterColumn,
+  requiresDatabaseLookup,
+} from "./traceFilterUtils";
 import {
   ChatMessageRole,
   ForbiddenError,
@@ -39,6 +44,7 @@ import {
   ScoreSource,
   availableTraceEvalVariables,
   variableMapping,
+  TraceDomain,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -185,6 +191,36 @@ export const createEvalJobs = async ({
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
 
+  // Optimization: Fetch trace data once if we have multiple configs
+  let cachedTrace: TraceDomain | undefined | null = null;
+  if (configs.length > 0) {
+    try {
+      // Fetch trace with or without observation data based on requirements
+      cachedTrace = await getTraceById({
+        traceId: event.traceId,
+        projectId: event.projectId,
+        timestamp:
+          "timestamp" in event
+            ? new Date(event.timestamp)
+            : new Date(jobTimestamp),
+      });
+
+      logger.debug("Fetched trace for evaluation optimization", {
+        traceId: event.traceId,
+        projectId: event.projectId,
+        found: Boolean(cachedTrace),
+        configCount: configs.length,
+      });
+    } catch (error) {
+      logger.error("Failed to fetch trace for evaluation optimization", {
+        error,
+        traceId: event.traceId,
+        projectId: event.projectId,
+      });
+      // Continue without cached trace - will fall back to individual queries
+    }
+  }
+
   for (const config of configs) {
     if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
@@ -201,21 +237,41 @@ export const createEvalJobs = async ({
         : undefined;
 
     // Check whether the trace already exists in the database.
-    const traceExists = await checkTraceExists({
-      projectId: event.projectId,
-      traceId: event.traceId,
-      // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
-      timestamp:
-        "timestamp" in event
-          ? new Date(event.timestamp)
-          : new Date(jobTimestamp),
-      filter: config.target_object === "trace" ? validatedFilter : [],
-      maxTimeStamp,
-      exactTimestamp:
-        "exactTimestamp" in event && event.exactTimestamp
-          ? new Date(event.exactTimestamp)
-          : undefined,
-    });
+    let traceExists = false;
+
+    // Use cached trace for in-memory filtering when possible
+    if (cachedTrace && !requiresDatabaseLookup(validatedFilter)) {
+      // Evaluate filter in memory using the cached trace
+      traceExists = InMemoryFilterService.evaluateFilter(
+        cachedTrace,
+        validatedFilter,
+        mapTraceFilterColumn,
+      );
+
+      logger.debug("Evaluated trace filter in memory", {
+        traceId: event.traceId,
+        configId: config.id,
+        matches: traceExists,
+        filterCount: validatedFilter.length,
+      });
+    } else {
+      // Fall back to database query for complex filters or when no cached trace
+      traceExists = await checkTraceExists({
+        projectId: event.projectId,
+        traceId: event.traceId,
+        // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
+        timestamp:
+          "timestamp" in event
+            ? new Date(event.timestamp)
+            : new Date(jobTimestamp),
+        filter: config.target_object === "trace" ? validatedFilter : [],
+        maxTimeStamp,
+        exactTimestamp:
+          "exactTimestamp" in event && event.exactTimestamp
+            ? new Date(event.exactTimestamp)
+            : undefined,
+      });
+    }
 
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem: { id: string } | undefined;
