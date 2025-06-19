@@ -28,24 +28,15 @@ export const parseUnknownToString = (value: unknown): string => {
 };
 
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
-  // JSONPath extraction matching backend implementation
-  try {
-    const result = JSONPath({
-      path: jsonSelector,
-      json:
-        typeof selectedColumn === "string"
-          ? JSON.parse(selectedColumn)
-          : selectedColumn,
-    });
+  const result = JSONPath({
+    path: jsonSelector,
+    json:
+      typeof selectedColumn === "string"
+        ? JSON.parse(selectedColumn)
+        : selectedColumn,
+  });
 
-    return result.length > 0 ? result[0] : undefined;
-  } catch (error) {
-    console.error(
-      `Error parsing JSONPath selector: ${jsonSelector}`,
-      error,
-    );
-    throw error; // Re-throw to let caller handle it
-  }
+  return result.length > 0 ? result[0] : undefined;
 }
 
 export function extractValueFromObject(
@@ -63,9 +54,10 @@ export function extractValueFromObject(
     try {
       jsonSelectedColumn = jsonParser(selectedColumn, mapping.jsonSelector);
     } catch (err) {
-      error = err instanceof Error 
-        ? err 
-        : new Error("There was an unknown error parsing the JSON");
+      error =
+        err instanceof Error
+          ? err
+          : new Error("There was an unknown error parsing the JSON");
       jsonSelectedColumn = selectedColumn; // Fallback to original value
     }
   } else {
