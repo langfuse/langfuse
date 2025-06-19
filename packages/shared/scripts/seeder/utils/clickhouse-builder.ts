@@ -377,7 +377,7 @@ export class ClickHouseQueryBuilder {
         if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 100)), NULL) AS session_id,
         NULL AS dataset_run_id,
         if(randUniform(0, 1) < 0.1, concat('obs-bulk-', toString(rand() % (${tracesCount} * 5)), '-${projectId.slice(-8)}'), NULL) AS observation_id,
-        concat('metric_', toString((number % ${scoresPerTrace}) + 1)) AS name,
+        concat('metric_', toString((number % ${scoresPerTrace * 5}) + 1)) AS name,
         case 
           when (number % 3) = 0 then toDecimal64(randUniform(0, 100), 8)
           when (number % 3) = 1 then if(randUniform(0, 1) < 0.5, 1, 0)
