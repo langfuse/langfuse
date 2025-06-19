@@ -67,5 +67,5 @@ export function requiresDatabaseLookup(filter: FilterState): boolean {
     }
   }
 
-  return true;
+  return false;
 }
