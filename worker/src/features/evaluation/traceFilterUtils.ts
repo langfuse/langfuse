@@ -61,11 +61,11 @@ export function requiresDatabaseLookup(filter: FilterState): boolean {
 
   for (const condition of filter) {
     if (
-      evalTraceFilterColumns.some((c) => c === condition.column.toLowerCase())
+      !evalTraceFilterColumns.some((c) => c === condition.column.toLowerCase())
     ) {
       return true;
     }
   }
 
-  return false;
+  return true;
 }
