@@ -58,8 +58,8 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
     const webhookConfig = actionConfig.config;
 
     await backOff(
-      async () =>
-        await fetch(webhookConfig.url, {
+      async () => {
+        const res = await fetch(webhookConfig.url, {
           method: "POST",
           body: JSON.stringify({
             ...PromptWebhookOutboundSchema.parse({
@@ -74,7 +74,14 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
             ...webhookConfig.headers,
             "Content-Type": "application/json",
           },
-        }),
+        });
+        if (res.status !== 200) {
+          logger.error(
+            `Webhook ${actionConfig.name} for project ${projectId} failed with status ${res.status}`,
+          );
+          throw new Error(`Webhook failed with status ${res.status}`);
+        }
+      },
       {
         numOfAttempts: 4,
       },
