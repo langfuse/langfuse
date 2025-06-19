@@ -13,6 +13,7 @@ import { encrypt } from "../../src/encryption";
 import { redis } from "../../src/server/redis/redis";
 import { randomUUID } from "crypto";
 import {
+  FAILED_EVAL_TRACE_INTERVAL,
   SEED_CHAT_ML_PROMPTS,
   SEED_DATASETS,
   SEED_EVALUATOR_CONFIGS,
@@ -26,6 +27,7 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
+import { EVAL_TRACE_COUNT } from "./utils/postgres-seed-constants";
 
 type ConfigCategory = {
   label: string;
@@ -603,9 +605,11 @@ async function generateEvalJobExecutions(
   evalJobConfigurations: Partial<JobConfiguration>[],
 ) {
   for (const project of projects) {
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < EVAL_TRACE_COUNT; i++) {
       const jobConfiguration =
         evalJobConfigurations[i % evalJobConfigurations.length];
+
+      const isFailed = i % FAILED_EVAL_TRACE_INTERVAL === 0;
       await prisma.jobExecution.create({
         data: {
           projectId: project.id,
@@ -616,7 +620,10 @@ async function generateEvalJobExecutions(
             project.id,
           ),
           jobConfigurationId: jobConfiguration.id!,
-          status: JobExecutionStatus.COMPLETED,
+          status: isFailed
+            ? JobExecutionStatus.ERROR
+            : JobExecutionStatus.COMPLETED,
+          error: isFailed ? "Error message" : undefined,
           jobOutputScoreId: generateEvalScoreId(
             jobConfiguration.evalTemplateId!,
             i,

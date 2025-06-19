@@ -390,3 +390,6 @@ export const SEED_EVALUATOR_CONFIGS = [
     delay: 5_000,
   },
 ];
+
+export const EVAL_TRACE_COUNT = 100;
+export const FAILED_EVAL_TRACE_INTERVAL = 10;

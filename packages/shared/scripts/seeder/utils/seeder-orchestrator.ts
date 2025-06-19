@@ -1,7 +1,7 @@
 import { FileContent, SeederOptions } from "./types";
 import { DataGenerator } from "./data-generators";
 import { ClickHouseQueryBuilder } from "./clickhouse-builder";
-import { SEED_DATASETS } from "./postgres-seed-constants";
+import { EVAL_TRACE_COUNT, SEED_DATASETS } from "./postgres-seed-constants";
 import { clickhouseClient, logger } from "../../../src/server";
 import path from "path";
 import { readFileSync } from "fs";
@@ -150,7 +150,7 @@ export class SeederOrchestrator {
     for (const projectId of projectIds) {
       logger.info(`Processing evaluation data for project ${projectId}`);
 
-      const evalTracesPerProject = 100;
+      const evalTracesPerProject = EVAL_TRACE_COUNT;
       const evalObservationsPerTrace = 10;
 
       // Generate evaluation traces

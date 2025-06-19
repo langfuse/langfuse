@@ -19,7 +19,10 @@ import {
   generateEvalTraceId,
 } from "./seed-helpers";
 import { v4 as uuidv4 } from "uuid";
-import { SEED_EVALUATOR_CONFIGS } from "./postgres-seed-constants";
+import {
+  FAILED_EVAL_TRACE_INTERVAL,
+  SEED_EVALUATOR_CONFIGS,
+} from "./postgres-seed-constants";
 
 /**
  * Generates realistic test data for traces, observations, and scores.
@@ -495,6 +498,7 @@ export class DataGenerator {
 
     for (const evalJobConfiguration of SEED_EVALUATOR_CONFIGS) {
       traces.forEach((trace, traceIndex) => {
+        if (traceIndex % FAILED_EVAL_TRACE_INTERVAL === 0) return;
         // Create exactly one score per evaluation trace with prefixed ID
         const score: ScoreData = {
           id: generateEvalScoreId(
