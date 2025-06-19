@@ -19,7 +19,7 @@ import {
   PromptService,
   redis,
 } from "@langfuse/shared/src/server";
-import { promptChangeProcessor } from "@/src/features/prompts/server/promptChangeProcessor";
+import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeProcessor";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;
@@ -155,20 +155,14 @@ export const createPrompt = async ({
   // Unlock cache
   await promptService.unlockCache({ projectId, promptName: name });
 
-  // Trigger webhooks for prompt creation
-  try {
-    await promptChangeProcessor({
-      id: createdPrompt.id,
-      projectId,
-      name: createdPrompt.name,
-      version: createdPrompt.version,
-      action: "create",
-      timestamp: new Date(),
-    });
-  } catch (error) {
-    // Log error but don't fail the prompt creation
-    console.error("Failed to trigger prompt webhooks:", error);
-  }
+  await promptChangeEventSourcing(
+    createdPrompt, // Full prompt data
+    "created", // Event type
+    {
+      source: "api", // This is an API call
+      // Additional context could be added here (userId, etc.)
+    },
+  );
 
   return createdPrompt;
 };
@@ -247,6 +241,9 @@ export const duplicatePrompt = async ({
       projectId,
       createdBy,
       commitMessage: prompt.commitMessage,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isActive: true,
     };
   });
 
@@ -278,6 +275,17 @@ export const duplicatePrompt = async ({
       projectId,
       version: isSingleVersion ? 1 : result.count,
     },
+  });
+
+  promptsToCreate.forEach(async (prompt) => {
+    await promptChangeEventSourcing(
+      prompt, // Full prompt data
+      "created", // Event type
+      {
+        source: "api", // This is an API call
+        // Additional context could be added here (userId, etc.)
+      },
+    );
   });
 
   return createdPrompt;

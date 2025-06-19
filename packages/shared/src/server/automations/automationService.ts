@@ -1,28 +1,11 @@
-import {
-  ActionDomain,
-  AnnotationQueueActionConfig,
-  JobConfigState,
-  JobExecutionStatus,
-  TriggerDomain,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import {
-  getActionById,
-  logger,
-  QueueJobs,
-  QueueName,
-  WebhookQueue,
-} from "@langfuse/shared/src/server";
-
+import { JobConfigState, JobExecutionStatus } from "@prisma/client";
+import { logger } from "../logger";
+import { prisma } from "../../db";
+import { QueueJobs, QueueName } from "../queues";
 import { v4 } from "uuid";
-import { getCachedTriggers } from "./cached-automation-repo";
-import { processAddToQueue } from "../batchAction/processAddToQueue";
-import { addObservationToAnnotationQueue } from "./annotation-queues";
-
-export enum TriggerEventSource {
-  ObservationCreated = "observation.created", 
-  PromptChanged = "prompt.changed",
-}
+import { WebhookQueue } from "../redis/webhookQueue";
+import { TriggerDomain, ActionDomain, TriggerEventSource } from "../../domain";
+import { getActionById, getTriggerConfigurations } from "../repositories";
 
 export interface AutomationServiceDelegates<T> {
   checkTriggerAppliesToEvent: (trigger: TriggerDomain) => Promise<boolean>;
@@ -51,13 +34,19 @@ export class AutomationService<T> {
     const { checkTriggerAppliesToEvent, getExistingActionExecutionForTrigger } =
       this.delegates;
 
-    const triggerConfigurations = await getCachedTriggers({
+    logger.info("Getting trigger configurations", {
       projectId: this.projectId,
       eventSource,
       status: JobConfigState.ACTIVE,
     });
 
-    logger.debug(
+    const triggerConfigurations = await getTriggerConfigurations({
+      projectId: this.projectId,
+      eventSource,
+      status: JobConfigState.ACTIVE,
+    });
+
+    logger.info(
       `Found ${triggerConfigurations.length} triggers for event source ${eventSource}`,
     );
 
@@ -79,16 +68,6 @@ export class AutomationService<T> {
             existingActionExecution,
           );
           continue;
-        }
-
-        // apply sampling. Only if the action is sampled, we create an action execution
-        // user supplies a number between 0 and 1, which is the probability of sampling
-        if (trigger.sampling.gt(0) && trigger.sampling.lt(1)) {
-          const random = Math.random();
-          if (random > trigger.sampling.toNumber()) {
-            logger.debug(`Trigger ${trigger.id} was sampled out`);
-            continue;
-          }
         }
 
         await this.executeAction(trigger);
@@ -157,17 +136,7 @@ export class AutomationService<T> {
           name: QueueJobs.WebhookJob,
         });
         break;
-      case "ANNOTATION_QUEUE":
-        await addObservationToAnnotationQueue({
-          projectId: this.projectId,
-          traceId: actionInput.traceId,
-          targetId: (actionConfig.config as AnnotationQueueActionConfig)
-            .queueId,
-          triggerId: trigger.id,
-          actionId: actionConfig.id,
-          executionId: actionExecution.id,
-        });
-        break;
+
       default:
         const _exhaustiveCheck: never = actionConfig.type;
         throw new Error(`Unhandled action type: ${_exhaustiveCheck}`);

@@ -7,12 +7,10 @@ import {
   Webhook,
   ListTodo,
   Filter,
-  Clock,
-  Percent,
   Zap,
   Settings,
 } from "lucide-react";
-import { AutomationForm, promptFilterColumns } from "./automationForm";
+import { AutomationForm } from "./automationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { JobConfigState, type TriggerEventSource } from "@langfuse/shared";
 import {
@@ -25,12 +23,12 @@ import {
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { Separator } from "@/src/components/ui/separator";
 import { type FilterState } from "@langfuse/shared";
-import { type ActiveAutomation } from "@langfuse/shared/src/server";
+import { type ActiveAutomation as FullActiveAutomation } from "@langfuse/shared/src/server";
 import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { WebhookActionConfig } from "./WebhookActionConfig";
-import { AnnotationQueueActionConfig } from "./AnnotationQueueActionConfig";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 
 interface AutomationDetailsProps {
   projectId: string;
@@ -38,6 +36,15 @@ interface AutomationDetailsProps {
   actionId: string;
   onEditSuccess?: () => void;
 }
+
+// Omit eventAction temporarily from ActiveAutomation type as it is not yet available in the shared types
+// This is a temporary workaround to avoid type errors until the shared types are updated
+// It will be added back once the shared types are updated
+type ActiveAutomation = Omit<FullActiveAutomation, "trigger"> & {
+  trigger: Omit<FullActiveAutomation["trigger"], "eventAction"> & {
+    eventAction?: string[];
+  };
+};
 
 export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   projectId,
@@ -88,16 +95,20 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
 
   // Convert the automation data to match the expected format for the form
   const automationForForm: ActiveAutomation = {
+    name: automation.name,
     trigger: {
       ...automation.trigger,
       eventSource: automation.trigger.eventSource as TriggerEventSource,
       filter: automation.trigger.filter as FilterState,
+      eventAction: automation.trigger.eventActions,
     },
     action: {
       ...automation.action,
-      config: automation.action.config as
-        | { type: "WEBHOOK"; url: string; headers: Record<string, string> }
-        | { type: "ANNOTATION_QUEUE"; queueId: string },
+      config: automation.action.config as {
+        type: "WEBHOOK";
+        url: string;
+        headers: Record<string, string>;
+      },
     },
   };
 
@@ -106,8 +117,6 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
     switch (actionType) {
       case "WEBHOOK":
         return <Webhook className="h-5 w-5" />;
-      case "ANNOTATION_QUEUE":
-        return <ListTodo className="h-5 w-5" />;
       default:
         return <Settings className="h-5 w-5" />;
     }
@@ -118,10 +127,6 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
     switch (config.type) {
       case "WEBHOOK":
         return <WebhookActionConfig config={config} />;
-      case "ANNOTATION_QUEUE":
-        return (
-          <AnnotationQueueActionConfig projectId={projectId} config={config} />
-        );
       default:
         return null;
     }
@@ -140,7 +145,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
       ) : (
         <>
           <Header
-            title={automation.trigger.description || "Unnamed Automation"}
+            title={automation.name}
             status={
               automation.trigger.status === JobConfigState.ACTIVE
                 ? "active"
@@ -187,26 +192,11 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                         {automation.trigger.eventSource}
                       </p>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="flex items-center gap-1 text-sm font-medium">
-                          <Percent className="h-3 w-3" />
-                          Sampling Rate
-                        </h4>
-                        <p className="text-sm text-muted-foreground">
-                          {automation.trigger.sampling.toNumber() * 100}%
-                        </p>
-                      </div>
-                      <div>
-                        <h4 className="flex items-center gap-1 text-sm font-medium">
-                          <Clock className="h-3 w-3" />
-                          Delay
-                        </h4>
-                        <p className="text-sm text-muted-foreground">
-                          {automation.trigger.delay}ms
-                        </p>
-                      </div>
+                    <div>
+                      <h4 className="text-sm font-medium">Event Action</h4>
+                      <p className="font-mono text-sm text-muted-foreground">
+                        {automation.trigger.eventActions.join(", ")}
+                      </p>
                     </div>
 
                     <Separator />
@@ -219,7 +209,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                       {automation.trigger.filter ? (
                         <InlineFilterBuilder
                           key={`${triggerId}-${actionId}-filter`}
-                          columns={promptFilterColumns}
+                          columns={promptsTableCols}
                           filterState={automation.trigger.filter as FilterState}
                           onChange={() => {}}
                           disabled={true}
@@ -266,7 +256,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                     <div>
                       <h4 className="text-sm font-medium">Action Name</h4>
                       <p className="text-sm text-muted-foreground">
-                        {automation.action.name}
+                        {automation.name}
                       </p>
                     </div>
 

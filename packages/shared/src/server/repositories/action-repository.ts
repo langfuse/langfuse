@@ -4,7 +4,7 @@ import {
   WebhookActionConfig,
   ActionDomain,
   TriggerDomain,
-  AnnotationQueueActionConfig,
+  TriggerEventAction,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 
@@ -76,6 +76,7 @@ export const getTriggerConfigurations = async ({
 const convertTriggerToDomain = (trigger: Trigger): MinimalTriggerDomain => {
   return {
     ...trigger,
+    eventActions: trigger.eventActions as TriggerEventAction[],
     filter: trigger.filter as FilterState,
     eventSource: trigger.eventSource as TriggerEventSource,
   };
@@ -84,12 +85,13 @@ const convertTriggerToDomain = (trigger: Trigger): MinimalTriggerDomain => {
 const convertActionToDomain = (action: Action): MinimalActionDomain => {
   return {
     ...action,
-    config: action.config as WebhookActionConfig | AnnotationQueueActionConfig,
+    config: action.config as WebhookActionConfig,
   };
 };
 
 // Local type for getActiveAutomations return value to avoid leaking prisma types
 export type ActiveAutomation = {
+  name: string;
   trigger: MinimalTriggerDomain;
   action: MinimalActionDomain;
 };
@@ -119,6 +121,7 @@ export const getActiveAutomations = async ({
   });
 
   return automations.map((automation) => ({
+    name: automation.name,
     trigger: convertTriggerToDomain(automation.trigger),
     action: convertActionToDomain(automation.action),
   }));

@@ -1225,9 +1225,7 @@ model Action {
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  name        String
-  description String?
-  type        ActionType
+  type ActionType
 
   // Configuration specific to each action type
   config Json // Structured JSON for different action types
@@ -1238,7 +1236,7 @@ model Action {
   triggers        TriggersOnActions[] // Changed to use the join table
   ActionExecution ActionExecution[]
 
-  @@unique([projectId, name])
+  @@index([projectId])
   @@map("actions")
 }
 
@@ -1250,11 +1248,10 @@ model Trigger {
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  description String?
-
   // When should this trigger fire
-  eventSource String // trace.created, observation.created, etc.
-  filter      Json? // Filter conditions (format: { field: "name", operator: "equals", value: "my_trace" })
+  eventSource  String // trace, prompt, etc.
+  eventActions String[] // created, updated, deleted
+  filter       Json? // Filter conditions (format: { field: "name", operator: "equals", value: "my_trace" })
 
   // What action to perform when triggered - removed direct relation and added many-to-many
   actions TriggersOnActions[]
@@ -1262,17 +1259,15 @@ model Trigger {
   // Additional attributes
   status JobConfigState @default(ACTIVE) @map("status")
 
-  sampling Decimal // ratio of jobs that are executed for sampling (0..1)
-  delay    Int // delay in milliseconds
-
   // Link to executions
   ActionExecution ActionExecution[]
 
-  @@index([projectId, eventSource])
+  @@index([projectId])
   @@map("triggers")
 }
 
 model TriggersOnActions {
+  name      String   @map("name")
   trigger   Trigger  @relation(fields: [triggerId], references: [id], onDelete: Cascade)
   triggerId String   @map("trigger_id")
   action    Action   @relation(fields: [actionId], references: [id], onDelete: Cascade)
@@ -1282,15 +1277,21 @@ model TriggersOnActions {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([triggerId, actionId])
-  @@index([triggerId])
-  @@index([actionId])
+  @@index([projectId, actionId, triggerId])
+  @@index([projectId, name])
   @@map("triggers_on_actions")
 }
 
 enum ActionType {
   WEBHOOK
-  ANNOTATION_QUEUE
   // More action types can be added as needed
+}
+
+enum ActionExecutionStatus {
+  COMPLETED
+  ERROR
+  PENDING
+  CANCELLED
 }
 
 model ActionExecution {
@@ -1308,12 +1309,12 @@ model ActionExecution {
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  status     JobExecutionStatus @default(PENDING) @map("status")
-  input      Json               @map("input")
-  output     Json?              @map("output")
-  startedAt  DateTime?          @map("started_at")
-  finishedAt DateTime?          @map("finished_at")
-  error      String?            @map("error")
+  status     ActionExecutionStatus @default(PENDING) @map("status")
+  input      Json                  @map("input")
+  output     Json?                 @map("output")
+  startedAt  DateTime?             @map("started_at")
+  finishedAt DateTime?             @map("finished_at")
+  error      String?               @map("error")
 
   @@index([triggerId])
   @@index([actionId])

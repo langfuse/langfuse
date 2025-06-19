@@ -15,7 +15,6 @@ import {
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
-import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import {
   InvalidRequestError,
   optionalPaginationZod,
@@ -35,6 +34,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
+import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeProcessor";
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -446,20 +447,14 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt deletion
         for (const prompt of prompts) {
-          try {
-            const { promptChangeProcessor } = await import("../promptChangeProcessor");
-            await promptChangeProcessor({
-              id: prompt.id,
-              projectId,
-              name: prompt.name,
-              version: prompt.version,
-              action: "delete",
-              timestamp: new Date(),
-            });
-          } catch (error) {
-            // Log error but don't fail the deletion
-            console.error("Failed to trigger prompt webhook for deletion:", error);
-          }
+          await promptChangeEventSourcing(
+            prompt, // Full prompt data
+            "deleted", // Event type
+            {
+              source: "api", // This is an API call
+              // Additional context could be added here (userId, etc.)
+            },
+          );
         }
       } catch (e) {
         logger.error(e);
@@ -612,18 +607,23 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt version deletion
         try {
-          const { promptChangeProcessor } = await import("../promptChangeProcessor");
-          await promptChangeProcessor({
-            id: promptVersion.id,
-            projectId,
-            name: promptVersion.name,
-            version: promptVersion.version,
-            action: "delete",
-            timestamp: new Date(),
-          });
+          const { promptChangeEventSourcing } = await import(
+            "../promptChangeProcessor"
+          );
+          await promptChangeEventSourcing(
+            promptVersion, // Full prompt data
+            "deleted", // Event type
+            {
+              source: "api", // This is an API call
+              // Additional context could be added here (userId, etc.)
+            },
+          );
         } catch (error) {
           // Log error but don't fail the deletion
-          console.error("Failed to trigger prompt webhook for version deletion:", error);
+          console.error(
+            "Failed to trigger prompt webhook for version deletion:",
+            error,
+          );
         }
       } catch (e) {
         logger.error(e);
@@ -793,18 +793,24 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt label update
         try {
-          const { promptChangeProcessor } = await import("../promptChangeProcessor");
-          await promptChangeProcessor({
-            id: toBeLabeledPrompt.id,
-            projectId,
-            name: toBeLabeledPrompt.name,
-            version: toBeLabeledPrompt.version,
-            action: "update",
-            timestamp: new Date(),
-          });
+          const { promptChangeEventSourcing } = await import(
+            "../promptChangeProcessor"
+          );
+          const updatedPrompt = { ...toBeLabeledPrompt, labels: newLabels };
+          await promptChangeEventSourcing(
+            updatedPrompt, // Full prompt data
+            "updated", // Event type
+            {
+              source: "api", // This is an API call
+              // Additional context could be added here (userId, etc.)
+            },
+          );
         } catch (error) {
           // Log error but don't fail the label update
-          console.error("Failed to trigger prompt webhook for label update:", error);
+          console.error(
+            "Failed to trigger prompt webhook for label update:",
+            error,
+          );
         }
       } catch (e) {
         logger.error(`Failed to set prompt labels: ${e}`, e);
@@ -942,24 +948,29 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt tag update
         try {
-          const { promptChangeProcessor } = await import("../promptChangeProcessor");
+          const { promptChangeEventSourcing } = await import(
+            "../promptChangeProcessor"
+          );
           const prompts = await ctx.prisma.prompt.findMany({
             where: { projectId, name: promptName },
           });
-          
+
           for (const prompt of prompts) {
-            await promptChangeProcessor({
-              id: prompt.id,
-              projectId,
-              name: prompt.name,
-              version: prompt.version,
-              action: "update",
-              timestamp: new Date(),
-            });
+            await promptChangeEventSourcing(
+              prompt, // Full prompt data
+              "updated", // Event type
+              {
+                source: "api", // This is an API call
+                // Additional context could be added here (userId, etc.)
+              },
+            );
           }
         } catch (error) {
           // Log error but don't fail the tag update
-          console.error("Failed to trigger prompt webhook for tag update:", error);
+          console.error(
+            "Failed to trigger prompt webhook for tag update:",
+            error,
+          );
         }
       } catch (error) {
         logger.error(error);

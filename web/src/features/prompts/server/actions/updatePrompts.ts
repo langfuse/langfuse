@@ -3,6 +3,7 @@ import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/s
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
+import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeProcessor";
 
 export type UpdatePromptParams = {
   promptName: string;
@@ -115,16 +116,15 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     // Trigger webhooks for prompt update
     try {
-      const { promptChangeProcessor } = await import("../promptChangeProcessor");
-      const updatedPrompt = res[res.length - 1] as any;
-      await promptChangeProcessor({
-        id: updatedPrompt.id,
-        projectId,
-        name: promptName,
-        version: promptVersion,
-        action: "update",
-        timestamp: new Date(),
-      });
+      const updatedPrompt = res[res.length - 1];
+      await promptChangeEventSourcing(
+        updatedPrompt, // Full prompt data
+        "updated", // Event type
+        {
+          source: "api", // This is an API call
+          // Additional context could be added here (userId, etc.)
+        },
+      );
     } catch (error) {
       // Log error but don't fail the prompt update
       console.error("Failed to trigger prompt webhooks:", error);

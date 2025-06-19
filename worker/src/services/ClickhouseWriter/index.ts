@@ -186,7 +186,7 @@ export class ClickhouseWriter {
     }
   }
 
-  public async addToQueue<T extends TableName>(
+  public addToQueue<T extends TableName>(
     tableName: T,
     data: RecordInsertType<T>,
   ) {

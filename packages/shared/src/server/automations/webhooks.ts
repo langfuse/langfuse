@@ -86,34 +86,12 @@ export const webhookProcessor: Processor = async (
 export const executeWebhook = async (input: WebhookInput, attempt: number) => {
   const executionStart = new Date();
 
-  const {
-    observationId,
-    projectId,
-    startTime,
-    observationType,
-    actionId,
-    triggerId,
-    executionId,
-  } = input;
+  const { projectId, actionId, triggerId, executionId } = input;
 
   try {
     logger.debug(
       `Executing webhook for action ${actionId} and execution ${executionId}`,
     );
-
-    const observation = await getObservationById({
-      id: observationId,
-      projectId,
-      fetchWithInputOutput: true,
-      startTime: new Date(startTime),
-      type: observationType,
-    });
-
-    if (!observation) {
-      throw new Error("Observation not found");
-    }
-
-    const reqBody = convertObservationToWebhookOutput(observation);
 
     const actionConfig = await getActionById({
       projectId,
@@ -135,7 +113,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
       async () =>
         await fetch(webhookConfig.url, {
           method: "POST",
-          body: JSON.stringify(reqBody),
+          body: JSON.stringify({}),
           headers: webhookConfig.headers,
         }),
       {

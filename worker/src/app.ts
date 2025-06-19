@@ -53,7 +53,7 @@ import {
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlxRetryService } from "./services/dlx/dlxRetryService";
-import { webhookProcessor } from "./features/automations/webhooks";
+import { webhookProcessor } from "../../packages/shared/src/server/automations/webhooks";
 
 const app = express();
 

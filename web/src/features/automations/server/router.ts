@@ -6,10 +6,26 @@ import {
   ActionType,
   JobConfigState,
 } from "@langfuse/shared";
-import { Prisma } from "@prisma/client";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import { getActiveAutomations } from "@langfuse/shared/src/server";
+
+export const CreateAutomationInputSchema = z.object({
+  projectId: z.string(),
+  name: z.string().min(1, "Name is required"),
+  eventSource: z.string(),
+  eventAction: z.array(z.string()),
+  filter: z.array(z.any()).nullable(),
+  status: z.nativeEnum(JobConfigState).default(JobConfigState.ACTIVE),
+  // Action fields
+  actionType: z.nativeEnum(ActionType),
+  actionConfig: ActionConfigSchema,
+});
+
+export const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
+  triggerId: z.string(),
+  actionId: z.string(),
+});
 
 export const automationsRouter = createTRPCRouter({
   getAutomations: protectedProjectProcedure
@@ -105,21 +121,7 @@ export const automationsRouter = createTRPCRouter({
 
   // Combined route that creates both an action and a trigger
   createAutomation: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        name: z.string().optional(),
-        eventSource: z.string(),
-        filter: z.array(z.any()).nullable(),
-        status: z.nativeEnum(JobConfigState).default(JobConfigState.ACTIVE),
-        sampling: z.number().min(0).max(1).default(1),
-        delay: z.number().min(0).default(0),
-        // Action fields
-        actionType: z.nativeEnum(ActionType),
-        actionName: z.string().min(1),
-        actionConfig: ActionConfigSchema,
-      }),
-    )
+    .input(CreateAutomationInputSchema)
     .mutation(async ({ ctx, input }) => {
       // Check if user has create/update/delete access to automations
       throwIfNoProjectAccess({
@@ -136,13 +138,10 @@ export const automationsRouter = createTRPCRouter({
           data: {
             id: triggerId,
             projectId: ctx.session.projectId,
-            description: input.name,
             eventSource: input.eventSource,
+            eventActions: input.eventAction,
             filter: input.filter || [],
-
             status: input.status,
-            sampling: input.sampling,
-            delay: input.delay,
           },
         });
 
@@ -151,8 +150,6 @@ export const automationsRouter = createTRPCRouter({
           data: {
             id: actionId,
             projectId: ctx.session.projectId,
-            name: input.actionName,
-            description: input.name,
             type: input.actionType,
             config: input.actionConfig,
             triggers: {
@@ -160,6 +157,7 @@ export const automationsRouter = createTRPCRouter({
                 {
                   projectId: ctx.session.projectId,
                   triggerId: triggerId,
+                  name: input.name,
                 },
               ],
             },
@@ -176,22 +174,7 @@ export const automationsRouter = createTRPCRouter({
 
   // Update an existing automation
   updateAutomation: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        triggerId: z.string(),
-        actionId: z.string(),
-        name: z.string().optional(),
-        eventSource: z.string(),
-        filter: z.array(z.any()).nullable(),
-        status: z.nativeEnum(JobConfigState),
-        sampling: z.number().min(0).max(1),
-        delay: z.number().min(0),
-        // Action fields
-        actionType: z.nativeEnum(ActionType),
-        actionConfig: ActionConfigSchema,
-      }),
-    )
+    .input(UpdateAutomationInputSchema)
     .mutation(async ({ ctx, input }) => {
       // Check if user has create/update/delete access to automations
       throwIfNoProjectAccess({
@@ -207,8 +190,6 @@ export const automationsRouter = createTRPCRouter({
           projectId: ctx.session.projectId,
         },
         data: {
-          name: input.name,
-          description: input.name,
           type: input.actionType,
           config: input.actionConfig,
         },
@@ -221,12 +202,10 @@ export const automationsRouter = createTRPCRouter({
           projectId: ctx.session.projectId,
         },
         data: {
-          description: input.name,
           eventSource: input.eventSource,
+          eventActions: input.eventAction,
           filter: input.filter || [],
           status: input.status,
-          sampling: input.sampling,
-          delay: input.delay,
         },
       });
 

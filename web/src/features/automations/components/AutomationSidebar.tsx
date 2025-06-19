@@ -4,6 +4,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { JobConfigState } from "@langfuse/shared";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import { cn } from "@/src/utils/tailwind";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 
 interface AutomationSidebarProps {
   projectId: string;
@@ -71,25 +72,15 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                       {/* Status - most prominent */}
                       <div className="mb-2 flex items-center gap-2">
                         {automation.trigger.status === JobConfigState.ACTIVE ? (
-                          <Badge
-                            variant="outline"
-                            className="border-green-200 bg-green-50 text-green-700 hover:bg-green-50"
-                          >
-                            Active
-                          </Badge>
+                          <StatusBadge type={"active"} />
                         ) : (
-                          <Badge
-                            variant="outline"
-                            className="border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-50"
-                          >
-                            Inactive
-                          </Badge>
+                          <StatusBadge type={"inactive"} />
                         )}
                       </div>
 
                       {/* Title/Description */}
                       <h4 className="mb-2 truncate text-sm font-medium leading-tight">
-                        {automation.trigger.description || "Unnamed Automation"}
+                        {automation.name}
                       </h4>
 
                       {/* Event source */}
@@ -104,7 +95,6 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                         {automation.action.type === "WEBHOOK"
                           ? "Webhook"
                           : "Annotation Queue"}{" "}
-                        • {automation.trigger.sampling.toNumber() * 100}%
                       </p>
                     </div>
                   </div>

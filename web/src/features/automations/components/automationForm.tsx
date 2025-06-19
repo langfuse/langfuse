@@ -31,9 +31,12 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { type ActionTypes, type JobConfigState } from "@langfuse/shared";
+import {
+  type ActionTypes,
+  type JobConfigState,
+  TriggerEventAction,
+} from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type ColumnDefinition } from "@langfuse/shared";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -41,39 +44,21 @@ import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import { ActionHandlerRegistry } from "./actions";
 
 import { webhookSchema } from "./actions/WebhookActionForm";
-import { annotationQueueSchema } from "./actions/AnnotationQueueActionForm";
+
+import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
 
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
-  PromptChanged = "prompt.changed",
+  Prompt = "prompt",
 }
-
-// Define columns for prompt events
-export const promptFilterColumns: ColumnDefinition[] = [
-  { name: "name", id: "name", type: "string", internal: "name" },
-  {
-    name: "action",
-    id: "action",
-    type: "stringOptions",
-    options: [{ value: "create" }, { value: "update" }, { value: "delete" }],
-    internal: "action",
-  },
-  { name: "version", id: "version", type: "number", internal: "version" },
-  {
-    name: "timestamp",
-    id: "timestamp",
-    type: "datetime",
-    internal: "timestamp",
-  },
-];
 
 // Define schemas for form validation
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   eventSource: z.string().min(1, "Event source is required"),
+  eventAction: z.array(z.string()),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
-  sampling: z.coerce.number().min(0).max(100).default(100),
-  delay: z.coerce.number().min(0).default(0),
   filter: z.array(z.any()).optional(),
 });
 
@@ -82,10 +67,7 @@ const formSchema = z.discriminatedUnion("actionType", [
     actionType: z.literal("WEBHOOK"),
     webhook: webhookSchema,
   }),
-  baseFormSchema.extend({
-    actionType: z.literal("ANNOTATION_QUEUE"),
-    annotationQueue: annotationQueueSchema,
-  }),
+  // add more action types here
 ]);
 
 type FormValues = z.infer<typeof formSchema>;
@@ -135,7 +117,7 @@ export const AutomationForm = ({
   // Get the action type for the form when editing
   const getActionType = () => {
     if (isEditing && automation?.action?.type) {
-      return automation.action.type as "WEBHOOK" | "ANNOTATION_QUEUE";
+      return automation.action.type as ActionTypes;
     }
     return "WEBHOOK";
   };
@@ -145,19 +127,13 @@ export const AutomationForm = ({
     const actionType = getActionType();
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
     const baseValues = {
-      name: isEditing
-        ? automation?.trigger?.description || ""
-        : `Automation ${today}`,
+      name: isEditing ? automation?.name || "" : `Automation ${today}`,
       eventSource: isEditing
         ? automation?.trigger?.eventSource
-        : TriggerEventSource.PromptChanged,
+        : TriggerEventSource.Prompt,
+      eventAction: isEditing ? automation?.trigger?.eventActions : [],
       status: isEditing ? automation?.trigger?.status : "ACTIVE",
-      sampling: isEditing
-        ? Math.round((automation?.trigger?.sampling?.toNumber() || 0) * 100)
-        : 100,
-      delay: isEditing ? automation?.trigger?.delay : 0,
       filter: isEditing ? automation?.trigger?.filter : [],
-      actionType,
     };
 
     if (actionType === "WEBHOOK") {
@@ -166,16 +142,11 @@ export const AutomationForm = ({
       const webhookDefaults = handler.getDefaultValues(automation);
       return {
         ...baseValues,
+        actionType: "WEBHOOK",
         webhook: webhookDefaults.webhook,
       };
     } else {
-      // Use action handler to get default values with proper typing
-      const handler = ActionHandlerRegistry.getHandler("ANNOTATION_QUEUE");
-      const annotationQueueDefaults = handler.getDefaultValues(automation);
-      return {
-        ...baseValues,
-        annotationQueue: annotationQueueDefaults.annotationQueue,
-      };
+      throw new Error("Invalid action type");
     }
   };
 
@@ -227,10 +198,9 @@ export const AutomationForm = ({
           actionId: automation.action.id,
           name: data.name,
           eventSource: data.eventSource,
+          eventAction: data.eventAction,
           filter: data.filter && data.filter.length > 0 ? data.filter : null,
           status: data.status as JobConfigState,
-          sampling: data.sampling / 100, // Convert to decimal (0-1)
-          delay: data.delay,
           actionType: data.actionType,
           actionConfig: actionConfig,
         });
@@ -240,12 +210,10 @@ export const AutomationForm = ({
           projectId,
           name: data.name,
           eventSource: data.eventSource,
+          eventAction: data.eventAction,
           filter: data.filter && data.filter.length > 0 ? data.filter : null,
           status: data.status as JobConfigState,
-          sampling: data.sampling / 100, // Convert to decimal (0-1)
-          delay: data.delay,
           actionType: data.actionType,
-          actionName: data.name,
           actionConfig: actionConfig,
         });
       }
@@ -273,18 +241,8 @@ export const AutomationForm = ({
   // Update required fields based on action type
   const handleActionTypeChange = (value: string) => {
     setActiveTab(value.toLowerCase());
-    form.setValue("actionType", value as "WEBHOOK" | "ANNOTATION_QUEUE");
-
-    // Clear the fields for the action type we're switching away from and set defaults for the new type
-    if (value === "WEBHOOK") {
-      // Clear annotation queue fields and set webhook defaults
-      form.unregister("annotationQueue");
-      form.setValue("webhook", { url: "", headers: [] });
-    } else if (value === "ANNOTATION_QUEUE") {
-      // Clear webhook fields and set annotation queue defaults
-      form.unregister("webhook");
-      form.setValue("annotationQueue", { queueId: "" });
-    }
+    form.setValue("actionType", value as "WEBHOOK");
+    form.setValue("webhook", { url: "", headers: [] });
   };
 
   // Handle cancel button click
@@ -379,8 +337,8 @@ export const AutomationForm = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={TriggerEventSource.PromptChanged}>
-                        Prompt Changed
+                      <SelectItem value={TriggerEventSource.Prompt}>
+                        Prompt
                       </SelectItem>
                       {/* Add more event sources as they become available */}
                     </SelectContent>
@@ -392,7 +350,35 @@ export const AutomationForm = ({
                 </FormItem>
               )}
             />
-
+            <FormField
+              control={form.control}
+              name="eventAction"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Event Action</FormLabel>
+                  <FormControl>
+                    <MultiSelect
+                      title="Event Actions"
+                      label="Actions"
+                      values={field.value || []}
+                      onValueChange={field.onChange}
+                      options={[
+                        { value: TriggerEventAction.Created },
+                        { value: TriggerEventAction.Updated },
+                        { value: TriggerEventAction.Deleted },
+                      ]}
+                      className="my-0 w-auto overflow-hidden"
+                      disabled={!hasAccess}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    The actions on the event source that trigger this
+                    automation.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="filter"
@@ -401,7 +387,7 @@ export const AutomationForm = ({
                   <FormLabel>Filter</FormLabel>
                   <FormControl>
                     <InlineFilterBuilder
-                      columns={promptFilterColumns}
+                      columns={promptsTableCols}
                       filterState={field.value || []}
                       onChange={field.onChange}
                       disabled={activeTab === "annotation_queue" || !hasAccess}
@@ -414,54 +400,6 @@ export const AutomationForm = ({
                 </FormItem>
               )}
             />
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="sampling"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sampling Rate (%)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        {...field}
-                        disabled={!hasAccess}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      The percentage of events that will trigger this
-                      automation.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="delay"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Delay (ms)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        {...field}
-                        disabled={!hasAccess}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Delay in milliseconds before the action is executed.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
           </CardContent>
         </Card>
 
@@ -499,6 +437,9 @@ export const AutomationForm = ({
                           </SelectItem>
                         ),
                       )}
+                      <SelectItem disabled={true} value="planned">
+                        More coming soon...
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription>

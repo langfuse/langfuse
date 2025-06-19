@@ -114,10 +114,16 @@ export const DashboardWidgetChartType = {
 } as const;
 export type DashboardWidgetChartType = (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
 export const ActionType = {
-    WEBHOOK: "WEBHOOK",
-    ANNOTATION_QUEUE: "ANNOTATION_QUEUE"
+    WEBHOOK: "WEBHOOK"
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
+export const ActionExecutionStatus = {
+    COMPLETED: "COMPLETED",
+    ERROR: "ERROR",
+    PENDING: "PENDING",
+    CANCELLED: "CANCELLED"
+} as const;
+export type ActionExecutionStatus = (typeof ActionExecutionStatus)[keyof typeof ActionExecutionStatus];
 export type Account = {
     id: string;
     user_id: string;
@@ -141,8 +147,6 @@ export type Action = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     project_id: string;
-    name: string;
-    description: string | null;
     type: ActionType;
     config: unknown;
 };
@@ -154,7 +158,7 @@ export type ActionExecution = {
     trigger_id: string;
     action_id: string;
     project_id: string;
-    status: Generated<JobExecutionStatus>;
+    status: Generated<ActionExecutionStatus>;
     input: unknown;
     output: unknown | null;
     started_at: Timestamp | null;
@@ -716,14 +720,13 @@ export type Trigger = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     project_id: string;
-    description: string | null;
     eventSource: string;
+    eventActions: string[];
     filter: unknown | null;
     status: Generated<JobConfigState>;
-    sampling: string;
-    delay: number;
 };
 export type TriggersOnActions = {
+    name: string;
     trigger_id: string;
     action_id: string;
     created_at: Generated<Timestamp>;

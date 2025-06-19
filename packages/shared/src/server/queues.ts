@@ -129,14 +129,6 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
-export const ObservationUpsertQueueEventSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
-  traceId: z.string(),
-  startTime: z.date(),
-  type: ObservationTypeDomain,
-});
-
 export const WebhookInputSchema = z
   .discriminatedUnion("type", [
     z.object({
@@ -190,9 +182,7 @@ export type BlobStorageIntegrationProcessingEventType = z.infer<
 export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
-export type ObservationUpsertQueueEventType = z.infer<
-  typeof ObservationUpsertQueueEventSchema
->;
+
 export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
 
 export enum QueueName {
