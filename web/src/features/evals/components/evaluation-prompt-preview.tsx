@@ -3,6 +3,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useExtractVariables } from "@/src/features/evals/hooks/useExtractVariables";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { cn } from "@/src/utils/tailwind";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterOutput } from "@/src/utils/types";
 import { type EvalTemplate } from "@langfuse/shared";
 import Link from "next/link";
@@ -128,12 +129,16 @@ export const EvaluationPromptPreview = ({
   className?: string;
   controlButtons?: React.ReactNode;
 }) => {
-  const { extractedVariables, isExtracting } = useExtractVariables({
+  const { extractedVariables, isExtracting, error } = useExtractVariables({
     variables: variableMapping.map(({ templateVariable }) => templateVariable),
     variableMapping: variableMapping,
     trace: trace,
     isLoading,
   });
+
+  if (error) {
+    trpcErrorToast(error);
+  }
 
   if (isExtracting) {
     return <Skeleton className="h-[200px] w-full" />;
