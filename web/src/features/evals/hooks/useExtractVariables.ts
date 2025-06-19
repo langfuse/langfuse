@@ -1,5 +1,6 @@
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { extractValueFromObject } from "@langfuse/shared";
 import { useEffect, useState, useRef } from "react";
 
@@ -39,6 +40,7 @@ export function useExtractVariables({
     ExtractedVariable[]
   >([]);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState<Error | null>(null);
   const previousMappingRef = useRef<string>("");
 
   // Create a stable string representation of the current mapping for comparison
@@ -47,6 +49,13 @@ export function useExtractVariables({
   // Create a stable reference to the trace ID
   const traceId = trace?.id;
   const traceIdRef = useRef<string | undefined>(traceId as string | undefined);
+
+  // Handle error toasts separately to avoid repeated toasts on re-renders
+  useEffect(() => {
+    if (extractionError) {
+      trpcErrorToast(extractionError);
+    }
+  }, [extractionError]);
 
   useEffect(() => {
     // Return early conditions
@@ -80,8 +89,9 @@ export function useExtractVariables({
       );
     }
 
-    // Set loading state
+    // Set loading state and clear previous errors
     setIsExtracting(true);
+    setExtractionError(null);
 
     // Process all variables and collect promises
     const extractPromises = variables.map(async (variable) => {
@@ -123,30 +133,29 @@ export function useExtractVariables({
         return { variable, value: "n/a" };
       }
 
-      try {
-        const result = extractValueFromObject(object, {
-          ...mapping,
-          selectedColumnId: mapping.selectedColumnId,
-        });
-        return { variable, value: result };
-      } catch (error) {
-        console.error(
-          `Error extracting value for variable ${variable}:`,
-          error,
-        );
-        return { variable, value: "" };
-      }
+      const { value, error } = extractValueFromObject(object, {
+        ...mapping,
+        selectedColumnId: mapping.selectedColumnId,
+      });
+      return { variable, value, error };
     });
 
     // Resolve all promises and update state
     Promise.all(extractPromises)
       .then((results) => {
+        const firstError = results.find(
+          (result) => result.error instanceof Error,
+        );
+        if (firstError) {
+          setExtractionError(firstError.error as Error);
+        }
         setExtractedVariables(results);
         // Update the ref to the current mapping string to track changes
         previousMappingRef.current = currentMappingString;
       })
       .catch((error) => {
         console.error("Error extracting variables:", error);
+        setExtractionError(error);
         setExtractedVariables(
           variables.map((variable) => ({
             variable,
