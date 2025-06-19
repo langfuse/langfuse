@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
@@ -9,10 +9,7 @@ const EnvSchema = z.object({
   NEXTAUTH_URL: z.string().url().optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
-    .number({
-      description:
-        ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
-    })
+    .number() // .env files convert numbers to strings, therefore we have to enforce them to be numbers
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(6379)
@@ -24,6 +21,9 @@ const EnvSchema = z.object({
   REDIS_TLS_CERT_PATH: z.string().optional(),
   REDIS_TLS_KEY_PATH: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
+  // Redis Cluster Configuration
+  REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
+  REDIS_CLUSTER_NODES: z.string().optional(),
   ENCRYPTION_KEY: z
     .string()
     .length(
@@ -45,18 +45,26 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(15_000),
+  LANGFUSE_INGESTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .optional(),
   LANGFUSE_LOG_FORMAT: z.enum(["text", "json"]).default("text"),
+  LANGFUSE_LOG_PROPAGATED_HEADERS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
-  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
-    required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
-  }),
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),

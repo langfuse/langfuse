@@ -11,7 +11,10 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useEffect, useMemo } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import {
+  IOTableCell,
+  MemoizedIOTableCell,
+} from "@/src/components/ui/CodeJsonViewer";
 import { ListTree } from "lucide-react";
 import {
   getScoreGroupColumnProps,
@@ -348,12 +351,8 @@ const TraceObservationIOCell = ({
     { traceId, projectId, fromTimestamp: fromTimestampModified },
     {
       enabled: observationId === undefined,
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
       onError: () => {},
     },
   );
@@ -365,12 +364,8 @@ const TraceObservationIOCell = ({
     },
     {
       enabled: observationId !== undefined,
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
       onError: () => {},
     },
   );
@@ -378,7 +373,7 @@ const TraceObservationIOCell = ({
   const data = observationId === undefined ? trace.data : observation.data;
 
   return (
-    <IOTableCell
+    <MemoizedIOTableCell
       isLoading={
         (!!!observationId ? trace.isLoading : observation.isLoading) || !data
       }

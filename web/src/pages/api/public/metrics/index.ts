@@ -26,10 +26,9 @@ export default withMiddlewares({
         });
 
         // Execute the query using QueryBuilder
-        const { query: compiledQuery, parameters } = new QueryBuilder().build(
-          queryParams,
-          auth.scope.projectId,
-        );
+        const { query: compiledQuery, parameters } = new QueryBuilder(
+          queryParams.config,
+        ).build(queryParams, auth.scope.projectId);
 
         // Run the query against ClickHouse
         const result = await queryClickhouse<Record<string, unknown>>({

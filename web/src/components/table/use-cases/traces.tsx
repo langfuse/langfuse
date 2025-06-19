@@ -14,7 +14,11 @@ import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
@@ -34,7 +38,7 @@ import {
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { MemoizedIOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
@@ -249,6 +253,8 @@ export default function TracesTable({
 
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
     enabled: environmentFilterOptions.data !== undefined,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const traceMetrics = api.traces.metrics.useQuery(
@@ -259,6 +265,8 @@ export default function TracesTable({
     },
     {
       enabled: traces.data !== undefined,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
     },
   );
 
@@ -370,6 +378,8 @@ export default function TracesTable({
       query: {
         filter: filterState,
         orderBy: orderByState,
+        searchQuery: searchQuery || undefined,
+        searchType,
       },
       isBatchAction: selectAll,
     });
@@ -401,6 +411,14 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
+  const displayCount = totalCountQuery.isLoading ? (
+    <span className="inline-block font-mono">...</span>
+  ) : selectAll ? (
+    compactNumberFormatter(totalCountQuery.data?.totalCount)
+  ) : (
+    compactNumberFormatter(Object.keys(selectedRows).length)
+  );
+
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [
@@ -408,8 +426,7 @@ export default function TracesTable({
             id: "trace-delete",
             type: BatchActionType.Delete,
             label: "Delete Traces",
-            description:
-              "This action permanently deletes traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.",
+            description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.`,
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",
@@ -427,42 +444,39 @@ export default function TracesTable({
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
-        entitlement: "annotation-queues",
       },
     },
   ];
 
-  const controlColumns: LangfuseColumnDef<TracesTableRow>[] = hideControls
-    ? []
-    : [
-        selectActionColumn,
-        {
-          accessorKey: "bookmarked",
-          header: undefined,
-          id: "bookmarked",
-          size: 30,
-          isPinned: true,
-          cell: ({ row }) => {
-            const bookmarked: TracesTableRow["bookmarked"] =
-              row.getValue("bookmarked");
-            const traceId = row.getValue("id");
-            return typeof traceId === "string" &&
-              typeof bookmarked === "boolean" ? (
-              <StarTraceToggle
-                tracesFilter={tracesAllQueryFilter}
-                traceId={traceId}
-                projectId={projectId}
-                value={bookmarked}
-                size="icon-xs"
-              />
-            ) : undefined;
-          },
-          enableSorting: true,
-        },
-      ];
-
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    ...controlColumns,
+    selectActionColumn,
+    ...(hideControls
+      ? []
+      : [
+          {
+            accessorKey: "bookmarked",
+            header: undefined,
+            id: "bookmarked",
+            size: 30,
+            isPinned: true,
+            cell: ({ row }: { row: Row<TracesTableRow> }) => {
+              const bookmarked: TracesTableRow["bookmarked"] =
+                row.getValue("bookmarked");
+              const traceId = row.getValue("id");
+              return typeof traceId === "string" &&
+                typeof bookmarked === "boolean" ? (
+                <StarTraceToggle
+                  tracesFilter={tracesAllQueryFilter}
+                  traceId={traceId}
+                  projectId={projectId}
+                  value={bookmarked}
+                  size="icon-xs"
+                />
+              ) : undefined;
+            },
+            enableSorting: true,
+          },
+        ]),
     {
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -980,21 +994,45 @@ export default function TracesTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
-      `traceColumnVisibility-${projectId}`,
+      `traceColumnVisibility-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
-    "traceColumnOrder",
+    `traceColumnOrder-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
     columns,
   );
 
-  const urlPathname = userId
-    ? `/project/${projectId}/users/${userId}`
-    : `/project/${projectId}/traces`;
+  const { getNavigationPath, expandPeek } = useTracePeekNavigation();
+  const { setPeekView } = useTracePeekState();
 
-  const { getNavigationPath, expandPeek } = useTracePeekNavigation(urlPathname);
-  const { setPeekView } = useTracePeekState(urlPathname);
+  const peekConfig = useMemo(() => {
+    if (hideControls) return undefined;
+    return {
+      itemType: "TRACE" as const,
+      listKey: "traces",
+      peekEventOptions: {
+        ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
+      },
+      onOpenChange: setPeekView,
+      onExpand: expandPeek,
+      getNavigationPath,
+      children: <PeekViewTraceDetail projectId={projectId} />,
+      tableDataUpdatedAt: Math.max(
+        traces.dataUpdatedAt,
+        traceMetrics.dataUpdatedAt,
+      ),
+    };
+  }, [
+    projectId,
+    hideControls,
+    setPeekView,
+    expandPeek,
+    getNavigationPath,
+    traces.dataUpdatedAt,
+    traceMetrics.dataUpdatedAt,
+  ]);
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId,
@@ -1060,7 +1098,7 @@ export default function TracesTable({
           };
         }) ?? [])
       : [];
-  }, [traces, traceRowData, scoreKeysAndProps]);
+  }, [traces.isSuccess, traceRowData?.rows, scoreKeysAndProps]);
 
   const setFilterState = useDebounce(setUserFilterState);
 
@@ -1076,7 +1114,7 @@ export default function TracesTable({
           }}
           filterColumnDefinition={transformedFilterOptions}
           searchConfig={{
-            metadataSearchFields: ["ID", "Name", "Trace Name", "User ID"],
+            metadataSearchFields: ["ID", "Trace Name", "User ID"],
             updateQuery: setSearchQuery,
             currentQuery: searchQuery ?? undefined,
             tableAllowsFullTextSearch: true,
@@ -1162,29 +1200,7 @@ export default function TracesTable({
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
         pinFirstColumn={!hideControls}
-        peekView={
-          hideControls
-            ? undefined
-            : {
-                itemType: "TRACE",
-                listKey: "traces",
-                urlPathname,
-                peekEventOptions: {
-                  ignoredSelectors: [
-                    '[role="checkbox"]',
-                    '[aria-label="bookmark"]',
-                  ],
-                },
-                onOpenChange: setPeekView,
-                onExpand: expandPeek,
-                getNavigationPath,
-                children: <PeekViewTraceDetail projectId={projectId} />,
-                tableDataUpdatedAt: Math.max(
-                  traces.dataUpdatedAt,
-                  traceMetrics.dataUpdatedAt,
-                ),
-              }
-        }
+        peekView={peekConfig}
       />
     </>
   );
@@ -1206,25 +1222,22 @@ const TracesDynamicCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId, projectId, timestamp },
     {
-      enabled: typeof traceId === "string",
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
     },
   );
+
+  const data =
+    col === "output"
+      ? trace.data?.output
+      : col === "input"
+        ? trace.data?.input
+        : trace.data?.metadata;
+
   return (
-    <IOTableCell
+    <MemoizedIOTableCell
       isLoading={trace.isLoading}
-      data={
-        col === "output"
-          ? trace.data?.output
-          : col === "input"
-            ? trace.data?.input
-            : trace.data?.metadata
-      }
+      data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />

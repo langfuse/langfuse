@@ -1,4 +1,4 @@
-import { Redis } from "ioredis";
+import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 import {
@@ -10,11 +10,12 @@ import {
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
-  IngestionEntityTypes,
+  convertDateToClickhouseDateTime,
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
   eventTypes,
+  IngestionEntityTypes,
   IngestionEventType,
   instrumentAsync,
   logger,
@@ -23,6 +24,8 @@ import {
   ObservationRecordInsertType,
   observationRecordReadSchema,
   PromptService,
+  QueueJobs,
+  recordIncrement,
   ScoreEventType,
   scoreRecordInsertSchema,
   ScoreRecordInsertType,
@@ -31,12 +34,9 @@ import {
   traceRecordInsertSchema,
   TraceRecordInsertType,
   traceRecordReadSchema,
-  validateAndInflateScore,
-  UsageCostType,
-  convertDateToClickhouseDateTime,
   TraceUpsertQueue,
-  QueueJobs,
-  recordIncrement,
+  UsageCostType,
+  validateAndInflateScore,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -49,6 +49,7 @@ import {
 import { randomUUID } from "crypto";
 import { env } from "../../env";
 import { findModel } from "../modelMatch";
+import { SpanKind } from "@opentelemetry/api";
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -89,7 +90,7 @@ export class IngestionService {
   private promptService: PromptService;
 
   constructor(
-    private redis: Redis,
+    private redis: Redis | Cluster,
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
     private clickhouseClient: ClickhouseClientType,
@@ -889,8 +890,11 @@ export class IngestionService {
     const { projectId, entityId, table, additionalFilters } = params;
 
     return await instrumentAsync(
-      { name: `get-clickhouse-${table}` },
+      { name: `get-clickhouse-${table}`, spanKind: SpanKind.CLIENT },
       async (span) => {
+        span.setAttribute("ch.query.table", table);
+        span.setAttribute("db.system", "clickhouse");
+        span.setAttribute("db.operation.name", "SELECT");
         span.setAttribute("projectId", projectId);
         const queryResult = await this.clickhouseClient.query({
           query: `
@@ -911,6 +915,25 @@ export class IngestionService {
             }),
           },
         });
+
+        span.setAttribute("ch.queryId", queryResult.query_id);
+        const summaryHeader =
+          queryResult.response_headers["x-clickhouse-summary"];
+        if (summaryHeader) {
+          try {
+            const summary = Array.isArray(summaryHeader)
+              ? JSON.parse(summaryHeader[0])
+              : JSON.parse(summaryHeader);
+            for (const key in summary) {
+              span.setAttribute(`ch.${key}`, summary[key]);
+            }
+          } catch (error) {
+            logger.debug(
+              `Failed to parse clickhouse summary header ${summaryHeader}`,
+              error,
+            );
+          }
+        }
 
         const result = await queryResult.json();
 

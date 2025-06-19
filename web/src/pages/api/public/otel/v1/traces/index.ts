@@ -5,9 +5,9 @@ import {
   logger,
   processEventBatch,
 } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
-import { convertOtelSpanToIngestionEvent } from "@/src/features/otel/server";
+import { OtelIngestionProcessor } from "@/src/features/otel/server/OtelIngestionProcessor";
 import { gunzip } from "node:zlib";
 
 export const config = {
@@ -89,10 +89,14 @@ export default withMiddlewares({
         }
       }
 
-      const events: IngestionEventType[] = resourceSpans.flatMap(
-        (span: unknown) =>
-          convertOtelSpanToIngestionEvent(span, auth.scope.publicKey),
-      );
+      // Create and process OTEL resource spans to ingestion events
+      const processor = new OtelIngestionProcessor({
+        projectId: auth.scope.projectId,
+        publicKey: auth.scope.publicKey,
+      });
+      const events: IngestionEventType[] =
+        await processor.processToIngestionEvents(resourceSpans);
+
       // We set a delay of 0 for OTel, as we never expect updates.
       // We also set the source to "otel" which helps us with metric tracking and skipping list calls for S3.
       return processEventBatch(events, auth, 0, "otel");

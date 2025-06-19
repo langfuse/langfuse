@@ -1,5 +1,5 @@
 import { jsonSchema } from "../../../utils/zod";
-import z from "zod";
+import z from "zod/v4";
 import { NonEmptyString } from "../../../utils/zod";
 
 /**

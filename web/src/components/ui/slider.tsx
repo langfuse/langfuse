@@ -28,6 +28,7 @@ const Slider = React.forwardRef<
     React.useEffect(() => {
       if (props.value && props.value.length > 0) {
         const value = props.value[0];
+        if (value === undefined || value === null) return;
         if (displayAsPercentage) {
           setInputValue((value * 100).toFixed(decimalPlaces));
         } else {
@@ -48,6 +49,7 @@ const Slider = React.forwardRef<
         // Reset to current value if invalid input
         if (props.value && props.value.length > 0) {
           const value = props.value[0];
+          if (value === undefined || value === null) return;
           if (displayAsPercentage) {
             setInputValue((value * 100).toFixed(decimalPlaces));
           } else {

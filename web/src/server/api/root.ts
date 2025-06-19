@@ -13,7 +13,7 @@ import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
 import { modelRouter } from "@/src/server/api/routers/models";
-import { evalRouter } from "@/src/ee/features/evals/server/router";
+import { evalRouter } from "@/src/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { blobStorageIntegrationRouter } from "@/src/features/blobstorage-integration/blobstorage-integration-router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
@@ -28,9 +28,9 @@ import { batchExportRouter } from "@/src/features/batch-exports/server/batchExpo
 import { utilsRouter } from "@/src/server/api/routers/utilities";
 import { uiCustomizationRouter } from "@/src/ee/features/ui-customization/uiCustomizationRouter";
 import { commentsRouter } from "@/src/server/api/routers/comments";
-import { queueRouter } from "@/src/ee/features/annotation-queues/server/annotationQueues";
-import { queueItemRouter } from "@/src/ee/features/annotation-queues/server/annotationQueueItems";
-import { experimentsRouter } from "@/src/ee/features/experiments/server/router";
+import { queueRouter } from "@/src/features/annotation-queues/server/annotationQueues";
+import { queueItemRouter } from "@/src/features/annotation-queues/server/annotationQueueItems";
+import { experimentsRouter } from "@/src/features/experiments/server/router";
 import { mediaRouter } from "@/src/server/api/routers/media";
 import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
 import { auditLogsRouter } from "./routers/auditLogs";
@@ -39,7 +39,7 @@ import { cloudStatusRouter } from "@/src/features/cloud-status-notification/serv
 import { dashboardWidgetRouter } from "./routers/dashboardWidgets";
 import { TableViewPresetsRouter } from "@/src/server/api/routers/tableViewPresets";
 import { automationsRouter } from "@/src/features/automations/server/router";
-import { defaultEvalModelRouter } from "@/src/ee/features/evals/server/defaultEvalModelRouter";
+import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { plainRouter } from "@/src/features/support-chat/trpc/plain";
 
 /**

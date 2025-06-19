@@ -1,5 +1,5 @@
 import { expect, test, describe, vi, beforeEach } from "vitest";
-import { createExperimentJob } from "../ee/experiments/experimentService";
+import { createExperimentJob } from "../features/experiments/experimentService";
 import { Prompt, kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";

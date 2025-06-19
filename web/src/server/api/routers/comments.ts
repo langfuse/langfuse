@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -132,7 +132,7 @@ export const commentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         objectId: z.string(),
-        objectType: z.nativeEnum(CommentObjectType),
+        objectType: z.enum(CommentObjectType),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -189,7 +189,7 @@ export const commentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         objectId: z.string(),
-        objectType: z.nativeEnum(CommentObjectType),
+        objectType: z.enum(CommentObjectType),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -223,7 +223,7 @@ export const commentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        objectType: z.nativeEnum(CommentObjectType),
+        objectType: z.enum(CommentObjectType),
       }),
     )
     .query(async ({ input, ctx }) => {

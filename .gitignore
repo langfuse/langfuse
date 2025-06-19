@@ -4,6 +4,7 @@
 /node_modules
 /.pnp
 .pnp.js
+migrate
 
 # testing
 /coverage
@@ -39,6 +40,7 @@ yarn-error.log*
 .env*
 !.env.dev.example
 !.env.dev-azure.example
+!.env.dev-redis-cluster.example
 !.env.prod.example
 
 # vercel

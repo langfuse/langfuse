@@ -11,7 +11,11 @@ import * as clickhouseWriteExports from "../../ClickhouseWriter";
 
 const mockAddToClickhouseWriter = vi.fn();
 const mockClickhouseClient = {
-  query: async () => ({ json: async () => [] }),
+  query: async () => ({
+    json: async () => [],
+    query_id: "1",
+    response_headers: { "x-clickhouse-summary": [] },
+  }),
 };
 
 vi.mock("../../ClickhouseWriter", async (importOriginal) => {

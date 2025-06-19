@@ -136,7 +136,7 @@ export function DataTableToolbar<TData, TValue>({
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
-          <div className="flex w-full max-w-sm items-stretch">
+          <div className="flex min-w-0 max-w-64 flex-shrink-0 items-stretch">
             <div
               className={cn(
                 "flex h-8 flex-1 items-center border border-input bg-background pl-2",
@@ -180,39 +180,31 @@ export function DataTableToolbar<TData, TValue>({
                   <Button
                     variant="outline"
                     size="default"
-                    className="flex w-auto min-w-[130px] items-center justify-between gap-1 rounded-l-none border-l-0"
+                    className="w-30 flex items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1 truncate">
                       {searchConfig.tableAllowsFullTextSearch &&
                       (searchConfig.searchType ?? []).includes("content")
-                        ? "Metadata + Full Text"
-                        : "Metadata"}
+                        ? "Full Text"
+                        : "IDs / Names"}
                       <DocPopup
                         description={
-                          <>
+                          searchConfig.tableAllowsFullTextSearch &&
+                          (searchConfig.searchType ?? []).includes(
+                            "content",
+                          ) ? (
                             <p className="text-xs font-normal text-primary">
-                              <strong>Metadata search:</strong>{" "}
-                              {searchConfig.metadataSearchFields.join(", ")}
+                              Searches in Input/Output and{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}.
+                              For improved performance, please filter the table
+                              down.
                             </p>
-                            {searchConfig.tableAllowsFullTextSearch ? (
-                              <>
-                                <p className="text-xs font-normal text-primary">
-                                  <strong>Full text search:</strong> Input,
-                                  Output
-                                </p>
-                                <br />
-                                <p className="text-xs font-normal text-primary">
-                                  For improved performance, filter the table
-                                  before searching.
-                                </p>
-                              </>
-                            ) : (
-                              <p className="mt-2 text-xs font-normal text-primary">
-                                Full text search (Input, Output) is not
-                                available for this table.
-                              </p>
-                            )}
-                          </>
+                          ) : (
+                            <p className="text-xs font-normal text-primary">
+                              Searches in{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}.
+                            </p>
+                          )
                         }
                       />
                     </span>
@@ -242,13 +234,13 @@ export function DataTableToolbar<TData, TValue>({
                     }}
                   >
                     <DropdownMenuRadioItem value="metadata">
-                      Metadata
+                      IDs / Names
                     </DropdownMenuRadioItem>
                     <DropdownMenuRadioItem
                       value="metadata_fulltext"
                       disabled={!searchConfig.tableAllowsFullTextSearch}
                     >
-                      Metadata + Full Text
+                      Full Text
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
@@ -262,14 +254,6 @@ export function DataTableToolbar<TData, TValue>({
             setDateRangeAndOption={setDateRangeAndOption}
           />
         )}
-        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
-          <PopoverFilterBuilder
-            columns={filterColumnDefinition}
-            filterState={filterState}
-            onChange={setFilterState}
-            columnsWithCustomSelect={columnsWithCustomSelect}
-          />
-        )}
         {environmentFilter && (
           <MultiSelect
             title="Environment"
@@ -278,6 +262,14 @@ export function DataTableToolbar<TData, TValue>({
             onValueChange={environmentFilter.onValueChange}
             options={environmentFilter.options}
             className="my-0 w-auto overflow-hidden"
+          />
+        )}
+        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
+          <PopoverFilterBuilder
+            columns={filterColumnDefinition}
+            filterState={filterState}
+            onChange={setFilterState}
+            columnsWithCustomSelect={columnsWithCustomSelect}
           />
         )}
 

@@ -3,7 +3,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -25,7 +25,7 @@ const referralSourceSchema = z.object({
 export default function ReferralSource() {
   const posthog = usePostHog();
   const router = useRouter();
-  const form = useForm<z.infer<typeof referralSourceSchema>>({
+  const form = useForm({
     resolver: zodResolver(referralSourceSchema),
     defaultValues: {
       referralSource: "",

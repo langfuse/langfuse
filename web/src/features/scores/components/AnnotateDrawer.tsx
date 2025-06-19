@@ -14,7 +14,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { useIsMutating } from "@tanstack/react-query";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { type AnnotateDrawerProps } from "@/src/features/scores/types";
 import { type ScoreTarget } from "@/src/features/scores/types";
 import { formatAnnotateDescription } from "@/src/features/scores/lib/helpers";
