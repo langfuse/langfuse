@@ -121,15 +121,15 @@ export const createPrompt = async ({
 
   if (finalLabels.length > 0) {
     // If we're creating a new labeled prompt, we must remove those labels on previous prompts since labels are unique
-    const { touchedPromptIds, updates } =
+    const { touchedPromptIds: touchedPromptIdsPrevPrompts, updates: updatesPrevPrompts } =
       await removeLabelsFromPreviousPromptVersions({
         prisma,
         projectId,
         promptName: name,
         labelsToRemove: finalLabels,
       });
-    touchedPromptIds.push(...touchedPromptIds);
-    create.push(...updates);
+    touchedPromptIds.push(...touchedPromptIdsPrevPrompts);
+    create.push(...updatesPrevPrompts);
   }
 
   const haveTagsChanged =
@@ -137,14 +137,14 @@ export const createPrompt = async ({
     JSON.stringify([...new Set(latestPrompt?.tags)].sort());
   if (haveTagsChanged) {
     // If we're creating a new prompt with tags, we must update those tags on previous prompts since tags are consistent across versions
-    const { touchedPromptIds, updates } = await updatePromptTagsOnAllVersions({
+    const { touchedPromptIds: touchedPromptIdsTags, updates: updatesTags } = await updatePromptTagsOnAllVersions({
       prisma,
       projectId,
       promptName: name,
       tags: finalTags,
     });
-    touchedPromptIds.push(...touchedPromptIds);
-    create.push(...updates);
+    touchedPromptIds.push(...touchedPromptIdsTags);
+    create.push(...updatesTags);
   }
 
   // Lock and invalidate cache for _all_ versions and labels of the prompt name
