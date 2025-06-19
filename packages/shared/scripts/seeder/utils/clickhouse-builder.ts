@@ -1,222 +1,55 @@
+import {
+  TraceRecordInsertType,
+  ObservationRecordInsertType,
+  ScoreRecordInsertType,
+} from "../../../src/server";
 import { SEED_TEXT_PROMPTS } from "./postgres-seed-constants";
-import { TraceData, ObservationData, ScoreData } from "./types";
+import {
+  createTracesCh,
+  createObservationsCh,
+  createScoresCh,
+} from "../../../src/server";
+import { InsertResult } from "@clickhouse/client";
 
 /**
- * Builds ClickHouse SQL INSERT queries for seeding test data.
+ * Builds or executes ClickHouse SQL INSERT queries for seeding test data.
  *
- * Use buildXxxInsert() for small datasets (<1000 items) with detailed control.
- * Use buildBulkXxxInsert() for large datasets (>1000 items) with better performance.
+ * Use executeXxxInsert() for custom curated data with detailed control.
+ * Use buildBulkXxxInsert() for large datasets (>1000 items) for random distribution of data.
  */
 export class ClickHouseQueryBuilder {
   private escapeString(str: string): string {
     return str.replace(/'/g, "''");
   }
 
-  private formatValue(value: any): string {
-    if (value === null || value === undefined) {
-      return "NULL";
-    }
-    if (typeof value === "string") {
-      return `'${this.escapeString(value)}'`;
-    }
-    if (typeof value === "object") {
-      return `'${this.escapeString(JSON.stringify(value))}'`;
-    }
-    return String(value);
-  }
-
-  private formatArray(arr: string[]): string {
-    if (!arr || arr.length === 0) return "array()";
-    return `array(${arr.map((item) => `'${this.escapeString(item)}'`).join(", ")})`;
-  }
-
-  private formatMap(obj: Record<string, any>): string {
-    if (!obj || Object.keys(obj).length === 0) return "map()";
-    const entries = Object.entries(obj).map(
-      ([key, value]) =>
-        `'${this.escapeString(key)}', ${this.formatValue(value)}`,
-    );
-    return `map(${entries.join(", ")})`;
-  }
-
   /**
    * Creates INSERT query for trace data using VALUES syntax.
    * Use for: Small datasets, detailed trace objects with all fields populated.
    */
-  buildTracesInsert(
-    projectId: string,
-    traces: TraceData[],
-    batchSize: number = 1000,
-  ): string {
-    const chunks = this.chunkArray(traces, batchSize);
-    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-
-    return chunks
-      .map((chunk) => {
-        const values = chunk
-          .map(
-            (trace) => `(
-        '${trace.id}',
-        toDateTime('${now}'),
-        ${this.formatValue(trace.name)},
-        ${this.formatValue(trace.userId)},
-        ${this.formatMap(trace.metadata || {})},
-        ${this.formatValue(trace.release)},
-        ${this.formatValue(trace.version)},
-        '${projectId}',
-        '${trace.environment}',
-        ${trace.public ?? false},
-        ${trace.bookmarked ?? false},
-        ${this.formatArray(trace.tags || [])},
-        ${this.formatValue(trace.input)},
-        ${this.formatValue(trace.output)},
-        ${this.formatValue(trace.sessionId)},
-        now(),
-        now(),
-        now(),
-        0
-      )`,
-          )
-          .join(",\n      ");
-
-        return `
-        INSERT INTO traces (
-          id, timestamp, name, user_id, metadata, release, version,
-          project_id, environment, public, bookmarked, tags,
-          input, output, session_id, created_at, updated_at, event_ts, is_deleted
-        ) VALUES ${values};
-      `;
-      })
-      .join("\n");
+  async executeTracesInsert(
+    traces: TraceRecordInsertType[],
+  ): Promise<InsertResult> {
+    return await createTracesCh(traces);
   }
 
   /**
    * Creates INSERT query for observation data using VALUES syntax.
    * Use for: Small datasets, observations that link to postgres data (e.g. dataset runs)
    */
-  buildObservationsInsert(
-    projectId: string,
-    observations: ObservationData[],
-    batchSize: number = 1000,
-  ): string {
-    const chunks = this.chunkArray(observations, batchSize);
-    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-
-    return chunks
-      .map((chunk) => {
-        const values = chunk
-          .map(
-            (obs) => `(
-        '${obs.id}',
-        '${obs.traceId}',
-        '${projectId}',
-        '${obs.environment}',
-        '${obs.type}',
-        ${this.formatValue(obs.parentObservationId)},
-        toDateTime('${now}'),
-        addMilliseconds(toDateTime('${now}'), ${100 + Math.floor(Math.random() * 900)}),
-        ${this.formatValue(obs.name)},
-        ${this.formatMap({})},
-        '${obs.level || "DEFAULT"}',
-        NULL,
-        NULL,
-        ${this.formatValue(obs.input)},
-        ${this.formatValue(obs.output)},
-        ${this.formatValue(obs.model)},
-        NULL,
-        ${this.formatValue(JSON.stringify(obs.modelParameters || {}))},
-        ${this.formatMap(obs.usageDetails || {})},
-        ${this.formatMap(obs.usageDetails || {})},
-        ${this.formatMap(obs.costDetails || {})},
-        ${this.formatMap(obs.costDetails || {})},
-        ${obs.costDetails?.total || "NULL"},
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        now(),
-        now(),
-        now(),
-        0
-      )`,
-          )
-          .join(",\n      ");
-
-        return `
-        INSERT INTO observations (
-          id, trace_id, project_id, environment, type, parent_observation_id,
-          start_time, end_time, name, metadata, level, status_message, version,
-          input, output, provided_model_name, internal_model_id, model_parameters,
-          provided_usage_details, usage_details, provided_cost_details, cost_details,
-          total_cost, completion_start_time, prompt_id, prompt_name, prompt_version,
-          created_at, updated_at, event_ts, is_deleted
-        ) VALUES ${values};
-      `;
-      })
-      .join("\n");
+  async executeObservationsInsert(
+    observations: ObservationRecordInsertType[],
+  ): Promise<InsertResult> {
+    return await createObservationsCh(observations);
   }
 
   /**
    * Creates INSERT query for score data using VALUES syntax.
    * Use for: Small datasets, scores with custom values and metadata.
    */
-  buildScoresInsert(
-    projectId: string,
-    scores: ScoreData[],
-    batchSize: number = 1000,
-  ): string {
-    const chunks = this.chunkArray(scores, batchSize);
-    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-
-    return chunks
-      .map((chunk) => {
-        const values = chunk
-          .map(
-            (score) => `(
-        '${score.id}',
-        toDateTime('${now}'),
-        '${projectId}',
-        '${score.environment}',
-        ${this.formatValue(score.traceId)},
-        ${this.formatValue(score.sessionId)},
-        NULL,
-        ${this.formatValue(score.observationId)},
-        ${this.formatValue(score.name)},
-        ${score.value !== undefined ? score.value : "NULL"},
-        '${score.source}',
-        ${this.formatValue(score.comment)},
-        ${this.formatMap({})},
-        NULL,
-        NULL,
-        '${score.dataType}',
-        ${this.formatValue(score.stringValue)},
-        NULL,
-        now(),
-        now(),
-        now(),
-        0
-      )`,
-          )
-          .join(",\n      ");
-
-        return `
-        INSERT INTO scores (
-          id, timestamp, project_id, environment, trace_id, session_id,
-          dataset_run_id, observation_id, name, value, source, comment,
-          metadata, author_user_id, config_id, data_type, string_value,
-          queue_id, created_at, updated_at, event_ts, is_deleted
-        ) VALUES ${values};
-      `;
-      })
-      .join("\n");
-  }
-
-  private chunkArray<T>(array: T[], size: number): T[][] {
-    const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunks.push(array.slice(i, i + size));
-    }
-    return chunks;
+  async executeScoresInsert(
+    scores: ScoreRecordInsertType[],
+  ): Promise<InsertResult> {
+    return await createScoresCh(scores);
   }
 
   /**

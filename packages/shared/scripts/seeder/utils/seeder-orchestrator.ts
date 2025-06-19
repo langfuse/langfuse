@@ -2,7 +2,12 @@ import { FileContent, SeederOptions } from "./types";
 import { DataGenerator } from "./data-generators";
 import { ClickHouseQueryBuilder } from "./clickhouse-builder";
 import { EVAL_TRACE_COUNT, SEED_DATASETS } from "./postgres-seed-constants";
-import { clickhouseClient, logger } from "../../../src/server";
+import {
+  clickhouseClient,
+  logger,
+  ObservationRecordInsertType,
+  TraceRecordInsertType,
+} from "../../../src/server";
 import path from "path";
 import { readFileSync } from "fs";
 
@@ -88,53 +93,45 @@ export class SeederOrchestrator {
           `Processing run ${runNumber + 1}/${numberOfRuns} for project ${projectId}`,
         );
 
+        const traces: TraceRecordInsertType[] = [];
+        const observations: ObservationRecordInsertType[] = [];
+
         for (const seedDataset of SEED_DATASETS) {
-          const promises = seedDataset.items.map(
-            async (datasetItem, itemIndex) => {
-              // Generate trace data
-              const trace = this.dataGenerator.generateDatasetTrace(
-                {
-                  datasetName: seedDataset.name,
-                  itemIndex,
-                  item: datasetItem,
-                  runNumber,
-                },
-                projectId,
-              );
+          for (const [itemIndex, datasetItem] of seedDataset.items.entries()) {
+            // Generate trace data
+            const trace = this.dataGenerator.generateDatasetTrace(
+              {
+                datasetName: seedDataset.name,
+                itemIndex,
+                item: datasetItem,
+                runNumber,
+              },
+              projectId,
+            );
 
-              // Generate observation data
-              const observation = this.dataGenerator.generateDatasetObservation(
-                trace,
-                {
-                  datasetName: seedDataset.name,
-                  itemIndex,
-                  item: datasetItem,
-                  runNumber,
-                },
-                projectId,
-              );
+            // Generate observation data
+            const observation = this.dataGenerator.generateDatasetObservation(
+              trace,
+              {
+                datasetName: seedDataset.name,
+                itemIndex,
+                item: datasetItem,
+                runNumber,
+              },
+              projectId,
+            );
 
-              // Execute insert queries
-              const traceQuery = this.queryBuilder.buildTracesInsert(
-                projectId,
-                [trace],
-              );
-              const observationQuery =
-                this.queryBuilder.buildObservationsInsert(projectId, [
-                  observation,
-                ]);
-
-              await this.executeQuery(traceQuery);
-              await this.executeQuery(observationQuery);
-            },
-          );
-
-          // Execute in batches to avoid overwhelming the database
-          const batchSize = 10;
-          for (let i = 0; i < promises.length; i += batchSize) {
-            const batch = promises.slice(i, i + batchSize);
-            await Promise.all(batch);
+            traces.push(trace);
+            observations.push(observation);
           }
+        }
+
+        try {
+          await this.queryBuilder.executeTracesInsert(traces);
+          await this.queryBuilder.executeObservationsInsert(observations);
+        } catch (error) {
+          logger.error(`✗ Insert failed:`, error);
+          throw error;
         }
       }
     }
@@ -173,17 +170,9 @@ export class SeederOrchestrator {
         projectId,
       );
 
-      // Execute bulk inserts
-      const traceQuery = this.queryBuilder.buildTracesInsert(projectId, traces);
-      const observationQuery = this.queryBuilder.buildObservationsInsert(
-        projectId,
-        observations,
-      );
-      const scoreQuery = this.queryBuilder.buildScoresInsert(projectId, scores);
-
-      await this.executeQuery(traceQuery);
-      await this.executeQuery(observationQuery);
-      await this.executeQuery(scoreQuery);
+      await this.queryBuilder.executeTracesInsert(traces);
+      await this.queryBuilder.executeObservationsInsert(observations);
+      await this.queryBuilder.executeScoresInsert(scores);
     }
   }
 
@@ -252,22 +241,9 @@ export class SeederOrchestrator {
           scoresPerTrace,
         );
 
-        const traceQuery = this.queryBuilder.buildTracesInsert(
-          projectId,
-          traces,
-        );
-        const observationQuery = this.queryBuilder.buildObservationsInsert(
-          projectId,
-          observations,
-        );
-        const scoreQuery = this.queryBuilder.buildScoresInsert(
-          projectId,
-          scores,
-        );
-
-        await this.executeQuery(traceQuery);
-        await this.executeQuery(observationQuery);
-        await this.executeQuery(scoreQuery);
+        await this.queryBuilder.executeTracesInsert(traces);
+        await this.queryBuilder.executeObservationsInsert(observations);
+        await this.queryBuilder.executeScoresInsert(scores);
       }
     }
   }
@@ -292,7 +268,7 @@ export class SeederOrchestrator {
       // Create synthetic data
       await this.createSyntheticData(projectIds, opts);
 
-      // Log completion statistics
+      // Log completion statistics (commented out to reduce terminal noise)
       await this.logStatistics();
 
       logger.info("Full seed process completed successfully");

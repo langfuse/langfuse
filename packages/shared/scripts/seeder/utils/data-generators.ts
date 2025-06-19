@@ -1,11 +1,4 @@
-import {
-  TraceData,
-  ObservationData,
-  ScoreData,
-  SeederOptions,
-  FileContent,
-  DatasetItemInput,
-} from "./types";
+import { FileContent, DatasetItemInput } from "./types";
 import {
   REALISTIC_TRACE_NAMES,
   REALISTIC_SPAN_NAMES,
@@ -23,6 +16,14 @@ import {
   FAILED_EVAL_TRACE_INTERVAL,
   SEED_EVALUATOR_CONFIGS,
 } from "./postgres-seed-constants";
+import {
+  createTrace,
+  createObservation,
+  createTraceScore,
+  ObservationRecordInsertType,
+  ScoreRecordInsertType,
+  TraceRecordInsertType,
+} from "../../../src/server";
 
 /**
  * Generates realistic test data for traces, observations, and scores.
@@ -63,7 +64,10 @@ export class DataGenerator {
    * Creates traces from dataset items for experiment runs.
    * Use for: Dataset experiments scenarios.
    */
-  generateDatasetTrace(input: DatasetItemInput, projectId: string): TraceData {
+  generateDatasetTrace(
+    input: DatasetItemInput,
+    projectId: string,
+  ): TraceRecordInsertType {
     const traceId = generateDatasetRunTraceId(
       input.datasetName,
       input.itemIndex,
@@ -88,8 +92,9 @@ export class DataGenerator {
       traceOutput = JSON.stringify(input.item.output);
     }
 
-    return {
+    return createTrace({
       id: traceId,
+      project_id: projectId,
       name: `dataset-run-item-${uuidv4()}`,
       input: traceInput,
       output: traceOutput,
@@ -98,7 +103,7 @@ export class DataGenerator {
       public: false,
       bookmarked: false,
       tags: [],
-    };
+    });
   }
 
   /**
@@ -106,10 +111,10 @@ export class DataGenerator {
    * Use for: Dataset experiments requiring detailed observation tracking.
    */
   generateDatasetObservation(
-    trace: TraceData,
+    trace: TraceRecordInsertType,
     input: DatasetItemInput,
     projectId: string,
-  ): ObservationData {
+  ): ObservationRecordInsertType {
     const observationId = `observation-dataset-${input.datasetName}-${input.itemIndex}-${input.runNumber}-${projectId.slice(-8)}`;
 
     // Generate variable usage and cost for each observation
@@ -122,46 +127,62 @@ export class DataGenerator {
     const outputCost = (outputTokens * this.randomInt(2, 10)) / 1000000; // $0.000002-0.00001 per token
     const totalCost = inputCost + outputCost;
 
-    return {
+    return createObservation({
       id: observationId,
-      traceId: trace.id,
+      trace_id: trace.id,
+      project_id: projectId,
       type: "GENERATION",
       name: `dataset-generation-${input.itemIndex}-run-${input.runNumber}`,
       input: trace.input,
       output: trace.output,
-      model: "gpt-3.5-turbo",
-      modelParameters: { temperature: 0.7 },
-      usageDetails: {
+      provided_model_name: "gpt-3.5-turbo",
+      model_parameters: JSON.stringify({ temperature: 0.7 }),
+      usage_details: {
         input: inputTokens,
         output: outputTokens,
         total: totalTokens,
       },
-      costDetails: {
+      provided_usage_details: {
+        input: inputTokens,
+        output: outputTokens,
+        total: totalTokens,
+      },
+      cost_details: {
         input: Math.round(inputCost * 100000) / 100000, // Round to 5 decimal places
         output: Math.round(outputCost * 100000) / 100000,
         total: Math.round(totalCost * 100000) / 100000,
       },
+      provided_cost_details: {
+        input: Math.round(inputCost * 100000) / 100000,
+        output: Math.round(outputCost * 100000) / 100000,
+        total: Math.round(totalCost * 100000) / 100000,
+      },
+      total_cost: Math.round(totalCost * 100000) / 100000,
       environment: "langfuse-prompt-experiments",
-    };
+    });
   }
 
   /**
    * Creates large-scale synthetic traces for performance testing.
    * Use for: Load testing, dashboard demos, realistic usage simulation.
    */
-  generateSyntheticTraces(projectId: string, count: number): TraceData[] {
-    const traces: TraceData[] = [];
+  generateSyntheticTraces(
+    projectId: string,
+    count: number,
+  ): TraceRecordInsertType[] {
+    const traces: TraceRecordInsertType[] = [];
 
     for (let i = 0; i < count; i++) {
-      const trace: TraceData = {
+      const trace = createTrace({
         id: `trace-synthetic-${i}-${projectId.slice(-8)}`,
+        project_id: projectId,
         name: this.randomElement(REALISTIC_TRACE_NAMES),
         input: this.generateTraceInput(),
         output: this.generateTraceOutput(),
-        userId: this.randomBoolean(0.3)
+        user_id: this.randomBoolean(0.3)
           ? `user_${this.randomInt(1, 1000)}`
-          : undefined,
-        sessionId: this.randomBoolean(0.3)
+          : null,
+        session_id: this.randomBoolean(0.3)
           ? `session_${this.randomInt(1, 100)}`
           : undefined,
         environment: "default",
@@ -175,7 +196,7 @@ export class DataGenerator {
         version: this.randomBoolean(0.4)
           ? `v${this.randomInt(1, 3)}.${this.randomInt(0, 20)}`
           : undefined,
-      };
+      });
 
       traces.push(trace);
     }
@@ -184,11 +205,11 @@ export class DataGenerator {
   }
 
   generateEvaluationObservations(
-    traces: TraceData[],
+    traces: TraceRecordInsertType[],
     observationsPerTrace: number = 5,
     projectId: string,
-  ): ObservationData[] {
-    const observations: ObservationData[] = [];
+  ): ObservationRecordInsertType[] {
+    const observations: ObservationRecordInsertType[] = [];
 
     for (const evalJobConfiguration of SEED_EVALUATOR_CONFIGS) {
       traces.forEach((trace, traceIndex) => {
@@ -199,14 +220,15 @@ export class DataGenerator {
               ? "SPAN"
               : "EVENT";
 
-          const observation: ObservationData = {
+          const observation: ObservationRecordInsertType = createObservation({
             id: generateEvalObservationId(
               evalJobConfiguration.evalTemplateId,
               traceIndex,
               projectId,
             ),
-            traceId: trace.id,
-            parentObservationId: undefined,
+            trace_id: trace.id,
+            project_id: projectId,
+            parent_observation_id: undefined,
             type: obsType,
             name:
               obsType === "GENERATION"
@@ -233,13 +255,15 @@ export class DataGenerator {
                   ? JSON.stringify(this.fileContent?.nestedJson || {})
                   : JSON.stringify(this.fileContent?.chatMlJson || {})
                 : undefined,
-            model:
+            provided_model_name:
               obsType === "GENERATION"
                 ? this.randomElement(REALISTIC_MODELS)
                 : undefined,
-            modelParameters:
-              obsType === "GENERATION" ? { temperature: 0.7 } : undefined,
-            usageDetails:
+            model_parameters:
+              obsType === "GENERATION"
+                ? JSON.stringify({ temperature: 0.7 })
+                : undefined,
+            usage_details:
               obsType === "GENERATION"
                 ? {
                     input: this.randomInt(20, 200),
@@ -247,7 +271,23 @@ export class DataGenerator {
                     total: this.randomInt(30, 300),
                   }
                 : undefined,
-            costDetails:
+            provided_usage_details:
+              obsType === "GENERATION"
+                ? {
+                    input: this.randomInt(20, 200),
+                    output: this.randomInt(10, 100),
+                    total: this.randomInt(30, 300),
+                  }
+                : undefined,
+            cost_details:
+              obsType === "GENERATION"
+                ? {
+                    input: this.randomInt(1, 10) / 100000,
+                    output: this.randomInt(1, 20) / 100000,
+                    total: this.randomInt(2, 30) / 100000,
+                  }
+                : undefined,
+            provided_cost_details:
               obsType === "GENERATION"
                 ? {
                     input: this.randomInt(1, 10) / 100000,
@@ -256,7 +296,7 @@ export class DataGenerator {
                   }
                 : undefined,
             environment: "langfuse-evaluation",
-          };
+          });
 
           observations.push(observation);
         }
@@ -271,19 +311,20 @@ export class DataGenerator {
    * Use for: Large datasets, hierarchical observation structures, cost variation.
    */
   generateSyntheticObservations(
-    traces: TraceData[],
+    traces: TraceRecordInsertType[],
     observationsPerTrace: number = 5,
-  ): ObservationData[] {
-    const observations: ObservationData[] = [];
+  ): ObservationRecordInsertType[] {
+    const observations: ObservationRecordInsertType[] = [];
 
     traces.forEach((trace, traceIndex) => {
       for (let i = 0; i < observationsPerTrace; i++) {
         const obsType = this.randomElement(["GENERATION", "SPAN", "EVENT"]);
 
-        const observation: ObservationData = {
+        const observation: ObservationRecordInsertType = createObservation({
           id: `obs-synthetic-${traceIndex}-${i}`,
-          traceId: trace.id,
-          parentObservationId:
+          trace_id: trace.id,
+          project_id: trace.project_id,
+          parent_observation_id:
             i > 0 ? `obs-synthetic-${traceIndex}-${i - 1}` : undefined,
           type: obsType as any,
           name:
@@ -298,13 +339,15 @@ export class DataGenerator {
             obsType === "GENERATION"
               ? this.generateObservationOutput()
               : undefined,
-          model:
+          provided_model_name:
             obsType === "GENERATION"
               ? this.randomElement(REALISTIC_MODELS)
               : undefined,
-          modelParameters:
-            obsType === "GENERATION" ? { temperature: 0.7 } : undefined,
-          usageDetails:
+          model_parameters:
+            obsType === "GENERATION"
+              ? JSON.stringify({ temperature: 0.7 })
+              : undefined,
+          usage_details:
             obsType === "GENERATION"
               ? {
                   input: this.randomInt(20, 200),
@@ -312,7 +355,23 @@ export class DataGenerator {
                   total: this.randomInt(30, 300),
                 }
               : undefined,
-          costDetails:
+          provided_usage_details:
+            obsType === "GENERATION"
+              ? {
+                  input: this.randomInt(20, 200),
+                  output: this.randomInt(10, 100),
+                  total: this.randomInt(30, 300),
+                }
+              : undefined,
+          cost_details:
+            obsType === "GENERATION"
+              ? {
+                  input: this.randomInt(1, 10) / 100000,
+                  output: this.randomInt(1, 20) / 100000,
+                  total: this.randomInt(2, 30) / 100000,
+                }
+              : undefined,
+          provided_cost_details:
             obsType === "GENERATION"
               ? {
                   input: this.randomInt(1, 10) / 100000,
@@ -328,7 +387,7 @@ export class DataGenerator {
                 ? "WARNING"
                 : "ERROR",
           environment: trace.environment,
-        };
+        });
 
         observations.push(observation);
       }
@@ -338,11 +397,11 @@ export class DataGenerator {
   }
 
   generateSyntheticScores(
-    traces: TraceData[],
-    observations: ObservationData[],
+    traces: TraceRecordInsertType[],
+    observations: ObservationRecordInsertType[],
     scoresPerTrace: number = 2,
-  ): ScoreData[] {
-    const scores: ScoreData[] = [];
+  ): ScoreRecordInsertType[] {
+    const scores: ScoreRecordInsertType[] = [];
 
     traces.forEach((trace, traceIndex) => {
       for (let i = 0; i < scoresPerTrace; i++) {
@@ -368,22 +427,23 @@ export class DataGenerator {
             break;
         }
 
-        const score: ScoreData = {
+        const score: ScoreRecordInsertType = createTraceScore({
           id: `score-synthetic-${traceIndex}-${i}`,
-          traceId: trace.id,
-          observationId: this.randomBoolean(0.1)
+          project_id: trace.project_id,
+          trace_id: trace.id,
+          observation_id: this.randomBoolean(0.1)
             ? this.randomElement(
-                observations.filter((o) => o.traceId === trace.id),
+                observations.filter((o) => o.trace_id === trace.id),
               )?.id
             : undefined,
           name: `metric_${this.randomInt(1, 10)}`,
           value,
-          stringValue,
-          dataType: scoreType as any,
+          string_value: stringValue,
+          data_type: scoreType as any,
           source: "API",
           comment: "Generated score",
           environment: trace.environment,
-        };
+        });
 
         scores.push(score);
       }
@@ -396,23 +456,28 @@ export class DataGenerator {
    * Creates evaluation traces for testing evaluator configurations.
    * Use for: Evaluation testing, score validation, evaluator development.
    */
-  generateEvaluationTraces(projectId: string, count: number): TraceData[] {
-    const traces: TraceData[] = [];
+  generateEvaluationTraces(
+    projectId: string,
+    count: number,
+  ): TraceRecordInsertType[] {
+    const traces: TraceRecordInsertType[] = [];
 
     for (const evalJobConfiguration of SEED_EVALUATOR_CONFIGS) {
       for (let i = 0; i < count; i++) {
-        const trace: TraceData = {
-          id: generateEvalTraceId(
-            evalJobConfiguration.evalTemplateId,
-            i,
-            projectId,
-          ),
+        const traceId = generateEvalTraceId(
+          evalJobConfiguration.evalTemplateId,
+          i,
+          projectId,
+        );
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
           name: this.randomElement(REALISTIC_TRACE_NAMES),
           input: this.generateEvaluationInput(),
           output: this.generateEvaluationOutput(),
-          userId: this.randomBoolean(0.3)
+          user_id: this.randomBoolean(0.3)
             ? `user_${this.randomInt(1, 1000)}`
-            : undefined,
+            : null,
           environment: "langfuse-evaluation",
           metadata: { purpose: "evaluation" },
           tags: this.randomBoolean(0.3) ? ["production", "ai-agent"] : [],
@@ -420,11 +485,11 @@ export class DataGenerator {
           bookmarked: this.randomBoolean(0.1),
           release: this.randomBoolean(0.4)
             ? `v${this.randomInt(1, 5)}.${this.randomInt(0, 10)}`
-            : undefined,
+            : null,
           version: this.randomBoolean(0.4)
             ? `v${this.randomInt(1, 3)}.${this.randomInt(0, 20)}`
-            : undefined,
-        };
+            : null,
+        });
 
         traces.push(trace);
       }
@@ -490,32 +555,33 @@ export class DataGenerator {
    * Use for: Evaluation traces that need score validation, evaluator testing.
    */
   generateEvaluationScores(
-    traces: TraceData[],
-    _observations: ObservationData[],
+    traces: TraceRecordInsertType[],
+    _observations: ObservationRecordInsertType[],
     projectId: string,
-  ): ScoreData[] {
-    const scores: ScoreData[] = [];
+  ): ScoreRecordInsertType[] {
+    const scores: ScoreRecordInsertType[] = [];
 
     for (const evalJobConfiguration of SEED_EVALUATOR_CONFIGS) {
       traces.forEach((trace, traceIndex) => {
         if (traceIndex % FAILED_EVAL_TRACE_INTERVAL === 0) return;
         // Create exactly one score per evaluation trace with prefixed ID
-        const score: ScoreData = {
+        const score: ScoreRecordInsertType = createTraceScore({
           id: generateEvalScoreId(
             evalJobConfiguration.evalTemplateId,
             traceIndex,
             projectId,
           ), // Use prefixed ID pattern
-          traceId: trace.id,
-          observationId: undefined, // Score is for the entire trace, not a specific observation
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: undefined, // Score is for the entire trace, not a specific observation
           name: `evaluation_score-${evalJobConfiguration.evalTemplateId}`,
           value: Math.random() * 100, // Random evaluation score 0-100
-          stringValue: undefined,
-          dataType: "NUMERIC",
+          string_value: undefined,
+          data_type: "NUMERIC",
           source: "EVAL",
           comment: "Evaluation trace score",
           environment: trace.environment,
-        };
+        });
 
         scores.push(score);
       });
