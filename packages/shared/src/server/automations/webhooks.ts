@@ -77,7 +77,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
         });
         if (res.status !== 200) {
           logger.error(
-            `Webhook ${actionConfig.name} for project ${projectId} failed with status ${res.status}`,
+            `Webhook for project ${projectId} failed with status ${res.status}`,
           );
           throw new Error(`Webhook failed with status ${res.status}`);
         }
