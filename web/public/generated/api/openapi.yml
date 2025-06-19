@@ -6856,6 +6856,31 @@ components:
         - tags
     ChatMessage:
       title: ChatMessage
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - promptchatmessage
+            - $ref: '#/components/schemas/PromptChatMessage'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - placeholder
+            - $ref: '#/components/schemas/PlaceholderMessage'
+          required:
+            - type
+    PromptChatMessage:
+      title: PromptChatMessage
       type: object
       properties:
         role:
@@ -6865,6 +6890,14 @@ components:
       required:
         - role
         - content
+    PlaceholderMessage:
+      title: PlaceholderMessage
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
     TextPrompt:
       title: TextPrompt
       type: object
