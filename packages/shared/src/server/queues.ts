@@ -140,13 +140,6 @@ export const ObservationUpsertQueueEventSchema = z.object({
 export const WebhookInputSchema = z
   .discriminatedUnion("type", [
     z.object({
-      observationId: z.string(),
-      type: z.literal("observation"),
-      startTime: z.date(),
-      traceId: z.string(),
-      observationType: ObservationTypeDomain,
-    }),
-    z.object({
       promptId: z.string(),
       type: z.literal("prompt"),
       promptName: z.string(),

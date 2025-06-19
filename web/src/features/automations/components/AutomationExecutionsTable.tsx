@@ -58,16 +58,15 @@ export const AutomationExecutionsTable: React.FC<
     },
     {
       accessorKey: "sourceId",
-      header:
-        eventSource === "observation.created" ? "Observation ID" : "Source ID",
+      header: eventSource === "prompt.changed" ? "Prompt ID" : "Source ID",
       id: "sourceId",
       cell: ({ row }) => {
         const value = row.getValue("sourceId") as string;
         return (
           <span className="font-mono text-xs">
-            {eventSource === "observation.created" ? (
+            {eventSource === "prompt.changed" ? (
               <TableLink
-                path={`/project/${projectId}/observations/${value}`}
+                path={`/project/${projectId}/prompts/${value}`}
                 value={value}
               />
             ) : (

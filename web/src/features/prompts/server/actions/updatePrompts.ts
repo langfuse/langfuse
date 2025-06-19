@@ -115,7 +115,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     // Trigger webhooks for prompt update
     try {
-      const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+      const { promptChangeProcessor } = await import("../promptChangeProcessor");
       const updatedPrompt = res[res.length - 1] as any;
       await promptChangeProcessor({
         id: updatedPrompt.id,

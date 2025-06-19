@@ -21,7 +21,6 @@ import { BatchActionQueue } from "./batchActionQueue";
 import { CreateEvalQueue } from "./createEvalQueue";
 import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlxRetryQueue";
-import { ObservationUpsertQueue } from "./observationUpsert";
 import { WebhookQueue } from "./webhookQueue";
 
 export function getQueue(queueName: QueueName): Queue | null {

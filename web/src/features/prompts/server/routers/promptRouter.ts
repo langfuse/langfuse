@@ -447,7 +447,7 @@ export const promptRouter = createTRPCRouter({
         // Trigger webhooks for prompt deletion
         for (const prompt of prompts) {
           try {
-            const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+            const { promptChangeProcessor } = await import("../promptChangeProcessor");
             await promptChangeProcessor({
               id: prompt.id,
               projectId,
@@ -612,7 +612,7 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt version deletion
         try {
-          const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+          const { promptChangeProcessor } = await import("../promptChangeProcessor");
           await promptChangeProcessor({
             id: promptVersion.id,
             projectId,
@@ -793,7 +793,7 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt label update
         try {
-          const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+          const { promptChangeProcessor } = await import("../promptChangeProcessor");
           await promptChangeProcessor({
             id: toBeLabeledPrompt.id,
             projectId,
@@ -942,7 +942,7 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt tag update
         try {
-          const { promptChangeProcessor } = await import("../../../worker/src/features/prompts/promptChangeProcessor");
+          const { promptChangeProcessor } = await import("../promptChangeProcessor");
           const prompts = await ctx.prisma.prompt.findMany({
             where: { projectId, name: promptName },
           });

@@ -108,7 +108,7 @@ export const automationsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        description: z.string().optional(),
+        name: z.string().optional(),
         eventSource: z.string(),
         filter: z.array(z.any()).nullable(),
         status: z.nativeEnum(JobConfigState).default(JobConfigState.ACTIVE),
@@ -136,9 +136,9 @@ export const automationsRouter = createTRPCRouter({
           data: {
             id: triggerId,
             projectId: ctx.session.projectId,
-            description: input.description,
+            description: input.name,
             eventSource: input.eventSource,
-            filter: input.filter ? input.filter : [],
+            filter: input.filter || [],
 
             status: input.status,
             sampling: input.sampling,
@@ -152,7 +152,7 @@ export const automationsRouter = createTRPCRouter({
             id: actionId,
             projectId: ctx.session.projectId,
             name: input.actionName,
-            description: input.description,
+            description: input.name,
             type: input.actionType,
             config: input.actionConfig,
             triggers: {
@@ -181,7 +181,7 @@ export const automationsRouter = createTRPCRouter({
         projectId: z.string(),
         triggerId: z.string(),
         actionId: z.string(),
-        description: z.string().optional(),
+        name: z.string().optional(),
         eventSource: z.string(),
         filter: z.array(z.any()).nullable(),
         status: z.nativeEnum(JobConfigState),
@@ -207,8 +207,8 @@ export const automationsRouter = createTRPCRouter({
           projectId: ctx.session.projectId,
         },
         data: {
-          name: input.description,
-          description: input.description,
+          name: input.name,
+          description: input.name,
           type: input.actionType,
           config: input.actionConfig,
         },
@@ -221,9 +221,9 @@ export const automationsRouter = createTRPCRouter({
           projectId: ctx.session.projectId,
         },
         data: {
-          description: input.description,
+          description: input.name,
           eventSource: input.eventSource,
-          filter: input.filter ? JSON.stringify(input.filter) : Prisma.JsonNull,
+          filter: input.filter || [],
           status: input.status,
           sampling: input.sampling,
           delay: input.delay,

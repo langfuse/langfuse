@@ -45,55 +45,31 @@ import { annotationQueueSchema } from "./actions/AnnotationQueueActionForm";
 
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
-  ObservationCreated = "observation.created",
+  PromptChanged = "prompt.changed",
 }
 
-// Define columns for observation events
-export const observationFilterColumns: ColumnDefinition[] = [
+// Define columns for prompt events
+export const promptFilterColumns: ColumnDefinition[] = [
   { name: "name", id: "name", type: "string", internal: "name" },
   {
-    name: "type",
-    id: "type",
+    name: "action",
+    id: "action",
     type: "stringOptions",
-    options: [{ value: "GENERATION" }, { value: "SPAN" }, { value: "EVENT" }],
-    internal: "type",
+    options: [{ value: "create" }, { value: "update" }, { value: "delete" }],
+    internal: "action",
   },
-  { name: "model", id: "model", type: "string", internal: "model" },
+  { name: "version", id: "version", type: "number", internal: "version" },
   {
-    name: "startTime",
-    id: "startTime",
+    name: "timestamp",
+    id: "timestamp",
     type: "datetime",
-    internal: "startTime",
-  },
-  {
-    name: "totalTokens",
-    id: "totalTokens",
-    type: "number",
-    internal: "totalTokens",
-  },
-  {
-    name: "promptTokens",
-    id: "promptTokens",
-    type: "number",
-    internal: "promptTokens",
-  },
-  {
-    name: "completionTokens",
-    id: "completionTokens",
-    type: "number",
-    internal: "completionTokens",
-  },
-  {
-    name: "calculatedTotalCost",
-    id: "calculatedTotalCost",
-    type: "number",
-    internal: "calculatedTotalCost",
+    internal: "timestamp",
   },
 ];
 
 // Define schemas for form validation
 const baseFormSchema = z.object({
-  description: z.string().min(1, "Description is required").max(100),
+  name: z.string().min(1, "Name is required").max(100),
   eventSource: z.string().min(1, "Event source is required"),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
   sampling: z.coerce.number().min(0).max(100).default(100),
@@ -167,11 +143,14 @@ export const AutomationForm = ({
   // Get default values based on action type
   const getDefaultValues = (): Partial<FormValues> => {
     const actionType = getActionType();
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
     const baseValues = {
-      description: isEditing ? automation?.trigger?.description || "" : "",
+      name: isEditing
+        ? automation?.trigger?.description || ""
+        : `Automation ${today}`,
       eventSource: isEditing
         ? automation?.trigger?.eventSource
-        : TriggerEventSource.ObservationCreated,
+        : TriggerEventSource.PromptChanged,
       status: isEditing ? automation?.trigger?.status : "ACTIVE",
       sampling: isEditing
         ? Math.round((automation?.trigger?.sampling?.toNumber() || 0) * 100)
@@ -246,7 +225,7 @@ export const AutomationForm = ({
           projectId,
           triggerId: automation.trigger.id,
           actionId: automation.action.id,
-          description: data.description,
+          name: data.name,
           eventSource: data.eventSource,
           filter: data.filter && data.filter.length > 0 ? data.filter : null,
           status: data.status as JobConfigState,
@@ -259,14 +238,14 @@ export const AutomationForm = ({
         // Create new automation
         await createAutomationMutation.mutateAsync({
           projectId,
-          description: data.description,
+          name: data.name,
           eventSource: data.eventSource,
           filter: data.filter && data.filter.length > 0 ? data.filter : null,
           status: data.status as JobConfigState,
           sampling: data.sampling / 100, // Convert to decimal (0-1)
           delay: data.delay,
           actionType: data.actionType,
-          actionName: data.description,
+          actionName: data.name,
           actionConfig: actionConfig,
         });
       }
@@ -333,64 +312,47 @@ export const AutomationForm = ({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Automation Details</CardTitle>
-            <CardDescription>
-              Configure the basic settings for your automation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="flex-1">
             <FormField
               control={form.control}
-              name="description"
-              rules={{ required: "Description is required" }}
+              name="name"
+              rules={{ required: "Name is required" }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="flex items-center">
-                    Description <span className="ml-1 text-destructive">*</span>
-                  </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Notify Slack when an observation is created"
+                      placeholder="Automation name"
                       {...field}
                       disabled={!hasAccess}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    A brief description of what this automation does.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between">
-                  <div className="space-y-0.5">
-                    <FormLabel>Active</FormLabel>
-                    <FormDescription>
-                      Enable or disable this automation.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value === "ACTIVE"}
-                      onCheckedChange={(checked) =>
-                        field.onChange(checked ? "ACTIVE" : "INACTIVE")
-                      }
-                      disabled={!hasAccess}
+                      className="rounded-none border-0 border-b border-border bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          </CardContent>
-        </Card>
+          </div>
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center gap-2">
+                <FormLabel className="text-sm font-medium">Active</FormLabel>
+                <FormControl>
+                  <Switch
+                    checked={field.value === "ACTIVE"}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked ? "ACTIVE" : "INACTIVE")
+                    }
+                    disabled={!hasAccess}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <Card>
           <CardHeader>
@@ -417,8 +379,8 @@ export const AutomationForm = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={TriggerEventSource.ObservationCreated}>
-                        Observation Created
+                      <SelectItem value={TriggerEventSource.PromptChanged}>
+                        Prompt Changed
                       </SelectItem>
                       {/* Add more event sources as they become available */}
                     </SelectContent>
@@ -439,7 +401,7 @@ export const AutomationForm = ({
                   <FormLabel>Filter</FormLabel>
                   <FormControl>
                     <InlineFilterBuilder
-                      columns={observationFilterColumns}
+                      columns={promptFilterColumns}
                       filterState={field.value || []}
                       onChange={field.onChange}
                       disabled={activeTab === "annotation_queue" || !hasAccess}

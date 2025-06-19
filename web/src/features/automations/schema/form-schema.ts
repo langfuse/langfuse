@@ -9,7 +9,7 @@ import {
 
 // Define the trigger schema
 export const triggerSchema = z.object({
-  description: z.string().min(1, "Description is required").max(100),
+  name: z.string().min(1, "Name is required").max(100),
   eventSource: z.string().min(1, "Event source is required"),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
   sampling: z.coerce.number().min(0).max(100).default(100),
@@ -87,7 +87,7 @@ export const prepareFormDataForAPI = (
   // Base payload for create/update operations
   const payload = {
     projectId,
-    description: data.description,
+    name: data.name,
     eventSource: data.eventSource,
     filter: data.filter && data.filter.length > 0 ? data.filter : null,
     status: data.status as JobConfigState,
@@ -103,13 +103,13 @@ export const prepareFormDataForAPI = (
       ...payload,
       triggerId,
       actionId,
-      actionName: data.description, // Use description as action name
+      actionName: data.name,
     };
   }
 
   // For create operation
   return {
     ...payload,
-    actionName: data.description, // Use description as action name
+    actionName: data.name,
   };
 };

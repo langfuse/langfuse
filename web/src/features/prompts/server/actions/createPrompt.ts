@@ -19,6 +19,7 @@ import {
   PromptService,
   redis,
 } from "@langfuse/shared/src/server";
+import { promptChangeProcessor } from "@/src/features/prompts/server/promptChangeProcessor";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;
@@ -156,7 +157,6 @@ export const createPrompt = async ({
 
   // Trigger webhooks for prompt creation
   try {
-    const { promptChangeProcessor } = await import("../../../../worker/src/features/prompts/promptChangeProcessor");
     await promptChangeProcessor({
       id: createdPrompt.id,
       projectId,

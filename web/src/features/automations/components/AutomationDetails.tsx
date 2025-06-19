@@ -12,9 +12,8 @@ import {
   Zap,
   Settings,
 } from "lucide-react";
-import { AutomationForm } from "./automationForm";
+import { AutomationForm, promptFilterColumns } from "./automationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
-import { Badge } from "@/src/components/ui/badge";
 import { JobConfigState, type TriggerEventSource } from "@langfuse/shared";
 import {
   Card,
@@ -24,7 +23,6 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { observationFilterColumns } from "./automationForm";
 import { Separator } from "@/src/components/ui/separator";
 import { type FilterState } from "@langfuse/shared";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
@@ -32,6 +30,7 @@ import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { WebhookActionConfig } from "./WebhookActionConfig";
 import { AnnotationQueueActionConfig } from "./AnnotationQueueActionConfig";
+import { DeleteAutomationButton } from "./DeleteAutomationButton";
 
 interface AutomationDetailsProps {
   projectId: string;
@@ -148,10 +147,18 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                 : "inactive"
             }
             actionButtons={
-              <Button variant="outline" onClick={handleEdit}>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleEdit}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+                <DeleteAutomationButton
+                  projectId={projectId}
+                  triggerId={automation.trigger.id}
+                  actionId={automation.action.id}
+                  variant="button"
+                />
+              </div>
             }
           />
 
@@ -212,7 +219,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                       {automation.trigger.filter ? (
                         <InlineFilterBuilder
                           key={`${triggerId}-${actionId}-filter`}
-                          columns={observationFilterColumns}
+                          columns={promptFilterColumns}
                           filterState={automation.trigger.filter as FilterState}
                           onChange={() => {}}
                           disabled={true}
