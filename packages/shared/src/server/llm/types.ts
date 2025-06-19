@@ -184,7 +184,6 @@ export const ChatMessageSchema = z.union([
   AssistantTextMessageSchema,
   AssistantToolCallMessageSchema,
   ToolResultMessageSchema,
-  PlaceholderMessageSchema,
   z
     .object({
       role: z.union([ChatMessageDefaultRoleSchema, z.string()]), // Users may ingest any string as role via API/SDK

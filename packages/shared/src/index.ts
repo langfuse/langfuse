@@ -19,6 +19,8 @@ export * from "./tableDefinitions/typeHelpers";
 
 // llm api
 export * from "./server/llm/types";
+// TODO: move to frontend?
+export * from "./server/llm/compileChatMessages";
 
 // evals
 export * from "./features/evals/types";
