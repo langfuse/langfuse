@@ -2,7 +2,7 @@ import { FileContent, SeederOptions } from "./types";
 import { DataGenerator } from "./data-generators";
 import { ClickHouseQueryBuilder } from "./clickhouse-builder";
 import { SEED_DATASETS } from "./postgres-seed-constants";
-import { clickhouseClient, logger } from "../../src/server";
+import { clickhouseClient, logger } from "../../../src/server";
 import path from "path";
 import { readFileSync } from "fs";
 
@@ -28,18 +28,9 @@ export class SeederOrchestrator {
 
   private loadFileContent() {
     try {
-      const nestedJsonPath = path.join(
-        __dirname,
-        "../clickhouse/nested_json.json",
-      );
-      const heavyMarkdownPath = path.join(
-        __dirname,
-        "../clickhouse/markdown.txt",
-      );
-      const chatMlJsonPath = path.join(
-        __dirname,
-        "../clickhouse/chat_ml_json.json",
-      );
+      const nestedJsonPath = path.join(__dirname, "./nested_json.json");
+      const heavyMarkdownPath = path.join(__dirname, "./markdown.txt");
+      const chatMlJsonPath = path.join(__dirname, "./chat_ml_json.json");
 
       const nestedJsonContent = JSON.parse(
         readFileSync(nestedJsonPath, "utf-8"),
