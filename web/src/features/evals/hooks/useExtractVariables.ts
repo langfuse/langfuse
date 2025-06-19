@@ -1,5 +1,6 @@
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { extractValueFromObject } from "@langfuse/shared";
 import { useEffect, useState, useRef } from "react";
 
@@ -48,6 +49,13 @@ export function useExtractVariables({
   // Create a stable reference to the trace ID
   const traceId = trace?.id;
   const traceIdRef = useRef<string | undefined>(traceId as string | undefined);
+
+  // Handle error toasts separately to avoid repeated toasts on re-renders
+  useEffect(() => {
+    if (extractionError) {
+      trpcErrorToast(extractionError);
+    }
+  }, [extractionError]);
 
   useEffect(() => {
     // Return early conditions
@@ -169,5 +177,5 @@ export function useExtractVariables({
     trace,
   ]);
 
-  return { extractedVariables, isExtracting, error: extractionError };
+  return { extractedVariables, isExtracting };
 }

@@ -129,16 +129,12 @@ export const EvaluationPromptPreview = ({
   className?: string;
   controlButtons?: React.ReactNode;
 }) => {
-  const { extractedVariables, isExtracting, error } = useExtractVariables({
+  const { extractedVariables, isExtracting } = useExtractVariables({
     variables: variableMapping.map(({ templateVariable }) => templateVariable),
     variableMapping: variableMapping,
     trace: trace,
     isLoading,
   });
-
-  if (error) {
-    trpcErrorToast(error);
-  }
 
   if (isExtracting) {
     return <Skeleton className="h-[200px] w-full" />;
