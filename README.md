@@ -3,6 +3,9 @@
 <div align="center">
    <div>
       <h3>
+        <a href="https://langfuse.com/blog/2025-06-04-open-sourcing-langfuse-product">
+            <strong>Langfuse Is Doubling Down On Open Source</strong>
+         </a> <br> <br>
          <a href="https://cloud.langfuse.com">
             <strong>Langfuse Cloud</strong>
          </a> · 
