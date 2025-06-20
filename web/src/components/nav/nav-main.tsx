@@ -19,6 +19,7 @@ import {
   HoverCardTitle,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { Portal } from "@radix-ui/react-hover-card";
 
 export type NavMainItem = {
   title: string;
@@ -75,32 +76,34 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
                     <ChevronRightIcon className="ml-auto" />
                   </SidebarMenuButton>
                 </HoverCardTrigger>
-                <HoverCardContent
-                  side="right"
-                  align="start"
-                  // relative + isolate create a new stacking context
-                  // z-[9999] ensures this appears above other elements, even across different stacking contexts
-                  className="relative isolate z-[9999] p-1"
-                >
-                  {!open && <HoverCardTitle>{item.title}</HoverCardTitle>}
-                  <SidebarMenuSub>
-                    {item.items.map((subItem) => (
-                      <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton
-                          asChild
-                          isActive={subItem.isActive}
-                        >
-                          <Link
-                            href={subItem.url}
-                            target={subItem.newTab ? "_blank" : undefined}
+                <Portal>
+                  <HoverCardContent
+                    side="right"
+                    align="start"
+                    // relative + isolate create a new stacking context
+                    // z-[9999] ensures this appears above other elements, even across different stacking contexts
+                    className="relative isolate z-[9999] p-1"
+                  >
+                    {!open && <HoverCardTitle>{item.title}</HoverCardTitle>}
+                    <SidebarMenuSub>
+                      {item.items.map((subItem) => (
+                        <SidebarMenuSubItem key={subItem.title}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={subItem.isActive}
                           >
-                            <span>{subItem.title}</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                </HoverCardContent>
+                            <Link
+                              href={subItem.url}
+                              target={subItem.newTab ? "_blank" : undefined}
+                            >
+                              <span>{subItem.title}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </HoverCardContent>
+                </Portal>
               </SidebarMenuItem>
             </HoverCard>
           ) : (
