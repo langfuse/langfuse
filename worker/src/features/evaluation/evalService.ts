@@ -195,7 +195,8 @@ export const createEvalJobs = async ({
   let cachedTrace: TraceDomain | undefined | null = null;
   if (configs.length > 0) {
     try {
-      // Fetch trace with or without observation data based on requirements
+      // Fetch trace data and store it. If observation data is required, we'll make a separate lookup.
+      // Those fields are used rarely, though.
       cachedTrace = await getTraceById({
         traceId: event.traceId,
         projectId: event.projectId,
@@ -239,7 +240,8 @@ export const createEvalJobs = async ({
     // Check whether the trace already exists in the database.
     let traceExists = false;
 
-    // Use cached trace for in-memory filtering when possible
+    // Use cached trace for in-memory filtering when possible, i.e. all fields can
+    // be checked in-memory.
     if (cachedTrace && !requiresDatabaseLookup(validatedFilter)) {
       // Evaluate filter in memory using the cached trace
       traceExists = InMemoryFilterService.evaluateFilter(
