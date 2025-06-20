@@ -236,6 +236,15 @@ export const SEED_TEXT_PROMPTS = [
     tags: ["tag1", "tag2"],
   },
   {
+    id: `countries-experiment-prompt`,
+    createdBy: "user-1",
+    prompt: "What is the capital of {{country}}?",
+    name: "countries-experiment-prompt",
+    version: 1,
+    labels: ["production", "latest"],
+    tags: ["tag1", "tag2"],
+  },
+  {
     id: `folder-customer-prompt-1`,
     createdBy: "user-1",
     prompt: "Folder prompt 1 content",
