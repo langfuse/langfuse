@@ -109,7 +109,7 @@ export class InMemoryFilterService {
     filterValue: string,
     operator: string,
   ): boolean {
-    const strValue = fieldValue != null ? String(fieldValue) : "";
+    const strValue = fieldValue ? String(fieldValue) : "";
 
     switch (operator) {
       case "=":
@@ -168,7 +168,7 @@ export class InMemoryFilterService {
     filterValues: string[],
     operator: string,
   ): boolean {
-    const strValue = fieldValue != null ? String(fieldValue) : "";
+    const strValue = fieldValue ? String(fieldValue) : "";
 
     switch (operator) {
       case "any of":
@@ -203,7 +203,9 @@ export class InMemoryFilterService {
       case "none of":
         return !arrayValue.some((val) => filterValues.includes(String(val)));
       case "all of":
-        return filterValues.every((val) => arrayValue.map(String).includes(val));
+        return filterValues.every((val) =>
+          arrayValue.map(String).includes(val),
+        );
       default:
         logger.error("Unsupported arrayOptions filter operator", {
           operator,
@@ -263,7 +265,9 @@ export class InMemoryFilterService {
     // Type assertion is safe here since we've checked typeof fieldValue === "object" above
     const objectValue = (fieldValue as Record<string, unknown>)[key];
     const numValue =
-      typeof objectValue === "number" ? objectValue : parseFloat(String(objectValue));
+      typeof objectValue === "number"
+        ? objectValue
+        : parseFloat(String(objectValue));
 
     if (isNaN(numValue)) {
       return false;
@@ -297,9 +301,9 @@ export class InMemoryFilterService {
   ): boolean {
     switch (operator) {
       case "is null":
-        return fieldValue == null;
+        return fieldValue === null || fieldValue === undefined;
       case "is not null":
-        return fieldValue != null;
+        return fieldValue !== null && fieldValue !== undefined;
       default:
         logger.error("Unsupported null filter operator", {
           operator,
