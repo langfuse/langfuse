@@ -120,6 +120,7 @@ export enum ChatMessageType {
   AssistantToolCall = "assistant-tool-call",
   ToolResult = "tool-result",
   PublicAPICreated = "public-api-created",
+  Placeholder = "placeholder",
 }
 
 export const SystemMessageSchema = z.object({
@@ -168,6 +169,13 @@ export const ToolResultMessageSchema = z.object({
 });
 export type ToolResultMessage = z.infer<typeof ToolResultMessageSchema>;
 
+export const PlaceholderMessageSchema = z.object({
+  type: z.literal(ChatMessageType.Placeholder),
+  name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"),
+  content: z.string().max(0).optional(),  // placeholder messages have no content, TODO: remove, this is a hack to make the schema work a lot easier
+});
+export type PlaceholderMessage = z.infer<typeof PlaceholderMessageSchema>;
+
 export const ChatMessageDefaultRoleSchema = z.enum(ChatMessageRole);
 export const ChatMessageSchema = z.union([
   SystemMessageSchema,
@@ -190,12 +198,15 @@ export const ChatMessageSchema = z.union([
 ]);
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-export type ChatMessageWithId = ChatMessage & { id: string };
+export type ChatMessageWithId = (ChatMessage & { id: string }) | (PlaceholderMessage & { id: string });
 
-export const PromptChatMessageSchema = z.object({
-  role: z.string(),
-  content: z.string(),
-});
+export const PromptChatMessageSchema = z.union([
+  z.object({
+    role: z.string(),
+    content: z.string(),
+  }),
+  PlaceholderMessageSchema,
+]);
 export const PromptChatMessageListSchema = z.array(PromptChatMessageSchema);
 
 export type PromptVariable = { name: string; value: string; isUsed: boolean };

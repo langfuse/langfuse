@@ -133,10 +133,20 @@ types:
         docs: The dependency resolution graph for the current prompt. Null if prompt has no dependencies.
 
   ChatMessage:
+    union:
+      promptchatmessage: PromptChatMessage
+      placeholder: PlaceholderMessage
+
+  PromptChatMessage:
     properties:
       role:
         type: string
       content:
+        type: string
+
+  PlaceholderMessage:
+    properties:
+      name:
         type: string
 
   TextPrompt:
