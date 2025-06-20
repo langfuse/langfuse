@@ -120,10 +120,11 @@ export default function AutomationsPage() {
     });
   };
 
+
   const renderMainContent = () => {
     if (view === "create") {
       return (
-        <div className="flex-1 overflow-auto p-6">
+        <div className="p-6">
           <AutomationForm
             projectId={projectId}
             onSuccess={handleCreateSuccess}
@@ -136,7 +137,7 @@ export default function AutomationsPage() {
 
     if (view === "edit" && editingAutomation) {
       return (
-        <div className="flex-1 overflow-auto p-6">
+        <div className="p-6">
           <AutomationForm
             projectId={projectId}
             onSuccess={handleEditSuccess}
@@ -150,7 +151,7 @@ export default function AutomationsPage() {
 
     if (selectedAutomation) {
       return (
-        <div className="flex-1 overflow-auto p-6">
+        <div className="p-6">
           <AutomationDetails
             key={`${selectedAutomation.triggerId}-${selectedAutomation.actionId}`}
             projectId={projectId}
@@ -164,7 +165,7 @@ export default function AutomationsPage() {
     }
 
     return (
-      <div className="flex-1 overflow-auto p-6">
+      <div className="p-6">
         <div className="flex h-full items-center justify-center text-muted-foreground">
           <div className="text-center">
             <h3 className="text-lg font-medium">Select an automation</h3>
@@ -202,7 +203,9 @@ export default function AutomationsPage() {
           selectedAutomation={selectedAutomation}
           onAutomationSelect={handleAutomationSelect}
         />
-        {renderMainContent()}
+        <div className="flex-1 overflow-auto">
+          {renderMainContent()}
+        </div>
       </div>
     </Page>
   );

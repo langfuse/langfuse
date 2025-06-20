@@ -1,11 +1,14 @@
 import { Job, Processor } from "bullmq";
 import { backOff } from "exponential-backoff";
-import { ActionExecutionStatus } from "../../../prisma/generated/types";
+import {
+  ActionExecutionStatus,
+  JobConfigState,
+} from "../../../prisma/generated/types";
 import { PromptWebhookOutboundSchema } from "../../domain";
 import { prisma } from "../../db";
 import { recordIncrement } from "../instrumentation";
 import { TQueueJobTypes, QueueName, WebhookInput } from "../queues";
-import { getActionById } from "../repositories";
+import { getActionById, getConsecutiveFailures } from "../repositories";
 import { PromptService } from "../services/PromptService";
 import { redis } from "../redis/redis";
 import { logger } from "..";
@@ -26,6 +29,8 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
   const executionStart = new Date();
 
   const { projectId, actionId, triggerId, executionId } = input;
+  let httpStatus: number | undefined;
+  let responseBody: string | undefined;
 
   try {
     logger.debug(
@@ -72,6 +77,10 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
           }),
           headers: webhookConfig.headers,
         });
+
+        httpStatus = res.status;
+        responseBody = await res.text();
+
         if (res.status !== 200) {
           logger.error(
             `Webhook for project ${projectId} failed with status ${res.status}`,
@@ -84,7 +93,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
       },
     );
 
-    // Update action execution status
+    // Update action execution status on success
     await prisma.actionExecution.update({
       where: {
         projectId,
@@ -96,25 +105,65 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
         status: ActionExecutionStatus.COMPLETED,
         startedAt: executionStart,
         finishedAt: new Date(),
+        output: {
+          httpStatus,
+          responseBody: responseBody?.substring(0, 1000), // Limit response body size
+        },
       },
     });
 
     logger.debug(`Webhook executed successfully for action ${actionId}`);
   } catch (error) {
     logger.error("Error executing webhook", error);
-    await prisma.actionExecution.update({
-      where: {
-        projectId,
+
+    // Update action execution status and check if we should disable trigger
+    await prisma.$transaction(async (tx) => {
+      // Update execution status
+      await tx.actionExecution.update({
+        where: {
+          projectId,
+          triggerId,
+          actionId,
+          id: executionId,
+        },
+        data: {
+          status: ActionExecutionStatus.ERROR,
+          startedAt: executionStart,
+          finishedAt: new Date(),
+          error: error instanceof Error ? error.message : "Unknown error",
+          output: httpStatus
+            ? {
+                httpStatus,
+                responseBody: responseBody?.substring(0, 1000),
+              }
+            : undefined,
+        },
+      });
+
+      // Check consecutive failures from execution history
+      const consecutiveFailures = await getConsecutiveFailures({
         triggerId,
         actionId,
-        id: executionId,
-      },
-      data: {
-        status: ActionExecutionStatus.ERROR,
-        startedAt: executionStart,
-        finishedAt: new Date(),
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
+        projectId,
+      });
+
+      logger.info(
+        `Consecutive failures: ${consecutiveFailures} for trigger ${triggerId} in project ${projectId}`,
+      );
+
+      // Check if trigger should be disabled (>= 5 consecutive failures)
+      if (consecutiveFailures >= 5) {
+        await tx.trigger.update({
+          where: { id: triggerId, projectId },
+          data: { status: JobConfigState.INACTIVE },
+        });
+
+        logger.warn(
+          `Automation ${triggerId} disabled after ${consecutiveFailures} consecutive failures in project ${projectId}`,
+        );
+      }
     });
+
+    logger.debug(`Webhook failed for action ${actionId}`);
   }
 };

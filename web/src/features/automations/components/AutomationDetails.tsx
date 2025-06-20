@@ -4,6 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { Edit } from "lucide-react";
 import { AutomationForm } from "./automationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
+import { AutomationFailureBanner } from "./AutomationFailureBanner";
 import { JobConfigState, type TriggerEventSource } from "@langfuse/shared";
 import {
   TabsBar,
@@ -144,6 +145,12 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                 />
               </div>
             }
+          />
+
+          <AutomationFailureBanner
+            projectId={projectId}
+            triggerId={triggerId}
+            actionId={actionId}
           />
 
           <TabsBar

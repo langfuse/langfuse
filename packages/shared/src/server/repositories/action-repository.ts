@@ -1,4 +1,10 @@
-import { Action, JobConfigState, prisma, Trigger } from "../../db";
+import {
+  Action,
+  ActionExecutionStatus,
+  JobConfigState,
+  prisma,
+  Trigger,
+} from "../../db";
 import {
   TriggerEventSource,
   WebhookActionConfig,
@@ -125,4 +131,45 @@ export const getActiveAutomations = async ({
     trigger: convertTriggerToDomain(automation.trigger),
     action: convertActionToDomain(automation.action),
   }));
+};
+
+// Helper function to check consecutive failures from execution history
+export const getConsecutiveFailures = async ({
+  triggerId,
+  actionId,
+  projectId,
+}: {
+  triggerId: string;
+  actionId: string;
+  projectId: string;
+}): Promise<number> => {
+  const executions = await prisma.actionExecution.findMany({
+    where: {
+      triggerId,
+      actionId,
+      projectId,
+      status: {
+        in: [ActionExecutionStatus.ERROR, ActionExecutionStatus.COMPLETED],
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 20,
+    select: {
+      status: true,
+    },
+  });
+
+  let consecutiveFailures = 0;
+  for (const execution of executions) {
+    if (execution.status === ActionExecutionStatus.ERROR) {
+      consecutiveFailures++;
+    } else if (execution.status === ActionExecutionStatus.COMPLETED) {
+      break; // Stop counting when we hit a successful execution
+    }
+    // Skip PENDING/CANCELLED executions in the count
+  }
+
+  return consecutiveFailures;
 };

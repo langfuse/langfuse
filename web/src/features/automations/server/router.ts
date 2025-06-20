@@ -3,12 +3,16 @@ import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
 import {
   ActionConfigSchema,
+  ActionExecutionStatus,
   ActionType,
   JobConfigState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
-import { getActiveAutomations } from "@langfuse/shared/src/server";
+import {
+  getActiveAutomations,
+  getConsecutiveFailures,
+} from "@langfuse/shared/src/server";
 
 export const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
@@ -28,6 +32,33 @@ export const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
 });
 
 export const automationsRouter = createTRPCRouter({
+  // Get automations that were recently auto-disabled due to failures
+  getRecentlyDisabledAutomations: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        triggerId: z.string(),
+        actionId: z.string(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      // Check if user has at least read access to automations
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
+      // Get inactive automations that have recent failures (within last 24 hours)
+      const recentlyDisabled = await getConsecutiveFailures({
+        triggerId: input.triggerId,
+        actionId: input.actionId,
+        projectId: input.projectId,
+      });
+
+      return { count: recentlyDisabled };
+    }),
+
   getAutomations: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -135,8 +166,13 @@ export const automationsRouter = createTRPCRouter({
 
       // Add default headers for webhook actions
       let finalActionConfig = input.actionConfig;
-      if (input.actionType === "WEBHOOK" && finalActionConfig.type === "WEBHOOK") {
-        const { WebhookDefaultHeadersSchema } = await import("@langfuse/shared");
+      if (
+        input.actionType === "WEBHOOK" &&
+        finalActionConfig.type === "WEBHOOK"
+      ) {
+        const { WebhookDefaultHeadersSchema } = await import(
+          "@langfuse/shared"
+        );
         const defaultHeaders = WebhookDefaultHeadersSchema.parse({
           "content-type": "application/json",
         });
@@ -201,8 +237,13 @@ export const automationsRouter = createTRPCRouter({
 
       // Add default headers for webhook actions
       let finalActionConfig = input.actionConfig;
-      if (input.actionType === "WEBHOOK" && finalActionConfig.type === "WEBHOOK") {
-        const { WebhookDefaultHeadersSchema } = await import("@langfuse/shared");
+      if (
+        input.actionType === "WEBHOOK" &&
+        finalActionConfig.type === "WEBHOOK"
+      ) {
+        const { WebhookDefaultHeadersSchema } = await import(
+          "@langfuse/shared"
+        );
         const defaultHeaders = WebhookDefaultHeadersSchema.parse({
           "content-type": "application/json",
         });
