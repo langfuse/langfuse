@@ -25,6 +25,7 @@ import {
   getTraceById,
   getObservationForTraceIdByName,
   InMemoryFilterService,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -163,7 +164,8 @@ export const createEvalJobs = async ({
     .selectFrom("job_configurations")
     .selectAll()
     .where(sql.raw("job_type::text"), "=", "EVAL")
-    .where("project_id", "=", event.projectId);
+    .where("project_id", "=", event.projectId)
+    .where("status", "=", "ACTIVE");
 
   if ("configId" in event) {
     // if configid is set in the event, we only want to fetch the one config
@@ -183,7 +185,10 @@ export const createEvalJobs = async ({
   const configs = await configsQuery.execute();
 
   if (configs.length === 0) {
-    logger.debug("No evaluation jobs found for project", event.projectId);
+    logger.debug(
+      "No active evaluation jobs found for project",
+      event.projectId,
+    );
     return;
   }
 
@@ -193,7 +198,8 @@ export const createEvalJobs = async ({
 
   // Optimization: Fetch trace data once if we have multiple configs
   let cachedTrace: TraceDomain | undefined | null = null;
-  if (configs.length > 0) {
+  recordIncrement("langfuse.evaluation-execution.config_count", configs.length);
+  if (configs.length > 1) {
     try {
       // Fetch trace data and store it. If observation data is required, we'll make a separate lookup.
       // Those fields are used rarely, though.
@@ -206,6 +212,9 @@ export const createEvalJobs = async ({
             : new Date(jobTimestamp),
       });
 
+      recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
+        found: Boolean(cachedTrace) ? "true" : "false",
+      });
       logger.debug("Fetched trace for evaluation optimization", {
         traceId: event.traceId,
         projectId: event.projectId,
@@ -250,6 +259,9 @@ export const createEvalJobs = async ({
         mapTraceFilterColumn,
       );
 
+      recordIncrement("langfuse.evaluation-execution.trace_cache_check", 1, {
+        matches: traceExists ? "true" : "false",
+      });
       logger.debug("Evaluated trace filter in memory", {
         traceId: event.traceId,
         configId: config.id,
@@ -272,6 +284,12 @@ export const createEvalJobs = async ({
           "exactTimestamp" in event && event.exactTimestamp
             ? new Date(event.exactTimestamp)
             : undefined,
+      });
+      recordIncrement("langfuse.evaluation-execution.trace_db_lookup", 1, {
+        hasCached: Boolean(cachedTrace) ? "true" : "false",
+        requiredDatabaseLookup: requiresDatabaseLookup(validatedFilter)
+          ? "true"
+          : "false",
       });
     }
 
