@@ -41,6 +41,7 @@ export function MultiSelect({
   className,
   disabled,
   isCustomSelectEnabled = false,
+  labelTruncateCutOff = 2,
 }: {
   title?: string;
   label?: string;
@@ -50,6 +51,7 @@ export function MultiSelect({
   className?: string;
   disabled?: boolean;
   isCustomSelectEnabled?: boolean;
+  labelTruncateCutOff?: number;
 }) {
   const selectedValues = new Set(values);
   const optionValues = new Set(options.map((option) => option.value));
@@ -115,7 +117,7 @@ export function MultiSelect({
                 {selectedValues.size}
               </Badge>
               <div className="hidden space-x-1 lg:flex">
-                {selectedValues.size > 2 ? (
+                {selectedValues.size > labelTruncateCutOff ? (
                   <Badge
                     variant="secondary"
                     className="rounded-sm px-1 font-normal"

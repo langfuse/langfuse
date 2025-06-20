@@ -30,6 +30,7 @@ import {
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
   IngestionQueue,
+  webhookProcessor,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -54,7 +55,6 @@ import {
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
-import { webhookProcessor } from "@langfuse/shared";
 
 const app = express();
 

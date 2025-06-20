@@ -92,6 +92,8 @@ export const AutomationForm = ({
 
   const utils = api.useUtils();
 
+  console.log(JSON.stringify(automation, null, 2));
+
   // Set up mutations
   const createAutomationMutation = api.automations.createAutomation.useMutation(
     {
@@ -122,16 +124,17 @@ export const AutomationForm = ({
   const getDefaultValues = (): FormValues => {
     const actionType = getActionType();
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+
     const baseValues = {
-      name: isEditing ? automation?.name || "" : `Automation ${today}`,
-      eventSource: isEditing
-        ? automation?.trigger?.eventSource
+      name: isEditing && automation ? automation.name : `Automation ${today}`,
+      eventSource: automation
+        ? automation.trigger.eventSource
         : TriggerEventSource.Prompt,
-      eventAction: isEditing ? automation?.trigger?.eventActions || [] : [],
-      status: (isEditing ? automation?.trigger?.status : "ACTIVE") as
-        | "ACTIVE"
-        | "INACTIVE",
-      filter: isEditing ? automation?.trigger?.filter || [] : [],
+      eventAction: automation ? automation.trigger.eventActions : [],
+      status: (isEditing && automation
+        ? automation.trigger.status
+        : "ACTIVE") as "ACTIVE" | "INACTIVE",
+      filter: automation ? automation.trigger.filter || [] : [],
     };
 
     if (actionType === "WEBHOOK") {
@@ -195,6 +198,9 @@ export const AutomationForm = ({
 
       const actionConfig = handler.buildActionConfig(data);
 
+      let triggerId: string;
+      let actionId: string;
+
       if (isEditing && automation) {
         // Update existing automation
         await updateAutomationMutation.mutateAsync({
@@ -209,9 +215,11 @@ export const AutomationForm = ({
           actionType: data.actionType,
           actionConfig: actionConfig,
         });
+        triggerId = automation.trigger.id;
+        actionId = automation.action.id;
       } else {
         // Create new automation
-        await createAutomationMutation.mutateAsync({
+        const result = await createAutomationMutation.mutateAsync({
           projectId,
           name: data.name,
           eventSource: data.eventSource,
@@ -221,13 +229,17 @@ export const AutomationForm = ({
           actionType: data.actionType,
           actionConfig: actionConfig,
         });
+        triggerId = result.trigger.id;
+        actionId = result.action.id;
       }
 
-      // Call onSuccess or redirect to the automations list page
+      // Call onSuccess or redirect to the automation detail page
       if (onSuccess) {
         onSuccess();
       } else {
-        router.push(`/project/${projectId}/automations/list`);
+        router.push(
+          `/project/${projectId}/automations?triggerId=${triggerId}&actionId=${actionId}`,
+        );
       }
     } catch (error) {
       console.error("Failed to save automation:", error);
@@ -238,10 +250,9 @@ export const AutomationForm = ({
     }
   };
 
-  // Update button text based on if we're editing
-  const submitButtonText = isEditing
-    ? "Update Automation"
-    : "Create Automation";
+  // Update button text based on if we're editing an existing automation
+  const submitButtonText =
+    isEditing && automation ? "Update Automation" : "Save Automation";
 
   // Update required fields based on action type
   const handleActionTypeChange = (value: ActionTypes) => {
@@ -274,23 +285,45 @@ export const AutomationForm = ({
 
   const currentActionHandler = getCurrentActionHandler();
 
+  console.log(form.watch());
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="mb-6 flex items-center gap-4">
-          <div className="flex-1">
+        {isEditing && (
+          <div className="mb-6 flex items-center gap-4">
+            <div className="flex-1">
+              <FormField
+                control={form.control}
+                name="name"
+                rules={{ required: "Name is required" }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder="Automation name"
+                        {...field}
+                        disabled={!hasAccess || !isEditing}
+                        className="rounded-none border-0 border-b border-border bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
-              name="name"
-              rules={{ required: "Name is required" }}
+              name="status"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="flex flex-row items-center gap-2">
+                  <FormLabel className="text-sm font-medium">Active</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="Automation name"
-                      {...field}
-                      disabled={!hasAccess}
-                      className="rounded-none border-0 border-b border-border bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
+                    <Switch
+                      checked={field.value === "ACTIVE"}
+                      onCheckedChange={(checked) =>
+                        field.onChange(checked ? "ACTIVE" : "INACTIVE")
+                      }
+                      disabled={!hasAccess || !isEditing}
                     />
                   </FormControl>
                   <FormMessage />
@@ -298,26 +331,7 @@ export const AutomationForm = ({
               )}
             />
           </div>
-          <FormField
-            control={form.control}
-            name="status"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center gap-2">
-                <FormLabel className="text-sm font-medium">Active</FormLabel>
-                <FormControl>
-                  <Switch
-                    checked={field.value === "ACTIVE"}
-                    onCheckedChange={(checked) =>
-                      field.onChange(checked ? "ACTIVE" : "INACTIVE")
-                    }
-                    disabled={!hasAccess}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        )}
 
         <Card>
           <CardHeader>
@@ -336,7 +350,7 @@ export const AutomationForm = ({
                   <Select
                     onValueChange={field.onChange}
                     value={field.value}
-                    disabled={!hasAccess}
+                    disabled={!hasAccess || !isEditing}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -367,7 +381,7 @@ export const AutomationForm = ({
                     <MultiSelect
                       title="Event Actions"
                       label="Actions"
-                      values={field.value || []}
+                      values={field.value}
                       onValueChange={field.onChange}
                       options={[
                         { value: "created" },
@@ -375,7 +389,8 @@ export const AutomationForm = ({
                         { value: "deleted" },
                       ]}
                       className="my-0 w-auto overflow-hidden"
-                      disabled={!hasAccess}
+                      disabled={!hasAccess || !isEditing}
+                      labelTruncateCutOff={4}
                     />
                   </FormControl>
                   <FormDescription>
@@ -397,7 +412,11 @@ export const AutomationForm = ({
                       columns={promptsTableCols}
                       filterState={field.value || []}
                       onChange={field.onChange}
-                      disabled={activeTab === "annotation_queue" || !hasAccess}
+                      disabled={
+                        activeTab === "annotation_queue" ||
+                        !hasAccess ||
+                        !isEditing
+                      }
                     />
                   </FormControl>
                   <FormDescription>
@@ -427,7 +446,7 @@ export const AutomationForm = ({
                   <Select
                     onValueChange={handleActionTypeChange}
                     value={field.value}
-                    disabled={!hasAccess}
+                    disabled={!hasAccess || !isEditing}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -462,43 +481,45 @@ export const AutomationForm = ({
             {currentActionHandler &&
               currentActionHandler.renderForm({
                 form,
-                disabled: !hasAccess,
+                disabled: !hasAccess || !isEditing,
                 projectId,
               })}
           </CardContent>
         </Card>
 
-        <div className="flex justify-between gap-3">
-          {isEditing && automation?.trigger.id && automation?.action.id && (
-            <div>
-              <DeleteAutomationButton
-                projectId={projectId}
-                triggerId={automation.trigger.id}
-                actionId={automation.action.id}
-                variant="button"
-                onSuccess={() => {
-                  if (onSuccess) {
-                    onSuccess();
-                  } else {
-                    router.push(`/project/${projectId}/automations/list`);
-                  }
-                }}
-              />
+        {isEditing && (
+          <div className="flex justify-between gap-3">
+            {isEditing && automation?.trigger.id && automation?.action.id && (
+              <div>
+                <DeleteAutomationButton
+                  projectId={projectId}
+                  triggerId={automation.trigger.id}
+                  actionId={automation.action.id}
+                  variant="button"
+                  onSuccess={() => {
+                    if (onSuccess) {
+                      onSuccess();
+                    } else {
+                      router.push(`/project/${projectId}/automations/list`);
+                    }
+                  }}
+                />
+              </div>
+            )}
+            <div className="flex-grow"></div>
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" onClick={handleCancel}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!hasAccess || form.formState.isSubmitting}
+              >
+                {submitButtonText}
+              </Button>
             </div>
-          )}
-          <div className="flex-grow"></div>
-          <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={handleCancel}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={!hasAccess || form.formState.isSubmitting}
-            >
-              {submitButtonText}
-            </Button>
           </div>
-        </div>
+        )}
       </form>
     </Form>
   );

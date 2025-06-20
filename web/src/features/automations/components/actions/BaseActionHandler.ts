@@ -1,7 +1,7 @@
 import { type UseFormReturn, type FieldValues } from "react-hook-form";
 import { type ActionType, type ActionConfigSchema } from "@langfuse/shared";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 
 type ActionConfig = z.infer<typeof ActionConfigSchema>;
 

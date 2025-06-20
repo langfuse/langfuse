@@ -76,8 +76,8 @@ export const getTriggerConfigurations = async ({
 const convertTriggerToDomain = (trigger: Trigger): MinimalTriggerDomain => {
   return {
     ...trigger,
-    eventActions: trigger.eventActions as TriggerEventAction[],
-    filter: trigger.filter as FilterState,
+    eventActions: (trigger.eventActions || []) as TriggerEventAction[],
+    filter: (trigger.filter || []) as FilterState,
     eventSource: trigger.eventSource as TriggerEventSource,
   };
 };

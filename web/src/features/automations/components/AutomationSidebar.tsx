@@ -1,6 +1,5 @@
 import React from "react";
 import { api } from "@/src/utils/api";
-import { Badge } from "@/src/components/ui/badge";
 import { JobConfigState } from "@langfuse/shared";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import { cn } from "@/src/utils/tailwind";
@@ -46,7 +45,6 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
   return (
     <div className="w-80 border-r bg-muted/10">
       <div className="p-4">
-        <h3 className="mb-4 text-lg font-semibold">Automations</h3>
         <div className="space-y-2">
           {automations.map((automation) => {
             const isSelected =
@@ -67,36 +65,29 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                   className="cursor-pointer"
                   onClick={() => onAutomationSelect(automation)}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      {/* Status - most prominent */}
-                      <div className="mb-2 flex items-center gap-2">
-                        {automation.trigger.status === JobConfigState.ACTIVE ? (
-                          <StatusBadge type={"active"} />
-                        ) : (
-                          <StatusBadge type={"inactive"} />
-                        )}
-                      </div>
-
-                      {/* Title/Description */}
-                      <h4 className="mb-2 truncate text-sm font-medium leading-tight">
+                  <div className="space-y-2">
+                    {/* Top row: Name and Active badge */}
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="truncate text-sm font-medium leading-tight">
                         {automation.name}
                       </h4>
-
-                      {/* Event source */}
-                      <p className="mb-1 text-xs text-muted-foreground">
-                        <span className="font-mono">
-                          {automation.trigger.eventSource}
-                        </span>
-                      </p>
-
-                      {/* Action type and sampling */}
-                      <p className="text-xs text-muted-foreground">
-                        {automation.action.type === "WEBHOOK"
-                          ? "Webhook"
-                          : "Annotation Queue"}{" "}
-                      </p>
+                      {automation.trigger.status === JobConfigState.ACTIVE ? (
+                        <StatusBadge type={"active"} />
+                      ) : (
+                        <StatusBadge type={"inactive"} />
+                      )}
                     </div>
+
+                    {/* Bottom row: eventSource -> automation type */}
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-mono">
+                        {automation.trigger.eventSource}
+                      </span>
+                      {" → "}
+                      {automation.action.type === "WEBHOOK"
+                        ? "Webhook"
+                        : "Annotation Queue"}
+                    </p>
                   </div>
                 </div>
               </div>

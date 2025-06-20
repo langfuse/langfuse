@@ -4,40 +4,47 @@ import { AutomationDetails } from "@/src/features/automations/components/Automat
 import { AutomationForm } from "@/src/features/automations/components/automationForm";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
+import {
+  useQueryParams,
+  StringParam,
+  withDefault,
+} from "use-query-params";
 
 export default function AutomationsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const [view, setView] = useState<"list" | "create" | "edit">("list");
-  const [selectedAutomation, setSelectedAutomation] = useState<
-    { triggerId: string; actionId: string } | undefined
-  >(undefined);
-  const [editingAutomation, setEditingAutomation] = useState<
-    ActiveAutomation | undefined
-  >(undefined);
+  
+  const [urlParams, setUrlParams] = useQueryParams({
+    view: withDefault(StringParam, "list"),
+    triggerId: StringParam,
+    actionId: StringParam,
+    tab: withDefault(StringParam, "executions"),
+  });
+  
+  const { view, triggerId, actionId } = urlParams;
+  
+  const selectedAutomation = triggerId && actionId ? { triggerId, actionId } : undefined;
 
   // Fetch automations to check if any exist
   const { data: automations } = api.automations.getAutomations.useQuery({
     projectId,
   });
 
-  // Check if there are URL parameters for a specific automation
-  useEffect(() => {
-    const { triggerId, actionId } = router.query;
-    if (
-      triggerId &&
-      actionId &&
-      typeof triggerId === "string" &&
-      typeof actionId === "string"
-    ) {
-      setSelectedAutomation({ triggerId, actionId });
-      setView("list");
+  // Fetch editing automation when in edit mode
+  const { data: editingAutomation } = api.automations.getAutomation.useQuery(
+    {
+      projectId,
+      triggerId: triggerId!,
+      actionId: actionId!,
+    },
+    {
+      enabled: view === "edit" && !!triggerId && !!actionId,
     }
-  }, [router.query]);
+  );
 
   // Clear selected automation if no automations exist
   useEffect(() => {
@@ -46,46 +53,64 @@ export default function AutomationsPage() {
       automations.length === 0 &&
       selectedAutomation
     ) {
-      setSelectedAutomation(undefined);
-      // Also clear URL parameters
-      const newUrl = `/project/${projectId}/automations`;
-      window.history.replaceState(null, "", newUrl);
+      setUrlParams({
+        view: "list",
+        triggerId: undefined,
+        actionId: undefined,
+        tab: urlParams.tab,
+      });
     }
-  }, [automations, selectedAutomation, projectId]);
+  }, [automations, selectedAutomation, projectId, setUrlParams, urlParams.tab]);
 
   const handleCreateAutomation = () => {
-    setView("create");
-    setSelectedAutomation(undefined);
-    setEditingAutomation(undefined);
+    setUrlParams({
+      view: "create",
+      triggerId: undefined,
+      actionId: undefined,
+      tab: urlParams.tab,
+    });
   };
 
   const handleEditAutomation = (automation: ActiveAutomation) => {
-    setEditingAutomation(automation);
-    setView("edit");
+    setUrlParams({
+      view: "edit",
+      triggerId: automation.trigger.id,
+      actionId: automation.action.id,
+      tab: urlParams.tab,
+    });
   };
 
   const handleReturnToList = () => {
-    setView("list");
-    setEditingAutomation(undefined);
-    // Refresh the selected automation if we were editing it
-    if (editingAutomation && selectedAutomation) {
-      setSelectedAutomation({
-        triggerId: editingAutomation.trigger.id,
-        actionId: editingAutomation.action.id,
-      });
-    }
+    setUrlParams({
+      ...urlParams,
+      view: "list",
+    });
+  };
+
+  const handleCreateSuccess = () => {
+    // The form will handle navigation to the detail page via router.push
+    // We just need to ensure the view state is correct for when the user navigates back
+    setUrlParams({
+      ...urlParams,
+      view: "list",
+    });
+  };
+
+  const handleEditSuccess = () => {
+    // Return to detail view of the edited automation
+    setUrlParams({
+      ...urlParams,
+      view: "list",
+    });
   };
 
   const handleAutomationSelect = (automation: ActiveAutomation) => {
-    setSelectedAutomation({
+    setUrlParams({
+      view: "list",
       triggerId: automation.trigger.id,
       actionId: automation.action.id,
+      tab: urlParams.tab, // Preserve the current tab selection
     });
-    setView("list");
-
-    // Update URL without navigation
-    const newUrl = `/project/${projectId}/automations?triggerId=${automation.trigger.id}&actionId=${automation.action.id}`;
-    window.history.replaceState(null, "", newUrl);
   };
 
   const renderMainContent = () => {
@@ -94,9 +119,9 @@ export default function AutomationsPage() {
         <div className="flex-1 overflow-auto p-6">
           <AutomationForm
             projectId={projectId}
-            onSuccess={handleReturnToList}
+            onSuccess={handleCreateSuccess}
             onCancel={handleReturnToList}
-            isEditing={false}
+            isEditing={true}
           />
         </div>
       );
@@ -107,7 +132,7 @@ export default function AutomationsPage() {
         <div className="flex-1 overflow-auto p-6">
           <AutomationForm
             projectId={projectId}
-            onSuccess={handleReturnToList}
+            onSuccess={handleEditSuccess}
             onCancel={handleReturnToList}
             automation={editingAutomation}
             isEditing={true}
@@ -124,7 +149,8 @@ export default function AutomationsPage() {
             projectId={projectId}
             triggerId={selectedAutomation.triggerId}
             actionId={selectedAutomation.actionId}
-            onEditSuccess={handleReturnToList}
+            onEditSuccess={handleEditSuccess}
+            onEdit={handleEditAutomation}
           />
         </div>
       );
@@ -168,7 +194,6 @@ export default function AutomationsPage() {
           projectId={projectId}
           selectedAutomation={selectedAutomation}
           onAutomationSelect={handleAutomationSelect}
-          onEditAutomation={handleEditAutomation}
         />
         {renderMainContent()}
       </div>

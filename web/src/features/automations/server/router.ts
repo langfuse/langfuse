@@ -209,6 +209,19 @@ export const automationsRouter = createTRPCRouter({
         },
       });
 
+      // Update the automation name in TriggersOnActions
+      await ctx.prisma.triggersOnActions.update({
+        where: {
+          triggerId_actionId: {
+            triggerId: input.triggerId,
+            actionId: input.actionId,
+          },
+        },
+        data: {
+          name: input.name,
+        },
+      });
+
       return { action, trigger };
     }),
 
