@@ -1,0 +1,266 @@
+# 🚀 Advanced AI Development Guide
+
+## 📋 Table of Contents
+- [Getting Started](#getting-started)
+- [Architecture Overview](#architecture)
+- [Implementation Details](#implementation)
+- [Best Practices](#best-practices)
+
+---
+
+## 🎯 Getting Started
+
+### Prerequisites
+\`\`\`bash
+npm install @langfuse/core
+pip install langfuse
+\`\`\`
+
+### Quick Setup
+1. **Initialize your project**
+   \`\`\`typescript
+   import { Langfuse } from 'langfuse'
+   
+   const langfuse = new Langfuse({
+     secretKey: process.env.LANGFUSE_SECRET_KEY,
+     publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+     baseUrl: 'https://cloud.langfuse.com'
+   })
+   \`\`\`
+
+2. **Create your first trace**
+   \`\`\`python
+   from langfuse import Langfuse
+   
+   langfuse = Langfuse()
+   trace = langfuse.trace(name="chat-application")
+   \`\`\`
+
+---
+
+## 🏗️ Architecture Overview
+
+### System Components
+
+| Component | Description | Status |
+|-----------|-------------|--------|
+| **Core Engine** | Main processing unit | ✅ Active |
+| **API Gateway** | Request routing | ✅ Active |
+| **Data Store** | Persistence layer | ⚠️ Maintenance |
+| **Analytics** | Metrics & insights | 🚧 Development |
+
+### Data Flow
+
+```mermaid
+graph TD
+    A[User Request] --> B[API Gateway]
+    B --> C{Route Decision}
+    C -->|Trace| D[Trace Handler]
+    C -->|Generation| E[Generation Handler]
+    C -->|Score| F[Score Handler]
+    D --> G[Database]
+    E --> G
+    F --> G
+```
+
+---
+
+## ⚙️ Implementation Details
+
+### Trace Management
+
+> **Note:** Traces are the foundation of observability in LLM applications.
+
+#### Creating Traces
+\`\`\`typescript
+// Basic trace creation
+const trace = langfuse.trace({
+  name: "user-query-processing",
+  userId: "user-123",
+  sessionId: "session-456",
+  metadata: {
+    environment: "production",
+    version: "2.1.0"
+  }
+})
+
+// Nested observations
+const span = trace.span({
+  name: "document-retrieval",
+  input: { query: "What is machine learning?" },
+  metadata: { vectorStore: "pinecone" }
+})
+
+const generation = span.generation({
+  name: "answer-generation",
+  model: "gpt-4",
+  input: retrievedDocs,
+  output: generatedAnswer,
+  usage: {
+    promptTokens: 1250,
+    completionTokens: 420,
+    totalTokens: 1670
+  }
+})
+\`\`\`
+
+### Advanced Features
+
+#### 🔄 Async Processing
+\`\`\`python
+import asyncio
+from langfuse import Langfuse
+
+async def process_batch():
+    langfuse = Langfuse()
+    
+    tasks = []
+    for item in batch_items:
+        task = asyncio.create_task(
+            process_item_with_tracing(langfuse, item)
+        )
+        tasks.append(task)
+    
+    results = await asyncio.gather(*tasks)
+    return results
+\`\`\`
+
+#### 🎯 Custom Scoring
+\`\`\`typescript
+// Automated scoring
+trace.score({
+  name: "relevance",
+  value: 0.95,
+  comment: "Highly relevant response"
+})
+
+// Human feedback scoring
+trace.score({
+  name: "user-satisfaction", 
+  value: 1,
+  source: "user-feedback",
+  comment: "User rated 5/5 stars"
+})
+\`\`\`
+
+---
+
+## 🎨 Best Practices
+
+### 📊 Monitoring & Observability
+
+#### Key Metrics to Track
+- **Latency**: P50, P95, P99 response times
+- **Token Usage**: Cost optimization
+- **Error Rates**: System reliability
+- **User Satisfaction**: Quality metrics
+
+#### Dashboard Setup
+\`\`\`yaml
+# monitoring-config.yml
+dashboards:
+  - name: "LLM Performance"
+    panels:
+      - type: "time-series"
+        title: "Response Latency"
+        query: "avg(response_time) by (model)"
+      - type: "stat"
+        title: "Daily Token Usage" 
+        query: "sum(tokens_used)"
+      - type: "table"
+        title: "Top Errors"
+        query: "topk(10, count by (error_type))"
+\`\`\`
+
+### 🔐 Security Considerations
+
+> ⚠️ **Important**: Never log sensitive user data in traces
+
+#### Data Sanitization
+\`\`\`python
+def sanitize_input(data):
+    """Remove PII from trace data"""
+    sanitized = data.copy()
+    
+    # Remove email addresses
+    sanitized = re.sub(r'\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b', 
+                      '[EMAIL_REDACTED]', sanitized)
+    
+    # Remove phone numbers
+    sanitized = re.sub(r'\\b\\d{3}-\\d{3}-\\d{4}\\b', 
+                      '[PHONE_REDACTED]', sanitized)
+    
+    return sanitized
+\`\`\`
+
+### 🚀 Performance Optimization
+
+#### Batch Processing
+\`\`\`typescript
+// Efficient batch uploads
+const batchSize = 100
+const traces = []
+
+for (let i = 0; i < data.length; i += batchSize) {
+  const batch = data.slice(i, i + batchSize)
+  const processedBatch = await Promise.all(
+    batch.map(item => processWithLangfuse(item))
+  )
+  traces.push(...processedBatch)
+}
+
+// Flush all traces at once
+await langfuse.flushAsync()
+\`\`\`
+
+---
+
+## 📚 Advanced Examples
+
+### Multi-Agent System Tracing
+\`\`\`python
+class MultiAgentTracer:
+    def __init__(self):
+        self.langfuse = Langfuse()
+    
+    async def orchestrate_agents(self, task):
+        # Main orchestration trace
+        main_trace = self.langfuse.trace(
+            name="multi-agent-orchestration",
+            input={"task": task}
+        )
+        
+        # Agent 1: Research
+        research_span = main_trace.span(name="research-agent")
+        research_result = await self.research_agent.process(task)
+        research_span.end(output=research_result)
+        
+        # Agent 2: Analysis  
+        analysis_span = main_trace.span(name="analysis-agent")
+        analysis_result = await self.analysis_agent.process(research_result)
+        analysis_span.end(output=analysis_result)
+        
+        # Agent 3: Synthesis
+        synthesis_span = main_trace.span(name="synthesis-agent")
+        final_result = await self.synthesis_agent.process(analysis_result)
+        synthesis_span.end(output=final_result)
+        
+        main_trace.end(output=final_result)
+        return final_result
+\`\`\`
+
+---
+
+## 🎉 Conclusion
+
+With proper implementation of Langfuse tracing, you can:
+
+- ✅ **Monitor** your LLM applications in real-time
+- ✅ **Debug** issues with detailed trace information  
+- ✅ **Optimize** performance and costs
+- ✅ **Scale** your applications with confidence
+
+### Next Steps
+1. Review the [official documentation](https://langfuse.com/docs)
+2. Join our [Discord community](https://discord.gg/langfuse)
+3. Check out [example projects](https://github.com/langfuse/langfuse)

@@ -13,10 +13,17 @@ export default createNextApiHandler({
   router: appRouter,
   createContext: createTRPCContext,
   onError: ({ path, error }) => {
-    logger.error(
-      `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`,
-      error,
-    );
+    if (error.code === "NOT_FOUND" || error.code === "UNAUTHORIZED") {
+      logger.info(
+        `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`,
+        error,
+      );
+    } else {
+      logger.error(
+        `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`,
+        error,
+      );
+    }
     traceException(error);
     return error;
   },

@@ -6,6 +6,7 @@ import {
   BaseError,
   LangfuseNotFoundError,
   MethodNotAllowedError,
+  UnauthorizedError,
 } from "@langfuse/shared";
 import {
   logger,
@@ -53,7 +54,10 @@ export function withMiddlewares(handlers: Handlers) {
 
         return await finalHandlers[method](req, res);
       } catch (error) {
-        if (error instanceof LangfuseNotFoundError) {
+        if (
+          error instanceof LangfuseNotFoundError ||
+          error instanceof UnauthorizedError
+        ) {
           logger.info(error);
         } else {
           logger.error(error);
