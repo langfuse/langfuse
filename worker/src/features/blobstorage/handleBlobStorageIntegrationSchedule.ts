@@ -1,4 +1,3 @@
-import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   BlobStorageIntegrationProcessingQueue,
@@ -7,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
-export const handleBlobStorageIntegrationSchedule = async (job: Job) => {
+export const handleBlobStorageIntegrationSchedule = async () => {
   const now = new Date();
 
   const blobStorageIntegrationProjects =
