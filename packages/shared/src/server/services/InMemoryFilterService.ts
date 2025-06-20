@@ -118,7 +118,7 @@ export class InMemoryFilterService {
     filterValue: string,
     operator: string,
   ): boolean {
-    const strValue = fieldValue ? String(fieldValue) : "";
+    const strValue = fieldValue != null ? String(fieldValue) : "";
 
     switch (operator) {
       case "=":
