@@ -70,10 +70,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
               prompt,
             }),
           }),
-          headers: {
-            ...webhookConfig.headers,
-            "Content-Type": "application/json",
-          },
+          headers: webhookConfig.headers,
         });
         if (res.status !== 200) {
           logger.error(

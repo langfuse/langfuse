@@ -18,13 +18,25 @@ import {
 import { X, Plus } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod/v4";
-import { AvailableWebhookApiSchema } from "@langfuse/shared";
+import {
+  AvailableWebhookApiSchema,
+  WebhookDefaultHeadersSchema,
+} from "@langfuse/shared";
 
 export const webhookSchema = z.object({
   url: z.string().url("Invalid URL"),
   headers: z.array(
     z.object({
-      name: z.string(),
+      name: z.string().refine(
+        (name) => {
+          if (!name.trim()) return true; // Allow empty names (will be filtered out)
+          const defaultHeaderKeys = Object.keys(WebhookDefaultHeadersSchema.shape);
+          return !defaultHeaderKeys.includes(name.trim().toLowerCase());
+        },
+        {
+          message: "This header is automatically added by Langfuse and cannot be customized",
+        }
+      ),
       value: z.string(),
     }),
   ),
@@ -49,6 +61,15 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
   } = useFieldArray({
     control: form.control,
     name: "webhook.headers",
+  });
+
+  // Get default header keys to filter them out
+  const defaultHeaderKeys = Object.keys(WebhookDefaultHeadersSchema.shape);
+
+  // Filter out default headers from the user-editable headers
+  const customHeaderFields = headerFields.filter((field, index) => {
+    const headerName = form.watch(`webhook.headers.${index}.name`);
+    return !defaultHeaderKeys.includes(headerName?.toLowerCase());
   });
 
   // Function to add a new header pair
@@ -113,64 +134,89 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
       />
 
       <div>
-        <FormLabel>Headers (Optional)</FormLabel>
+        <FormLabel>Headers</FormLabel>
+
+        {/* Default Headers Section */}
+        <div className="mb-4">
+          <FormDescription className="mb-2">
+            Default headers (automatically added by Langfuse):
+          </FormDescription>
+          <div className="rounded-md border bg-muted/50 p-2">
+            <div className="space-y-1">
+              {Object.entries(WebhookDefaultHeadersSchema.shape).map(
+                ([key, value]) => (
+                  <div
+                    key={key}
+                    className="grid grid-cols-[1fr,1fr] gap-2 text-xs"
+                  >
+                    <div className="font-medium text-muted-foreground">
+                      {key}
+                    </div>
+                    <div className="text-muted-foreground">{value.value}</div>
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Custom Headers Section */}
         <FormDescription className="mb-2">
-          Optional headers to include in the webhook request. You can leave this
-          empty if no headers are needed.
+          Optional custom headers to include in the webhook request:
         </FormDescription>
 
-        {headerFields.length > 0 ? (
-          headerFields.map((field, index) => (
-            <div
-              key={field.id}
-              className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2"
-            >
-              <FormField
-                control={form.control}
-                name={`webhook.headers.${index}.name`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input
-                        placeholder="Header Name"
-                        {...field}
-                        disabled={disabled}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name={`webhook.headers.${index}.value`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input
-                        placeholder="Value"
-                        {...field}
-                        disabled={disabled}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => removeHeader(index)}
-                disabled={disabled}
+        {customHeaderFields.length > 0 ? (
+          customHeaderFields.map((field, index) => {
+            // Find the original index in the headerFields array
+            const originalIndex = headerFields.findIndex(f => f.id === field.id);
+            return (
+              <div
+                key={field.id}
+                className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2"
               >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ))
+                <FormField
+                  control={form.control}
+                  name={`webhook.headers.${originalIndex}.name`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          placeholder="Header Name"
+                          {...field}
+                          disabled={disabled}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`webhook.headers.${originalIndex}.value`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input placeholder="Value" {...field} disabled={disabled} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeHeader(originalIndex)}
+                  disabled={disabled}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })
         ) : (
           <div className="mb-2 text-sm text-muted-foreground">
-            No headers added yet.
+            No custom headers added yet.
           </div>
         )}
 
@@ -182,7 +228,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           className="mt-2"
         >
           <Plus className="mr-1 h-4 w-4" />
-          Add Header
+          Add Custom Header
         </Button>
       </div>
     </div>
@@ -194,10 +240,14 @@ export const formatWebhookHeaders = (
   headers: { name: string; value: string }[],
 ): Record<string, string> => {
   const headersObject: Record<string, string> = {};
+  const defaultHeaderKeys = Object.keys(WebhookDefaultHeadersSchema.shape);
 
   headers.forEach((header) => {
     if (header.name.trim() && header.value.trim()) {
-      headersObject[header.name.trim()] = header.value.trim();
+      // Exclude default headers - they will be added automatically by the API
+      if (!defaultHeaderKeys.includes(header.name.trim().toLowerCase())) {
+        headersObject[header.name.trim()] = header.value.trim();
+      }
     }
   });
 

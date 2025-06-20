@@ -6,6 +6,7 @@ import { WebhookActionForm, formatWebhookHeaders } from "./WebhookActionForm";
 import {
   type WebhookActionConfig,
   AvailableWebhookApiSchema,
+  WebhookDefaultHeadersSchema,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 
@@ -98,6 +99,8 @@ export class WebhookActionHandler
 
     // Validate headers
     if (formData.webhook?.headers) {
+      const defaultHeaderKeys = Object.keys(WebhookDefaultHeadersSchema.shape);
+      
       formData.webhook.headers.forEach((header: HeaderPair, index: number) => {
         // Only validate non-empty headers
         if (header.name.trim() || header.value.trim()) {
@@ -106,6 +109,11 @@ export class WebhookActionHandler
           }
           if (!header.value.trim()) {
             errors.push(`Header ${index + 1}: Value cannot be empty`);
+          }
+          
+          // Check if header name conflicts with default headers
+          if (header.name.trim() && defaultHeaderKeys.includes(header.name.trim().toLowerCase())) {
+            errors.push(`Header ${index + 1}: "${header.name}" is automatically added by Langfuse and cannot be customized`);
           }
         }
       });

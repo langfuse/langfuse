@@ -163,10 +163,6 @@ export const AutomationExecutionsTable: React.FC<
     );
   }, [data]);
 
-  if (isLoading) {
-    return <div className="py-4 text-center">Loading execution history...</div>;
-  }
-
   if (isError) {
     return (
       <div className="py-4 text-center text-red-600">
@@ -184,7 +180,7 @@ export const AutomationExecutionsTable: React.FC<
         data: rows,
       }}
       pagination={{
-        totalCount: data.totalCount,
+        totalCount: data?.totalCount ?? 0,
         onChange: setPaginationState,
         state: paginationState,
       }}

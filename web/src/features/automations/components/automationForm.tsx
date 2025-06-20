@@ -70,7 +70,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface AutomationFormProps {
   projectId: string;
-  onSuccess?: () => void;
+  onSuccess?: (triggerId?: string, actionId?: string) => void;
   onCancel?: () => void;
   automation?: ActiveAutomation;
   isEditing?: boolean;
@@ -91,8 +91,6 @@ export const AutomationForm = ({
   });
 
   const utils = api.useUtils();
-
-  console.log(JSON.stringify(automation, null, 2));
 
   // Set up mutations
   const createAutomationMutation = api.automations.createAutomation.useMutation(
@@ -233,13 +231,9 @@ export const AutomationForm = ({
         actionId = result.action.id;
       }
 
-      // Call onSuccess or redirect to the automation detail page
+      // Call onSuccess callback with automation IDs
       if (onSuccess) {
-        onSuccess();
-      } else {
-        router.push(
-          `/project/${projectId}/automations?triggerId=${triggerId}&actionId=${actionId}`,
-        );
+        onSuccess(triggerId, actionId);
       }
     } catch (error) {
       console.error("Failed to save automation:", error);
@@ -285,7 +279,6 @@ export const AutomationForm = ({
 
   const currentActionHandler = getCurrentActionHandler();
 
-  console.log(form.watch());
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -497,11 +490,8 @@ export const AutomationForm = ({
                   actionId={automation.action.id}
                   variant="button"
                   onSuccess={() => {
-                    if (onSuccess) {
-                      onSuccess();
-                    } else {
-                      router.push(`/project/${projectId}/automations/list`);
-                    }
+                    utils.automations.invalidate();
+                    router.push(`/project/${projectId}/automations/list`);
                   }}
                 />
               </div>

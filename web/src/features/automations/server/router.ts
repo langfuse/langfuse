@@ -133,6 +133,22 @@ export const automationsRouter = createTRPCRouter({
       const triggerId = v4();
       const actionId = v4();
 
+      // Add default headers for webhook actions
+      let finalActionConfig = input.actionConfig;
+      if (input.actionType === "WEBHOOK" && finalActionConfig.type === "WEBHOOK") {
+        const { WebhookDefaultHeadersSchema } = await import("@langfuse/shared");
+        const defaultHeaders = WebhookDefaultHeadersSchema.parse({
+          "content-type": "application/json",
+        });
+        finalActionConfig = {
+          ...finalActionConfig,
+          headers: {
+            ...defaultHeaders,
+            ...finalActionConfig.headers,
+          },
+        };
+      }
+
       const [trigger, action] = await ctx.prisma.$transaction(async (tx) => {
         const trigger = await tx.trigger.create({
           data: {
@@ -151,7 +167,7 @@ export const automationsRouter = createTRPCRouter({
             id: actionId,
             projectId: ctx.session.projectId,
             type: input.actionType,
-            config: input.actionConfig,
+            config: finalActionConfig,
             triggers: {
               create: [
                 {
@@ -183,6 +199,22 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
+      // Add default headers for webhook actions
+      let finalActionConfig = input.actionConfig;
+      if (input.actionType === "WEBHOOK" && finalActionConfig.type === "WEBHOOK") {
+        const { WebhookDefaultHeadersSchema } = await import("@langfuse/shared");
+        const defaultHeaders = WebhookDefaultHeadersSchema.parse({
+          "content-type": "application/json",
+        });
+        finalActionConfig = {
+          ...finalActionConfig,
+          headers: {
+            ...defaultHeaders,
+            ...finalActionConfig.headers,
+          },
+        };
+      }
+
       // Update the action
       const action = await ctx.prisma.action.update({
         where: {
@@ -191,7 +223,7 @@ export const automationsRouter = createTRPCRouter({
         },
         data: {
           type: input.actionType,
-          config: input.actionConfig,
+          config: finalActionConfig,
         },
       });
 

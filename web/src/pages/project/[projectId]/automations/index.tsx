@@ -8,26 +8,24 @@ import { useEffect } from "react";
 import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import {
-  useQueryParams,
-  StringParam,
-  withDefault,
-} from "use-query-params";
+import { useQueryParams, StringParam, withDefault } from "use-query-params";
 
 export default function AutomationsPage() {
   const router = useRouter();
+  const utils = api.useUtils();
   const projectId = router.query.projectId as string;
-  
+
   const [urlParams, setUrlParams] = useQueryParams({
     view: withDefault(StringParam, "list"),
     triggerId: StringParam,
     actionId: StringParam,
     tab: withDefault(StringParam, "executions"),
   });
-  
+
   const { view, triggerId, actionId } = urlParams;
-  
-  const selectedAutomation = triggerId && actionId ? { triggerId, actionId } : undefined;
+
+  const selectedAutomation =
+    triggerId && actionId ? { triggerId, actionId } : undefined;
 
   // Fetch automations to check if any exist
   const { data: automations } = api.automations.getAutomations.useQuery({
@@ -43,7 +41,7 @@ export default function AutomationsPage() {
     },
     {
       enabled: view === "edit" && !!triggerId && !!actionId,
-    }
+    },
   );
 
   // Clear selected automation if no automations exist
@@ -87,17 +85,26 @@ export default function AutomationsPage() {
     });
   };
 
-  const handleCreateSuccess = () => {
-    // The form will handle navigation to the detail page via router.push
-    // We just need to ensure the view state is correct for when the user navigates back
-    setUrlParams({
-      ...urlParams,
-      view: "list",
-    });
+  const handleCreateSuccess = (triggerId?: string, actionId?: string) => {
+    // Navigate to the newly created automation detail page
+    if (triggerId && actionId) {
+      setUrlParams({
+        view: "list",
+        triggerId,
+        actionId,
+        tab: urlParams.tab,
+      });
+    } else {
+      setUrlParams({
+        ...urlParams,
+        view: "list",
+      });
+    }
   };
 
   const handleEditSuccess = () => {
     // Return to detail view of the edited automation
+    utils.automations.invalidate();
     setUrlParams({
       ...urlParams,
       view: "list",
