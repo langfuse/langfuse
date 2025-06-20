@@ -1,12 +1,5 @@
 "use client";
-
-import { ChevronRight, type LucideIcon } from "lucide-react";
-
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
+import { type LucideIcon } from "lucide-react";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -20,6 +13,12 @@ import {
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTitle,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 
 export type NavMainItem = {
   title: string;
@@ -66,14 +65,15 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
       <SidebarMenu>
         {items.map((item) =>
           item.items && item.items.length > 0 ? (
-            <Collapsible
+            <HoverCard
               key={item.title}
-              asChild
-              defaultOpen={item.isActive || item.items.some((i) => i.isActive)}
-              className="group/collapsible"
+              openDelay={100}
+              // asChild
+              // defaultOpen={item.isActive || item.items.some((i) => i.isActive)}
+              // className="group/collapsible"
             >
               <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
+                <HoverCardTrigger>
                   <SidebarMenuButton
                     tooltip={item.title}
                     onClick={(e) => {
@@ -86,10 +86,14 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
                     isActive={!open && item.items.some((i) => i.isActive)}
                   >
                     <NavItemContent item={item} />
-                    <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                   </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
+                </HoverCardTrigger>
+                <HoverCardContent
+                  side="right"
+                  align="start"
+                  className="relative isolate z-[9999]"
+                >
+                  <HoverCardTitle>{item.title}</HoverCardTitle>
                   <SidebarMenuSub>
                     {item.items.map((subItem) => (
                       <SidebarMenuSubItem key={subItem.title}>
@@ -107,9 +111,9 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
                       </SidebarMenuSubItem>
                     ))}
                   </SidebarMenuSub>
-                </CollapsibleContent>
+                </HoverCardContent>
               </SidebarMenuItem>
-            </Collapsible>
+            </HoverCard>
           ) : (
             <SidebarMenuItem key={item.title}>
               {item.menuNode || (
