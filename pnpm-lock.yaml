@@ -328,7 +328,7 @@ importers:
         version: 5.4.5
       vitest:
         specifier: ^2.1.2
-        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.43.0)
+        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.43.1)
 
   web:
     dependencies:
@@ -681,8 +681,8 @@ importers:
         specifier: ^9.0.1
         version: 9.0.1(@types/react@18.2.79)(react@18.2.0)
       react-resizable-panels:
-        specifier: ^2.1.1
-        version: 2.1.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: ^3.0.3
+        version: 3.0.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react-responsive:
         specifier: ^10.0.0
         version: 10.0.0(react@18.2.0)
@@ -1038,7 +1038,7 @@ importers:
         version: 5.4.5
       vitest:
         specifier: ^2.1.2
-        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.43.0)
+        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.43.1)
       wait-for-expect:
         specifier: ^3.0.2
         version: 3.0.2
@@ -10492,11 +10492,11 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@2.1.1:
-    resolution: {integrity: sha512-+cUV/yZBYfiBj+WJtpWDJ3NtR4zgDZfHt3+xtaETKE+FCvp+RK/NJxacDQKxMHgRUTSkfA6AnGljQ5QZNsCQoA==}
+  react-resizable-panels@3.0.3:
+    resolution: {integrity: sha512-7HA8THVBHTzhDK4ON0tvlGXyMAJN1zBeRpuyyremSikgYh2ku6ltD7tsGQOcXx4NKPrZtYCm/5CBr+dkruTGQw==}
     peerDependencies:
-      react: ^16.14.0 || ^17.0.0 || ^18.0.0
-      react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0
+      react: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+      react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
 
   react-resizable@3.0.5:
     resolution: {integrity: sha512-vKpeHhI5OZvYn82kXOs1bC8aOXktGU5AmKAgaZS4F5JPburCtbmDPqE7Pzp+1kN4+Wb81LlF33VpGwWwtXem+w==}
@@ -11308,8 +11308,8 @@ packages:
       uglify-js:
         optional: true
 
-  terser@5.43.0:
-    resolution: {integrity: sha512-CqNNxKSGKSZCunSvwKLTs8u8sGGlp27sxNZ4quGh0QeNuyHM0JSEM/clM9Mf4zUp6J+tO2gUXhgXT2YMMkwfKQ==}
+  terser@5.43.1:
+    resolution: {integrity: sha512-+6erLbBm0+LROX2sPXlUYx/ux5PyE9K/a92Wrt6oA+WDAoFTdpHE5tCYCI5PNzq2y8df4rA+QgHLJuR4jNymsg==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -18388,14 +18388,14 @@ snapshots:
       chai: 5.1.1
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.2(@vitest/spy@2.1.2)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.43.0))':
+  '@vitest/mocker@2.1.2(@vitest/spy@2.1.2)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.43.1))':
     dependencies:
       '@vitest/spy': 2.1.2
       estree-walker: 3.0.3
       magic-string: 0.30.11
     optionalDependencies:
       msw: 2.6.5(@types/node@20.11.29)(typescript@5.4.5)
-      vite: 5.2.14(@types/node@20.11.29)(terser@5.43.0)
+      vite: 5.2.14(@types/node@20.11.29)(terser@5.43.1)
 
   '@vitest/mocker@2.1.2(@vitest/spy@2.1.2)(vite@5.2.14(@types/node@20.10.5))':
     dependencies:
@@ -24188,7 +24188,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.2.79
 
-  react-resizable-panels@2.1.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
+  react-resizable-panels@3.0.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
@@ -25164,10 +25164,10 @@ snapshots:
       jest-worker: 27.5.1
       schema-utils: 4.3.2
       serialize-javascript: 6.0.2
-      terser: 5.43.0
+      terser: 5.43.1
       webpack: 5.97.1
 
-  terser@5.43.0:
+  terser@5.43.1:
     dependencies:
       '@jridgewell/source-map': 0.3.6
       acorn: 8.15.0
@@ -25677,12 +25677,12 @@ snapshots:
       - terser
     optional: true
 
-  vite-node@2.1.2(@types/node@20.11.29)(terser@5.43.0):
+  vite-node@2.1.2(@types/node@20.11.29)(terser@5.43.1):
     dependencies:
       cac: 6.7.14
       debug: 4.3.7(supports-color@5.5.0)
       pathe: 1.1.2
-      vite: 5.2.14(@types/node@20.11.29)(terser@5.43.0)
+      vite: 5.2.14(@types/node@20.11.29)(terser@5.43.1)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -25720,7 +25720,7 @@ snapshots:
       fsevents: 2.3.3
     optional: true
 
-  vite@5.2.14(@types/node@20.11.29)(terser@5.43.0):
+  vite@5.2.14(@types/node@20.11.29)(terser@5.43.1):
     dependencies:
       esbuild: 0.20.2
       postcss: 8.5.3
@@ -25728,7 +25728,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.11.29
       fsevents: 2.3.3
-      terser: 5.43.0
+      terser: 5.43.1
 
   vite@5.2.14(@types/node@20.14.8):
     dependencies:
@@ -25774,10 +25774,10 @@ snapshots:
       - terser
     optional: true
 
-  vitest@2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.43.0):
+  vitest@2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(terser@5.43.1):
     dependencies:
       '@vitest/expect': 2.1.2
-      '@vitest/mocker': 2.1.2(@vitest/spy@2.1.2)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.43.0))
+      '@vitest/mocker': 2.1.2(@vitest/spy@2.1.2)(msw@2.6.5(@types/node@20.11.29)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.43.1))
       '@vitest/pretty-format': 2.1.2
       '@vitest/runner': 2.1.2
       '@vitest/snapshot': 2.1.2
@@ -25792,8 +25792,8 @@ snapshots:
       tinyexec: 0.3.0
       tinypool: 1.0.1
       tinyrainbow: 1.2.0
-      vite: 5.2.14(@types/node@20.11.29)(terser@5.43.0)
-      vite-node: 2.1.2(@types/node@20.11.29)(terser@5.43.0)
+      vite: 5.2.14(@types/node@20.11.29)(terser@5.43.1)
+      vite-node: 2.1.2(@types/node@20.11.29)(terser@5.43.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 20.11.29
