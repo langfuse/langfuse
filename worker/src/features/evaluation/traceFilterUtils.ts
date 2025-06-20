@@ -1,28 +1,47 @@
-import { FilterState, TraceDomain } from "@langfuse/shared";
+import {
+  FilterState,
+  TraceDomain,
+  tracesTableUiColumnDefinitions,
+} from "@langfuse/shared";
 
+// Uses the uiTableId for mapping fields later.
 const evalTraceFilterColumns = [
   "id",
   "bookmarked",
   "name",
   "environment",
   "timestamp",
-  "user_id",
-  "session_id",
+  "userId",
+  "sessionId",
   "metadata",
   "release",
   "version",
   "tags",
 ] as const;
 
+function getColumnDefinition(column: string) {
+  const columnDef = tracesTableUiColumnDefinitions.find(
+    (col) =>
+      col.uiTableId === column ||
+      col.uiTableName === column ||
+      col.clickhouseSelect === column,
+  );
+  if (!columnDef) {
+    throw new Error(`Unhandled column for trace filter: ${column}`);
+  }
+  return columnDef;
+}
+
 /**
  * Maps trace filter column names to trace object field values.
- * This function knows how to extract values from a trace object based on filter column names.
+ * Uses the centralized table mapping to ensure consistency with UI column definitions.
  */
 export function mapTraceFilterColumn(
   trace: TraceDomain,
   column: string,
 ): unknown {
-  switch (column) {
+  const columnDef = getColumnDefinition(column);
+  switch (columnDef.uiTableId) {
     case "id":
       return trace.id;
     case "name":
@@ -39,14 +58,14 @@ export function mapTraceFilterColumn(
       return trace.release;
     case "version":
       return trace.version;
-    case "user_id":
+    case "userId":
       return trace.userId;
-    case "session_id":
+    case "sessionId":
       return trace.sessionId;
     case "metadata":
       return trace.metadata;
     default:
-      throw new Error(`Unhandled column: ${column}`);
+      throw new Error(`Unhandled column in trace filter mapping: ${column}`);
   }
 }
 
@@ -61,7 +80,9 @@ export function requiresDatabaseLookup(filter: FilterState): boolean {
 
   for (const condition of filter) {
     if (
-      !evalTraceFilterColumns.some((c) => c === condition.column.toLowerCase())
+      !evalTraceFilterColumns.some(
+        (c) => c === getColumnDefinition(condition.column).uiTableId,
+      )
     ) {
       return true;
     }
