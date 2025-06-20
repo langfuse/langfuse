@@ -62,6 +62,19 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
     // TypeScript now knows actionConfig.config is WebhookActionConfig
     const webhookConfig = actionConfig.config;
 
+    // Validate that the webhook URL uses HTTPS protocol for security
+    try {
+      const webhookUrl = new URL(webhookConfig.url);
+      if (webhookUrl.protocol !== "https:") {
+        throw new Error(`Webhook URL must use HTTPS protocol for security. Received: ${webhookUrl.protocol}`);
+      }
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(`Invalid webhook URL: ${webhookConfig.url}`);
+      }
+      throw error;
+    }
+
     await backOff(
       async () => {
         const res = await fetch(webhookConfig.url, {

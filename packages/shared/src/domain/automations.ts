@@ -32,7 +32,8 @@ export const AvailableWebhookApiSchema = z.record(
 
 export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
-  url: z.string().url(),
+  url:z.url({ protocol: /^https$/ });
+  
   headers: z.record(z.string(), z.string()),
   apiVersion: AvailableWebhookApiSchema,
 });

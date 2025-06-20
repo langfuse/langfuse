@@ -5,6 +5,7 @@ import { EventActionSchema } from "./automations";
 // Default headers that are automatically added to webhook requests
 export const WebhookDefaultHeadersSchema = z.object({
   "content-type": z.literal("application/json"),
+  "User-Agent": z.literal("Langfuse/1.0"),
 });
 
 export type WebhookDefaultHeaders = z.infer<typeof WebhookDefaultHeadersSchema>;
