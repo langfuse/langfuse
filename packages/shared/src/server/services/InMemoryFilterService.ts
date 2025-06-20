@@ -73,9 +73,18 @@ export class InMemoryFilterService {
           condition.value,
           operator,
         );
+      case "number":
+        return this.evaluateNumberFilter(fieldValue, condition.value, operator);
       case "boolean":
         return this.evaluateBooleanFilter(
           fieldValue,
+          condition.value,
+          operator,
+        );
+      case "categoryOptions":
+        return this.evaluateCategoryOptionsFilter(
+          fieldValue,
+          condition.key,
           condition.value,
           operator,
         );
@@ -158,6 +167,66 @@ export class InMemoryFilterService {
           operator,
           filterValue,
           fieldValue,
+        });
+        return false;
+    }
+  }
+
+  private static evaluateNumberFilter(
+    fieldValue: unknown,
+    filterValue: number,
+    operator: string,
+  ): boolean {
+    if (typeof fieldValue !== "number") {
+      return false;
+    }
+
+    switch (operator) {
+      case "=":
+        return fieldValue === filterValue;
+      case ">":
+        return fieldValue > filterValue;
+      case "<":
+        return fieldValue < filterValue;
+      case ">=":
+        return fieldValue >= filterValue;
+      case "<=":
+        return fieldValue <= filterValue;
+      default:
+        logger.error("Unsupported number filter operator", {
+          operator,
+          filterValue,
+          fieldValue,
+        });
+        return false;
+    }
+  }
+
+  private static evaluateCategoryOptionsFilter(
+    fieldValue: unknown,
+    key: string,
+    filterValues: string[],
+    operator: string,
+  ): boolean {
+    if (!fieldValue || typeof fieldValue !== "object") {
+      return false;
+    }
+
+    // Type assertion is safe here since we've checked typeof fieldValue === "object" above
+    const objectValue = (fieldValue as Record<string, unknown>)[key];
+    const stringValue = objectValue?.toString() || "";
+
+    switch (operator) {
+      case "any of":
+        return filterValues.includes(stringValue);
+      case "none of":
+        return !filterValues.includes(stringValue);
+      default:
+        logger.error("Unsupported categoryOptions filter operator", {
+          operator,
+          filterValues,
+          fieldValue: stringValue,
+          key,
         });
         return false;
     }

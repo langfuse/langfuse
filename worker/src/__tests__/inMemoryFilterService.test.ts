@@ -18,6 +18,19 @@ describe("InMemoryFilterService", () => {
     },
     userId: "user-123",
     projectId: "project-789",
+    scores: {
+      accuracy: 0.95,
+      precision: 0.87,
+      recall: 0.92,
+    },
+    categories: {
+      type: "classification",
+      model: "gpt-4",
+      version: "v1.2.3",
+    },
+    cost: 0.0025,
+    latency: 1500,
+    tokenCount: 250,
   };
 
   // Simple field mapper for testing
@@ -46,6 +59,16 @@ describe("InMemoryFilterService", () => {
         return data.userId;
       case "metadata":
         return data.metadata;
+      case "scores":
+        return data.scores;
+      case "categories":
+        return data.categories;
+      case "cost":
+        return data.cost;
+      case "latency":
+        return data.latency;
+      case "tokenCount":
+        return data.tokenCount;
       default:
         return undefined;
     }
@@ -225,6 +248,229 @@ describe("InMemoryFilterService", () => {
       ).toBe(true);
     });
 
+    test("evaluates number filters correctly", () => {
+      // Exact match
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "cost",
+              type: "number",
+              operator: "=",
+              value: 0.0025,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "cost",
+              type: "number",
+              operator: "=",
+              value: 0.005,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Greater than
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "latency",
+              type: "number",
+              operator: ">",
+              value: 1000,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "latency",
+              type: "number",
+              operator: ">",
+              value: 2000,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Less than
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "tokenCount",
+              type: "number",
+              operator: "<",
+              value: 300,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "tokenCount",
+              type: "number",
+              operator: "<",
+              value: 200,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Greater than or equal
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "latency",
+              type: "number",
+              operator: ">=",
+              value: 1500,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "latency",
+              type: "number",
+              operator: ">=",
+              value: 1600,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Less than or equal
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "tokenCount",
+              type: "number",
+              operator: "<=",
+              value: 250,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "tokenCount",
+              type: "number",
+              operator: "<=",
+              value: 200,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Test with non-number field value
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "name",
+              type: "number",
+              operator: "=",
+              value: 42,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Test with decimal numbers
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "cost",
+              type: "number",
+              operator: ">",
+              value: 0.002,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // Test with zero
+      const dataWithZeroCost = { ...mockData, cost: 0 };
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithZeroCost,
+          [
+            {
+              column: "cost",
+              type: "number",
+              operator: "=",
+              value: 0,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // Test with negative numbers
+      const dataWithNegativeValue = { ...mockData, cost: -0.001 };
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithNegativeValue,
+          [
+            {
+              column: "cost",
+              type: "number",
+              operator: "<",
+              value: 0,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+    });
+
     test("evaluates boolean filters correctly", () => {
       expect(
         InMemoryFilterService.evaluateFilter(
@@ -310,6 +556,144 @@ describe("InMemoryFilterService", () => {
           fieldMapper,
         ),
       ).toBe(true);
+    });
+
+    test("evaluates categoryOptions filters correctly", () => {
+      // Any of - matching values
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "categories",
+              type: "categoryOptions",
+              key: "type",
+              operator: "any of",
+              value: ["classification", "regression"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "categories",
+              type: "categoryOptions",
+              key: "model",
+              operator: "any of",
+              value: ["gpt-4", "gpt-3.5"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // Any of - non-matching values
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "categories",
+              type: "categoryOptions",
+              key: "type",
+              operator: "any of",
+              value: ["regression", "clustering"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // None of - non-matching values (should return true)
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "categories",
+              type: "categoryOptions",
+              key: "type",
+              operator: "none of",
+              value: ["regression", "clustering"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // None of - matching values (should return false)
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "categories",
+              type: "categoryOptions",
+              key: "model",
+              operator: "none of",
+              value: ["gpt-4", "claude"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Test with non-existent key
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "categories",
+              type: "categoryOptions",
+              key: "nonExistentKey",
+              operator: "any of",
+              value: ["someValue"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Test with non-object field value
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "name",
+              type: "categoryOptions",
+              key: "someKey",
+              operator: "any of",
+              value: ["someValue"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Test with null/undefined field value
+      const dataWithNullCategories = { ...mockData, categories: null };
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithNullCategories,
+          [
+            {
+              column: "categories",
+              type: "categoryOptions",
+              key: "type",
+              operator: "any of",
+              value: ["classification"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
     });
 
     test("evaluates arrayOptions filters correctly", () => {
@@ -715,6 +1099,57 @@ describe("InMemoryFilterService", () => {
               type: "null",
               operator: "unsupported_op",
               value: "",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Test unsupported number operator
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "cost",
+              type: "number",
+              operator: "unsupported_op",
+              value: 0.005,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Test unsupported categoryOptions operator
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "categories",
+              type: "categoryOptions",
+              key: "type",
+              operator: "unsupported_op",
+              value: ["classification"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+    });
+
+    test("handles unsupported filter types gracefully and logs errors", () => {
+      // Test unsupported filter type
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "name",
+              type: "unsupportedType" as any,
+              operator: "=",
+              value: "test",
             },
           ],
           fieldMapper,
