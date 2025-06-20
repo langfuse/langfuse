@@ -1,5 +1,6 @@
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
+import { env } from "@/src/env.mjs";
 
 export const useTracePeekNavigation = () => {
   const router = useRouter();
@@ -35,7 +36,7 @@ export const useTracePeekNavigation = () => {
     const timestamp = params.get("timestamp");
     const display = params.get("display") ?? "details";
 
-    const pathname = `/project/${projectId}/traces/${encodeURIComponent(peek as string)}?timestamp=${timestamp}&display=${display}`;
+    const pathname = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/traces/${encodeURIComponent(peek as string)}?timestamp=${timestamp}&display=${display}`;
 
     if (openInNewTab) {
       window.open(pathname, "_blank");
