@@ -165,7 +165,7 @@ export const createEvalJobs = async ({
     .selectAll()
     .where(sql.raw("job_type::text"), "=", "EVAL")
     .where("project_id", "=", event.projectId)
-    .where("status", "=", "ACTIVE");
+    .where(sql.raw("status::text"), "=", "ACTIVE");
 
   if ("configId" in event) {
     // if configid is set in the event, we only want to fetch the one config
