@@ -198,7 +198,7 @@ export const ChatMessageSchema = z.union([
 ]);
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-export type ChatMessageWithId = ChatMessage & { id: string };
+export type ChatMessageWithId = (ChatMessage & { id: string }) | (PlaceholderMessage & { id: string });
 
 export const PromptChatMessageSchema = z.union([
   z.object({

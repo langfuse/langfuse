@@ -133,7 +133,6 @@ types:
         docs: The dependency resolution graph for the current prompt. Null if prompt has no dependencies.
 
   ChatMessage:
-    discriminant: "type"
     union:
       promptchatmessage: PromptChatMessage
       placeholder: PlaceholderMessage
