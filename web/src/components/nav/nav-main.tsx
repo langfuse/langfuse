@@ -11,7 +11,7 @@ import {
   useSidebar,
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   HoverCard,
@@ -61,16 +61,27 @@ function NavItemContent({ item }: { item: NavMainItem }) {
 
 export function NavMain({ items }: { items: NavMainItem[] }) {
   const { open } = useSidebar();
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   return (
     <SidebarGroup>
       <SidebarMenu>
         {items.map((item) =>
           item.items && item.items.length > 0 ? (
-            <HoverCard key={item.title} openDelay={100} closeDelay={100}>
+            <HoverCard
+              key={item.title}
+              openDelay={100}
+              closeDelay={100}
+              onOpenChange={(isOpen) =>
+                setHoveredItem(isOpen ? item.title : null)
+              }
+            >
               <SidebarMenuItem>
                 <HoverCardTrigger>
                   <SidebarMenuButton
-                    isActive={item.items.some((i) => i.isActive)}
+                    isActive={
+                      item.items.some((i) => i.isActive) ||
+                      hoveredItem === item.title
+                    }
                   >
                     <NavItemContent item={item} />
                     <ChevronRightIcon className="ml-auto" />
