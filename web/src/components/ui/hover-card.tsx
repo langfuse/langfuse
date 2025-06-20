@@ -36,7 +36,7 @@ const HoverCardTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      "mb-2 text-sm font-semibold leading-none tracking-tight",
+      "p-2 text-sm font-semibold leading-none tracking-tight",
       className,
     )}
     {...props}

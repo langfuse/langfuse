@@ -1,5 +1,5 @@
 "use client";
-import { type LucideIcon } from "lucide-react";
+import { ChevronRightIcon, type LucideIcon } from "lucide-react";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -59,41 +59,30 @@ function NavItemContent({ item }: { item: NavMainItem }) {
 }
 
 export function NavMain({ items }: { items: NavMainItem[] }) {
-  const { open, setOpen } = useSidebar();
+  const { open } = useSidebar();
   return (
     <SidebarGroup>
       <SidebarMenu>
         {items.map((item) =>
           item.items && item.items.length > 0 ? (
-            <HoverCard
-              key={item.title}
-              openDelay={100}
-              // asChild
-              // defaultOpen={item.isActive || item.items.some((i) => i.isActive)}
-              // className="group/collapsible"
-            >
+            <HoverCard key={item.title} openDelay={100} closeDelay={100}>
               <SidebarMenuItem>
                 <HoverCardTrigger>
                   <SidebarMenuButton
-                    tooltip={item.title}
-                    onClick={(e) => {
-                      if (!open) {
-                        e.preventDefault();
-                        setOpen(true);
-                      }
-                    }}
-                    // when closed, the parent should be active if any of the children are active
-                    isActive={!open && item.items.some((i) => i.isActive)}
+                    isActive={item.items.some((i) => i.isActive)}
                   >
                     <NavItemContent item={item} />
+                    <ChevronRightIcon className="ml-auto" />
                   </SidebarMenuButton>
                 </HoverCardTrigger>
                 <HoverCardContent
                   side="right"
                   align="start"
-                  className="relative isolate z-[9999]"
+                  // relative + isolate create a new stacking context
+                  // z-[9999] ensures this appears above other elements, even across different stacking contexts
+                  className="relative isolate z-[9999] p-1"
                 >
-                  <HoverCardTitle>{item.title}</HoverCardTitle>
+                  {!open && <HoverCardTitle>{item.title}</HoverCardTitle>}
                   <SidebarMenuSub>
                     {item.items.map((subItem) => (
                       <SidebarMenuSubItem key={subItem.title}>

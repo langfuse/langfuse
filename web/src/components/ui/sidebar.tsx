@@ -23,7 +23,7 @@ import { Portal } from "@radix-ui/react-tooltip";
 const SIDEBAR_COOKIE_NAME = "sidebar:state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = "13rem";
-const SIDEBAR_WIDTH_MOBILE = "18rem";
+const SIDEBAR_WIDTH_MOBILE = "12rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
@@ -597,7 +597,7 @@ const SidebarMenuButton = React.forwardRef<
             hidden={state !== "collapsed" || isMobile}
             // relative + isolate create a new stacking context
             // z-[9999] ensures this appears above other elements, even across different stacking contexts
-            className="relative isolate z-[9999]"
+            className="relative isolate z-[9999] text-sm font-semibold"
             {...tooltip}
           />
         </Portal>
@@ -705,7 +705,7 @@ const SidebarMenuSub = React.forwardRef<
     ref={ref}
     data-sidebar="menu-sub"
     className={cn(
-      "border-sidebar-border mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l px-2.5 py-0.5",
+      "flex min-w-0 translate-x-px flex-col gap-1 border-sidebar-border py-0.5",
       "group-data-[collapsible=icon]:hidden",
       className,
     )}
