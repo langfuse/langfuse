@@ -213,7 +213,7 @@ export const createEvalJobs = async ({
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
-        found: Boolean(cachedTrace) ? "true" : "false",
+        found: Boolean(cachedTrace).toString(),
       });
       logger.debug("Fetched trace for evaluation optimization", {
         traceId: event.traceId,
@@ -286,7 +286,7 @@ export const createEvalJobs = async ({
             : undefined,
       });
       recordIncrement("langfuse.evaluation-execution.trace_db_lookup", 1, {
-        hasCached: Boolean(cachedTrace) ? "true" : "false",
+        hasCached: Boolean(cachedTrace).toString(),
         requiredDatabaseLookup: requiresDatabaseLookup(validatedFilter)
           ? "true"
           : "false",
