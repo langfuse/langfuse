@@ -95,7 +95,7 @@ export class ClickHouseQueryBuilder {
         if(randUniform(0, 1) < 0.2, '${escapedNestedJson}',
           '${escapedChatMl}'
         ) AS output,
-        if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 100)), NULL) AS session_id,
+        if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 20)), NULL) AS session_id,
         now() AS created_at,
         now() AS updated_at,
         now() AS event_ts,
@@ -207,7 +207,7 @@ export class ClickHouseQueryBuilder {
         '${projectId}' AS project_id,
         '${environment}' AS environment,
         concat('trace-bulk-', toString(number % ${tracesCount}), '-${projectId.slice(-8)}') AS trace_id,
-        if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 100)), NULL) AS session_id,
+        if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 20)), NULL) AS session_id,
         NULL AS dataset_run_id,
         if(randUniform(0, 1) < 0.1, concat('obs-bulk-', toString(rand() % (${tracesCount} * 5)), '-${projectId.slice(-8)}'), NULL) AS observation_id,
         concat('metric_', toString((number % ${scoresPerTrace * 5}) + 1)) AS name,
