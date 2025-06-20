@@ -11,18 +11,11 @@ describe("InMemoryFilterService", () => {
     bookmarked: true,
     public: false,
     release: "v1.0.0",
-    version: "1.0",
-    input: { prompt: "Hello world" },
-    output: { response: "Hi there!" },
     metadata: {
       userId: "user-123",
-      sessionId: "session-456",
       customField: "custom-value",
       numericField: 42,
     },
-    createdAt: new Date("2024-01-01T09:00:00Z"),
-    updatedAt: new Date("2024-01-01T10:30:00Z"),
-    sessionId: "session-456",
     userId: "user-123",
     projectId: "project-789",
   };
@@ -49,22 +42,10 @@ describe("InMemoryFilterService", () => {
         return data.public;
       case "release":
         return data.release;
-      case "version":
-        return data.version;
       case "userId":
         return data.userId;
-      case "sessionId":
-        return data.sessionId;
-      case "input":
-        return data.input;
-      case "output":
-        return data.output;
       case "metadata":
         return data.metadata;
-      case "createdAt":
-        return data.createdAt;
-      case "updatedAt":
-        return data.updatedAt;
       default:
         return undefined;
     }
