@@ -4,8 +4,8 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";
-
 import { useIsMobile } from "@/src/hooks/use-mobile";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -20,8 +20,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { Portal } from "@radix-ui/react-tooltip";
 
-const SIDEBAR_COOKIE_NAME = "sidebar:state";
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+const SIDEBAR_STORAGE_KEY = "sidebar:state";
 const SIDEBAR_WIDTH = "13rem";
 const SIDEBAR_WIDTH_MOBILE = "12rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
@@ -71,24 +70,23 @@ const SidebarProvider = React.forwardRef<
     const isMobile = useIsMobile();
     const [openMobile, setOpenMobile] = React.useState(false);
 
+    // Use local storage to persist sidebar state
+    const [storedOpen, setStoredOpen] = useLocalStorage(SIDEBAR_STORAGE_KEY, defaultOpen);
+
     // This is the internal state of the sidebar.
     // We use openProp and setOpenProp for control from outside the component.
-    const [_open, _setOpen] = React.useState(defaultOpen);
-    const open = openProp ?? _open;
+    const open = openProp ?? storedOpen;
     const setOpen = React.useCallback(
       (value: boolean | ((value: boolean) => boolean)) => {
+        const newValue = typeof value === "function" ? value(open) : value;
+        
         if (setOpenProp) {
-          return setOpenProp?.(
-            typeof value === "function" ? value(open) : value,
-          );
+          return setOpenProp?.(newValue);
         }
 
-        _setOpen(value);
-
-        // This sets the cookie to keep the sidebar state.
-        document.cookie = `${SIDEBAR_COOKIE_NAME}=${open}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+        setStoredOpen(newValue);
       },
-      [setOpenProp, open],
+      [setOpenProp, open, setStoredOpen],
     );
 
     // Helper to toggle the sidebar.
