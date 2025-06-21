@@ -2,7 +2,7 @@ import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { extractValueFromObject } from "@langfuse/shared";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 
 /**
  * Helper function to find an observation by name in the trace data
@@ -44,7 +44,8 @@ export function useExtractVariables({
   const previousMappingRef = useRef<string>("");
 
   // Create a stable string representation of the current mapping for comparison
-  const currentMappingString = JSON.stringify(variableMapping);
+  const currentMappingString =
+    variables.length > 0 ? JSON.stringify(variableMapping) : "";
 
   // Create a stable reference to the trace ID
   const traceId = trace?.id;
@@ -59,10 +60,14 @@ export function useExtractVariables({
 
   useEffect(() => {
     // Return early conditions
-    if (isLoading || !variables.length) {
-      setExtractedVariables(
-        variables.map((variable) => ({ variable, value: "n/a" })),
-      );
+    if (isLoading) {
+      setExtractedVariables([]);
+      return;
+    }
+
+    // If no variables, only update if current state is not empty
+    if (!Boolean(variables.length)) {
+      setExtractedVariables((prev) => (prev.length === 0 ? prev : []));
       return;
     }
 
