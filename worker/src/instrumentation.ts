@@ -1,4 +1,3 @@
-import dd from "dd-trace";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
@@ -17,10 +16,15 @@ import { awsEcsDetectorSync } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "./env";
 
-dd.init({
-  runtimeMetrics: true,
-  plugins: false,
-});
+// Conditionally load dd-trace only if not running in Bun
+// See: https://github.com/DataDog/dd-trace-js/issues/3749
+if (typeof Bun === "undefined") {
+  const dd = require("dd-trace");
+  dd.init({
+    runtimeMetrics: true,
+    plugins: false,
+  });
+}
 
 const sdk = new NodeSDK({
   resource: new Resource({
