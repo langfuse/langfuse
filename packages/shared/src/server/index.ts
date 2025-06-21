@@ -25,6 +25,7 @@ export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";
 export * from "./redis/cloudUsageMeteringQueue";
 export * from "./redis/getQueue";
+export * from "./redis/webhookQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
@@ -60,6 +61,9 @@ export * from "./services/DefaultEvaluationModelService";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
+
+export * from "./automations/automationService";
+export * from "./automations/webhooks";
 
 // test utils
 export * from "./test-utils";

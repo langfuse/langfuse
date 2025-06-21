@@ -30,6 +30,7 @@ import {
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
   IngestionQueue,
+  webhookProcessor,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -336,6 +337,12 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
       concurrency: 1,
     },
   );
+}
+
+if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.WebhookQueue, webhookProcessor, {
+    concurrency: 5,
+  });
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

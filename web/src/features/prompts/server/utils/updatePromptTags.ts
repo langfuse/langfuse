@@ -15,14 +15,22 @@ export const updatePromptTagsOnAllVersions = async ({
     where: { projectId, name: promptName },
   });
 
-  if (previousVersions.length === 0) return [];
+  if (previousVersions.length === 0)
+    return { touchedPromptIds: [], updates: [] };
 
-  return previousVersions.map((prevVersion) =>
-    prisma.prompt.update({
-      where: { id: prevVersion.id },
-      data: {
-        tags: [...new Set(tags)], // Ensure tags are unique
-      },
-    }),
+  const touchedPromptIds = previousVersions.map(
+    (prevVersion) => prevVersion.id,
   );
+
+  return {
+    touchedPromptIds,
+    updates: previousVersions.map((prevVersion) =>
+      prisma.prompt.update({
+        where: { id: prevVersion.id },
+        data: {
+          tags: [...new Set(tags)], // Ensure tags are unique
+        },
+      }),
+    ),
+  };
 };

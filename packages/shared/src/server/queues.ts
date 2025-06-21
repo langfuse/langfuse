@@ -6,6 +6,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
+import { EventActionSchema, ObservationTypeDomain } from "../domain";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -129,6 +130,24 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const WebhookOutboundEnvelopeSchema = z.object({
+  promptName: z.string(),
+  promptVersion: z.number(),
+  action: EventActionSchema,
+  type: z.literal("prompt"),
+});
+
+export const WebhookInputSchema = z.object({
+  eventId: z.string(),
+  projectId: z.string(),
+  actionId: z.string(),
+  triggerId: z.string(),
+  executionId: z.string(),
+  payload: WebhookOutboundEnvelopeSchema,
+});
+
+export type WebhookInput = z.infer<typeof WebhookInputSchema>;
+
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
 >;
@@ -161,6 +180,8 @@ export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
 
+export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
+
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -184,6 +205,7 @@ export enum QueueName {
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
+  WebhookQueue = "webhook-queue",
 }
 
 export enum QueueJobs {
@@ -209,6 +231,7 @@ export enum QueueJobs {
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
   DeadLetterRetryJob = "dead-letter-retry-job",
+  WebhookJob = "webhook-job",
 }
 
 export type TQueueJobTypes = {
@@ -307,5 +330,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: DeadLetterRetryQueueEventType;
     name: QueueJobs.DeadLetterRetryJob;
+  };
+  [QueueName.WebhookQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: WebhookInput;
+    name: QueueJobs.WebhookJob;
   };
 };

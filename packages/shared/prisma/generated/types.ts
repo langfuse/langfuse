@@ -114,6 +114,17 @@ export const DashboardWidgetChartType = {
     HISTOGRAM: "HISTOGRAM"
 } as const;
 export type DashboardWidgetChartType = (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
+export const ActionType = {
+    WEBHOOK: "WEBHOOK"
+} as const;
+export type ActionType = (typeof ActionType)[keyof typeof ActionType];
+export const ActionExecutionStatus = {
+    COMPLETED: "COMPLETED",
+    ERROR: "ERROR",
+    PENDING: "PENDING",
+    CANCELLED: "CANCELLED"
+} as const;
+export type ActionExecutionStatus = (typeof ActionExecutionStatus)[keyof typeof ActionExecutionStatus];
 export type Account = {
     id: string;
     user_id: string;
@@ -131,6 +142,29 @@ export type Account = {
     session_state: string | null;
     refresh_token_expires_in: number | null;
     created_at: number | null;
+};
+export type Action = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    type: ActionType;
+    config: unknown;
+};
+export type ActionExecution = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    source_id: string;
+    trigger_id: string;
+    action_id: string;
+    project_id: string;
+    status: Generated<ActionExecutionStatus>;
+    input: unknown;
+    output: unknown | null;
+    started_at: Timestamp | null;
+    finished_at: Timestamp | null;
+    error: string | null;
 };
 export type AnnotationQueue = {
     id: string;
@@ -682,6 +716,23 @@ export type TraceSession = {
     public: Generated<boolean>;
     environment: Generated<string>;
 };
+export type Trigger = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    eventSource: string;
+    eventActions: string[];
+    filter: unknown | null;
+    status: Generated<JobConfigState>;
+};
+export type TriggersOnActions = {
+    name: string;
+    trigger_id: string;
+    action_id: string;
+    created_at: Generated<Timestamp>;
+    project_id: string;
+};
 export type User = {
     id: string;
     name: string | null;
@@ -701,6 +752,8 @@ export type VerificationToken = {
 };
 export type DB = {
     Account: Account;
+    action_executions: ActionExecution;
+    actions: Action;
     annotation_queue_items: AnnotationQueueItem;
     annotation_queues: AnnotationQueue;
     api_keys: ApiKey;
@@ -746,6 +799,8 @@ export type DB = {
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: LegacyPrismaTrace;
+    triggers: Trigger;
+    triggers_on_actions: TriggersOnActions;
     users: User;
     verification_tokens: VerificationToken;
 };
