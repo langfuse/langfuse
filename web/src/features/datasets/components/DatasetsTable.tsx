@@ -110,7 +110,11 @@ export function DatasetsTable(props: { projectId: string }) {
       size: 200,
       cell: ({ row }) => {
         const description: RowData["description"] = row.getValue("description");
-        return <div className="h-full overflow-y-auto flex items-center">{description}</div>;
+        return (
+          <div className="flex h-full items-center overflow-y-auto">
+            {description}
+          </div>
+        );
       },
     },
     {
@@ -189,6 +193,7 @@ export function DatasetsTable(props: { projectId: string }) {
                   datasetId={key.id}
                   datasetName={key.name}
                   datasetDescription={row.getValue("description") ?? undefined}
+                  datasetMetadata={row.getValue("metadata")}
                 />
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
