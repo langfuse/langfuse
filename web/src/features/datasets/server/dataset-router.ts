@@ -315,6 +315,7 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
+        filter: z.array(singleFilter).optional(),
         ...paginationZod,
       }),
     )
@@ -324,6 +325,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: input.datasetId,
         limit: input.limit,
         page: input.page,
+        filter: input.filter || [],
         prisma: ctx.prisma,
       });
     }),
@@ -656,6 +658,7 @@ export const datasetRouter = createTRPCRouter({
           datasetItems: {
             createMany: {
               data: dataset.datasetItems.map((item) => ({
+                id: createCuid(),
                 // the items get new ids as they need to be unique on project level
                 input: item.input ?? undefined,
                 expectedOutput: item.expectedOutput ?? undefined,
@@ -715,6 +718,7 @@ export const datasetRouter = createTRPCRouter({
 
       const datasetItem = await ctx.prisma.datasetItem.create({
         data: {
+          id: createCuid(),
           input: formatDatasetItemData(input.input),
           expectedOutput: formatDatasetItemData(input.expectedOutput),
           metadata: formatDatasetItemData(input.metadata),
@@ -892,7 +896,7 @@ export const datasetRouter = createTRPCRouter({
       );
       const parsedRunItems = (
         await getRunItemsByRunIdOrItemId(input.projectId, runItems)
-      ).map((ri) => ({
+      ).map((ri: any) => ({
         ...ri,
         datasetRunName: runItemNameMap[ri.id],
       }));

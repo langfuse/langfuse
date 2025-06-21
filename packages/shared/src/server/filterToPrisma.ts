@@ -81,6 +81,12 @@ export function tableColumnsToSqlFilter(
             )
           : Prisma.raw(filter.operator); //checked by zod
 
+    // Get cast for this column/table combination
+    const castForColumn = castValueToPostgresTypes(
+      filterAndColumn.column,
+      filterAndColumn.table,
+    );
+
     // Get prisma value
     let valuePrisma: Prisma.Sql;
     switch (filter.type) {
@@ -96,9 +102,15 @@ export function tableColumnsToSqlFilter(
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
       case "stringOptions":
-        valuePrisma = Prisma.sql`(${Prisma.join(
-          filter.value.map((v) => Prisma.sql`${v}`),
-        )})`;
+        if (castForColumn !== Prisma.empty) {
+          valuePrisma = Prisma.sql`(${Prisma.join(
+            filter.value.map((v) => Prisma.sql`${v}${castForColumn}`),
+          )})`;
+        } else {
+          valuePrisma = Prisma.sql`(${Prisma.join(
+            filter.value.map((v) => Prisma.sql`${v}`),
+          )})`;
+        }
         break;
       case "arrayOptions":
         valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
@@ -119,7 +131,9 @@ export function tableColumnsToSqlFilter(
     }
     const jsonKeyPrisma =
       filter.type === "stringObject" || filter.type === "numberObject"
-        ? Prisma.sql`->>${filter.key}`
+        ? filter.key && filter.key.length > 0
+          ? Prisma.sql`->>${filter.key}`
+          : Prisma.sql`::text`
         : Prisma.empty;
     const [cast1, cast2] =
       filter.type === "numberObject"
@@ -145,7 +159,9 @@ export function tableColumnsToSqlFilter(
         ? [Prisma.raw("NOT ("), Prisma.raw(")")]
         : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${castValueToPostgresTypes(filterAndColumn.column, filterAndColumn.table)}${valueSuffix}${funcPrisma2}`;
+    const castResult =
+      filter.type === "stringOptions" ? Prisma.empty : castForColumn;
+    return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${castResult}${valueSuffix}${funcPrisma2}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;
@@ -160,13 +176,22 @@ const castValueToPostgresTypes = (
   column: ColumnDefinition,
   table: TableNames,
 ) => {
-  return column.name === "type" &&
+  if (
+    column.name === "type" &&
     (table === "observations" ||
       table === "traces_observations" ||
       table === "traces_observationsview" ||
       table === "traces_parent_observation_scores")
-    ? Prisma.sql`::"ObservationType"`
-    : Prisma.empty;
+  ) {
+    return Prisma.sql`::"ObservationType"`;
+  }
+  if (
+    (column.name === "Status" || column.id === "status") &&
+    table === "dataset_items"
+  ) {
+    return Prisma.sql`::"DatasetStatus"`;
+  }
+  return Prisma.empty;
 };
 
 const dateOperators = filterOperators["datetime"];

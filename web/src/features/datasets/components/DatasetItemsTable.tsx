@@ -28,6 +28,8 @@ import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { datasetItemsTableCols } from "@/src/server/api/definitions/datasetItemsTable";
 
 type RowData = {
   id: string;
@@ -61,6 +63,15 @@ export function DatasetItemsTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
+  // Keep search query for now (compatible with current API)
+
+  // Add filter state for advanced filtering (will be implemented later)
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "dataset_items",
+    projectId,
+  );
+
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetItems",
     "s",
@@ -73,6 +84,7 @@ export function DatasetItemsTable({
     datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    filter: filterState,
   });
 
   useEffect(() => {
@@ -319,6 +331,9 @@ export function DatasetItemsTable({
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           actionButtons={menuItems}
+          filterColumnDefinition={datasetItemsTableCols}
+          filterState={filterState}
+          setFilterState={setFilterState}
         />
         {preview ? (
           <PreviewCsvImport
@@ -347,6 +362,9 @@ export function DatasetItemsTable({
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={menuItems}
+        filterColumnDefinition={datasetItemsTableCols}
+        filterState={filterState}
+        setFilterState={setFilterState}
       />
       <DataTable
         columns={columns}
