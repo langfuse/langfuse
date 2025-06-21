@@ -111,9 +111,15 @@ export const DatasetForm = (props: DatasetFormProps) => {
     },
   );
 
+  const datasetName = props.mode === "update" ? props.datasetName : undefined;
+
   const allDatasetNames = useMemo(() => {
-    return allDatasets.data?.map((dataset) => ({ value: dataset.name })) ?? [];
-  }, [allDatasets.data]);
+    const datasets = datasetName
+      ? allDatasets.data?.filter(({ name }) => name !== datasetName)
+      : allDatasets.data;
+
+    return datasets?.map((dataset) => ({ value: dataset.name })) ?? [];
+  }, [allDatasets.data, datasetName]);
 
   useUniqueNameValidation({
     currentName: form.watch("name"),
