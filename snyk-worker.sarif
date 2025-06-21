@@ -1,0 +1,437 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Snyk Container",
+          "semanticVersion": "1.1297.1",
+          "version": "1.1297.1",
+          "informationUri": "https://docs.snyk.io/",
+          "properties": {
+            "artifactsScanned": 17
+          },
+          "rules": []
+        }
+      },
+      "results": []
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Snyk Container",
+          "semanticVersion": "1.1297.1",
+          "version": "1.1297.1",
+          "informationUri": "https://docs.snyk.io/",
+          "properties": {
+            "artifactsScanned": 2
+          },
+          "rules": []
+        }
+      },
+      "results": []
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Snyk Container",
+          "semanticVersion": "1.1297.1",
+          "version": "1.1297.1",
+          "informationUri": "https://docs.snyk.io/",
+          "properties": {
+            "artifactsScanned": 1
+          },
+          "rules": []
+        }
+      },
+      "results": []
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Snyk Container",
+          "semanticVersion": "1.1297.1",
+          "version": "1.1297.1",
+          "informationUri": "https://docs.snyk.io/",
+          "properties": {
+            "artifactsScanned": 86
+          },
+          "rules": [
+            {
+              "id": "SNYK-JS-BRACEEXPANSION-9789073",
+              "shortDescription": {
+                "text": "Low severity - Regular Expression Denial of Service (ReDoS) vulnerability in brace-expansion"
+              },
+              "fullDescription": {
+                "text": "(CVE-2025-5889) brace-expansion@2.0.1"
+              },
+              "help": {
+                "text": "",
+                "markdown": "## Overview\n[brace-expansion](https://github.com/juliangruber/brace-expansion) is a Brace expansion as known from sh/bash\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) in the `expand()` function, which is prone to catastrophic backtracking on very long malicious inputs.\n## PoC\n```js\r\nimport index from \"./index.js\";\r\n\r\nlet str = \"{a}\" + \",\".repeat(100000) + \"\\u0000\";\r\n\r\nlet startTime = performance.now();\r\n\r\nconst result = index(str);\r\n\r\nlet endTime = performance.now();\r\n\r\nlet timeTaken = endTime - startTime;\r\n\r\nconsole.log(`匹配耗时: ${timeTaken.toFixed(3)} 毫秒`);\r\n```\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `brace-expansion` to version 1.1.12, 2.0.2, 3.0.1, 4.0.1 or higher.\n## References\n- [GitHub Advisory](https://github.com/advisories/GHSA-v6h2-p8h4-qcjw)\n- [GitHub Commit](https://github.com/juliangruber/brace-expansion/commit/0b6a9781e18e9d2769bb2931f4856d1360243ed2)\n- [GitHub Gist](https://gist.github.com/mmmsssttt404/37a40ce7d6e5ca604858fe30814d9466)\n- [GitHub PR](https://github.com/juliangruber/brace-expansion/pull/65)\n"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "CWE-1333",
+                  "npm"
+                ],
+                "cvssv3_baseScore": 2.3,
+                "security-severity": "2.3"
+              }
+            },
+            {
+              "id": "SNYK-JS-CROSSSPAWN-8303230",
+              "shortDescription": {
+                "text": "High severity - Regular Expression Denial of Service (ReDoS) vulnerability in cross-spawn"
+              },
+              "fullDescription": {
+                "text": "(CVE-2024-21538) cross-spawn@7.0.3"
+              },
+              "help": {
+                "text": "",
+                "markdown": "## Overview\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) due to improper input sanitization. An attacker can increase the CPU usage and crash the program by crafting a very large and well crafted string.\n## PoC\n```javascript\r\nconst { argument } = require('cross-spawn/lib/util/escape');\r\nvar str = \"\";\r\nfor (var i = 0; i < 1000000; i++) {\r\n  str += \"\\\\\";\r\n}\r\nstr += \"◎\";\r\n\r\nconsole.log(\"start\")\r\nargument(str)\r\nconsole.log(\"end\")\r\n\r\n// run `npm install cross-spawn` and `node attack.js` \r\n// then the program will stuck forever with high CPU usage\r\n```\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `cross-spawn` to version 6.0.6, 7.0.5 or higher.\n## References\n- [GitHub Commit](https://github.com/moxystudio/node-cross-spawn/commit/5ff3a07d9add449021d806e45c4168203aa833ff)\n- [GitHub Commit](https://github.com/moxystudio/node-cross-spawn/commit/640d391fde65388548601d95abedccc12943374f)\n- [GitHub PR](https://github.com/moxystudio/node-cross-spawn/pull/160)\n"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "CWE-1333",
+                  "npm"
+                ],
+                "cvssv3_baseScore": 8.7,
+                "security-severity": "8.7"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "SNYK-JS-BRACEEXPANSION-9789073",
+          "level": "note",
+          "message": {
+            "text": "This file introduces a vulnerable brace-expansion package with a low severity vulnerability."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/root/.cache/node/corepack/v1/pnpm/9.5.0/dist/node_modules"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "brace-expansion@2.0.1"
+                }
+              ]
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Upgrade to brace-expansion@2.0.2"
+              },
+              "artifactChanges": [
+                {
+                  "artifactLocation": {
+                    "uri": "/root/.cache/node/corepack/v1/pnpm/9.5.0/dist/node_modules"
+                  },
+                  "replacements": [
+                    {
+                      "deletedRegion": {
+                        "startLine": 1
+                      },
+                      "insertedContent": {
+                        "text": "brace-expansion@2.0.2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "ruleId": "SNYK-JS-CROSSSPAWN-8303230",
+          "level": "error",
+          "message": {
+            "text": "This file introduces a vulnerable cross-spawn package with a high severity vulnerability."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/root/.cache/node/corepack/v1/pnpm/9.5.0/dist/node_modules"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "cross-spawn@7.0.3"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Snyk Container",
+          "semanticVersion": "1.1297.1",
+          "version": "1.1297.1",
+          "informationUri": "https://docs.snyk.io/",
+          "properties": {
+            "artifactsScanned": 190
+          },
+          "rules": [
+            {
+              "id": "SNYK-JS-BRACEEXPANSION-9789073",
+              "shortDescription": {
+                "text": "Low severity - Regular Expression Denial of Service (ReDoS) vulnerability in brace-expansion"
+              },
+              "fullDescription": {
+                "text": "(CVE-2025-5889) brace-expansion@2.0.1"
+              },
+              "help": {
+                "text": "",
+                "markdown": "## Overview\n[brace-expansion](https://github.com/juliangruber/brace-expansion) is a Brace expansion as known from sh/bash\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) in the `expand()` function, which is prone to catastrophic backtracking on very long malicious inputs.\n## PoC\n```js\r\nimport index from \"./index.js\";\r\n\r\nlet str = \"{a}\" + \",\".repeat(100000) + \"\\u0000\";\r\n\r\nlet startTime = performance.now();\r\n\r\nconst result = index(str);\r\n\r\nlet endTime = performance.now();\r\n\r\nlet timeTaken = endTime - startTime;\r\n\r\nconsole.log(`匹配耗时: ${timeTaken.toFixed(3)} 毫秒`);\r\n```\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `brace-expansion` to version 1.1.12, 2.0.2, 3.0.1, 4.0.1 or higher.\n## References\n- [GitHub Advisory](https://github.com/advisories/GHSA-v6h2-p8h4-qcjw)\n- [GitHub Commit](https://github.com/juliangruber/brace-expansion/commit/0b6a9781e18e9d2769bb2931f4856d1360243ed2)\n- [GitHub Gist](https://gist.github.com/mmmsssttt404/37a40ce7d6e5ca604858fe30814d9466)\n- [GitHub PR](https://github.com/juliangruber/brace-expansion/pull/65)\n"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "CWE-1333",
+                  "npm"
+                ],
+                "cvssv3_baseScore": 2.3,
+                "security-severity": "2.3"
+              }
+            },
+            {
+              "id": "SNYK-JS-CROSSSPAWN-8303230",
+              "shortDescription": {
+                "text": "High severity - Regular Expression Denial of Service (ReDoS) vulnerability in cross-spawn"
+              },
+              "fullDescription": {
+                "text": "(CVE-2024-21538) cross-spawn@7.0.3"
+              },
+              "help": {
+                "text": "",
+                "markdown": "## Overview\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) due to improper input sanitization. An attacker can increase the CPU usage and crash the program by crafting a very large and well crafted string.\n## PoC\n```javascript\r\nconst { argument } = require('cross-spawn/lib/util/escape');\r\nvar str = \"\";\r\nfor (var i = 0; i < 1000000; i++) {\r\n  str += \"\\\\\";\r\n}\r\nstr += \"◎\";\r\n\r\nconsole.log(\"start\")\r\nargument(str)\r\nconsole.log(\"end\")\r\n\r\n// run `npm install cross-spawn` and `node attack.js` \r\n// then the program will stuck forever with high CPU usage\r\n```\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `cross-spawn` to version 6.0.6, 7.0.5 or higher.\n## References\n- [GitHub Commit](https://github.com/moxystudio/node-cross-spawn/commit/5ff3a07d9add449021d806e45c4168203aa833ff)\n- [GitHub Commit](https://github.com/moxystudio/node-cross-spawn/commit/640d391fde65388548601d95abedccc12943374f)\n- [GitHub PR](https://github.com/moxystudio/node-cross-spawn/pull/160)\n"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "CWE-1333",
+                  "npm"
+                ],
+                "cvssv3_baseScore": 8.7,
+                "security-severity": "8.7"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "SNYK-JS-BRACEEXPANSION-9789073",
+          "level": "note",
+          "message": {
+            "text": "This file introduces a vulnerable brace-expansion package with a low severity vulnerability."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/local/lib/node_modules"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "brace-expansion@2.0.1"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "ruleId": "SNYK-JS-CROSSSPAWN-8303230",
+          "level": "error",
+          "message": {
+            "text": "This file introduces a vulnerable cross-spawn package with a high severity vulnerability."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/local/lib/node_modules"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "cross-spawn@7.0.3"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Snyk Container",
+          "semanticVersion": "1.1297.1",
+          "version": "1.1297.1",
+          "informationUri": "https://docs.snyk.io/",
+          "properties": {
+            "artifactsScanned": 1
+          },
+          "rules": [
+            {
+              "id": "SNYK-GOLANG-GOLANGORGXSYSUNIX-3310442",
+              "shortDescription": {
+                "text": "Medium severity - Incorrect Privilege Assignment vulnerability in golang.org/x/sys/unix"
+              },
+              "fullDescription": {
+                "text": "(CVE-2022-29526) golang.org/x/sys/unix@v0.0.0-20220715151400-c0bba94af5f8"
+              },
+              "help": {
+                "text": "",
+                "markdown": "## Overview\n\nAffected versions of this package are vulnerable to Incorrect Privilege Assignment such that when called with a non-zero flags parameter, the `Faccessat` function can incorrectly report that a file is accessible.\n## Remediation\nUpgrade `golang.org/x/sys/unix` to version 0.1.0 or higher.\n## References\n- [GitHub Commit](https://github.com/golang/sys/commit/33da011f77ade50ff5b6a6fb4a9a1e6d6b285809)\n- [GitHub Issues](https://github.com/golang/go/issues/52313)\n- [GitHub Release](https://github.com/golang/sys/releases/tag/v0.1.0)\n"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "CWE-266",
+                  "gomodules"
+                ],
+                "cvssv3_baseScore": 6.9,
+                "security-severity": "6.9"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "SNYK-GOLANG-GOLANGORGXSYSUNIX-3310442",
+          "level": "warning",
+          "message": {
+            "text": "This file introduces a vulnerable golang.org/x/sys/unix package with a medium severity vulnerability."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/app/node_modules/.pnpm/@esbuild+linux-arm64@0.20.2/node_modules/@esbuild/linux-arm64/bin/esbuild"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "golang.org/x/sys/unix@v0.0.0-20220715151400-c0bba94af5f8"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Snyk Container",
+          "semanticVersion": "1.1297.1",
+          "version": "1.1297.1",
+          "informationUri": "https://docs.snyk.io/",
+          "properties": {
+            "artifactsScanned": 1
+          },
+          "rules": [
+            {
+              "id": "SNYK-GOLANG-GOLANGORGXSYSUNIX-3310442",
+              "shortDescription": {
+                "text": "Medium severity - Incorrect Privilege Assignment vulnerability in golang.org/x/sys/unix"
+              },
+              "fullDescription": {
+                "text": "(CVE-2022-29526) golang.org/x/sys/unix@v0.0.0-20220715151400-c0bba94af5f8"
+              },
+              "help": {
+                "text": "",
+                "markdown": "## Overview\n\nAffected versions of this package are vulnerable to Incorrect Privilege Assignment such that when called with a non-zero flags parameter, the `Faccessat` function can incorrectly report that a file is accessible.\n## Remediation\nUpgrade `golang.org/x/sys/unix` to version 0.1.0 or higher.\n## References\n- [GitHub Commit](https://github.com/golang/sys/commit/33da011f77ade50ff5b6a6fb4a9a1e6d6b285809)\n- [GitHub Issues](https://github.com/golang/go/issues/52313)\n- [GitHub Release](https://github.com/golang/sys/releases/tag/v0.1.0)\n"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "CWE-266",
+                  "gomodules"
+                ],
+                "cvssv3_baseScore": 6.9,
+                "security-severity": "6.9"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "SNYK-GOLANG-GOLANGORGXSYSUNIX-3310442",
+          "level": "warning",
+          "message": {
+            "text": "This file introduces a vulnerable golang.org/x/sys/unix package with a medium severity vulnerability."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/app/node_modules/.pnpm/@esbuild+linux-arm64@0.23.1/node_modules/@esbuild/linux-arm64/bin/esbuild"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "golang.org/x/sys/unix@v0.0.0-20220715151400-c0bba94af5f8"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
