@@ -173,13 +173,13 @@ const ObservationTreeTraceNode = (props: {
     >
       <div className="flex w-full flex-row items-start justify-between gap-1 py-1">
         <div className="flex w-full flex-col items-start gap-2 -space-y-1 py-1.5">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <ItemBadge
               type="TRACE"
               isSmall={true}
               className="flex-shrink-0 scale-75"
             />
-            <span className="break-all text-sm font-medium">
+            <span className="break-words text-sm font-medium min-w-0">
               {props.trace.name}
             </span>
             {props.comments && props.showComments ? (
