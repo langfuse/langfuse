@@ -78,7 +78,7 @@ pnpm --filter=PACKAGE_NAME run build  # Runs the build command, will show real t
 ```
 
 ### Testing in Web Package
-The web packes uses JEST for unit tests.
+The web package uses JEST for unit tests.
 Depending on the file location (sync, async)
 `web` related tests must go into the `web/src/__tests__/` folder.
 ```sh
