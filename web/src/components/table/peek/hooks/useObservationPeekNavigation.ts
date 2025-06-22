@@ -1,6 +1,7 @@
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
 import { type ObservationsTableRow } from "@/src/components/table/use-cases/observations";
+import { env } from "@/src/env.mjs";
 
 export const useObservationPeekNavigation = () => {
   const router = useRouter();
@@ -39,7 +40,7 @@ export const useObservationPeekNavigation = () => {
 
     if (!row) return;
 
-    const pathname = `/project/${projectId}/traces/${encodeURIComponent(row.traceId as string)}?timestamp=${timestamp}&display=${display}&observation=${peek as string}`;
+    const pathname = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/traces/${encodeURIComponent(row.traceId as string)}?timestamp=${timestamp}&display=${display}&observation=${peek as string}`;
 
     if (openInNewTab) {
       window.open(pathname, "_blank");
