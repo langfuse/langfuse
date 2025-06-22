@@ -8,10 +8,16 @@ import { PromptWebhookOutboundSchema } from "../../domain";
 import { prisma } from "../../db";
 import { recordIncrement } from "../instrumentation";
 import { TQueueJobTypes, QueueName, WebhookInput } from "../queues";
-import { getActionById, getConsecutiveFailures } from "../repositories";
+import {
+  getActionById,
+  getActionByIdWithSecrets,
+  getConsecutiveAutomationFailures,
+} from "../repositories";
 import { PromptService } from "../services/PromptService";
 import { redis } from "../redis/redis";
 import { logger } from "..";
+import { createSignatureHeader } from "../../encryption/signature";
+import { decrypt } from "../../encryption";
 
 export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
@@ -37,7 +43,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
       `Executing webhook for action ${actionId} and execution ${executionId}`,
     );
 
-    const actionConfig = await getActionById({
+    const actionConfig = await getActionByIdWithSecrets({
       projectId,
       actionId,
     });
@@ -66,7 +72,9 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
     try {
       const webhookUrl = new URL(webhookConfig.url);
       if (webhookUrl.protocol !== "https:") {
-        throw new Error(`Webhook URL must use HTTPS protocol for security. Received: ${webhookUrl.protocol}`);
+        throw new Error(
+          `Webhook URL must use HTTPS protocol for security. Received: ${webhookUrl.protocol}`,
+        );
       }
     } catch (error) {
       if (error instanceof TypeError) {
@@ -75,20 +83,42 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
       throw error;
     }
 
+    // Prepare webhook payload
+    const webhookPayload = JSON.stringify({
+      ...PromptWebhookOutboundSchema.parse({
+        id: input.eventId,
+        timestamp: new Date(),
+        type: input.payload.type,
+        action: input.payload.action,
+        prompt,
+      }),
+    });
+
+    // Prepare headers with signature if secret exists
+    const requestHeaders = { ...webhookConfig.headers };
+    if (webhookConfig.secretKey) {
+      try {
+        const decryptedSecret = decrypt(webhookConfig.secretKey);
+        const signature = createSignatureHeader(
+          webhookPayload,
+          decryptedSecret,
+        );
+        requestHeaders["Langfuse-Signature"] = signature;
+      } catch (error) {
+        logger.error(
+          "Failed to decrypt webhook secret or generate signature",
+          error,
+        );
+        throw new Error("Failed to generate webhook signature");
+      }
+    }
+
     await backOff(
       async () => {
         const res = await fetch(webhookConfig.url, {
           method: "POST",
-          body: JSON.stringify({
-            ...PromptWebhookOutboundSchema.parse({
-              id: input.eventId,
-              timestamp: new Date(),
-              type: input.payload.type,
-              action: input.payload.action,
-              prompt,
-            }),
-          }),
-          headers: webhookConfig.headers,
+          body: webhookPayload,
+          headers: requestHeaders,
         });
 
         httpStatus = res.status;
@@ -154,7 +184,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
       });
 
       // Check consecutive failures from execution history
-      const consecutiveFailures = await getConsecutiveFailures({
+      const consecutiveFailures = await getConsecutiveAutomationFailures({
         triggerId,
         actionId,
         projectId,

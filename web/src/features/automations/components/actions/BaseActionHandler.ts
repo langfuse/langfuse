@@ -1,9 +1,11 @@
 import { type UseFormReturn, type FieldValues } from "react-hook-form";
-import { type ActionType, type ActionConfigSchema } from "@langfuse/shared";
-import { type ActiveAutomation } from "@langfuse/shared/src/server";
+import {
+  type ActionDomain,
+  type ActionType,
+  type AutomationDomain,
+  type SafeWebhookActionConfig,
+} from "@langfuse/shared";
 import { type z } from "zod/v4";
-
-type ActionConfig = z.infer<typeof ActionConfigSchema>;
 
 export interface BaseActionHandler<
   TFormData extends FieldValues = FieldValues,
@@ -11,7 +13,7 @@ export interface BaseActionHandler<
   actionType: ActionType;
 
   // Get default values for this action type
-  getDefaultValues(automation?: ActiveAutomation): TFormData;
+  getDefaultValues(automation?: AutomationDomain): TFormData;
 
   // Validate the form data for this action type
   validateFormData(formData: TFormData): {
@@ -20,12 +22,15 @@ export interface BaseActionHandler<
   };
 
   // Build the action config for API submission
-  buildActionConfig(formData: TFormData): ActionConfig;
+  buildActionConfig(
+    formData: TFormData,
+  ): Omit<SafeWebhookActionConfig, "displaySecretKey">;
 
   // Render the action form UI - using any for form to allow flexibility
   renderForm(props: {
     form: UseFormReturn<any>;
     disabled: boolean;
     projectId: string;
+    action?: ActionDomain;
   }): React.ReactNode;
 }

@@ -2,17 +2,20 @@ import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
 import {
-  ActionConfigSchema,
-  ActionExecutionStatus,
+  ActionCreateSchema,
   ActionType,
   JobConfigState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {
-  getActiveAutomations,
-  getConsecutiveFailures,
+  getActionById,
+  getAutomations,
+  getConsecutiveAutomationFailures,
+  logger,
 } from "@langfuse/shared/src/server";
+import { generateWebhookSecret } from "@langfuse/shared/encryption";
+import { processWebhookActionConfig } from "./webhookHelpers";
 
 export const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
@@ -20,10 +23,10 @@ export const CreateAutomationInputSchema = z.object({
   eventSource: z.string(),
   eventAction: z.array(z.string()),
   filter: z.array(z.any()).nullable(),
-  status: z.nativeEnum(JobConfigState).default(JobConfigState.ACTIVE),
+  status: z.enum(JobConfigState).default(JobConfigState.ACTIVE),
   // Action fields
-  actionType: z.nativeEnum(ActionType),
-  actionConfig: ActionConfigSchema,
+  actionType: z.enum(ActionType),
+  actionConfig: ActionCreateSchema,
 });
 
 export const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
@@ -49,14 +52,61 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      // Get inactive automations that have recent failures (within last 24 hours)
-      const recentlyDisabled = await getConsecutiveFailures({
+      const recentlyDisabled = await getConsecutiveAutomationFailures({
         triggerId: input.triggerId,
         actionId: input.actionId,
         projectId: input.projectId,
       });
 
       return { count: recentlyDisabled };
+    }),
+
+  // Regenerate webhook secret for an automation
+  regenerateWebhookSecret: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        actionId: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Check if user has create/update/delete access to automations
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      // Get existing action
+      const existingAction = await getActionById({
+        projectId: input.projectId,
+        actionId: input.actionId,
+      });
+
+      if (!existingAction || existingAction.type !== "WEBHOOK") {
+        throw new Error("Webhook action not found");
+      }
+
+      // Generate new webhook secret
+      const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
+        generateWebhookSecret();
+
+      // Update action config with new secret
+      const updatedConfig = {
+        ...(existingAction.config as any),
+        secretKey: newSecretKey,
+        displaySecretKey: newDisplaySecretKey,
+      };
+
+      await ctx.prisma.action.update({
+        where: { id: input.actionId, projectId: ctx.session.projectId },
+        data: { config: updatedConfig },
+      });
+
+      return {
+        displaySecretKey: newDisplaySecretKey,
+        webhookSecret: newSecretKey, // Return full secret for one-time display
+      };
     }),
 
   getAutomations: protectedProjectProcedure
@@ -69,7 +119,7 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      return getActiveAutomations({
+      return getAutomations({
         projectId: input.projectId,
       });
     }),
@@ -91,7 +141,7 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      const automations = await getActiveAutomations({
+      const automations = await getAutomations({
         projectId: input.projectId,
         triggerId: input.triggerId,
         actionId: input.actionId,
@@ -164,26 +214,12 @@ export const automationsRouter = createTRPCRouter({
       const triggerId = v4();
       const actionId = v4();
 
-      // Add default headers for webhook actions
-      let finalActionConfig = input.actionConfig;
-      if (
-        input.actionType === "WEBHOOK" &&
-        finalActionConfig.type === "WEBHOOK"
-      ) {
-        const { WebhookDefaultHeadersSchema } = await import(
-          "@langfuse/shared"
-        );
-        const defaultHeaders = WebhookDefaultHeadersSchema.parse({
-          "content-type": "application/json",
+      // Process webhook action configuration using helper
+      const { finalActionConfig, newWebhookSecret } =
+        await processWebhookActionConfig({
+          actionConfig: input.actionConfig,
+          projectId: input.projectId,
         });
-        finalActionConfig = {
-          ...finalActionConfig,
-          headers: {
-            ...defaultHeaders,
-            ...finalActionConfig.headers,
-          },
-        };
-      }
 
       const [trigger, action] = await ctx.prisma.$transaction(async (tx) => {
         const trigger = await tx.trigger.create({
@@ -219,9 +255,15 @@ export const automationsRouter = createTRPCRouter({
         return [trigger, action];
       });
 
-      // Then create the trigger with the action ID
+      logger.info(
+        `Created automation ${trigger.id} for action ${action.id} with secret: ${newWebhookSecret}`,
+      );
 
-      return { action, trigger };
+      return {
+        action,
+        trigger,
+        webhookSecret: newWebhookSecret, // Return webhook secret at top level for one-time display
+      };
     }),
 
   // Update an existing automation
@@ -235,64 +277,54 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      // Add default headers for webhook actions
-      let finalActionConfig = input.actionConfig;
-      if (
-        input.actionType === "WEBHOOK" &&
-        finalActionConfig.type === "WEBHOOK"
-      ) {
-        const { WebhookDefaultHeadersSchema } = await import(
-          "@langfuse/shared"
-        );
-        const defaultHeaders = WebhookDefaultHeadersSchema.parse({
-          "content-type": "application/json",
+      // Process webhook action configuration using helper
+      const { finalActionConfig } = await processWebhookActionConfig({
+        actionConfig: input.actionConfig,
+        actionId: input.actionId,
+        projectId: input.projectId,
+      });
+
+      const [action, trigger] = await ctx.prisma.$transaction(async (tx) => {
+        // Update the action
+        const action = await tx.action.update({
+          where: {
+            id: input.actionId,
+            projectId: ctx.session.projectId,
+          },
+          data: {
+            type: input.actionType,
+            config: finalActionConfig,
+          },
         });
-        finalActionConfig = {
-          ...finalActionConfig,
-          headers: {
-            ...defaultHeaders,
-            ...finalActionConfig.headers,
+
+        // Update the trigger
+        const trigger = await tx.trigger.update({
+          where: {
+            id: input.triggerId,
+            projectId: ctx.session.projectId,
           },
-        };
-      }
-
-      // Update the action
-      const action = await ctx.prisma.action.update({
-        where: {
-          id: input.actionId,
-          projectId: ctx.session.projectId,
-        },
-        data: {
-          type: input.actionType,
-          config: finalActionConfig,
-        },
-      });
-
-      // Update the trigger
-      const trigger = await ctx.prisma.trigger.update({
-        where: {
-          id: input.triggerId,
-          projectId: ctx.session.projectId,
-        },
-        data: {
-          eventSource: input.eventSource,
-          eventActions: input.eventAction,
-          filter: input.filter || [],
-          status: input.status,
-        },
-      });
-
-      // Update the automation name in TriggersOnActions
-      await ctx.prisma.triggersOnActions.update({
-        where: {
-          triggerId_actionId: {
-            triggerId: input.triggerId,
-            actionId: input.actionId,
+          data: {
+            eventSource: input.eventSource,
+            eventActions: input.eventAction,
+            filter: input.filter || [],
+            status: input.status,
           },
-        },
-        data: {
-          name: input.name,
-        },
+        });
+
+        // Update the automation name in TriggersOnActions
+        await tx.triggersOnActions.update({
+          where: {
+            triggerId_actionId: {
+              triggerId: input.triggerId,
+              actionId: input.actionId,
+            },
+          },
+          data: {
+            name: input.name,
+          },
+        });
+
+        return [action, trigger];
       });
 
       return { action, trigger };

@@ -17,7 +17,7 @@ import { cn } from "@/src/utils/tailwind";
 type MarkdownJsonViewHeaderProps = {
   title: string;
   handleOnValueChange: () => void;
-  handleOnCopy: () => void;
+  handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   canEnableMarkdown?: boolean;
   controlButtons?: React.ReactNode;
 };
@@ -57,9 +57,9 @@ export function MarkdownJsonViewHeader({
           variant="ghost"
           size="icon-xs"
           type="button"
-          onClick={() => {
+          onClick={(event) => {
             setIsCopied(true);
-            handleOnCopy();
+            handleOnCopy(event);
             setTimeout(() => setIsCopied(false), 1000);
           }}
           className="-mr-2 hover:bg-border"

@@ -2,13 +2,10 @@ import { z } from "zod/v4";
 import { jsonSchema } from "../utils/zod";
 import { EventActionSchema } from "./automations";
 
-// Default headers that are automatically added to webhook requests
-export const WebhookDefaultHeadersSchema = z.object({
-  "content-type": z.literal("application/json"),
-  "User-Agent": z.literal("Langfuse/1.0"),
-});
-
-export type WebhookDefaultHeaders = z.infer<typeof WebhookDefaultHeadersSchema>;
+export const WebhookDefaultHeaders = {
+  "Content-Type": "application/json",
+  "User-Agent": "Langfuse/1.0",
+};
 
 export const WebhookOutboundBaseSchema = z.object({
   id: z.string(),

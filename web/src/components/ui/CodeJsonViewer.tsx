@@ -41,9 +41,17 @@ export function JSONView(props: {
       ? 100_000_000 // if null, show all (100M chars)
       : (props.collapseStringsAfterLength ?? 500);
 
-  const handleOnCopy = () => {
+  const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
+    if (event) {
+      event.preventDefault();
+    }
     const textToCopy = stringifyJsonNode(parsedJson);
     void copyTextToClipboard(textToCopy);
+    
+    // Keep focus on the copy button to prevent focus shifting
+    if (event) {
+      event.currentTarget.focus();
+    }
   };
 
   const handleOnValueChange = () => {
@@ -158,7 +166,8 @@ export function CodeView(props: {
   const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
 
-  const handleCopy = () => {
+  const handleCopy = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
     setIsCopied(true);
     const content =
       typeof props.content === "string"
@@ -166,6 +175,9 @@ export function CodeView(props: {
         : (props.content?.join("\n") ?? "");
     void copyTextToClipboard(content);
     setTimeout(() => setIsCopied(false), 1000);
+    
+    // Keep focus on the copy button to prevent focus shifting
+    event.currentTarget.focus();
   };
 
   const handleShowAll = () => setCollapsed(!isCollapsed);

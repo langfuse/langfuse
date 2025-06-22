@@ -17,6 +17,7 @@ export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
+export { verifyLangfuseWebhookSignature } from "./encryption/signature";
 
 // llm api
 export * from "./server/llm/types";

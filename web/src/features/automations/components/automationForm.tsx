@@ -31,12 +31,15 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { type ActionTypes, type JobConfigState } from "@langfuse/shared";
+import {
+  type AutomationDomain,
+  type ActionTypes,
+  type JobConfigState,
+} from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import { ActionHandlerRegistry } from "./actions";
 
 import { webhookSchema } from "./actions/WebhookActionForm";
@@ -70,9 +73,13 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface AutomationFormProps {
   projectId: string;
-  onSuccess?: (triggerId?: string, actionId?: string) => void;
+  onSuccess?: (
+    triggerId?: string,
+    actionId?: string,
+    webhookSecret?: string,
+  ) => void;
   onCancel?: () => void;
-  automation?: ActiveAutomation;
+  automation?: AutomationDomain;
   isEditing?: boolean;
 }
 
@@ -179,68 +186,58 @@ export const AutomationForm = ({
       return;
     }
 
-    try {
-      // Use action handler to validate and build config
-      const handler = ActionHandlerRegistry.getHandler(data.actionType);
-      const validation = handler.validateFormData(data);
+    // Use action handler to validate and build config
+    const handler = ActionHandlerRegistry.getHandler(data.actionType);
+    const validation = handler.validateFormData(data);
 
-      if (!validation.isValid) {
-        showSuccessToast({
-          title: "Validation Error",
-          description:
-            validation.errors?.join(", ") ||
-            "Please fill in all required fields",
-        });
-        return;
-      }
-
-      const actionConfig = handler.buildActionConfig(data);
-
-      let triggerId: string;
-      let actionId: string;
-
-      if (isEditing && automation) {
-        // Update existing automation
-        await updateAutomationMutation.mutateAsync({
-          projectId,
-          triggerId: automation.trigger.id,
-          actionId: automation.action.id,
-          name: data.name,
-          eventSource: data.eventSource,
-          eventAction: data.eventAction,
-          filter: data.filter && data.filter.length > 0 ? data.filter : null,
-          status: data.status as JobConfigState,
-          actionType: data.actionType,
-          actionConfig: actionConfig,
-        });
-        triggerId = automation.trigger.id;
-        actionId = automation.action.id;
-      } else {
-        // Create new automation
-        const result = await createAutomationMutation.mutateAsync({
-          projectId,
-          name: data.name,
-          eventSource: data.eventSource,
-          eventAction: data.eventAction,
-          filter: data.filter && data.filter.length > 0 ? data.filter : null,
-          status: data.status as JobConfigState,
-          actionType: data.actionType,
-          actionConfig: actionConfig,
-        });
-        triggerId = result.trigger.id;
-        actionId = result.action.id;
-      }
-
-      // Call onSuccess callback with automation IDs
-      if (onSuccess) {
-        onSuccess(triggerId, actionId);
-      }
-    } catch (error) {
-      console.error("Failed to save automation:", error);
+    if (!validation.isValid) {
       showSuccessToast({
-        title: "Error",
-        description: "Failed to save automation. Please try again.",
+        title: "Validation Error",
+        description:
+          validation.errors?.join(", ") || "Please fill in all required fields",
       });
+      return;
+    }
+
+    const actionConfig = handler.buildActionConfig(data);
+
+    let triggerId: string;
+    let actionId: string;
+
+    if (isEditing && automation) {
+      // Update existing automation
+      await updateAutomationMutation.mutateAsync({
+        projectId,
+        triggerId: automation.trigger.id,
+        actionId: automation.action.id,
+        name: data.name,
+        eventSource: data.eventSource,
+        eventAction: data.eventAction,
+        filter: data.filter && data.filter.length > 0 ? data.filter : null,
+        status: data.status as JobConfigState,
+        actionType: data.actionType,
+        actionConfig: actionConfig,
+      });
+      triggerId = automation.trigger.id;
+      actionId = automation.action.id;
+
+      onSuccess?.(triggerId, actionId);
+    } else {
+      // Create new automation
+      const result = await createAutomationMutation.mutateAsync({
+        projectId,
+        name: data.name,
+        eventSource: data.eventSource,
+        eventAction: data.eventAction,
+        filter: data.filter && data.filter.length > 0 ? data.filter : null,
+        status: data.status as JobConfigState,
+        actionType: data.actionType,
+        actionConfig: actionConfig,
+      });
+      triggerId = result.trigger.id;
+      actionId = result.action.id;
+
+      onSuccess?.(triggerId, actionId, result.webhookSecret);
     }
   };
 
@@ -476,6 +473,7 @@ export const AutomationForm = ({
                 form,
                 disabled: !hasAccess || !isEditing,
                 projectId,
+                action: automation?.action,
               })}
           </CardContent>
         </Card>

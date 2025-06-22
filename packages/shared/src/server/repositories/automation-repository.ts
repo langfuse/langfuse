@@ -7,18 +7,49 @@ import {
 } from "../../db";
 import {
   TriggerEventSource,
-  WebhookActionConfig,
-  ActionDomain,
+  WebhookActionConfigWithSecrets,
   TriggerDomain,
   TriggerEventAction,
+  ActionDomain,
+  AutomationDomain,
+  SafeWebhookActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 
-// Narrow versions of the domain types that exclude the relation ID arrays.
-type MinimalActionDomain = Omit<ActionDomain, "triggerIds">;
-type MinimalTriggerDomain = Omit<TriggerDomain, "actionIds">;
+export const getActionByIdWithSecrets = async ({
+  projectId,
+  actionId,
+}: {
+  projectId: string;
+  actionId: string;
+}) => {
+  const actionConfig = await prisma.action.findFirst({
+    where: {
+      id: actionId,
+      projectId,
+    },
+    include: {
+      triggers: true,
+    },
+  });
 
-type ActionConfigWithTriggers = ActionDomain & { triggerIds: string[] };
+  if (!actionConfig) {
+    return null;
+  }
+
+  const config = actionConfig.config as WebhookActionConfigWithSecrets;
+  return {
+    ...actionConfig,
+    config: {
+      type: config.type,
+      url: config.url,
+      headers: config.headers,
+      apiVersion: config.apiVersion,
+      displaySecretKey: config.displaySecretKey,
+      secretKey: config.secretKey,
+    },
+  };
+};
 
 export const getActionById = async ({
   projectId,
@@ -26,7 +57,7 @@ export const getActionById = async ({
 }: {
   projectId: string;
   actionId: string;
-}): Promise<ActionConfigWithTriggers | null> => {
+}): Promise<ActionDomain | null> => {
   const actionConfig = await prisma.action.findFirst({
     where: {
       id: actionId,
@@ -43,13 +74,10 @@ export const getActionById = async ({
 
   const actionDomain = convertActionToDomain(actionConfig);
 
-  return {
-    ...actionDomain,
-    triggerIds: actionConfig.triggers.map((trigger) => trigger.triggerId),
-  };
+  return actionDomain;
 };
 
-type TriggerConfigWithActions = TriggerDomain & { actionIds: string[] };
+export type TriggerDomainWithActions = TriggerDomain & { actionIds: string[] };
 
 export const getTriggerConfigurations = async ({
   projectId,
@@ -59,7 +87,7 @@ export const getTriggerConfigurations = async ({
   projectId: string;
   eventSource: TriggerEventSource;
   status: JobConfigState;
-}): Promise<TriggerConfigWithActions[]> => {
+}): Promise<TriggerDomainWithActions[]> => {
   const triggers = await prisma.trigger.findMany({
     where: {
       projectId,
@@ -79,7 +107,7 @@ export const getTriggerConfigurations = async ({
   return triggerConfigurations;
 };
 
-const convertTriggerToDomain = (trigger: Trigger): MinimalTriggerDomain => {
+const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
   return {
     ...trigger,
     eventActions: (trigger.eventActions || []) as TriggerEventAction[],
@@ -88,21 +116,21 @@ const convertTriggerToDomain = (trigger: Trigger): MinimalTriggerDomain => {
   };
 };
 
-const convertActionToDomain = (action: Action): MinimalActionDomain => {
+const convertActionToDomain = (action: Action): ActionDomain => {
+  const config = action.config as WebhookActionConfigWithSecrets;
   return {
     ...action,
-    config: action.config as WebhookActionConfig,
+    config: {
+      type: config.type,
+      url: config.url,
+      headers: config.headers,
+      apiVersion: config.apiVersion,
+      displaySecretKey: config.displaySecretKey,
+    } as SafeWebhookActionConfig,
   };
 };
 
-// Local type for getActiveAutomations return value to avoid leaking prisma types
-export type ActiveAutomation = {
-  name: string;
-  trigger: MinimalTriggerDomain;
-  action: MinimalActionDomain;
-};
-
-export const getActiveAutomations = async ({
+export const getAutomations = async ({
   projectId,
   triggerId,
   actionId,
@@ -110,7 +138,7 @@ export const getActiveAutomations = async ({
   projectId: string;
   triggerId?: string;
   actionId?: string;
-}): Promise<ActiveAutomation[]> => {
+}): Promise<AutomationDomain[]> => {
   const automations = await prisma.triggersOnActions.findMany({
     where: {
       projectId,
@@ -133,8 +161,7 @@ export const getActiveAutomations = async ({
   }));
 };
 
-// Helper function to check consecutive failures from execution history
-export const getConsecutiveFailures = async ({
+export const getConsecutiveAutomationFailures = async ({
   triggerId,
   actionId,
   projectId,

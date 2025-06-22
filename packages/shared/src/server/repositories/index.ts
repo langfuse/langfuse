@@ -12,4 +12,4 @@ export * from "./trace-sessions";
 export * from "./scores-utils";
 export * from "./blobStorageLog";
 export * from "./environments";
-export * from "./action-repository";
+export * from "./automation-repository";

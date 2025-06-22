@@ -19,10 +19,22 @@ export type TriggerDomain = Omit<
   filter: FilterState;
   eventSource: TriggerEventSource;
   eventActions: TriggerEventAction[];
-  actionIds: string[];
 };
 
-// Zod schema for ActionType enum
+export type AutomationDomain = {
+  name: string;
+  trigger: TriggerDomain;
+  action: ActionDomain;
+};
+
+export type ActionDomain = Omit<Action, "config"> & {
+  config: SafeWebhookActionConfig;
+};
+
+export type ActionDomainWithSecrets = Omit<Action, "config"> & {
+  config: WebhookActionConfigWithSecrets;
+};
+
 export const ActionTypeSchema = z.enum(["WEBHOOK"]);
 
 export const AvailableWebhookApiSchema = z.record(
@@ -32,27 +44,38 @@ export const AvailableWebhookApiSchema = z.record(
 
 export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
-  url:z.url({ protocol: /^https$/ });
-  
+  url: z.url({ protocol: /^https$/ }),
   headers: z.record(z.string(), z.string()),
   apiVersion: AvailableWebhookApiSchema,
+  secretKey: z.string(),
+  displaySecretKey: z.string(),
+});
+
+export const SafeWebhookActionConfigSchema = WebhookActionConfigSchema.omit({
+  secretKey: true,
+});
+
+export type SafeWebhookActionConfig = z.infer<
+  typeof SafeWebhookActionConfigSchema
+>;
+
+export const WebhookActionCreateSchema = WebhookActionConfigSchema.omit({
+  secretKey: true,
+  displaySecretKey: true,
 });
 
 export const ActionConfigSchema = z.discriminatedUnion("type", [
   WebhookActionConfigSchema,
 ]);
 
+export const ActionCreateSchema = z.discriminatedUnion("type", [
+  WebhookActionCreateSchema,
+]);
+
 export type ActionTypes = z.infer<typeof ActionTypeSchema>;
 export type ActionConfig = z.infer<typeof ActionConfigSchema>;
+export type ActionCreate = z.infer<typeof ActionCreateSchema>;
 
-export type WebhookActionConfig = z.infer<typeof WebhookActionConfigSchema>;
-
-export type ActionDomain = Omit<Action, "config"> & {
-  config: WebhookActionConfig;
-  triggerIds: string[];
-};
-
-export type AutomationIdentifier = {
-  triggerId: string;
-  actionId: string;
-};
+export type WebhookActionConfigWithSecrets = z.infer<
+  typeof WebhookActionConfigSchema
+>;

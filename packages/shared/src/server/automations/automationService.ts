@@ -5,7 +5,11 @@ import { QueueJobs, QueueName } from "../queues";
 import { v4 } from "uuid";
 import { WebhookQueue } from "../redis/webhookQueue";
 import { TriggerDomain, ActionDomain, TriggerEventSource } from "../../domain";
-import { getActionById, getTriggerConfigurations } from "../repositories";
+import {
+  getActionById,
+  getTriggerConfigurations,
+  TriggerDomainWithActions,
+} from "../repositories";
 
 export interface AutomationServiceDelegates<T> {
   checkTriggerAppliesToEvent: (trigger: TriggerDomain) => Promise<boolean>;
@@ -92,7 +96,7 @@ export class AutomationService<T> {
     }
   }
 
-  private async executeAction(trigger: TriggerDomain) {
+  private async executeAction(trigger: TriggerDomainWithActions) {
     const { createEventId, convertEventToActionInput } = this.delegates;
 
     const actionConfig = await getActionById({

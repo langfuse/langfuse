@@ -13,7 +13,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { type FilterState } from "@langfuse/shared";
-import { type ActiveAutomation as FullActiveAutomation } from "@langfuse/shared/src/server";
+import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
@@ -24,17 +24,8 @@ interface AutomationDetailsProps {
   triggerId: string;
   actionId: string;
   onEditSuccess?: () => void;
-  onEdit?: (automation: FullActiveAutomation) => void;
+  onEdit?: (automation: ActiveAutomation) => void;
 }
-
-// Omit eventAction temporarily from ActiveAutomation type as it is not yet available in the shared types
-// This is a temporary workaround to avoid type errors until the shared types are updated
-// It will be added back once the shared types are updated
-type ActiveAutomation = Omit<FullActiveAutomation, "trigger"> & {
-  trigger: Omit<FullActiveAutomation["trigger"], "eventAction"> & {
-    eventAction?: string[];
-  };
-};
 
 export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   projectId,
@@ -92,7 +83,6 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
     );
   }
 
-  // Convert the automation data to match the expected format for the form
   const automationForForm: ActiveAutomation = {
     name: automation.name,
     trigger: {

@@ -1,12 +1,13 @@
 import React from "react";
 import { type UseFormReturn } from "react-hook-form";
-import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import { type BaseActionHandler } from "./BaseActionHandler";
 import { WebhookActionForm, formatWebhookHeaders } from "./WebhookActionForm";
 import {
-  type WebhookActionConfig,
+  type AutomationDomain,
   AvailableWebhookApiSchema,
-  WebhookDefaultHeadersSchema,
+  WebhookDefaultHeaders,
+  type SafeWebhookActionConfig,
+  type ActionDomain,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 
@@ -40,7 +41,7 @@ export class WebhookActionHandler
   actionType = "WEBHOOK" as const;
 
   // Parse existing headers if available
-  private parseHeaders(automation?: ActiveAutomation): HeaderPair[] {
+  private parseHeaders(automation?: AutomationDomain): HeaderPair[] {
     if (
       automation?.action?.type === "WEBHOOK" &&
       automation?.action?.config &&
@@ -61,7 +62,7 @@ export class WebhookActionHandler
     return [];
   }
 
-  getDefaultValues(automation?: ActiveAutomation): WebhookActionFormData {
+  getDefaultValues(automation?: AutomationDomain): WebhookActionFormData {
     // Extract apiVersion from existing config
     let apiVersion = { prompt: "v1" } as const;
     if (
@@ -99,8 +100,8 @@ export class WebhookActionHandler
 
     // Validate headers
     if (formData.webhook?.headers) {
-      const defaultHeaderKeys = Object.keys(WebhookDefaultHeadersSchema.shape);
-      
+      const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
+
       formData.webhook.headers.forEach((header: HeaderPair, index: number) => {
         // Only validate non-empty headers
         if (header.name.trim() || header.value.trim()) {
@@ -110,10 +111,15 @@ export class WebhookActionHandler
           if (!header.value.trim()) {
             errors.push(`Header ${index + 1}: Value cannot be empty`);
           }
-          
+
           // Check if header name conflicts with default headers
-          if (header.name.trim() && defaultHeaderKeys.includes(header.name.trim().toLowerCase())) {
-            errors.push(`Header ${index + 1}: "${header.name}" is automatically added by Langfuse and cannot be customized`);
+          if (
+            header.name.trim() &&
+            defaultHeaderKeys.includes(header.name.trim().toLowerCase())
+          ) {
+            errors.push(
+              `Header ${index + 1}: "${header.name}" is automatically added by Langfuse and cannot be customized`,
+            );
           }
         }
       });
@@ -125,7 +131,9 @@ export class WebhookActionHandler
     };
   }
 
-  buildActionConfig(formData: WebhookActionFormData): WebhookActionConfig {
+  buildActionConfig(
+    formData: WebhookActionFormData,
+  ): Omit<SafeWebhookActionConfig, "displaySecretKey"> {
     // Convert headers array to object
     let headersObject: Record<string, string> = {};
 
@@ -145,7 +153,15 @@ export class WebhookActionHandler
     form: UseFormReturn<WebhookActionFormData>;
     disabled: boolean;
     projectId: string;
+    action?: ActionDomain;
   }) {
-    return <WebhookActionForm form={props.form} disabled={props.disabled} />;
+    return (
+      <WebhookActionForm
+        form={props.form}
+        disabled={props.disabled}
+        projectId={props.projectId}
+        action={props.action}
+      />
+    );
   }
 }

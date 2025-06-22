@@ -2,18 +2,30 @@ import { useRouter } from "next/router";
 import { AutomationSidebar } from "@/src/features/automations/components/AutomationSidebar";
 import { AutomationDetails } from "@/src/features/automations/components/AutomationDetails";
 import { AutomationForm } from "@/src/features/automations/components/automationForm";
+import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
-import { useEffect } from "react";
-import { type ActiveAutomation } from "@langfuse/shared/src/server";
+import { useEffect, useState } from "react";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { type AutomationDomain } from "@langfuse/shared";
 
 export default function AutomationsPage() {
   const router = useRouter();
   const utils = api.useUtils();
   const projectId = router.query.projectId as string;
+  const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
+  const [showSecretDialog, setShowSecretDialog] = useState(false);
 
   const [urlParams, setUrlParams] = useQueryParams({
     view: withDefault(StringParam, "list"),
@@ -69,7 +81,7 @@ export default function AutomationsPage() {
     });
   };
 
-  const handleEditAutomation = (automation: ActiveAutomation) => {
+  const handleEditAutomation = (automation: AutomationDomain) => {
     setUrlParams({
       view: "edit",
       triggerId: automation.trigger.id,
@@ -85,7 +97,17 @@ export default function AutomationsPage() {
     });
   };
 
-  const handleCreateSuccess = (triggerId?: string, actionId?: string) => {
+  const handleCreateSuccess = (
+    triggerId?: string,
+    actionId?: string,
+    webhookSecret?: string,
+  ) => {
+    // Show webhook secret if provided
+    if (webhookSecret) {
+      setWebhookSecret(webhookSecret);
+      setShowSecretDialog(true);
+    }
+
     // Navigate to the newly created automation detail page
     if (triggerId && actionId) {
       setUrlParams({
@@ -111,7 +133,7 @@ export default function AutomationsPage() {
     });
   };
 
-  const handleAutomationSelect = (automation: ActiveAutomation) => {
+  const handleAutomationSelect = (automation: AutomationDomain) => {
     setUrlParams({
       view: "list",
       triggerId: automation.trigger.id,
@@ -119,7 +141,6 @@ export default function AutomationsPage() {
       tab: urlParams.tab, // Preserve the current tab selection
     });
   };
-
 
   const renderMainContent = () => {
     if (view === "create") {
@@ -203,10 +224,38 @@ export default function AutomationsPage() {
           selectedAutomation={selectedAutomation}
           onAutomationSelect={handleAutomationSelect}
         />
-        <div className="flex-1 overflow-auto">
-          {renderMainContent()}
-        </div>
+        <div className="flex-1 overflow-auto">{renderMainContent()}</div>
       </div>
+
+      {/* Webhook Secret Dialog */}
+      <Dialog open={showSecretDialog} onOpenChange={setShowSecretDialog}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Webhook Secret Created</DialogTitle>
+            <DialogDescription>
+              Your automation has been created successfully. Please copy the
+              webhook secret below - it will only be shown once.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {webhookSecret && (
+              <WebhookSecretRender webhookSecret={webhookSecret} />
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  setShowSecretDialog(false);
+                  setWebhookSecret(null);
+                }}
+              >
+                I've saved the secret
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Page>
   );
 }
