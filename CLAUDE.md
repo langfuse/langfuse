@@ -3,7 +3,7 @@
 ## Project Overview
 
 Langfuse is an open-source LLM engineering platform that helps teams collaboratively develop, monitor, evaluate, and debug AI applications.
-The mean feature areas are tracing, evals and prompt management. Langfuse consists of the web application (this repo), documentation, python SDK and javascript/typescript SDK.
+The main feature areas are tracing, evals and prompt management. Langfuse consists of the web application (this repo), documentation, python SDK and javascript/typescript SDK.
 This repo contains the web application, worker, and supporting packages but notably not the JS nor Python client SDKs.
 
 ## Repository Structure
