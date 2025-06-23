@@ -495,11 +495,13 @@ export const getDatabaseReadStream = async ({
             input: item.input,
             expectedOutput: item.expected_output,
             metadata: item.metadata,
-            htmlSourcePath: `/project/${projectId}/traces/${item.source_trace_id}${
-              item.source_observation_id
-                ? `?observation=${item.source_observation_id}`
-                : ""
-            }`,
+            htmlSourcePath: item.source_trace_id
+              ? `/project/${projectId}/traces/${item.source_trace_id}${
+                  item.source_observation_id
+                    ? `?observation=${item.source_observation_id}`
+                    : ""
+                }`
+              : "",
             sourceTraceId: item.source_trace_id,
             sourceObservationId: item.source_observation_id,
             createdAt: item.created_at,

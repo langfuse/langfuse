@@ -1020,6 +1020,7 @@ describe("batch export test suite", () => {
           status: "ACTIVE",
           sourceTraceId: null,
           sourceObservationId: null,
+          htmlSourcePath: "",
         }),
         expect.objectContaining({
           id: datasetItems[1].id,
@@ -1027,6 +1028,7 @@ describe("batch export test suite", () => {
           status: "ARCHIVED",
           sourceTraceId: datasetItems[1].sourceTraceId,
           sourceObservationId: datasetItems[1].sourceObservationId,
+          htmlSourcePath: `/project/${projectId}/traces/${datasetItems[1].sourceTraceId}?observation=${datasetItems[1].sourceObservationId}`,
         }),
         expect.objectContaining({
           id: datasetItems[2].id,
@@ -1034,6 +1036,7 @@ describe("batch export test suite", () => {
           status: "ACTIVE",
           sourceTraceId: datasetItems[2].sourceTraceId,
           sourceObservationId: null,
+          htmlSourcePath: `/project/${projectId}/traces/${datasetItems[2].sourceTraceId}`,
         }),
       ]),
     );
