@@ -859,11 +859,8 @@ export default function ObservationsTable({
     columns,
   );
 
-  const urlPathname = `/project/${projectId}/observations`;
-
-  const { getNavigationPath, expandPeek } =
-    useObservationPeekNavigation(urlPathname);
-  const { setPeekView } = useObservationPeekState(urlPathname);
+  const { getNavigationPath, expandPeek } = useObservationPeekNavigation();
+  const { setPeekView } = useObservationPeekState();
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Observations,
     projectId,
@@ -885,7 +882,6 @@ export default function ObservationsTable({
       itemType: "TRACE",
       customTitlePrefix: "Observation ID:",
       listKey: "observations",
-      urlPathname,
       onOpenChange: setPeekView,
       onExpand: expandPeek,
       shouldUpdateRowOnDetailPageNavigation: true,
@@ -897,7 +893,6 @@ export default function ObservationsTable({
     }),
     [
       projectId,
-      urlPathname,
       generations.dataUpdatedAt,
       getNavigationPath,
       expandPeek,
@@ -982,7 +977,13 @@ export default function ObservationsTable({
         setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
           <BatchExportTableButton
-            {...{ projectId, filterState, orderByState }}
+            {...{
+              projectId,
+              filterState,
+              orderByState,
+              searchQuery,
+              searchType,
+            }}
             tableName={BatchExportTableName.Observations}
             key="batchExport"
           />

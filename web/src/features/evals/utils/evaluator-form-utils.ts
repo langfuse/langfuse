@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   singleFilter,
   type langfuseObjects,
@@ -16,7 +16,7 @@ export const evalConfigFormSchema = z.object({
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(wipVariableMapping),
   sampling: z.coerce.number().gt(0).lte(1),
-  delay: z.coerce.number().optional().default(10),
+  delay: z.coerce.number().min(0).optional().default(10),
   timeScope: TimeScopeSchema,
 });
 

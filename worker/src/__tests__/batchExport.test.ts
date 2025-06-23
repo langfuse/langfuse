@@ -1242,4 +1242,54 @@ describe("batch export test suite", () => {
       expect(row.orgId).toBe(orgId);
     });
   });
+
+  it("should export traces with searchQuery and searchType filters applied correctly", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces with specific searchable content
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: "search-test-id-1",
+        name: "findable-trace-name",
+        user_id: "searchable-user-123",
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: "search-test-id-2",
+        name: "another-trace",
+        user_id: "different-user-456",
+        timestamp: new Date("2024-01-02").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: "other-trace-id",
+        name: "unrelated-name",
+        user_id: "unrelated-user",
+        timestamp: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const streamByName = await getDatabaseReadStream({
+      projectId: projectId,
+      tableName: BatchExportTableName.Traces,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "timestamp", order: "ASC" },
+      searchQuery: "findable-trace",
+      searchType: ["id"],
+    });
+
+    const rowsByName: any[] = [];
+    for await (const chunk of streamByName) {
+      rowsByName.push(chunk);
+    }
+
+    expect(rowsByName).toHaveLength(1);
+    expect(rowsByName[0].name).toBe("findable-trace-name");
+    expect(rowsByName[0].id).toBe("search-test-id-1");
+  });
 });

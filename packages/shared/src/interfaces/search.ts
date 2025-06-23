@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const TracingSearchType = z.enum(["id", "content"]);
 // id: for searching smaller columns like IDs, types, and other metadata

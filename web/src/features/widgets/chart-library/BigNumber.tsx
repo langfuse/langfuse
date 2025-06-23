@@ -1,5 +1,6 @@
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { useEffect, useRef, useState } from "react";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
 // Format large numbers with appropriate units and dynamic decimal places
 const formatBigNumber = (
@@ -67,7 +68,9 @@ const formatBigNumber = (
         )
       : 2;
     return {
-      formatted: value.toFixed(decimals).replace(/\.?0+$/, ""),
+      formatted: value
+        .toFixed(Math.max(0, Math.min(3, decimals)))
+        .replace(/\.?0+$/, ""),
       unit: "",
     };
   } else if (absValue > 0) {
@@ -84,7 +87,9 @@ const formatBigNumber = (
     const decimals = Math.min(neededDecimals, maxAllowedDecimals, 8); // Max 8 decimal places
 
     return {
-      formatted: value.toFixed(decimals).replace(/\.?0+$/, ""),
+      formatted: value
+        .toFixed(Math.max(0, Math.min(3, decimals)))
+        .replace(/\.?0+$/, ""),
       unit: "",
     };
   } else {
@@ -92,28 +97,35 @@ const formatBigNumber = (
   }
 };
 
-export const BigNumber = ({
+export const BigNumber: React.FC<ChartProps> = ({
+  data,
   className,
-  metric,
-}: {
-  className?: string;
-  metric: React.ReactNode;
-}) => {
+}: ChartProps & { className?: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const [fontSize, setFontSize] = useState("text-6xl");
   const [maxCharacters, setMaxCharacters] = useState<number>();
 
-  // Convert metric to number if it's a string or number, otherwise use original
-  const numericValue =
-    typeof metric === "string" || typeof metric === "number"
-      ? parseFloat(String(metric))
-      : null;
+  // Calculate metric value from data - show loading if no data
+  const isLoading = !data || data.length === 0;
 
-  const displayValue =
-    numericValue !== null && !isNaN(numericValue)
-      ? formatBigNumber(numericValue, maxCharacters)
-      : { formatted: String(metric), unit: "" };
+  const calculatedMetric = useMemo(() => {
+    if (isLoading) return 0;
+
+    // Show the sum of all metrics, or just the first metric if only one
+    if (data.length === 1) {
+      return typeof data[0].metric === "number" ? data[0].metric : 0;
+    }
+
+    return data.reduce((acc, d) => {
+      const metric = typeof d.metric === "number" ? d.metric : 0;
+      return acc + metric;
+    }, 0);
+  }, [data, isLoading]);
+
+  const displayValue = !isLoading
+    ? formatBigNumber(calculatedMetric, maxCharacters)
+    : { formatted: "0", unit: "" };
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
@@ -152,10 +164,9 @@ export const BigNumber = ({
         const maxChars = Math.floor(availableWidth / charWidth);
 
         // Quick test with current display value
-        const testDisplayValue =
-          numericValue !== null && !isNaN(numericValue)
-            ? formatBigNumber(numericValue, maxChars)
-            : { formatted: String(metric), unit: "" };
+        const testDisplayValue = !isLoading
+          ? formatBigNumber(calculatedMetric, maxChars)
+          : { formatted: "0", unit: "" };
 
         const textLength = (testDisplayValue.formatted + testDisplayValue.unit)
           .length;
@@ -181,7 +192,11 @@ export const BigNumber = ({
     }
 
     return () => resizeObserver.disconnect();
-  }, [numericValue, metric]);
+  }, [calculatedMetric, isLoading]);
+
+  if (isLoading) {
+    return null;
+  }
 
   return (
     <div
@@ -195,11 +210,7 @@ export const BigNumber = ({
         <span
           ref={textRef}
           className={cn("text-center font-extrabold tracking-tight", fontSize)}
-          title={
-            numericValue !== null && !isNaN(numericValue)
-              ? numericValue.toString()
-              : String(metric)
-          }
+          title={calculatedMetric.toString()}
         >
           {displayValue.formatted}
         </span>

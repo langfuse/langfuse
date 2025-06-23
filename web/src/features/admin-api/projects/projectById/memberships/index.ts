@@ -1,12 +1,12 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import { Role } from "@langfuse/shared";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 // Schema for request body validation
 const MembershipSchema = z.object({
   userId: z.string(),
-  role: z.nativeEnum(Role),
+  role: z.enum(Role),
 });
 
 // GET - Retrieve all project memberships
@@ -55,7 +55,7 @@ export async function handleUpdateMembership(
   if (!validatedBody.success) {
     return res.status(400).json({
       error: "Invalid request body",
-      details: validatedBody.error.errors,
+      details: validatedBody.error.issues,
     });
   }
 

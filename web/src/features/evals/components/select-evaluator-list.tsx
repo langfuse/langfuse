@@ -121,6 +121,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
             projectId={projectId}
             preventRedirect={true}
             isEditing={true}
+            useDialog={true}
             onFormSuccess={(newTemplate) => {
               setIsCreateTemplateOpen(false);
               void utils.evals.allTemplates.invalidate();

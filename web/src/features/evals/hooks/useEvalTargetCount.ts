@@ -35,6 +35,8 @@ export function useEvalTargetCount({
     searchQuery: null,
     searchType: ["id" as const],
     orderBy: null,
+    page: 0,
+    limit: 1,
   };
 
   const tracesCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {

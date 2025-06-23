@@ -1,5 +1,5 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type ZodType, type z } from "zod";
+import { type ZodType, type z } from "zod/v4";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -86,10 +86,10 @@ export const createAuthedProjectAPIRoute = <
 
     const query = routeConfig.querySchema
       ? routeConfig.querySchema.parse(req.query)
-      : {};
+      : ({} as z.infer<TQuery>);
     const body = routeConfig.bodySchema
       ? routeConfig.bodySchema.parse(req.body)
-      : {};
+      : ({} as z.infer<TBody>);
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,

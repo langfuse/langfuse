@@ -1,5 +1,5 @@
 import { Prompt, PrismaClient } from "@prisma/client";
-import { Redis } from "ioredis";
+import { Redis, Cluster } from "ioredis";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import { escapeRegex } from "./utils";
@@ -22,7 +22,7 @@ export class PromptService {
 
   constructor(
     private prisma: PrismaClient,
-    private redis: Redis | null,
+    private redis: Redis | Cluster | null,
     private metricIncrementer?: // used for otel metrics
     (name: string, value?: number) => void,
     cacheEnabled?: boolean, // used for testing
@@ -157,6 +157,12 @@ export class PromptService {
     }
   }
 
+  /**
+   * Lock the cache so reads will go to the database and not to Redis
+   *
+   * This is useful in order to return consistent data during the
+   * invalidation of the cache where we are looping through the relevant cache keys
+   */
   public async lockCache(
     params: Pick<PromptParams, "projectId" | "promptName">,
   ): Promise<void> {

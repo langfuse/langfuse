@@ -1,4 +1,4 @@
-import * as z from "zod";
+import * as z from "zod/v4";
 
 export const projectRetentionSchema = z.object({
   retention: z.coerce

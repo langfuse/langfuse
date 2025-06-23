@@ -1,5 +1,5 @@
 import { logger } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -37,6 +37,7 @@ export const promptVersionHandler = withMiddlewares({
         projectId: auth.scope.projectId,
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
+        after: prompt,
       });
 
       logger.info(`Prompt updated ${JSON.stringify(prompt)}`);

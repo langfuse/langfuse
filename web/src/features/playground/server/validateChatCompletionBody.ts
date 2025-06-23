@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   LLMAdapter,
   LLMJSONSchema,
@@ -8,7 +8,7 @@ import {
 
 const ModelParamsSchema = z.object({
   provider: z.string(),
-  adapter: z.nativeEnum(LLMAdapter),
+  adapter: z.enum(LLMAdapter),
   model: z.string(),
   temperature: z.number().optional(),
   max_tokens: z.number().optional(),
@@ -21,6 +21,7 @@ export const ChatCompletionBodySchema = z.object({
   modelParams: ModelParamsSchema,
   tools: z.array(LLMToolDefinitionSchema).optional(),
   structuredOutputSchema: LLMJSONSchema.optional(),
+  streaming: z.boolean().optional().default(true),
 });
 
 export const validateChatCompletionBody = (input: unknown) => {

@@ -1,5 +1,5 @@
 import { LlmApiKeys } from "@prisma/client";
-import z from "zod";
+import z from "zod/v4";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
 import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
@@ -28,7 +28,7 @@ export const JSONSchemaFormSchema = z
     z
       .object({
         type: z.literal("object"),
-        properties: z.record(z.any()),
+        properties: z.record(z.string(), z.any()),
         required: z.array(z.string()).optional(),
         additionalProperties: z.boolean().optional(),
       })
@@ -168,7 +168,7 @@ export const ToolResultMessageSchema = z.object({
 });
 export type ToolResultMessage = z.infer<typeof ToolResultMessageSchema>;
 
-export const ChatMessageDefaultRoleSchema = z.nativeEnum(ChatMessageRole);
+export const ChatMessageDefaultRoleSchema = z.enum(ChatMessageRole);
 export const ChatMessageSchema = z.union([
   SystemMessageSchema,
   DeveloperMessageSchema,
@@ -370,7 +370,7 @@ export const LLMApiKeySchema = z
     projectId: z.string(),
     createdAt: z.date(),
     updatedAt: z.date(),
-    adapter: z.nativeEnum(LLMAdapter),
+    adapter: z.enum(LLMAdapter),
     provider: z.string(),
     displaySecretKey: z.string(),
     secretKey: z.string(),

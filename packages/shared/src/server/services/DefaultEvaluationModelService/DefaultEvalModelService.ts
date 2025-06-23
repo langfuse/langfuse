@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { prisma } from "../../../db";
 import { LangfuseNotFoundError } from "../../../errors";
 import { LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
@@ -90,7 +90,7 @@ export class DefaultEvalModelService {
       const result = ZodModelConfig.safeParse(config.modelParams);
       if (!result.success) {
         errors.push(
-          ...result.error.errors.map(
+          ...result.error.issues.map(
             (err) => `Model parameter error: ${err.message}`,
           ),
         );

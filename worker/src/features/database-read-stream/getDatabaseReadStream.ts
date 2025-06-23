@@ -246,7 +246,9 @@ export const getDatabaseReadStream = async ({
             filter: filter
               ? [...filter, createdAtCutoffFilterCh]
               : [createdAtCutoffFilterCh],
-            orderBy: orderBy,
+            searchQuery,
+            searchType: searchType ?? ["id" as const],
+            orderBy,
             selectIOAndMetadata: true,
             clickhouseConfigs,
           });

@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { sql } from "kysely";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { JobConfigState } from "@prisma/client";
 import {
   QueueJobs,
@@ -585,7 +585,8 @@ export const evaluate = async ({
     ]);
 
     if (redis) {
-      const queue = IngestionQueue.getInstance();
+      const shardingKey = `${event.projectId}-${scoreId}`;
+      const queue = IngestionQueue.getInstance({ shardingKey });
       if (!queue) {
         throw new Error("Ingestion queue not available");
       }

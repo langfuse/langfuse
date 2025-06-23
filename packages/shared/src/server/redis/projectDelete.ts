@@ -1,6 +1,6 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions, getQueuePrefix } from "./redis";
 import { logger } from "../logger";
 
 export class ProjectDeleteQueue {
@@ -23,6 +23,7 @@ export class ProjectDeleteQueue {
           QueueName.ProjectDelete,
           {
             connection: newRedis,
+            prefix: getQueuePrefix(QueueName.ProjectDelete),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

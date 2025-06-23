@@ -10,7 +10,7 @@ export const PeekViewEvaluatorTemplateDetail = ({
 }: {
   projectId: string;
 }) => {
-  const { peekId } = usePeekState("eval-templates");
+  const { peekId } = usePeekState();
 
   const { data: template } = usePeekEvalTemplateData({
     templateId: peekId,
@@ -37,6 +37,7 @@ export const PeekViewEvaluatorTemplateDetail = ({
           existingEvalTemplate={template}
           isEditing={false}
           preventRedirect={true}
+          useDialog={false}
         />
       </div>
     </div>

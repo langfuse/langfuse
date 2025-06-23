@@ -6,7 +6,7 @@ import {
   useQueryParam,
   withDefault,
 } from "use-query-params";
-import type { z } from "zod";
+import type { z } from "zod/v4";
 import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
 import {
   TabsBar,
@@ -64,7 +64,7 @@ const getPythonCode = (
 # Initialize Langfuse client
 langfuse = Langfuse()
 
-# Get production prompt 
+# Get production prompt
 prompt = langfuse.get_prompt("${name}")
 
 # Get by label
@@ -84,7 +84,7 @@ const getJsCode = (
 // Initialize the Langfuse client
 const langfuse = new Langfuse();
 
-// Get production prompt 
+// Get production prompt
 const prompt = await langfuse.getPrompt("${name}");
 
 // Get by label
@@ -95,10 +95,16 @@ ${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPr
 langfuse.getPrompt("${name}", ${version})
 `;
 
-export const PromptDetail = () => {
+export const PromptDetail = ({ promptName: promptNameProp }: { promptName?: string } = {}) => {
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
-  const promptName = decodeURIComponent(useRouter().query.promptName as string);
+  const router = useRouter();
+
+  const promptName = promptNameProp || (
+    router.query.promptName
+      ? decodeURIComponent(router.query.promptName as string)
+      : ''
+  );
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
     NumberParam,

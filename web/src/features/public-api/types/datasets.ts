@@ -9,7 +9,7 @@ import {
   type DatasetRunItems as DbDatasetRunItems,
   removeObjectKeys,
 } from "@langfuse/shared";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 /**
  * Objects

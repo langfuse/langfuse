@@ -132,7 +132,8 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
 
     // response must not contain the secret key itself
-    expect(llmApiKeys[0]).not.toHaveProperty("secretKey");
+    const secretKey = llmApiKeys[0].secretKey;
+    expect(secretKey).toBeUndefined();
   });
 
   it("should create and update an llm api key", async () => {

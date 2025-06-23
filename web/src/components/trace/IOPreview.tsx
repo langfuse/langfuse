@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { useEffect, useMemo, useState } from "react";

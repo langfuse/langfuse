@@ -7,7 +7,7 @@ import {
   type LlmApiKeys,
 } from "@langfuse/shared";
 import { PlusIcon, TrashIcon } from "lucide-react";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { PasswordInput } from "@/src/components/ui/password-input";
 import {
   Select,
   SelectContent,
@@ -33,6 +34,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter } from "@/src/components/ui/dialog";
 import { DialogBody } from "@/src/components/ui/dialog";
+import { env } from "@/src/env.mjs";
 
 const createFormSchema = (mode: "create" | "update") =>
   z
@@ -137,7 +139,7 @@ export function CreateLLMApiKeyForm({
 
   const formSchema = createFormSchema(mode);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues:
       mode === "update" && existingKey
@@ -432,7 +434,7 @@ export function CreateLLMApiKeyForm({
                   <FormItem>
                     <FormLabel>AWS Secret Access Key</FormLabel>
                     <FormControl>
-                      <Input {...field} type="password" />
+                      <PasswordInput {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -447,7 +449,9 @@ export function CreateLLMApiKeyForm({
                 <FormItem>
                   <FormLabel>API Key</FormLabel>
                   <FormDescription>
-                    Your API keys are stored encrypted on our servers.
+                    {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+                      ? "Your API keys are stored encrypted on our servers."
+                      : "Your API keys are stored encrypted in your database."}
                   </FormDescription>
                   {currentAdapter === LLMAdapter.VertexAI && (
                     <FormDescription className="text-dark-yellow">
@@ -471,7 +475,7 @@ export function CreateLLMApiKeyForm({
                     </FormDescription>
                   )}
                   <FormControl>
-                    <Input
+                    <PasswordInput
                       {...field}
                       placeholder={
                         mode === "update"
@@ -497,8 +501,11 @@ export function CreateLLMApiKeyForm({
                   <FormLabel>Extra Headers</FormLabel>
                   <FormDescription>
                     Optional additional HTTP headers to include with requests
-                    towards LLM provider. All header values stored encrypted on
-                    our servers.
+                    towards LLM provider. All header values stored encrypted{" "}
+                    {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+                      ? "on our servers"
+                      : "in your database"}
+                    .
                   </FormDescription>
 
                   {headerFields.map((header, index) => (

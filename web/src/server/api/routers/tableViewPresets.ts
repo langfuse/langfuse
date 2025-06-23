@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -187,7 +187,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         viewId: z.string(),
-        tableName: z.nativeEnum(TableViewPresetTableName),
+        tableName: z.enum(TableViewPresetTableName),
         baseUrl: z.string(),
       }),
     )

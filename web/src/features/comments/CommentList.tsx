@@ -24,7 +24,7 @@ import { useSession } from "next-auth/react";
 import React, { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { BsMarkdown } from "react-icons/bs";
-import { type z } from "zod";
+import { type z } from "zod/v4";
 
 export function CommentList({
   projectId,
@@ -59,7 +59,7 @@ export function CommentList({
     { enabled: hasReadAccess && session.status === "authenticated" },
   );
 
-  const form = useForm<z.infer<typeof CreateCommentData>>({
+  const form = useForm({
     resolver: zodResolver(CreateCommentData),
     defaultValues: {
       content: "",

@@ -5,7 +5,7 @@ import {
   logger,
   processEventBatch,
 } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { OtelIngestionProcessor } from "@/src/features/otel/server/OtelIngestionProcessor";
 import { gunzip } from "node:zlib";

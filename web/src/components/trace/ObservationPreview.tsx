@@ -325,16 +325,29 @@ export const ObservationPreview = ({
                     {preloadedObservation.modelParameters &&
                     typeof preloadedObservation.modelParameters === "object"
                       ? Object.entries(preloadedObservation.modelParameters)
-                          .filter(Boolean)
-                          .map(([key, value]) => (
-                            <Badge variant="tertiary" key={key}>
-                              {key}:{" "}
-                              {Object.prototype.toString.call(value) ===
+                          .filter(([_, value]) => value !== null)
+                          .map(([key, value]) => {
+                            const valueString =
+                              Object.prototype.toString.call(value) ===
                               "[object Object]"
                                 ? JSON.stringify(value)
-                                : value?.toString()}
-                            </Badge>
-                          ))
+                                : value?.toString();
+                            return (
+                              <Badge
+                                variant="tertiary"
+                                key={key}
+                                className="h-6 max-w-md"
+                              >
+                                {/* CHILD: This span handles the text truncation */}
+                                <span
+                                  className="overflow-hidden text-ellipsis whitespace-nowrap"
+                                  title={valueString}
+                                >
+                                  {key}: {valueString}
+                                </span>
+                              </Badge>
+                            );
+                          })
                       : null}
                   </Fragment>
                 </Fragment>

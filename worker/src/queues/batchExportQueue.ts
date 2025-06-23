@@ -31,7 +31,7 @@ export const batchExportQueueProcessor = async (
       .execute();
 
     logger.error(
-      `Failed Batch Export job for id ${job.data.payload.batchExportId}`,
+      `Failed Batch Export job for id ${job.data.payload.batchExportId} and project id ${job.data.payload.projectId}`,
       e,
     );
     traceException(e);
