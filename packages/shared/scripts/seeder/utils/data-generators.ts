@@ -102,6 +102,7 @@ export class DataGenerator {
       metadata: { experimentType: "langfuse-prompt-experiments" },
       public: false,
       bookmarked: false,
+      session_id: null,
       tags: [],
     });
   }
@@ -471,6 +472,7 @@ export class DataGenerator {
         );
         const trace = createTrace({
           id: traceId,
+          session_id: null,
           project_id: projectId,
           name: this.randomElement(REALISTIC_TRACE_NAMES),
           input: this.generateEvaluationInput(),
