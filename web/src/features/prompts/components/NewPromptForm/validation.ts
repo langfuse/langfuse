@@ -5,6 +5,7 @@ import {
   PromptChatMessageListSchema,
   PromptNameSchema,
   TextPromptSchema,
+  PlaceholderMessageSchema,
 } from "@langfuse/shared";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
@@ -24,14 +25,14 @@ const NewPromptBaseSchema = z.object({
 
 const NewChatPromptSchema = NewPromptBaseSchema.extend({
   type: z.literal(PromptType.Chat),
-  chatPrompt: PromptChatMessageListSchema.refine(
+  chatPrompt: z.array(z.any()).refine(
     (messages) => messages.every((message) => {
-      if ('type' in message && message.type === ChatMessageType.Placeholder) {
-        return message.name && message.name.trim().length > 0;
-      }
-      return message.content && message.content.trim().length > 0;
+      const isPlaceholder = message?.type === ChatMessageType.Placeholder;
+      return isPlaceholder
+        ? PlaceholderMessageSchema.safeParse(message).success
+        : message?.content?.trim()?.length > 0;
     }),
-    "Enter a chat message content or placeholder name, or remove the empty message",
+    "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"
   ),
   textPrompt: z.string(),
 });
