@@ -237,7 +237,7 @@ export function CreateLLMApiKeyForm({
       values.vertexAILocation
     ) {
       config = {
-        location: values.vertexAILocation,
+        location: values.vertexAILocation.trim(),
       };
     }
 
