@@ -915,7 +915,7 @@ describe("batch export test suite", () => {
   it("should export dataset items", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
-    // Create dataset
+    // Create dataset 1
     const datasetId = randomUUID();
     await prisma.dataset.create({
       data: {
@@ -924,6 +924,17 @@ describe("batch export test suite", () => {
         projectId,
         description: "Test dataset for export",
         metadata: { purpose: "testing" },
+      },
+    });
+    // Create dataset 2
+    const datasetId2 = randomUUID();
+    await prisma.dataset.create({
+      data: {
+        id: datasetId2,
+        name: "test-dataset-2",
+        projectId,
+        description: "Invalid test dataset for export",
+        metadata: { purpose: "testing exclusion" },
       },
     });
 
@@ -962,6 +973,17 @@ describe("batch export test suite", () => {
         sourceTraceId: randomUUID(),
         sourceObservationId: null,
       },
+      {
+        id: randomUUID(),
+        datasetId: datasetId2,
+        projectId,
+        status: DatasetStatus.ACTIVE,
+        input: { question: "What is DL?" },
+        expectedOutput: { answer: "Deep Learning" },
+        metadata: { category: "advanced" },
+        sourceTraceId: randomUUID(),
+        sourceObservationId: null,
+      },
     ];
 
     await prisma.datasetItem.createMany({ data: datasetItems });
@@ -971,7 +993,14 @@ describe("batch export test suite", () => {
       projectId,
       tableName: BatchExportTableName.DatasetItems,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-      filter: [],
+      filter: [
+        {
+          type: "string",
+          operator: "=",
+          column: "datasetId",
+          value: datasetId,
+        },
+      ],
       orderBy: { column: "createdAt", order: "DESC" },
     });
 
@@ -981,6 +1010,7 @@ describe("batch export test suite", () => {
       rows.push(chunk);
     }
 
+    // Should only include dataset items from the correct dataset
     expect(rows).toHaveLength(3);
     expect(rows).toEqual(
       expect.arrayContaining([
