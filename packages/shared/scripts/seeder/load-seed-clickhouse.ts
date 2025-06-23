@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
-import { prisma } from "../src/db";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
-import { prepareClickhouse } from "./prepareClickhouse";
-import { redis } from "../src/server";
+import { prisma } from "../../src/db";
+import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import { prepareClickhouse } from "./prepare-clickhouse";
+import { redis } from "../../src/server";
 
 const createRandomProjectId = () => randomUUID().toString();
 
@@ -117,6 +117,7 @@ async function main() {
     await prepareClickhouse(createdProjectIds, {
       numberOfDays,
       totalObservations: totalObservations ?? 1000,
+      numberOfRuns: 3,
     });
 
     logger.info("Clickhouse preparation completed successfully.");
