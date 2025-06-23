@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { JSONPath } from "jsonpath-plus";
 import { variableMapping } from "./types";
 
 /**
@@ -27,40 +28,44 @@ export const parseUnknownToString = (value: unknown): string => {
 };
 
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
-  // Front-end friendly JSON path extraction
-  const parsedJson =
-    typeof selectedColumn === "string"
-      ? JSON.parse(selectedColumn)
-      : selectedColumn;
+  const result = JSONPath({
+    path: jsonSelector,
+    json:
+      typeof selectedColumn === "string"
+        ? JSON.parse(selectedColumn)
+        : selectedColumn,
+  });
 
-  // Simple path extraction (could use a library)
-  return jsonSelector
-    .split(".")
-    .reduce((o, key) => (o as any)?.[key], parsedJson);
+  return result.length > 0 ? result[0] : undefined;
 }
 
 export function extractValueFromObject(
   obj: Record<string, unknown>,
   mapping: z.infer<typeof variableMapping>,
   parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
-): string {
+): { value: string; error: Error | null } {
   const selectedColumn = obj[mapping.selectedColumnId];
   const jsonParser = parseJson || parseJsonDefault;
 
   let jsonSelectedColumn;
+  let error: Error | null = null;
+
   if (mapping.jsonSelector && selectedColumn) {
     try {
       jsonSelectedColumn = jsonParser(selectedColumn, mapping.jsonSelector);
-    } catch (error) {
-      console.error(
-        `Error parsing JSON selector: ${mapping.jsonSelector}`,
-        error,
-      );
-      jsonSelectedColumn = selectedColumn;
+    } catch (err) {
+      error =
+        err instanceof Error
+          ? err
+          : new Error("There was an unknown error parsing the JSON");
+      jsonSelectedColumn = selectedColumn; // Fallback to original value
     }
   } else {
     jsonSelectedColumn = selectedColumn;
   }
 
-  return parseUnknownToString(jsonSelectedColumn);
+  return {
+    value: parseUnknownToString(jsonSelectedColumn),
+    error,
+  };
 }

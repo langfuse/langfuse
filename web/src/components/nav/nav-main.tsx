@@ -1,12 +1,5 @@
 "use client";
-
-import { ChevronRight, type LucideIcon } from "lucide-react";
-
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
+import { ChevronRightIcon, type LucideIcon } from "lucide-react";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -18,8 +11,15 @@ import {
   useSidebar,
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTitle,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import { Portal } from "@radix-ui/react-hover-card";
 
 export type NavMainItem = {
   title: string;
@@ -60,56 +60,63 @@ function NavItemContent({ item }: { item: NavMainItem }) {
 }
 
 export function NavMain({ items }: { items: NavMainItem[] }) {
-  const { open, setOpen } = useSidebar();
+  const { open } = useSidebar();
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   return (
     <SidebarGroup>
       <SidebarMenu>
         {items.map((item) =>
           item.items && item.items.length > 0 ? (
-            <Collapsible
+            <HoverCard
               key={item.title}
-              asChild
-              defaultOpen={item.isActive || item.items.some((i) => i.isActive)}
-              className="group/collapsible"
+              openDelay={100}
+              closeDelay={100}
+              onOpenChange={(isOpen) =>
+                setHoveredItem(isOpen ? item.title : null)
+              }
             >
               <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
+                <HoverCardTrigger>
                   <SidebarMenuButton
-                    tooltip={item.title}
-                    onClick={(e) => {
-                      if (!open) {
-                        e.preventDefault();
-                        setOpen(true);
-                      }
-                    }}
-                    // when closed, the parent should be active if any of the children are active
-                    isActive={!open && item.items.some((i) => i.isActive)}
+                    isActive={
+                      item.items.some((i) => i.isActive) ||
+                      hoveredItem === item.title
+                    }
                   >
                     <NavItemContent item={item} />
-                    <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    <ChevronRightIcon className="ml-auto" />
                   </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarMenuSub>
-                    {item.items.map((subItem) => (
-                      <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton
-                          asChild
-                          isActive={subItem.isActive}
-                        >
-                          <Link
-                            href={subItem.url}
-                            target={subItem.newTab ? "_blank" : undefined}
+                </HoverCardTrigger>
+                <Portal>
+                  <HoverCardContent
+                    side="right"
+                    align="start"
+                    // relative + isolate create a new stacking context
+                    // z-[9999] ensures this appears above other elements, even across different stacking contexts
+                    className="relative isolate z-[9999] p-1"
+                  >
+                    {!open && <HoverCardTitle>{item.title}</HoverCardTitle>}
+                    <SidebarMenuSub>
+                      {item.items.map((subItem) => (
+                        <SidebarMenuSubItem key={subItem.title}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={subItem.isActive}
                           >
-                            <span>{subItem.title}</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                </CollapsibleContent>
+                            <Link
+                              href={subItem.url}
+                              target={subItem.newTab ? "_blank" : undefined}
+                            >
+                              <span>{subItem.title}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </HoverCardContent>
+                </Portal>
               </SidebarMenuItem>
-            </Collapsible>
+            </HoverCard>
           ) : (
             <SidebarMenuItem key={item.title}>
               {item.menuNode || (

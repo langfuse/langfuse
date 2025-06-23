@@ -1,0 +1,6 @@
+{
+    "name": "langfuse-development",
+    "forwardPorts": [3000, 5432, 6379, 8123, 9000],
+    "onCreateCommand": "npm install -g pnpm@9.5.0",
+    "postCreateCommand": "curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.linux-amd64.tar.gz | tar xvz && git restore LICENSE README.md && chmod +x migrate && sudo mv migrate /usr/bin && cp .env.dev.example .env && npm install -g @anthropic-ai/claude-code && pnpm i"
+}

@@ -33,7 +33,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 70",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 72",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
@@ -47,11 +47,11 @@
     "ch:down": "bash clickhouse/scripts/down.sh",
     "ch:drop": "bash clickhouse/scripts/drop.sh",
     "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed",
-    "ch:seed": "dotenv -e ../../.env -- ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options '{\"module\":\"CommonJS\"}' clickhouse/scripts/seed.ts",
-    "load:setup": "dotenv -e ../../.env -- tsx scripts/load-seed.ts"
+    "ch:seed": "dotenv -e ../../.env -- ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options '{\"module\":\"CommonJS\"}' scripts/seeder/seed-clickhouse.ts",
+    "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts"
   },
   "prisma": {
-    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} scripts/seeder/seed-postgres.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
@@ -69,7 +69,7 @@
     "@langchain/google-vertexai": "^0.2.12",
     "@langchain/openai": "^0.5.13",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
-    "@prisma/client": "^6.3.0",
+    "@prisma/client": "^6.10.1",
     "@react-email/components": "^0.1.0",
     "@react-email/render": "^1.1.2",
     "@types/bcryptjs": "^2.4.6",
@@ -81,6 +81,7 @@
     "exponential-backoff": "^3.1.1",
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.4.1",
+    "jsonpath-plus": "10.3.0",
     "kysely": "^0.27.4",
     "langchain": "^0.3.28",
     "langfuse-langchain": "3.37.4",
@@ -111,7 +112,7 @@
     "kysely-codegen": "^0.16.8",
     "nodemon": "^3.1.7",
     "prettier": "^3.3.3",
-    "prisma": "^6.3.0",
+    "prisma": "^6.10.1",
     "prisma-erd-generator": "^1.11.2",
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",

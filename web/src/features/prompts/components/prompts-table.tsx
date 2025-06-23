@@ -486,12 +486,7 @@ export function PromptTable() {
         setOrderBy={setOrderByState}
         pagination={{
           totalCount,
-          onChange: (newPaginationState) => {
-            setQueryParams({
-              ...queryParams,
-              ...newPaginationState,
-            });
-          },
+          onChange: setQueryParams,
           state: paginationState,
         }}
       />
