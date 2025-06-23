@@ -22,6 +22,12 @@ export type PlaygroundSchema = {
   existingLlmSchema?: LlmSchema;
 };
 
+export type PlaceholderMessageFillIn = {
+  name: string;
+  value: ChatMessage[];
+  isUsed: boolean;
+};
+
 export type PlaygroundCache = {
   messages: (ChatMessage | PlaceholderMessage)[];
   modelParams?: Partial<UIModelParams> &

@@ -18,6 +18,7 @@ import {
   ChatMessageRole,
   extractVariables,
   type ChatMessageWithId,
+  type ChatMessageWithIdNoPlaceholders,
   type PromptVariable,
   ToolCallResponseSchema,
   type UIModelParams,
@@ -25,6 +26,9 @@ import {
   type LLMToolDefinition,
   type LLMToolCall,
   ChatMessageType,
+  type ChatMessage,
+  compileChatMessagesWithIds,
+  type MessagePlaceholderValues,
 } from "@langfuse/shared";
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
@@ -33,13 +37,19 @@ import { env } from "@/src/env.mjs";
 import {
   type PlaygroundSchema,
   type PlaygroundTool,
+  type PlaceholderMessageFillIn,
 } from "@/src/features/playground/page/types";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
+
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
   updatePromptVariableValue: (variable: string, value: string) => void;
   deletePromptVariable: (variable: string) => void;
+
+  messagePlaceholders: PlaceholderMessageFillIn[];
+  updateMessagePlaceholderValue: (name: string, value: ChatMessage[]) => void;
+  deleteMessagePlaceholder: (name: string) => void;
 
   tools: PlaygroundTool[];
   setTools: React.Dispatch<React.SetStateAction<PlaygroundTool[]>>;
@@ -77,6 +87,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   const projectId = useProjectIdFromURL();
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache();
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
+  const [messagePlaceholders, setMessagePlaceholders] = useState<PlaceholderMessageFillIn[]>([]);
   const [output, setOutput] = useState("");
   const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
@@ -219,6 +230,9 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         ]);
 
         return toolCallMessage;
+      } else if (message.type === ChatMessageType.Placeholder) {
+        const placeholderMessage = { ...message, id: uuidv4() } as ChatMessageWithId;
+        return placeholderMessage;
       } else {
         const newMessage = createEmptyMessage(message);
         setMessages((prev) => [...prev, newMessage]);
@@ -264,7 +278,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         setOutputJson("");
         setOutputToolCalls([]);
 
-        const finalMessages = getFinalMessages(promptVariables, messages);
+        const finalMessages = getFinalMessages(promptVariables, messages, messagePlaceholders);
         const leftOverVariables = extractVariables(
           finalMessages.map((m) => m.content).join("\n"),
         );
@@ -372,6 +386,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       messages,
       modelParams,
       promptVariables,
+      messagePlaceholders,
       tools,
       capture,
       setPlaygroundCache,
@@ -395,12 +410,57 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     setPromptVariables((prev) => prev.filter((v) => v.name !== variable));
   }, []);
 
+  const updateMessagePlaceholderValue = useCallback((name: string, value: ChatMessage[]) => {
+    setMessagePlaceholders((prev) =>
+      prev.map((p) => (p.name === name ? { ...p, value } : p)),
+    );
+  }, []);
+
+  const deleteMessagePlaceholder = useCallback((name: string) => {
+    setMessagePlaceholders((prev) => prev.filter((p) => p.name !== name));
+  }, []);
+
+  const updateMessagePlaceholders = useCallback(() => {
+    const placeholderNames = messages
+      .filter((msg): msg is ChatMessageWithId & { type: ChatMessageType.Placeholder; name: string } =>
+        msg.type === ChatMessageType.Placeholder
+      )
+      .map((msg) => msg.name);
+
+    setMessagePlaceholders((prev) => {
+      // Set isUsed flag for existing placeholders and remove unused ones
+      const next = prev.reduce<PlaceholderMessageFillIn[]>((updatedPlaceholders, p) => {
+        const isUsed = placeholderNames.includes(p.name);
+        // Remove unused placeholders
+        if (!isUsed && p.value.length === 0) {
+          return updatedPlaceholders;
+        }
+        updatedPlaceholders.push({ ...p, isUsed });
+        return updatedPlaceholders;
+      }, []);
+
+      // Add new placeholders
+      for (const name of placeholderNames) {
+        if (!next.some((p) => p.name === name)) {
+          next.push({ name, value: [], isUsed: true });
+        }
+      }
+
+      return next;
+    });
+  }, [messages]);
+
+  useEffect(updateMessagePlaceholders, [messages, updateMessagePlaceholders]);
+
   return (
     <PlaygroundContext.Provider
       value={{
         promptVariables,
         updatePromptVariableValue,
         deletePromptVariable,
+        messagePlaceholders,
+        updateMessagePlaceholderValue,
+        deleteMessagePlaceholder,
 
         tools,
         setTools,
@@ -437,7 +497,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
 async function getChatCompletionWithTools(
   projectId: string | undefined,
-  messages: ChatMessageWithId[],
+  messages: ChatMessageWithIdNoPlaceholders[],
   modelParams: UIModelParams,
   tools: unknown[],
   streaming: boolean = false,
@@ -607,7 +667,8 @@ async function getChatCompletionNonStreaming(
 function getFinalMessages(
   promptVariables: PromptVariable[],
   messages: ChatMessageWithId[],
-) {
+  messagePlaceholders: PlaceholderMessageFillIn[],
+): ChatMessageWithIdNoPlaceholders[] {
   const missingVariables = promptVariables.filter((v) => !v.value && v.isUsed);
   if (missingVariables.length > 0) {
     throw new Error(
@@ -617,24 +678,44 @@ function getFinalMessages(
     );
   }
 
-  // Dynamically replace variables in the prompt
-  const finalMessages = messages
-    .filter(
-      (m) =>
-        m.content.length > 0 || ("toolCalls" in m && m.toolCalls.length > 0),
-    )
-    .map((m) => {
-      let content = m.content;
-      for (const variable of promptVariables) {
-        content = content.replace(
-          new RegExp(`{{\\s*${variable.name}\\s*}}`, "g"),
-          variable.value,
-        );
-      }
+  const missingPlaceholders = messagePlaceholders.filter(
+    (p) => p.value.length === 0 && p.isUsed,
+  );
+  if (missingPlaceholders.length > 0) {
+    throw new Error(
+      `Please set values for the following message placeholders: ${missingPlaceholders
+        .map((p) => p.name)
+        .join(", ")}`,
+    );
+  }
 
-      return { ...m, content };
-    });
-  return finalMessages;
+  const placeholderValues: MessagePlaceholderValues = messagePlaceholders.reduce(
+    (placeholderMap, p) => {
+      placeholderMap[p.name] = p.value;
+      return placeholderMap;
+    },
+    {} as MessagePlaceholderValues,
+  );
+
+  const textVariables = promptVariables.reduce(
+    (variableMap, v) => {
+      variableMap[v.name] = v.value;
+      return variableMap;
+    },
+    {} as Record<string, string>,
+  );
+
+  const compiledMessages = compileChatMessagesWithIds(
+    messages,
+    placeholderValues,
+    textVariables,
+  );
+
+  // Filter empty messages (except tool calls), e.g. if placeholder value was empty
+  return compiledMessages.filter(
+    (m) =>
+      m.content.length > 0 || ("toolCalls" in m && m.toolCalls && m.toolCalls.length > 0),
+  );
 }
 
 function getOutputJson(
