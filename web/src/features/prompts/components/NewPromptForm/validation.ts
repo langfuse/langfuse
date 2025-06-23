@@ -1,9 +1,10 @@
 import { z } from "zod/v4";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
+  ChatMessageType,
   PromptChatMessageListSchema,
-  TextPromptSchema,
   PromptNameSchema,
+  TextPromptSchema,
 } from "@langfuse/shared";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
@@ -24,8 +25,13 @@ const NewPromptBaseSchema = z.object({
 const NewChatPromptSchema = NewPromptBaseSchema.extend({
   type: z.literal(PromptType.Chat),
   chatPrompt: PromptChatMessageListSchema.refine(
-    (messages) => messages.every((message) => message.content.length > 0),
-    "Enter a chat message or remove the empty message",
+    (messages) => messages.every((message) => {
+      if ('type' in message && message.type === ChatMessageType.Placeholder) {
+        return message.name && message.name.trim().length > 0;
+      }
+      return message.content && message.content.length > 0;
+    }),
+    "Enter a chat message content or placeholder name, or remove the empty message",
   ),
   textPrompt: z.string(),
 });

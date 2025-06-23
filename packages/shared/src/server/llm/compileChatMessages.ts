@@ -1,6 +1,7 @@
 // TODO: move to frontend?
 import { z } from "zod/v4";
-import { type ChatMessage, type PlaceholderMessage, ChatMessageType, type PromptChatMessageSchema } from "./types";
+import { v4 as uuidv4 } from "uuid";
+import { type ChatMessage, type PlaceholderMessage, ChatMessageType, type PromptChatMessageSchema, type ChatMessageWithId, type ChatMessageWithIdNoPlaceholders } from "./types";
 
 export type MessagePlaceholderValues = Record<string, ChatMessage[]>;
 export type PromptMessage = z.infer<typeof PromptChatMessageSchema>;
@@ -57,7 +58,6 @@ export function compileChatMessages(
   placeholderValues: MessagePlaceholderValues,
   textVariables?: Record<string, string>
 ): ChatMessage[] {
-  // expand message placeholders
   const expandedMessages = messages.flatMap((message) =>
     isPlaceholder(message)
       ? expandPlaceholder(message, placeholderValues)
@@ -81,8 +81,41 @@ export function compileChatMessages(
   });
 }
 
+export function compileChatMessagesWithIds(
+  messages: ChatMessageWithId[],
+  placeholderValues: Record<string, ChatMessage[]>,
+  textVariables?: Record<string, string>
+): ChatMessageWithIdNoPlaceholders[] {
+  // TODO: check, is it even important to retain the IDs?
+  const expandedMessages = messages.flatMap((message) => {
+    if (isPlaceholder(message)) {
+      const expandedMsgs = expandPlaceholder(message, placeholderValues);
+      return expandedMsgs.map(msg => ({ ...msg, id: uuidv4() }));
+    } else {
+      // Preserve message IDs for already non-placeholder messages
+      return [message as ChatMessageWithIdNoPlaceholders];
+    }
+  });
+
+  // substitute text variables
+  if (!textVariables || Object.keys(textVariables).length === 0) {
+    return expandedMessages;
+  }
+
+  return expandedMessages.map((message) => {
+    if (!message.content) {
+      return message;
+    }
+
+    return {
+      ...message,
+      content: replaceTextVariables(message.content, textVariables)
+    };
+  });
+}
+
 export function extractPlaceholderNames(messages: PromptMessage[]): string[] {
   return messages
-    .filter(isPlaceholder)
+    .filter((msg): msg is PlaceholderMessage => "type" in msg && msg.type === ChatMessageType.Placeholder)
     .map(msg => msg.name);
 }

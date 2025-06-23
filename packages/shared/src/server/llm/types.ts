@@ -112,6 +112,8 @@ export enum ChatMessageRole {
   Tool = "tool",
 }
 
+// TODO: validate if placeholder should not be part of this, or the placeholder should also be
+// PublicAPICreated of type? semantically otherwise not correct
 export enum ChatMessageType {
   System = "system",
   Developer = "developer",
@@ -199,6 +201,7 @@ export const ChatMessageSchema = z.union([
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatMessageWithId = (ChatMessage & { id: string }) | (PlaceholderMessage & { id: string });
+export type ChatMessageWithIdNoPlaceholders = (ChatMessage & { id: string });
 
 export const PromptChatMessageSchema = z.union([
   z.object({

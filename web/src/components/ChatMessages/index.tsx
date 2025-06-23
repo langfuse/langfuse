@@ -5,6 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   ChatMessageRole,
   ChatMessageType,
+  type ChatMessageWithId,
   SYSTEM_ROLES,
 } from "@langfuse/shared";
 
@@ -60,8 +61,9 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
         if (newIndex < 0 || oldIndex < 0) {
           return;
         }
-        // prevent reordering system messages
-        if (SYSTEM_ROLES.includes(messages[newIndex].role)) {
+        // prevent reordering system messages, placeholders can be reordered
+        const targetMessage = messages[newIndex];
+        if (targetMessage.type !== ChatMessageType.Placeholder && SYSTEM_ROLES.includes(targetMessage.role)) {
           return;
         }
         const newMessages = arrayMove(messages, oldIndex, newIndex);
@@ -114,35 +116,57 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
   messages,
   addMessage,
 }) => {
-  const lastMessageRole = messages[messages.length - 1]?.role;
+  // Skip placeholder messages when determining last roles
+  const lastMessageWithRole = messages.slice().reverse().find((msg): msg is ChatMessageWithId & { role: string } => msg.type !== ChatMessageType.Placeholder);
+  const lastMessageRole = lastMessageWithRole?.role;
   const nextMessageRole =
     lastMessageRole === ChatMessageRole.User
       ? ChatMessageRole.Assistant
       : ChatMessageRole.User;
 
+  const addRegularMessage = () => {
+    if (nextMessageRole === ChatMessageRole.User) {
+      addMessage({
+        role: nextMessageRole,
+        content: "",
+        type: ChatMessageType.User,
+      });
+    } else {
+      addMessage({
+        role: nextMessageRole,
+        content: "",
+        type: ChatMessageType.AssistantText,
+      });
+    }
+  };
+
+  const addPlaceholderMessage = () => {
+    addMessage({
+      type: ChatMessageType.Placeholder,
+      name: "",
+    });
+  };
+
   return (
-    <Button
-      type="button" // prevents submitting a form if this button is inside a form
-      variant="outline"
-      className="w-full"
-      onClick={() => {
-        if (nextMessageRole === ChatMessageRole.User) {
-          addMessage({
-            role: nextMessageRole,
-            content: "",
-            type: ChatMessageType.User,
-          });
-        } else {
-          addMessage({
-            role: nextMessageRole,
-            content: "",
-            type: ChatMessageType.AssistantText,
-          });
-        }
-      }}
-    >
-      <PlusCircleIcon size={14} className="mr-2" />
-      <p>Add message</p>
-    </Button>
+    <div className="flex gap-2">
+      <Button
+        type="button" // prevents submitting a form if this button is inside a form
+        variant="outline"
+        className="flex-1"
+        onClick={addRegularMessage}
+      >
+        <PlusCircleIcon size={14} className="mr-2" />
+        <p>Add message</p>
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="flex-1"
+        onClick={addPlaceholderMessage}
+      >
+        <PlusCircleIcon size={14} className="mr-2" />
+        <p>Add message placeholder</p>
+      </Button>
+    </div>
   );
 };
