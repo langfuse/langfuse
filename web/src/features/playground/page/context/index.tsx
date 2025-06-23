@@ -362,8 +362,6 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           isStructuredOutput: Boolean(structuredOutputSchema),
         });
       } catch (err) {
-        console.error(err);
-
         alert(err instanceof Error ? err.message : "An error occurred");
         // TODO: add error handling via toast
       } finally {
