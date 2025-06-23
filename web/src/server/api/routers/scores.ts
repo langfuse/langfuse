@@ -432,6 +432,7 @@ export const scoresRouter = createTRPCRouter({
           trace_id: score.traceId,
           observation_id: score.observationId,
           session_id: score.sessionId,
+          environment: score.environment,
         });
 
         updatedScore = {
