@@ -177,7 +177,7 @@ export type ToolResultMessage = z.infer<typeof ToolResultMessageSchema>;
 export const PlaceholderMessageSchema = z.object({
   type: z.literal(ChatMessageType.Placeholder),
   name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"),
-  content: z.string().max(0).optional(),  // placeholder messages have no content, TODO: remove, this is a hack to make the schema work a lot easier
+  content: z.string().max(0).optional(),  // placeholder messages have no content, using this field for type coercion in the ChatMessageComponent
 });
 export type PlaceholderMessage = z.infer<typeof PlaceholderMessageSchema>;
 
