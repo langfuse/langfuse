@@ -1,6 +1,9 @@
 import { LlmApiKeys } from "@prisma/client";
 import z from "zod/v4";
-import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
+import {
+  BedrockConfigSchema,
+  VertexAIConfigSchema,
+} from "../../interfaces/customLLMProviderConfigSchemas";
 import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
 
@@ -333,10 +336,10 @@ export const anthropicModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
+  "gemini-2.0-flash",
   "gemini-2.5-pro-preview-05-06",
   "gemini-2.5-flash-preview-05-20",
   "gemini-2.0-pro-exp-02-05",
-  "gemini-2.0-flash",
   "gemini-2.0-flash-001",
   "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-exp",
@@ -393,7 +396,7 @@ export const LLMApiKeySchema = z
     baseURL: z.string().nullable(),
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
-    config: BedrockConfigSchema.nullish(), // currently only Bedrock has additional config
+    config: z.union([BedrockConfigSchema, VertexAIConfigSchema]).nullish(), // Bedrock and VertexAI have additional config
   })
   // strict mode to prevent extra keys. Thorws error otherwise
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
