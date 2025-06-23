@@ -232,6 +232,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         return toolCallMessage;
       } else if (message.type === ChatMessageType.Placeholder) {
         const placeholderMessage = { ...message, id: uuidv4() } as ChatMessageWithId;
+        setMessages((prev) => [...prev, placeholderMessage]);
         return placeholderMessage;
       } else {
         const newMessage = createEmptyMessage(message);

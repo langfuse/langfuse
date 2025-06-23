@@ -17,6 +17,7 @@ export const MessagePlaceholders = () => {
       ) : (
         <div className="h-full overflow-auto">
           {messagePlaceholders
+            .slice()
             .sort((a, b) => {
               if (a.isUsed && !b.isUsed) return -1;
               if (!a.isUsed && b.isUsed) return 1;
