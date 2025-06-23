@@ -29,7 +29,7 @@ const NewChatPromptSchema = NewPromptBaseSchema.extend({
       if ('type' in message && message.type === ChatMessageType.Placeholder) {
         return message.name && message.name.trim().length > 0;
       }
-      return message.content && message.content.length > 0;
+      return message.content && message.content.trim().length > 0;
     }),
     "Enter a chat message content or placeholder name, or remove the empty message",
   ),
