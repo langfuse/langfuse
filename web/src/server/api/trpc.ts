@@ -115,7 +115,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
 
   if (!res.ok) {
-    if (res.error.code === "NOT_FOUND") {
+    if (res.error.code === "NOT_FOUND" || res.error.code === "UNAUTHORIZED") {
       logger.info(
         `middleware intercepted error with code ${res.error.code}`,
         res.error,
@@ -262,7 +262,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
         });
       }
       // not a member
-      logger.error(`User is not a member of this project with id ${projectId}`);
+      logger.warn(`User is not a member of this project with id ${projectId}`);
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "User is not a member of this project",

@@ -14,11 +14,13 @@ import {
   TrashIcon,
   CopyIcon,
   GripVerticalIcon,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { startCase } from "lodash";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 
 export interface WidgetPlacement {
   id: string;
@@ -207,38 +209,56 @@ export function DashboardWidget({
             ? " ( 🪢 )"
             : null}
         </span>
-        {hasCUDAccess && (
-          <div className="flex space-x-2">
-            <GripVerticalIcon
-              size={16}
-              className="drag-handle hidden cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing lg:group-hover:block"
-            />
-            {widget.data.owner === "PROJECT" ? (
+        <div className="flex space-x-2">
+          {hasCUDAccess && (
+            <>
+              <GripVerticalIcon
+                size={16}
+                className="drag-handle hidden cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing lg:group-hover:block"
+              />
+              {widget.data.owner === "PROJECT" ? (
+                <button
+                  onClick={handleEdit}
+                  className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                  aria-label="Edit widget"
+                >
+                  <PencilIcon size={16} />
+                </button>
+              ) : widget.data.owner === "LANGFUSE" ? (
+                <button
+                  onClick={handleCopy}
+                  className="hidden text-muted-foreground hover:text-foreground group-hover:block"
+                  aria-label="Copy widget"
+                >
+                  <CopyIcon size={16} />
+                </button>
+              ) : null}
               <button
-                onClick={handleEdit}
-                className="hidden text-muted-foreground hover:text-foreground group-hover:block"
-                aria-label="Edit widget"
+                onClick={handleDelete}
+                className="hidden text-muted-foreground hover:text-destructive group-hover:block"
+                aria-label="Delete widget"
               >
-                <PencilIcon size={16} />
+                <TrashIcon size={16} />
               </button>
-            ) : widget.data.owner === "LANGFUSE" ? (
-              <button
-                onClick={handleCopy}
-                className="hidden text-muted-foreground hover:text-foreground group-hover:block"
-                aria-label="Copy widget"
-              >
-                <CopyIcon size={16} />
-              </button>
-            ) : null}
-            <button
-              onClick={handleDelete}
-              className="hidden text-muted-foreground hover:text-destructive group-hover:block"
-              aria-label="Delete widget"
+            </>
+          )}
+          {/* Download button or loading indicator - always available */}
+          {queryResult.isLoading ? (
+            <div
+              className="text-muted-foreground"
+              aria-label="Loading chart data"
+              title="Loading..."
             >
-              <TrashIcon size={16} />
-            </button>
-          </div>
-        )}
+              <Loader2 size={16} className="animate-spin" />
+            </div>
+          ) : (
+            <DownloadButton
+              data={transformedData}
+              fileName={widget.data.name}
+              className="hidden group-hover:block"
+            />
+          )}
+        </div>
       </div>
       <div
         className="mb-4 truncate text-sm text-muted-foreground"

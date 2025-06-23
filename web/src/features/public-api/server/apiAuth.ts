@@ -121,7 +121,7 @@ export class ApiAuthService {
       { name: "api-auth-verify" },
       async () => {
         if (!authHeader) {
-          logger.error("No authorization header");
+          logger.debug("No authorization header");
           return {
             validKey: false,
             error: "No authorization header",

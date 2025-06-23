@@ -26,6 +26,7 @@ export type BatchExportTableButtonProps = {
   orderByState: OrderByState;
   filterState: any;
   searchQuery?: any;
+  searchType?: any;
 };
 
 export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
@@ -62,6 +63,8 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
       query: {
         tableName: props.tableName,
         filter: props.filterState,
+        searchQuery: props.searchQuery || undefined,
+        searchType: props.searchType || undefined,
         orderBy: props.orderByState,
       },
     });
