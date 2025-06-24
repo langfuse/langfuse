@@ -1,4 +1,3 @@
-import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   DataRetentionProcessingQueue,
@@ -6,7 +5,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
-export const handleDataRetentionSchedule = async (job: Job) => {
+export const handleDataRetentionSchedule = async () => {
   const projectsWithRetention = await prisma.project.findMany({
     select: {
       id: true,

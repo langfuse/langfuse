@@ -14,6 +14,8 @@ import {
   createTracesCh,
   upsertObservation,
   upsertTrace,
+  checkTraceExists,
+  getTraceById,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -26,6 +28,7 @@ import {
   describe,
   expect,
   test,
+  vi,
 } from "vitest";
 import { compileHandlebarString } from "../features/utilities";
 import { OpenAIServer } from "./network";
@@ -35,6 +38,10 @@ import {
   evaluate,
   extractVariablesFromTracingData,
 } from "../features/evaluation/evalService";
+import {
+  requiresDatabaseLookup,
+  requiresObservationData,
+} from "../features/evaluation/traceFilterUtils";
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
 if (!hasActiveKey) {
@@ -1705,5 +1712,36 @@ describe("eval service tests", () => {
         },
       ]);
     }, 10_000);
+  });
+
+  test("requiresDatabaseLookup correctly identifies complex filters", () => {
+    // Simple filters that can be evaluated with trace data only
+    const simpleFilters = [
+      { column: "name", type: "string", operator: "=", value: "test-trace" },
+      {
+        column: "environment",
+        type: "string",
+        operator: "=",
+        value: "production",
+      },
+      { column: "bookmarked", type: "boolean", operator: "=", value: true },
+    ];
+
+    expect(!requiresDatabaseLookup(simpleFilters)).toBe(true);
+
+    // Complex filters that require observation data
+    const complexFilters = [
+      { column: "level", type: "string", operator: "=", value: "ERROR" },
+    ];
+
+    expect(!requiresDatabaseLookup(complexFilters)).toBe(false);
+
+    // Mixed filters - should return false if any filter requires observation data
+    const mixedFilters = [
+      { column: "name", type: "string", operator: "=", value: "test-trace" },
+      { column: "level", type: "string", operator: "=", value: "ERROR" }, // This requires observation data
+    ];
+
+    expect(!requiresDatabaseLookup(mixedFilters)).toBe(false);
   });
 });
