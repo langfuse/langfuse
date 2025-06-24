@@ -131,7 +131,7 @@ export const ChatMlMessageSchema = z
     content,
     audio,
     type,
-    json: Object.keys(other).length === 0 ? undefined : other,
+    ...(Object.keys(other).length === 0 ? {} : { json: other }),
   }));
 export type ChatMlMessageSchema = z.infer<typeof ChatMlMessageSchema>;
 
