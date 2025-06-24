@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
+import { z as zodV3 } from "zod/v3";
 import { JobConfigState } from "@prisma/client";
 import {
   QueueJobs,
@@ -505,9 +506,9 @@ export const evaluate = async ({
     throw new InvalidRequestError("Output schema not found");
   }
 
-  const evalScoreSchema = z.object({
-    reasoning: z.string().describe(parsedOutputSchema.reasoning),
-    score: z.number().describe(parsedOutputSchema.score),
+  const evalScoreSchema = zodV3.object({
+    reasoning: zodV3.string().describe(parsedOutputSchema.reasoning),
+    score: zodV3.number().describe(parsedOutputSchema.score),
   });
 
   const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(

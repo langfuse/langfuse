@@ -6,12 +6,13 @@ import {
   type TraceParams,
 } from "@langfuse/shared/src/server";
 import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
-import { z, ZodSchema } from "zod/v4";
+import { z } from "zod/v4";
+import { ZodSchema as ZodV3Schema } from "zod/v3";
 import { decrypt } from "@langfuse/shared/encryption";
 import { tokenCount } from "./tokenisation/usage";
 import Handlebars from "handlebars";
 
-export async function callStructuredLLM<T extends ZodSchema>(
+export async function callStructuredLLM<T extends ZodV3Schema>(
   jeId: string,
   llmApiKey: z.infer<typeof LLMApiKeySchema>,
   messages: ChatMessage[],
