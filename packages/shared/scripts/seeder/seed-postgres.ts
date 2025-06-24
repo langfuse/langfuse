@@ -1,18 +1,18 @@
-import {
-  PrismaClient,
-  type Project,
-  ScoreDataType,
-  JobConfiguration,
-  JobExecutionStatus,
-} from "../../src/index";
-import { hash } from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
+import { hash } from "bcryptjs";
 import { v4 } from "uuid";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { encrypt } from "../../src/encryption";
-import { redis } from "../../src/server/redis/redis";
-import { randomUUID } from "crypto";
 import {
+	type JobConfiguration,
+	JobExecutionStatus,
+	PrismaClient,
+	type Project,
+	ScoreDataType,
+} from "../../src/index";
+import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import { redis } from "../../src/server/redis/redis";
+import {EVAL_TRACE_COUNT,
   FAILED_EVAL_TRACE_INTERVAL,
   SEED_CHAT_ML_PROMPTS,
   SEED_DATASETS,
@@ -27,7 +27,6 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
-import { EVAL_TRACE_COUNT } from "./utils/postgres-seed-constants";
 
 type ConfigCategory = {
   label: string;
