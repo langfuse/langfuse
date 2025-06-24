@@ -700,17 +700,20 @@ export function CreateLLMApiKeyForm({
         </DialogBody>
 
         <DialogFooter>
-          <Button
-            type="submit"
-            className="w-full"
-            loading={form.formState.isSubmitting}
-          >
-            {mode === "create" ? "Save new LLM API key" : "Update LLM API key"}
-          </Button>
-
-          {form.formState.errors.root && (
-            <FormMessage>{form.formState.errors.root.message}</FormMessage>
-          )}
+          <div className="flex flex-col gap-4">
+            <Button
+              type="submit"
+              className="w-full"
+              loading={form.formState.isSubmitting}
+            >
+              {mode === "create"
+                ? "Save new LLM API key"
+                : "Update LLM API key"}
+            </Button>
+            {form.formState.errors.root && (
+              <FormMessage>{form.formState.errors.root.message}</FormMessage>
+            )}
+          </div>
         </DialogFooter>
       </form>
     </Form>
