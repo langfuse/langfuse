@@ -178,3 +178,11 @@ When running locally with seed data:
 To get a project, use the `get_project` capability with the full project name as it is in the title.
 - bad: message-placeholder-in-chat-messages-2beb6f02ec48
 - good: Message placeholder in chat messages
+
+## Front-end Tips
+
+### Window Location Handling
+- Whenever you want to use or do use window.location..., ensure that you also add proper handling for a custom basePath
+
+## TypeScript Best Practices
+- In TypeScript, if possible, don't use the `any` type
