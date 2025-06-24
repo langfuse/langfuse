@@ -687,7 +687,7 @@ const getObservationsTableInternal = async <T>(
   const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(opts.searchQuery, opts.searchType);
+  const search = clickhouseSearchCondition(opts.searchQuery, opts.searchType, "o");
 
   const scoresCte = `WITH scores_agg AS (
     SELECT
