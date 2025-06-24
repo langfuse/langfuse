@@ -6854,8 +6854,8 @@ components:
         - config
         - labels
         - tags
-    ChatMessage:
-      title: ChatMessage
+    ChatMessageWithPlaceholders:
+      title: ChatMessageWithPlaceholders
       oneOf:
         - type: object
           allOf:
@@ -6864,8 +6864,8 @@ components:
                 type:
                   type: string
                   enum:
-                    - promptchatmessage
-            - $ref: '#/components/schemas/PromptChatMessage'
+                    - chatmessage
+            - $ref: '#/components/schemas/ChatMessage'
           required:
             - type
         - type: object
@@ -6879,8 +6879,8 @@ components:
             - $ref: '#/components/schemas/PlaceholderMessage'
           required:
             - type
-    PromptChatMessage:
-      title: PromptChatMessage
+    ChatMessage:
+      title: ChatMessage
       type: object
       properties:
         role:

@@ -132,12 +132,12 @@ types:
         type: optional<map<string, unknown>>
         docs: The dependency resolution graph for the current prompt. Null if prompt has no dependencies.
 
-  ChatMessage:
+  ChatMessageWithPlaceholders:
     union:
-      promptchatmessage: PromptChatMessage
+      chatmessage: ChatMessage
       placeholder: PlaceholderMessage
 
-  PromptChatMessage:
+  ChatMessage:
     properties:
       role:
         type: string
