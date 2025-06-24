@@ -442,7 +442,7 @@ export class DataGenerator {
           string_value: stringValue,
           data_type: scoreType as any,
           source: "API",
-          comment: "Generated score",
+          comment: "Generated score\ntest",
           environment: trace.environment,
         });
 
