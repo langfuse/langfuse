@@ -315,7 +315,14 @@ export function DatasetItemsTable({
       projectId={projectId}
       tableName={BatchExportTableName.DatasetItems}
       orderByState={{ column: "createdAt", order: "DESC" }}
-      filterState={[]}
+      filterState={[
+        {
+          type: "string",
+          operator: "=",
+          column: "datasetId",
+          value: datasetId,
+        },
+      ]}
     />
   );
 
