@@ -257,7 +257,7 @@ export const createEvalJobs = async ({
       // Evaluate filter in memory using the cached trace
       traceExists = InMemoryFilterService.evaluateFilter(
         cachedTrace,
-        validatedFilter,
+        traceFilter,
         mapTraceFilterColumn,
       );
 
@@ -268,7 +268,7 @@ export const createEvalJobs = async ({
         traceId: event.traceId,
         configId: config.id,
         matches: traceExists,
-        filterCount: validatedFilter.length,
+        filterCount: traceFilter.length,
       });
     } else {
       // Fall back to database query for complex filters or when no cached trace
@@ -289,7 +289,7 @@ export const createEvalJobs = async ({
       });
       recordIncrement("langfuse.evaluation-execution.trace_db_lookup", 1, {
         hasCached: Boolean(cachedTrace).toString(),
-        requiredDatabaseLookup: requiresDatabaseLookup(validatedFilter)
+        requiredDatabaseLookup: requiresDatabaseLookup(traceFilter)
           ? "true"
           : "false",
       });
