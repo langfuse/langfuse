@@ -272,8 +272,7 @@ async function main() {
     await generateQueuesForProject([project1, project2], configIdsAndNames);
     await generatePromptsForProject([project1, project2]);
     await createDatasets(project1, project2);
-
-    // await uploadObjects(sessions, comments, queueItems);
+    await createTraceSessions(project1, project2);
 
     // If openai key is in environment, add it to the projects LLM API keys
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -774,6 +773,20 @@ async function generateConfigsForProject(projects: Project[]) {
     }),
   );
   return projectIdsToConfigs;
+}
+
+async function createTraceSessions(project1: Project, project2: Project) {
+  for (const project of [project1, project2]) {
+    for (let i = 0; i < 100; i++) {
+      await prisma.traceSession.create({
+        data: {
+          projectId: project.id,
+          id: `session_${i}`,
+          createdAt: new Date(),
+        },
+      });
+    }
+  }
 }
 
 async function generateConfigs(project: Project) {

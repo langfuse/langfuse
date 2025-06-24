@@ -461,7 +461,7 @@ export const getTracesGroupedByUsers = async (
   );
 
   const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition(searchQuery);
+  const search = clickhouseSearchCondition(searchQuery, undefined, "t");
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
@@ -707,7 +707,7 @@ export const getTotalUserCount = async (
   );
 
   const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition(searchQuery);
+  const search = clickhouseSearchCondition(searchQuery, undefined, "t");
 
   const query = `
     SELECT COUNT(DISTINCT t.user_id) AS totalCount

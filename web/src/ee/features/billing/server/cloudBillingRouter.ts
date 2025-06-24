@@ -399,7 +399,7 @@ export const cloudBillingRouter = createTRPCRouter({
               }
               return acc;
             }, 0);
-            // get meter for usage type (events or observations)
+            // get meter for usage type (units or observations)
             const meterId = usageInvoiceLines[0]?.plan?.meter;
             const meter = meterId
               ? await stripeClient.billing.meters.retrieve(meterId)
@@ -407,7 +407,7 @@ export const cloudBillingRouter = createTRPCRouter({
 
             return {
               usageCount: usage,
-              usageType: meter?.display_name.toLowerCase() ?? "events",
+              usageType: meter?.display_name.toLowerCase() ?? "units",
               billingPeriod,
               upcomingInvoice,
             };
@@ -445,7 +445,7 @@ export const cloudBillingRouter = createTRPCRouter({
 
       return {
         usageCount: countTraces + countObservations + countScores,
-        usageType: "events",
+        usageType: "units",
       };
     }),
 });
