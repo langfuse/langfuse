@@ -6,7 +6,7 @@ import { type ChatMessage, type PlaceholderMessage, ChatMessageType, type Prompt
 export type MessagePlaceholderValues = Record<string, ChatMessage[]>;
 export type PromptMessage = z.infer<typeof PromptChatMessageSchema>;
 
-function isPlaceholder(message: PromptMessage): message is PlaceholderMessage {
+export function isPlaceholder(message: PromptMessage): message is PlaceholderMessage {
   return "type" in message && message.type === ChatMessageType.Placeholder;
 }
 

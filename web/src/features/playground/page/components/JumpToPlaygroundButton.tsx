@@ -30,6 +30,7 @@ import {
   type Prisma,
   PlaceholderMessageSchema,
   type PlaceholderMessage,
+  isPlaceholder,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -193,7 +194,7 @@ const transformToPlaygroundMessage = (
   message: z.infer<typeof ParsedChatMessageListSchema>[0],
 ): ChatMessage | PlaceholderMessage => {
   // Return placeholder messages as-is
-  if ("type" in message && message.type === ChatMessageType.Placeholder) {
+  if (isPlaceholder(message)) {
     return message;
   }
 
