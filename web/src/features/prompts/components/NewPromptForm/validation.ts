@@ -2,10 +2,10 @@ import { z } from "zod/v4";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   ChatMessageType,
+  PlaceholderMessageSchema,
   PromptChatMessageListSchema,
   PromptNameSchema,
   TextPromptSchema,
-  PlaceholderMessageSchema,
 } from "@langfuse/shared";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
@@ -25,15 +25,23 @@ const NewPromptBaseSchema = z.object({
 
 const NewChatPromptSchema = NewPromptBaseSchema.extend({
   type: z.literal(PromptType.Chat),
-  chatPrompt: z.array(z.any()).refine(
-    (messages) => messages.every((message) => {
-      const isPlaceholder = message?.type === ChatMessageType.Placeholder;
-      return isPlaceholder
-        ? PlaceholderMessageSchema.safeParse(message).success
-        : message?.content?.trim()?.length > 0;
-    }),
-    "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"
-  ),
+  chatPrompt: z.array(z.any())
+    .refine(
+      (messages: Array<{ type?: ChatMessageType; content?: string }>) =>
+        messages.every((message) => {
+          const isPlaceholder = message?.type === ChatMessageType.Placeholder;
+          return !isPlaceholder || PlaceholderMessageSchema.safeParse(message).success;
+        }),
+      "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"
+    )
+    .refine(
+      (messages: Array<{ type?: ChatMessageType; content?: string }>) =>
+        messages.every((message) => {
+          const isPlaceholder = message?.type === ChatMessageType.Placeholder;
+          return isPlaceholder || Boolean(message?.content?.trim()?.length);
+        }),
+      "Enter a chat message or remove the empty message"
+    ),
   textPrompt: z.string(),
 });
 

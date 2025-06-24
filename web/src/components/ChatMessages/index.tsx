@@ -150,7 +150,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
   return (
     <div className="flex gap-2">
       <Button
-        type="button" // prevents submitting a form if this button is inside a form
+        type="button"
         variant="outline"
         className="flex-1"
         onClick={addRegularMessage}
