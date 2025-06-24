@@ -1,9 +1,10 @@
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export const useDatasetComparePeekNavigation = () => {
   const getNavigationPath = (entry: ListEntry) => {
     const url = new URL(window.location.href);
-    const pathname = window.location.pathname;
+    const pathname = getPathnameWithoutBasePath();
 
     // Update the path part
     url.pathname = pathname;

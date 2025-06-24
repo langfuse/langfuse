@@ -1,5 +1,6 @@
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export const useTracePeekNavigation = () => {
   const router = useRouter();
@@ -7,7 +8,7 @@ export const useTracePeekNavigation = () => {
 
   const getNavigationPath = (entry: ListEntry) => {
     const url = new URL(window.location.href);
-    const pathname = window.location.pathname;
+    const pathname = getPathnameWithoutBasePath();
 
     // Update the path part
     url.pathname = pathname;
@@ -38,7 +39,8 @@ export const useTracePeekNavigation = () => {
     const pathname = `/project/${projectId}/traces/${encodeURIComponent(peek as string)}?timestamp=${timestamp}&display=${display}`;
 
     if (openInNewTab) {
-      window.open(pathname, "_blank");
+      const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
+      window.open(pathnameWithBasePath, "_blank");
     } else {
       router.push(pathname);
     }

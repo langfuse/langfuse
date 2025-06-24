@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
 import { useCallback, useState } from "react";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export const useDatasetComparePeekState = () => {
   const router = useRouter();
@@ -15,7 +16,7 @@ export const useDatasetComparePeekState = () => {
     (open: boolean, itemId?: string) => {
       const url = new URL(window.location.href);
       const params = new URLSearchParams(url.search);
-      const pathname = window.location.pathname;
+      const pathname = getPathnameWithoutBasePath();
 
       if (!open || !itemId) {
         // close peek view
