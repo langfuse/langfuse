@@ -1,4 +1,8 @@
-import { decrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
+import {
+  decrypt,
+  encrypt,
+  generateWebhookSecret,
+} from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
   WebhookDefaultHeaders,
@@ -28,7 +32,7 @@ export async function processWebhookActionConfig({
   projectId,
 }: WebhookConfigOptions): Promise<{
   finalActionConfig: ActionConfig;
-  newWebhookSecret?: string; // For one-time display
+  newUnencryptedWebhookSecret?: string; // For one-time display
 }> {
   if (actionConfig.type !== "WEBHOOK") {
     throw new Error("Action type is not WEBHOOK");
@@ -50,14 +54,14 @@ export async function processWebhookActionConfig({
       ...WebhookDefaultHeaders,
       ...actionConfig.headers,
     },
-    secretKey: existingAction?.config.secretKey ?? newSecretKey,
+    secretKey: existingAction?.config.secretKey ?? encrypt(newSecretKey),
     displaySecretKey:
       existingAction?.config.displaySecretKey ?? newDisplaySecretKey,
   };
 
   return {
     finalActionConfig,
-    newWebhookSecret: existingAction?.config.secretKey
+    newUnencryptedWebhookSecret: existingAction?.config.secretKey
       ? undefined
       : newSecretKey,
   };

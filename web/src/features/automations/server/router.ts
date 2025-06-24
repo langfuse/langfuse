@@ -215,11 +215,13 @@ export const automationsRouter = createTRPCRouter({
       const actionId = v4();
 
       // Process webhook action configuration using helper
-      const { finalActionConfig, newWebhookSecret } =
-        await processWebhookActionConfig({
-          actionConfig: input.actionConfig,
-          projectId: input.projectId,
-        });
+      const {
+        finalActionConfig,
+        newUnencryptedWebhookSecret: newWebhookSecret,
+      } = await processWebhookActionConfig({
+        actionConfig: input.actionConfig,
+        projectId: input.projectId,
+      });
 
       const [trigger, action] = await ctx.prisma.$transaction(async (tx) => {
         const trigger = await tx.trigger.create({

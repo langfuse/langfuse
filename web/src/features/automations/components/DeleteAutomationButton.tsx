@@ -40,13 +40,11 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
           description: "The automation has been deleted successfully.",
         });
 
-        // Refresh automations list
-        void utils.automations.getAutomations.invalidate({ projectId });
-
-        // Call success callback if provided
         if (onSuccess) {
           onSuccess();
         }
+
+        void utils.automations.invalidate();
       },
     },
   );

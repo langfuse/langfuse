@@ -9,7 +9,6 @@ import { prisma } from "../../db";
 import { recordIncrement } from "../instrumentation";
 import { TQueueJobTypes, QueueName, WebhookInput } from "../queues";
 import {
-  getActionById,
   getActionByIdWithSecrets,
   getConsecutiveAutomationFailures,
 } from "../repositories";
@@ -99,6 +98,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
     if (webhookConfig.secretKey) {
       try {
         const decryptedSecret = decrypt(webhookConfig.secretKey);
+        logger.info(`Decrypted secret: ${decryptedSecret}`);
         const signature = createSignatureHeader(
           webhookPayload,
           decryptedSecret,

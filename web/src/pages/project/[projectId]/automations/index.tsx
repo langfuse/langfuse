@@ -142,6 +142,48 @@ export default function AutomationsPage() {
     });
   };
 
+  const handleDeleteAutomation = () => {
+    // Find the current automation index
+    if (!automations || !selectedAutomation) return;
+
+    const currentIndex = automations.findIndex(
+      (automation) =>
+        automation.trigger.id === selectedAutomation.triggerId &&
+        automation.action.id === selectedAutomation.actionId,
+    );
+
+    if (currentIndex === -1) return;
+
+    // Select the next automation, or the previous one if this was the last
+    let nextIndex: number;
+    if (currentIndex < automations.length - 1) {
+      // Select the next automation
+      nextIndex = currentIndex + 1;
+    } else if (currentIndex > 0) {
+      // Select the previous automation (this was the last one)
+      nextIndex = currentIndex - 1;
+    } else {
+      // This was the only automation, clear selection
+      setUrlParams({
+        view: "list",
+        triggerId: undefined,
+        actionId: undefined,
+        tab: urlParams.tab,
+      });
+      return;
+    }
+
+    const nextAutomation = automations[nextIndex];
+    if (nextAutomation) {
+      setUrlParams({
+        view: "list",
+        triggerId: nextAutomation.trigger.id,
+        actionId: nextAutomation.action.id,
+        tab: urlParams.tab,
+      });
+    }
+  };
+
   const renderMainContent = () => {
     if (view === "create") {
       return (
@@ -180,6 +222,7 @@ export default function AutomationsPage() {
             actionId={selectedAutomation.actionId}
             onEditSuccess={handleEditSuccess}
             onEdit={handleEditAutomation}
+            onDelete={handleDeleteAutomation}
           />
         </div>
       );
@@ -243,16 +286,14 @@ export default function AutomationsPage() {
             )}
           </DialogBody>
           <DialogFooter>
-            <div className="flex justify-end">
-              <Button
-                onClick={() => {
-                  setShowSecretDialog(false);
-                  setWebhookSecret(null);
-                }}
-              >
-                I've saved the secret
-              </Button>
-            </div>
+            <Button
+              onClick={() => {
+                setShowSecretDialog(false);
+                setWebhookSecret(null);
+              }}
+            >
+              I've saved the secret
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -77,11 +77,11 @@ export const promptChangeEventSourcing = async (
       createEventId: () => {
         return `evt_${uuidv4()}`;
       },
-      convertEventToActionInput: async (actionConfig, executionId) => {
+      convertEventToActionInput: async (actionConfig, trigger, executionId) => {
         const queueInput: WebhookInput = {
           projectId: actionConfig.projectId,
           actionId: actionConfig.id,
-          triggerId: actionConfig.triggerIds[0],
+          triggerId: trigger.id,
           executionId,
           eventId: eventId,
           payload: {

@@ -5,7 +5,11 @@ import { Edit } from "lucide-react";
 import { AutomationForm } from "./automationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
-import { JobConfigState, type TriggerEventSource } from "@langfuse/shared";
+import {
+  type AutomationDomain,
+  JobConfigState,
+  type TriggerEventSource,
+} from "@langfuse/shared";
 import {
   TabsBar,
   TabsBarContent,
@@ -13,7 +17,6 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { type FilterState } from "@langfuse/shared";
-import { type ActiveAutomation } from "@langfuse/shared/src/server";
 import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
@@ -24,7 +27,8 @@ interface AutomationDetailsProps {
   triggerId: string;
   actionId: string;
   onEditSuccess?: () => void;
-  onEdit?: (automation: ActiveAutomation) => void;
+  onEdit?: (automation: AutomationDomain) => void;
+  onDelete?: () => void;
 }
 
 export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
@@ -33,6 +37,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   actionId,
   onEditSuccess,
   onEdit,
+  onDelete,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useQueryParam(
@@ -83,13 +88,13 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
     );
   }
 
-  const automationForForm: ActiveAutomation = {
+  const automationForForm: AutomationDomain = {
     name: automation.name,
     trigger: {
       ...automation.trigger,
       eventSource: automation.trigger.eventSource as TriggerEventSource,
       filter: automation.trigger.filter as FilterState,
-      eventAction: automation.trigger.eventActions,
+      eventActions: automation.trigger.eventActions,
     },
     action: {
       ...automation.action,
@@ -98,6 +103,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
         url: string;
         headers: Record<string, string>;
         apiVersion: Record<"prompt", "v1">;
+        displaySecretKey: string;
       },
     },
   };
@@ -132,6 +138,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                   triggerId={automation.trigger.id}
                   actionId={automation.action.id}
                   variant="button"
+                  onSuccess={onDelete}
                 />
               </div>
             }

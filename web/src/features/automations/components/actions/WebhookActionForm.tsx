@@ -166,25 +166,26 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           <FormDescription className="mb-2">
             Default headers (automatically added by Langfuse):
           </FormDescription>
-          <div className="rounded-md border bg-muted/50 p-2">
-            <div className="space-y-1">
-              {Object.entries(WebhookDefaultHeaders).map(
-                ([key, value], index, arr) => (
-                  <div key={key}>
-                    <div className="grid grid-cols-[1fr,1fr] gap-2 text-xs">
-                      <div className="font-medium text-muted-foreground">
-                        {key}
-                      </div>
-                      <div className="text-muted-foreground">{value}</div>
-                    </div>
-                    {index < arr.length - 1 && (
-                      <div className="my-1 border-t border-border/40" />
-                    )}
-                  </div>
-                ),
-              )}
+          {Object.entries(WebhookDefaultHeaders).map(([key, value]) => (
+            <div key={key} className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2">
+              <FormItem>
+                <FormControl>
+                  <Input value={key} disabled={true} className="bg-muted/50" />
+                </FormControl>
+              </FormItem>
+              <FormItem>
+                <FormControl>
+                  <Input
+                    value={value}
+                    disabled={true}
+                    className="bg-muted/50"
+                  />
+                </FormControl>
+              </FormItem>
+              <div className="w-10" />{" "}
+              {/* Spacer to align with editable headers */}
             </div>
-          </div>
+          ))}
         </div>
 
         {/* Custom Headers Section */}
@@ -268,10 +269,11 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
         </FormDescription>
 
         {action?.id ? (
-          <div className="rounded-md border bg-muted/50 p-3">
+          <div className="rounded-md border p-3">
             <div className="flex items-center gap-2">
               <div className="flex-1">
                 <CodeView
+                  className="bg-muted/50"
                   content={action.config.displaySecretKey}
                   defaultCollapsed={false}
                 />
@@ -384,7 +386,7 @@ export const RegenerateWebhookSecretButton = ({
         open={showRegenerateDialog}
         onOpenChange={setShowRegenerateDialog}
       >
-        <DialogContent>
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Webhook Secret Regenerated</DialogTitle>
             <DialogDescription>

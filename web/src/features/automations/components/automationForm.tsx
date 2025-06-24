@@ -135,7 +135,9 @@ export const AutomationForm = ({
       eventSource: automation
         ? automation.trigger.eventSource
         : TriggerEventSource.Prompt,
-      eventAction: automation ? automation.trigger.eventActions : [],
+      eventAction: automation
+        ? automation.trigger.eventActions
+        : ["created", "updated", "deleted"],
       status: (isEditing && automation
         ? automation.trigger.status
         : "ACTIVE") as "ACTIVE" | "INACTIVE",

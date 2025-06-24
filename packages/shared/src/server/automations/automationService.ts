@@ -19,6 +19,7 @@ export interface AutomationServiceDelegates<T> {
   createEventId: () => string;
   convertEventToActionInput: (
     actionConfig: ActionDomain,
+    trigger: TriggerDomain,
     executionId: string,
   ) => Promise<any>;
 }
@@ -115,6 +116,7 @@ export class AutomationService<T> {
     const executionId = v4();
     const actionInput = await convertEventToActionInput(
       actionConfig,
+      trigger,
       executionId,
     );
 
