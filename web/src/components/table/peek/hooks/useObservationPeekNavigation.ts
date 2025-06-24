@@ -1,6 +1,7 @@
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
 import { type ObservationsTableRow } from "@/src/components/table/use-cases/observations";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export const useObservationPeekNavigation = () => {
   const router = useRouter();
@@ -8,7 +9,7 @@ export const useObservationPeekNavigation = () => {
 
   const getNavigationPath = (entry: ListEntry) => {
     const url = new URL(window.location.href);
-    const pathname = window.location.pathname;
+    const pathname = getPathnameWithoutBasePath();
 
     // Update the path part
     url.pathname = pathname;
@@ -42,7 +43,8 @@ export const useObservationPeekNavigation = () => {
     const pathname = `/project/${projectId}/traces/${encodeURIComponent(row.traceId as string)}?timestamp=${timestamp}&display=${display}&observation=${peek as string}`;
 
     if (openInNewTab) {
-      window.open(pathname, "_blank");
+      const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
+      window.open(pathnameWithBasePath, "_blank");
     } else {
       router.push(pathname);
     }
