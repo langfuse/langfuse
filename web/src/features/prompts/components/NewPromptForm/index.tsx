@@ -92,7 +92,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     name: initialPrompt?.name ?? (folderPath ? `${folderPath}/` : ""),
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
     isActive: !Boolean(initialPrompt),
-    commitMessage: initialPrompt?.commitMessage ?? undefined,
+    commitMessage: undefined,
   };
 
   const form = useForm({
@@ -215,7 +215,16 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormDescription>
-                      Use slashes &apos;/&apos; in prompt names to organize them into <a target="_blank" rel="noopener noreferrer" href="https://langfuse.com/docs/prompts/get-started#prompt-folders-for-organization"><i>folders</i></a>.
+                      Use slashes &apos;/&apos; in prompt names to organize them
+                      into{" "}
+                      <a
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        href="https://langfuse.com/docs/prompts/get-started#prompt-folders-for-organization"
+                      >
+                        <i>folders</i>
+                      </a>
+                      .
                     </FormDescription>
                     <FormControl>
                       <Input placeholder="Name your prompt" {...field} />
