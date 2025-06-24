@@ -718,7 +718,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                             {!!score.comment && (
                                               <div className="mb-4 max-w-48 rounded border bg-background p-2 shadow-sm">
                                                 <p className="text-xs">
-                                                  Saved comment: {score.comment}
+                                                  Saved comment:{" "}
+                                                  <span className="whitespace-pre-wrap">
+                                                    {score.comment}
+                                                  </span>
                                                 </p>
                                               </div>
                                             )}
