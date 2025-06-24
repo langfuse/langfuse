@@ -325,19 +325,21 @@ export const NewDatasetItemForm = (props: {
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button
-            type="submit"
-            loading={createManyDatasetItemsMutation.isLoading}
-            className="w-full"
-            disabled={form.watch("datasetIds").length === 0}
-          >
-            Add to dataset{form.watch("datasetIds").length > 1 ? "s" : ""}
-          </Button>
-          {formError ? (
-            <p className="text-red mt-2 text-center">
-              <span className="font-bold">Error:</span> {formError}
-            </p>
-          ) : null}
+          <div className="flex flex-col gap-4">
+            <Button
+              type="submit"
+              loading={createManyDatasetItemsMutation.isLoading}
+              className="w-full"
+              disabled={form.watch("datasetIds").length === 0}
+            >
+              Add to dataset{form.watch("datasetIds").length > 1 ? "s" : ""}
+            </Button>
+            {formError ? (
+              <p className="text-red mt-2 text-center">
+                <span className="font-bold">Error:</span> {formError}
+              </p>
+            ) : null}
+          </div>
         </DialogFooter>
       </form>
     </Form>
