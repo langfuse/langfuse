@@ -1,7 +1,7 @@
 // TODO: move to frontend?
 import { z } from "zod/v4";
 import { v4 as uuidv4 } from "uuid";
-import { type ChatMessage, type PlaceholderMessage, ChatMessageType, type PromptChatMessageSchema, type ChatMessageWithId, type ChatMessageWithIdNoPlaceholders } from "./types";
+import { type ChatMessage, type PlaceholderMessage, ChatMessageType, type PromptChatMessageSchema, type ChatMessageWithId, type ChatMessageWithIdNoPlaceholders, ChatMessageSchema } from "./types";
 
 export type MessagePlaceholderValues = Record<string, ChatMessage[]>;
 export type PromptMessage = z.infer<typeof PromptChatMessageSchema>;
@@ -11,11 +11,7 @@ export function isPlaceholder(message: PromptMessage): message is PlaceholderMes
 }
 
 function validateMessage(message: unknown): message is ChatMessage {
-  if (!message || typeof message !== 'object') {
-    return false;
-  }
-  const msg = message as Record<string, unknown>;
-  return "role" in msg && typeof msg.content === "string";
+  return ChatMessageSchema.safeParse(message).success;
 }
 
 function replaceTextVariables(
