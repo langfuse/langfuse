@@ -2,7 +2,7 @@ import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { extractValueFromObject } from "@langfuse/shared";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 
 /**
  * Helper function to find an observation by name in the trace data
