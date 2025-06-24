@@ -45,10 +45,7 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(15_000),
-  LANGFUSE_INGESTION_QUEUE_SHARD_COUNT: z.coerce
-    .number()
-    .positive()
-    .default(1),
+  LANGFUSE_INGESTION_QUEUE_SHARD_COUNT: z.coerce.number().positive().default(1),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -91,6 +88,7 @@ const EnvSchema = z.object({
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
 
+  LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

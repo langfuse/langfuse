@@ -503,6 +503,7 @@ class S3StorageService implements StorageService {
     const listCommand = new ListObjectsV2Command({
       Bucket: this.bucketName,
       Prefix: prefix,
+      MaxKeys: env.LANGFUSE_S3_LIST_MAX_KEYS,
     });
 
     try {
