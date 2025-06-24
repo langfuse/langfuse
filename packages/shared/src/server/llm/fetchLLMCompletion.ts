@@ -1,4 +1,6 @@
-import { type ZodSchema } from "zod/v4";
+// We need to use Zod3 for structured outputs due to a bug in
+// ChatVertexAI. See issue: https://github.com/langfuse/langfuse/issues/7429
+import { type ZodSchema } from "zod/v3";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
