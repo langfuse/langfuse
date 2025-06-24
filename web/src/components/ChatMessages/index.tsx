@@ -178,7 +178,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p className="text-xs">Adds a placeholder to inject message pairs, e.g. a message history (with "role", "content" pairs) when compiling the message in the SDK.</p>
+            <p className="text-xs">Adds a placeholder to inject message pairs, e.g. a message history (with &quot;role&quot;, &quot;content&quot; pairs) when compiling the message in the SDK.</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
