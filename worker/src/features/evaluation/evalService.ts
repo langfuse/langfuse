@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
+import { z as zodV3 } from "zod/v3";
 import { JobConfigState } from "@prisma/client";
 import {
   QueueJobs,
@@ -24,7 +25,13 @@ import {
   DefaultEvalModelService,
   getTraceById,
   getObservationForTraceIdByName,
+  InMemoryFilterService,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
+import {
+  mapTraceFilterColumn,
+  requiresDatabaseLookup,
+} from "./traceFilterUtils";
 import {
   ChatMessageRole,
   ForbiddenError,
@@ -39,6 +46,7 @@ import {
   ScoreSource,
   availableTraceEvalVariables,
   variableMapping,
+  TraceDomain,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -157,7 +165,8 @@ export const createEvalJobs = async ({
     .selectFrom("job_configurations")
     .selectAll()
     .where(sql.raw("job_type::text"), "=", "EVAL")
-    .where("project_id", "=", event.projectId);
+    .where("project_id", "=", event.projectId)
+    .where(sql.raw("status::text"), "=", "ACTIVE");
 
   if ("configId" in event) {
     // if configid is set in the event, we only want to fetch the one config
@@ -177,13 +186,51 @@ export const createEvalJobs = async ({
   const configs = await configsQuery.execute();
 
   if (configs.length === 0) {
-    logger.debug("No evaluation jobs found for project", event.projectId);
+    logger.debug(
+      "No active evaluation jobs found for project",
+      event.projectId,
+    );
     return;
   }
 
   logger.debug(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
+
+  // Optimization: Fetch trace data once if we have multiple configs
+  let cachedTrace: TraceDomain | undefined | null = null;
+  recordIncrement("langfuse.evaluation-execution.config_count", configs.length);
+  if (configs.length > 1) {
+    try {
+      // Fetch trace data and store it. If observation data is required, we'll make a separate lookup.
+      // Those fields are used rarely, though.
+      cachedTrace = await getTraceById({
+        traceId: event.traceId,
+        projectId: event.projectId,
+        timestamp:
+          "timestamp" in event
+            ? new Date(event.timestamp)
+            : new Date(jobTimestamp),
+      });
+
+      recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
+        found: Boolean(cachedTrace).toString(),
+      });
+      logger.debug("Fetched trace for evaluation optimization", {
+        traceId: event.traceId,
+        projectId: event.projectId,
+        found: Boolean(cachedTrace),
+        configCount: configs.length,
+      });
+    } catch (error) {
+      logger.error("Failed to fetch trace for evaluation optimization", {
+        error,
+        traceId: event.traceId,
+        projectId: event.projectId,
+      });
+      // Continue without cached trace - will fall back to individual queries
+    }
+  }
 
   for (const config of configs) {
     if (config.status === JobConfigState.INACTIVE) {
@@ -201,21 +248,51 @@ export const createEvalJobs = async ({
         : undefined;
 
     // Check whether the trace already exists in the database.
-    const traceExists = await checkTraceExists({
-      projectId: event.projectId,
-      traceId: event.traceId,
-      // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
-      timestamp:
-        "timestamp" in event
-          ? new Date(event.timestamp)
-          : new Date(jobTimestamp),
-      filter: config.target_object === "trace" ? validatedFilter : [],
-      maxTimeStamp,
-      exactTimestamp:
-        "exactTimestamp" in event && event.exactTimestamp
-          ? new Date(event.exactTimestamp)
-          : undefined,
-    });
+    let traceExists = false;
+
+    // Use cached trace for in-memory filtering when possible, i.e. all fields can
+    // be checked in-memory.
+    if (cachedTrace && !requiresDatabaseLookup(validatedFilter)) {
+      // Evaluate filter in memory using the cached trace
+      traceExists = InMemoryFilterService.evaluateFilter(
+        cachedTrace,
+        validatedFilter,
+        mapTraceFilterColumn,
+      );
+
+      recordIncrement("langfuse.evaluation-execution.trace_cache_check", 1, {
+        matches: traceExists ? "true" : "false",
+      });
+      logger.debug("Evaluated trace filter in memory", {
+        traceId: event.traceId,
+        configId: config.id,
+        matches: traceExists,
+        filterCount: validatedFilter.length,
+      });
+    } else {
+      // Fall back to database query for complex filters or when no cached trace
+      traceExists = await checkTraceExists({
+        projectId: event.projectId,
+        traceId: event.traceId,
+        // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
+        timestamp:
+          "timestamp" in event
+            ? new Date(event.timestamp)
+            : new Date(jobTimestamp),
+        filter: config.target_object === "trace" ? validatedFilter : [],
+        maxTimeStamp,
+        exactTimestamp:
+          "exactTimestamp" in event && event.exactTimestamp
+            ? new Date(event.exactTimestamp)
+            : undefined,
+      });
+      recordIncrement("langfuse.evaluation-execution.trace_db_lookup", 1, {
+        hasCached: Boolean(cachedTrace).toString(),
+        requiredDatabaseLookup: requiresDatabaseLookup(validatedFilter)
+          ? "true"
+          : "false",
+      });
+    }
 
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem: { id: string } | undefined;
@@ -505,9 +582,9 @@ export const evaluate = async ({
     throw new InvalidRequestError("Output schema not found");
   }
 
-  const evalScoreSchema = z.object({
-    reasoning: z.string().describe(parsedOutputSchema.reasoning),
-    score: z.number().describe(parsedOutputSchema.score),
+  const evalScoreSchema = zodV3.object({
+    reasoning: zodV3.string().describe(parsedOutputSchema.reasoning),
+    score: zodV3.number().describe(parsedOutputSchema.score),
   });
 
   const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
