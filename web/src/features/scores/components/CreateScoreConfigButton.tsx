@@ -474,31 +474,33 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   </p>
                 </DialogBody>
                 <DialogFooter>
-                  <div className="flex justify-end space-x-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={form.formState.isSubmitting}
-                      onClick={() => setConfirmOpen(false)}
-                    >
-                      Continue Editing
-                    </Button>
-                    <Button
-                      type="submit"
-                      loading={form.formState.isSubmitting}
-                      onClick={form.handleSubmit(onSubmit)}
-                    >
-                      Confirm
-                    </Button>
+                  <div className="flex w-full flex-col gap-4">
+                    <div className="flex justify-end space-x-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={form.formState.isSubmitting}
+                        onClick={() => setConfirmOpen(false)}
+                      >
+                        Continue Editing
+                      </Button>
+                      <Button
+                        type="submit"
+                        loading={form.formState.isSubmitting}
+                        onClick={form.handleSubmit(onSubmit)}
+                      >
+                        Confirm
+                      </Button>
+                    </div>
+                    {formError ? (
+                      <p className="text-red w-full text-center">
+                        <span className="font-bold">Error:</span> {formError}
+                      </p>
+                    ) : null}
                   </div>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            {formError ? (
-              <p className="text-red text-center">
-                <span className="font-bold">Error:</span> {formError}
-              </p>
-            ) : null}
           </Form>
         </DialogContent>
       </Dialog>
