@@ -201,6 +201,85 @@ describe("eval service tests", () => {
       expect(jobs[0].start_time).not.toBeNull();
     }, 10_000);
 
+    test("handle dataset upsert with cached traces", async () => {
+      const traceId = randomUUID();
+      const datasetId = randomUUID();
+      const datasetItemId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await kyselyPrisma.$kysely
+        .insertInto("datasets")
+        .values({
+          id: datasetId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: "test-dataset",
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_items")
+        .values({
+          id: datasetItemId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId,
+          source_trace_id: traceId,
+        })
+        .execute();
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "dataset",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      // Use two job configurations to ensure we're using the cache
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: [
+            {
+              type: "string",
+              value: "a",
+              column: "Dataset",
+              operator: "contains",
+            },
+          ],
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "dataset",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        traceId: traceId,
+        datasetItemId: datasetItemId,
+      };
+
+      await createEvalJobs({ event: payload, jobTimestamp });
+      // If this does not throw, we're good.
+      expect(true).toBe(true);
+    });
+
     test("creates new eval job for a dataset on upsert of the trace", async () => {
       const traceId = randomUUID();
       const datasetId = randomUUID();

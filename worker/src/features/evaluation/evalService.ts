@@ -252,7 +252,8 @@ export const createEvalJobs = async ({
 
     // Use cached trace for in-memory filtering when possible, i.e. all fields can
     // be checked in-memory.
-    if (cachedTrace && !requiresDatabaseLookup(validatedFilter)) {
+    const traceFilter = config.target_object === "trace" ? validatedFilter : [];
+    if (cachedTrace && !requiresDatabaseLookup(traceFilter)) {
       // Evaluate filter in memory using the cached trace
       traceExists = InMemoryFilterService.evaluateFilter(
         cachedTrace,
@@ -279,7 +280,7 @@ export const createEvalJobs = async ({
           "timestamp" in event
             ? new Date(event.timestamp)
             : new Date(jobTimestamp),
-        filter: config.target_object === "trace" ? validatedFilter : [],
+        filter: traceFilter,
         maxTimeStamp,
         exactTimestamp:
           "exactTimestamp" in event && event.exactTimestamp
