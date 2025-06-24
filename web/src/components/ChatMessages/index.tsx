@@ -3,6 +3,12 @@ import { useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import {
   ChatMessageRole,
   ChatMessageType,
   type ChatMessageWithId,
@@ -158,15 +164,24 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
         <PlusCircleIcon size={14} className="mr-2" />
         <p>Add message</p>
       </Button>
-      <Button
-        type="button"
-        variant="outline"
-        className="flex-1"
-        onClick={addPlaceholderMessage}
-      >
-        <PlusCircleIcon size={14} className="mr-2" />
-        <p>Add message placeholder</p>
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={addPlaceholderMessage}
+            >
+              <PlusCircleIcon size={14} className="mr-2" />
+              <p>Add message placeholder</p>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">Adds a placeholder to inject message pairs, e.g. a message history (with "role", "content" pairs) when compiling the message in the SDK.</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 };

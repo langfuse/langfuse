@@ -179,6 +179,9 @@ const ParsedChatMessageListSchema = z.array(
 const isLangchainToolDefinitionMessage = (
   message: z.infer<typeof ParsedChatMessageListSchema>[0],
 ): message is { content: string; role: ChatMessageRole } => {
+  if (!("content" in message) || typeof message.content !== "string") {
+    return false;
+  }
   try {
     return OpenAIToolSchema.safeParse(JSON.parse(message.content)).success;
   } catch {
