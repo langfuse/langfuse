@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 
-const isEuOrUsRegionNonHipaa = ["EU", "US"].includes(process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+const isEuOrUsRegionNonHipaa = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? ["EU", "US"].includes(process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) : false;
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
