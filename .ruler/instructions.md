@@ -1,5 +1,3 @@
---- Source: instructions.md ---
-
 # Project Instructions
 
 ## Coding Style

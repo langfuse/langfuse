@@ -1,0 +1,37 @@
+# Default agents to run when --agents is not specified
+# Uses case-insensitive substring matching
+default_agents = ["copilot", "claude", "cursor"]
+
+# --- Global MCP Server Configuration ---
+[mcp]
+# Enable/disable MCP propagation globally (default: true)
+enabled = true
+# Global merge strategy: 'merge' or 'overwrite' (default: 'merge')
+merge_strategy = "merge"
+
+# --- Global .gitignore Configuration ---
+[gitignore]
+# Enable/disable automatic .gitignore updates (default: true)
+enabled = true
+
+# --- Agent-Specific Configurations ---
+[agents.copilot]
+enabled = true
+output_path = ".github/copilot-instructions.md"
+
+[agents.claude]
+enabled = true
+output_path = "CLAUDE.md"
+
+[agents.cursor]
+enabled = true
+output_path = ".cursor/rules/ruler_cursor_instructions.md"
+
+# Agent-specific MCP configuration
+[agents.cursor.mcp]
+enabled = true
+merge_strategy = "merge"
+
+# Disable specific agents by setting enabled = false
+# [agents.windsurf]
+# enabled = false

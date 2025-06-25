@@ -67,3 +67,7 @@ node_modules
 .turbo
 
 web/test-results/*
+
+# START Ruler Generated Files
+.cursor/rules/ruler_cursor_instructions.md
+# END Ruler Generated Files

@@ -1,0 +1,66 @@
+{
+  "name": "@intellectronica/ruler",
+  "version": "0.2.3",
+  "description": "Centralise Your AI Coding Assistant Instructions",
+  "main": "dist/index.js",
+  "bin": {
+    "ruler": "dist/cli.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src"
+  },
+  "keywords": [
+    "ai",
+    "developer-tools",
+    "copilot",
+    "codex",
+    "claude",
+    "cursor",
+    "aider",
+    "config",
+    "rules",
+    "automation"
+  ],
+  "author": "Eleanor Berger",
+  "license": "MIT",
+  "homepage": "ai.intellectronica.net/ruler",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intellectronica/ruler.git"
+  },
+  "bugs": {
+    "url": "https://github.com/intellectronica/ruler/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "commander": "^11.0.0",
+    "fs-extra": "^11.1.1",
+    "glob": "^10.3.3",
+    "toml": "^3.0.0",
+    "yaml": "^2.3.2"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.1",
+    "@types/jest": "^29.5.3",
+    "@types/node": "^20.4.5",
+    "jest": "^29.6.1",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.1.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
