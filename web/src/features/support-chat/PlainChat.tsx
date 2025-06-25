@@ -60,7 +60,18 @@ const PlainChat = () => {
             launcherBackgroundColor: "#666666", // These can also be passed in this format { light: '#FFFFFF', dark: '#000000' }
             launcherIconColor: "#FFFFFF",
           },
+          chatButtons: [
+            {
+              icon: "email",
+              text: "Contact Support",
+            },
+          ],
           links: [
+            {
+              icon: "chat",
+              text: "Ask AI Chat",
+              url: "https://langfuse.com/ask-ai",
+            },
             {
               icon: "book",
               text: "View Langfuse docs",
