@@ -6740,7 +6740,7 @@ components:
         prompt:
           type: array
           items:
-            $ref: '#/components/schemas/ChatMessage'
+            $ref: '#/components/schemas/ChatMessageWithPlaceholders'
         config:
           nullable: true
         labels:
@@ -6915,7 +6915,7 @@ components:
         prompt:
           type: array
           items:
-            $ref: '#/components/schemas/ChatMessage'
+            $ref: '#/components/schemas/ChatMessageWithPlaceholders'
       required:
         - prompt
       allOf:

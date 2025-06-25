@@ -82,7 +82,7 @@ types:
   CreateChatPromptRequest:
     properties:
       name: string
-      prompt: list<ChatMessage>
+      prompt: list<ChatMessageWithPlaceholders>
       config: optional<unknown>
       labels:
         type: optional<list<string>>
@@ -157,4 +157,4 @@ types:
   ChatPrompt:
     extends: BasePrompt
     properties:
-      prompt: list<ChatMessage>
+      prompt: list<ChatMessageWithPlaceholders>
