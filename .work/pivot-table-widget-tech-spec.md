@@ -1,10 +1,10 @@
-# Aggregation Table Widget Technical Specification
+# Pivot Table Widget Technical Specification
 
 ## 1. System Overview
 
 ### Core Purpose and Value Proposition
 
-The Aggregation Table widget extends Langfuse's self-serve dashboard capabilities by providing tabular data visualization with grouping and aggregation. Users can create tables with 0-2 row dimensions and multiple metrics, enabling detailed data analysis that complements existing chart visualizations.
+The Pivot Table widget extends Langfuse's self-serve dashboard capabilities by providing tabular data visualization with grouping and aggregation. Users can create tables with 0-2 row dimensions and multiple metrics, enabling detailed data analysis that complements existing chart visualizations.
 
 ### Database Architecture
 
@@ -16,13 +16,13 @@ The Aggregation Table widget extends Langfuse's self-serve dashboard capabilitie
 1. **Widget Configuration**: User selects dimensions and metrics through dropdown interface
 2. **Query Generation**: QueryBuilder generates SQL with appropriate GROUP BY clauses
 3. **Data Processing**: Raw query results transformed into nested table structure with totals
-4. **Rendering**: AggregationTable component displays formatted table with indentation and styling
+4. **Rendering**: PivotTable component displays formatted table with indentation and styling
 
 ### System Architecture
 
 ```
 WidgetForm (Config) → QueryBuilder (SQL) → ClickHouse (Analytics Data) →
-DataTransformer (Processing) → AggregationTable (Render) → Dashboard Grid
+DataTransformer (Processing) → PivotTable (Render) → Dashboard Grid
 ```
 
 ## 2. Project Structure
@@ -30,18 +30,18 @@ DataTransformer (Processing) → AggregationTable (Render) → Dashboard Grid
 ```
 web/src/features/widgets/
 ├── chart-library/
-│   ├── AggregationTable.tsx          # New aggregation table component
-│   ├── Chart.tsx                     # Updated to route AGGREGATION_TABLE
+│   ├── PivotTable.tsx          # New pivot table component
+│   ├── Chart.tsx                     # Updated to route PIVOT_TABLE
 │   └── utils.ts                      # Updated chart type utilities
 ├── components/
 │   ├── WidgetForm.tsx               # Updated with dimension selectors
 │   └── WidgetPropertySelectItem.tsx # Reused for dimension selection
 └── utils/
-    └── aggregation-table-utils.ts   # New data transformation utilities
+    └── pivot-table-utils.ts   # New data transformation utilities
 
 packages/shared/prisma/
 ├── migrations/
-│   └── add_aggregation_table_type.sql # PostgreSQL migration
+│   └── add_pivot_table_type.sql # PostgreSQL migration
 └── schema.prisma                     # Updated enum
 
 web/src/features/dashboard/server/
@@ -56,23 +56,23 @@ web/src/features/query/
 
 ### 3.1 Chart Type Registration
 
-**User Story**: As a user, I can select "Aggregation Table" from the chart type dropdown when creating widgets.
+**User Story**: As a user, I can select "Pivot Table" from the chart type dropdown when creating widgets.
 
 **Implementation Steps**:
 
-1. Add `AGGREGATION_TABLE` to DashboardWidgetChartType enum
+1. Add `PIVOT_TABLE` to DashboardWidgetChartType enum
 2. Update chart type mappings in utils.ts
-3. Add aggregation table to chart type selector UI
+3. Add pivot table to chart type selector UI
 4. Update Chart.tsx routing logic
 
 **Error Handling**:
 
-- Fallback to horizontal bar chart if AGGREGATION_TABLE not recognized
+- Fallback to horizontal bar chart if PIVOT_TABLE not recognized
 - Display configuration error if invalid chart config provided
 
 ### 3.2 Dimension Configuration Interface
 
-**User Story**: As a user, I can configure 0-2 row dimensions for my aggregation table.
+**User Story**: As a user, I can configure 0-2 row dimensions for my pivot table.
 
 **Implementation Steps**:
 
@@ -93,7 +93,7 @@ web/src/features/query/
 
 **Implementation Steps**:
 
-1. Create `transformToAggregationTable()` function
+1. Create `transformToPivotTable()` function
 2. Handle 0, 1, and 2 dimension scenarios
 3. Generate subtotals for first dimension groups
 4. Calculate grand totals across all data
@@ -107,11 +107,11 @@ web/src/features/query/
 
 ### 3.4 Table Rendering Component
 
-**User Story**: As a user, I see my data displayed in a properly formatted aggregation table.
+**User Story**: As a user, I see my data displayed in a properly formatted pivot table.
 
 **Implementation Steps**:
 
-1. Create AggregationTable React component
+1. Create PivotTable React component
 2. Implement indentation for second-level rows
 3. Add bold styling for total rows
 4. Handle responsive layout within dashboard grid
@@ -128,8 +128,8 @@ web/src/features/query/
 ### 4.1 Migration
 
 ```sql
--- Add AGGREGATION_TABLE to existing enum in PostgreSQL
-ALTER TYPE "DashboardWidgetChartType" ADD VALUE 'AGGREGATION_TABLE';
+-- Add PIVOT_TABLE to existing enum in PostgreSQL
+ALTER TYPE "DashboardWidgetChartType" ADD VALUE 'PIVOT_TABLE';
 ```
 
 ### 4.2 Existing Tables (No Changes)
@@ -146,14 +146,14 @@ CREATE TABLE "dashboard_widgets" (
 );
 ```
 
-**Chart Config Schema for Aggregation Tables**:
+**Chart Config Schema for Pivot Tables**:
 
 ```typescript
-interface AggregationTableConfig {
-  type: "AGGREGATION_TABLE";
+interface PivotTableConfig {
+  type: "PIVOT_TABLE";
   firstDimension?: string;
   secondDimension?: string;
-  row_limit?: number; // Fixed at 20 for aggregation tables
+  row_limit?: number; // Fixed at 20 for pivot tables
 }
 ```
 
@@ -169,7 +169,7 @@ export async function executeQuery(
   projectId: string,
   query: QueryType,
 ): Promise<Array<Record<string, unknown>>> {
-  // Existing implementation enhanced to handle aggregation table queries
+  // Existing implementation enhanced to handle pivot table queries
   const { query: compiledQuery, parameters } = new QueryBuilder(
     query.chartConfig,
   ).build(query, projectId);
@@ -188,8 +188,8 @@ export async function executeQuery(
 #### Data Transformation Function
 
 ```typescript
-// File: web/src/features/widgets/utils/aggregation-table-utils.ts
-export interface AggregationTableRow {
+// File: web/src/features/widgets/utils/pivot-table-utils.ts
+export interface PivotTableRow {
   type: "data" | "subtotal" | "total";
   level: 0 | 1; // Indentation level
   label: string;
@@ -198,7 +198,7 @@ export interface AggregationTableRow {
   isTotal?: boolean;
 }
 
-export function transformToAggregationTable(
+export function transformToPivotTable(
   data: DatabaseRow[],
   config: {
     firstDimension?: string;
@@ -206,7 +206,7 @@ export function transformToAggregationTable(
     metrics: string[];
     rowLimit: number;
   },
-): AggregationTableRow[];
+): PivotTableRow[];
 ```
 
 ### 5.2 Query Builder Enhancement
@@ -223,7 +223,7 @@ class QueryBuilder {
     query: string;
     parameters: Record<string, unknown>;
   } {
-    // Enhanced to handle multiple dimensions for aggregation tables
+    // Enhanced to handle multiple dimensions for pivot tables
     // Generate appropriate GROUP BY clauses
     // Apply ORDER BY for proper grouping
   }
@@ -273,7 +273,7 @@ class QueryBuilder {
     </thead>
     <tbody>
       {rows.map((row) => (
-        <AggregationTableRow key={row.id} row={row} />
+        <PivotTableRow key={row.id} row={row} />
       ))}
     </tbody>
   </table>
@@ -313,11 +313,11 @@ class QueryBuilder {
 
 ### 7.2 Client Components
 
-#### AggregationTable Component
+#### PivotTable Component
 
 ```typescript
-// File: web/src/features/widgets/chart-library/AggregationTable.tsx
-interface AggregationTableProps {
+// File: web/src/features/widgets/chart-library/PivotTable.tsx
+interface PivotTableProps {
   data: DataPoint[];
   config?: {
     firstDimension?: string;
@@ -326,12 +326,12 @@ interface AggregationTableProps {
   };
 }
 
-export const AggregationTable: React.FC<AggregationTableProps> = ({
+export const PivotTable: React.FC<PivotTableProps> = ({
   data,
   config = { rowLimit: 20 }
 }) => {
   const processedData = useMemo(() =>
-    transformToAggregationTable(data, config), [data, config]
+    transformToPivotTable(data, config), [data, config]
   );
 
   return (
@@ -351,7 +351,7 @@ const [firstDimension, setFirstDimension] = useState<string>("");
 const [secondDimension, setSecondDimension] = useState<string>("");
 
 // Add dimension selectors to form
-{selectedChartType === "AGGREGATION_TABLE" && (
+{selectedChartType === "PIVOT_TABLE" && (
   <>
     <DimensionSelector
       label="First Dimension (Optional)"
@@ -378,8 +378,8 @@ const [secondDimension, setSecondDimension] = useState<string>("");
 const renderChart = () => {
   switch (chartType) {
     // ... existing cases
-    case "AGGREGATION_TABLE":
-      return <AggregationTable data={renderedData} config={chartConfig} />;
+    case "PIVOT_TABLE":
+      return <PivotTable data={renderedData} config={chartConfig} />;
     default:
       return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
   }
@@ -428,11 +428,11 @@ Render Error → Error Boundary → Fallback UI
 **Location**: `web/src/__tests__/`
 
 ```typescript
-// web/src/__tests__/aggregation-table-utils.clienttest.ts
-describe("transformToAggregationTable", () => {
+// web/src/__tests__/pivot-table-utils.clienttest.ts
+describe("transformToPivotTable", () => {
   test("handles zero dimensions correctly", () => {
     const data = [{ count: 100, avg_value: 50 }];
-    const result = transformToAggregationTable(data, {
+    const result = transformToPivotTable(data, {
       metrics: ["count", "avg_value"],
     });
     expect(result).toEqual([
@@ -458,8 +458,8 @@ describe("transformToAggregationTable", () => {
   });
 });
 
-// web/src/__tests__/aggregation-table.clienttest.ts
-describe("AggregationTable Component", () => {
+// web/src/__tests__/pivot-table.clienttest.ts
+describe("PivotTable Component", () => {
   test("renders table with correct structure", () => {
     // Test component rendering
   });
@@ -478,7 +478,7 @@ describe("AggregationTable Component", () => {
 
 ```sh
 # Run sync tests (client-side component tests)
-pnpm test-sync --testPathPattern="aggregation-table"
+pnpm test-sync --testPathPattern="pivot-table"
 
 # Run async tests (server-side API tests)
 pnpm test-async --testPathPattern="dashboard-router"
@@ -489,12 +489,12 @@ pnpm test-async --testPathPattern="dashboard-router"
 **Location**: `web/src/__tests__/`
 
 ```typescript
-// web/src/__tests__/dashboard-router-aggregation-table.servertest.ts
-test("executeQuery handles aggregation table queries", async () => {
+// web/src/__tests__/dashboard-router-pivot-table.servertest.ts
+test("executeQuery handles pivot table queries", async () => {
   // Test query builder integration
   // Verify SQL generation for multiple dimensions
   // Check data transformation pipeline
 });
 ```
 
-This specification provides comprehensive technical guidance for implementing the Aggregation Table widget, ensuring it integrates seamlessly with the existing Langfuse dashboard system while maintaining code quality and user experience standards.
+This specification provides comprehensive technical guidance for implementing the Pivot Table widget, ensuring it integrates seamlessly with the existing Langfuse dashboard system while maintaining code quality and user experience standards.
