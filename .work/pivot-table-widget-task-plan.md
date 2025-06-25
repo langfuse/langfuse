@@ -2,7 +2,7 @@
 
 ## Phase 1: Core Infrastructure Setup
 
-- [ ] Step 1: Database Schema Migration
+- [x] Step 1: Database Schema Migration
 
   - **Task**: Add PIVOT_TABLE enum value to DashboardWidgetChartType in PostgreSQL database and update generated types
   - **Files**:
@@ -11,7 +11,7 @@
   - **Step Dependencies**: None
   - **User Instructions**: Run `pnpm db:migrate` to apply the database migration
 
-- [ ] Step 2: Type Definitions and Constants
+- [x] Step 2: Type Definitions and Constants
 
   - **Task**: Create core type definitions, interfaces, and configuration constants for pivot table functionality
   - **Files**:
@@ -20,10 +20,11 @@
   - **Step Dependencies**: Step 1
   - **User Instructions**: None
 
-- [ ] Step 3: Query Builder Enhancement
+- [x] Step 3: Query Builder Enhancement
   - **Task**: Enhance QueryBuilder to handle multiple dimensions for pivot table queries with proper GROUP BY clauses
   - **Files**:
     - `web/src/features/query/server/queryBuilder.ts`: Update build method to handle multiple dimensions in GROUP BY clauses for pivot table queries
+    - `web/src/features/query/types.ts`: Update QueryType interface to support pivot table dimensions configuration
   - **Step Dependencies**: Step 2
   - **User Instructions**: None
 

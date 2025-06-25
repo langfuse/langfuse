@@ -1157,6 +1157,7 @@ enum DashboardWidgetChartType {
   PIE
   NUMBER
   HISTOGRAM
+  PIVOT_TABLE
 }
 
 model DashboardWidget {

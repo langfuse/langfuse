@@ -1,6 +1,7 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod/v4";
 import { singleFilter } from "../../../";
+import { MAX_PIVOT_TABLE_DIMENSIONS } from "../../../features/widgets/constants";
 
 export const BaseTimeSeriesChartConfig = z.object({});
 export const BaseTotalValueChartConfig = z.object({
@@ -33,6 +34,11 @@ export const HistogramChartConfig = BaseTotalValueChartConfig.extend({
   bins: z.number().int().min(1).max(100).optional().default(10),
 });
 
+export const PivotTableChartConfig = BaseTotalValueChartConfig.extend({
+  type: z.literal("PIVOT_TABLE"),
+  dimensions: z.array(z.string()).max(MAX_PIVOT_TABLE_DIMENSIONS), // Configurable max dimensions for pivot tables
+});
+
 // Define dimension schema
 export const DimensionSchema = z.object({
   field: z.string(),
@@ -53,6 +59,7 @@ export const ChartConfigSchema = z.discriminatedUnion("type", [
   PieChartConfig,
   BigNumberChartConfig,
   HistogramChartConfig,
+  PivotTableChartConfig,
 ]);
 
 export const DashboardDefinitionWidgetWidgetSchema = z.object({
