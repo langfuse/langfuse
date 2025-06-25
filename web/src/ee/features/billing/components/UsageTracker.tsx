@@ -11,6 +11,8 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { ActionButton } from "@/src/components/ActionButton";
+import { cn } from "@/src/utils/tailwind";
+import { AlertTriangle } from "lucide-react";
 
 export const UsageTracker = () => {
   const { organization } = useQueryProjectOrOrganization();
@@ -45,23 +47,35 @@ export const UsageTracker = () => {
 
   const usage = usageQuery.data.usageCount || 0;
   const usageType = usageQuery.data.usageType;
-  const percentage = (usage / MAX_EVENTS_FREE_PLAN) * 100;
+  const percentage = 300 + (usage / MAX_EVENTS_FREE_PLAN) * 100;
 
   if (percentage < 90) {
     return null;
   }
 
+  const isCritical = percentage > 200;
+
   return (
-    <Card className="relative max-h-48 overflow-hidden rounded-md bg-opacity-50 shadow-none group-data-[collapsible=icon]:hidden">
+    <Card
+      className={cn(
+        "relative max-h-48 overflow-hidden rounded-md bg-opacity-50 shadow-none group-data-[collapsible=icon]:hidden",
+        isCritical && "border-destructive",
+      )}
+    >
       <CardHeader className="p-4 pb-0">
-        <CardTitle className="text-sm">Hobby Plan Usage Limit</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          {isCritical && (
+            <AlertTriangle className="inline-block h-4 w-4 text-destructive" />
+          )}
+          Plan Usage Limit
+        </CardTitle>
         <CardDescription>
           {`${usage.toLocaleString()} / ${MAX_EVENTS_FREE_PLAN.toLocaleString()} (${percentage.toFixed(0)}%) ${usageType} in last 30 days. Please upgrade your plan to avoid interruptions.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-2">
         <ActionButton
-          variant="secondary"
+          variant={isCritical ? "default" : "secondary"}
           size="sm"
           href={`/organization/${organization?.id}/settings/billing`}
           hasAccess={hasAccess}
