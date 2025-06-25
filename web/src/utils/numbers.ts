@@ -12,7 +12,7 @@ export const compactNumberFormatter = (
 };
 
 /**
- * Specialized formatter for very small numbers (10^-6 to 10^-15 range)
+ * Specialized formatter for very small numbers (10^-3 to 10^-15 range)
  * Uses scientific notation for compact representation with ~3 significant digits
  */
 export const compactSmallNumberFormatter = (
