@@ -44,6 +44,7 @@ export type Route = {
   show?: (p: {
     organization: User["organizations"][number] | undefined;
   }) => boolean;
+  
 };
 
 export const ROUTES: Route[] = [
@@ -80,6 +81,11 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/traces`,
     icon: ListTree,
     productModule: "tracing",
+    show: ({ organization }) => {
+      if (!organization) return false;
+      if (organization.name !== "Eubelius") return false;
+      return organization.role === "OWNER" || organization.role === "ADMIN";
+    },
     items: [
       {
         title: "Traces",
@@ -93,6 +99,7 @@ export const ROUTES: Route[] = [
         title: "Observations",
         pathname: `/project/[projectId]/observations`,
       },
+
       {
         title: "Scores",
         pathname: `/project/[projectId]/scores`,
