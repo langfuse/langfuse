@@ -3,6 +3,7 @@
   "globalDependencies": [
     ".env"
   ],
+  "envMode": "loose",
   "tasks": {
     "build": {
       "dependsOn": [
