@@ -257,7 +257,7 @@ export const IOTableCell = ({
     return <JsonSkeleton className="h-full w-full overflow-hidden px-2 py-1" />;
   }
 
-  const stringifiedJson = data ? stringifyJsonNode(data) : undefined;
+  const stringifiedJson = data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
 
   // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
   const shouldTruncate =
