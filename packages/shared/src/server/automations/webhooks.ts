@@ -22,7 +22,7 @@ export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
 ) => {
   try {
-    return await executeWebhook(job.data.payload, job.attemptsMade + 1);
+    return await executeWebhook(job.data.payload);
   } catch (error) {
     logger.error("Error executing WebhookJob", error);
     throw error;
@@ -30,7 +30,7 @@ export const webhookProcessor: Processor = async (
 };
 
 // TODO: Webhook outgoing API versioning
-export const executeWebhook = async (input: WebhookInput, attempt: number) => {
+export const executeWebhook = async (input: WebhookInput) => {
   const executionStart = new Date();
 
   const { projectId, actionId, triggerId, executionId } = input;
@@ -98,7 +98,7 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
     if (webhookConfig.secretKey) {
       try {
         const decryptedSecret = decrypt(webhookConfig.secretKey);
-        logger.info(`Decrypted secret: ${decryptedSecret}`);
+
         const signature = createSignatureHeader(
           webhookPayload,
           decryptedSecret,
@@ -115,6 +115,11 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
 
     await backOff(
       async () => {
+        logger.debug(
+          `Sending webhook to ${webhookConfig.url} with payload ${JSON.stringify(
+            webhookPayload,
+          )} and headers ${JSON.stringify(requestHeaders)}`,
+        );
         const res = await fetch(webhookConfig.url, {
           method: "POST",
           body: webhookPayload,
@@ -126,9 +131,11 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
 
         if (res.status !== 200) {
           logger.error(
+            `Webhook for project ${projectId} failed with status ${res.status} and response ${responseBody}`,
+          );
+          throw new Error(
             `Webhook for project ${projectId} failed with status ${res.status}`,
           );
-          throw new Error(`Webhook failed with status ${res.status}`);
         }
       },
       {
@@ -164,10 +171,10 @@ export const executeWebhook = async (input: WebhookInput, attempt: number) => {
       // Update execution status
       await tx.actionExecution.update({
         where: {
+          id: executionId,
           projectId,
           triggerId,
           actionId,
-          id: executionId,
         },
         data: {
           status: ActionExecutionStatus.ERROR,
