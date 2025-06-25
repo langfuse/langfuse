@@ -157,6 +157,61 @@ export const traceException = (
   });
 };
 
+export const addUserToSpan = (
+  attributes: {
+    userId?: string;
+    projectId?: string;
+    email?: string;
+    orgId?: string;
+    plan?: string;
+  },
+  span?: opentelemetry.Span,
+) => {
+  const activeSpan = span ?? getCurrentSpan();
+
+  if (!activeSpan) {
+    return;
+  }
+
+  const ctx = opentelemetry.context.active();
+  let baggage =
+    opentelemetry.propagation.getBaggage(ctx) ??
+    opentelemetry.propagation.createBaggage();
+
+  if (attributes.userId) {
+    baggage = baggage.setEntry("user.id", {
+      value: attributes.userId,
+    });
+    activeSpan.setAttribute("user.id", attributes.userId);
+  }
+  if (attributes.email) {
+    baggage = baggage.setEntry("user.email", {
+      value: attributes.email,
+    });
+    activeSpan.setAttribute("user.email", attributes.email);
+  }
+  if (attributes.projectId) {
+    baggage = baggage.setEntry("langfuse.project.id", {
+      value: attributes.projectId,
+    });
+    activeSpan.setAttribute("langfuse.project.id", attributes.projectId);
+  }
+  if (attributes.orgId) {
+    baggage = baggage.setEntry("langfuse.org.id", {
+      value: attributes.orgId,
+    });
+    activeSpan.setAttribute("langfuse.org.id", attributes.orgId);
+  }
+  if (attributes.plan) {
+    baggage = baggage.setEntry("langfuse.org.plan", {
+      value: attributes.plan,
+    });
+    activeSpan.setAttribute("langfuse.org.plan", attributes.plan);
+  }
+
+  return opentelemetry.propagation.setBaggage(ctx, baggage);
+};
+
 export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
 
 const cloudWatchClient = new CloudWatchClient();
