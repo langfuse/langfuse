@@ -4,7 +4,7 @@
 
 ### Core Purpose and Value Proposition
 
-The Pivot Table widget extends Langfuse's self-serve dashboard capabilities by providing tabular data visualization with grouping and aggregation. Users can create tables with 0-2 row dimensions and multiple metrics, enabling detailed data analysis that complements existing chart visualizations.
+The Pivot Table widget extends Langfuse's self-serve dashboard capabilities by providing tabular data visualization with grouping and aggregation. Users can create tables with 0-N row dimensions (currently limited to 2) and multiple metrics, enabling detailed data analysis that complements existing chart visualizations.
 
 ### Database Architecture
 
@@ -37,7 +37,7 @@ web/src/features/widgets/
 │   ├── WidgetForm.tsx               # Updated with dimension selectors
 │   └── WidgetPropertySelectItem.tsx # Reused for dimension selection
 └── utils/
-    └── pivot-table-utils.ts   # New data transformation utilities
+    └── pivot-table-utils.ts   # New data transformation utilities and constants
 
 packages/shared/prisma/
 ├── migrations/
@@ -72,20 +72,22 @@ web/src/features/query/
 
 ### 3.2 Dimension Configuration Interface
 
-**User Story**: As a user, I can configure 0-2 row dimensions for my pivot table.
+**User Story**: As a user, I can configure 0-N row dimensions for my pivot table (currently limited to 2 dimensions).
 
 **Implementation Steps**:
 
-1. Add first dimension selector to WidgetForm (optional)
-2. Add second dimension selector (conditional on first being selected)
-3. Update form validation logic
-4. Integrate with existing dimension options from viewDeclarations
+1. Define `MAX_DIMENSIONS` constant (set to 2 for initial implementation)
+2. Create dynamic dimension selector array based on `MAX_DIMENSIONS`
+3. Add conditional logic for showing/hiding dimension selectors
+4. Update form validation logic to handle variable dimension count
+5. Integrate with existing dimension options from viewDeclarations
 
 **Error Handling**:
 
-- Disable second dimension if first not selected
-- Clear second dimension if first is cleared
+- Disable subsequent dimension selectors if previous ones not selected
+- Clear dependent dimension selectors when parent dimensions are cleared
 - Validate dimension compatibility with selected view
+- Enforce `MAX_DIMENSIONS` limit in UI
 
 ### 3.3 Data Transformation Engine
 
@@ -93,11 +95,12 @@ web/src/features/query/
 
 **Implementation Steps**:
 
-1. Create `transformToPivotTable()` function
-2. Handle 0, 1, and 2 dimension scenarios
-3. Generate subtotals for first dimension groups
+1. Create `transformToPivotTable()` function with configurable dimension support
+2. Handle 0 to `MAX_DIMENSIONS` scenarios dynamically
+3. Generate subtotals for each dimension level (currently first dimension only)
 4. Calculate grand totals across all data
 5. Apply top 20 row limit before adding totals
+6. Support future expansion beyond 2 dimensions
 
 **Error Handling**:
 
@@ -111,11 +114,12 @@ web/src/features/query/
 
 **Implementation Steps**:
 
-1. Create PivotTable React component
-2. Implement indentation for second-level rows
-3. Add bold styling for total rows
+1. Create PivotTable React component with configurable dimension support
+2. Implement dynamic indentation based on dimension level (currently up to 2 levels)
+3. Add bold styling for total rows at each dimension level
 4. Handle responsive layout within dashboard grid
 5. Display empty cells for missing data
+6. Design component to scale with future dimension increases
 
 **Error Handling**:
 
@@ -149,10 +153,12 @@ CREATE TABLE "dashboard_widgets" (
 **Chart Config Schema for Pivot Tables**:
 
 ```typescript
+// Configuration constants
+const MAX_DIMENSIONS = 2; // Currently limited to 2, easily configurable for future expansion
+
 interface PivotTableConfig {
   type: "PIVOT_TABLE";
-  firstDimension?: string;
-  secondDimension?: string;
+  dimensions: string[]; // Array of dimension names (max length = MAX_DIMENSIONS)
   row_limit?: number; // Fixed at 20 for pivot tables
 }
 ```
@@ -201,8 +207,7 @@ export interface PivotTableRow {
 export function transformToPivotTable(
   data: DatabaseRow[],
   config: {
-    firstDimension?: string;
-    secondDimension?: string;
+    dimensions: string[]; // Array of dimension names (max MAX_DIMENSIONS)
     metrics: string[];
     rowLimit: number;
   },
@@ -320,8 +325,7 @@ class QueryBuilder {
 interface PivotTableProps {
   data: DataPoint[];
   config?: {
-    firstDimension?: string;
-    secondDimension?: string;
+    dimensions?: string[]; // Array of dimension names
     rowLimit?: number;
   };
 }
@@ -346,27 +350,42 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
 ```typescript
 // File: web/src/features/widgets/components/WidgetForm.tsx
-// Add state for dimensions
-const [firstDimension, setFirstDimension] = useState<string>("");
-const [secondDimension, setSecondDimension] = useState<string>("");
+// Configuration constants
+const MAX_DIMENSIONS = 2; // Easily configurable for future expansion
+
+// Add state for dimensions array
+const [dimensions, setDimensions] = useState<string[]>([]);
+
+// Helper function to update dimension at specific index
+const updateDimension = (index: number, value: string) => {
+  const newDimensions = [...dimensions];
+  if (value) {
+    newDimensions[index] = value;
+  } else {
+    // Clear this dimension and all subsequent ones
+    newDimensions.splice(index);
+  }
+  setDimensions(newDimensions);
+};
 
 // Add dimension selectors to form
 {selectedChartType === "PIVOT_TABLE" && (
   <>
-    <DimensionSelector
-      label="First Dimension (Optional)"
-      value={firstDimension}
-      onChange={setFirstDimension}
-      options={availableDimensions}
-    />
-    {firstDimension && (
-      <DimensionSelector
-        label="Second Dimension (Optional)"
-        value={secondDimension}
-        onChange={setSecondDimension}
-        options={availableDimensions.filter(d => d.value !== firstDimension)}
-      />
-    )}
+    {Array.from({ length: MAX_DIMENSIONS }, (_, index) => {
+      const isEnabled = index === 0 || dimensions[index - 1]; // Enable if first or previous is selected
+      const selectedDimensions = dimensions.slice(0, index); // Exclude current and later dimensions
+
+      return (
+        <DimensionSelector
+          key={index}
+          label={`Dimension ${index + 1} (Optional)`}
+          value={dimensions[index] || ""}
+          onChange={(value) => updateDimension(index, value)}
+          options={availableDimensions.filter(d => !selectedDimensions.includes(d.value))}
+          disabled={!isEnabled}
+        />
+      );
+    })}
   </>
 )}
 ```
@@ -449,12 +468,16 @@ describe("transformToPivotTable", () => {
     // Test single dimension grouping
   });
 
-  test("handles two dimensions with nested structure", () => {
-    // Test nested grouping with indentation
+  test("handles multiple dimensions with nested structure", () => {
+    // Test nested grouping with indentation up to MAX_DIMENSIONS
   });
 
   test("applies row limit correctly", () => {
     // Test top 20 limitation
+  });
+
+  test("respects MAX_DIMENSIONS configuration", () => {
+    // Test that dimension count is properly limited
   });
 });
 
