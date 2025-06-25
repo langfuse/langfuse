@@ -8,6 +8,7 @@ import {
   OrgEnrichedApiKey,
   logger,
   instrumentAsync,
+  addUserToSpan,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -203,6 +204,12 @@ export class ApiAuthService {
               throw new Error("Invalid credentials");
             }
 
+            addUserToSpan({
+              projectId: finalApiKey.projectId ?? undefined,
+              orgId: finalApiKey.orgId,
+              plan,
+            });
+
             const accessLevel =
               finalApiKey.scope === "ORGANIZATION" ? "organization" : "project";
 
@@ -234,6 +241,12 @@ export class ApiAuthService {
 
             const { orgId, cloudConfig } =
               this.extractOrgIdAndCloudConfig(dbKey);
+
+            addUserToSpan({
+              projectId: dbKey.projectId ?? undefined,
+              orgId,
+              plan: getOrganizationPlanServerSide(cloudConfig),
+            });
 
             return {
               validKey: true,
@@ -272,6 +285,7 @@ export class ApiAuthService {
         };
       },
     );
+
     return result;
   }
 
