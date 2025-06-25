@@ -519,7 +519,7 @@ export const evaluate = async ({
   );
 
   if (!modelConfig.valid) {
-    logger.error(
+    logger.warn(
       `Evaluating job ${event.jobExecutionId} will fail. ${modelConfig.error}`,
     );
     throw new LangfuseNotFoundError(modelConfig.error);
@@ -660,7 +660,7 @@ export async function extractVariablesFromTracingData({
       }
       if (mapping.langfuseObject === "dataset_item") {
         if (!datasetItemId) {
-          logger.error(
+          logger.warn(
             `No dataset item id found for variable ${variable}. Eval will succeed without dataset item input.`,
           );
           return { var: variable, value: "" };
@@ -693,10 +693,11 @@ export async function extractVariablesFromTracingData({
         // user facing errors
         if (!datasetItem) {
           logger.error(
-            `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+            `Dataset item ${datasetItemId} for project ${projectId} not found. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
           );
+          // this should only happen for deleted data.
           throw new LangfuseNotFoundError(
-            `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+            `Dataset item ${datasetItemId} for project ${projectId} not found. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
           );
         }
 
@@ -724,11 +725,12 @@ export async function extractVariablesFromTracingData({
 
         // user facing errors
         if (!trace) {
-          logger.error(
-            `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
+          logger.warn(
+            `Trace ${traceId} for project ${projectId} not found. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
           );
+          // this should only happen for deleted data or replication lags across clickhouse nodes.
           throw new LangfuseNotFoundError(
-            `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
+            `Trace ${traceId} for project ${projectId} not found. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
           );
         }
 
@@ -770,9 +772,10 @@ export async function extractVariablesFromTracingData({
 
         // user facing errors
         if (!observation) {
-          logger.error(
+          logger.warn(
             `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
           );
+          // this should only happen for deleted data or data replication lags across clickhouse nodes.
           throw new LangfuseNotFoundError(
             `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
           );
