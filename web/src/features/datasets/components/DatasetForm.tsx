@@ -267,27 +267,29 @@ export const DatasetForm = (props: DatasetFormProps) => {
             )}
           </DialogBody>
           <DialogFooter>
-            <Button
-              type="submit"
-              variant={props.mode === "delete" ? "destructive" : "default"}
-              disabled={!!form.formState.errors.name}
-              loading={
-                (props.mode === "create" && createMutation.isLoading) ||
-                (props.mode === "delete" && deleteMutation.isLoading)
-              }
-              className="w-full"
-            >
-              {props.mode === "create"
-                ? "Create dataset"
-                : props.mode === "delete"
-                  ? "Delete Dataset"
-                  : "Update dataset"}
-            </Button>
-            {formError && (
-              <p className="mt-4 text-center text-sm text-red-500">
-                <span className="font-bold">Error:</span> {formError}
-              </p>
-            )}
+            <div className="flex flex-col gap-4">
+              <Button
+                type="submit"
+                variant={props.mode === "delete" ? "destructive" : "default"}
+                disabled={!!form.formState.errors.name}
+                loading={
+                  (props.mode === "create" && createMutation.isLoading) ||
+                  (props.mode === "delete" && deleteMutation.isLoading)
+                }
+                className="w-full"
+              >
+                {props.mode === "create"
+                  ? "Create dataset"
+                  : props.mode === "delete"
+                    ? "Delete Dataset"
+                    : "Update dataset"}
+              </Button>
+              {formError && (
+                <p className="mt-4 text-center text-sm text-red-500">
+                  <span className="font-bold">Error:</span> {formError}
+                </p>
+              )}
+            </div>
           </DialogFooter>
         </form>
       </Form>

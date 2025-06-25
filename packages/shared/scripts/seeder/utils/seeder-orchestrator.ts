@@ -189,10 +189,10 @@ export class SeederOrchestrator {
     for (const projectId of projectIds) {
       logger.info(`Processing synthetic data for project ${projectId}`);
 
+      const observationsPerTrace = 15;
       const tracesPerProject = Math.floor(
-        (opts.totalObservations || 1000) / 25,
+        (opts.totalObservations || 1000) / observationsPerTrace,
       );
-      const observationsPerTrace = 25;
       const scoresPerTrace = 10;
 
       // For large datasets, use bulk generation for better performance

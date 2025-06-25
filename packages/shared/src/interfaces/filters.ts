@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 
+// Make sure to update the InMemoryFilterService if you add new filter types
 export const filterOperators = {
   datetime: [">", "<", ">=", "<=", "="],
   string: ["=", "contains", "does not contain", "starts with", "ends with"],

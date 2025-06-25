@@ -1,4 +1,3 @@
-import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   PostHogIntegrationProcessingQueue,
@@ -6,7 +5,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
-export const handlePostHogIntegrationSchedule = async (job: Job) => {
+export const handlePostHogIntegrationSchedule = async () => {
   const postHogIntegrationProjects = await prisma.posthogIntegration.findMany({
     select: {
       lastSyncAt: true,

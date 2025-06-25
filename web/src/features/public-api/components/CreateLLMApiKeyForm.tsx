@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BedrockConfig,
   type BedrockCredential,
+  type VertexAIConfig,
   LLMAdapter,
   type LlmApiKeys,
 } from "@langfuse/shared";
@@ -50,6 +51,7 @@ const createFormSchema = (mode: "create" | "update") =>
       awsAccessKeyId: z.string().optional(),
       awsSecretAccessKey: z.string().optional(),
       awsRegion: z.string().optional(),
+      vertexAILocation: z.string().optional(),
       extraHeaders: z.array(
         z.object({
           key: z.string().min(1),
@@ -155,6 +157,10 @@ export function CreateLLMApiKeyForm({
             extraHeaders:
               existingKey.extraHeaderKeys?.map((key) => ({ key, value: "" })) ??
               [],
+            vertexAILocation:
+              existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
+                ? ((existingKey.config as VertexAIConfig).location ?? "")
+                : "",
           }
         : {
             adapter: defaultAdapter,
@@ -164,6 +170,7 @@ export function CreateLLMApiKeyForm({
             withDefaultModels: true,
             customModels: [],
             extraHeaders: [],
+            vertexAILocation: "",
           },
   });
 
@@ -214,7 +221,7 @@ export function CreateLLMApiKeyForm({
     }
 
     let secretKey = values.secretKey;
-    let config: BedrockConfig | undefined;
+    let config: BedrockConfig | VertexAIConfig | undefined;
 
     if (currentAdapter === LLMAdapter.Bedrock) {
       const credentials: BedrockCredential = {
@@ -225,6 +232,13 @@ export function CreateLLMApiKeyForm({
 
       config = {
         region: values.awsRegion ?? "",
+      };
+    } else if (
+      currentAdapter === LLMAdapter.VertexAI &&
+      values.vertexAILocation
+    ) {
+      config = {
+        location: values.vertexAILocation.trim(),
       };
     }
 
@@ -490,6 +504,28 @@ export function CreateLLMApiKeyForm({
             />
           )}
 
+          {/* VertexAI Location */}
+          {currentAdapter === LLMAdapter.VertexAI && (
+            <FormField
+              control={form.control}
+              name="vertexAILocation"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Location (Optional)</FormLabel>
+                  <FormDescription>
+                    Specify the Google Cloud location for Vertex AI. If not
+                    specified, the default location will be used (us-central1).
+                    Examples: us-central1, europe-west4, asia-northeast1
+                  </FormDescription>
+                  <FormControl>
+                    <Input {...field} placeholder="e.g., us-central1" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
           {/* Extra Headers */}
           {currentAdapter === LLMAdapter.OpenAI ||
           currentAdapter === LLMAdapter.Azure ? (
@@ -664,17 +700,20 @@ export function CreateLLMApiKeyForm({
         </DialogBody>
 
         <DialogFooter>
-          <Button
-            type="submit"
-            className="w-full"
-            loading={form.formState.isSubmitting}
-          >
-            {mode === "create" ? "Save new LLM API key" : "Update LLM API key"}
-          </Button>
-
-          {form.formState.errors.root && (
-            <FormMessage>{form.formState.errors.root.message}</FormMessage>
-          )}
+          <div className="flex flex-col gap-4">
+            <Button
+              type="submit"
+              className="w-full"
+              loading={form.formState.isSubmitting}
+            >
+              {mode === "create"
+                ? "Save new LLM API key"
+                : "Update LLM API key"}
+            </Button>
+            {form.formState.errors.root && (
+              <FormMessage>{form.formState.errors.root.message}</FormMessage>
+            )}
+          </div>
         </DialogFooter>
       </form>
     </Form>

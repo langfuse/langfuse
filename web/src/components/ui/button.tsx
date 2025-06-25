@@ -73,6 +73,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         onClick={loading || disabled ? undefined : onClick}
         {...props}
+        type={props.type || "button"}
       >
         {loading ? <Spinner /> : children}
       </Comp>

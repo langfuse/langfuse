@@ -72,12 +72,11 @@ export const PeekDatasetCompareDetail = ({
   };
 
   const handleSetCurrentObservationId = (id?: string) => {
-    if (id && traceId)
-      window.open(
-        `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(id)}`,
-        "_blank",
-        "noopener noreferrer",
-      );
+    if (id && traceId) {
+      const pathname = `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(id)}`;
+      const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
+      window.open(pathnameWithBasePath, "_blank", "noopener noreferrer");
+    }
   };
 
   if (!row) return <Skeleton className="min-h-full w-full" />;
@@ -183,15 +182,13 @@ export const PeekDatasetCompareDetail = ({
                               variant="outline"
                               size="icon"
                               title="View full trace"
-                              onClick={() =>
-                                window.open(
-                                  run?.observationId
-                                    ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
-                                    : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`,
-                                  "_blank",
-                                  "noopener noreferrer",
-                                )
-                              }
+                              onClick={() => {
+                                const pathname = run?.observationId
+                                  ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
+                                  : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`;
+                                const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
+                                window.open(pathnameWithBasePath, "_blank", "noopener noreferrer");
+                              }}
                             >
                               <ListTree className="h-4 w-4" />
                             </Button>

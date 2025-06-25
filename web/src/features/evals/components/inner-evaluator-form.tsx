@@ -1054,22 +1054,22 @@ export const InnerEvaluatorForm = (props: {
   );
 
   const formFooter = (
-    <>
+    <div className="flex w-full flex-col items-end gap-4">
       {!props.disabled ? (
         <Button
           type="submit"
           loading={createJobMutation.isLoading || updateJobMutation.isLoading}
-          className="mt-3"
+          className="mt-3 max-w-fit"
         >
           Execute
         </Button>
       ) : null}
       {formError ? (
-        <p className="text-red text-center">
+        <p className="text-red w-full text-center">
           <span className="font-bold">Error:</span> {formError}
         </p>
       ) : null}
-    </>
+    </div>
   );
 
   return (

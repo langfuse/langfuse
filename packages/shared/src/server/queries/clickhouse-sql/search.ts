@@ -5,13 +5,16 @@ const regexIndefiniteCharacters = "%";
 export const clickhouseSearchCondition = (
   query?: string,
   searchType?: TracingSearchType[],
+  tablePrefix?: string,
 ) => {
+  const prefix = tablePrefix ? `${tablePrefix}.` : "";
+
   const conditions = [
     !searchType || searchType.includes("id")
-      ? `id ILIKE {searchString: String} OR user_id ILIKE {searchString: String} OR name ILIKE {searchString: String}`
+      ? `${prefix}id ILIKE {searchString: String} OR user_id ILIKE {searchString: String} OR ${prefix}name ILIKE {searchString: String}`
       : null,
     searchType && searchType.includes("content")
-      ? `input ILIKE {searchString: String} OR output ILIKE {searchString: String}`
+      ? `${prefix}input ILIKE {searchString: String} OR ${prefix}output ILIKE {searchString: String}`
       : null,
   ].filter(Boolean);
 

@@ -14,6 +14,8 @@ import {
   createTracesCh,
   upsertObservation,
   upsertTrace,
+  checkTraceExists,
+  getTraceById,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -26,6 +28,7 @@ import {
   describe,
   expect,
   test,
+  vi,
 } from "vitest";
 import { compileHandlebarString } from "../features/utilities";
 import { OpenAIServer } from "./network";
@@ -35,6 +38,10 @@ import {
   evaluate,
   extractVariablesFromTracingData,
 } from "../features/evaluation/evalService";
+import {
+  requiresDatabaseLookup,
+  requiresObservationData,
+} from "../features/evaluation/traceFilterUtils";
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
 if (!hasActiveKey) {
@@ -193,6 +200,85 @@ describe("eval service tests", () => {
       expect(jobs[0].status.toString()).toBe("PENDING");
       expect(jobs[0].start_time).not.toBeNull();
     }, 10_000);
+
+    test("handle dataset upsert with cached traces", async () => {
+      const traceId = randomUUID();
+      const datasetId = randomUUID();
+      const datasetItemId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await kyselyPrisma.$kysely
+        .insertInto("datasets")
+        .values({
+          id: datasetId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: "test-dataset",
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_items")
+        .values({
+          id: datasetItemId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId,
+          source_trace_id: traceId,
+        })
+        .execute();
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "dataset",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      // Use two job configurations to ensure we're using the cache
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: [
+            {
+              type: "string",
+              value: "a",
+              column: "Dataset",
+              operator: "contains",
+            },
+          ],
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "dataset",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        traceId: traceId,
+        datasetItemId: datasetItemId,
+      };
+
+      await createEvalJobs({ event: payload, jobTimestamp });
+      // If this does not throw, we're good.
+      expect(true).toBe(true);
+    });
 
     test("creates new eval job for a dataset on upsert of the trace", async () => {
       const traceId = randomUUID();
@@ -1705,5 +1791,36 @@ describe("eval service tests", () => {
         },
       ]);
     }, 10_000);
+  });
+
+  test("requiresDatabaseLookup correctly identifies complex filters", () => {
+    // Simple filters that can be evaluated with trace data only
+    const simpleFilters = [
+      { column: "name", type: "string", operator: "=", value: "test-trace" },
+      {
+        column: "environment",
+        type: "string",
+        operator: "=",
+        value: "production",
+      },
+      { column: "bookmarked", type: "boolean", operator: "=", value: true },
+    ];
+
+    expect(!requiresDatabaseLookup(simpleFilters)).toBe(true);
+
+    // Complex filters that require observation data
+    const complexFilters = [
+      { column: "level", type: "string", operator: "=", value: "ERROR" },
+    ];
+
+    expect(!requiresDatabaseLookup(complexFilters)).toBe(false);
+
+    // Mixed filters - should return false if any filter requires observation data
+    const mixedFilters = [
+      { column: "name", type: "string", operator: "=", value: "test-trace" },
+      { column: "level", type: "string", operator: "=", value: "ERROR" }, // This requires observation data
+    ];
+
+    expect(!requiresDatabaseLookup(mixedFilters)).toBe(false);
   });
 });
