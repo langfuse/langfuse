@@ -132,6 +132,11 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
     productModule: "tracing",
+    show: ({ organization }) => {
+      if (!organization) return false;
+      if (organization.name !== "Eubelius") return false;
+      return organization.role === "OWNER" || organization.role === "ADMIN";
+    },
   },
   {
     title: "Prompts",
