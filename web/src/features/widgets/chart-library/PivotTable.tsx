@@ -75,8 +75,7 @@ const PivotTableRowComponent: React.FC<{
         className={cn(
           "p-2 align-middle font-normal",
           // Apply indentation based on level
-          row.level === 1 && "pl-6",
-          row.level === 2 && "pl-10",
+          row.level > 0 && `pl-${(row.level - 1) * 4 + 2}`,
           // Bold styling for subtotal and total rows
           (row.isSubtotal || row.isTotal) && "font-semibold",
         )}
@@ -245,7 +244,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({ data, config }) => {
             {/* Dimension column header */}
             <TableHead className="p-2 text-left font-medium">
               {config?.dimensions && config.dimensions.length > 0
-                ? formatColumnHeader(config.dimensions[0]) // Use first dimension name
+                ? config.dimensions.map(formatColumnHeader).join(" / ") // Show all dimensions
                 : "Dimension"}
             </TableHead>
 
