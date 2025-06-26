@@ -190,7 +190,21 @@ export function WidgetForm({
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
   const [userFilterState, setUserFilterState] = useState<FilterState>(
-    initialValues.filters ?? [],
+    initialValues.filters?.map((filter) => {
+      if (filter.column === "name") {
+        // We need to map the generic `name` property to the correct column name for the selected view
+        return {
+          ...filter,
+          column:
+            initialValues.view === "traces"
+              ? "traceName"
+              : initialValues.view === "observations"
+                ? "observationName"
+                : "scoreName",
+        };
+      }
+      return filter;
+    }) ?? [],
   );
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
