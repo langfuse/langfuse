@@ -225,8 +225,6 @@ describe("Webhook Integration Tests", () => {
         /^t=\d+,v1=[a-f0-9]+$/,
       );
 
-      // Verify payload structure
-      console.log(request.body);
       const payload = JSON.parse(request.body);
       const validatedPayload = PromptWebhookOutboundSchema.parse(payload);
       expect(validatedPayload.id).toBe(webhookInput.eventId);
