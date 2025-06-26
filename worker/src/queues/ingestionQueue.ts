@@ -13,12 +13,14 @@ import {
   redis,
   TQueueJobTypes,
   traceException,
+  dorisClient,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
+import { DorisWriter } from "../services/DorisWriter";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
 
@@ -52,12 +54,21 @@ export const ingestionQueueProcessorBuilder = (
         );
       }
 
-      // We write the new file into the ClickHouse event log to keep track for retention and deletions
-      const clickhouseWriter = ClickhouseWriter.getInstance();
+      // 根据配置初始化相应的writer
+      const analyticsBackend = env.LANGFUSE_ANALYTICS_BACKEND;
+      let clickhouseWriter: ClickhouseWriter | null = null;
+      let dorisWriter: DorisWriter | null = null;
 
+      if (analyticsBackend === "clickhouse") {
+        clickhouseWriter = ClickhouseWriter.getInstance();
+      } else if (analyticsBackend === "doris") {
+        dorisWriter = DorisWriter.getInstance();
+      }
+
+      // We write the new file into the analytics backend event log to keep track for retention and deletions
       if (job.data.payload.data.fileKey && job.data.payload.data.fileKey) {
         const fileName = `${job.data.payload.data.fileKey}.json`;
-        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
+        const blobStorageRecord = {
           id: randomUUID(),
           project_id: job.data.payload.authCheck.scope.projectId,
           entity_type: getClickhouseEntityType(job.data.payload.data.type),
@@ -69,7 +80,14 @@ export const ingestionQueueProcessorBuilder = (
           updated_at: new Date().getTime(),
           event_ts: new Date().getTime(),
           is_deleted: 0,
-        });
+        };
+
+        // 写入到配置的后端
+        if (clickhouseWriter) {
+          clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, blobStorageRecord);
+        } else if (dorisWriter) {
+          dorisWriter.addToQueue(TableName.BlobStorageFileLog, blobStorageRecord);
+        }
       }
 
       // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
@@ -125,6 +143,7 @@ export const ingestionQueueProcessorBuilder = (
         {
           projectId: job.data.payload.authCheck.scope.projectId,
           payload: job.data.payload.data,
+          analyticsBackend: analyticsBackend,
         },
       );
 
@@ -217,11 +236,17 @@ export const ingestionQueueProcessorBuilder = (
       if (!redis) throw new Error("Redis not available");
       if (!prisma) throw new Error("Prisma not available");
 
+      // 根据配置传递相应的client和writer
+      const clickhouseClientInstance = (analyticsBackend === "clickhouse") ? clickhouseClient() : null;
+      const dorisClientInstance = (analyticsBackend === "doris") ? dorisClient() : null;
+
       await new IngestionService(
         redis,
         prisma,
         clickhouseWriter,
-        clickhouseClient(),
+        clickhouseClientInstance,
+        dorisWriter,
+        dorisClientInstance,
       ).mergeAndWrite(
         getClickhouseEntityType(events[0].type),
         job.data.payload.authCheck.scope.projectId,

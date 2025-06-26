@@ -214,7 +214,7 @@ export class DorisWriter {
     const startTime = Date.now();
 
     // Format data for Doris compatibility
-    const formattedRecords = formatDataForDoris(params.records);
+    const formattedRecords = formatDataForDoris(params.records, params.table);
 
     await (DorisWriter.client ?? dorisClient())
       .insert(params.table, formattedRecords, {

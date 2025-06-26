@@ -37,10 +37,12 @@ import {
   TraceUpsertQueue,
   QueueJobs,
   recordIncrement,
+  DorisClientType
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
+import {DorisWriter} from "../DorisWriter";
 import {
   convertJsonSchemaToRecord,
   convertRecordValuesToString,
@@ -91,8 +93,10 @@ export class IngestionService {
   constructor(
     private redis: Redis,
     private prisma: PrismaClient,
-    private clickHouseWriter: ClickhouseWriter,
-    private clickhouseClient: ClickhouseClientType,
+    private clickHouseWriter: ClickhouseWriter | null,
+    private clickhouseClient: ClickhouseClientType | null,
+    private dorisWriter: DorisWriter | null,
+    private dorisClient: DorisClientType | null,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -155,14 +159,14 @@ export class IngestionService {
       minTimestamp === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
-    const [clickhouseScoreRecord, scoreRecords] = await Promise.all([
-      this.getClickhouseRecord({
+    const [existingScoreRecord, scoreRecords] = await Promise.all([
+      this.getAnalyticsRecord({
         projectId,
         entityId,
         table: TableName.Scores,
         additionalFilters: {
           whereCondition: timestamp
-            ? " AND timestamp >= {timestamp: DateTime64(3)} "
+            ? " AND timestamp >= ? "
             : "",
           params: { timestamp },
         },
@@ -202,22 +206,28 @@ export class IngestionService {
       ),
     ]);
 
-    if (clickhouseScoreRecord) {
+    if (existingScoreRecord) {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "clickhouse",
+        store: env.LANGFUSE_ANALYTICS_BACKEND,
         object: "score",
       });
     }
 
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({
-        clickhouseScoreRecord,
+        clickhouseScoreRecord: existingScoreRecord,
         scoreRecords,
       });
     finalScoreRecord.created_at =
-      clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
+      existingScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
-    this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+    // 根据配置写入到相应的后端
+    const analyticsBackend = env.LANGFUSE_ANALYTICS_BACKEND;
+    if (analyticsBackend === "clickhouse" && this.clickHouseWriter) {
+      this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+    } else if (analyticsBackend === "doris" && this.dorisWriter) {
+      this.dorisWriter.addToQueue(TableName.Scores, finalScoreRecord);
+    }
   }
 
   private async processTraceEventList(params: {
@@ -247,42 +257,43 @@ export class IngestionService {
       minTimestamp === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
-    const clickhouseTraceRecord = await this.getClickhouseRecord({
+
+    // 从配置的后端读取现有记录
+    const existingTraceRecord = await this.getAnalyticsRecord({
       projectId,
       entityId,
       table: TableName.Traces,
       additionalFilters: {
         whereCondition: timestamp
-          ? " AND timestamp >= {timestamp: DateTime64(3)} "
+          ? " AND timestamp >= ? "
           : "",
         params: { timestamp },
       },
     });
 
-    if (clickhouseTraceRecord) {
+    if (existingTraceRecord) {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "clickhouse",
+        store: env.LANGFUSE_ANALYTICS_BACKEND,
         object: "trace",
       });
     }
 
     const finalTraceRecord = await this.mergeTraceRecords({
-      clickhouseTraceRecord,
+      clickhouseTraceRecord: existingTraceRecord,
       traceRecords,
     });
     finalTraceRecord.created_at =
-      clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
+      existingTraceRecord?.created_at ?? createdAtTimestamp.getTime();
 
     // Search for the first non-null input and output in the trace events and set them on the merged result.
-    // Fallback to the ClickHouse input/output if none are found within the events list.
     const reversedRawRecords = timeSortedEvents.slice().reverse();
     finalTraceRecord.input = this.stringify(
       reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
-        clickhouseTraceRecord?.input,
+        existingTraceRecord?.input,
     );
     finalTraceRecord.output = this.stringify(
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
-        clickhouseTraceRecord?.output,
+        existingTraceRecord?.output,
     );
 
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
@@ -315,7 +326,21 @@ export class IngestionService {
       }
     }
 
-    this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+    // 根据配置写入到相应的后端
+    const analyticsBackend = env.LANGFUSE_ANALYTICS_BACKEND;
+    if (analyticsBackend === "clickhouse" && this.clickHouseWriter) {
+      this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+      logger.debug(`Added trace ${entityId} to ClickHouse queue for project ${projectId}`);
+    } else if (analyticsBackend === "doris" && this.dorisWriter) {
+      this.dorisWriter.addToQueue(TableName.Traces, finalTraceRecord);
+      logger.debug(`Added trace ${entityId} to Doris queue for project ${projectId}`);
+    }
+
+    // 记录写入指标
+    recordIncrement("langfuse.ingestion.write", 1, {
+      object: "trace",
+      backend: analyticsBackend,
+    });
 
     // Add trace into trace upsert queue for eval processing
     const traceUpsertQueue = TraceUpsertQueue.getInstance();
@@ -358,13 +383,13 @@ export class IngestionService {
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minStartTime));
 
-    const [clickhouseObservationRecord, prompt] = await Promise.all([
-      this.getClickhouseRecord({
+    const [existingObservationRecord, prompt] = await Promise.all([
+      this.getAnalyticsRecord({
         projectId,
         entityId,
         table: TableName.Observations,
         additionalFilters: {
-          whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime64(3)} " : ""}`,
+          whereCondition: `AND type = ? ${startTime ? "AND start_time >= ? " : ""}`,
           params: {
             type,
             startTime,
@@ -374,9 +399,9 @@ export class IngestionService {
       this.getPrompt(projectId, observationEventList),
     ]);
 
-    if (clickhouseObservationRecord) {
+    if (existingObservationRecord) {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "clickhouse",
+        store: env.LANGFUSE_ANALYTICS_BACKEND,
         object: "observation",
       });
     }
@@ -391,22 +416,22 @@ export class IngestionService {
     const mergedObservationRecord = await this.mergeObservationRecords({
       projectId,
       observationRecords,
-      clickhouseObservationRecord,
+      clickhouseObservationRecord: existingObservationRecord,
     });
     mergedObservationRecord.created_at =
-      clickhouseObservationRecord?.created_at ?? createdAtTimestamp.getTime();
+      existingObservationRecord?.created_at ?? createdAtTimestamp.getTime();
     mergedObservationRecord.level = mergedObservationRecord.level ?? "DEFAULT";
 
     // Search for the first non-null input and output in the observation events and set them on the merged result.
-    // Fallback to the ClickHouse input/output if none are found within the events list.
+    // Fallback to the existing record input/output if none are found within the events list.
     const reversedRawRecords = timeSortedEvents.slice().reverse();
     mergedObservationRecord.input = this.stringify(
       reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
-        clickhouseObservationRecord?.input,
+        existingObservationRecord?.input,
     );
     mergedObservationRecord.output = this.stringify(
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
-        clickhouseObservationRecord?.output,
+        existingObservationRecord?.output,
     );
 
     const generationUsage = await this.getGenerationUsage({
@@ -435,14 +460,23 @@ export class IngestionService {
         is_deleted: 0,
       };
 
-      this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
+      // 根据配置写入wrapper trace到相应的后端
+      const analyticsBackend = env.LANGFUSE_ANALYTICS_BACKEND;
+      if (analyticsBackend === "clickhouse" && this.clickHouseWriter) {
+        this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
+      } else if (analyticsBackend === "doris" && this.dorisWriter) {
+        this.dorisWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
+      }
       finalObservationRecord.trace_id = finalObservationRecord.id;
     }
 
-    this.clickHouseWriter.addToQueue(
-      TableName.Observations,
-      finalObservationRecord,
-    );
+    // 根据配置写入observation到相应的后端
+    const analyticsBackend = env.LANGFUSE_ANALYTICS_BACKEND;
+    if (analyticsBackend === "clickhouse" && this.clickHouseWriter) {
+      this.clickHouseWriter.addToQueue(TableName.Observations, finalObservationRecord);
+    } else if (analyticsBackend === "doris" && this.dorisWriter) {
+      this.dorisWriter.addToQueue(TableName.Observations, finalObservationRecord);
+    }
   }
 
   private async mergeScoreRecords(params: {
@@ -892,7 +926,7 @@ export class IngestionService {
       { name: `get-clickhouse-${table}` },
       async (span) => {
         span.setAttribute("projectId", projectId);
-        const queryResult = await this.clickhouseClient.query({
+        const queryResult = await this.clickhouseClient!.query({
           query: `
             SELECT *
             FROM ${table}
@@ -934,6 +968,174 @@ export class IngestionService {
         }
       },
     );
+  }
+
+  private async getDorisRecord(params: {
+    projectId: string;
+    entityId: string;
+    table: TableName.Traces;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
+  }): Promise<TraceRecordInsertType | null>;
+  private async getDorisRecord(params: {
+    projectId: string;
+    entityId: string;
+    table: TableName.Scores;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
+  }): Promise<ScoreRecordInsertType | null>;
+  private async getDorisRecord(params: {
+    projectId: string;
+    entityId: string;
+    table: TableName.Observations;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
+  }): Promise<ObservationRecordInsertType | null>;
+  private async getDorisRecord(params: {
+    projectId: string;
+    entityId: string;
+    table: TableName;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
+  }) {
+    if (!this.dorisClient) {
+      logger.warn("Doris client not available, skipping read", {
+        projectId: params.projectId,
+        table: params.table,
+      });
+      return null;
+    }
+
+    if (await this.shouldSkipClickHouseRead(params.projectId)) {
+      recordIncrement("langfuse.ingestion.doris_read_for_update", 1, {
+        skipped: "true",
+        table: params.table,
+      });
+      return null;
+    }
+    recordIncrement("langfuse.ingestion.doris_read_for_update", 1, {
+      skipped: "false",
+      table: params.table,
+    });
+
+    const recordParser = {
+      traces: traceRecordReadSchema,
+      scores: scoreRecordReadSchema,
+      observations: observationRecordReadSchema,
+    };
+    const { projectId, entityId, table, additionalFilters } = params;
+
+    return await instrumentAsync(
+      { name: `get-doris-${table}` },
+      async (span) => {
+        span.setAttribute("projectId", projectId);
+        
+        // Convert ClickHouse-style query to MySQL-compatible query for Doris
+        // Note: Doris doesn't support "LIMIT 1 BY" syntax, so we use regular LIMIT
+        let dorisQuery = `
+          SELECT *
+          FROM ${table}
+          WHERE project_id = ?
+          AND id = ?
+          ${additionalFilters.whereCondition.replace(/\{(\w+):\s*[^}]+\}/g, '?')}
+          ORDER BY event_ts DESC
+          LIMIT 1
+        `;
+
+        const queryResult = await this.dorisClient!.queryWithParams({
+          query: dorisQuery,
+          query_params: {
+            projectId,
+            entityId,
+            ...additionalFilters.params,
+          },
+        });
+
+        const result = await queryResult.json();
+
+        if (result.length === 0) return null;
+
+        switch (table) {
+          case TableName.Traces:
+            return convertTraceReadToInsert(
+              recordParser[table].parse(result[0]),
+            );
+          case TableName.Scores:
+            return convertScoreReadToInsert(
+              recordParser[table].parse(result[0]),
+            );
+          case TableName.Observations:
+            return convertObservationReadToInsert(
+              recordParser[table].parse(result[0]),
+            );
+          default:
+            throw new Error(`Unsupported table name: ${table}`);
+        }
+      },
+    );
+  }
+
+  /**
+   * Get existing record from the configured analytics backend (ClickHouse or Doris)
+   */
+  private async getAnalyticsRecord(params: {
+    projectId: string;
+    entityId: string;
+    table: TableName.Traces;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
+  }): Promise<TraceRecordInsertType | null>;
+  private async getAnalyticsRecord(params: {
+    projectId: string;
+    entityId: string;
+    table: TableName.Scores;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
+  }): Promise<ScoreRecordInsertType | null>;
+  private async getAnalyticsRecord(params: {
+    projectId: string;
+    entityId: string;
+    table: TableName.Observations;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
+  }): Promise<ObservationRecordInsertType | null>;
+  private async getAnalyticsRecord(params: {
+    projectId: string;
+    entityId: string;
+    table: TableName;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
+  }): Promise<TraceRecordInsertType | ScoreRecordInsertType | ObservationRecordInsertType | null> {
+    const analyticsBackend = env.LANGFUSE_ANALYTICS_BACKEND;
+    
+    if (analyticsBackend === "clickhouse" && this.clickhouseClient) {
+      return await this.getClickhouseRecord(params as any);
+    } else if (analyticsBackend === "doris" && this.dorisClient) {
+      return await this.getDorisRecord(params as any);
+    } else {
+      logger.warn("No analytics backend available for reading records", {
+        backend: analyticsBackend,
+        hasClickHouse: !!this.clickhouseClient,
+        hasDoris: !!this.dorisClient,
+      });
+      return null;
+    }
   }
 
   private mapTraceEventsToRecords(params: {
