@@ -53,6 +53,7 @@ import {
   buildWidgetName,
   buildWidgetDescription,
 } from "@/src/features/widgets/utils";
+import { MAX_PIVOT_TABLE_DIMENSIONS } from "@langfuse/shared";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -60,6 +61,13 @@ type ChartType = {
   value: DashboardWidgetChartType;
   icon: React.ElementType;
   supportsBreakdown: boolean;
+};
+
+type ChartConfig = {
+  type: DashboardWidgetChartType;
+  row_limit?: number;
+  bins?: number;
+  dimensions?: string[]; // For pivot table configuration
 };
 
 const chartTypes: ChartType[] = [
@@ -136,11 +144,7 @@ export function WidgetForm({
     dimension: string;
     filters?: FilterState;
     chartType: DashboardWidgetChartType;
-    chartConfig?: {
-      type: DashboardWidgetChartType;
-      row_limit?: number;
-      bins?: number;
-    };
+    chartConfig?: ChartConfig;
   };
   projectId: string;
   onSave: (widgetData: {
@@ -151,11 +155,7 @@ export function WidgetForm({
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: {
-      type: DashboardWidgetChartType;
-      row_limit?: number;
-      bins?: number;
-    };
+    chartConfig: ChartConfig;
   }) => void;
   widgetId?: string;
 }) {
@@ -184,6 +184,15 @@ export function WidgetForm({
     initialValues.dimension,
   );
 
+  // Pivot table dimensions state (for PIVOT_TABLE chart type)
+  const [pivotDimensions, setPivotDimensions] = useState<string[]>(
+    initialValues.chartType === "PIVOT_TABLE" &&
+      initialValues.chartConfig?.type === "PIVOT_TABLE" &&
+      "dimensions" in (initialValues.chartConfig as any)
+      ? (initialValues.chartConfig as any).dimensions || []
+      : [],
+  );
+
   const [selectedChartType, setSelectedChartType] = useState<string>(
     initialValues.chartType,
   );
@@ -200,6 +209,19 @@ export function WidgetForm({
   const [userFilterState, setUserFilterState] = useState<FilterState>(
     initialValues.filters ?? [],
   );
+
+  // Helper function to update pivot table dimensions
+  const updatePivotDimension = (index: number, value: string) => {
+    const newDimensions = [...pivotDimensions];
+    if (value && value !== "none") {
+      // Set the dimension at the specified index
+      newDimensions[index] = value;
+    } else {
+      // Clear this dimension and all subsequent ones
+      newDimensions.splice(index);
+    }
+    setPivotDimensions(newDimensions);
+  };
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
@@ -317,6 +339,13 @@ export function WidgetForm({
       setSelectedDimension("none");
     }
   }, [selectedChartType, selectedDimension]);
+
+  // Reset pivot dimensions when switching away from PIVOT_TABLE
+  useEffect(() => {
+    if (selectedChartType !== "PIVOT_TABLE" && pivotDimensions.length > 0) {
+      setPivotDimensions([]);
+    }
+  }, [selectedChartType, pivotDimensions.length]);
 
   // Set aggregation based on chart type and metric, with histogram chart type taking priority
   useEffect(() => {
@@ -473,7 +502,11 @@ export function WidgetForm({
       description: widgetDescription,
       view: selectedView,
       dimensions:
-        selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
+        selectedChartType === "PIVOT_TABLE"
+          ? pivotDimensions.map((field) => ({ field }))
+          : selectedDimension !== "none"
+            ? [{ field: selectedDimension }]
+            : [],
       metrics: [
         {
           measure: selectedMeasure,
@@ -491,10 +524,16 @@ export function WidgetForm({
               type: selectedChartType as DashboardWidgetChartType,
               bins: histogramBins,
             }
-          : {
-              type: selectedChartType as DashboardWidgetChartType,
-              row_limit: rowLimit,
-            },
+          : selectedChartType === "PIVOT_TABLE"
+            ? {
+                type: selectedChartType as DashboardWidgetChartType,
+                dimensions: pivotDimensions,
+                row_limit: rowLimit,
+              }
+            : {
+                type: selectedChartType as DashboardWidgetChartType,
+                row_limit: rowLimit,
+              },
     });
   };
 
@@ -659,40 +698,120 @@ export function WidgetForm({
                 </div>
               </div>
 
-              {/* Dimension Selection (Breakdown) */}
+              {/* Dimension Selection - Regular charts (Breakdown) */}
               {chartTypes.find((c) => c.value === selectedChartType)
-                ?.supportsBreakdown && (
-                <div className="space-y-2">
-                  <Label htmlFor="dimension-select">
-                    Breakdown Dimension (Optional)
-                  </Label>
-                  <Select
-                    value={selectedDimension}
-                    onValueChange={setSelectedDimension}
-                  >
-                    <SelectTrigger id="dimension-select">
-                      <SelectValue placeholder="Select a dimension" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {availableDimensions.map((dimension) => {
-                        const meta =
-                          viewDeclarations[selectedView]?.dimensions?.[
-                            dimension.value
-                          ];
-                        return (
-                          <WidgetPropertySelectItem
-                            key={dimension.value}
-                            value={dimension.value}
-                            label={dimension.label}
-                            description={meta?.description}
-                            unit={meta?.unit}
-                            type={meta?.type}
-                          />
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                ?.supportsBreakdown &&
+                selectedChartType !== "PIVOT_TABLE" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="dimension-select">
+                      Breakdown Dimension (Optional)
+                    </Label>
+                    <Select
+                      value={selectedDimension}
+                      onValueChange={setSelectedDimension}
+                    >
+                      <SelectTrigger id="dimension-select">
+                        <SelectValue placeholder="Select a dimension" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {availableDimensions.map((dimension) => {
+                          const meta =
+                            viewDeclarations[selectedView]?.dimensions?.[
+                              dimension.value
+                            ];
+                          return (
+                            <WidgetPropertySelectItem
+                              key={dimension.value}
+                              value={dimension.value}
+                              label={dimension.label}
+                              description={meta?.description}
+                              unit={meta?.unit}
+                              type={meta?.type}
+                            />
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+              {/* Pivot Table Dimension Selection */}
+              {selectedChartType === "PIVOT_TABLE" && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">
+                      Row Dimensions
+                    </h4>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Configure up to {MAX_PIVOT_TABLE_DIMENSIONS} dimensions
+                      for pivot table rows. Each dimension creates groupings
+                      with subtotals.
+                    </p>
+                  </div>
+
+                  {Array.from(
+                    { length: MAX_PIVOT_TABLE_DIMENSIONS },
+                    (_, index) => {
+                      const isEnabled =
+                        index === 0 || pivotDimensions[index - 1]; // Enable if first or previous is selected
+                      const selectedDimensions = pivotDimensions.slice(
+                        0,
+                        index,
+                      ); // Exclude current and later dimensions
+                      const currentValue = pivotDimensions[index] || "";
+
+                      return (
+                        <div key={index} className="space-y-2">
+                          <Label htmlFor={`pivot-dimension-${index}`}>
+                            Dimension {index + 1}{" "}
+                            {index === 0 ? "(Required)" : "(Optional)"}
+                          </Label>
+                          <Select
+                            value={currentValue}
+                            onValueChange={(value) =>
+                              updatePivotDimension(index, value)
+                            }
+                            disabled={!isEnabled}
+                          >
+                            <SelectTrigger id={`pivot-dimension-${index}`}>
+                              <SelectValue
+                                placeholder={
+                                  isEnabled
+                                    ? "Select a dimension"
+                                    : "Select previous dimension first"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {index > 0 && (
+                                <SelectItem value="none">None</SelectItem>
+                              )}
+                              {availableDimensions
+                                .filter(
+                                  (d) => !selectedDimensions.includes(d.value),
+                                )
+                                .map((dimension) => {
+                                  const meta =
+                                    viewDeclarations[selectedView]
+                                      ?.dimensions?.[dimension.value];
+                                  return (
+                                    <WidgetPropertySelectItem
+                                      key={dimension.value}
+                                      value={dimension.value}
+                                      label={dimension.label}
+                                      description={meta?.description}
+                                      unit={meta?.unit}
+                                      type={meta?.type}
+                                    />
+                                  );
+                                })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    },
+                  )}
                 </div>
               )}
             </div>

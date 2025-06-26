@@ -48,7 +48,7 @@
 
 ## Phase 3: UI Components
 
-- [ ] Step 6: Basic Pivot Table Component
+- [x] Step 6: Basic Pivot Table Component
 
   - **Task**: Create the core PivotTable React component with table structure, indentation, and styling
   - **Files**:
@@ -57,7 +57,7 @@
   - **Step Dependencies**: Step 5
   - **User Instructions**: None
 
-- [ ] Step 7: Chart Router Integration
+- [x] Step 7: Chart Router Integration
 
   - **Task**: Integrate PivotTable component into the Chart router to handle PIVOT_TABLE chart type
   - **Files**:
@@ -65,7 +65,7 @@
   - **Step Dependencies**: Step 6
   - **User Instructions**: None
 
-- [ ] Step 8: Widget Configuration Form
+- [x] Step 8: Widget Configuration Form
   - **Task**: Enhance WidgetForm to support configurable dimensions with dynamic selectors based on MAX_DIMENSIONS
   - **Files**:
     - `web/src/features/widgets/components/WidgetForm.tsx`: Add dynamic dimension selector logic with proper state management and validation

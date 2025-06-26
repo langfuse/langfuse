@@ -11,6 +11,7 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
+import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 
 export const Chart = ({
   chartType,
@@ -57,6 +58,9 @@ export const Chart = ({
         return <HistogramChart data={renderedData} />;
       case "NUMBER": {
         return <BigNumber data={renderedData} />;
+      }
+      case "PIVOT_TABLE": {
+        return <PivotTable data={renderedData} />;
       }
       default:
         return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
