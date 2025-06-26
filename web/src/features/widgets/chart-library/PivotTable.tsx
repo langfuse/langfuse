@@ -169,9 +169,19 @@ export const PivotTable: React.FC<PivotTableProps> = ({ data, config }) => {
     const databaseRows = data.map((point) => {
       const row: Record<string, any> = {};
 
-      // Add dimension field if present
-      if (point.dimension !== undefined) {
-        row.dimension = point.dimension;
+      // For pivot tables, map all configured dimension fields from the original query data
+      if (pivotConfig.dimensions.length > 0) {
+        pivotConfig.dimensions.forEach((dimensionField) => {
+          // Access the dimension field directly from the point data
+          if ((point as any)[dimensionField] !== undefined) {
+            row[dimensionField] = (point as any)[dimensionField];
+          }
+        });
+      } else {
+        // Fallback: Add dimension field if present (for compatibility)
+        if (point.dimension !== undefined) {
+          row.dimension = point.dimension;
+        }
       }
 
       // Add time dimension if present

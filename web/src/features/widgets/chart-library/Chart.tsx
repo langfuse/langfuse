@@ -17,10 +17,17 @@ export const Chart = ({
   chartType,
   data,
   rowLimit,
+  chartConfig,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
   rowLimit: number;
+  chartConfig?: {
+    type: DashboardWidgetChartType;
+    row_limit?: number;
+    bins?: number;
+    dimensions?: string[];
+  };
 }) => {
   const [forceRender, setForceRender] = useState(false);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -60,7 +67,13 @@ export const Chart = ({
         return <BigNumber data={renderedData} />;
       }
       case "PIVOT_TABLE": {
-        return <PivotTable data={renderedData} />;
+        // Extract pivot table configuration from chartConfig
+        const pivotConfig = {
+          dimensions: chartConfig?.dimensions ?? [],
+          metrics: ["metric"], // Default metric from DataPoint structure
+          rowLimit: chartConfig?.row_limit ?? rowLimit,
+        };
+        return <PivotTable data={renderedData} config={pivotConfig} />;
       }
       default:
         return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;

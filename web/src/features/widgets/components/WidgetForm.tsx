@@ -411,10 +411,17 @@ export function WidgetForm({
       : new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000); // Default to last 7 days
     const toTimestamp = dateRange ? dateRange.to : new Date();
 
+    // Determine dimensions based on chart type
+    const queryDimensions =
+      selectedChartType === "PIVOT_TABLE"
+        ? pivotDimensions.map((field) => ({ field }))
+        : selectedDimension !== "none"
+          ? [{ field: selectedDimension }]
+          : [];
+
     return {
       view: selectedView,
-      dimensions:
-        selectedDimension !== "none" ? [{ field: selectedDimension }] : [],
+      dimensions: queryDimensions,
       metrics: [
         {
           measure: selectedMeasure,
@@ -433,7 +440,13 @@ export function WidgetForm({
       chartConfig:
         selectedChartType === "HISTOGRAM"
           ? { type: selectedChartType, bins: histogramBins }
-          : { type: selectedChartType },
+          : selectedChartType === "PIVOT_TABLE"
+            ? {
+                type: selectedChartType,
+                dimensions: pivotDimensions,
+                row_limit: rowLimit,
+              }
+            : { type: selectedChartType },
     };
   }, [
     selectedView,
@@ -444,6 +457,8 @@ export function WidgetForm({
     dateRange,
     selectedChartType,
     histogramBins,
+    pivotDimensions, // Add pivotDimensions to dependencies
+    rowLimit,
   ]);
 
   const queryResult = api.dashboard.executeQuery.useQuery(
@@ -464,31 +479,53 @@ export function WidgetForm({
   const transformedData: DataPoint[] = useMemo(
     () =>
       queryResult.data?.map((item: any) => {
-        // Get the dimension field (first dimension in the query)
-        const dimensionField = selectedDimension;
         // Get the metric field (first metric in the query with its aggregation)
         const metricField = `${selectedAggregation}_${selectedMeasure}`;
         const metric = item[metricField];
 
-        return {
-          dimension:
-            item[dimensionField] !== undefined
-              ? (() => {
-                  const val = item[dimensionField];
-                  if (typeof val === "string") return val;
-                  if (val === null || val === undefined || val === "")
-                    return "n/a";
-                  if (Array.isArray(val)) return val.join(", ");
-                  return String(val);
-                })()
-              : startCase(
-                  metricField === "count_count" ? "Count" : metricField,
-                ),
-          metric: Array.isArray(metric) ? metric : Number(metric || 0),
-          time_dimension: item["time_dimension"],
-        };
+        // For pivot tables, we need to preserve all dimension data in the item
+        // For regular charts, use the single dimension field
+        if (selectedChartType === "PIVOT_TABLE") {
+          // Create a DataPoint that includes all the original query data
+          // This allows the PivotTable component to access all dimension fields
+          return {
+            dimension:
+              pivotDimensions.length > 0 ? pivotDimensions[0] : "dimension", // Fallback for compatibility
+            metric: Array.isArray(metric) ? metric : Number(metric || 0),
+            time_dimension: item["time_dimension"],
+            // Include all original query fields for pivot table processing
+            ...item,
+          };
+        } else {
+          // Regular chart processing
+          const dimensionField = selectedDimension;
+          return {
+            dimension:
+              item[dimensionField] !== undefined && dimensionField !== "none"
+                ? (() => {
+                    const val = item[dimensionField];
+                    if (typeof val === "string") return val;
+                    if (val === null || val === undefined || val === "")
+                      return "n/a";
+                    if (Array.isArray(val)) return val.join(", ");
+                    return String(val);
+                  })()
+                : startCase(
+                    metricField === "count_count" ? "Count" : metricField,
+                  ),
+            metric: Array.isArray(metric) ? metric : Number(metric || 0),
+            time_dimension: item["time_dimension"],
+          };
+        }
       }) ?? [],
-    [queryResult.data, selectedAggregation, selectedDimension, selectedMeasure],
+    [
+      queryResult.data,
+      selectedAggregation,
+      selectedDimension,
+      selectedMeasure,
+      selectedChartType,
+      pivotDimensions,
+    ],
   );
 
   const handleSaveWidget = () => {
@@ -541,10 +578,16 @@ export function WidgetForm({
   useEffect(() => {
     if (autoLocked) return;
 
+    // For pivot tables, combine all dimensions, otherwise use regular dimension
+    const dimensionForNaming =
+      selectedChartType === "PIVOT_TABLE" && pivotDimensions.length > 0
+        ? pivotDimensions.map(startCase).join(" and ")
+        : selectedDimension;
+
     const suggested = buildWidgetName({
       aggregation: selectedAggregation,
       measure: selectedMeasure,
-      dimension: selectedDimension,
+      dimension: dimensionForNaming,
       view: selectedView,
     });
 
@@ -555,16 +598,24 @@ export function WidgetForm({
     selectedMeasure,
     selectedDimension,
     selectedView,
+    selectedChartType,
+    pivotDimensions,
   ]);
 
   // Update widget description when selection or filters change, unless locked
   useEffect(() => {
     if (autoLocked) return;
 
+    // For pivot tables, combine all dimensions, otherwise use regular dimension
+    const dimensionForDescription =
+      selectedChartType === "PIVOT_TABLE" && pivotDimensions.length > 0
+        ? pivotDimensions.map(startCase).join(" and ")
+        : selectedDimension;
+
     const suggested = buildWidgetDescription({
       aggregation: selectedAggregation,
       measure: selectedMeasure,
-      dimension: selectedDimension,
+      dimension: dimensionForDescription,
       view: selectedView,
       filters: userFilterState,
     });
@@ -577,6 +628,8 @@ export function WidgetForm({
     selectedDimension,
     selectedView,
     userFilterState,
+    selectedChartType,
+    pivotDimensions,
   ]);
 
   return (
@@ -764,8 +817,7 @@ export function WidgetForm({
                       return (
                         <div key={index} className="space-y-2">
                           <Label htmlFor={`pivot-dimension-${index}`}>
-                            Dimension {index + 1}{" "}
-                            {index === 0 ? "(Required)" : "(Optional)"}
+                            Dimension {index + 1} (Optional)
                           </Label>
                           <Select
                             value={currentValue}
@@ -784,7 +836,7 @@ export function WidgetForm({
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              {index > 0 && (
+                              {index >= 0 && (
                                 <SelectItem value="none">None</SelectItem>
                               )}
                               {availableDimensions
@@ -976,6 +1028,23 @@ export function WidgetForm({
               chartType={selectedChartType as DashboardWidgetChartType}
               data={transformedData}
               rowLimit={rowLimit}
+              chartConfig={
+                selectedChartType === "PIVOT_TABLE"
+                  ? {
+                      type: selectedChartType as DashboardWidgetChartType,
+                      dimensions: pivotDimensions,
+                      row_limit: rowLimit,
+                    }
+                  : selectedChartType === "HISTOGRAM"
+                    ? {
+                        type: selectedChartType as DashboardWidgetChartType,
+                        bins: histogramBins,
+                      }
+                    : {
+                        type: selectedChartType as DashboardWidgetChartType,
+                        row_limit: rowLimit,
+                      }
+              }
             />
           ) : (
             <CardContent>
