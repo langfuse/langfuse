@@ -47,6 +47,7 @@ import {
   BarChartHorizontal,
   Hash,
   BarChart3,
+  Table,
 } from "lucide-react";
 import {
   buildWidgetName,
@@ -109,6 +110,13 @@ const chartTypes: ChartType[] = [
     name: "Pie Chart",
     value: "PIE",
     icon: PieChart,
+    supportsBreakdown: true,
+  },
+  {
+    group: "total-value",
+    name: "Pivot Table",
+    value: "PIVOT_TABLE",
+    icon: Table,
     supportsBreakdown: true,
   },
 ];

@@ -156,8 +156,104 @@ export function createEmptyMetricValues(
 }
 
 /**
- * Placeholder function for transforming flat query results into pivot table structure
- * This will be implemented in Step 4: Data Transformation Engine
+ * Recursively processes dimensions to create nested pivot table structure
+ * This function handles N dimensions dynamically instead of hardcoded cases
+ *
+ * @param data - Array of database rows to process at this level
+ * @param remainingDimensions - Array of dimension names still to be processed
+ * @param metrics - Array of metric field names
+ * @param currentLevel - Current indentation level (0-based)
+ * @param dimensionPath - Array of dimension values from parent levels for labeling
+ * @returns Array of pivot table rows for this level and all nested levels
+ */
+function processLevelRecursively(
+  data: DatabaseRow[],
+  remainingDimensions: string[],
+  metrics: string[],
+  currentLevel: number,
+  dimensionPath: string[],
+): PivotTableRow[] {
+  const rows: PivotTableRow[] = [];
+
+  // Base case: no more dimensions to process, create data rows
+  if (remainingDimensions.length === 0) {
+    // Create data rows for the final level
+    const dataRows = data.map((row, index) => {
+      const dimensionValues = extractDimensionValues(row, []);
+      const metricValues = extractMetricValues(row, metrics);
+
+      // Create label from dimension path (all parent dimension values)
+      const label =
+        dimensionPath.length > 0 ? dimensionPath.join(" - ") : "Data";
+
+      return {
+        id: `data-${currentLevel}-${dimensionPath.join("-")}-${index}`,
+        type: "data" as const,
+        level: currentLevel,
+        label,
+        values: metricValues,
+        dimensionValues,
+      };
+    });
+
+    return dataRows;
+  }
+
+  // Recursive case: process current dimension and recurse on remaining dimensions
+  const [currentDimension, ...nextDimensions] = remainingDimensions;
+  const groups = groupDataByDimension(data, currentDimension!);
+  const sortedGroups = Object.entries(groups).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+
+  for (const [dimensionValue, groupData] of sortedGroups) {
+    const newDimensionPath = [...dimensionPath, dimensionValue];
+
+    // Recursively process remaining dimensions for this group
+    const childRows = processLevelRecursively(
+      groupData,
+      nextDimensions,
+      metrics,
+      currentLevel + 1,
+      newDimensionPath,
+    );
+
+    rows.push(...childRows);
+
+    // Add subtotal row for this dimension group, but only if:
+    // 1. There are more dimensions to process (not the deepest level)
+    // 2. We have data to summarize
+    if (nextDimensions.length > 0 && groupData.length > 0) {
+      const subtotalValues = calculateSubtotals(groupData, metrics);
+      const subtotalRow = createSubtotalRow(
+        dimensionValue,
+        subtotalValues,
+        currentLevel,
+      );
+      rows.push(subtotalRow);
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * Transforms flat query results into nested pivot table structure with totals and subtotals
+ * Uses a recursive algorithm to handle N dimensions dynamically instead of hardcoded cases
+ *
+ * Features:
+ * - Supports any number of dimensions up to MAX_PIVOT_TABLE_DIMENSIONS
+ * - Creates subtotals at each dimension level except the deepest
+ * - Proper indentation and nesting for hierarchical data
+ * - Grand total calculation across all data
+ * - Row limiting applied before processing for performance
+ *
+ * Algorithm:
+ * 1. Recursively groups data by each dimension in order
+ * 2. At each level, processes remaining dimensions for nested structure
+ * 3. Adds subtotals for non-leaf dimension groups
+ * 4. Creates data rows at the deepest level with full dimension path
+ * 5. Appends grand total row at the end
  *
  * @param data - Array of raw database rows from query
  * @param config - Configuration for pivot table generation
@@ -178,7 +274,10 @@ export function createEmptyMetricValues(
  * };
  *
  * const result = transformToPivotTable(data, config);
- * // Returns structured rows with subtotals and grand totals
+ * // Returns:
+ * // 1. Data rows for each user grouped by country
+ * // 2. Subtotal rows for each country
+ * // 3. Grand total row for all data
  * ```
  */
 export function transformToPivotTable(
@@ -188,18 +287,37 @@ export function transformToPivotTable(
   // Validate configuration
   validatePivotTableConfig(config);
 
-  // TODO: Implement in Step 4 - Data Transformation Engine
-  // This function will handle:
-  // 1. Grouping data by dimensions
-  // 2. Calculating subtotals for each dimension level
-  // 3. Generating grand totals
-  // 4. Applying row limits
-  // 5. Creating properly nested structure with indentation levels
+  const { dimensions, metrics, rowLimit = DEFAULT_ROW_LIMIT } = config;
 
-  console.warn("transformToPivotTable: Implementation pending - Step 4");
+  // Handle empty data
+  if (data.length === 0) {
+    return [createGrandTotalRow(metrics, createEmptyMetricValues(metrics))];
+  }
 
-  // Return empty array for now
-  return [];
+  // Handle zero dimensions - just return grand total
+  if (dimensions.length === 0) {
+    const grandTotalValues = calculateGrandTotals(data, metrics);
+    return [createGrandTotalRow(metrics, grandTotalValues)];
+  }
+
+  // Apply row limit to data before processing
+  const limitedData = data.slice(0, rowLimit);
+
+  // Process dimensions recursively
+  const pivotRows = processLevelRecursively(
+    limitedData,
+    dimensions,
+    metrics,
+    0, // starting level
+    [], // dimension path for labeling
+  );
+
+  // Add grand total row
+  const grandTotalValues = calculateGrandTotals(limitedData, metrics);
+  const grandTotalRow = createGrandTotalRow(metrics, grandTotalValues);
+  pivotRows.push(grandTotalRow);
+
+  return pivotRows;
 }
 
 /**
@@ -274,4 +392,121 @@ export function isSubtotalRow(row: PivotTableRow): boolean {
  */
 export function isTotalRow(row: PivotTableRow): boolean {
   return row.type === "total" || row.isTotal === true;
+}
+
+/**
+ * Groups data by a single dimension field
+ * Used for creating single-level groupings in pivot table
+ *
+ * @param data - Array of database rows to group
+ * @param dimensionField - Field name to group by
+ * @returns Object with dimension values as keys and arrays of rows as values
+ */
+export function groupDataByDimension(
+  data: DatabaseRow[],
+  dimensionField: string,
+): Record<string, DatabaseRow[]> {
+  return data.reduce(
+    (acc, row) => {
+      const dimensionValue =
+        (row[dimensionField]?.toString() ?? "").trim() || "n/a";
+      if (!acc[dimensionValue]) {
+        acc[dimensionValue] = [];
+      }
+      acc[dimensionValue]!.push(row);
+      return acc;
+    },
+    {} as Record<string, DatabaseRow[]>,
+  );
+}
+
+/**
+ * Calculates subtotals for a group of data rows
+ * Aggregates metric values across all rows in the group
+ *
+ * @param data - Array of database rows to calculate subtotals for
+ * @param metrics - Array of metric field names to aggregate
+ * @returns Object with metric names as keys and calculated totals as values
+ */
+export function calculateSubtotals(
+  data: DatabaseRow[],
+  metrics: string[],
+): Record<string, number> {
+  const subtotals: Record<string, number> = {};
+
+  for (const metric of metrics) {
+    subtotals[metric] = data.reduce((sum, row) => {
+      const value = row[metric];
+      return sum + (typeof value === "number" ? value : 0);
+    }, 0);
+  }
+
+  return subtotals;
+}
+
+/**
+ * Calculates grand totals across all data rows
+ * Aggregates metric values across the entire dataset
+ *
+ * @param data - Array of database rows to calculate grand totals for
+ * @param metrics - Array of metric field names to aggregate
+ * @returns Object with metric names as keys and calculated grand totals as values
+ */
+export function calculateGrandTotals(
+  data: DatabaseRow[],
+  metrics: string[],
+): Record<string, number> {
+  return calculateSubtotals(data, metrics);
+}
+
+/**
+ * Creates a subtotal row for a specific dimension group
+ * Generates subtotal row with appropriate styling and values
+ *
+ * @param dimensionValue - The dimension value this subtotal represents
+ * @param subtotalValues - Calculated subtotal values for metrics
+ * @param level - Indentation level for the row
+ * @returns Formatted pivot table subtotal row
+ */
+export function createSubtotalRow(
+  dimensionValue: string,
+  subtotalValues: Record<string, number>,
+  level: number,
+): PivotTableRow {
+  const dimensionValues = { subtotal: dimensionValue };
+
+  return {
+    id: generateRowId(dimensionValues, "subtotal", level),
+    type: "subtotal",
+    level,
+    label: `${dimensionValue} (Subtotal)`,
+    values: subtotalValues,
+    isSubtotal: true,
+    dimensionValues,
+  };
+}
+
+/**
+ * Creates the grand total row for the pivot table
+ * Generates final total row with all metric grand totals
+ *
+ * @param metrics - Array of metric field names
+ * @param grandTotalValues - Calculated grand total values for metrics
+ * @returns Formatted pivot table grand total row
+ */
+export function createGrandTotalRow(
+  metrics: string[],
+  grandTotalValues: Record<string, number>,
+): PivotTableRow {
+  const dimensionValues = { total: "grand" };
+
+  return {
+    id: generateRowId(dimensionValues, "total", 0),
+    type: "total",
+    level: 0,
+    label: "Total",
+    values: grandTotalValues,
+    isTotal: true,
+    dimensionValues,
+  };
 }

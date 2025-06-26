@@ -30,7 +30,7 @@
 
 ## Phase 2: Data Processing Pipeline
 
-- [ ] Step 4: Data Transformation Engine
+- [x] Step 4: Data Transformation Engine
 
   - **Task**: Implement core data transformation logic to convert flat query results into nested pivot table structure with totals and subtotals
   - **Files**:
@@ -38,7 +38,7 @@
   - **Step Dependencies**: Step 3
   - **User Instructions**: None
 
-- [ ] Step 5: Chart Type Registration
+- [x] Step 5: Chart Type Registration
   - **Task**: Register PIVOT_TABLE as a new chart type in the widget system with proper routing and utilities
   - **Files**:
     - `web/src/features/widgets/chart-library/utils.ts`: Add PIVOT_TABLE to isTimeSeriesChart function and getChartTypeDisplayName function
