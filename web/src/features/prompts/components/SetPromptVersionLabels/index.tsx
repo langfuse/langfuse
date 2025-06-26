@@ -47,7 +47,7 @@ export function SetPromptVersionLabels({
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [labels, setLabels] = useState<string[]>([]);
   const [isAddingLabel, setIsAddingLabel] = useState(false);
-  const labelsChanged = JSON.stringify(selectedLabels.sort()) !== JSON.stringify(prompt.labels.sort());
+  const labelsChanged = JSON.stringify([...selectedLabels].sort()) !== JSON.stringify([...prompt.labels].sort());
   const customLabelScrollRef = useRef<HTMLDivElement | null>(null);
 
   const usedLabelsInProject = api.prompts.allLabels.useQuery(
