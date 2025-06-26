@@ -14,7 +14,6 @@
 
 import {
   transformToPivotTable,
-  validateDimensionCount,
   validatePivotTableConfig,
   generateRowId,
   createEmptyMetricValues,
@@ -39,32 +38,12 @@ describe("pivot-table-utils", () => {
   const sampleData: DatabaseRow[] = [
     { model: "gpt-4", user: "alice", count: 10, avg_cost: 0.5 },
     { model: "gpt-4", user: "bob", count: 15, avg_cost: 0.6 },
-    { model: "gpt-3.5", user: "alice", count: 20, avg_cost: 0.3 },
+    { model: "gpt-3.5", user: "alice", count: 20, avg_cost: 0.2 },
     { model: "gpt-3.5", user: "bob", count: 25, avg_cost: 0.4 },
     { model: "claude", user: "alice", count: 5, avg_cost: 0.8 },
   ];
 
   const sampleMetrics = ["count", "avg_cost"];
-
-  describe("validateDimensionCount", () => {
-    it("should pass validation for valid dimension counts", () => {
-      expect(() => validateDimensionCount([])).not.toThrow();
-      expect(() => validateDimensionCount(["dim1"])).not.toThrow();
-      expect(() => validateDimensionCount(["dim1", "dim2"])).not.toThrow();
-    });
-
-    it("should throw error when dimension count exceeds maximum", () => {
-      const tooManyDimensions = Array.from(
-        { length: MAX_PIVOT_TABLE_DIMENSIONS + 1 },
-        (_, i) => `dim${i + 1}`,
-      );
-
-      expect(() => validateDimensionCount(tooManyDimensions)).toThrow(
-        `Cannot create pivot table with ${MAX_PIVOT_TABLE_DIMENSIONS + 1} dimensions. ` +
-          `Maximum supported dimensions: ${MAX_PIVOT_TABLE_DIMENSIONS}`,
-      );
-    });
-  });
 
   describe("validatePivotTableConfig", () => {
     it("should pass validation for valid configurations", () => {
@@ -75,6 +54,31 @@ describe("pivot-table-utils", () => {
       };
 
       expect(() => validatePivotTableConfig(validConfig)).not.toThrow();
+    });
+
+    it("should pass validation for valid dimension counts", () => {
+      const configWithNoDimensions: PivotTableConfig = {
+        dimensions: [],
+        metrics: ["count"],
+      };
+      const configWithOneDimension: PivotTableConfig = {
+        dimensions: ["dim1"],
+        metrics: ["count"],
+      };
+      const configWithTwoDimensions: PivotTableConfig = {
+        dimensions: ["dim1", "dim2"],
+        metrics: ["count"],
+      };
+
+      expect(() =>
+        validatePivotTableConfig(configWithNoDimensions),
+      ).not.toThrow();
+      expect(() =>
+        validatePivotTableConfig(configWithOneDimension),
+      ).not.toThrow();
+      expect(() =>
+        validatePivotTableConfig(configWithTwoDimensions),
+      ).not.toThrow();
     });
 
     it("should throw error for empty metrics", () => {
@@ -100,16 +104,21 @@ describe("pivot-table-utils", () => {
       );
     });
 
-    it("should throw error for too many dimensions", () => {
+    it("should throw error when dimension count exceeds maximum", () => {
+      const tooManyDimensions = Array.from(
+        { length: MAX_PIVOT_TABLE_DIMENSIONS + 1 },
+        (_, i) => `dim${i + 1}`,
+      );
+
       const invalidConfig: PivotTableConfig = {
-        dimensions: Array.from(
-          { length: MAX_PIVOT_TABLE_DIMENSIONS + 1 },
-          (_, i) => `dim${i + 1}`,
-        ),
+        dimensions: tooManyDimensions,
         metrics: ["count"],
       };
 
-      expect(() => validatePivotTableConfig(invalidConfig)).toThrow();
+      expect(() => validatePivotTableConfig(invalidConfig)).toThrow(
+        `Cannot create pivot table with ${MAX_PIVOT_TABLE_DIMENSIONS + 1} dimensions. ` +
+          `Maximum supported dimensions: ${MAX_PIVOT_TABLE_DIMENSIONS}`,
+      );
     });
   });
 
@@ -336,14 +345,14 @@ describe("pivot-table-utils", () => {
       const data: DatabaseRow[] = [
         { count: 10, avg_cost: 0.5 },
         { count: 15, avg_cost: 0.6 },
-        { count: 20, avg_cost: 0.3 },
+        { count: 20, avg_cost: 0.4 },
       ];
 
       const result = calculateSubtotals(data, ["count", "avg_cost"]);
 
       expect(result).toEqual({
         count: 45,
-        avg_cost: 1.4,
+        avg_cost: 0.5,
       });
     });
 
@@ -358,7 +367,7 @@ describe("pivot-table-utils", () => {
 
       expect(result).toEqual({
         count: 25,
-        avg_cost: 0.9,
+        avg_cost: 0.3,
       });
     });
 
@@ -378,7 +387,7 @@ describe("pivot-table-utils", () => {
 
       expect(result).toEqual({
         count: 75, // 10 + 15 + 20 + 25 + 5
-        avg_cost: 2.6, // 0.5 + 0.6 + 0.3 + 0.4 + 0.8
+        avg_cost: 0.5, // (0.5 + 0.6 + 0.2 + 0.4 + 0.8) / 5
       });
     });
 
@@ -446,7 +455,7 @@ describe("pivot-table-utils", () => {
         });
         expect(result[0].values).toEqual({
           count: 75,
-          avg_cost: 2.6,
+          avg_cost: 0.5,
         });
       });
 
@@ -685,6 +694,317 @@ describe("pivot-table-utils", () => {
 
         expect(result.length).toBeGreaterThan(0);
         expect(Object.keys(result[0].values)).toEqual(manyMetrics);
+      });
+    });
+  });
+
+  describe("multiple metrics and aggregation functions", () => {
+    // Test data with various aggregation types
+    const multiMetricData: DatabaseRow[] = [
+      {
+        environment: "production",
+        model: "gpt-4",
+        count_requests: 100,
+        sum_tokens: 5000,
+        avg_latency: 120,
+        min_cost: 0.05,
+        max_cost: 0.15,
+        p95_duration: 250,
+      },
+      {
+        environment: "production",
+        model: "gpt-3.5",
+        count_requests: 200,
+        sum_tokens: 8000,
+        avg_latency: 80,
+        min_cost: 0.02,
+        max_cost: 0.08,
+        p95_duration: 150,
+      },
+      {
+        environment: "staging",
+        model: "gpt-4",
+        count_requests: 50,
+        sum_tokens: 2500,
+        avg_latency: 140,
+        min_cost: 0.06,
+        max_cost: 0.18,
+        p95_duration: 300,
+      },
+    ];
+
+    const multiMetrics = [
+      "count_requests",
+      "sum_tokens",
+      "avg_latency",
+      "min_cost",
+      "max_cost",
+      "p95_duration",
+    ];
+
+    describe("aggregation type detection and calculation", () => {
+      it("should correctly aggregate multiple metrics with different aggregation types", () => {
+        const config: PivotTableConfig = {
+          dimensions: ["environment"],
+          metrics: multiMetrics,
+        };
+
+        const result = transformToPivotTable(multiMetricData, config);
+
+        // Find the grand total row
+        const totalRow = result.find((row) => row.type === "total");
+        expect(totalRow).toBeDefined();
+
+        if (totalRow) {
+          // Count should be summed: 100 + 200 + 50 = 350
+          expect(totalRow.values.count_requests).toBe(350);
+
+          // Sum should be summed: 5000 + 8000 + 2500 = 15500
+          expect(totalRow.values.sum_tokens).toBe(15500);
+
+          // Average should be averaged: (120 + 80 + 140) / 3 = 113.33...
+          expect(totalRow.values.avg_latency).toBeCloseTo(113.33, 2);
+
+          // Min should be minimum: min(0.05, 0.02, 0.06) = 0.02
+          expect(totalRow.values.min_cost).toBe(0.02);
+
+          // Max should be maximum: max(0.15, 0.08, 0.18) = 0.18
+          expect(totalRow.values.max_cost).toBe(0.18);
+
+          // Percentile should be averaged: (250 + 150 + 300) / 3 = 233.33...
+          expect(totalRow.values.p95_duration).toBeCloseTo(233.33, 2);
+        }
+      });
+
+      it("should correctly calculate subtotals with different aggregation types", () => {
+        const config: PivotTableConfig = {
+          dimensions: ["environment"],
+          metrics: multiMetrics,
+        };
+
+        const result = transformToPivotTable(multiMetricData, config);
+
+        // Since this is single dimension, there should be data rows and a total
+        const dataRows = result.filter((row) => row.type === "data");
+        const productionDataRows = dataRows.filter(
+          (row) =>
+            row.label.includes("production") ||
+            (row.dimensionValues &&
+              row.dimensionValues.environment === "production"),
+        );
+
+        // There should be 2 production data rows
+        expect(productionDataRows.length).toBeGreaterThan(0);
+
+        // Check total row calculations include production data correctly
+        const totalRow = result.find((row) => row.type === "total");
+        expect(totalRow).toBeDefined();
+
+        if (totalRow) {
+          // Production contributes: count=300, sum=13000, avg=(120+80)/2=100
+          // Staging contributes: count=50, sum=2500, avg=140
+          // Total should be: count=350, sum=15500, avg=(100+140)/2=120 (weighted by count would be different)
+          expect(totalRow.values.count_requests).toBe(350);
+          expect(totalRow.values.sum_tokens).toBe(15500);
+        }
+      });
+
+      it("should handle mixed numeric and string values correctly", () => {
+        const mixedData: DatabaseRow[] = [
+          {
+            environment: "prod",
+            count_requests: "100", // String value
+            avg_latency: 120.5, // Numeric value
+            sum_tokens: "5000", // String value
+          },
+          {
+            environment: "prod",
+            count_requests: 200, // Numeric value
+            avg_latency: "80.2", // String value
+            sum_tokens: 8000, // Numeric value
+          },
+        ];
+
+        const config: PivotTableConfig = {
+          dimensions: ["environment"],
+          metrics: ["count_requests", "avg_latency", "sum_tokens"],
+        };
+
+        const result = transformToPivotTable(mixedData, config);
+        const totalRow = result.find((row) => row.type === "total");
+
+        expect(totalRow).toBeDefined();
+        if (totalRow) {
+          console.log(totalRow.values);
+          // Count: 100 + 200 = 300 (strings parsed correctly)
+          expect(totalRow.values.count_requests).toBe(300);
+
+          // Average: (120.5 + 80.2) / 2 = 100.35
+          expect(totalRow.values.avg_latency).toBeCloseTo(100.35, 2);
+
+          // Sum: 5000 + 8000 = 13000 (strings parsed correctly)
+          expect(totalRow.values.sum_tokens).toBe(13000);
+        }
+      });
+
+      it("should handle edge cases for different aggregation types", () => {
+        const edgeCaseData: DatabaseRow[] = [
+          {
+            category: "A",
+            count_items: 0,
+            avg_score: 0,
+            min_value: 100,
+            max_value: 100,
+          },
+        ];
+
+        const config: PivotTableConfig = {
+          dimensions: ["category"],
+          metrics: ["count_items", "avg_score", "min_value", "max_value"],
+        };
+
+        const result = transformToPivotTable(edgeCaseData, config);
+        const totalRow = result.find((row) => row.type === "total");
+
+        expect(totalRow).toBeDefined();
+        if (totalRow) {
+          expect(totalRow.values.count_items).toBe(0);
+          expect(totalRow.values.avg_score).toBe(0);
+          expect(totalRow.values.min_value).toBe(100);
+          expect(totalRow.values.max_value).toBe(100);
+        }
+      });
+
+      it("should handle empty arrays for aggregation functions", () => {
+        const config: PivotTableConfig = {
+          dimensions: ["nonexistent"],
+          metrics: ["count_requests", "avg_latency"],
+        };
+
+        const result = transformToPivotTable([], config);
+
+        expect(result).toHaveLength(1);
+        const totalRow = result[0];
+        expect(totalRow.type).toBe("total");
+        expect(totalRow.values.count_requests).toBe(0);
+        expect(totalRow.values.avg_latency).toBe(0);
+      });
+    });
+
+    describe("complex multi-dimensional scenarios with multiple metrics", () => {
+      it("should handle two dimensions with multiple aggregation types", () => {
+        const config: PivotTableConfig = {
+          dimensions: ["environment", "model"],
+          metrics: multiMetrics,
+        };
+
+        const result = transformToPivotTable(multiMetricData, config);
+
+        // Should have data rows, subtotals, and grand total
+        const dataRows = result.filter((row) => row.type === "data");
+        const subtotalRows = result.filter((row) => row.type === "subtotal");
+        const totalRow = result.find((row) => row.type === "total");
+
+        expect(dataRows.length).toBe(3); // 3 data points
+        expect(subtotalRows.length).toBeGreaterThan(0); // Environment subtotals
+        expect(totalRow).toBeDefined();
+
+        // Check that subtotals correctly aggregate their children
+        const productionSubtotal = subtotalRows.find((row) =>
+          row.label.includes("production"),
+        );
+
+        if (productionSubtotal) {
+          // Production has 2 models: gpt-4 (100 requests) + gpt-3.5 (200 requests) = 300
+          expect(productionSubtotal.values.count_requests).toBe(300);
+
+          // Production tokens: 5000 + 8000 = 13000
+          expect(productionSubtotal.values.sum_tokens).toBe(13000);
+
+          // Production avg latency: (120 + 80) / 2 = 100
+          expect(productionSubtotal.values.avg_latency).toBe(100);
+
+          // Production min cost: min(0.05, 0.02) = 0.02
+          expect(productionSubtotal.values.min_cost).toBe(0.02);
+
+          // Production max cost: max(0.15, 0.08) = 0.15
+          expect(productionSubtotal.values.max_cost).toBe(0.15);
+        }
+      });
+
+      it("should validate metric field name patterns", () => {
+        const testCases = [
+          { metric: "count_requests", expectedType: "count" },
+          { metric: "sum_tokens", expectedType: "sum" },
+          { metric: "avg_latency", expectedType: "avg" },
+          { metric: "average_score", expectedType: "avg" },
+          { metric: "min_cost", expectedType: "min" },
+          { metric: "max_duration", expectedType: "max" },
+          { metric: "p95_latency", expectedType: "percentile" },
+          { metric: "p99_duration", expectedType: "percentile" },
+          { metric: "p50_response", expectedType: "percentile" },
+          { metric: "unknown_metric", expectedType: "sum" }, // defaults to sum
+        ];
+
+        // Test each pattern by creating data and checking the results
+        testCases.forEach(({ metric, expectedType }) => {
+          const testData: DatabaseRow[] = [
+            { category: "A", [metric]: 10 },
+            { category: "A", [metric]: 20 },
+          ];
+
+          const config: PivotTableConfig = {
+            dimensions: ["category"],
+            metrics: [metric],
+          };
+
+          const result = transformToPivotTable(testData, config);
+          const totalRow = result.find((row) => row.type === "total");
+
+          expect(totalRow).toBeDefined();
+          if (totalRow) {
+            const value = totalRow.values[metric];
+
+            switch (expectedType) {
+              case "count":
+              case "sum":
+                expect(value).toBe(30); // 10 + 20
+                break;
+              case "avg":
+              case "percentile":
+                expect(value).toBe(15); // (10 + 20) / 2
+                break;
+              case "min":
+                expect(value).toBe(10); // min(10, 20)
+                break;
+              case "max":
+                expect(value).toBe(20); // max(10, 20)
+                break;
+            }
+          }
+        });
+      });
+
+      it("should maintain precision in floating point calculations", () => {
+        const precisionData: DatabaseRow[] = [
+          { env: "test", avg_value: 0.1 },
+          { env: "test", avg_value: 0.2 },
+          { env: "test", avg_value: 0.3 },
+        ];
+
+        const config: PivotTableConfig = {
+          dimensions: ["env"],
+          metrics: ["avg_value"],
+        };
+
+        const result = transformToPivotTable(precisionData, config);
+        const totalRow = result.find((row) => row.type === "total");
+
+        expect(totalRow).toBeDefined();
+        if (totalRow) {
+          // Should be (0.1 + 0.2 + 0.3) / 3 = 0.2, properly rounded
+          expect(totalRow.values.avg_value).toBeCloseTo(0.2, 10);
+        }
       });
     });
   });

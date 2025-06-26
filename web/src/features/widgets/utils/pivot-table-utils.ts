@@ -27,6 +27,12 @@ import { MAX_PIVOT_TABLE_DIMENSIONS } from "@langfuse/shared";
 export const DEFAULT_ROW_LIMIT = 20;
 
 /**
+ * Maximum number of metrics allowed in a pivot table
+ * This prevents performance issues and maintains readability
+ */
+export const MAX_PIVOT_TABLE_METRICS = 10;
+
+/**
  * Represents a single row in the processed pivot table structure
  * Supports different row types for data, subtotals, and grand totals
  * with appropriate styling and indentation levels.
@@ -82,31 +88,28 @@ export interface DatabaseRow {
 }
 
 /**
- * Validates that the dimension count doesn't exceed the configured maximum
- *
- * @param dimensions - Array of dimension names to validate
- * @throws Error if dimension count exceeds MAX_PIVOT_TABLE_DIMENSIONS
- */
-export function validateDimensionCount(dimensions: string[]): void {
-  if (dimensions.length > MAX_PIVOT_TABLE_DIMENSIONS) {
-    throw new Error(
-      `Cannot create pivot table with ${dimensions.length} dimensions. ` +
-        `Maximum supported dimensions: ${MAX_PIVOT_TABLE_DIMENSIONS}`,
-    );
-  }
-}
-
-/**
  * Validates that the provided configuration is valid for pivot table generation
  *
  * @param config - Pivot table configuration to validate
  * @throws Error if configuration is invalid
  */
 export function validatePivotTableConfig(config: PivotTableConfig): void {
-  validateDimensionCount(config.dimensions);
+  if (config.dimensions.length > MAX_PIVOT_TABLE_DIMENSIONS) {
+    throw new Error(
+      `Cannot create pivot table with ${config.dimensions.length} dimensions. ` +
+        `Maximum supported dimensions: ${MAX_PIVOT_TABLE_DIMENSIONS}`,
+    );
+  }
 
   if (config.metrics.length === 0) {
     throw new Error("At least one metric is required for pivot table");
+  }
+
+  if (config.metrics.length > MAX_PIVOT_TABLE_METRICS) {
+    throw new Error(
+      `Cannot create pivot table with ${config.metrics.length} metrics. ` +
+        `Maximum supported metrics: ${MAX_PIVOT_TABLE_METRICS}`,
+    );
   }
 
   if (config.rowLimit !== undefined && config.rowLimit <= 0) {
@@ -361,7 +364,14 @@ export function extractMetricValues(
   return metrics.reduce(
     (acc, metric) => {
       const value = row[metric];
-      acc[metric] = typeof value === "number" ? value : 0;
+      if (typeof value === "number") {
+        acc[metric] = value;
+      } else if (typeof value === "string") {
+        const parsedValue = parseFloat(value);
+        acc[metric] = isNaN(parsedValue) ? 0 : parsedValue;
+      } else {
+        acc[metric] = 0;
+      }
       return acc;
     },
     {} as Record<string, number>,
@@ -425,8 +435,82 @@ export function groupDataByDimension(
 }
 
 /**
+ * Detects the aggregation type from a metric field name
+ * Parses field names like "count_count", "avg_latency", "sum_tokens", "p95_duration"
+ *
+ * @param metricName - The metric field name to analyze
+ * @returns The aggregation type (count, sum, avg, min, max, p95, etc.)
+ */
+function detectAggregationType(metricName: string): string {
+  // Extract the aggregation prefix from field names like "count_count", "avg_latency"
+  const parts = metricName.split("_");
+  if (parts.length >= 2) {
+    const prefix = parts[0]?.toLowerCase();
+    // Map common aggregation prefixes
+    switch (prefix) {
+      case "count":
+        return "count";
+      case "sum":
+        return "sum";
+      case "avg":
+      case "average":
+        return "avg";
+      case "min":
+        return "min";
+      case "max":
+        return "max";
+      case "p95":
+      case "p99":
+      case "p50":
+        return "percentile";
+      default:
+        // Default to sum for unknown aggregations
+        return "sum";
+    }
+  }
+
+  // Default to sum if we can't determine the type
+  return "sum";
+}
+
+/**
+ * Applies the correct aggregation function based on the aggregation type
+ *
+ * @param values - Array of numeric values to aggregate
+ * @param aggregationType - The type of aggregation to perform
+ * @returns The aggregated result
+ */
+function applyAggregation(values: number[], aggregationType: string): number {
+  if (values.length === 0) return 0;
+
+  switch (aggregationType) {
+    case "count":
+    case "sum":
+      return values.reduce((sum, val) => sum + val, 0);
+
+    case "avg":
+      return values.reduce((sum, val) => sum + val, 0) / values.length;
+
+    case "min":
+      return Math.min(...values);
+
+    case "max":
+      return Math.max(...values);
+
+    case "percentile":
+      // For percentiles in subtotals/totals, we'll use the average of the percentile values
+      // This is a reasonable approximation since we can't recalculate the true percentile
+      return values.reduce((sum, val) => sum + val, 0) / values.length;
+
+    default:
+      // Default to sum
+      return values.reduce((sum, val) => sum + val, 0);
+  }
+}
+
+/**
  * Calculates subtotals for a group of data rows
- * Aggregates metric values across all rows in the group
+ * Aggregates metric values across all rows in the group using the correct aggregation function
  *
  * @param data - Array of database rows to calculate subtotals for
  * @param metrics - Array of metric field names to aggregate
@@ -439,13 +523,17 @@ export function calculateSubtotals(
   const subtotals: Record<string, number> = {};
 
   for (const metric of metrics) {
-    const sum = data.reduce((sum, row) => {
-      const value = row[metric];
-      return sum + (typeof value === "number" ? value : 0);
-    }, 0);
+    // Extract all values for this metric using the utility function
+    const values = data
+      .map((row) => extractMetricValues(row, [metric])[metric])
+      .filter((val) => val !== null && val !== undefined);
+
+    // Detect aggregation type and apply correct function
+    const aggregationType = detectAggregationType(metric);
+    const result = applyAggregation(values, aggregationType);
 
     // Round to 10 decimal places to avoid floating-point precision issues
-    subtotals[metric] = Math.round(sum * 1e10) / 1e10;
+    subtotals[metric] = Math.round(result * 1e10) / 1e10;
   }
 
   return subtotals;

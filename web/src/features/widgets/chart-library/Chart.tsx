@@ -27,6 +27,7 @@ export const Chart = ({
     row_limit?: number;
     bins?: number;
     dimensions?: string[];
+    metrics?: string[];
   };
 }) => {
   const [forceRender, setForceRender] = useState(false);
@@ -70,7 +71,7 @@ export const Chart = ({
         // Extract pivot table configuration from chartConfig
         const pivotConfig = {
           dimensions: chartConfig?.dimensions ?? [],
-          metrics: ["metric"], // Default metric from DataPoint structure
+          metrics: chartConfig?.metrics ?? ["metric"], // Use metrics from chartConfig
           rowLimit: chartConfig?.row_limit ?? rowLimit,
         };
         return <PivotTable data={renderedData} config={pivotConfig} />;

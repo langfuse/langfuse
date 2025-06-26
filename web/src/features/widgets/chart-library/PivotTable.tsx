@@ -30,8 +30,11 @@ import {
 } from "@/src/components/ui/table";
 import {
   transformToPivotTable,
+  extractDimensionValues,
+  extractMetricValues,
   type PivotTableRow,
   type PivotTableConfig,
+  type DatabaseRow,
   DEFAULT_ROW_LIMIT,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
@@ -170,39 +173,44 @@ export const PivotTable: React.FC<PivotTableProps> = ({ data, config }) => {
       rowLimit: config?.rowLimit ?? DEFAULT_ROW_LIMIT,
     };
 
-    // Transform DataPoint[] to DatabaseRow[] format expected by utility
-    const databaseRows = data.map((point) => {
-      const row: Record<string, any> = {};
+    // Transform DataPoint[] to DatabaseRow[] format using utility functions
+    const databaseRows: DatabaseRow[] = data.map((point) => {
+      // Cast the point to any to access dynamic fields from the query
+      const rowData = point as any;
 
-      // For pivot tables, map all configured dimension fields from the original query data
-      if (pivotConfig.dimensions.length > 0) {
-        pivotConfig.dimensions.forEach((dimensionField) => {
-          // Access the dimension field directly from the point data
-          if ((point as any)[dimensionField] !== undefined) {
-            row[dimensionField] = (point as any)[dimensionField];
-          }
-        });
-      } else {
-        // Fallback: Add dimension field if present (for compatibility)
-        if (point.dimension !== undefined) {
-          row.dimension = point.dimension;
+      // Create a database row with all fields from the original data
+      const row: DatabaseRow = { ...rowData };
+
+      // Use utility functions to ensure proper extraction and parsing
+      const dimensionValues = extractDimensionValues(
+        row,
+        pivotConfig.dimensions,
+      );
+      const metricValues = extractMetricValues(row, pivotConfig.metrics);
+
+      // Combine dimension and metric values into the final row
+      const result: DatabaseRow = {
+        ...dimensionValues,
+        ...metricValues,
+      };
+
+      // Include time dimension if present
+      if (point.time_dimension !== undefined) {
+        result.time_dimension = point.time_dimension;
+      }
+
+      // Include legacy 'metric' field for backward compatibility
+      if (point.metric !== undefined) {
+        if (typeof point.metric === "number") {
+          result.metric = point.metric;
+        } else if (Array.isArray(point.metric)) {
+          result.metric = point.metric
+            .flat()
+            .reduce((sum, val) => sum + val, 0);
         }
       }
 
-      // Add time dimension if present
-      if (point.time_dimension !== undefined) {
-        row.time_dimension = point.time_dimension;
-      }
-
-      // Add metric values
-      if (typeof point.metric === "number") {
-        row.metric = point.metric;
-      } else if (Array.isArray(point.metric)) {
-        // Handle array metrics (though this is less common for pivot tables)
-        row.metric = point.metric.flat().reduce((sum, val) => sum + val, 0);
-      }
-
-      return row;
+      return result;
     });
 
     try {

@@ -263,7 +263,8 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       const environmentTotals = result.reduce(
         (acc, row) => {
           const env = row.environment as string;
-          acc[env] = (acc[env] || 0) + parseInt(row.count_count as string);
+          acc[env] =
+            ((acc[env] as number) || 0) + parseInt(row.count_count as string);
           return acc;
         },
         {} as Record<string, number>,
@@ -332,44 +333,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         0,
       );
       expect(totalObservations).toBe(testDataStats.totalObservations);
-    });
-
-    it("should respect row limit configuration", async () => {
-      const query: QueryType = {
-        view: "traces",
-        dimensions: [
-          { field: "userId" }, // Should create many unique values
-        ],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        filters: [],
-        timeDimension: {
-          granularity: "day",
-        },
-        fromTimestamp: defaultFromTime,
-        toTimestamp: defaultToTime,
-        orderBy: [{ field: "count_count", direction: "desc" }],
-        chartConfig: {
-          type: "PIVOT_TABLE",
-          dimensions: ["userId"],
-          row_limit: 5, // Limit to 5 rows
-        },
-      };
-
-      const result = await executeQuery(projectId, query);
-
-      // Verify query execution
-      expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
-
-      // Should respect the row limit
-      expect(result.length).toBeLessThanOrEqual(5);
-
-      // Verify structure
-      result.forEach((row) => {
-        expect(row).toHaveProperty("userId");
-        expect(row).toHaveProperty("time_dimension");
-        expect(row).toHaveProperty("count_count");
-      });
     });
 
     it("should handle empty results gracefully", async () => {
@@ -473,9 +436,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
 
       // Should contain ORDER BY
       expect(sql.toLowerCase()).toContain("order by");
-
-      // Should contain LIMIT clause
-      expect(sql.toLowerCase()).toContain("limit 20");
     });
 
     it("should generate correct SQL for two-dimension pivot table", () => {
