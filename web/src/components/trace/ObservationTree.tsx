@@ -173,7 +173,7 @@ const ObservationTreeTraceNode = (props: {
     >
       <div className="flex w-full flex-row items-start justify-between gap-1 py-1">
         <div className="flex w-full flex-col items-start gap-2 -space-y-1 py-1.5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ItemBadge
               type="TRACE"
               isSmall={true}
@@ -400,7 +400,7 @@ const ObservationTreeNodeCard = ({
             <span className="text-sm font-medium whitespace-nowrap">{observation.name}</span>
           </div>
 
-          {/* Duration */}
+          {/* Duration and Comments */}
           <div className="flex items-center gap-2">
             {comments && showComments ? (
               <CommentCountIcon count={comments.get(observation.id)} />
