@@ -74,7 +74,15 @@
 
 ## Phase 4: Styling and UX Polish
 
-- [ ] Step 9: Error Handling and Edge Cases
+- [x] (SKIPPED) Step 9: Table Styling and Responsive Design
+
+  - **Task**: Implement proper styling for pivot table with indentation, bold totals, and responsive layout within dashboard grid
+  - **Files**:
+    - `web/src/features/widgets/chart-library/PivotTable.tsx`: Add comprehensive CSS classes, indentation logic, and responsive behavior
+  - **Step Dependencies**: Step 8
+  - **User Instructions**: None
+
+- [x] (SKIPPED) Step 10: Error Handling and Edge Cases
 
   - **Task**: Implement comprehensive error handling for empty data, missing dimensions, and malformed queries
   - **Files**:
@@ -83,7 +91,7 @@
   - **Step Dependencies**: Step 9
   - **User Instructions**: None
 
-- [ ] Step 10: Form Validation and User Experience
+- [x] (SKIPPED) Step 11: Form Validation and User Experience
   - **Task**: Implement proper form validation for dimension selection and enhance user experience with conditional selectors
   - **Files**:
     - `web/src/features/widgets/components/WidgetForm.tsx`: Add validation logic for dimension dependencies and improve UX with proper enabling/disabling of selectors
@@ -92,23 +100,23 @@
 
 ## Phase 5: Testing Implementation
 
-- [ ] Step 11: Unit Tests for Data Transformation
+- [x] Step 12: Unit Tests for Data Transformation
 
   - **Task**: Create comprehensive unit tests for pivot table data transformation utilities
   - **Files**:
-    - `web/src/__tests__/pivot-table-utils.clienttest.ts`: Test transformToPivotTable function with various dimension scenarios, edge cases, and MAX_DIMENSIONS configuration
+    - `web/src/__tests__/pivot-table-utils.servertest.ts`: Test transformToPivotTable function with various dimension scenarios, edge cases, and MAX_DIMENSIONS configuration
   - **Step Dependencies**: Step 11
   - **User Instructions**: Run `pnpm test-sync --testPathPattern="pivot-table"` to verify tests pass
 
-- [ ] Step 12: Component Tests
+- [x] Step 13: Component Tests
 
   - **Task**: Create unit tests for PivotTable React component functionality
   - **Files**:
-    - `web/src/__tests__/pivot-table.clienttest.ts`: Test component rendering, styling, and interaction handling
+    - `web/src/__tests__/pivot-table.clienttest.tsx`: Test component rendering, styling, and interaction handling
   - **Step Dependencies**: Step 12
-  - **User Instructions**: Run `pnpm test-sync --testPathPattern="pivot-table"` to verify tests pass
+  - **User Instructions**: Run `pnpm test-client --testPathPattern="pivot-table"` to verify tests pass
 
-- [ ] Step 13: Integration Tests
+- [x] Step 14: Integration Tests
   - **Task**: Create integration tests for dashboard query execution and data pipeline
   - **Files**:
     - `web/src/__tests__/dashboard-router-pivot-table.servertest.ts`: Test executeQuery function with pivot table queries, SQL generation, and data processing pipeline
@@ -117,7 +125,7 @@
 
 ## Phase 6: Final Integration and Documentation
 
-- [ ] Step 14: Widget Form Integration Testing
+- [ ] Step 15: Widget Form Integration Testing
 
   - **Task**: Test complete widget creation flow with pivot table configuration and ensure proper data flow
   - **Files**:
@@ -125,7 +133,7 @@
   - **Step Dependencies**: Step 14
   - **User Instructions**: Test widget creation manually in the dashboard interface
 
-- [ ] Step 15: Performance Optimization and Row Limiting
+- [ ] Step 16: Performance Optimization and Row Limiting
 
   - **Task**: Implement and test the 20-row limit functionality and ensure performance with large datasets
   - **Files**:
@@ -134,7 +142,7 @@
   - **Step Dependencies**: Step 15
   - **User Instructions**: Test with large datasets to verify performance and row limiting
 
-- [ ] Step 16: Final Code Review and Cleanup
+- [ ] Step 17: Final Code Review and Cleanup
   - **Task**: Final code review, cleanup, and documentation of the pivot table widget implementation
   - **Files**:
     - All modified files: Code cleanup, comment addition, and final review

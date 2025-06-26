@@ -74,11 +74,17 @@ const PivotTableRowComponent: React.FC<{
       <TableCell
         className={cn(
           "p-2 align-middle font-normal",
-          // Apply indentation based on level
-          row.level > 0 && `pl-${(row.level - 1) * 4 + 2}`,
+          // Apply indentation based on level using explicit Tailwind classes
+          row.level === 1 && "pl-6", // 1.5rem indentation for level 1
+          row.level === 2 && "pl-10", // 2.5rem indentation for level 2
           // Bold styling for subtotal and total rows
           (row.isSubtotal || row.isTotal) && "font-semibold",
         )}
+        style={{
+          // Fallback for levels beyond 2 using inline styles
+          paddingLeft:
+            row.level > 2 ? `${row.level * 1.5 + 0.5}rem` : undefined,
+        }}
       >
         {row.label}
       </TableCell>

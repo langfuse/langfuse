@@ -170,13 +170,17 @@ function processLevelRecursively(
   data: DatabaseRow[],
   remainingDimensions: string[],
   metrics: string[],
-  currentLevel: number,
+  totalDimensions: number,
   dimensionPath: string[],
 ): PivotTableRow[] {
   const rows: PivotTableRow[] = [];
+  const currentDimensionIndex = totalDimensions - remainingDimensions.length;
 
   // Base case: no more dimensions to process, create data rows
   if (remainingDimensions.length === 0) {
+    // Data rows should be at level (totalDimensions - 1) for proper indentation
+    const dataLevel = Math.max(0, totalDimensions - 1);
+
     // Create data rows for the final level
     const dataRows = data.map((row, index) => {
       const dimensionValues = extractDimensionValues(row, []);
@@ -187,9 +191,9 @@ function processLevelRecursively(
         dimensionPath.length > 0 ? dimensionPath.join(" - ") : "Data";
 
       return {
-        id: `data-${currentLevel}-${dimensionPath.join("-")}-${index}`,
+        id: `data-${dataLevel}-${dimensionPath.join("-")}-${index}`,
         type: "data" as const,
-        level: currentLevel,
+        level: dataLevel,
         label,
         values: metricValues,
         dimensionValues,
@@ -214,7 +218,7 @@ function processLevelRecursively(
       groupData,
       nextDimensions,
       metrics,
-      currentLevel + 1,
+      totalDimensions,
       newDimensionPath,
     );
 
@@ -228,7 +232,7 @@ function processLevelRecursively(
       const subtotalRow = createSubtotalRow(
         dimensionValue,
         subtotalValues,
-        currentLevel,
+        currentDimensionIndex, // Subtotals at current dimension level
       );
       rows.push(subtotalRow);
     }
@@ -308,7 +312,7 @@ export function transformToPivotTable(
     limitedData,
     dimensions,
     metrics,
-    0, // starting level
+    dimensions.length, // total number of dimensions
     [], // dimension path for labeling
   );
 
@@ -435,10 +439,13 @@ export function calculateSubtotals(
   const subtotals: Record<string, number> = {};
 
   for (const metric of metrics) {
-    subtotals[metric] = data.reduce((sum, row) => {
+    const sum = data.reduce((sum, row) => {
       const value = row[metric];
       return sum + (typeof value === "number" ? value : 0);
     }, 0);
+
+    // Round to 10 decimal places to avoid floating-point precision issues
+    subtotals[metric] = Math.round(sum * 1e10) / 1e10;
   }
 
   return subtotals;
