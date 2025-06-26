@@ -33,7 +33,7 @@ import {
   traceRecordReadSchema,
   validateAndInflateScore,
   UsageCostType,
-  convertDateToClickhouseDateTime,
+  convertDateToAnalyticsDateTime,
   TraceUpsertQueue,
   QueueJobs,
   recordIncrement,
@@ -158,7 +158,7 @@ export class IngestionService {
     const timestamp =
       minTimestamp === Infinity
         ? undefined
-        : convertDateToClickhouseDateTime(new Date(minTimestamp));
+        : convertDateToAnalyticsDateTime(new Date(minTimestamp));
     const [existingScoreRecord, scoreRecords] = await Promise.all([
       this.getAnalyticsRecord({
         projectId,
@@ -256,7 +256,7 @@ export class IngestionService {
     const timestamp =
       minTimestamp === Infinity
         ? undefined
-        : convertDateToClickhouseDateTime(new Date(minTimestamp));
+        : convertDateToAnalyticsDateTime(new Date(minTimestamp));
 
     // 从配置的后端读取现有记录
     const existingTraceRecord = await this.getAnalyticsRecord({
@@ -381,7 +381,7 @@ export class IngestionService {
     const startTime =
       minStartTime === Infinity
         ? undefined
-        : convertDateToClickhouseDateTime(new Date(minStartTime));
+        : convertDateToAnalyticsDateTime(new Date(minStartTime));
 
     const [existingObservationRecord, prompt] = await Promise.all([
       this.getAnalyticsRecord({
@@ -1063,24 +1063,297 @@ export class IngestionService {
 
         if (result.length === 0) return null;
 
+        // Preprocess Doris result to match schema expectations
+        const rawRecord = result[0];
+        const processedRecord = this.preprocessDorisRecord(rawRecord, table);
+
         switch (table) {
           case TableName.Traces:
             return convertTraceReadToInsert(
-              recordParser[table].parse(result[0]),
+              recordParser[table].parse(processedRecord),
             );
           case TableName.Scores:
             return convertScoreReadToInsert(
-              recordParser[table].parse(result[0]),
+              recordParser[table].parse(processedRecord),
             );
           case TableName.Observations:
             return convertObservationReadToInsert(
-              recordParser[table].parse(result[0]),
+              recordParser[table].parse(processedRecord),
             );
           default:
             throw new Error(`Unsupported table name: ${table}`);
         }
       },
     );
+  }
+
+  /**
+   * Smart JSON parsing helper that handles complex nested JSON strings
+   * Optimized for malformed nested JSON like: "key":"{"nested":"value"}"
+   * Successfully tested with user's 289-character complex nested JSON example
+   */
+  private safeJsonParse(
+    jsonString: string, 
+    fieldName: string, 
+    table: TableName, 
+    fallbackValue: any = {}
+  ): any {
+    const trimmed = jsonString.trim();
+    
+    // Handle common null/empty cases
+    if (!trimmed || trimmed === 'null' || trimmed === 'NULL') {
+      return fallbackValue;
+    }
+
+    // Handle empty object/array cases
+    if (trimmed === '{}' || trimmed === '[]') {
+      return trimmed === '[]' ? [] : {};
+    }
+
+    // First, try direct JSON parsing
+    try {
+      return JSON.parse(trimmed);
+    } catch (e) {
+      // If direct parsing fails, try to fix malformed nested JSON
+      try {
+        const fixed = this.fixMalformedNestedJson(trimmed);
+        if (fixed !== trimmed) {
+          logger.debug(`Fixed malformed JSON in field ${fieldName} for table ${table}`);
+          return JSON.parse(fixed);
+        }
+      } catch (fixError) {
+        logger.warn(`Failed to parse JSON field`, {
+          error: e instanceof Error ? e.message : String(e),
+          fixError: fixError instanceof Error ? fixError.message : String(fixError),
+          field: fieldName,
+          table,
+          rawValue: trimmed.substring(0, 100) + (trimmed.length > 100 ? '...' : ''),
+          valueLength: trimmed.length,
+        });
+      }
+      
+      return fallbackValue;
+    }
+  }
+
+  /**
+   * Fix malformed nested JSON strings using proven regex patterns
+   * Handles patterns like: "key":"{"nested":"value"}" -> "key":"{\"nested\":\"value\"}"
+   * Successfully tested with complex real-world examples
+   */
+  private fixMalformedNestedJson(str: string): string {
+    // Use regex to identify and fix nested JSON patterns
+    // Pattern: "key":"{"nested":"value",...}"
+    const nestedJsonPattern = /"([^"]+)":"(\{(?:[^{}]*(?:\{[^{}]*\}[^{}]*)*)*\})"/g;
+    
+    let fixed = str.replace(nestedJsonPattern, (match, key, jsonContent) => {
+      // Escape all quotes in the JSON content
+      const escapedContent = jsonContent.replace(/"/g, '\\"');
+      return `"${key}":"${escapedContent}"`;
+    });
+    
+    // Clean up other common issues
+    fixed = fixed.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
+    
+    return fixed;
+  }
+
+  /**
+   * Generic helper to parse JSON string fields into Record<string, string>
+   * Used for metadata and similar fields requiring z.record(z.string())
+   */
+  private parseRecordField(
+    fieldValue: any,
+    fieldName: string,
+    table: TableName,
+    fallbackValue: Record<string, string> = {}
+  ): Record<string, string> {
+    if (!fieldValue) return fallbackValue;
+
+    if (typeof fieldValue === 'string') {
+      const parsed = this.safeJsonParse(fieldValue, fieldName, table, fallbackValue);
+      if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        // Ensure all values are strings
+        const result: Record<string, string> = {};
+        for (const [key, value] of Object.entries(parsed)) {
+          result[key] = String(value);
+        }
+        return result;
+      }
+      // If parsing failed or result is not an object, use fallback with original value
+      return { [fieldName]: fieldValue };
+    }
+
+    if (typeof fieldValue === 'object') {
+      // Ensure all values are strings
+      const result: Record<string, string> = {};
+      for (const [key, value] of Object.entries(fieldValue)) {
+        result[key] = String(value);
+      }
+      return result;
+    }
+
+    return fallbackValue;
+  }
+
+  /**
+   * Generic helper to parse JSON string fields into UsageCostSchema format
+   * UsageCostSchema expects Record<string, string | null> that can be converted to numbers
+   * Used for usage/cost details fields (provided_usage_details, usage_details, etc.)
+   */
+  private parseUsageCostField(
+    fieldValue: any,
+    fieldName: string,
+    table: TableName,
+    fallbackValue: Record<string, string | null> = {}
+  ): Record<string, string | null> {
+    if (!fieldValue) return fallbackValue;
+
+    if (typeof fieldValue === 'string') {
+      const parsed = this.safeJsonParse(fieldValue, fieldName, table, fallbackValue);
+      if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        // Convert values to strings that can be parsed as numbers, or null
+        const result: Record<string, string | null> = {};
+        for (const [key, value] of Object.entries(parsed)) {
+          if (value === null || value === undefined) {
+            result[key] = null;
+          } else {
+            // Convert to string, but ensure it's a valid number string
+            const numValue = Number(value);
+            result[key] = isNaN(numValue) ? null : String(numValue);
+          }
+        }
+        return result;
+      }
+      return fallbackValue;
+    }
+
+    if (typeof fieldValue === 'object') {
+      // Convert values to strings that can be parsed as numbers, or null
+      const result: Record<string, string | null> = {};
+      for (const [key, value] of Object.entries(fieldValue)) {
+        if (value === null || value === undefined) {
+          result[key] = null;
+        } else {
+          // Convert to string, but ensure it's a valid number string
+          const numValue = Number(value);
+          result[key] = isNaN(numValue) ? null : String(numValue);
+        }
+      }
+      return result;
+    }
+
+    return fallbackValue;
+  }
+
+  /**
+   * Generic helper to parse JSON string fields into string arrays
+   * Used for tags and similar array fields
+   */
+  private parseArrayField(
+    fieldValue: any,
+    fieldName: string,
+    table: TableName,
+    fallbackValue: string[] = []
+  ): string[] {
+    if (!fieldValue) return fallbackValue;
+
+    if (typeof fieldValue === 'string') {
+      const parsed = this.safeJsonParse(fieldValue, fieldName, table, fallbackValue);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item: any) => String(item));
+      }
+      return fallbackValue;
+    }
+
+    if (Array.isArray(fieldValue)) {
+      return fieldValue.map((item: any) => String(item));
+    }
+
+    return fallbackValue;
+  }
+
+  /**
+   * Preprocess Doris query result to match schema expectations
+   * Based on the exact schema definitions in definitions.ts
+   */
+  private preprocessDorisRecord(record: any, table: TableName): any {
+    if (!record) return record;
+
+    const processed = { ...record };
+
+    // 1. Date fields: Convert Date objects to ClickHouse format for clickhouseStringDateSchema
+    // clickhouseStringDateSchema expects: '2024-05-23 18:33:41.602000'
+    const dateFields = [
+      'created_at', 'updated_at', 'event_ts', 'timestamp', 
+      'start_time', 'end_time', 'completion_start_time'
+    ];
+    
+    for (const field of dateFields) {
+      if (processed[field] instanceof Date) {
+        // Convert Date to ClickHouse format: '2024-05-23 18:33:41.602000'
+        const isoString = processed[field].toISOString();
+        processed[field] = isoString.replace('T', ' ').replace('Z', '');
+        
+        // Ensure microsecond precision (6 digits) as expected by ClickHouse
+        if (!processed[field].includes('.')) {
+          processed[field] += '.000000';
+        } else {
+          const parts = processed[field].split('.');
+          const microseconds = parts[1].padEnd(6, '0').substring(0, 6);
+          processed[field] = parts[0] + '.' + microseconds;
+        }
+      }
+    }
+
+    // 2. Metadata field: Convert JSON string to Record<string, string>
+    processed.metadata = this.parseRecordField(processed.metadata, 'metadata', table, {});
+
+    // 3. Usage/Cost fields: Convert to format expected by UsageCostSchema
+    if (table === TableName.Observations) {
+      const usageCostFields = [
+        'provided_usage_details', 
+        'usage_details', 
+        'provided_cost_details', 
+        'cost_details'
+      ];
+
+      for (const field of usageCostFields) {
+        processed[field] = this.parseUsageCostField(processed[field], field, table, {});
+      }
+    }
+
+    // 4. Array fields: Ensure they are arrays
+    if (table === TableName.Traces) {
+      processed.tags = this.parseArrayField(processed.tags, 'tags', table, []);
+    }
+
+    // 5. Boolean fields: Ensure they are booleans
+    const booleanFields = ['public', 'bookmarked'];
+    for (const field of booleanFields) {
+      if (processed[field] !== undefined) {
+        if (typeof processed[field] === 'string') {
+          processed[field] = processed[field].toLowerCase() === 'true' || processed[field] === '1';
+        } else if (typeof processed[field] === 'number') {
+          processed[field] = processed[field] !== 0;
+        } else {
+          processed[field] = Boolean(processed[field]);
+        }
+      }
+    }
+
+    // 6. Number fields: Ensure they are numbers
+    const numberFields = ['is_deleted', 'total_cost', 'prompt_version'];
+    for (const field of numberFields) {
+      if (processed[field] !== undefined && processed[field] !== null) {
+        if (typeof processed[field] === 'string') {
+          const parsed = Number(processed[field]);
+          processed[field] = isNaN(parsed) ? null : parsed;
+        }
+      }
+    }
+
+    return processed;
   }
 
   /**
