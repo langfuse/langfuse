@@ -173,13 +173,13 @@ const ObservationTreeTraceNode = (props: {
     >
       <div className="flex w-full flex-row items-start justify-between gap-1 py-1">
         <div className="flex w-full flex-col items-start gap-2 -space-y-1 py-1.5">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2">
             <ItemBadge
               type="TRACE"
               isSmall={true}
               className="flex-shrink-0 scale-75"
             />
-            <span className="break-words text-sm font-medium min-w-0">
+            <span className="break-all text-sm font-medium">
               {props.trace.name}
             </span>
             {props.comments && props.showComments ? (
@@ -390,17 +390,18 @@ const ObservationTreeNodeCard = ({
           )}
           ref={currentObservationRef}
         >
-          {/* Type badge */}
-          <ItemBadge
-            type={observation.type}
-            isSmall
-            className="flex-shrink-0 scale-75"
-          />
+          {/* Type badge and name */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <ItemBadge
+              type={observation.type}
+              isSmall
+              className="flex-shrink-0 scale-75"
+            />
+            <span className="text-sm font-medium whitespace-nowrap">{observation.name}</span>
+          </div>
 
-          {/* Name and duration */}
+          {/* Duration */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{observation.name}</span>
-
             {comments && showComments ? (
               <CommentCountIcon count={comments.get(observation.id)} />
             ) : null}
