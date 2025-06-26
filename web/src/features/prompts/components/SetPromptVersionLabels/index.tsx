@@ -116,7 +116,7 @@ export function SetPromptVersionLabels({
       <PopoverTrigger asChild data-version-trigger="true">
         <div
           className={cn(
-            "flex min-w-0 max-w-full cursor-pointer flex-wrap gap-1",
+            "flex w-fit min-w-0 max-w-full cursor-pointer flex-wrap gap-1",
             !hasAccess && "cursor-not-allowed",
           )}
         >
@@ -143,7 +143,7 @@ export function SetPromptVersionLabels({
         </div>
       </PopoverTrigger>
       <PopoverContent
-        className="max-h-[50vh] overflow-y-auto"
+        className="max-w-[90vw] sm:max-w-md"
         align="start"
         side="bottom"
         sideOffset={5}
