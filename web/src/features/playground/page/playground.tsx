@@ -1,6 +1,7 @@
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { usePlaygroundContext } from "./context";
 import { Variables } from "./components/Variables";
+import { MessagePlaceholders } from "./components/MessagePlaceholders";
 import { Messages } from "./components/Messages";
 import { PlaygroundTools } from "./components/PlaygroundTools";
 import { StructuredOutputSchemaSection } from "./components/StructuredOutputSchemaSection";
@@ -25,7 +26,10 @@ export default function Playground() {
             <StructuredOutputSchemaSection />
           </div>
           <div className="flex-grow overflow-y-auto">
-            <Variables />
+            <div className="space-y-6">
+              <Variables />
+              <MessagePlaceholders />
+            </div>
           </div>
         </div>
       </div>

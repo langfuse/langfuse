@@ -307,6 +307,34 @@ export const SEED_CHAT_ML_PROMPTS = [
     labels: ["production", "latest"],
     tags: ["tag1", "tag2"],
   },
+  {
+    id: `prompt-chat-placeholder`,
+    createdBy: "user-1",
+    prompt: [
+      {
+        role: "system",
+        content:
+          'You are a very enthusiastic Langfuse representative who loves to help people! Langfuse is an open-source observability tool for developers of applications that use Large Language Models (LLMs). Given the following sections from the Langfuse documentation, answer the question using only that information, outputted in markdown format.\n\nPlease follow these guidelines:\n- Refer to the respective links of the documentation and select quality examples\n- Be kind.\n- Include emojis where it makes sense.\n- If the users have problems using Langfuse, tell them to reach out to the founders directly via the chat widget or GitHub at the end of your answer.\n- Answer as markdown, use highlights and paragraphs to structure the text.\n- Do not mention that you are "enthusiastic", the user does not need to know, will feel it from the style of your answers.\n- Only use information that is available in the context, do not make up any code that is not in the context.\n- Always put an empji at the end of the message.',
+      },
+      {
+        type: "placeholder",
+        name: "message_history",
+      },
+      {
+        role: "assistant",
+        content:
+          "Answering in next message based on your instructions only. What is the question?",
+      },
+      {
+        role: "user",
+        content: "{{question}}",
+      },
+    ],
+    name: "prompt-chat-ml-with-placeholder",
+    version: 1,
+    labels: ["production", "latest"],
+    tags: ["tag1", "tag2"],
+  },
 ];
 
 export const SEED_PROMPT_VERSIONS = [

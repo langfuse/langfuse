@@ -183,3 +183,6 @@ To get a project, use the `get_project` capability with the full project name as
 
 ### Window Location Handling
 - Whenever you want to use or do use window.location..., ensure that you also add proper handling for a custom basePath
+
+## TypeScript Best Practices
+- In TypeScript, if possible, don't use the `any` type

@@ -6740,7 +6740,7 @@ components:
         prompt:
           type: array
           items:
-            $ref: '#/components/schemas/ChatMessage'
+            $ref: '#/components/schemas/ChatMessageWithPlaceholders'
         config:
           nullable: true
         labels:
@@ -6854,6 +6854,31 @@ components:
         - config
         - labels
         - tags
+    ChatMessageWithPlaceholders:
+      title: ChatMessageWithPlaceholders
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - chatmessage
+            - $ref: '#/components/schemas/ChatMessage'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - placeholder
+            - $ref: '#/components/schemas/PlaceholderMessage'
+          required:
+            - type
     ChatMessage:
       title: ChatMessage
       type: object
@@ -6865,6 +6890,14 @@ components:
       required:
         - role
         - content
+    PlaceholderMessage:
+      title: PlaceholderMessage
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
     TextPrompt:
       title: TextPrompt
       type: object
@@ -6882,7 +6915,7 @@ components:
         prompt:
           type: array
           items:
-            $ref: '#/components/schemas/ChatMessage'
+            $ref: '#/components/schemas/ChatMessageWithPlaceholders'
       required:
         - prompt
       allOf:
