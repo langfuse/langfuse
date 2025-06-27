@@ -251,7 +251,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({ data, config }) => {
   }
 
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full overflow-auto px-5 pb-2">
       <Table>
         <TableHeader>
           <TableRow className="border-b bg-muted/50">
