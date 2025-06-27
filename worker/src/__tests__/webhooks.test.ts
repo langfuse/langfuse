@@ -12,17 +12,12 @@ import {
   ActionExecutionStatus,
   JobConfigState,
   WebhookActionConfigWithSecrets,
-  WebhookOutboundBaseSchema,
 } from "@langfuse/shared";
 import {
   WebhookInput,
-  QueueName,
-  TQueueJobTypes,
   createOrgProjectAndApiKey,
   executeWebhook,
 } from "@langfuse/shared/src/server";
-import { PromptWebhookOutboundSchema } from "@langfuse/shared";
-import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createSignatureHeader,
