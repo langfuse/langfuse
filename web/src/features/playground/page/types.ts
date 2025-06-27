@@ -6,7 +6,6 @@ import {
   type LLMToolDefinition,
   type LlmTool,
   type LLMJSONSchema,
-  type ChatMessageWithId,
 } from "@langfuse/shared";
 
 export type PlaygroundTool = LLMToolDefinition & {
