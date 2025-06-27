@@ -5,7 +5,7 @@ import { AutomationForm } from "@/src/features/automations/components/automation
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
@@ -36,8 +36,10 @@ export default function AutomationsPage() {
 
   const { view, triggerId, actionId } = urlParams;
 
-  const selectedAutomation =
-    triggerId && actionId ? { triggerId, actionId } : undefined;
+  const selectedAutomation = useMemo(
+    () => (triggerId && actionId ? { triggerId, actionId } : undefined),
+    [triggerId, actionId],
+  );
 
   // Fetch automations to check if any exist
   const { data: automations } = api.automations.getAutomations.useQuery({
@@ -292,7 +294,7 @@ export default function AutomationsPage() {
                 setWebhookSecret(null);
               }}
             >
-              I've saved the secret
+              {"I've saved the secret"}
             </Button>
           </DialogFooter>
         </DialogContent>

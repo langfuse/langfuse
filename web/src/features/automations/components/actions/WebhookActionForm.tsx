@@ -193,7 +193,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           Optional custom headers to include in the webhook request:
         </FormDescription>
 
-        {customHeaderFields.map((field, index) => {
+        {customHeaderFields.map((field) => {
           // Find the original index in the headerFields array
           const originalIndex = headerFields.findIndex(
             (f) => f.id === field.id,
@@ -406,7 +406,7 @@ export const RegenerateWebhookSecretButton = ({
                 setRegeneratedSecret(null);
               }}
             >
-              I've saved the secret
+              {"I've saved the secret"}
             </Button>
           </DialogFooter>
         </DialogContent>

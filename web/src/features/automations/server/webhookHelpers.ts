@@ -7,12 +7,8 @@ import {
   type ActionCreate,
   WebhookDefaultHeaders,
   type ActionConfig,
-  type ActionDomain,
 } from "@langfuse/shared";
-import {
-  getActionById,
-  getActionByIdWithSecrets,
-} from "@langfuse/shared/src/server";
+import { getActionByIdWithSecrets } from "@langfuse/shared/src/server";
 
 interface WebhookConfigOptions {
   actionConfig: ActionCreate;

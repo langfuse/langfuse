@@ -69,7 +69,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
     setIsEditing(false);
   };
 
-  const handleSaveEdit = (triggerId?: string, actionId?: string) => {
+  const handleSaveEdit = () => {
     setIsEditing(false);
     onEditSuccess?.();
   };

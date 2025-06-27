@@ -5,7 +5,6 @@ import {
   type AutomationDomain,
   type SafeWebhookActionConfig,
 } from "@langfuse/shared";
-import { type z } from "zod/v4";
 
 export interface BaseActionHandler<
   TFormData extends FieldValues = FieldValues,

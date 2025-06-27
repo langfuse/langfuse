@@ -71,7 +71,7 @@ export const promptChangeEventSourcing = async (
           filter: trigger.filter,
         });
       },
-      getExistingActionExecutionForTrigger: async (trigger) => {
+      getExistingActionExecutionForTrigger: async () => {
         return null;
       },
       createEventId: () => {
