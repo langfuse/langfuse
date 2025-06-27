@@ -828,7 +828,7 @@ describe("automations trpc", () => {
         });
       }
 
-      const response = await caller.automations.getRecentlyDisabledAutomations({
+      const response = await caller.automations.getCountOfConsecutiveFailures({
         projectId: project.id,
         triggerId: trigger.id,
         actionId: action.id,

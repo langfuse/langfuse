@@ -38,7 +38,7 @@ export const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
 
 export const automationsRouter = createTRPCRouter({
   // Get automations that were recently auto-disabled due to failures
-  getRecentlyDisabledAutomations: protectedProjectProcedure
+  getCountOfConsecutiveFailures: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),

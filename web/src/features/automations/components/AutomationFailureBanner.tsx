@@ -16,7 +16,7 @@ export const AutomationFailureBanner: React.FC<
   const [dismissed, setDismissed] = React.useState(false);
 
   const { data: failureData } =
-    api.automations.getRecentlyDisabledAutomations.useQuery({
+    api.automations.getCountOfConsecutiveFailures.useQuery({
       projectId,
       triggerId,
       actionId,
