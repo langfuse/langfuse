@@ -5,6 +5,7 @@ import {
   ActionCreateSchema,
   ActionType,
   JobConfigState,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -16,6 +17,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
+import { TRPCError } from "@trpc/server";
 
 export const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
@@ -148,7 +150,10 @@ export const automationsRouter = createTRPCRouter({
       });
 
       if (automations.length === 0) {
-        throw new Error("Automation not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Automation with id ${input.actionId} not found.`,
+        });
       }
 
       return automations[0];
