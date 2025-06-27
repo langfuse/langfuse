@@ -11,6 +11,7 @@ import { v4 } from "uuid";
 import {
   ActionExecutionStatus,
   JobConfigState,
+  WebhookActionConfigWithSecrets,
   WebhookOutboundBaseSchema,
 } from "@langfuse/shared";
 import {
@@ -23,7 +24,11 @@ import {
 import { PromptWebhookOutboundSchema } from "@langfuse/shared";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
-import { encrypt } from "@langfuse/shared/encryption";
+import {
+  createSignatureHeader,
+  decrypt,
+  encrypt,
+} from "@langfuse/shared/encryption";
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -41,23 +46,23 @@ class WebhookTestServer {
   constructor() {
     this.server = setupServer(
       // Default success response
-      http.post("https://webhook.example.com/*", ({ request }) => {
+      http.post("https://webhook.example.com/*", async ({ request }) => {
         this.receivedRequests.push({
           url: request.url,
           method: request.method,
           headers: Object.fromEntries(request.headers.entries()),
-          body: JSON.stringify(request.body),
+          body: JSON.stringify(await request.json()),
         });
         return HttpResponse.json({ success: true }, { status: 200 });
       }),
 
       // Error response endpoint
-      http.post("https://webhook-error.example.com/*", ({ request }) => {
+      http.post("https://webhook-error.example.com/*", async ({ request }) => {
         this.receivedRequests.push({
           url: request.url,
           method: request.method,
           headers: Object.fromEntries(request.headers.entries()),
-          body: JSON.stringify(request.body),
+          body: JSON.stringify(await request.json()),
         });
         return HttpResponse.json(
           { error: "Internal Server Error" },
@@ -225,13 +230,37 @@ describe("Webhook Integration Tests", () => {
         /^t=\d+,v1=[a-f0-9]+$/,
       );
 
+      // check signature
+      const signature = request.headers["langfuse-signature"];
       const payload = JSON.parse(request.body);
-      const validatedPayload = PromptWebhookOutboundSchema.parse(payload);
-      expect(validatedPayload.id).toBe(webhookInput.eventId);
-      expect(validatedPayload.type).toBe("prompt");
-      expect(validatedPayload.action).toBe("created");
-      expect(validatedPayload.prompt.name).toBe("test-prompt");
-      expect(validatedPayload.prompt.version).toBe(1);
+
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      const secretKey = (action?.config as WebhookActionConfigWithSecrets)
+        ?.secretKey;
+
+      if (!secretKey) {
+        throw new Error("Action has no secret key");
+      }
+
+      const decryptedSecret = decrypt(secretKey);
+      const expectedSignature = createSignatureHeader(
+        JSON.stringify(payload),
+        decryptedSecret,
+      );
+
+      expect(signature).toBe(expectedSignature);
+
+      expect(payload.id).toBe(webhookInput.eventId);
+      expect(payload.type).toBe("prompt");
+      expect(payload.action).toBe("created");
+      expect(payload.prompt.name).toBe("test-prompt");
+      expect(payload.prompt.version).toBe(1);
+      expect(payload.timestamp).toBeDefined();
+      expect(payload.prompt.createdAt).toBeDefined();
+      expect(payload.prompt.updatedAt).toBeDefined();
 
       // Verify database execution record was updated
       const execution = await prisma.actionExecution.findUnique({
@@ -246,499 +275,206 @@ describe("Webhook Integration Tests", () => {
       expect(execution?.finishedAt).toBeDefined();
     });
 
-    //   it("should execute webhook without secret key", async () => {
-    //     // Create action without secret
-    //     const actionWithoutSecret = v4();
-    //     await prisma.action.create({
-    //       data: {
-    //         id: actionWithoutSecret,
-    //         projectId,
-    //         name: "Action Without Secret",
-    //         type: "WEBHOOK",
-    //         config: {
-    //           type: "WEBHOOK",
-    //           url: "https://webhook.example.com/no-secret",
-    //           headers: { "Content-Type": "application/json" },
-    //           apiVersion: { prompt: "v1" },
-    //         },
-    //       },
-    //     });
+    it("should fail webhook execution if secret key does not exist and retry the bull job", async () => {
+      const executionId = v4();
 
-    //     const executionWithoutSecret = v4();
-    //     await prisma.actionExecution.create({
-    //       data: {
-    //         id: executionWithoutSecret,
-    //         projectId,
-    //         triggerId,
-    //         actionId: actionWithoutSecret,
-    //         status: ActionExecutionStatus.PENDING,
-    //       },
-    //     });
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            type: "WEBHOOK",
+            url: "https://webhook-error.example.com/test",
+            headers: { "Content-Type": "application/json" },
+            apiVersion: { prompt: "v1" },
+            secretKey: null, // Explicitly set secret to null
+          },
+        },
+      });
 
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId: actionWithoutSecret,
-    //       triggerId,
-    //       executionId: executionWithoutSecret,
-    //       payload: {
-    //         promptName: "test-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
+      await prisma.actionExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: v4(),
+          input: {
+            promptName: "test-prompt",
+            promptVersion: 1,
+            action: "created",
+            type: "prompt",
+          },
+        },
+      });
 
-    //     await executeWebhook(webhookInput);
+      const webhookInput: WebhookInput = {
+        eventId: v4(),
+        projectId,
+        actionId,
+        triggerId,
+        executionId,
+        payload: {
+          promptName: "test-prompt",
+          promptVersion: 1,
+          action: "created",
+          type: "prompt",
+        },
+      };
 
-    //     const request = webhookServer.getLastRequest();
-    //     expect(request.headers["langfuse-signature"]).toBeUndefined();
-    //   });
+      await expect(executeWebhook(webhookInput)).rejects.toThrow(
+        "Webhook config has no secret key, failing webhook execution",
+      );
 
-    //   it("should handle webhook endpoint returning error", async () => {
-    //     // Create action pointing to error endpoint
-    //     const errorAction = v4();
-    //     await prisma.action.create({
-    //       data: {
-    //         id: errorAction,
-    //         projectId,
-    //         name: "Error Action",
-    //         type: "WEBHOOK",
-    //         config: {
-    //           type: "WEBHOOK",
-    //           url: "https://webhook-error.example.com/test",
-    //           headers: { "Content-Type": "application/json" },
-    //           apiVersion: { prompt: "v1" },
-    //         },
-    //       },
-    //     });
+      const execution = await prisma.actionExecution.findUnique({
+        where: { id: executionId },
+      });
 
-    //     const errorExecution = v4();
-    //     await prisma.actionExecution.create({
-    //       data: {
-    //         id: errorExecution,
-    //         projectId,
-    //         triggerId,
-    //         actionId: errorAction,
-    //         status: ActionExecutionStatus.PENDING,
-    //       },
-    //     });
+      expect(execution?.status).toBe(ActionExecutionStatus.PENDING);
+    });
 
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId: errorAction,
-    //       triggerId,
-    //       executionId: errorExecution,
-    //       payload: {
-    //         promptName: "test-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
+    it("should handle webhook endpoint returning error", async () => {
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
 
-    //     await executeWebhook(webhookInput);
+      if (!action) {
+        throw new Error("Action not found");
+      }
 
-    //     // Verify execution was marked as error
-    //     const execution = await prisma.actionExecution.findUnique({
-    //       where: { id: errorExecution },
-    //     });
-    //     expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
-    //     expect(execution?.error).toContain("Webhook failed with status 500");
-    //     expect(execution?.output).toMatchObject({
-    //       httpStatus: 500,
-    //       responseBody: '{"error":"Internal Server Error"}',
-    //     });
-    //   });
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          projectId,
+          type: "WEBHOOK",
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-error.example.com/test",
+          },
+        },
+      });
 
-    //   it("should reject non-HTTPS URLs", async () => {
-    //     // Create action with HTTP URL
-    //     const httpAction = v4();
-    //     await prisma.action.create({
-    //       data: {
-    //         id: httpAction,
-    //         projectId,
-    //         name: "HTTP Action",
-    //         type: "WEBHOOK",
-    //         config: {
-    //           type: "WEBHOOK",
-    //           url: "http://webhook.example.com/test",
-    //           headers: { "Content-Type": "application/json" },
-    //           apiVersion: { prompt: "v1" },
-    //         },
-    //       },
-    //     });
+      await prisma.actionExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: v4(),
+          input: {
+            promptName: "test-prompt",
+            promptVersion: 1,
+            action: "created",
+            type: "prompt",
+          },
+        },
+      });
+      // Create action pointing to error endpoint
+      const webhookInput: WebhookInput = {
+        eventId: v4(),
+        projectId,
+        actionId,
+        triggerId,
+        executionId,
+        payload: {
+          promptName: "test-prompt",
+          promptVersion: 1,
+          action: "created",
+          type: "prompt",
+        },
+      };
 
-    //     const httpExecution = v4();
-    //     await prisma.actionExecution.create({
-    //       data: {
-    //         id: httpExecution,
-    //         projectId,
-    //         triggerId,
-    //         actionId: httpAction,
-    //         status: ActionExecutionStatus.PENDING,
-    //       },
-    //     });
+      await executeWebhook(webhookInput);
 
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId: httpAction,
-    //       triggerId,
-    //       executionId: httpExecution,
-    //       payload: {
-    //         promptName: "test-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
+      // Verify execution was marked as error
+      const execution = await prisma.actionExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+      expect(execution?.error).toContain(
+        `Webhook for project ${projectId} failed with status 500`,
+      );
+      expect(execution?.output).toMatchObject({
+        httpStatus: 500,
+        responseBody: '{"error":"Internal Server Error"}',
+      });
+    });
 
-    //     await executeWebhook(webhookInput);
+    it("should disable trigger after 5 consecutive failures", async () => {
+      // Update action to point to error endpoint
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
 
-    //     // Verify execution failed with security error
-    //     const execution = await prisma.actionExecution.findUnique({
-    //       where: { id: httpExecution },
-    //     });
-    //     expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
-    //     expect(execution?.error).toContain("Webhook URL must use HTTPS protocol");
-    //   });
+      if (!action) {
+        throw new Error("Action not found");
+      }
 
-    //   it("should disable trigger after 5 consecutive failures", async () => {
-    //     // Create 4 previous failed executions
-    //     for (let i = 0; i < 4; i++) {
-    //       await prisma.actionExecution.create({
-    //         data: {
-    //           id: v4(),
-    //           projectId,
-    //           triggerId,
-    //           actionId,
-    //           status: ActionExecutionStatus.ERROR,
-    //           error: "Previous failure",
-    //           createdAt: new Date(Date.now() - (5 - i) * 60000), // Space them out
-    //         },
-    //       });
-    //     }
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          projectId,
+          type: "WEBHOOK",
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-error.example.com/test",
+          },
+        },
+      });
 
-    //     // Create action that will fail
-    //     const failingAction = v4();
-    //     await prisma.action.create({
-    //       data: {
-    //         id: failingAction,
-    //         projectId,
-    //         name: "Failing Action",
-    //         type: "WEBHOOK",
-    //         config: {
-    //           type: "WEBHOOK",
-    //           url: "https://webhook-error.example.com/test",
-    //           headers: { "Content-Type": "application/json" },
-    //           apiVersion: { prompt: "v1" },
-    //         },
-    //       },
-    //     });
+      // Execute webhook 5 times to trigger consecutive failures
+      for (let i = 0; i < 5; i++) {
+        const executionId = v4();
 
-    //     const failingExecution = v4();
-    //     await prisma.actionExecution.create({
-    //       data: {
-    //         id: failingExecution,
-    //         projectId,
-    //         triggerId,
-    //         actionId: failingAction,
-    //         status: ActionExecutionStatus.PENDING,
-    //       },
-    //     });
+        await prisma.actionExecution.create({
+          data: {
+            id: executionId,
+            projectId,
+            triggerId,
+            actionId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: v4(),
+            input: {
+              promptName: "test-prompt",
+              promptVersion: 1,
+              action: "created",
+              type: "prompt",
+            },
+          },
+        });
 
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId: failingAction,
-    //       triggerId,
-    //       executionId: failingExecution,
-    //       payload: {
-    //         promptName: "test-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
+        const webhookInput: WebhookInput = {
+          eventId: v4(),
+          projectId,
+          actionId,
+          triggerId,
+          executionId,
+          payload: {
+            promptName: "test-prompt",
+            promptVersion: 1,
+            action: "created",
+            type: "prompt",
+          },
+        };
 
-    //     await executeWebhook(webhookInput);
+        await executeWebhook(webhookInput);
 
-    //     // Verify trigger was disabled
-    //     const trigger = await prisma.trigger.findUnique({
-    //       where: { id: triggerId },
-    //     });
-    //     expect(trigger?.status).toBe(JobConfigState.INACTIVE);
-    //   });
+        // Verify execution was marked as error
+        const execution = await prisma.actionExecution.findUnique({
+          where: { id: executionId },
+        });
+        expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+        expect(execution?.error).toContain(
+          `Webhook for project ${projectId} failed with status 500`,
+        );
+      }
 
-    //   it("should handle different action types in payload", async () => {
-    //     const actionTypes = ["created", "updated", "deleted"] as const;
-
-    //     for (const actionType of actionTypes) {
-    //       const testExecution = v4();
-    //       await prisma.actionExecution.create({
-    //         data: {
-    //           id: testExecution,
-    //           projectId,
-    //           triggerId,
-    //           actionId,
-    //           status: ActionExecutionStatus.PENDING,
-    //         },
-    //       });
-
-    //       const webhookInput: WebhookInput = {
-    //         eventId: v4(),
-    //         projectId,
-    //         actionId,
-    //         triggerId,
-    //         executionId: testExecution,
-    //         payload: {
-    //           promptName: "test-prompt",
-    //           promptVersion: 1,
-    //           action: actionType,
-    //           type: "prompt",
-    //         },
-    //       };
-
-    //       await executeWebhook(webhookInput);
-
-    //       const requests = webhookServer.getReceivedRequests();
-    //       const lastRequest = requests[requests.length - 1];
-    //       const payload = JSON.parse(lastRequest.body);
-    //       expect(payload.action).toBe(actionType);
-
-    //       webhookServer.reset();
-    //     }
-    //   });
-
-    //   it("should truncate response body to 1000 characters", async () => {
-    //     // Create a custom action with long response
-    //     const longResponseBody = "x".repeat(1500);
-
-    //     webhookServer.server.use(
-    //       http.post("https://webhook.example.com/long-response", () => {
-    //         return HttpResponse.text(longResponseBody, { status: 200 });
-    //       }),
-    //     );
-
-    //     const longResponseAction = v4();
-    //     await prisma.action.create({
-    //       data: {
-    //         id: longResponseAction,
-    //         projectId,
-    //         name: "Long Response Action",
-    //         type: "WEBHOOK",
-    //         config: {
-    //           type: "WEBHOOK",
-    //           url: "https://webhook.example.com/long-response",
-    //           headers: { "Content-Type": "application/json" },
-    //           apiVersion: { prompt: "v1" },
-    //         },
-    //       },
-    //     });
-
-    //     const longResponseExecution = v4();
-    //     await prisma.actionExecution.create({
-    //       data: {
-    //         id: longResponseExecution,
-    //         projectId,
-    //         triggerId,
-    //         actionId: longResponseAction,
-    //         status: ActionExecutionStatus.PENDING,
-    //       },
-    //     });
-
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId: longResponseAction,
-    //       triggerId,
-    //       executionId: longResponseExecution,
-    //       payload: {
-    //         promptName: "test-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
-
-    //     await executeWebhook(webhookInput);
-
-    //     const execution = await prisma.actionExecution.findUnique({
-    //       where: { id: longResponseExecution },
-    //     });
-
-    //     expect(execution?.output).toMatchObject({
-    //       httpStatus: 200,
-    //       responseBody: "x".repeat(1000), // Truncated to 1000 chars
-    //     });
-    //   });
-    // });
-
-    // describe("webhookProcessor function", () => {
-    //   it("should process webhook job successfully", async () => {
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId,
-    //       triggerId,
-    //       executionId,
-    //       payload: {
-    //         promptName: "test-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
-
-    //     const mockJob: Job<TQueueJobTypes[QueueName.WebhookQueue]> = {
-    //       data: {
-    //         timestamp: new Date(),
-    //         id: v4(),
-    //         payload: webhookInput,
-    //         name: "webhook-job" as any,
-    //       },
-    //       attemptsMade: 0,
-    //     } as any;
-
-    //     await webhookProcessor(mockJob);
-
-    //     // Verify webhook was called
-    //     const requests = webhookServer.getReceivedRequests();
-    //     expect(requests).toHaveLength(1);
-
-    //     // Verify execution completed
-    //     const execution = await prisma.actionExecution.findUnique({
-    //       where: { id: executionId },
-    //     });
-    //     expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
-    //   });
-
-    //   it("should handle errors in webhook processing", async () => {
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId: "non-existent-action",
-    //       triggerId,
-    //       executionId,
-    //       payload: {
-    //         promptName: "test-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
-
-    //     const mockJob: Job<TQueueJobTypes[QueueName.WebhookQueue]> = {
-    //       data: {
-    //         timestamp: new Date(),
-    //         id: v4(),
-    //         payload: webhookInput,
-    //         name: "webhook-job" as any,
-    //       },
-    //       attemptsMade: 0,
-    //     } as any;
-
-    //     await expect(webhookProcessor(mockJob)).rejects.toThrow(
-    //       "Action config not found",
-    //     );
-    //   });
-    // });
-
-    // describe("error handling", () => {
-    //   it("should handle non-existent prompt", async () => {
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId,
-    //       triggerId,
-    //       executionId,
-    //       payload: {
-    //         promptName: "non-existent-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
-
-    //     await executeWebhook(webhookInput);
-
-    //     const execution = await prisma.actionExecution.findUnique({
-    //       where: { id: executionId },
-    //     });
-    //     expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
-    //   });
-
-    //   it("should handle non-existent action", async () => {
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId: "non-existent-action",
-    //       triggerId,
-    //       executionId,
-    //       payload: {
-    //         promptName: "test-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
-
-    //     await expect(executeWebhook(webhookInput)).rejects.toThrow(
-    //       "Action config not found",
-    //     );
-    //   });
-
-    //   it("should handle invalid webhook URL", async () => {
-    //     const invalidUrlAction = v4();
-    //     await prisma.action.create({
-    //       data: {
-    //         id: invalidUrlAction,
-    //         projectId,
-    //         name: "Invalid URL Action",
-    //         type: "WEBHOOK",
-    //         config: {
-    //           type: "WEBHOOK",
-    //           url: "invalid-url-format",
-    //           headers: { "Content-Type": "application/json" },
-    //           apiVersion: { prompt: "v1" },
-    //         },
-    //       },
-    //     });
-
-    //     const invalidUrlExecution = v4();
-    //     await prisma.actionExecution.create({
-    //       data: {
-    //         id: invalidUrlExecution,
-    //         projectId,
-    //         triggerId,
-    //         actionId: invalidUrlAction,
-    //         status: ActionExecutionStatus.PENDING,
-    //       },
-    //     });
-
-    //     const webhookInput: WebhookInput = {
-    //       eventId: v4(),
-    //       projectId,
-    //       actionId: invalidUrlAction,
-    //       triggerId,
-    //       executionId: invalidUrlExecution,
-    //       payload: {
-    //         promptName: "test-prompt",
-    //         promptVersion: 1,
-    //         action: "created",
-    //         type: "prompt",
-    //       },
-    //     };
-
-    //     await executeWebhook(webhookInput);
-
-    //     const execution = await prisma.actionExecution.findUnique({
-    //       where: { id: invalidUrlExecution },
-    //     });
-    //     expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
-    //     expect(execution?.error).toContain("Invalid webhook URL");
-    //   });
+      // Verify trigger was disabled after 5 consecutive failures
+      const trigger = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(trigger?.status).toBe(JobConfigState.INACTIVE);
+    });
   });
 });

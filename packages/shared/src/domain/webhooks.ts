@@ -9,7 +9,7 @@ export const WebhookDefaultHeaders = {
 
 export const WebhookOutboundBaseSchema = z.object({
   id: z.string(),
-  timestamp: z.date(),
+  timestamp: z.coerce.date(),
   type: z.literal("prompt"),
   action: EventActionSchema,
 });
@@ -27,8 +27,8 @@ export const PromptWebhookOutboundSchema = z
       config: z.record(z.string(), z.any()),
       commitMessage: z.string().nullable(),
       tags: z.array(z.string()),
-      createdAt: z.date(),
-      updatedAt: z.date(),
+      createdAt: z.coerce.date(),
+      updatedAt: z.coerce.date(),
     }),
   })
   .and(WebhookOutboundBaseSchema);

@@ -17,6 +17,7 @@ import { redis } from "../redis/redis";
 import { logger } from "..";
 import { createSignatureHeader } from "../../encryption/signature";
 import { decrypt } from "../../encryption";
+import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 
 export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
@@ -52,7 +53,7 @@ export const executeWebhook = async (input: WebhookInput) => {
     }
 
     if (actionConfig.config.type !== "WEBHOOK") {
-      throw new Error("Action config is not a webhook");
+      throw new InternalServerError("Action config is not a webhook");
     }
 
     const promptService = new PromptService(prisma, redis, recordIncrement);
@@ -63,6 +64,12 @@ export const executeWebhook = async (input: WebhookInput) => {
       version: input.payload.promptVersion,
       label: undefined,
     });
+
+    if (!prompt) {
+      throw new LangfuseNotFoundError(
+        `Prompt ${input.payload.promptName} version ${input.payload.promptVersion} not found for project ${projectId}`,
+      );
+    }
 
     // TypeScript now knows actionConfig.config is WebhookActionConfig
     const webhookConfig = actionConfig.config;
@@ -82,19 +89,37 @@ export const executeWebhook = async (input: WebhookInput) => {
       throw error;
     }
 
+    const validatedPayload = PromptWebhookOutboundSchema.safeParse({
+      id: input.eventId,
+      timestamp: new Date(),
+      type: input.payload.type,
+      action: input.payload.action,
+      prompt,
+    });
+
+    if (!validatedPayload.success) {
+      throw new InternalServerError(
+        `Invalid webhook payload: ${validatedPayload.error.message}`,
+      );
+    }
+
     // Prepare webhook payload
     const webhookPayload = JSON.stringify({
-      ...PromptWebhookOutboundSchema.parse({
-        id: input.eventId,
-        timestamp: new Date(),
-        type: input.payload.type,
-        action: input.payload.action,
-        prompt,
-      }),
+      ...validatedPayload.data,
     });
 
     // Prepare headers with signature if secret exists
     const requestHeaders = { ...webhookConfig.headers };
+
+    if (!webhookConfig.secretKey) {
+      logger.warn(
+        `Webhook config for action ${actionId} has no secret key, failing webhook execution`,
+      );
+      throw new InternalServerError(
+        "Webhook config has no secret key, failing webhook execution",
+      );
+    }
+
     if (webhookConfig.secretKey) {
       try {
         const decryptedSecret = decrypt(webhookConfig.secretKey);
@@ -109,7 +134,7 @@ export const executeWebhook = async (input: WebhookInput) => {
           "Failed to decrypt webhook secret or generate signature",
           error,
         );
-        throw new Error("Failed to generate webhook signature");
+        throw new InternalServerError("Failed to generate webhook signature");
       }
     }
 
@@ -166,6 +191,15 @@ export const executeWebhook = async (input: WebhookInput) => {
   } catch (error) {
     logger.error("Error executing webhook", error);
 
+    const shouldRetryJob =
+      error instanceof LangfuseNotFoundError ||
+      error instanceof InternalServerError;
+
+    if (shouldRetryJob) {
+      logger.warn(`Retrying bullmq for webhook job for action ${actionId}`);
+      throw error;
+    }
+
     // Update action execution status and check if we should disable trigger
     await prisma.$transaction(async (tx) => {
       // Update execution status
@@ -202,7 +236,7 @@ export const executeWebhook = async (input: WebhookInput) => {
       );
 
       // Check if trigger should be disabled (>= 5 consecutive failures)
-      if (consecutiveFailures >= 5) {
+      if (consecutiveFailures >= 4) {
         await tx.trigger.update({
           where: { id: triggerId, projectId },
           data: { status: JobConfigState.INACTIVE },

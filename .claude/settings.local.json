@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(grep:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(pnpm run test:*)"
     ],
     "deny": []
   }
