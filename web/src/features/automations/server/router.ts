@@ -17,6 +17,7 @@ import {
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { TRPCError } from "@trpc/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
@@ -94,6 +95,19 @@ export const automationsRouter = createTRPCRouter({
       // Generate new webhook secret
       const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
         generateWebhookSecret();
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "webhook",
+        resourceId: input.actionId,
+        action: "regenerateSecret",
+        before: {
+          displaySecretKey: existingAction.config.displaySecretKey,
+        },
+        after: {
+          displaySecretKey: newDisplaySecretKey,
+        },
+      });
 
       // Update action config with new secret
       const updatedConfig = {
@@ -262,6 +276,18 @@ export const automationsRouter = createTRPCRouter({
         return [trigger, action];
       });
 
+      await auditLog({
+        session: ctx.session,
+        resourceType: "automation",
+        resourceId: trigger.id,
+        action: "create",
+        before: undefined,
+        after: {
+          action: action,
+          trigger: trigger,
+        },
+      });
+
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
@@ -281,6 +307,19 @@ export const automationsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "automations:CUD",
       });
+
+      const existingAutomation = await getAutomations({
+        projectId: input.projectId,
+        triggerId: input.triggerId,
+        actionId: input.actionId,
+      });
+
+      if (existingAutomation.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Automation with id ${input.actionId} not found.`,
+        });
+      }
 
       // Process webhook action configuration using helper
       const { finalActionConfig } = await processWebhookActionConfig({
@@ -332,6 +371,21 @@ export const automationsRouter = createTRPCRouter({
         return [action, trigger];
       });
 
+      await auditLog({
+        session: ctx.session,
+        resourceType: "automation",
+        resourceId: trigger.id,
+        action: "update",
+        before: {
+          action: existingAutomation[0].action,
+          trigger: existingAutomation[0].trigger,
+        },
+        after: {
+          action: action,
+          trigger: trigger,
+        },
+      });
+
       return { action, trigger };
     }),
 
@@ -351,6 +405,20 @@ export const automationsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "automations:CUD",
       });
+
+      const existingAutomation = await getAutomations({
+        projectId: input.projectId,
+        triggerId: input.triggerId,
+        actionId: input.actionId,
+      });
+
+      if (existingAutomation.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Automation with id ${input.actionId} not found.`,
+        });
+      }
+
       await ctx.prisma.$transaction(async (tx) => {
         await tx.triggersOnActions.delete({
           where: {
@@ -381,6 +449,14 @@ export const automationsRouter = createTRPCRouter({
             id: input.triggerId,
             projectId: ctx.session.projectId,
           },
+        });
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "automation",
+          resourceId: input.triggerId,
+          action: "delete",
+          before: existingAutomation[0],
         });
       });
     }),
