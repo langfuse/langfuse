@@ -47,6 +47,8 @@ import {
   availableTraceEvalVariables,
   variableMapping,
   TraceDomain,
+  Observation,
+  DatasetItem,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -724,6 +726,11 @@ export async function extractVariablesFromTracingData({
   variableMapping: z.infer<typeof variableMappingList>;
   datasetItemId?: string;
 }): Promise<{ var: string; value: string; environment?: string }[]> {
+  // Internal cache for this function call to avoid duplicate database lookups
+  const traceCache = new Map<string, TraceDomain | null>();
+  const observationCache = new Map<string, Observation | null>();
+  const datasetItemCache = new Map<string, DatasetItem | null>();
+
   return Promise.all(
     variables.map(async (variable) => {
       const mapping = variableMapping.find(
@@ -756,16 +763,21 @@ export async function extractVariablesFromTracingData({
           return { var: variable, value: "" };
         }
 
-        const datasetItem = await kyselyPrisma.$kysely
-          .selectFrom("dataset_items as d")
-          .select(
-            sql`${sql.raw(safeInternalColumn.internal)}`.as(
-              safeInternalColumn.id,
-            ),
-          ) // query the internal column name raw
-          .where("id", "=", datasetItemId)
-          .where("project_id", "=", projectId)
-          .executeTakeFirst();
+        const datasetCacheKey = `${projectId}:${datasetItemId}`;
+        let datasetItem = datasetItemCache.get(datasetCacheKey);
+        if (!datasetItemCache.has(datasetCacheKey)) {
+          datasetItem = (await kyselyPrisma.$kysely
+            .selectFrom("dataset_items as d")
+            .select(
+              sql`${sql.raw(safeInternalColumn.internal)}`.as(
+                safeInternalColumn.id,
+              ),
+            ) // query the internal column name raw
+            .where("id", "=", datasetItemId)
+            .where("project_id", "=", projectId)
+            .executeTakeFirst()) as DatasetItem;
+          datasetItemCache.set(datasetCacheKey, datasetItem);
+        }
 
         // user facing errors
         if (!datasetItem) {
@@ -798,7 +810,12 @@ export async function extractVariablesFromTracingData({
           return { var: variable, value: "" };
         }
 
-        const trace = await getTraceById({ traceId, projectId });
+        const traceCacheKey = `${projectId}:${traceId}`;
+        let trace = traceCache.get(traceCacheKey);
+        if (!traceCache.has(traceCacheKey)) {
+          trace = await getTraceById({ traceId, projectId });
+          traceCache.set(traceCacheKey, trace ?? null);
+        }
 
         // user facing errors
         if (!trace) {
@@ -837,15 +854,19 @@ export async function extractVariablesFromTracingData({
           return { var: variable, value: "" };
         }
 
-        const observation = (
-          await getObservationForTraceIdByName(
+        const observationCacheKey = `${projectId}:${traceId}:${mapping.objectName}`;
+        let observation = observationCache.get(observationCacheKey);
+        if (!observationCache.has(observationCacheKey)) {
+          const observations = await getObservationForTraceIdByName(
             traceId,
             projectId,
             mapping.objectName,
             undefined,
             true,
-          )
-        ).shift(); // We only take the first match and ignore duplicate generation-names in a trace.
+          );
+          observation = observations.shift() || null; // We only take the first match and ignore duplicate generation-names in a trace.
+          observationCache.set(observationCacheKey, observation);
+        }
 
         // user facing errors
         if (!observation) {
