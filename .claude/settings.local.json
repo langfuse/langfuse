@@ -5,7 +5,9 @@
       "Bash(rg:*)",
       "Bash(pnpm run test:*)",
       "Bash(pnpm test-sync:*)",
-      "Bash(pnpm --filter=web run test --testPathPattern=\"automations-trpc.servertest.ts\")"
+      "Bash(pnpm --filter=web run test --testPathPattern=\"automations-trpc.servertest.ts\")",
+      "Bash(pnpm --filter=web run test --testPathPattern=\"prompt-webhook-processor.servertest.ts\")",
+      "Bash(pnpm --filter=web run test --testPathPattern=\"prompt-webhook-processor.servertest.ts\" --testNamePattern=\"should handle name filter correctly\")"
     ],
     "deny": []
   }
