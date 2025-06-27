@@ -778,7 +778,7 @@ describe("automations trpc", () => {
     });
   });
 
-  describe("automations.getRecentlyDisabledAutomations", () => {
+  describe("automations.getCountOfConsecutiveFailures", () => {
     it("should return consecutive failure count", async () => {
       const { project, caller } = await prepare();
 
@@ -892,7 +892,7 @@ describe("automations trpc", () => {
           projectId: project.id,
           actionId: "non-existent-action",
         }),
-      ).rejects.toThrow("Internal error");
+      ).rejects.toThrow(`Action with id non-existent-action not found.`);
     });
 
     it("should handle missing webhook action gracefully", async () => {

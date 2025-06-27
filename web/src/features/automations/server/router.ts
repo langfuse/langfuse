@@ -85,7 +85,10 @@ export const automationsRouter = createTRPCRouter({
       });
 
       if (!existingAction || existingAction.type !== "WEBHOOK") {
-        throw new Error("Webhook action not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Action with id ${input.actionId} not found.`,
+        });
       }
 
       // Generate new webhook secret
