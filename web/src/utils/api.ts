@@ -4,6 +4,8 @@
  *
  * We also create a few inference helpers for input and output types.
  */
+
+import { captureException } from "@sentry/nextjs";
 import {
   createTRPCProxyClient,
   httpBatchLink,
@@ -13,17 +15,15 @@ import {
   TRPCClientError,
   type TRPCLink,
 } from "@trpc/client";
-import { observable } from "@trpc/server/observable";
 import { createTRPCNext } from "@trpc/next";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
+import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
-
+import { env } from "@/src/env.mjs";
+import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
 import { type AppRouter } from "@/src/server/api/root";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
-import { captureException } from "@sentry/nextjs";
-import { env } from "@/src/env.mjs";
 
 setUpSuperjson();
 
@@ -36,6 +36,19 @@ const getBaseUrl = () => {
         : `http://localhost:${process.env.PORT ?? 3000}`;
 
   return `${hostname}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
+};
+
+// Get current pathname without the base path prefix
+// for client-side navigation with a custom basePath set
+export const getPathnameWithoutBasePath = () => {
+  const pathname = window.location.pathname;
+  const basePath = env.NEXT_PUBLIC_BASE_PATH;
+
+  if (basePath && pathname.startsWith(basePath)) {
+    return pathname.slice(basePath.length) || "/";
+  }
+
+  return pathname;
 };
 
 // global build id used to compare versions to show refresh toast on stale cache hit serving deprecated files

@@ -37,7 +37,9 @@ export class WorkerManager {
         ? IngestionQueue.getInstance({ shardName: queueName })
         : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
       Promise.allSettled([
-        queue?.count().then((count) => {
+        // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
+        // or "prioritized" or "waiting-children") that count provides
+        queue?.getWaitingCount().then((count) => {
           recordGauge(
             convertQueueNameToMetricName(queueName) + ".length",
             count,

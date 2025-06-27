@@ -58,7 +58,7 @@ export const SupportMenuDropdown = () => {
           menuNode: (
             <div className="flex items-center gap-2" onClick={() => openChat()}>
               <MessageCircle className="h-4 w-4" />
-              <span>Open Chat</span>
+              <span>Contact Support</span>
             </div>
           ),
           icon: MessageCircle,
