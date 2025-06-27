@@ -67,13 +67,9 @@ type ChartType = {
   supportsBreakdown: boolean;
 };
 
-type ChartConfig = {
-  type: DashboardWidgetChartType;
-  row_limit?: number;
-  bins?: number;
-  dimensions?: string[]; // For pivot table configuration
-  metrics?: string[]; // For pivot table metric field names
-};
+import { type WidgetChartConfig } from "@/src/features/widgets/utils";
+
+type ChartConfig = WidgetChartConfig;
 
 const chartTypes: ChartType[] = [
   {

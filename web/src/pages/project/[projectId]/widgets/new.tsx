@@ -1,7 +1,11 @@
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { WidgetForm } from "@/src/features/widgets";
+import {
+  transformToStrictChartConfig,
+  type WidgetChartConfig,
+  WidgetForm,
+} from "@/src/features/widgets";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
@@ -49,7 +53,7 @@ export default function NewWidget() {
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
+    chartConfig: WidgetChartConfig;
   }) => {
     if (!widgetData.name.trim()) {
       showErrorToast("Error", "Widget name is required");
@@ -69,7 +73,7 @@ export default function NewWidget() {
       })),
       filters: widgetData.filters,
       chartType: widgetData.chartType,
-      chartConfig: widgetData.chartConfig,
+      chartConfig: transformToStrictChartConfig(widgetData.chartConfig),
     });
   };
 

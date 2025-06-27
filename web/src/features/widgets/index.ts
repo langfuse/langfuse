@@ -6,3 +6,11 @@ export { Chart } from "./chart-library/Chart";
 export { WidgetForm } from "./components/WidgetForm";
 export { DashboardWidgetTable, DeleteWidget } from "./components/WidgetTable";
 export { DashboardWidget } from "./components/DashboardWidget";
+
+// Export types and utilities
+export {
+  type WidgetChartConfig,
+  type StrictChartConfig,
+  transformToStrictChartConfig,
+  transformFromStrictChartConfig,
+} from "./utils";
