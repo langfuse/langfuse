@@ -726,10 +726,10 @@ export async function extractVariablesFromTracingData({
   variableMapping: z.infer<typeof variableMappingList>;
   datasetItemId?: string;
 }): Promise<{ var: string; value: string; environment?: string }[]> {
-  // Internal cache for this function call to avoid duplicate database lookups
+  // Internal cache for this function call to avoid duplicate database lookups.
+  // We do not cache dataset items as Postgres is cheaper than ClickHouse.
   const traceCache = new Map<string, TraceDomain | null>();
   const observationCache = new Map<string, Observation | null>();
-  const datasetItemCache = new Map<string, DatasetItem | null>();
 
   const results: { var: string; value: string; environment?: string }[] = [];
 
@@ -769,21 +769,16 @@ export async function extractVariablesFromTracingData({
         continue;
       }
 
-      const datasetCacheKey = `${projectId}:${datasetItemId}`;
-      let datasetItem = datasetItemCache.get(datasetCacheKey);
-      if (!datasetItemCache.has(datasetCacheKey)) {
-        datasetItem = (await kyselyPrisma.$kysely
-          .selectFrom("dataset_items as d")
-          .select(
-            sql`${sql.raw(safeInternalColumn.internal)}`.as(
-              safeInternalColumn.id,
-            ),
-          ) // query the internal column name raw
-          .where("id", "=", datasetItemId)
-          .where("project_id", "=", projectId)
-          .executeTakeFirst()) as DatasetItem;
-        datasetItemCache.set(datasetCacheKey, datasetItem);
-      }
+      const datasetItem = (await kyselyPrisma.$kysely
+        .selectFrom("dataset_items as d")
+        .select(
+          sql`${sql.raw(safeInternalColumn.internal)}`.as(
+            safeInternalColumn.id,
+          ),
+        ) // query the internal column name raw
+        .where("id", "=", datasetItemId)
+        .where("project_id", "=", projectId)
+        .executeTakeFirst()) as DatasetItem;
 
       // user facing errors
       if (!datasetItem) {
