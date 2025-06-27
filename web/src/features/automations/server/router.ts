@@ -5,7 +5,6 @@ import {
   ActionCreateSchema,
   ActionType,
   JobConfigState,
-  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
