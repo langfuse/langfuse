@@ -76,7 +76,7 @@ describe("automations trpc", () => {
       const { project, caller } = await prepare();
 
       // Create test prompt
-      const prompt = await prisma.prompt.create({
+      await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
@@ -152,8 +152,7 @@ describe("automations trpc", () => {
         }),
       });
 
-      // Verify secretKey is not exposed
-      expect(response[0].action.config.secretKey).toBeUndefined();
+      expect(response[0].action.config).not.toHaveProperty("secretKey");
     });
 
     it("should return empty array when no automations exist", async () => {
@@ -190,7 +189,10 @@ describe("automations trpc", () => {
         },
       };
 
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       const response = await limitedCaller.automations.getAutomations({
@@ -362,7 +364,10 @@ describe("automations trpc", () => {
         },
       };
 
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       await expect(
@@ -475,15 +480,17 @@ describe("automations trpc", () => {
 
       expect(response.action.id).toBe(action.id);
       expect(response.action.type).toBe("WEBHOOK");
-      expect(response.action.config.type).toBe("WEBHOOK");
-      expect(response.action.config.url).toBe("https://example.com/updated-webhook");
-      expect(response.action.config.headers).toMatchObject({
-        "Content-Type": "application/json",
-        "X-Custom": "value"
+      expect(response.action.config).toMatchObject({
+        type: "WEBHOOK",
+        url: "https://example.com/updated-webhook",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Custom": "value",
+        },
       });
-      
+
       // Note: secretKey might be present in update response but shouldn't be in read operations
-      // The important test is that it doesn't appear in getAutomations/getAutomation responses
+      // The important test is that it do esn't appear in getAutomations/getAutomation responses
 
       // Verify the automation name was updated
       const updatedAutomation = await prisma.triggersOnActions.findFirst({
@@ -931,7 +938,10 @@ describe("automations trpc", () => {
         },
       };
 
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       await expect(
