@@ -32,6 +32,7 @@ async function prepare() {
               retentionDays: 30,
               deletedAt: null,
               name: project.name,
+              metadata: {},
             },
           ],
         },

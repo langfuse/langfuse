@@ -3,7 +3,9 @@
     "allow": [
       "Bash(grep:*)",
       "Bash(rg:*)",
-      "Bash(pnpm run test:*)"
+      "Bash(pnpm run test:*)",
+      "Bash(pnpm test-sync:*)",
+      "Bash(pnpm --filter=web run test --testPathPattern=\"automations-trpc.servertest.ts\")"
     ],
     "deny": []
   }
