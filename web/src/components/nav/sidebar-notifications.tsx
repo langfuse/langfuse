@@ -30,6 +30,15 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "python-sdk-v3",
+    title: "New Python SDK v3",
+    description:
+      "Python SDK V3 offers significant improvements in developer experience, performance, and integrations.",
+    link: "https://langfuse.com/docs/sdk/python/sdk-v3#upgrade-from-v2",
+    linkTitle: "Upgrade from v2",
+    createdAt: "2025-06-27",
+  },
+  {
     id: "lw3-5",
     title: "Launch Week #3: Day 5",
     description: "New OpenTelemetry based Python SDK.",
