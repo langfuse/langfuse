@@ -119,7 +119,7 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      return getAutomations({
+      return await getAutomations({
         projectId: input.projectId,
       });
     }),

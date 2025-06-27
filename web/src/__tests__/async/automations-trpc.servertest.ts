@@ -54,7 +54,7 @@ async function prepare() {
     },
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   __orgIds.push(org.id);
@@ -260,6 +260,17 @@ describe("automations trpc", () => {
           id: action.id,
         }),
       });
+
+      // check that the action does not have a secret key in the config
+      expect(response.action.config).not.toHaveProperty("secretKey");
+      expect(response.action.config).toHaveProperty("displaySecretKey");
+      expect(response.action.config.url).toBe("https://example.com/webhook");
+      expect(response.action.config.headers).toEqual({
+        "Content-Type": "application/json",
+      });
+      expect(response.action.config.apiVersion).toEqual({ prompt: "v1" });
+      expect(response.action.config.type).toBe("WEBHOOK");
+      expect(response.action.config.displaySecretKey).toBe(displaySecretKey);
     });
 
     it("should throw error when automation not found", async () => {
@@ -271,7 +282,7 @@ describe("automations trpc", () => {
           triggerId: "non-existent-trigger",
           actionId: "non-existent-action",
         }),
-      ).rejects.toThrow("Internal error");
+      ).rejects.toThrow(`Automation with id non-existent-action not found.`);
     });
   });
 
@@ -490,7 +501,7 @@ describe("automations trpc", () => {
       });
 
       // Note: secretKey might be present in update response but shouldn't be in read operations
-      // The important test is that it do esn't appear in getAutomations/getAutomation responses
+      // The important test is that it doesn't appear in getAutomations/getAutomation responses
 
       // Verify the automation name was updated
       const updatedAutomation = await prisma.triggersOnActions.findFirst({

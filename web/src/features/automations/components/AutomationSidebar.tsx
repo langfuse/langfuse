@@ -23,7 +23,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
 
   if (isLoading) {
     return (
-      <div className="flex h-full w-80 flex-col border-r bg-muted/10">
+      <div className="flex h-full w-40 flex-col border-r bg-muted/10 sm:w-80">
         <div className="p-4 text-center text-sm text-muted-foreground">
           Loading automations...
         </div>
@@ -33,7 +33,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
 
   if (!automations || automations.length === 0) {
     return (
-      <div className="flex h-full w-80 flex-col border-r bg-muted/10">
+      <div className="flex h-full w-40 flex-col border-r bg-muted/10 sm:w-80">
         <div className="p-4 text-center text-sm text-muted-foreground">
           No automations configured. Create your first automation to automate
           workflows.
@@ -43,7 +43,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
   }
 
   return (
-    <div className="flex h-full w-80 flex-col border-r bg-muted/10">
+    <div className="flex h-full w-40 flex-col border-r bg-muted/10 sm:w-80">
       <div className="flex-1 overflow-y-auto">
         <div className="p-4">
           <div className="space-y-2">
