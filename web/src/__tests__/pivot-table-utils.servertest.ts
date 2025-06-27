@@ -835,7 +835,6 @@ describe("pivot-table-utils", () => {
 
         expect(totalRow).toBeDefined();
         if (totalRow) {
-          console.log(totalRow.values);
           // Count: 100 + 200 = 300 (strings parsed correctly)
           expect(totalRow.values.count_requests).toBe(300);
 
