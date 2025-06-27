@@ -31,6 +31,7 @@ import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
+import { prisma } from "../../db";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -622,7 +623,7 @@ export const getCategoricalScoresGroupedByName = async (
     : undefined;
 
   const query = `
-    SELECT 
+    SELECT
       name AS label,
       groupArray(DISTINCT string_value) AS values
     FROM scores s
@@ -651,7 +652,58 @@ export const getCategoricalScoresGroupedByName = async (
     },
   });
 
-  return rows;
+  // Get score names from ClickHouse results to query score configs
+  const scoreNames = rows.map((row) => row.label);
+
+  // Query score_configs table for categorical configurations
+  const scoreConfigs =
+    scoreNames.length > 0
+      ? await prisma.scoreConfig.findMany({
+          where: {
+            projectId: projectId,
+            name: {
+              in: scoreNames,
+            },
+            dataType: "CATEGORICAL",
+            isArchived: false,
+          },
+          select: {
+            name: true,
+            categories: true,
+          },
+        })
+      : [];
+
+  // Create a map of score configs for easy lookup
+  const configMap = new Map(
+    scoreConfigs.map((config) => [config.name, config.categories]),
+  );
+
+  // Enhance the results with all possible category values from score configs
+  return rows.map((row) => {
+    const configCategories = configMap.get(row.label);
+
+    if (configCategories && Array.isArray(configCategories)) {
+      // Extract all possible category labels from the score config
+      const allPossibleValues = (
+        configCategories as Array<{ label: string; value: number }>
+      ).map((category) => category.label);
+
+      // Merge actual values from ClickHouse with all possible values from config
+      // Use Set to ensure uniqueness
+      const mergedValues = Array.from(
+        new Set([...row.values, ...allPossibleValues]),
+      );
+
+      return {
+        ...row,
+        values: mergedValues,
+      };
+    }
+
+    // If no config found, return original values
+    return row;
+  });
 };
 
 export const getScoresUiCount = async (props: {

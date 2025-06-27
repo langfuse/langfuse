@@ -229,11 +229,20 @@ export const processEventBatch = async (
     throw new Error("Redis not initialized, aborting event processing");
   }
 
+  const projectIdsToSkipS3List =
+    env.LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS?.split(",") ?? [];
+
   await Promise.all(
     Object.keys(sortedBatchByEventBodyId).map(async (id) => {
       const eventData = sortedBatchByEventBodyId[id];
       const shardingKey = `${authCheck.scope.projectId}-${eventData.eventBodyId}`;
       const queue = IngestionQueue.getInstance({ shardingKey });
+
+      const shouldSkipS3List =
+        getClickhouseEntityType(eventData.type) === "observation" &&
+        authCheck.scope.projectId !== null &&
+        (projectIdsToSkipS3List.includes(authCheck.scope.projectId) ||
+          source === "otel");
 
       return queue
         ? queue.add(
@@ -247,9 +256,7 @@ export const processEventBatch = async (
                   type: eventData.type,
                   eventBodyId: eventData.eventBodyId,
                   fileKey: eventData.key,
-                  skipS3List:
-                    source === "otel" &&
-                    getClickhouseEntityType(eventData.type) === "observation",
+                  skipS3List: shouldSkipS3List,
                 },
                 authCheck: authCheck as {
                   validKey: true;
