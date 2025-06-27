@@ -35,7 +35,7 @@ const notifications: SidebarNotification[] = [
     description:
       "Python SDK V3 offers significant improvements in developer experience, performance, and integrations.",
     link: "https://langfuse.com/docs/sdk/python/sdk-v3#upgrade-from-v2",
-    linkTitle: "Upgrade from v2",
+    linkTitle: "Upgrade to v3",
     createdAt: "2025-06-27",
   },
   {
