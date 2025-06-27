@@ -3,6 +3,7 @@ import { FilterState } from "../types";
 import { z } from "zod/v4";
 
 export enum TriggerEventSource {
+  // eslint-disable-next-line no-unused-vars
   Prompt = "prompt",
 }
 

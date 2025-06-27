@@ -11,15 +11,22 @@ import {
   TriggerDomainWithActions,
 } from "../repositories";
 
+// eslint-disable-next-line no-unused-vars
 export interface AutomationServiceDelegates<T> {
+  // eslint-disable-next-line no-unused-vars
   checkTriggerAppliesToEvent: (trigger: TriggerDomain) => Promise<boolean>;
+
   getExistingActionExecutionForTrigger: (
+    // eslint-disable-next-line no-unused-vars
     trigger: TriggerDomain,
   ) => Promise<{ id: string; status: JobExecutionStatus } | null>;
   createEventId: () => string;
   convertEventToActionInput: (
+    // eslint-disable-next-line no-unused-vars
     actionConfig: ActionDomain,
+    // eslint-disable-next-line no-unused-vars
     trigger: TriggerDomain,
+    // eslint-disable-next-line no-unused-vars
     executionId: string,
   ) => Promise<any>;
 }

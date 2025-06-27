@@ -74,6 +74,7 @@ export function getQueue(
     case QueueName.WebhookQueue:
       return WebhookQueue.getInstance();
     default:
+      // eslint-disable-next-line no-case-declarations, no-unused-vars
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);
   }
