@@ -20,11 +20,12 @@ import {
   TabsTrigger,
 } from "@/src/components/ui/tabs";
 import { Textarea } from "@/src/components/ui/textarea";
-import { type CreatePromptTRPCType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  type CreatePromptTRPCType,
+  PRODUCTION_LABEL,
   type Prompt,
   PromptType,
   extractVariables,
@@ -44,7 +45,6 @@ import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
-import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";

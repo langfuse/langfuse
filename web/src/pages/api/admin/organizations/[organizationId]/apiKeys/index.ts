@@ -1,11 +1,11 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
-import { AdminApiAuthService } from "@/src/features/admin-api/server/adminApiAuth";
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import {
   validateQueryAndExtractId,
   handleGetApiKeys,
   handleCreateApiKey,
-} from "@/src/features/admin-api/organizations/apiKeys";
+} from "@/src/ee/features/admin-api/server/organizations/apiKeys";
 import { prisma } from "@langfuse/shared/src/db";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";

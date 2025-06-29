@@ -1,10 +1,9 @@
-import { formatColumnOptions } from "./typeHelpers";
-import { type ColumnDefinition, type SingleValueOption } from "./types";
-
-export enum PromptType {
-  Chat = "chat",
-  Text = "text",
-}
+import {
+  type ColumnDefinition,
+  PromptType,
+  type SingleValueOption,
+  formatColumnOptions,
+} from "@langfuse/shared";
 
 export const promptsTableCols: ColumnDefinition[] = [
   {

@@ -1,15 +1,15 @@
 import { v4 as uuidv4 } from "uuid";
-import { type CreatePromptTRPCType } from "@/src/features/prompts/server/utils/validation";
 import {
   InvalidRequestError,
   parsePromptDependencyTags,
   jsonSchema,
   type PromptDependency,
   type Prompt,
+  type CreatePromptTRPCType,
+  LATEST_PROMPT_LABEL,
   PromptType,
 } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
-import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
 import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
 import {

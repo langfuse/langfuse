@@ -47,6 +47,8 @@ import {
   availableTraceEvalVariables,
   variableMapping,
   TraceDomain,
+  Observation,
+  DatasetItem,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -725,150 +727,177 @@ export async function extractVariablesFromTracingData({
   variableMapping: z.infer<typeof variableMappingList>;
   datasetItemId?: string;
 }): Promise<{ var: string; value: string; environment?: string }[]> {
-  return Promise.all(
-    variables.map(async (variable) => {
-      const mapping = variableMapping.find(
-        (m) => m.templateVariable === variable,
-      );
+  // Internal cache for this function call to avoid duplicate database lookups.
+  // We do not cache dataset items as Postgres is cheaper than ClickHouse.
+  const traceCache = new Map<string, TraceDomain | null>();
+  const observationCache = new Map<string, Observation | null>();
 
-      // validation ensures that mapping is always defined for a variable
-      if (!mapping) {
-        logger.debug(`No mapping found for variable ${variable}`);
-        return { var: variable, value: "" };
-      }
-      if (mapping.langfuseObject === "dataset_item") {
-        if (!datasetItemId) {
-          logger.warn(
-            `No dataset item id found for variable ${variable}. Eval will succeed without dataset item input.`,
-          );
-          return { var: variable, value: "" };
-        }
+  const results: { var: string; value: string; environment?: string }[] = [];
 
-        // find the internal definitions of the column
-        const safeInternalColumn = availableDatasetEvalVariables
-          .find((o) => o.id === "dataset_item")
-          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+  // We run through this list sequentially to make use of caching.
+  // The performance improvement by parallel execution should be less than the improvement we gain by caching.
+  for (const variable of variables) {
+    const mapping = variableMapping.find(
+      (m) => m.templateVariable === variable,
+    );
 
-        // if no column was found, we still process with an empty variable
-        if (!safeInternalColumn?.id) {
-          logger.error(
-            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-          );
-          return { var: variable, value: "" };
-        }
-
-        const datasetItem = await kyselyPrisma.$kysely
-          .selectFrom("dataset_items as d")
-          .select(
-            sql`${sql.raw(safeInternalColumn.internal)}`.as(
-              safeInternalColumn.id,
-            ),
-          ) // query the internal column name raw
-          .where("id", "=", datasetItemId)
-          .where("project_id", "=", projectId)
-          .executeTakeFirst();
-
-        // user facing errors
-        if (!datasetItem) {
-          logger.error(
-            `Dataset item ${datasetItemId} for project ${projectId} not found. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
-          );
-          // this should only happen for deleted data.
-          throw new LangfuseNotFoundError(
-            `Dataset item ${datasetItemId} for project ${projectId} not found. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
-          );
-        }
-
-        return {
-          var: variable,
-          value: parseDatabaseRowToString(datasetItem, mapping),
-        };
+    // validation ensures that mapping is always defined for a variable
+    if (!mapping) {
+      logger.debug(`No mapping found for variable ${variable}`);
+      results.push({ var: variable, value: "" });
+      continue;
+    }
+    if (mapping.langfuseObject === "dataset_item") {
+      if (!datasetItemId) {
+        logger.warn(
+          `No dataset item id found for variable ${variable}. Eval will succeed without dataset item input.`,
+        );
+        results.push({ var: variable, value: "" });
+        continue;
       }
 
-      if (mapping.langfuseObject === "trace") {
-        // find the internal definitions of the column
-        const safeInternalColumn = availableTraceEvalVariables
-          .find((o) => o.id === "trace")
-          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+      // find the internal definitions of the column
+      const safeInternalColumn = availableDatasetEvalVariables
+        .find((o) => o.id === "dataset_item")
+        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
-        // if no column was found, we still process with an empty variable
-        if (!safeInternalColumn?.id) {
-          logger.error(
-            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-          );
-          return { var: variable, value: "" };
-        }
-
-        const trace = await getTraceById({ traceId, projectId });
-
-        // user facing errors
-        if (!trace) {
-          logger.warn(
-            `Trace ${traceId} for project ${projectId} not found. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
-          );
-          // this should only happen for deleted data or replication lags across clickhouse nodes.
-          throw new LangfuseNotFoundError(
-            `Trace ${traceId} for project ${projectId} not found. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
-          );
-        }
-
-        return {
-          var: variable,
-          value: parseDatabaseRowToString(trace, mapping),
-          environment: trace.environment,
-        };
+      // if no column was found, we still process with an empty variable
+      if (!safeInternalColumn?.id) {
+        logger.error(
+          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+        );
+        results.push({ var: variable, value: "" });
+        continue;
       }
 
-      if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
-        const safeInternalColumn = availableTraceEvalVariables
-          .find((o) => o.id === mapping.langfuseObject)
-          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+      const datasetItem = (await kyselyPrisma.$kysely
+        .selectFrom("dataset_items as d")
+        .select(
+          sql`${sql.raw(safeInternalColumn.internal)}`.as(
+            safeInternalColumn.id,
+          ),
+        ) // query the internal column name raw
+        .where("id", "=", datasetItemId)
+        .where("project_id", "=", projectId)
+        .executeTakeFirst()) as DatasetItem;
 
-        if (!mapping.objectName) {
-          logger.info(
-            `No object name found for variable ${variable} and object ${mapping.langfuseObject}`,
-          );
-          return { var: variable, value: "" };
-        }
-
-        if (!safeInternalColumn?.id) {
-          logger.warn(
-            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-          );
-          return { var: variable, value: "" };
-        }
-
-        const observation = (
-          await getObservationForTraceIdByName(
-            traceId,
-            projectId,
-            mapping.objectName,
-            undefined,
-            true,
-          )
-        ).shift(); // We only take the first match and ignore duplicate generation-names in a trace.
-
-        // user facing errors
-        if (!observation) {
-          logger.warn(
-            `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
-          );
-          // this should only happen for deleted data or data replication lags across clickhouse nodes.
-          throw new LangfuseNotFoundError(
-            `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
-          );
-        }
-
-        return {
-          var: variable,
-          value: parseDatabaseRowToString(observation, mapping),
-          environment: observation.environment,
-        };
+      // user facing errors
+      if (!datasetItem) {
+        logger.error(
+          `Dataset item ${datasetItemId} for project ${projectId} not found. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+        );
+        // this should only happen for deleted data.
+        throw new LangfuseNotFoundError(
+          `Dataset item ${datasetItemId} for project ${projectId} not found. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+        );
       }
 
-      throw new Error(`Unknown object type ${mapping.langfuseObject}`);
-    }),
-  );
+      results.push({
+        var: variable,
+        value: parseDatabaseRowToString(datasetItem, mapping),
+      });
+      continue;
+    }
+
+    if (mapping.langfuseObject === "trace") {
+      // find the internal definitions of the column
+      const safeInternalColumn = availableTraceEvalVariables
+        .find((o) => o.id === "trace")
+        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+
+      // if no column was found, we still process with an empty variable
+      if (!safeInternalColumn?.id) {
+        logger.error(
+          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+        );
+        results.push({ var: variable, value: "" });
+        continue;
+      }
+
+      const traceCacheKey = `${projectId}:${traceId}`;
+      let trace = traceCache.get(traceCacheKey);
+      if (!traceCache.has(traceCacheKey)) {
+        trace = await getTraceById({ traceId, projectId });
+        traceCache.set(traceCacheKey, trace ?? null);
+      }
+
+      // user facing errors
+      if (!trace) {
+        logger.warn(
+          `Trace ${traceId} for project ${projectId} not found. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
+        );
+        // this should only happen for deleted data or replication lags across clickhouse nodes.
+        throw new LangfuseNotFoundError(
+          `Trace ${traceId} for project ${projectId} not found. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
+        );
+      }
+
+      results.push({
+        var: variable,
+        value: parseDatabaseRowToString(trace, mapping),
+        environment: trace.environment,
+      });
+      continue;
+    }
+
+    if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
+      const safeInternalColumn = availableTraceEvalVariables
+        .find((o) => o.id === mapping.langfuseObject)
+        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+
+      if (!mapping.objectName) {
+        logger.info(
+          `No object name found for variable ${variable} and object ${mapping.langfuseObject}`,
+        );
+        results.push({ var: variable, value: "" });
+        continue;
+      }
+
+      if (!safeInternalColumn?.id) {
+        logger.warn(
+          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+        );
+        results.push({ var: variable, value: "" });
+        continue;
+      }
+
+      const observationCacheKey = `${projectId}:${traceId}:${mapping.objectName}`;
+      let observation = observationCache.get(observationCacheKey);
+      if (!observationCache.has(observationCacheKey)) {
+        const observations = await getObservationForTraceIdByName(
+          traceId,
+          projectId,
+          mapping.objectName,
+          undefined,
+          true,
+        );
+        observation = observations.shift() || null; // We only take the first match and ignore duplicate generation-names in a trace.
+        observationCache.set(observationCacheKey, observation);
+      }
+
+      // user facing errors
+      if (!observation) {
+        logger.warn(
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
+        );
+        // this should only happen for deleted data or data replication lags across clickhouse nodes.
+        throw new LangfuseNotFoundError(
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
+        );
+      }
+
+      results.push({
+        var: variable,
+        value: parseDatabaseRowToString(observation, mapping),
+        environment: observation.environment,
+      });
+      continue;
+    }
+
+    throw new Error(`Unknown object type ${mapping.langfuseObject}`);
+  }
+
+  return results;
 }
 
 export const parseDatabaseRowToString = (

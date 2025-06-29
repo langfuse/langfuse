@@ -3,12 +3,12 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
-import { type Prompt } from "@langfuse/shared";
 import {
   PromptSchema,
   type ValidatedPrompt,
-} from "@/src/features/prompts/server/utils/validation";
-import { parsePromptDependencyTags, PromptType } from "@langfuse/shared";
+  type Prompt,
+} from "@langfuse/shared";
+import { parsePromptDependencyTags } from "@langfuse/shared";
 import { nanoid } from "ai";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";

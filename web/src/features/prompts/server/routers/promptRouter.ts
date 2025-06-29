@@ -1,10 +1,6 @@
 import { z } from "zod/v4";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  CreatePromptTRPCSchema,
-  PromptLabelSchema,
-} from "@/src/features/prompts/server/utils/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -15,14 +11,15 @@ import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import {
+  CreatePromptTRPCSchema,
   InvalidRequestError,
+  LATEST_PROMPT_LABEL,
   optionalPaginationZod,
   paginationZod,
-  promptsTableCols,
+  PromptLabelSchema,
   PromptType,
 } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
-import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import {
   orderByToPrismaSql,
   PromptService,
