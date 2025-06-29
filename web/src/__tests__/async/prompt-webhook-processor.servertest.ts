@@ -11,31 +11,13 @@ import {
 } from "@langfuse/shared";
 import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 
-const __orgIds: string[] = [];
-
 describe("processPromptWebhooks", () => {
   let projectId: string;
-  let orgId: string;
 
   beforeEach(async () => {
-    const { project, org } = await createOrgProjectAndApiKey();
+    const { project } = await createOrgProjectAndApiKey();
     projectId = project.id;
-    orgId = org.id;
-    __orgIds.push(org.id);
   });
-
-  afterEach(async () => {
-    await cleanup();
-  });
-
-  async function cleanup() {
-    for (const orgId of __orgIds) {
-      await prisma.organization.delete({
-        where: { id: orgId },
-      });
-    }
-    __orgIds.length = 0;
-  }
 
   async function createTestAction() {
     const actionId = v4();
