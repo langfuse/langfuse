@@ -10,7 +10,9 @@ export const SingleChatMessageSchema = z.object({
 });
 
 export enum PromptType {
+  // eslint-disable-next-line no-unused-vars
   Chat = "chat",
+  // eslint-disable-next-line no-unused-vars
   Text = "text",
 }
 
