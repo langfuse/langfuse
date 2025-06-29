@@ -11,8 +11,12 @@ import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
-import { NumberParam, StringParam, useQueryParams, withDefault } from "use-query-params";
+import {
+  NumberParam,
+  StringParam,
+  useQueryParams,
+  withDefault,
+} from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -27,6 +31,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Slash, Folder, Home } from "lucide-react";
+import { promptsTableColsWithOptions } from "@langfuse/shared";
 
 type PromptTableRow = {
   id: string;
@@ -40,7 +45,11 @@ type PromptTableRow = {
 };
 
 function createRow(
-  data: Partial<PromptTableRow> & { id: string; name: string; type: "folder" | "text" | "chat" }
+  data: Partial<PromptTableRow> & {
+    id: string;
+    name: string;
+    type: "folder" | "text" | "chat";
+  },
 ): PromptTableRow {
   return {
     version: undefined,
@@ -52,12 +61,14 @@ function createRow(
   };
 }
 
-function isFolder(row: PromptTableRow): row is PromptTableRow & { type: "folder" } {
+function isFolder(
+  row: PromptTableRow,
+): row is PromptTableRow & { type: "folder" } {
   return row.type === "folder";
 }
 
 function getDisplayName(fullPath: string, currentFolderPath: string): string {
-  return currentFolderPath === ''
+  return currentFolderPath === ""
     ? fullPath
     : fullPath.substring(currentFolderPath.length + 1);
 }
@@ -65,9 +76,9 @@ function getDisplayName(fullPath: string, currentFolderPath: string): string {
 function createBreadcrumbItems(currentFolderPath: string) {
   if (!currentFolderPath) return [];
 
-  const segments = currentFolderPath.split('/');
+  const segments = currentFolderPath.split("/");
   return segments.map((name, i) => {
-    const folderPath = segments.slice(0, i + 1).join('/');
+    const folderPath = segments.slice(0, i + 1).join("/");
     return {
       name,
       folderPath,
@@ -100,7 +111,7 @@ export function PromptTable() {
     pageSize: queryParams.pageSize,
   };
 
-  const currentFolderPath = queryParams.folder || '';
+  const currentFolderPath = queryParams.folder || "";
 
   const prompts = api.prompts.all.useQuery(
     {
@@ -167,7 +178,7 @@ export function PromptTable() {
         const prefix = `${currentFolderPath}/`;
         if (promptName.startsWith(prefix)) {
           const remainingPath = promptName.substring(prefix.length);
-          const slashIndex = remainingPath.indexOf('/');
+          const slashIndex = remainingPath.indexOf("/");
 
           if (slashIndex > 0) {
             // Subfolder
@@ -181,7 +192,7 @@ export function PromptTable() {
         }
       } else {
         // Root level
-        const slashIndex = promptName.indexOf('/');
+        const slashIndex = promptName.indexOf("/");
         if (slashIndex > 0) {
           const folderName = promptName.substring(0, slashIndex);
           uniqueFolders.add(folderName);
@@ -197,11 +208,13 @@ export function PromptTable() {
     // Add folder rows
     for (const folderPath of uniqueFolders) {
       const folderName = getDisplayName(folderPath, currentFolderPath);
-      combinedRows.push(createRow({
-        id: folderPath,
-        name: folderName,
-        type: "folder",
-      }));
+      combinedRows.push(
+        createRow({
+          id: folderPath,
+          name: folderName,
+          type: "folder",
+        }),
+      );
     }
 
     // Add matching prompts
@@ -216,7 +229,7 @@ export function PromptTable() {
           labels: prompt.labels,
           tags: prompt.tags,
           numberOfObservations: Number(prompt.observationCount ?? 0),
-        })
+        }),
       );
     }
 
@@ -284,7 +297,7 @@ export function PromptTable() {
                 setQueryParams({
                   folder: rowData.id,
                   pageIndex: 0,
-                  pageSize: queryParams.pageSize
+                  pageSize: queryParams.pageSize,
                 });
               }}
               title={displayName || ""}
@@ -397,7 +410,7 @@ export function PromptTable() {
   return (
     <>
       {currentFolderPath && (
-        <div className="pt-2 ml-2">
+        <div className="ml-2 pt-2">
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
@@ -407,38 +420,40 @@ export function PromptTable() {
                     setQueryParams({
                       folder: undefined,
                       pageIndex: 0,
-                      pageSize: queryParams.pageSize
+                      pageSize: queryParams.pageSize,
                     });
                   }}
                 >
                   <Home className="h-4 w-4" />
                 </BreadcrumbLink>
               </BreadcrumbItem>
-              {createBreadcrumbItems(currentFolderPath).flatMap((item, index, array) => [
-                index > 0 && (
-                  <BreadcrumbSeparator key={`sep-${item.folderPath}`}>
-                    <Slash />
-                  </BreadcrumbSeparator>
-                ),
-                <BreadcrumbItem key={item.folderPath}>
-                  {index === array.length - 1 ? (
-                    <BreadcrumbPage>{item.name}</BreadcrumbPage>
-                  ) : (
-                    <BreadcrumbLink
-                      className="cursor-pointer hover:underline"
-                      onClick={() => {
-                        setQueryParams({
-                          folder: item.folderPath,
-                          pageIndex: 0,
-                          pageSize: queryParams.pageSize
-                        });
-                      }}
-                    >
-                      {item.name}
-                    </BreadcrumbLink>
-                  )}
-                </BreadcrumbItem>
-              ])}
+              {createBreadcrumbItems(currentFolderPath).flatMap(
+                (item, index, array) => [
+                  index > 0 && (
+                    <BreadcrumbSeparator key={`sep-${item.folderPath}`}>
+                      <Slash />
+                    </BreadcrumbSeparator>
+                  ),
+                  <BreadcrumbItem key={item.folderPath}>
+                    {index === array.length - 1 ? (
+                      <BreadcrumbPage>{item.name}</BreadcrumbPage>
+                    ) : (
+                      <BreadcrumbLink
+                        className="cursor-pointer hover:underline"
+                        onClick={() => {
+                          setQueryParams({
+                            folder: item.folderPath,
+                            pageIndex: 0,
+                            pageSize: queryParams.pageSize,
+                          });
+                        }}
+                      >
+                        {item.name}
+                      </BreadcrumbLink>
+                    )}
+                  </BreadcrumbItem>,
+                ],
+              )}
             </BreadcrumbList>
           </Breadcrumb>
         </div>
@@ -468,11 +483,12 @@ export function PromptTable() {
                   isError: false,
                   data: processedRowData.rows?.map((item) => ({
                     id: item.id,
-                    name: item.type === 'folder'
-                      ? item.name
-                      : currentFolderPath
-                        ? item.name.substring(currentFolderPath.length + 1)
-                        : item.name,
+                    name:
+                      item.type === "folder"
+                        ? item.name
+                        : currentFolderPath
+                          ? item.name.substring(currentFolderPath.length + 1)
+                          : item.name,
                     version: item.version,
                     createdAt: item.createdAt,
                     type: item.type,
