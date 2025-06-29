@@ -13,7 +13,6 @@ import {
 import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { PromptLabelSchema } from "@/src/features/prompts/server/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { XIcon, Check, ChevronsUpDown } from "lucide-react";
@@ -31,11 +30,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 import {
   LATEST_PROMPT_LABEL,
   PRODUCTION_LABEL,
-} from "@/src/features/prompts/constants";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+  PromptLabelSchema,
+} from "@langfuse/shared";
 
 const AddLabelFormSchema = z.object({
   label: PromptLabelSchema,
