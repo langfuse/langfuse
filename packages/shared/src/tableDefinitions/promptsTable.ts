@@ -1,9 +1,6 @@
-import {
-  type ColumnDefinition,
-  PromptType,
-  type SingleValueOption,
-  formatColumnOptions,
-} from "@langfuse/shared";
+import { PromptType } from "../features/prompts/types";
+import { formatColumnOptions } from "./typeHelpers";
+import { ColumnDefinition, SingleValueOption } from "./types";
 
 export const promptsTableCols: ColumnDefinition[] = [
   {
