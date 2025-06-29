@@ -6,16 +6,15 @@ import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod/v4";
 import {
-  LegacyCreatePromptSchema,
-  GetPromptSchema,
-} from "@/src/features/prompts/server/utils/types";
-import {
   UnauthorizedError,
   LangfuseNotFoundError,
   BaseError,
   MethodNotAllowedError,
   ForbiddenError,
   type Prompt,
+  GetPromptSchema,
+  LegacyCreatePromptSchema,
+  PRODUCTION_LABEL,
 } from "@langfuse/shared";
 import {
   PromptService,
@@ -24,7 +23,6 @@ import {
   traceException,
   logger,
 } from "@langfuse/shared/src/server";
-import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { telemetry } from "@/src/features/telemetry";
 
