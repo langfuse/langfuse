@@ -8,7 +8,7 @@ import {
   LegacyPromptSchema,
   PromptType,
   type LegacyValidatedPrompt,
-} from "@/src/features/prompts/server/utils/validation";
+} from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 
 describe("/api/public/prompts API Endpoint", () => {
