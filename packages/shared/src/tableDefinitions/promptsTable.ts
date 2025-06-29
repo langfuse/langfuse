@@ -1,9 +1,10 @@
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import {
-  type ColumnDefinition,
-  type SingleValueOption,
-  formatColumnOptions,
-} from "@langfuse/shared";
+import { formatColumnOptions } from "./typeHelpers";
+import { type ColumnDefinition, type SingleValueOption } from "./types";
+
+export enum PromptType {
+  Chat = "chat",
+  Text = "text",
+}
 
 export const promptsTableCols: ColumnDefinition[] = [
   {

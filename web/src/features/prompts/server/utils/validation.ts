@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { jsonSchema, PromptNameSchema } from "@langfuse/shared";
+import { jsonSchema, PromptNameSchema, PromptType } from "@langfuse/shared";
 import type { Prompt } from "@langfuse/shared";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
@@ -7,11 +7,6 @@ export const ChatMessageSchema = z.object({
   role: z.string(),
   content: z.string(),
 });
-
-export enum PromptType {
-  Chat = "chat",
-  Text = "text",
-}
 
 export const PromptLabelSchema = z
   .string()

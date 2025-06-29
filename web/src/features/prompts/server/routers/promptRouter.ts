@@ -4,7 +4,6 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   CreatePromptTRPCSchema,
   PromptLabelSchema,
-  PromptType,
 } from "@/src/features/prompts/server/utils/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -19,6 +18,8 @@ import {
   InvalidRequestError,
   optionalPaginationZod,
   paginationZod,
+  promptsTableCols,
+  PromptType,
 } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
@@ -35,7 +36,6 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeProcessor";
-import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure

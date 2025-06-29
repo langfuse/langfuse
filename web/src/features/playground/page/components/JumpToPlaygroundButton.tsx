@@ -12,7 +12,6 @@ import {
   type PlaygroundSchema,
 } from "@/src/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
@@ -28,6 +27,7 @@ import {
   type ChatMessage,
   OpenAIResponseFormatSchema,
   type Prisma,
+  PromptType,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";

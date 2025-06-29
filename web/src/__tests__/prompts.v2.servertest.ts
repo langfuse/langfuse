@@ -6,10 +6,9 @@ import { v4 as uuidv4, v4 } from "uuid";
 import { type Prompt } from "@langfuse/shared";
 import {
   PromptSchema,
-  PromptType,
   type ValidatedPrompt,
 } from "@/src/features/prompts/server/utils/validation";
-import { parsePromptDependencyTags } from "@langfuse/shared";
+import { parsePromptDependencyTags, PromptType } from "@langfuse/shared";
 import { nanoid } from "ai";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
@@ -705,7 +704,9 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         });
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Invalid request data");
-        const hasExpectedMessage = JSON.stringify(response.body.error).includes(`"message":"${expectedError}"`);
+        const hasExpectedMessage = JSON.stringify(response.body.error).includes(
+          `"message":"${expectedError}"`,
+        );
         expect(hasExpectedMessage).toBe(true);
       };
 
@@ -723,10 +724,19 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       it("should reject invalid prompt names", async () => {
         // Test invalid patterns
-        await testInvalidName("/invalid-name", "Name cannot start with a slash");
+        await testInvalidName(
+          "/invalid-name",
+          "Name cannot start with a slash",
+        );
         await testInvalidName("invalid-name/", "Name cannot end with a slash");
-        await testInvalidName("invalid//name", "Name cannot contain consecutive slashes");
-        await testInvalidName("invalid|name", "Prompt name cannot contain '|' character");
+        await testInvalidName(
+          "invalid//name",
+          "Name cannot contain consecutive slashes",
+        );
+        await testInvalidName(
+          "invalid|name",
+          "Prompt name cannot contain '|' character",
+        );
         await testInvalidName("new", "Prompt name cannot be 'new'");
         await testInvalidName("", "Enter a name");
       });
@@ -848,7 +858,9 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       // Verify the name with slashes is preserved
       expect(validatedPrompt.name).toBe(promptName);
       expect(validatedPrompt.name).toContain("/");
-      expect(validatedPrompt.prompt).toBe("This is a prompt in a folder structure");
+      expect(validatedPrompt.prompt).toBe(
+        "This is a prompt in a folder structure",
+      );
     });
   });
 

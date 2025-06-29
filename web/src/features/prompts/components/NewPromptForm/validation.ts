@@ -1,9 +1,9 @@
 import { z } from "zod/v4";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   PromptChatMessageListSchema,
   TextPromptSchema,
   PromptNameSchema,
+  PromptType,
 } from "@langfuse/shared";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 

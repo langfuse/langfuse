@@ -20,15 +20,13 @@ import {
   TabsTrigger,
 } from "@/src/components/ui/tabs";
 import { Textarea } from "@/src/components/ui/textarea";
-import {
-  type CreatePromptTRPCType,
-  PromptType,
-} from "@/src/features/prompts/server/utils/validation";
+import { type CreatePromptTRPCType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type Prompt,
+  PromptType,
   extractVariables,
   getIsCharOrUnderscore,
 } from "@langfuse/shared";
@@ -215,7 +213,16 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormDescription>
-                      Use slashes &apos;/&apos; in prompt names to organize them into <a target="_blank" rel="noopener noreferrer" href="https://langfuse.com/docs/prompts/get-started#prompt-folders-for-organization"><i>folders</i></a>.
+                      Use slashes &apos;/&apos; in prompt names to organize them
+                      into{" "}
+                      <a
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        href="https://langfuse.com/docs/prompts/get-started#prompt-folders-for-organization"
+                      >
+                        <i>folders</i>
+                      </a>
+                      .
                     </FormDescription>
                     <FormControl>
                       <Input placeholder="Name your prompt" {...field} />

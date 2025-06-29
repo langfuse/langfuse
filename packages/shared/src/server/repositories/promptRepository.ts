@@ -1,13 +1,9 @@
-import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
-import { type FilterState } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 import { Prisma } from "@prisma/client";
+import { prisma } from "../../db";
+import { FilterState } from "../../types";
+import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
+import { promptsTableCols } from "../../tableDefinitions";
 
-/**
- * Check if any prompt exists for the given projectId and filter conditions
- * (useful for general filter validation)
- */
 export async function anyPromptExists(params: {
   projectId: string;
   promptId: string;
