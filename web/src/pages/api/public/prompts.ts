@@ -8,7 +8,7 @@ import { z } from "zod/v4";
 import {
   LegacyCreatePromptSchema,
   GetPromptSchema,
-} from "@/src/features/prompts/server/utils/validation";
+} from "@/src/features/prompts/server/utils/types";
 import {
   UnauthorizedError,
   LangfuseNotFoundError,

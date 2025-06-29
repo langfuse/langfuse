@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   type CreatePromptTRPCType,
   PromptType,
-} from "@/src/features/prompts/server/utils/validation";
+} from "@/src/features/prompts/server/utils/types";
 import {
   InvalidRequestError,
   parsePromptDependencyTags,

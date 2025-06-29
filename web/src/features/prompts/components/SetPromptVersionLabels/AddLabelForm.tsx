@@ -12,7 +12,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PromptLabelSchema } from "@/src/features/prompts/server/utils/validation";
+import { PromptLabelSchema } from "@/src/features/prompts/server/utils/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
 

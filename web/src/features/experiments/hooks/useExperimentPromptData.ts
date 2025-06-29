@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { type UseFormReturn } from "react-hook-form";
 import { extractVariables } from "@langfuse/shared";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/types";
 
 type ExperimentPromptDataProps = {
   projectId: string;

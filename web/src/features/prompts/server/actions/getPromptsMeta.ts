@@ -1,4 +1,4 @@
-import { type GetPromptsMetaType } from "@/src/features/prompts/server/utils/validation";
+import { type GetPromptsMetaType } from "@/src/features/prompts/server/utils/types";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { type FilterState } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";

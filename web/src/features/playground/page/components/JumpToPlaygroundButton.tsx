@@ -12,7 +12,7 @@ import {
   type PlaygroundSchema,
 } from "@/src/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/types";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,

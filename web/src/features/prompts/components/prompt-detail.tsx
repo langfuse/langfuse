@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/types";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@langfuse/shared";
@@ -95,16 +95,18 @@ ${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPr
 langfuse.getPrompt("${name}", ${version})
 `;
 
-export const PromptDetail = ({ promptName: promptNameProp }: { promptName?: string } = {}) => {
+export const PromptDetail = ({
+  promptName: promptNameProp,
+}: { promptName?: string } = {}) => {
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
   const router = useRouter();
 
-  const promptName = promptNameProp || (
-    router.query.promptName
+  const promptName =
+    promptNameProp ||
+    (router.query.promptName
       ? decodeURIComponent(router.query.promptName as string)
-      : ''
-  );
+      : "");
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
     NumberParam,

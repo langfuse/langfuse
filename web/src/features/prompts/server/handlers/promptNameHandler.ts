@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
-import { GetPromptByNameSchema } from "@/src/features/prompts/server/utils/validation";
+import { GetPromptByNameSchema } from "@/src/features/prompts/server/utils/types";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 import { LangfuseNotFoundError } from "@langfuse/shared";

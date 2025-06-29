@@ -12,7 +12,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/types";
 import {
   type DatasetItem,
   DatasetStatus,

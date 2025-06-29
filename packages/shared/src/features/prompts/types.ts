@@ -1,9 +1,10 @@
 import { z } from "zod/v4";
-import { jsonSchema, PromptNameSchema } from "@langfuse/shared";
-import type { Prompt } from "@langfuse/shared";
-import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
+import { Prompt } from "../../../prisma/generated/types";
+import { jsonSchema } from "../../utils/zod";
+import { COMMIT_MESSAGE_MAX_LENGTH } from "./constants";
+import { PromptNameSchema } from "./validation";
 
-export const ChatMessageSchema = z.object({
+export const SingleChatMessageSchema = z.object({
   role: z.string(),
   content: z.string(),
 });
@@ -41,7 +42,7 @@ const BaseCreateChatPromptSchema = z.object({
   name: PromptNameSchema,
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Chat),
-  prompt: z.array(ChatMessageSchema),
+  prompt: z.array(SingleChatMessageSchema),
   config: jsonSchema.nullable().default({}),
   tags: z.array(z.string()).nullish(),
 });
@@ -134,7 +135,7 @@ export const BaseChatPromptSchema = z.object({
   tags: z.array(z.string()),
   labels: z.array(PromptLabelSchema),
   type: z.literal(PromptType.Chat),
-  prompt: z.array(ChatMessageSchema),
+  prompt: z.array(SingleChatMessageSchema),
   config: jsonSchema,
 });
 

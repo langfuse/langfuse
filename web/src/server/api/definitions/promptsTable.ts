@@ -1,4 +1,4 @@
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/types";
 import {
   type ColumnDefinition,
   type SingleValueOption,

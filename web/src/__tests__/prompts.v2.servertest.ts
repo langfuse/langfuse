@@ -8,7 +8,7 @@ import {
   PromptSchema,
   PromptType,
   type ValidatedPrompt,
-} from "@/src/features/prompts/server/utils/validation";
+} from "@/src/features/prompts/server/utils/types";
 import { parsePromptDependencyTags } from "@langfuse/shared";
 import { nanoid } from "ai";
 

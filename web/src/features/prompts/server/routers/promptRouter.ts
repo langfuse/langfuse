@@ -5,7 +5,7 @@ import {
   CreatePromptTRPCSchema,
   PromptLabelSchema,
   PromptType,
-} from "@/src/features/prompts/server/utils/validation";
+} from "@/src/features/prompts/server/utils/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -89,7 +89,7 @@ export const promptRouter = createTRPCRouter({
       );
 
       const pathFilter = input.pathPrefix
-        ? Prisma.sql` AND (p.name LIKE ${input.pathPrefix + '/%'} OR p.name = ${input.pathPrefix})`
+        ? Prisma.sql` AND (p.name LIKE ${input.pathPrefix + "/%"} OR p.name = ${input.pathPrefix})`
         : Prisma.empty;
 
       const [prompts, promptCount] = await Promise.all([
