@@ -1,6 +1,6 @@
-import { PromptType } from "@/src/features/prompts/server/utils/types";
 import {
   type ColumnDefinition,
+  PromptType,
   type SingleValueOption,
   formatColumnOptions,
 } from "@langfuse/shared";
