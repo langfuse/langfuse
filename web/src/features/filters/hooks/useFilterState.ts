@@ -5,6 +5,7 @@ import {
   tracesTableCols,
   singleFilter,
   sessionsViewCols,
+  promptsTableCols,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -13,7 +14,6 @@ import {
   decodeDelimitedArray,
   withDefault,
 } from "use-query-params";
-import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";

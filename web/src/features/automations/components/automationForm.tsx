@@ -35,16 +35,14 @@ import {
   type AutomationDomain,
   type ActionTypes,
   type JobConfigState,
+  promptsTableCols,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { ActionHandlerRegistry } from "./actions";
-
 import { webhookSchema } from "./actions/WebhookActionForm";
-
-import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 
 // Define the TriggerEventSource enum directly in this file to match the backend
