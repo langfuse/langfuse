@@ -17,6 +17,7 @@ import {
   optionalPaginationZod,
   paginationZod,
   PromptLabelSchema,
+  promptsTableCols,
   PromptType,
 } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
