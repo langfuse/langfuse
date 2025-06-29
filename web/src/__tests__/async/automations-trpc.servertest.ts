@@ -899,12 +899,13 @@ describe("automations trpc", () => {
       const { project, caller } = await prepare();
 
       // Test with non-existent action ID - this will trigger the validation
+      const actionId = v4();
       await expect(
         caller.automations.regenerateWebhookSecret({
           projectId: project.id,
-          actionId: v4(), // Random non-existent action ID
+          actionId,
         }),
-      ).rejects.toThrow("Internal error");
+      ).rejects.toThrow(`Action with id ${actionId} not found.`);
     });
 
     it("should throw error when user lacks automations:CUD access", async () => {

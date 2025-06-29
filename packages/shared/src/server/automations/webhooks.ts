@@ -6,14 +6,11 @@ import {
 } from "../../../prisma/generated/types";
 import { PromptWebhookOutboundSchema } from "../../domain";
 import { prisma } from "../../db";
-import { recordIncrement } from "../instrumentation";
 import { TQueueJobTypes, QueueName, WebhookInput } from "../queues";
 import {
   getActionByIdWithSecrets,
   getConsecutiveAutomationFailures,
 } from "../repositories";
-import { PromptService } from "../services/PromptService";
-import { redis } from "../redis/redis";
 import { logger } from "..";
 import { createSignatureHeader } from "../../encryption/signature";
 import { decrypt } from "../../encryption";
@@ -56,21 +53,6 @@ export const executeWebhook = async (input: WebhookInput) => {
       throw new InternalServerError("Action config is not a webhook");
     }
 
-    const promptService = new PromptService(prisma, redis, recordIncrement);
-
-    const prompt = await promptService.getPrompt({
-      projectId,
-      promptName: input.payload.promptName,
-      version: input.payload.promptVersion,
-      label: undefined,
-    });
-
-    if (!prompt) {
-      throw new LangfuseNotFoundError(
-        `Prompt ${input.payload.promptName} version ${input.payload.promptVersion} not found for project ${projectId}`,
-      );
-    }
-
     // TypeScript now knows actionConfig.config is WebhookActionConfig
     const webhookConfig = actionConfig.config;
 
@@ -94,7 +76,7 @@ export const executeWebhook = async (input: WebhookInput) => {
       timestamp: new Date(),
       type: input.payload.type,
       action: input.payload.action,
-      prompt,
+      prompt: input.payload.prompt,
     });
 
     if (!validatedPayload.success) {

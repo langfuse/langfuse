@@ -186,9 +186,6 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  QUEUE_CONSUMER_PROMPT_VERSION_CHANGE_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z

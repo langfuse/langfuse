@@ -68,3 +68,7 @@ export function promptsTableColsWithOptions(
     return col;
   });
 }
+
+export function webhookActionFilterOptions(): ColumnDefinition[] {
+  return promptsTableCols;
+}

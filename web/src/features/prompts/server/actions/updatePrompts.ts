@@ -149,6 +149,9 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
       },
     });
 
+    // For updates, we need the before state, but we don't have it easily accessible here
+    // This updatePrompt function only handles label updates, so the main content doesn't change
+    // We'll pass undefined for now since label changes don't need before state for webhooks
     for (const prompt of updatedPrompts) {
       await promptChangeEventSourcing(prompt, "updated");
     }

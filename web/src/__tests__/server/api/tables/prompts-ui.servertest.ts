@@ -1,4 +1,7 @@
-import { createObservationsCh } from "@langfuse/shared/src/server";
+import {
+  createObservation,
+  createObservationsCh,
+} from "@langfuse/shared/src/server";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationMetricsForPrompts,
@@ -14,7 +17,7 @@ describe("UI Prompts Table", () => {
   });
 
   it("should count the observations which belong to a prompt", async () => {
-    const observation = {
+    const observation = createObservation({
       id: v4(),
       project_id: projectId,
       trace_id: v4(),
@@ -51,7 +54,7 @@ describe("UI Prompts Table", () => {
       prompt_version: 1,
       end_time: Date.now(),
       completion_start_time: Date.now(),
-    };
+    });
 
     const secondObservation = {
       ...observation,
@@ -89,7 +92,7 @@ describe("UI Prompts Table", () => {
   });
 
   it("should correctly calculate prompt metrics", async () => {
-    const observation = {
+    const observation = createObservation({
       id: v4(),
       project_id: projectId,
       trace_id: v4(),
@@ -126,20 +129,20 @@ describe("UI Prompts Table", () => {
       prompt_id: "some-prompt-id",
       end_time: Date.now(),
       completion_start_time: Date.now(),
-    };
+    });
 
-    const secondObservation = {
+    const secondObservation = createObservation({
       ...observation,
       id: v4(),
       prompt_version: 2,
       usage_details: { input: 42, output: 5654 },
-    };
-    const thirdObservation = {
+    });
+    const thirdObservation = createObservation({
       ...observation,
       id: v4(),
       prompt_version: 2,
       cost_details: { input: 234, output: 755 },
-    };
+    });
     await createObservationsCh([
       observation,
       secondObservation,

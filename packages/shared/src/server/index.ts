@@ -44,7 +44,6 @@ export * from "./redis/coreDataS3ExportQueue";
 export * from "./redis/meteringDataPostgresExportQueue";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
-export * from "./redis/promptVersionChangeQueue";
 export * from "./auth/types";
 export * from "./queues";
 export * from "./orderByToPrisma";
@@ -66,7 +65,6 @@ export * from "./s3";
 
 export * from "./automations/automationService";
 export * from "./automations/webhooks";
-export * from "./automations/promptVersionChangeProcessor";
 
 // test utils
 export * from "./test-utils";

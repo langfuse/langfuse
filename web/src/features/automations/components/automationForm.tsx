@@ -35,7 +35,7 @@ import {
   type AutomationDomain,
   type ActionTypes,
   type JobConfigState,
-  promptsTableCols,
+  webhookActionFilterOptions,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
@@ -399,7 +399,7 @@ export const AutomationForm = ({
                   <FormLabel>Filter</FormLabel>
                   <FormControl>
                     <InlineFilterBuilder
-                      columns={promptsTableCols}
+                      columns={webhookActionFilterOptions()}
                       filterState={field.value || []}
                       onChange={field.onChange}
                       disabled={

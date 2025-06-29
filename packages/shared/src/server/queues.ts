@@ -7,6 +7,8 @@ import {
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema, ObservationTypeDomain } from "../domain";
+import { PromptSchema } from "../features/prompts/types";
+import { PromptDomainSchema } from "../domain/prompts";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -131,8 +133,7 @@ export const DeadLetterRetryQueueEventSchema = z.object({
 });
 
 export const WebhookOutboundEnvelopeSchema = z.object({
-  promptName: z.string(),
-  promptVersion: z.number(),
+  prompt: PromptDomainSchema,
   action: EventActionSchema,
   type: z.literal("prompt"),
 });
@@ -146,16 +147,7 @@ export const WebhookInputSchema = z.object({
   payload: WebhookOutboundEnvelopeSchema,
 });
 
-export const PromptVersionChangeEventSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  version: z.number(),
-  projectId: z.string(),
-  type: z.enum(["created", "updated", "deleted"]),
-});
-
 export type WebhookInput = z.infer<typeof WebhookInputSchema>;
-export type PromptVersionChangeEvent = z.infer<typeof PromptVersionChangeEventSchema>;
 
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
@@ -215,7 +207,6 @@ export enum QueueName {
   ScoreDelete = "score-delete",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
-  PromptVersionChangeQueue = "prompt-version-change-queue",
 }
 
 export enum QueueJobs {
@@ -242,7 +233,6 @@ export enum QueueJobs {
   ScoreDelete = "score-delete",
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
-  PromptVersionChangeJob = "prompt-version-change-job",
 }
 
 export type TQueueJobTypes = {
@@ -347,11 +337,5 @@ export type TQueueJobTypes = {
     id: string;
     payload: WebhookInput;
     name: QueueJobs.WebhookJob;
-  };
-  [QueueName.PromptVersionChangeQueue]: {
-    timestamp: Date;
-    id: string;
-    payload: PromptVersionChangeEvent;
-    name: QueueJobs.PromptVersionChangeJob;
   };
 };

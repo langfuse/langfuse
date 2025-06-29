@@ -55,7 +55,6 @@ import {
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
-import { promptVersionChangeQueueProcessor } from "./queues/promptVersionChangeQueue";
 
 const app = express();
 
@@ -343,12 +342,6 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.WebhookQueue, webhookProcessor, {
     concurrency: 5,
-  });
-}
-
-if (env.QUEUE_CONSUMER_PROMPT_VERSION_CHANGE_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(QueueName.PromptVersionChangeQueue, promptVersionChangeQueueProcessor, {
-    concurrency: 3,
   });
 }
 

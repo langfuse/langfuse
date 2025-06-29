@@ -452,10 +452,7 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt deletion
         for (const prompt of prompts) {
-          await promptChangeEventSourcing(
-            prompt, // Full prompt data
-            "deleted",
-          );
+          await promptChangeEventSourcing(prompt, "deleted");
         }
       } catch (e) {
         logger.error(e);
@@ -800,9 +797,12 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        for (const prompt of updatedPrompts) {
-          await promptChangeEventSourcing(prompt, "updated");
-        }
+        // Send webhooks for ALL affected prompts
+        await Promise.all(
+          updatedPrompts.map((prompt) =>
+            promptChangeEventSourcing(prompt, "updated"),
+          ),
+        );
         return updatedPrompt;
       } catch (e) {
         logger.error(`Failed to set prompt labels: ${e}`, e);
