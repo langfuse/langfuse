@@ -11,7 +11,7 @@ alwaysApply: true
 ## File Structure
 
 - We generally put all code related to a net-new feature into a folder within web/src/features.
-- Checkout other features to learn about the common structure.
+- Check out other features to learn about the common structure.
 
 ## API for frontend features
 
