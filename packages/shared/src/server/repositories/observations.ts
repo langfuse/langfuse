@@ -687,7 +687,11 @@ const getObservationsTableInternal = async <T>(
   const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(opts.searchQuery, opts.searchType, "o");
+  const search = clickhouseSearchCondition(
+    opts.searchQuery,
+    opts.searchType,
+    "o",
+  );
 
   const scoresCte = `WITH scores_agg AS (
     SELECT
@@ -1494,13 +1498,13 @@ export const getGenerationsForPostHog = async function* (
       o.provided_model_name as model,
       o.level as level,
       o.version as version,
+      o.environment as environment,
       t.id as trace_id,
       t.name as trace_name,
       t.session_id as trace_session_id,
       t.user_id as trace_user_id,
       t.release as trace_release,
       t.tags as trace_tags,
-      t.environment as trace_environment,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM observations o FINAL
     LEFT JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
