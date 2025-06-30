@@ -16,7 +16,10 @@ import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/
 import {
   createOrgProjectAndApiKey,
   getObservationById,
+  getQueue,
+  IngestionQueue,
   MAX_PROMPT_NESTING_DEPTH,
+  QueueName,
   WebhookQueue,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
@@ -39,6 +42,22 @@ type CreatePromptInDBParams = {
   createdAt?: Date;
   updatedAt?: Date;
 };
+
+export const getQueues = () => {
+  const queues: string[] = Object.values(QueueName);
+  queues.push(...IngestionQueue.getShardNames());
+
+  return queues.map((queueName) =>
+    queueName.startsWith(QueueName.IngestionQueue)
+      ? IngestionQueue.getInstance({ shardName: queueName })
+      : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
+  );
+};
+
+export const disconnectQueues = () => {
+  getQueues().forEach((queue) => queue?.disconnect());
+};
+
 const createPromptInDB = async (params: CreatePromptInDBParams) => {
   return await prisma.prompt.create({
     data: {
@@ -125,7 +144,7 @@ const testPromptEquality = (
 describe("/api/public/v2/prompts API Endpoint", () => {
   afterAll(async () => {
     await pruneDatabase();
-    WebhookQueue.getInstance()?.disconnect();
+    disconnectQueues();
     redis?.disconnect();
   });
 
@@ -478,7 +497,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     afterAll(async () => {
-      WebhookQueue.getInstance()?.disconnect();
+      disconnectQueues();
       redis?.disconnect();
     });
 
@@ -1501,7 +1520,10 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 
   describe("prompt composability", () => {
     beforeEach(() => pruneDatabase());
-    afterAll(() => pruneDatabase());
+    afterAll(() => {
+      pruneDatabase();
+      disconnectQueues();
+    });
 
     it("can create a prompt with dependencies linked via label", async () => {
       const { projectId: newProjectId, auth: newAuth } =
