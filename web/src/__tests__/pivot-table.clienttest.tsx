@@ -17,11 +17,6 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-// Mock the @langfuse/shared module to avoid ESM issues
-jest.mock("@langfuse/shared", () => ({
-  MAX_PIVOT_TABLE_DIMENSIONS: 2,
-}));
-
 import {
   PivotTable,
   type PivotTableProps,

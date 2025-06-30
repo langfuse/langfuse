@@ -163,6 +163,9 @@ export function WidgetForm({
     filters?: FilterState;
     chartType: DashboardWidgetChartType;
     chartConfig?: ChartConfig;
+    // Support for complete widget data (editing mode)
+    metrics?: { measure: string; agg: string }[];
+    dimensions?: { field: string }[];
   };
   projectId: string;
   onSave: (widgetData: {
@@ -203,24 +206,15 @@ export function WidgetForm({
 
   // For pivot tables: multiple metrics selection
   const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetric[]>(
-    initialValues.chartType === "PIVOT_TABLE" &&
-      initialValues.chartConfig?.type === "PIVOT_TABLE" &&
-      "metrics" in (initialValues.chartConfig as any)
-      ? // Initialize from existing config if available
-        (initialValues.chartConfig as any).metrics?.map(
-          (metricField: string) => {
-            const parts = metricField.split("_");
-            const aggregation = parts[0];
-            const measure = parts.slice(1).join("_");
-            return {
-              id: `${aggregation}_${measure}`,
-              measure,
-              aggregation,
-              label: `${startCase(aggregation)} ${startCase(measure)}`,
-            };
-          },
-        ) || []
-      : // Default to single metric for pivot tables
+    initialValues.chartType === "PIVOT_TABLE" && initialValues.metrics?.length
+      ? // Initialize from complete metrics data (editing mode)
+        initialValues.metrics.map((metric) => ({
+          id: `${metric.agg}_${metric.measure}`,
+          measure: metric.measure,
+          aggregation: metric.agg as z.infer<typeof metricAggregations>,
+          label: `${startCase(metric.agg)} ${startCase(metric.measure)}`,
+        }))
+      : // Default to single metric (new widget)
         [
           {
             id: `${initialValues.aggregation}_${initialValues.measure}`,
@@ -238,10 +232,11 @@ export function WidgetForm({
   // Pivot table dimensions state (for PIVOT_TABLE chart type)
   const [pivotDimensions, setPivotDimensions] = useState<string[]>(
     initialValues.chartType === "PIVOT_TABLE" &&
-      initialValues.chartConfig?.type === "PIVOT_TABLE" &&
-      "dimensions" in (initialValues.chartConfig as any)
-      ? (initialValues.chartConfig as any).dimensions || []
-      : [],
+      initialValues.dimensions?.length
+      ? // Initialize from complete dimensions data (editing mode)
+        initialValues.dimensions.map((dim) => dim.field)
+      : // Default to empty array (new widget)
+        [],
   );
 
   const [selectedChartType, setSelectedChartType] = useState<string>(
@@ -735,9 +730,7 @@ export function WidgetForm({
           : selectedChartType === "PIVOT_TABLE"
             ? {
                 type: selectedChartType as DashboardWidgetChartType,
-                dimensions: pivotDimensions,
                 row_limit: rowLimit,
-                metrics: selectedMetrics.map((metric) => metric.id), // Store metric field names
               }
             : {
                 type: selectedChartType as DashboardWidgetChartType,

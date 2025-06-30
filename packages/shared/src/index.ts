@@ -60,6 +60,3 @@ export * from "./interfaces/search";
 
 // domain
 export * from "./domain";
-
-// widgets
-export * from "./features/widgets/constants";

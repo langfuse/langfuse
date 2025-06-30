@@ -116,7 +116,7 @@ export function DashboardWidget({
       if (widget.data.chartType === "PIVOT_TABLE") {
         // For pivot tables, preserve all raw data fields without any transformation
         // The PivotTable component will extract the appropriate metric fields
-        // using the metric field names from the chartConfig
+        // using the metric field names passed via chartConfig
         return {
           dimension:
             widget.data.dimensions.length > 0

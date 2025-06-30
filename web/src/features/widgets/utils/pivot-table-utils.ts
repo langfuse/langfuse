@@ -16,7 +16,12 @@
  * - Integrated with QueryBuilder for SQL generation
  * - Supports future expansion beyond current 2-dimension limit
  */
+import { isNotNullOrUndefined } from "@/src/utils/types";
 
+/**
+ * Default dimension limit for pivot table data rows
+ * This prevents performance issues and maintains readability
+ */
 export const MAX_PIVOT_TABLE_DIMENSIONS = 2;
 
 /**
@@ -216,6 +221,18 @@ function processLevelRecursively(
   for (const [dimensionValue, groupData] of sortedGroups) {
     const newDimensionPath = [...dimensionPath, dimensionValue];
 
+    // Add subtotal row for this dimension group BEFORE processing child rows
+    // Only if there are more dimensions to process (not the deepest level)
+    if (nextDimensions.length > 0 && groupData.length > 0) {
+      const subtotalValues = calculateSubtotals(groupData, metrics);
+      const subtotalRow = createSubtotalRow(
+        dimensionValue,
+        subtotalValues,
+        currentDimensionIndex, // Subtotals at current dimension level
+      );
+      rows.push(subtotalRow);
+    }
+
     // Recursively process remaining dimensions for this group
     const childRows = processLevelRecursively(
       groupData,
@@ -226,19 +243,6 @@ function processLevelRecursively(
     );
 
     rows.push(...childRows);
-
-    // Add subtotal row for this dimension group, but only if:
-    // 1. There are more dimensions to process (not the deepest level)
-    // 2. We have data to summarize
-    if (nextDimensions.length > 0 && groupData.length > 0) {
-      const subtotalValues = calculateSubtotals(groupData, metrics);
-      const subtotalRow = createSubtotalRow(
-        dimensionValue,
-        subtotalValues,
-        currentDimensionIndex, // Subtotals at current dimension level
-      );
-      rows.push(subtotalRow);
-    }
   }
 
   return rows;
@@ -310,6 +314,10 @@ export function transformToPivotTable(
   // Apply row limit to data before processing
   const limitedData = data.slice(0, rowLimit);
 
+  // Add grand total row at the beginning
+  const grandTotalValues = calculateGrandTotals(limitedData, metrics);
+  const grandTotalRow = createGrandTotalRow(metrics, grandTotalValues);
+
   // Process dimensions recursively
   const pivotRows = processLevelRecursively(
     limitedData,
@@ -319,12 +327,7 @@ export function transformToPivotTable(
     [], // dimension path for labeling
   );
 
-  // Add grand total row
-  const grandTotalValues = calculateGrandTotals(limitedData, metrics);
-  const grandTotalRow = createGrandTotalRow(metrics, grandTotalValues);
-  pivotRows.push(grandTotalRow);
-
-  return pivotRows;
+  return [grandTotalRow, ...pivotRows];
 }
 
 /**
@@ -526,7 +529,7 @@ export function calculateSubtotals(
     // Extract all values for this metric using the utility function
     const values = data
       .map((row) => extractMetricValues(row, [metric])[metric])
-      .filter((val) => val !== null && val !== undefined);
+      .filter(isNotNullOrUndefined);
 
     // Detect aggregation type and apply correct function
     const aggregationType = detectAggregationType(metric);

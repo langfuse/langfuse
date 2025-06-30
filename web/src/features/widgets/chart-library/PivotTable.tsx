@@ -20,6 +20,7 @@
 
 import React, { useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
+import { startCase } from "lodash";
 import {
   Table,
   TableHeader,
@@ -38,6 +39,7 @@ import {
   DEFAULT_ROW_LIMIT,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { numberFormatter } from "@/src/utils/numbers";
 
 /**
  * Props interface for the PivotTable component
@@ -120,20 +122,7 @@ function formatMetricValue(value: number | string): string {
     return value;
   }
 
-  if (typeof value === "number") {
-    // Format numbers with appropriate decimal places
-    if (Number.isInteger(value)) {
-      return value.toLocaleString();
-    } else {
-      // Show up to 2 decimal places, removing trailing zeros
-      return value.toLocaleString(undefined, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      });
-    }
-  }
-
-  return String(value ?? "");
+  return numberFormatter(value, 2).replace(/\.00$/, "");
 }
 
 /**
@@ -144,10 +133,7 @@ function formatMetricValue(value: number | string): string {
  * @returns Formatted column header
  */
 function formatColumnHeader(metricName: string): string {
-  return metricName
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+  return startCase(metricName);
 }
 
 /**

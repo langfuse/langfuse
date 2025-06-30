@@ -1,11 +1,7 @@
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import {
-  transformToStrictChartConfig,
-  type WidgetChartConfig,
-  WidgetForm,
-} from "@/src/features/widgets";
+import { type WidgetChartConfig, WidgetForm } from "@/src/features/widgets";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
@@ -73,7 +69,7 @@ export default function NewWidget() {
       })),
       filters: widgetData.filters,
       chartType: widgetData.chartType,
-      chartConfig: transformToStrictChartConfig(widgetData.chartConfig),
+      chartConfig: widgetData.chartConfig,
     });
   };
 
