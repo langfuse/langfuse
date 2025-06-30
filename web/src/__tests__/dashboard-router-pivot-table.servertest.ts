@@ -193,7 +193,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         orderBy: null,
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: [], // No dimensions - should create grand total only
           row_limit: 20,
         },
       };
@@ -236,7 +235,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         orderBy: [{ field: "environment", direction: "asc" }],
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: ["environment"],
           row_limit: 20,
         },
       };
@@ -301,7 +299,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         ],
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: ["environment", "providedModelName"],
           row_limit: 20,
         },
       };
@@ -352,7 +349,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         orderBy: null,
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: ["environment"],
           row_limit: 20,
         },
       };
@@ -382,7 +378,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         orderBy: null,
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: [],
           row_limit: 20,
         },
       };
@@ -417,7 +412,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         orderBy: [{ field: "environment", direction: "asc" }],
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: ["environment"],
           row_limit: 20,
         },
       };
@@ -458,7 +452,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         ],
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: ["environment", "providedModelName"],
           row_limit: 20,
         },
       };
@@ -498,7 +491,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         orderBy: null,
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: [],
           row_limit: 20,
         },
       };
@@ -538,7 +530,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         orderBy: [{ field: "environment", direction: "asc" }],
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: ["environment"],
           row_limit: 20,
         },
       };
@@ -590,7 +581,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         ],
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: ["environment", "providedModelName"],
           row_limit: 20,
         },
       };
@@ -674,7 +664,6 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         orderBy: null,
         chartConfig: {
           type: "PIVOT_TABLE",
-          dimensions: [],
           row_limit: 20,
         },
       };

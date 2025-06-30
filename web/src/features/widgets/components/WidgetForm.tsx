@@ -55,9 +55,11 @@ import {
   buildWidgetName,
   buildWidgetDescription,
 } from "@/src/features/widgets/utils";
-import { MAX_PIVOT_TABLE_DIMENSIONS } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
-import { MAX_PIVOT_TABLE_METRICS } from "@/src/features/widgets/utils/pivot-table-utils";
+import {
+  MAX_PIVOT_TABLE_DIMENSIONS,
+  MAX_PIVOT_TABLE_METRICS,
+} from "@/src/features/widgets/utils/pivot-table-utils";
 
 type ChartType = {
   group: "time-series" | "total-value";

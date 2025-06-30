@@ -30,17 +30,9 @@ type AppliedMetricType = {
 };
 
 export class QueryBuilder {
-  private chartConfig?: {
-    bins?: number;
-    row_limit?: number;
-    dimensions?: string[];
-  };
+  private chartConfig?: { bins?: number; row_limit?: number };
 
-  constructor(chartConfig?: {
-    bins?: number;
-    row_limit?: number;
-    dimensions?: string[];
-  }) {
+  constructor(chartConfig?: { bins?: number; row_limit?: number }) {
     this.chartConfig = chartConfig;
   }
 
@@ -520,8 +512,6 @@ export class QueryBuilder {
     const dimensions = [];
 
     // Add regular dimensions
-    // For pivot tables, dimensions are processed in order to support proper nesting
-    // First dimension becomes top-level grouping, second dimension nested under first, etc.
     if (appliedDimensions.length > 0) {
       dimensions.push(
         ...appliedDimensions.map(

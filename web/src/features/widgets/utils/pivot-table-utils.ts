@@ -17,7 +17,7 @@
  * - Supports future expansion beyond current 2-dimension limit
  */
 
-import { MAX_PIVOT_TABLE_DIMENSIONS } from "@langfuse/shared";
+export const MAX_PIVOT_TABLE_DIMENSIONS = 2;
 
 /**
  * Default row limit for pivot table data rows (excluding total rows)

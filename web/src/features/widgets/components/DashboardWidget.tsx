@@ -293,8 +293,9 @@ export function DashboardWidget({
           }
           chartConfig={{
             ...widget.data.chartConfig,
-            // For PIVOT_TABLE, enhance chartConfig with metric field names
+            // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
             ...(widget.data.chartType === "PIVOT_TABLE" && {
+              dimensions: widget.data.dimensions.map((dim) => dim.field),
               metrics: widget.data.metrics.map(
                 (metric) => `${metric.agg}_${metric.measure}`,
               ),
