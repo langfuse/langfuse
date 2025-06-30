@@ -168,11 +168,12 @@ export const createPrompt = async ({
     },
   });
 
-  for (const prompt of updatedPrompts) {
-    await promptChangeEventSourcing(prompt, "updated");
-  }
-
-  await promptChangeEventSourcing(createdPrompt, "created");
+  await Promise.all([
+    ...updatedPrompts.map((prompt) =>
+      promptChangeEventSourcing(prompt, "updated"),
+    ),
+    promptChangeEventSourcing(createdPrompt, "created"),
+  ]);
 
   return createdPrompt;
 };
@@ -287,9 +288,11 @@ export const duplicatePrompt = async ({
     },
   });
 
-  promptsToCreate.forEach(async (prompt) => {
-    await promptChangeEventSourcing(prompt, "created");
-  });
+  await Promise.all(
+    promptsToCreate.map((prompt) =>
+      promptChangeEventSourcing(prompt, "created"),
+    ),
+  );
 
   return createdPrompt;
 };

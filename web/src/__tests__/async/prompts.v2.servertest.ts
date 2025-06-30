@@ -7,6 +7,7 @@ import {
   PromptSchema,
   type ValidatedPrompt,
   type Prompt,
+  PromptType,
 } from "@langfuse/shared";
 import { parsePromptDependencyTags } from "@langfuse/shared";
 import { nanoid } from "ai";
@@ -16,8 +17,10 @@ import {
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
+  WebhookQueue,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
+import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -55,6 +58,50 @@ const createPromptInDB = async (params: CreatePromptInDBParams) => {
       updatedAt: params.updatedAt,
     },
   });
+};
+
+const setupTriggerAndAction = async (projectId: string) => {
+  const trigger = await prisma.trigger.create({
+    data: {
+      id: v4(),
+      projectId: projectId,
+      eventSource: "prompt",
+      eventActions: ["updated"],
+      filter: [],
+      status: "ACTIVE",
+    },
+  });
+  trigger.id;
+
+  // Create webhook action
+  const action = await prisma.action.create({
+    data: {
+      id: v4(),
+      projectId: projectId,
+      type: "WEBHOOK",
+      config: {
+        type: "WEBHOOK",
+        url: "https://example.com/prompt-labels-webhook",
+        headers: { "Content-Type": "application/json" },
+        apiVersion: { prompt: "v1" },
+      },
+    },
+  });
+  action.id;
+
+  // Link trigger to action
+  await prisma.triggersOnActions.create({
+    data: {
+      projectId: projectId,
+      triggerId: trigger.id,
+      actionId: action.id,
+      name: "Prompt Labels Automation",
+    },
+  });
+  return {
+    actionId: action.id,
+    triggerId: trigger.id,
+  };
 };
 
 const testPromptEquality = (
@@ -402,20 +449,33 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(response.status).toBe(207);
 
       // Delay to allow for async processing
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await waitForExpect(async () => {
+        const dbGeneration = await getObservationById({
+          id: generationId,
+          projectId,
+        });
 
-      const dbGeneration = await getObservationById({
-        id: generationId,
-        projectId,
-      });
-
-      expect(dbGeneration?.id).toBe(generationId);
-      expect(dbGeneration?.promptId).toBe(promptId);
-    });
+        expect(dbGeneration?.id).toBe(generationId);
+        expect(dbGeneration?.promptId).toBe(promptId);
+      }, 8000);
+    }, 10000);
   });
 
   describe("when creating a prompt", () => {
-    beforeAll(pruneDatabase);
+    let triggerId: string;
+    let actionId: string;
+    beforeAll(async () => {
+      await pruneDatabase();
+
+      const { actionId: newActionId, triggerId: newTriggerId } =
+        await setupTriggerAndAction(projectId);
+      actionId = newActionId;
+      triggerId = newTriggerId;
+    });
+
+    afterAll(async () => {
+      WebhookQueue.getInstance()?.disconnect();
+    });
 
     it("should create and fetch a chat prompt", async () => {
       const promptName = "prompt-name" + nanoid();
@@ -449,6 +509,18 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.createdBy).toBe("API");
       expect(validatedPrompt.config).toEqual({});
       expect(validatedPrompt.commitMessage).toBe("chore: setup initial prompt");
+
+      // check that the action execution is created
+      const actionExecution = await prisma.actionExecution.findFirst({
+        where: {
+          projectId,
+          triggerId,
+          actionId,
+        },
+      });
+      expect(actionExecution).not.toBeNull();
+      expect(actionExecution?.status).toBe("PENDING");
+      expect(actionExecution?.sourceId).toBe(validatedPrompt.id);
     });
 
     it("should fail if chat prompt has string prompt", async () => {
@@ -1227,9 +1299,19 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 });
 
 describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
+  let triggerId: string;
+  let actionId: string;
+
+  afterAll(() => {
+    WebhookQueue.getInstance()?.disconnect();
+  });
+
   it("should update the labels of a prompt", async () => {
     const { projectId: newProjectId, auth: newAuth } =
       await createOrgProjectAndApiKey();
+
+    const { actionId: newActionId, triggerId: newTriggerId } =
+      await setupTriggerAndAction(newProjectId);
 
     const originalPrompt = await prisma.prompt.create({
       data: {
@@ -1261,11 +1343,28 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     expect(updatedPrompt?.labels).toContain("production");
     expect(updatedPrompt?.labels).toContain("new-label");
     expect(updatedPrompt?.labels).toHaveLength(2);
+
+    // check that the action execution is created
+    const actionExecution = await prisma.actionExecution.findFirst({
+      where: {
+        projectId: newProjectId,
+        triggerId: newTriggerId,
+        actionId: newActionId,
+      },
+    });
+    expect(actionExecution).not.toBeNull();
+    expect(actionExecution?.status).toBe("PENDING");
+    expect(actionExecution?.sourceId).toBe(originalPrompt.id);
   });
 
   it("should remove label from previous version when adding to new version", async () => {
     const { projectId: newProjectId, auth: newAuth } =
       await createOrgProjectAndApiKey();
+
+    const { actionId: newActionId, triggerId: newTriggerId } =
+      await setupTriggerAndAction(newProjectId);
+    actionId = newActionId;
+    triggerId = newTriggerId;
 
     // Create version 1 with "production" label
     await prisma.prompt.create({
@@ -1324,6 +1423,30 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       },
     });
     expect(promptV1?.labels).toEqual([]);
+
+    const actionExecution = await prisma.actionExecution.findFirst({
+      where: {
+        projectId: newProjectId,
+        triggerId,
+        actionId,
+        sourceId: promptV2?.id,
+      },
+    });
+    expect(actionExecution).not.toBeNull();
+    expect(actionExecution?.status).toBe("PENDING");
+    expect(actionExecution?.sourceId).toBe(promptV2?.id);
+
+    const actionExecution2 = await prisma.actionExecution.findFirst({
+      where: {
+        projectId: newProjectId,
+        triggerId,
+        actionId,
+        sourceId: promptV1?.id,
+      },
+    });
+    expect(actionExecution2).not.toBeNull();
+    expect(actionExecution2?.status).toBe("PENDING");
+    expect(actionExecution2?.sourceId).toBe(promptV1?.id);
   });
 
   it("trying to set 'latest' label results in 400 error", async () => {

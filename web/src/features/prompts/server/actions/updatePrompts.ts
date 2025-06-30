@@ -1,6 +1,10 @@
 import { logger, PromptService } from "@langfuse/shared/src/server";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  type Prompt,
+} from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeProcessor";
@@ -24,7 +28,8 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     await promptService.lockCache({ projectId, promptName: promptName });
 
-    const result = prisma.$transaction(async (tx) => {
+    let updatedPrompts: Prompt[] = [];
+    const result = await prisma.$transaction(async (tx) => {
       const prompt = (
         await tx.$queryRaw<
           Array<{
@@ -142,19 +147,26 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
     await promptService.invalidateCache({ projectId, promptName: promptName });
     await promptService.unlockCache({ projectId, promptName: promptName });
 
-    const updatedPrompts = await prisma.prompt.findMany({
+    // For updates, we need the before state, but we don't have it easily accessible here
+    // This updatePrompt function only handles label updates, so the main content doesn't change
+    // We'll pass undefined for now since label changes don't need before state for webhooks
+
+    updatedPrompts = await prisma.prompt.findMany({
       where: {
         id: { in: touchedPromptIds },
         projectId,
       },
     });
 
-    // For updates, we need the before state, but we don't have it easily accessible here
-    // This updatePrompt function only handles label updates, so the main content doesn't change
-    // We'll pass undefined for now since label changes don't need before state for webhooks
-    for (const prompt of updatedPrompts) {
-      await promptChangeEventSourcing(prompt, "updated");
-    }
+    logger.info(
+      `Triggering webhook for ${updatedPrompts.length} prompts for project ${projectId}, touchedPromptIds: ${JSON.stringify(touchedPromptIds)}`,
+    );
+
+    await Promise.all(
+      updatedPrompts.map((prompt) =>
+        promptChangeEventSourcing(prompt, "updated"),
+      ),
+    );
 
     return result;
   } catch (e) {

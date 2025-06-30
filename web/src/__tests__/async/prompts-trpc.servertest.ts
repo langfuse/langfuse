@@ -308,4 +308,310 @@ describe("prompts trpc", () => {
       );
     });
   });
+
+  describe("prompts.delete", () => {
+    it("should delete all versions of a prompt", async () => {
+      const { project, caller } = await prepare();
+
+      // Create trigger for prompt deletions
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["deleted"],
+          filter: [],
+          status: "ACTIVE",
+        },
+      });
+
+      // Create webhook action
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/prompt-delete-webhook",
+            headers: { "Content-Type": "application/json" },
+            apiVersion: { prompt: "v1" },
+          },
+        },
+      });
+
+      // Link trigger to action
+      await prisma.triggersOnActions.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Prompt Delete Automation",
+        },
+      });
+
+      // Create test prompts with multiple versions
+      const prompt1 = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "test-prompt-delete",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world v1" },
+          createdBy: "test-user",
+        },
+      });
+
+      const prompt2 = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "test-prompt-delete",
+          version: 2,
+          type: "text",
+          prompt: { text: "Hello world v2" },
+          createdBy: "test-user",
+        },
+      });
+
+      // Delete all versions of the prompt
+      await caller.prompts.delete({
+        projectId: project.id,
+        promptName: "test-prompt-delete",
+      });
+
+      // Verify prompts are deleted
+      const remainingPrompts = await prisma.prompt.findMany({
+        where: {
+          projectId: project.id,
+          name: "test-prompt-delete",
+        },
+      });
+      expect(remainingPrompts).toHaveLength(0);
+
+      // Verify automation executions were created for both deleted prompts
+      const executions = await prisma.actionExecution.findMany({
+        where: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+        },
+      });
+
+      expect(executions).toHaveLength(2);
+      expect(executions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            sourceId: prompt1.id,
+            status: "PENDING",
+          }),
+          expect.objectContaining({
+            sourceId: prompt2.id,
+            status: "PENDING",
+          }),
+        ]),
+      );
+    });
+  });
+
+  describe("prompts.deleteVersion", () => {
+    it("should delete a specific version of a prompt", async () => {
+      const { project, caller } = await prepare();
+
+      // Create trigger for prompt deletions
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["deleted"],
+          filter: [],
+          status: "ACTIVE",
+        },
+      });
+
+      // Create webhook action
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/prompt-delete-version-webhook",
+            headers: { "Content-Type": "application/json" },
+            apiVersion: { prompt: "v1" },
+          },
+        },
+      });
+
+      // Link trigger to action
+      await prisma.triggersOnActions.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Prompt Delete Version Automation",
+        },
+      });
+
+      // Create test prompts with multiple versions
+      const prompt1 = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "test-prompt-delete-version",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world v1" },
+          createdBy: "test-user",
+        },
+      });
+
+      const prompt2 = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "test-prompt-delete-version",
+          version: 2,
+          type: "text",
+          prompt: { text: "Hello world v2" },
+          createdBy: "test-user",
+        },
+      });
+
+      // Delete only version 1
+      await caller.prompts.deleteVersion({
+        projectId: project.id,
+        promptVersionId: prompt1.id,
+      });
+
+      // Verify only version 1 is deleted
+      const remainingPrompts = await prisma.prompt.findMany({
+        where: {
+          projectId: project.id,
+          name: "test-prompt-delete-version",
+        },
+      });
+      expect(remainingPrompts).toHaveLength(1);
+      expect(remainingPrompts[0].id).toBe(prompt2.id);
+
+      // Verify automation execution was created for the deleted prompt
+      const executions = await prisma.actionExecution.findMany({
+        where: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+        },
+      });
+
+      expect(executions).toHaveLength(1);
+      expect(executions[0]).toEqual(
+        expect.objectContaining({
+          sourceId: prompt1.id,
+          status: "PENDING",
+        }),
+      );
+    });
+  });
+
+  describe("prompts.duplicatePrompt", () => {
+    it("should duplicate a prompt and trigger webhook automation", async () => {
+      const { project, caller } = await prepare();
+
+      // Create trigger for prompt creation
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: "ACTIVE",
+        },
+      });
+
+      // Create webhook action
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/prompt-duplicate-webhook",
+            headers: { "Content-Type": "application/json" },
+            apiVersion: { prompt: "v1" },
+          },
+        },
+      });
+
+      // Link trigger to action
+      await prisma.triggersOnActions.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Prompt Duplicate Automation",
+        },
+      });
+
+      // Create original prompt to duplicate
+      const originalPrompt = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "original-prompt",
+          version: 1,
+          type: "text",
+          prompt: "Hello world original",
+          createdBy: "test-user",
+          labels: ["production"],
+          tags: ["original"],
+        },
+      });
+
+      // Duplicate the prompt
+      const duplicatedPrompt = await caller.prompts.duplicatePrompt({
+        projectId: project.id,
+        promptId: originalPrompt.id,
+        name: "duplicated-prompt",
+        isSingleVersion: true,
+      });
+
+      expect(duplicatedPrompt).toMatchObject({
+        name: "duplicated-prompt",
+        version: 1,
+        type: "text",
+        prompt: "Hello world original",
+        labels: expect.arrayContaining(["production", "latest"]),
+        tags: ["original"],
+      });
+
+      // Verify the duplicated prompt exists in database
+      const dbPrompt = await prisma.prompt.findUnique({
+        where: { id: duplicatedPrompt.id },
+      });
+      expect(dbPrompt).not.toBeNull();
+      expect(dbPrompt?.name).toBe("duplicated-prompt");
+
+      // Verify automation execution was created for the duplicated prompt
+      const executions = await prisma.actionExecution.findMany({
+        where: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+        },
+      });
+
+      expect(executions).toHaveLength(1);
+      expect(executions[0]).toEqual(
+        expect.objectContaining({
+          sourceId: duplicatedPrompt.id,
+          status: "PENDING",
+        }),
+      );
+    });
+  });
 });

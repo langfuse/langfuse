@@ -451,9 +451,9 @@ export const promptRouter = createTRPCRouter({
         await promptService.unlockCache({ projectId, promptName });
 
         // Trigger webhooks for prompt deletion
-        for (const prompt of prompts) {
-          await promptChangeEventSourcing(prompt, "deleted");
-        }
+        await Promise.all(
+          prompts.map((prompt) => promptChangeEventSourcing(prompt, "deleted")),
+        );
       } catch (e) {
         logger.error(e);
         throw e;
@@ -944,9 +944,9 @@ export const promptRouter = createTRPCRouter({
           where: { projectId, name: promptName },
         });
 
-        for (const prompt of prompts) {
-          await promptChangeEventSourcing(prompt, "updated");
-        }
+        await Promise.all(
+          prompts.map((prompt) => promptChangeEventSourcing(prompt, "updated")),
+        );
       } catch (e) {
         logger.error(`Failed to update prompt tags: ${e}`, e);
         throw e;
