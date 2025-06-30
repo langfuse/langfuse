@@ -548,8 +548,7 @@ export class IngestionService {
     observationRecords: ObservationRecordInsertType[];
     clickhouseObservationRecord?: ObservationRecordInsertType | null;
   }): Promise<ObservationRecordInsertType> {
-    const { projectId, observationRecords, clickhouseObservationRecord } =
-      params;
+    const { observationRecords, clickhouseObservationRecord } = params;
 
     // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
