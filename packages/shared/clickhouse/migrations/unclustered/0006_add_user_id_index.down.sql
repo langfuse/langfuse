@@ -1,1 +1,1 @@
-ALTER TABLE traces ON CLUSTER default DROP INDEX IF EXISTS idx_user_id;
+ALTER TABLE traces DROP INDEX IF EXISTS idx_user_id;
