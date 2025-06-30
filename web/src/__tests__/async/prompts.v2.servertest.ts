@@ -123,7 +123,11 @@ const testPromptEquality = (
 };
 
 describe("/api/public/v2/prompts API Endpoint", () => {
-  afterAll(pruneDatabase);
+  afterAll(async () => {
+    await pruneDatabase();
+    WebhookQueue.getInstance()?.disconnect();
+    redis?.disconnect();
+  });
 
   describe("when fetching a prompt", () => {
     beforeAll(pruneDatabase);
