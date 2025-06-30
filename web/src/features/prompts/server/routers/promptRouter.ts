@@ -366,6 +366,12 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
+        const promptService = new PromptService(ctx.prisma, redis);
+
+        const resolvedPrompts = await Promise.all(
+          prompts.map((prompt) => promptService.resolvePrompt(prompt)),
+        );
+
         const dependents = await ctx.prisma.$queryRaw<
           {
             parent_name: string;
@@ -433,7 +439,6 @@ export const promptRouter = createTRPCRouter({
         }
 
         // Lock and invalidate cache for _all_ versions and labels of the prompt
-        const promptService = new PromptService(ctx.prisma, redis);
         await promptService.lockCache({ projectId, promptName });
         await promptService.invalidateCache({ projectId, promptName });
 
@@ -452,7 +457,12 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt deletion
         await Promise.all(
-          prompts.map((prompt) => promptChangeEventSourcing(prompt, "deleted")),
+          resolvedPrompts.map(async (prompt) =>
+            promptChangeEventSourcing(
+              await promptService.resolvePrompt(prompt),
+              "deleted",
+            ),
+          ),
         );
       } catch (e) {
         logger.error(e);
@@ -605,7 +615,7 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt version deletion
         await promptChangeEventSourcing(
-          promptVersion, // Full prompt data
+          await promptService.resolvePrompt(promptVersion),
           "deleted",
         );
       } catch (e) {
@@ -799,8 +809,11 @@ export const promptRouter = createTRPCRouter({
 
         // Send webhooks for ALL affected prompts
         await Promise.all(
-          updatedPrompts.map((prompt) =>
-            promptChangeEventSourcing(prompt, "updated"),
+          updatedPrompts.map(async (prompt) =>
+            promptChangeEventSourcing(
+              await promptService.resolvePrompt(prompt),
+              "updated",
+            ),
           ),
         );
         return updatedPrompt;
@@ -945,7 +958,12 @@ export const promptRouter = createTRPCRouter({
         });
 
         await Promise.all(
-          prompts.map((prompt) => promptChangeEventSourcing(prompt, "updated")),
+          prompts.map(async (prompt) =>
+            promptChangeEventSourcing(
+              await promptService.resolvePrompt(prompt),
+              "updated",
+            ),
+          ),
         );
       } catch (e) {
         logger.error(`Failed to update prompt tags: ${e}`, e);

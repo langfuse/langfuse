@@ -12,6 +12,9 @@ import {
   QueueName,
   QueueJobs,
   InMemoryFilterService,
+  PromptService,
+  type PromptResult,
+  redis,
 } from "@langfuse/shared/src/server";
 import { TriggerEventSource } from "@langfuse/shared";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
@@ -46,9 +49,13 @@ function actionMatches(action: string, triggerFilters: any[]): boolean {
  * Process prompt change events directly with in-memory filtering
  */
 export const promptChangeEventSourcing = async (
-  promptData: Prompt,
+  promptData: PromptResult | null,
   action: TriggerEventAction,
 ) => {
+  if (!promptData) {
+    return;
+  }
+
   try {
     // Get active prompt triggers
     const triggers = await getTriggerConfigurations({
@@ -130,7 +137,7 @@ export const promptChangeEventSourcing = async (
         }
 
         await Promise.all(
-          trigger.actionIds.map((actionId) =>
+          trigger.actionIds.map(async (actionId) =>
             executeWebhookAction({
               promptData,
               action,
@@ -164,7 +171,7 @@ async function executeWebhookAction({
   triggerId,
   actionId,
 }: {
-  promptData: Prompt;
+  promptData: PromptResult;
   action: string;
   triggerId: string;
   actionId: string;

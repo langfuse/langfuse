@@ -163,8 +163,11 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
     );
 
     await Promise.all(
-      updatedPrompts.map((prompt) =>
-        promptChangeEventSourcing(prompt, "updated"),
+      updatedPrompts.map(async (prompt) =>
+        promptChangeEventSourcing(
+          await promptService.resolvePrompt(prompt),
+          "updated",
+        ),
       ),
     );
 

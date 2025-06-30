@@ -169,10 +169,16 @@ export const createPrompt = async ({
   });
 
   await Promise.all([
-    ...updatedPrompts.map((prompt) =>
-      promptChangeEventSourcing(prompt, "updated"),
+    ...updatedPrompts.map(async (prompt) =>
+      promptChangeEventSourcing(
+        await promptService.resolvePrompt(prompt),
+        "updated",
+      ),
     ),
-    promptChangeEventSourcing(createdPrompt, "created"),
+    promptChangeEventSourcing(
+      await promptService.resolvePrompt(createdPrompt),
+      "created",
+    ),
   ]);
 
   return createdPrompt;
@@ -288,9 +294,14 @@ export const duplicatePrompt = async ({
     },
   });
 
+  const promptService = new PromptService(prisma, redis);
+
   await Promise.all(
-    promptsToCreate.map((prompt) =>
-      promptChangeEventSourcing(prompt, "created"),
+    promptsToCreate.map(async (prompt) =>
+      promptChangeEventSourcing(
+        await promptService.resolvePrompt(prompt),
+        "created",
+      ),
     ),
   );
 
