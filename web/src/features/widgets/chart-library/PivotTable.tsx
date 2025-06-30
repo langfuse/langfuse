@@ -20,7 +20,6 @@
 
 import React, { useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { startCase } from "lodash";
 import {
   Table,
   TableHeader,
