@@ -195,7 +195,7 @@ export function SSOButtons({
               loading={providerSigningIn === "github"}
             >
               <FaGithub className="mr-3" size={18} />
-              Github
+              GitHub
             </Button>
           )}
           {authProviders.githubEnterprise && (
@@ -205,7 +205,7 @@ export function SSOButtons({
               loading={providerSigningIn === "github-enterprise"}
             >
               <FaGithub className="mr-3" size={18} />
-              Github Enterprise
+              GitHub Enterprise
             </Button>
           )}
           {authProviders.gitlab && (
