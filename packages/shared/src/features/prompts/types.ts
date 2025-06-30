@@ -1,13 +1,16 @@
 import { z } from "zod/v4";
-import { jsonSchema, PromptNameSchema, PromptChatMessageSchema } from "@langfuse/shared";
-import type { Prompt } from "@langfuse/shared";
-import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
+import type { Prompt } from "../../../prisma/generated/types";
+import { jsonSchema } from "../../utils/zod";
+import { COMMIT_MESSAGE_MAX_LENGTH } from "./constants";
+import { PromptNameSchema, PromptChatMessageSchema } from "@langfuse/shared";
 
-export const ChatMessageSchema = PromptChatMessageSchema;
-export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+export const SingleChatMessageSchema = PromptChatMessageSchema;
+export type SingleChatMessage = z.infer<typeof SingleChatMessageSchema>;
 
 export enum PromptType {
+  // eslint-disable-next-line no-unused-vars
   Chat = "chat",
+  // eslint-disable-next-line no-unused-vars
   Text = "text",
 }
 

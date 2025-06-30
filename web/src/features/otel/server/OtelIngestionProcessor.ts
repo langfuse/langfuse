@@ -620,6 +620,8 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.TRACE_SESSION_ID,
       LangfuseOtelSpanAttributes.TRACE_PUBLIC,
       LangfuseOtelSpanAttributes.TRACE_TAGS,
+      LangfuseOtelSpanAttributes.TRACE_COMPAT_USER_ID,
+      LangfuseOtelSpanAttributes.TRACE_COMPAT_SESSION_ID,
       `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_user_id`,
       `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
       `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_tags`,

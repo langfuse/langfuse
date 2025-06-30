@@ -20,11 +20,11 @@ import {
 import { usePlaygroundContext } from "@/src/features/playground/page/context";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { PromptType } from "@langfuse/shared";
 
 export const SaveToPromptButton: React.FC = () => {
   const [selectedPromptId, setSelectedPromptId] = useState("");

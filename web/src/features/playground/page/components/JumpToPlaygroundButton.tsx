@@ -12,7 +12,6 @@ import {
   type PlaygroundTool,
 } from "@/src/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
@@ -31,6 +30,7 @@ import {
   PlaceholderMessageSchema,
   type PlaceholderMessage,
   isPlaceholder,
+  PromptType,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";

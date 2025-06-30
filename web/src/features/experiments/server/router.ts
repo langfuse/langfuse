@@ -13,13 +13,13 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   type DatasetItem,
   DatasetStatus,
   extractVariables,
   datasetItemMatchesVariable,
   UnauthorizedError,
+  PromptType,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 

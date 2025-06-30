@@ -232,11 +232,11 @@ export const SYSTEM_ROLES: string[] = [
   ChatMessageRole.Developer,
 ];
 
-export const TextPromptSchema = z.string().min(1, "Enter a prompt");
+export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 
 export const PromptContentSchema = z.union([
   PromptChatMessageListSchema,
-  TextPromptSchema,
+  TextPromptContentSchema,
 ]);
 export type PromptContent = z.infer<typeof PromptContentSchema>;
 

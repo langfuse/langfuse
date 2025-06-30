@@ -1,13 +1,13 @@
 import { z } from "zod/v4";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   ChatMessageType,
   PlaceholderMessageSchema,
   PromptChatMessageListSchema,
   PromptNameSchema,
-  TextPromptSchema,
+  TextPromptContentSchema,
+  COMMIT_MESSAGE_MAX_LENGTH,
+  PromptType,
 } from "@langfuse/shared";
-import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
 const NewPromptBaseSchema = z.object({
   name: PromptNameSchema,
@@ -48,7 +48,7 @@ const NewChatPromptSchema = NewPromptBaseSchema.extend({
 const NewTextPromptSchema = NewPromptBaseSchema.extend({
   type: z.literal(PromptType.Text),
   chatPrompt: z.array(z.any()),
-  textPrompt: TextPromptSchema,
+  textPrompt: TextPromptContentSchema,
 });
 
 export const NewPromptFormSchema = z.discriminatedUnion("type", [
