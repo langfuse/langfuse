@@ -452,7 +452,7 @@ export const promptRouter = createTRPCRouter({
 
         // Trigger webhooks for prompt deletion
         await Promise.all(
-          resolvedPrompts.map(async (prompt) =>
+          prompts.map(async (prompt) =>
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "deleted",
