@@ -278,6 +278,10 @@ describe("Webhook Integration Tests", () => {
     });
 
     it("should fail webhook execution if secret key does not exist and retry the bull job", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
       const executionId = v4();
 
       await prisma.action.update({
@@ -317,7 +321,7 @@ describe("Webhook Integration Tests", () => {
         triggerId,
         executionId,
         payload: {
-          prompt: PromptDomainSchema.parse({}),
+          prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt",
         },
