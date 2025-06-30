@@ -485,22 +485,22 @@ describe("pivot-table-utils", () => {
 
         const result = transformToPivotTable(sampleData, config);
 
-        // Should have: 5 data rows + 1 grand total = 6 rows (no subtotals for single dimension)
+        // Should have: 1 grand total + 5 data rows = 6 rows (no subtotals for single dimension)
         expect(result).toHaveLength(6);
 
-        // Check structure: data rows only, no subtotals for single dimension
+        // Check grand total is first
         expect(result[0]).toMatchObject({
-          type: "data",
-          level: 0,
-          label: "claude",
-        });
-
-        // Check grand total is last
-        expect(result[result.length - 1]).toMatchObject({
           type: "total",
           level: 0,
           label: "Total",
           isTotal: true,
+        });
+
+        // Check structure: data rows after total, no subtotals for single dimension
+        expect(result[1]).toMatchObject({
+          type: "data",
+          level: 0,
+          label: "claude",
         });
       });
 
@@ -513,10 +513,11 @@ describe("pivot-table-utils", () => {
 
         const result = transformToPivotTable(sampleData, config);
 
-        // Should have: 2 data rows + 1 grand total = 3 rows (no subtotals for single dimension)
+        // Should have: 1 grand total + 2 data rows = 3 rows (no subtotals for single dimension)
         expect(result).toHaveLength(3);
 
-        // Verify only first 2 data rows are included
+        // Verify grand total is first, then only 2 data rows are included
+        expect(result[0].type).toBe("total");
         const dataRows = result.filter((row) => row.type === "data");
         expect(dataRows).toHaveLength(2);
       });
@@ -532,7 +533,7 @@ describe("pivot-table-utils", () => {
 
         const result = transformToPivotTable(sampleData, config);
 
-        // Should have data rows, subtotals for first dimension, and grand total
+        // Should have grand total, subtotals for first dimension, and data rows
         expect(result.length).toBeGreaterThan(5);
 
         // Check for proper nesting levels
@@ -543,6 +544,9 @@ describe("pivot-table-utils", () => {
         expect(dataRows.length).toBeGreaterThan(0);
         expect(subtotalRows.length).toBeGreaterThan(0);
         expect(totalRows).toHaveLength(1);
+
+        // Check that grand total is first
+        expect(result[0].type).toBe("total");
 
         // Check indentation levels
         expect(dataRows.some((row) => row.level === 1)).toBe(true); // Second dimension should be indented at level 1
@@ -602,7 +606,7 @@ describe("pivot-table-utils", () => {
         const result = transformToPivotTable(nullData, config);
 
         expect(result.length).toBeGreaterThan(0);
-        expect(result[result.length - 1].type).toBe("total");
+        expect(result[0].type).toBe("total");
       });
 
       it("should validate configuration before processing", () => {
@@ -654,8 +658,8 @@ describe("pivot-table-utils", () => {
         const dataRows = result.filter((row) => row.type === "data");
         expect(dataRows.length).toBeLessThanOrEqual(5);
 
-        // Should still have grand total
-        expect(result[result.length - 1].type).toBe("total");
+        // Should still have grand total at the top
+        expect(result[0].type).toBe("total");
       });
     });
 
@@ -899,7 +903,7 @@ describe("pivot-table-utils", () => {
 
         const result = transformToPivotTable(multiMetricData, config);
 
-        // Should have data rows, subtotals, and grand total
+        // Should have grand total, subtotals, and data rows
         const dataRows = result.filter((row) => row.type === "data");
         const subtotalRows = result.filter((row) => row.type === "subtotal");
         const totalRow = result.find((row) => row.type === "total");
@@ -907,6 +911,9 @@ describe("pivot-table-utils", () => {
         expect(dataRows.length).toBe(3); // 3 data points
         expect(subtotalRows.length).toBeGreaterThan(0); // Environment subtotals
         expect(totalRow).toBeDefined();
+
+        // Check that grand total is first
+        expect(result[0].type).toBe("total");
 
         // Check that subtotals correctly aggregate their children
         const productionSubtotal = subtotalRows.find((row) =>

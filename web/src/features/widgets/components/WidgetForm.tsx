@@ -54,6 +54,7 @@ import {
 import {
   buildWidgetName,
   buildWidgetDescription,
+  formatMetricName,
 } from "@/src/features/widgets/utils";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -661,9 +662,7 @@ export function WidgetForm({
                     if (Array.isArray(val)) return val.join(", ");
                     return String(val);
                   })()
-                : startCase(
-                    metricField === "count_count" ? "Count" : metricField,
-                  ),
+                : formatMetricName(metricField),
             metric: Array.isArray(metric) ? metric : Number(metric || 0),
             time_dimension: item["time_dimension"],
           };
@@ -749,23 +748,20 @@ export function WidgetForm({
         ? pivotDimensions.map(startCase).join(" and ")
         : selectedDimension;
 
-    // For pivot tables, use multiple metrics in naming
-    const metricForNaming =
-      selectedChartType === "PIVOT_TABLE" && selectedMetrics.length > 0
-        ? selectedMetrics.length === 1
-          ? selectedMetrics[0]?.label
-          : `${selectedMetrics.length} Metrics`
+    // For pivot tables, extract actual metric names for the new formatting
+    const isPivotTable = selectedChartType === "PIVOT_TABLE";
+    const metricNames =
+      isPivotTable && selectedMetrics.length > 0
+        ? selectedMetrics.map((m) => m.id) // Use the ID which is "${aggregation}_${measure}"
         : undefined;
 
     const suggested = buildWidgetName({
-      aggregation:
-        selectedChartType === "PIVOT_TABLE" ? "count" : selectedAggregation,
-      measure:
-        selectedChartType === "PIVOT_TABLE"
-          ? (metricForNaming ?? "count")
-          : selectedMeasure,
+      aggregation: isPivotTable ? "count" : selectedAggregation,
+      measure: isPivotTable ? "count" : selectedMeasure,
       dimension: dimensionForNaming,
       view: selectedView,
+      metrics: metricNames,
+      isMultiMetric: isPivotTable && selectedMetrics.length > 0,
     });
 
     setWidgetName(suggested);
@@ -790,24 +786,21 @@ export function WidgetForm({
         ? pivotDimensions.map(startCase).join(" and ")
         : selectedDimension;
 
-    // For pivot tables, use multiple metrics in description
-    const metricForDescription =
-      selectedChartType === "PIVOT_TABLE" && selectedMetrics.length > 0
-        ? selectedMetrics.length === 1
-          ? selectedMetrics[0]?.label
-          : `${selectedMetrics.length} Metrics`
+    // For pivot tables, extract actual metric names for the new formatting
+    const isPivotTable = selectedChartType === "PIVOT_TABLE";
+    const metricNames =
+      isPivotTable && selectedMetrics.length > 0
+        ? selectedMetrics.map((m) => m.id) // Use the ID which is "${aggregation}_${measure}"
         : undefined;
 
     const suggested = buildWidgetDescription({
-      aggregation:
-        selectedChartType === "PIVOT_TABLE" ? "count" : selectedAggregation,
-      measure:
-        selectedChartType === "PIVOT_TABLE"
-          ? (metricForDescription ?? "count")
-          : selectedMeasure,
+      aggregation: isPivotTable ? "count" : selectedAggregation,
+      measure: isPivotTable ? "count" : selectedMeasure,
       dimension: dimensionForDescription,
       view: selectedView,
       filters: userFilterState,
+      metrics: metricNames,
+      isMultiMetric: isPivotTable && selectedMetrics.length > 0,
     });
 
     setWidgetDescription(suggested);

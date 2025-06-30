@@ -40,6 +40,7 @@ import {
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { numberFormatter } from "@/src/utils/numbers";
+import { formatMetricName } from "@/src/features/widgets/utils";
 
 /**
  * Props interface for the PivotTable component
@@ -127,13 +128,12 @@ function formatMetricValue(value: number | string): string {
 
 /**
  * Formats metric names for column headers
- * Converts snake_case to Title Case for better readability
  *
  * @param metricName - The metric field name
  * @returns Formatted column header
  */
 function formatColumnHeader(metricName: string): string {
-  return startCase(metricName);
+  return formatMetricName(metricName);
 }
 
 /**

@@ -17,10 +17,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { startCase } from "lodash";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
+import { formatMetricName } from "@/src/features/widgets/utils";
 
 export interface WidgetPlacement {
   id: string;
@@ -151,7 +151,7 @@ export function DashboardWidget({
                 // Objects / numbers / booleans are stringified to avoid React key issues
                 return String(val);
               })()
-            : startCase(metricField === "count_count" ? "Count" : metricField),
+            : formatMetricName(metricField),
         metric: Array.isArray(metricValue)
           ? metricValue
           : Number(metricValue || 0),
