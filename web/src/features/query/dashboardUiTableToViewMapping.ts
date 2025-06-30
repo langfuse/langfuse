@@ -107,6 +107,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "source",
     },
     {
+      uiTableName: "Score Value",
+      viewName: "value",
+    },
+    {
       uiTableName: "Scores Data Type",
       viewName: "dataType",
     },
@@ -155,6 +159,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     {
       uiTableName: "Score Source",
       viewName: "source",
+    },
+    {
+      uiTableName: "Score String Value",
+      viewName: "stringValue",
     },
     {
       uiTableName: "Scores Data Type",
@@ -222,6 +230,18 @@ const isLegacyUiTableFilter = (
         clickhouseTableName: "traces",
         clickhouseSelect: 't."metadata"',
       },
+      {
+        uiTableName: "Score Value",
+        uiTableId: "value",
+        clickhouseTableName: "scores",
+        clickhouseSelect: 's."value"',
+      },
+      {
+        uiTableName: "Score String Value",
+        uiTableId: "stringValue",
+        clickhouseTableName: "scores",
+        clickhouseSelect: 's."string_value"',
+      },
     ])
     .some((columnDef) => columnDef.uiTableName === filter.column);
 };
@@ -230,6 +250,7 @@ export const mapLegacyUiTableFilterToView = (
   view: z.infer<typeof views>,
   filters: z.infer<typeof FilterArray>,
 ): z.infer<typeof FilterArray> => {
+  console.log("filters", filters);
   return filters.flatMap((filter) => {
     // If it's not a legacy filter, return it as is
     if (!isLegacyUiTableFilter(filter)) {

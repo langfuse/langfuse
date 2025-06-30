@@ -501,6 +501,11 @@ export const scoresNumericView: ViewDeclarationType = {
     "Scores are flexible objects that are used for evaluations. This view contains numeric scores.",
   dimensions: {
     ...scoreBaseDimensions,
+    value: {
+      sql: "value",
+      type: "number",
+      description: "Value of the score.",
+    },
   },
   measures: {
     count: {
