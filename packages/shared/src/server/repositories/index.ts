@@ -13,4 +13,3 @@ export * from "./scores-utils";
 export * from "./blobStorageLog";
 export * from "./environments";
 export * from "./automation-repository";
-export * from "./promptRepository";

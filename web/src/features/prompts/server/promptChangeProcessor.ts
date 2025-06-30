@@ -129,15 +129,16 @@ export const promptChangeEventSourcing = async (
           );
         }
 
-        // Execute webhook actions
-        for (const actionId of trigger.actionIds) {
-          await executeWebhookAction({
-            promptData,
-            action,
-            triggerId: trigger.id,
-            actionId,
-          });
-        }
+        await Promise.all(
+          trigger.actionIds.map((actionId) =>
+            executeWebhookAction({
+              promptData,
+              action,
+              triggerId: trigger.id,
+              actionId,
+            }),
+          ),
+        );
       } catch (error) {
         logger.error(
           `Error processing trigger ${trigger.id} for prompt ${promptData.id} for project ${promptData.projectId}: ${error}`,
@@ -189,7 +190,7 @@ async function executeWebhookAction({
       triggerId: triggerId,
       actionId: actionId,
       status: ActionExecutionStatus.PENDING,
-      sourceId: eventId,
+      sourceId: promptData.id,
       input: {
         promptName: promptData.name,
         promptVersion: promptData.version,

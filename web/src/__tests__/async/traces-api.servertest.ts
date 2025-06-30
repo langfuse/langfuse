@@ -148,8 +148,8 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.version).toBe("2.0.0");
     expect(trace.projectId).toBe(projectId);
     expect(trace.latency).toBe(100);
-    expect(trace.observations.length).toBe(2);
-    expect(trace.scores.length).toBe(0);
+    expect(trace.observations?.length).toBe(2);
+    expect(trace.scores?.length).toBe(0);
     expect(trace.timestamp).toBe(timestamp.toISOString());
   });
 
@@ -242,8 +242,8 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traces.body.data.length).toBe(1);
     const trace = traces.body.data[0];
     expect(trace.projectId).toBe(projectId);
-    expect(trace.observations.length).toBe(1);
-    expect(trace.scores.length).toBe(1);
+    expect(trace.observations?.length).toBe(1);
+    expect(trace.scores?.length).toBe(1);
   });
 
   it("should fetch traces with trace scores only", async () => {
@@ -302,9 +302,9 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traces.body.data.length).toBe(1);
     const trace = traces.body.data[0];
     expect(trace.projectId).toBe(projectId);
-    expect(trace.observations.length).toBe(1);
+    expect(trace.observations?.length).toBe(1);
     // Despite having the correct environment, the session score is not included in the response
-    expect(trace.scores.length).toBe(1);
+    expect(trace.scores?.length).toBe(1);
   });
 
   it("should fetch all traces filtered by a tag", async () => {
