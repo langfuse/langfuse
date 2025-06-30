@@ -49,17 +49,44 @@ import { recordDistribution } from "../instrumentation";
  * • Filters with two days lookback window subject to startTime
  * • Used for validating observation references before eval job creation
  */
-export const checkObservationExists = async (
-  projectId: string,
-  id: string,
-  startTime: Date | undefined,
-): Promise<boolean> => {
+export const checkObservationExists = async ({
+  projectId,
+  id,
+  filter,
+  ltStartTime,
+}: {
+  projectId: string;
+  id: string;
+  filter?: FilterState;
+  ltStartTime?: Date;
+}): Promise<boolean> => {
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...(filter
+      ? createFilterFromFilterState(
+          filter,
+          observationsTableUiColumnDefinitions,
+        )
+      : []),
+  );
+
+  const appliedFilter = observationsFilter.apply();
+
   const query = `
     SELECT id, project_id
     FROM observations o
     WHERE project_id = {projectId: String}
     AND id = {id: String}
-    ${startTime ? `AND start_time >= {startTime: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+    ${ltStartTime ? `AND start_time >= {startTime: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+    ${appliedFilter ? `AND ${appliedFilter.query}` : ""}
     ORDER BY event_ts DESC
     LIMIT 1 BY id, project_id
   `;
@@ -69,8 +96,9 @@ export const checkObservationExists = async (
     params: {
       id,
       projectId,
-      ...(startTime
-        ? { startTime: convertDateToClickhouseDateTime(startTime) }
+      ...(appliedFilter ? appliedFilter.params : {}),
+      ...(ltStartTime
+        ? { startTime: convertDateToClickhouseDateTime(ltStartTime) }
         : {}),
     },
     tags: {
@@ -450,6 +478,7 @@ const getObservationByIdInternal = async ({
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
         : {}),
       ...(traceId ? { traceId } : {}),
+      ...(type ? { type } : {}),
     },
     tags: {
       feature: "tracing",
@@ -687,7 +716,11 @@ const getObservationsTableInternal = async <T>(
   const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(opts.searchQuery, opts.searchType, "o");
+  const search = clickhouseSearchCondition(
+    opts.searchQuery,
+    opts.searchType,
+    "o",
+  );
 
   const scoresCte = `WITH scores_agg AS (
     SELECT

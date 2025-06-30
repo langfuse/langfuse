@@ -28,6 +28,10 @@
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
+    },
+    "./src/server/webhooks/signature": {
+      "import": "./dist/src/server/webhooks/signature.js",
+      "require": "./dist/src/server/webhooks/signature.js"
     }
   },
   "scripts": {

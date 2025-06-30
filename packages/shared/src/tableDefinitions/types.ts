@@ -1,3 +1,5 @@
+import { ObservationRecordInsertType } from "../server";
+
 export type UiColumnMappings = readonly UiColumnMapping[];
 
 export type UiColumnMapping = Readonly<{
@@ -7,6 +9,7 @@ export type UiColumnMapping = Readonly<{
   clickhouseSelect: string;
   clickhouseTypeOverwrite?: string;
   queryPrefix?: string;
+  memorySelect?: keyof ObservationRecordInsertType;
 }>;
 
 export type SingleValueOption = {

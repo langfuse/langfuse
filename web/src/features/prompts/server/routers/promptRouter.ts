@@ -10,7 +10,6 @@ import {
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
-import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import {
   CreatePromptTRPCSchema,
   InvalidRequestError,
@@ -18,6 +17,7 @@ import {
   optionalPaginationZod,
   paginationZod,
   PromptLabelSchema,
+  promptsTableCols,
   PromptType,
 } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
@@ -33,6 +33,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
+import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeProcessor";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -448,6 +449,11 @@ export const promptRouter = createTRPCRouter({
 
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
+
+        // Trigger webhooks for prompt deletion
+        for (const prompt of prompts) {
+          await promptChangeEventSourcing(prompt, "deleted");
+        }
       } catch (e) {
         logger.error(e);
         throw e;
@@ -596,6 +602,12 @@ export const promptRouter = createTRPCRouter({
 
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
+
+        // Trigger webhooks for prompt version deletion
+        await promptChangeEventSourcing(
+          promptVersion, // Full prompt data
+          "deleted",
+        );
       } catch (e) {
         logger.error(e);
         throw e;
@@ -707,6 +719,8 @@ export const promptRouter = createTRPCRouter({
           }
         }
 
+        const touchedPromptIds = [toBeLabeledPrompt.id];
+
         await auditLog(
           {
             session: ctx.session,
@@ -731,6 +745,8 @@ export const promptRouter = createTRPCRouter({
           orderBy: [{ version: "desc" }],
         });
 
+        touchedPromptIds.push(...previousLabeledPrompts.map((p) => p.id));
+
         const toBeExecuted = [
           ctx.prisma.prompt.update({
             where: {
@@ -745,6 +761,7 @@ export const promptRouter = createTRPCRouter({
 
         // Remove label from previous labeled prompts
         previousLabeledPrompts.forEach((prevPrompt) => {
+          touchedPromptIds.push(prevPrompt.id);
           toBeExecuted.push(
             ctx.prisma.prompt.update({
               where: {
@@ -768,6 +785,25 @@ export const promptRouter = createTRPCRouter({
 
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
+
+        // Trigger webhooks for prompt label update
+
+        const updatedPrompt = { ...toBeLabeledPrompt, labels: newLabels };
+
+        const updatedPrompts = await ctx.prisma.prompt.findMany({
+          where: {
+            id: { in: touchedPromptIds },
+            projectId,
+          },
+        });
+
+        // Send webhooks for ALL affected prompts
+        await Promise.all(
+          updatedPrompts.map((prompt) =>
+            promptChangeEventSourcing(prompt, "updated"),
+          ),
+        );
+        return updatedPrompt;
       } catch (e) {
         logger.error(`Failed to set prompt labels: ${e}`, e);
         throw e;
@@ -901,8 +937,19 @@ export const promptRouter = createTRPCRouter({
 
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
-      } catch (error) {
-        logger.error(error);
+
+        // Trigger webhooks for prompt tag update
+
+        const prompts = await ctx.prisma.prompt.findMany({
+          where: { projectId, name: promptName },
+        });
+
+        for (const prompt of prompts) {
+          await promptChangeEventSourcing(prompt, "updated");
+        }
+      } catch (e) {
+        logger.error(`Failed to update prompt tags: ${e}`, e);
+        throw e;
       }
     }),
   allPromptMeta: protectedProjectProcedure
