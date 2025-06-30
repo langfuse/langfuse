@@ -48,58 +48,51 @@ export const posthogIntegrationRouter = createTRPCRouter({
   update: protectedProjectProcedure
     .input(posthogIntegrationFormSchema.extend({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "integrations:CRUD",
-        });
-        if (!env.ENCRYPTION_KEY) {
-          if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-            throw new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message: "Internal server error",
-            });
-          } else {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                "Missing environment variable: `ENCRYPTION_KEY`. Please consult our docs: https://langfuse.com/self-hosting",
-            });
-          }
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "integrations:CRUD",
+      });
+      if (!env.ENCRYPTION_KEY) {
+        if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Internal server error",
+          });
+        } else {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Missing environment variable: `ENCRYPTION_KEY`. Please consult our docs: https://langfuse.com/self-hosting",
+          });
         }
-        await auditLog({
-          session: ctx.session,
-          action: "update",
-          resourceType: "posthogIntegration",
-          resourceId: input.projectId,
-        });
-        const { posthogProjectApiKey, ...config } = input;
-
-        const encryptedPosthogApiKey = encrypt(posthogProjectApiKey);
-
-        await ctx.prisma.posthogIntegration.upsert({
-          where: {
-            projectId: input.projectId,
-          },
-          create: {
-            projectId: input.projectId,
-            posthogHostName: config.posthogHostname,
-            encryptedPosthogApiKey,
-            enabled: config.enabled,
-          },
-          update: {
-            encryptedPosthogApiKey,
-            posthogHostName: config.posthogHostname,
-            enabled: config.enabled,
-          },
-        });
-      } catch (e) {
-        console.log("posthog integration update", e);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-        });
       }
+      await auditLog({
+        session: ctx.session,
+        action: "update",
+        resourceType: "posthogIntegration",
+        resourceId: input.projectId,
+      });
+      const { posthogProjectApiKey, ...config } = input;
+
+      const encryptedPosthogApiKey = encrypt(posthogProjectApiKey);
+
+      await ctx.prisma.posthogIntegration.upsert({
+        where: {
+          projectId: input.projectId,
+        },
+        create: {
+          projectId: input.projectId,
+          posthogHostName: config.posthogHostname,
+          encryptedPosthogApiKey,
+          enabled: config.enabled,
+        },
+        update: {
+          encryptedPosthogApiKey,
+          posthogHostName: config.posthogHostname,
+          enabled: config.enabled,
+        },
+      });
     }),
   delete: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
