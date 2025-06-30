@@ -9,6 +9,7 @@ import {
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 
 export const posthogIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -53,6 +54,20 @@ export const posthogIntegrationRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "integrations:CRUD",
         });
+        if (!env.ENCRYPTION_KEY) {
+          if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Internal server error",
+            });
+          } else {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Missing environment variable: `ENCRYPTION_KEY`. Please consult our docs: https://langfuse.com/self-hosting",
+            });
+          }
+        }
         await auditLog({
           session: ctx.session,
           action: "update",
