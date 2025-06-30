@@ -19,8 +19,6 @@ export * from "./tableDefinitions/typeHelpers";
 
 // llm api
 export * from "./server/llm/types";
-// TODO: move to frontend?
-export * from "./server/llm/compileChatMessages";
 
 // evals
 export * from "./features/evals/types";
@@ -47,6 +45,7 @@ export * from "./features/prompts/parsePromptDependencyTags";
 export * from "./features/prompts/validation";
 export * from "./features/prompts/types";
 export * from "./features/prompts/constants";
+export * from "./server/llm/compileChatMessages";
 
 // export db types only
 export * from "@prisma/client";
