@@ -250,7 +250,6 @@ export const mapLegacyUiTableFilterToView = (
   view: z.infer<typeof views>,
   filters: z.infer<typeof FilterArray>,
 ): z.infer<typeof FilterArray> => {
-  console.log("filters", filters);
   return filters.flatMap((filter) => {
     // If it's not a legacy filter, return it as is
     if (!isLegacyUiTableFilter(filter)) {
