@@ -289,13 +289,13 @@ export default function Layout(props: PropsWithChildren) {
           rel="icon"
           type="image/png"
           sizes="32x32"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-32x32.png`}
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-32x32${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
         />
         <link
           rel="icon"
           type="image/png"
           sizes="16x16"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16.png`}
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
         />
       </Head>
       <div>
