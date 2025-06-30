@@ -120,6 +120,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
     allNames: allDatasetNames,
     form,
     errorMessage: "Dataset name already exists.",
+    whitelistedName: props.mode === "update" ? props.datasetName : undefined,
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {

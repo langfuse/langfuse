@@ -33,4 +33,9 @@ export enum LangfuseOtelSpanAttributes {
 
   // Internal
   AS_ROOT = "langfuse.internal.as_root",
+
+  // Compatibility - Map properties that were documented in https://langfuse.com/docs/opentelemetry/get-started#property-mapping,
+  // but have a new assignment
+  TRACE_COMPAT_USER_ID = "langfuse.user.id",
+  TRACE_COMPAT_SESSION_ID = "langfuse.session.id",
 }
