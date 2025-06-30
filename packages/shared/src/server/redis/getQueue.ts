@@ -79,7 +79,3 @@ export function getQueue(
       throw new Error(`Queue ${queueName} not found`);
   }
 }
-
-export const getQueues = () => {
-  return Object.values(QueueName).map(getQueue);
-};
