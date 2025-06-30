@@ -13,6 +13,7 @@ import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
+import { TemplateButton } from "@/src/features/datasets/components/TemplateButton";
 import { Button } from "@/src/components/ui/button";
 import { MoreVertical } from "lucide-react";
 import Page from "@/src/components/layouts/page";
@@ -60,6 +61,7 @@ export default function DatasetItems() {
         ),
         actionButtonsRight: (
           <>
+            <TemplateButton projectId={projectId} datasetId={datasetId} />
             <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
             <UploadDatasetCsvButton
               projectId={projectId}

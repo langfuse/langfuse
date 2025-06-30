@@ -548,16 +548,19 @@ model CronJobs {
 }
 
 model Dataset {
-  id           String        @default(cuid())
-  projectId    String        @map("project_id")
-  name         String
-  description  String?
-  metadata     Json?
-  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at")
-  datasetItems DatasetItem[]
-  datasetRuns  DatasetRuns[]
+  id                     String        @default(cuid())
+  projectId              String        @map("project_id")
+  name                   String
+  description            String?
+  metadata               Json?
+  inputTemplate          Json?         @map("input_template")
+  expectedOutputTemplate Json?         @map("expected_output_template")
+  metadataTemplate       Json?         @map("metadata_template")
+  project                Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @default(now()) @updatedAt @map("updated_at")
+  datasetItems           DatasetItem[]
+  datasetRuns            DatasetRuns[]
 
   @@id([id, projectId])
   @@unique([projectId, name])

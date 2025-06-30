@@ -22,6 +22,9 @@ const APIDataset = z
     name: z.string(),
     description: z.string().nullable(),
     metadata: z.any(),
+    inputTemplate: z.any().nullable(),
+    expectedOutputTemplate: z.any().nullable(),
+    metadataTemplate: z.any().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })
