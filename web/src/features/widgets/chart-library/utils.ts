@@ -51,6 +51,7 @@ export const isTimeSeriesChart = (
     case "PIE":
     case "HISTOGRAM":
     case "NUMBER":
+    case "PIVOT_TABLE":
       return false;
     default:
       return false;
@@ -82,6 +83,8 @@ export function getChartTypeDisplayName(
       return "Big Number (Total Value)";
     case "HISTOGRAM":
       return "Histogram (Total Value)";
+    case "PIVOT_TABLE":
+      return "Pivot Table (Total Value)";
     default:
       return "Unknown Chart Type";
   }

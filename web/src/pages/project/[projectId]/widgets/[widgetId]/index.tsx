@@ -7,6 +7,10 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type views, type metricAggregations } from "@/src/features/query";
 import { type z } from "zod/v4";
+import {
+  type WidgetChartConfig,
+  transformToStrictChartConfig,
+} from "@/src/features/widgets/utils";
 
 export default function EditWidget() {
   const router = useRouter();
@@ -58,7 +62,7 @@ export default function EditWidget() {
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number; bins?: number };
+    chartConfig: WidgetChartConfig;
   }) => {
     if (!widgetId) return;
 
@@ -75,7 +79,7 @@ export default function EditWidget() {
       })),
       filters: widgetFormData.filters,
       chartType: widgetFormData.chartType,
-      chartConfig: widgetFormData.chartConfig,
+      chartConfig: transformToStrictChartConfig(widgetFormData.chartConfig),
     });
   };
 

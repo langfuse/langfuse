@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { singleFilter } from "@langfuse/shared";
+import { singleFilter, MAX_PIVOT_TABLE_DIMENSIONS } from "@langfuse/shared";
 
 export type ViewDeclarationType = z.infer<typeof viewDeclaration>;
 export type DimensionsDeclarationType = z.infer<
@@ -114,12 +114,16 @@ export const query = z
         }),
       )
       .nullable(),
-    // Chart configuration for chart-specific settings like histogram bins
+    // Chart configuration for chart-specific settings like histogram bins and pivot table dimensions
     chartConfig: z
       .object({
         type: z.string(),
         bins: z.number().int().min(1).max(100).optional(),
         row_limit: z.number().int().positive().lte(1000).optional(),
+        dimensions: z
+          .array(z.string())
+          .max(MAX_PIVOT_TABLE_DIMENSIONS)
+          .optional(), // For pivot tables: configurable max dimensions
       })
       .optional(),
   })
