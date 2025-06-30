@@ -15,7 +15,6 @@ import {
   WebhookActionConfigWithSecrets,
 } from "@langfuse/shared";
 import {
-  PromptService,
   WebhookInput,
   createOrgProjectAndApiKey,
   executeWebhook,
@@ -280,10 +279,6 @@ describe("Webhook Integration Tests", () => {
 
     it("should fail webhook execution if secret key does not exist and retry the bull job", async () => {
       const executionId = v4();
-
-      const fullPrompt = await prisma.prompt.findUnique({
-        where: { id: promptId },
-      });
 
       await prisma.action.update({
         where: { id: actionId },
