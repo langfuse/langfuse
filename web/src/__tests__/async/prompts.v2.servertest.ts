@@ -475,6 +475,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
     afterAll(async () => {
       WebhookQueue.getInstance()?.disconnect();
+      redis?.disconnect();
     });
 
     it("should create and fetch a chat prompt", async () => {
