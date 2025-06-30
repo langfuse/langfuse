@@ -2,7 +2,8 @@ import { z } from "zod/v4";
 import type { Prompt } from "../../../prisma/generated/types";
 import { jsonSchema } from "../../utils/zod";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "./constants";
-import { PromptNameSchema, PromptChatMessageSchema } from "@langfuse/shared";
+import { PromptChatMessageSchema } from "../../server/llm/types";
+import { PromptNameSchema } from "./validation";
 
 export const SingleChatMessageSchema = PromptChatMessageSchema;
 export type SingleChatMessage = z.infer<typeof SingleChatMessageSchema>;
