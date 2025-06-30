@@ -7,6 +7,7 @@ import {
   redis,
   ZodModelConfig,
   ExperimentCreateQueue,
+  type PlaceholderMessage,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -101,6 +102,20 @@ export const experimentsRouter = createTRPCRouter({
         return {
           isValid: false,
           message: "Selected prompt has no variables.",
+        };
+      }
+
+      const promptMessages = prompt?.type === PromptType.Chat && Array.isArray(prompt.prompt)
+        ? prompt.prompt
+        : [];
+      const hasPlaceholders = promptMessages.some((msg): msg is PlaceholderMessage => 
+        (msg as PlaceholderMessage).type === "placeholder"
+      );
+
+      if (hasPlaceholders) {
+        return {
+          isValid: false,
+          message: "Selected prompt has placeholders, those are not yet supported for experiments.",
         };
       }
 

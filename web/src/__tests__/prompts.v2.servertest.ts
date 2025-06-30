@@ -7,16 +7,18 @@ import {
   PromptSchema,
   PromptType,
   type ValidatedPrompt,
+  type ChatMessage,
   type Prompt,
 } from "@langfuse/shared";
 import { parsePromptDependencyTags } from "@langfuse/shared";
-import { nanoid } from "ai";
+import { generateId, nanoid } from "ai";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
+  ChatMessageType,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 
@@ -450,6 +452,52 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.createdBy).toBe("API");
       expect(validatedPrompt.config).toEqual({});
       expect(validatedPrompt.commitMessage).toBe("chore: setup initial prompt");
+    });
+
+    it("should create and fetch a chat prompt with message placeholders", async () => {
+      const promptName = `prompt-name-message-placeholders${generateId()}`;
+      const commitMessage = "feat: add message placeholders support";
+      const chatMessages = [
+        { role: "system", content: "You are a helpful assistant with conversation context." },
+        {
+          type: ChatMessageType.Placeholder,
+          name: "conversation_history"
+        },
+        { role: "user", content: "{{user_question}}" }
+      ];
+
+      const response = await makeAPICall("POST", baseURI, {
+        name: promptName,
+        prompt: chatMessages,
+        type: "chat",
+        labels: ["production"],
+        commitMessage: commitMessage
+      });
+
+      expect(response.status).toBe(201);
+
+      const { body: fetchedPrompt } = await makeAPICall(
+        "GET",
+        `${baseURI}/${promptName}`,
+        undefined,
+      );
+
+      const validatedPrompt = validatePrompt(fetchedPrompt);
+
+      expect(validatedPrompt.name).toBe(promptName);
+      expect(validatedPrompt.prompt).toEqual(chatMessages);
+      expect(validatedPrompt.type).toBe("chat");
+      expect(validatedPrompt.version).toBe(1);
+      expect(validatedPrompt.labels).toEqual(["production", "latest"]);
+      expect(validatedPrompt.createdBy).toBe("API");
+      expect(validatedPrompt.config).toEqual({});
+      expect(validatedPrompt.commitMessage).toBe(commitMessage);
+
+      // Verify the placeholder message structure is preserved
+      const messages = validatedPrompt.prompt as ChatMessage[];
+      const placeholderMessage = messages[1] as { type: ChatMessageType.Placeholder; name: string };
+      expect(placeholderMessage.type).toBe(ChatMessageType.Placeholder);
+      expect(placeholderMessage.name).toBe("conversation_history");
     });
 
     it("should fail if chat prompt has string prompt", async () => {
