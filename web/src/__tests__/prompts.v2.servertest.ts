@@ -474,9 +474,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         commitMessage: commitMessage
       });
 
-      // TODO: remove before merge, for debugging purposes
-      // console.log("Response status:", response.status);
-      // console.log("Response body:", JSON.stringify(response.body, null, 2));
       expect(response.status).toBe(201);
 
       const { body: fetchedPrompt } = await makeAPICall(

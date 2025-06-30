@@ -115,8 +115,8 @@ export enum ChatMessageRole {
   Tool = "tool",
 }
 
-// TODO: validate if placeholder should not be part of this, or the placeholder should also be
-// PublicAPICreated of type? semantically otherwise not correct
+// Thought: should placeholder not semantically be part of this, because it can be
+// PublicAPICreated of type? Works for now though.
 export enum ChatMessageType {
   System = "system",
   Developer = "developer",
@@ -177,7 +177,6 @@ export type ToolResultMessage = z.infer<typeof ToolResultMessageSchema>;
 export const PlaceholderMessageSchema = z.object({
   type: z.literal(ChatMessageType.Placeholder),
   name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"),
-  content: z.string().max(0).optional(),  // placeholder messages have no content, using this field for type coercion in the ChatMessageComponent
 });
 export type PlaceholderMessage = z.infer<typeof PlaceholderMessageSchema>;
 

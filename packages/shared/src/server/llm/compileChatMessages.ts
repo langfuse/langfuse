@@ -1,4 +1,3 @@
-// TODO: move to frontend?
 import { z } from "zod/v4";
 import { v4 as uuidv4 } from "uuid";
 import { type ChatMessage, type PlaceholderMessage, ChatMessageType, type PromptChatMessageSchema, type ChatMessageWithId, type ChatMessageWithIdNoPlaceholders, ChatMessageSchema } from "./types";
