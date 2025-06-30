@@ -366,12 +366,6 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        const promptService = new PromptService(ctx.prisma, redis);
-
-        const resolvedPrompts = await Promise.all(
-          prompts.map((prompt) => promptService.resolvePrompt(prompt)),
-        );
-
         const dependents = await ctx.prisma.$queryRaw<
           {
             parent_name: string;
@@ -439,6 +433,7 @@ export const promptRouter = createTRPCRouter({
         }
 
         // Lock and invalidate cache for _all_ versions and labels of the prompt
+        const promptService = new PromptService(ctx.prisma, redis);
         await promptService.lockCache({ projectId, promptName });
         await promptService.invalidateCache({ projectId, promptName });
 
