@@ -33,6 +33,7 @@ import {
   TraceEventType,
   traceRecordInsertSchema,
   TraceRecordInsertType,
+  TraceMtRecordInsertType,
   traceRecordReadSchema,
   TraceUpsertQueue,
   UsageCostType,
@@ -318,6 +319,14 @@ export class IngestionService {
 
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
 
+    // Experimental: Also write to traces_mt table if experiment flag is enabled
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
+    ) {
+      const traceMtRecord = this.convertTraceToTraceMt(finalTraceRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+    }
+
     // Add trace into trace upsert queue for eval processing
     const traceUpsertQueue = TraceUpsertQueue.getInstance();
     if (!traceUpsertQueue) {
@@ -492,6 +501,46 @@ export class IngestionService {
     );
 
     return traceRecordInsertSchema.parse(mergedRecord);
+  }
+
+  private convertTraceToTraceMt(
+    traceRecord: TraceRecordInsertType,
+  ): TraceMtRecordInsertType {
+    return {
+      // Identifiers
+      project_id: traceRecord.project_id,
+      id: traceRecord.id,
+      start_time: traceRecord.timestamp,
+      end_time: null, // traces don't have end_time, will be null
+      name: traceRecord.name || "",
+
+      // Metadata properties
+      metadata: traceRecord.metadata,
+      user_id: traceRecord.user_id || "",
+      session_id: traceRecord.session_id || "",
+      environment: traceRecord.environment,
+      tags: traceRecord.tags,
+      version: traceRecord.version,
+      release: traceRecord.release,
+
+      // UI properties - nullable to prevent absent values being interpreted as overwrites
+      bookmarked: traceRecord.bookmarked,
+      public: traceRecord.public,
+
+      // Aggregations - empty for now, will be populated by aggregation processes
+      observation_ids: [],
+      score_ids: [],
+      cost_details: {},
+      usage_details: {},
+
+      // Input/Output
+      input: traceRecord.input || "",
+      output: traceRecord.output || "",
+
+      created_at: traceRecord.created_at,
+      updated_at: traceRecord.updated_at,
+      event_ts: traceRecord.event_ts,
+    };
   }
 
   private async mergeObservationRecords(params: {
