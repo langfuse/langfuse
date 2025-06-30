@@ -12,9 +12,7 @@ import {
   QueueName,
   QueueJobs,
   InMemoryFilterService,
-  PromptService,
   type PromptResult,
-  redis,
 } from "@langfuse/shared/src/server";
 import { TriggerEventSource } from "@langfuse/shared";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
