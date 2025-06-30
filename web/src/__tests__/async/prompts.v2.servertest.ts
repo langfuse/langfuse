@@ -1304,6 +1304,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 
   afterAll(() => {
     WebhookQueue.getInstance()?.disconnect();
+    redis?.disconnect();
   });
 
   it("should update the labels of a prompt", async () => {
