@@ -182,7 +182,6 @@ describe("Webhook Integration Tests", () => {
 
   afterAll(() => {
     webhookServer.teardown();
-    redis?.disconnect();
   });
 
   describe("executeWebhook function", () => {
