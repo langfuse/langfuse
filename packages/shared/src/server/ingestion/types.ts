@@ -193,13 +193,13 @@ export const UsageDetails = z
   ])
   .nullish();
 
+const ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
+  "Only alphanumeric lower case characters, hyphens, and underscores are allowed, and it must not start with 'langfuse'";
+
 export const EnvironmentName = z
   .string()
   .max(40, "Maximum length is 40 characters")
-  .regex(
-    /^(?!langfuse)[a-z0-9-_]+$/,
-    "Only alphanumeric lower case characters, hyphens, and underscores are allowed, and it must not start with 'langfuse'",
-  )
+  .regex(/^(?!langfuse)[a-z0-9-_]+$/, ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
   .default("default");
 
 // Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
@@ -552,6 +552,34 @@ export const ingestionEvent = z.discriminatedUnion("type", [
   legacyObservationUpdateEvent,
 ]);
 export type IngestionEventType = z.infer<typeof ingestionEvent>;
+
+/**
+ * Creates an ingestion event schema that overrides environment regex validation errors when isLangfuseInternal is true.
+ * @param isLangfuseInternal - Whether the events are being ingested by Langfuse internally (e.g. traces created for prompt experiments).
+ * @returns The ingestion event schema.
+ */
+export const createIngestionEventSchema = (isLangfuseInternal = false) => {
+  const schema = ingestionEvent;
+
+  if (!isLangfuseInternal) {
+    return schema;
+  }
+
+  return schema.check((ctx) => {
+    // Override environment regex validation errors when isLangfuseInternal is true
+    const filteredIssues = ctx.issues.filter((issue) => {
+      // Remove issues related to environment field regex validation
+      const isEnvironmentRegexError =
+        issue.path?.includes("environment") &&
+        issue.message === ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE;
+      return !isEnvironmentRegexError;
+    });
+
+    // Clear all issues and add back only the non-environment regex ones
+    ctx.issues.length = 0;
+    ctx.issues.push(...filteredIssues);
+  });
+};
 
 export type ObservationEvent =
   | z.infer<typeof legacyObservationCreateEvent>
