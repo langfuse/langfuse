@@ -9,6 +9,7 @@ import {
   recordIncrement,
   ScoreRecordInsertType,
   TraceRecordInsertType,
+  TraceMtRecordInsertType,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
@@ -36,6 +37,7 @@ export class ClickhouseWriter {
 
     this.queue = {
       [TableName.Traces]: [],
+      [TableName.TracesMt]: [],
       [TableName.Scores]: [],
       [TableName.Observations]: [],
       [TableName.BlobStorageFileLog]: [],
@@ -101,6 +103,7 @@ export class ClickhouseWriter {
         recordIncrement("langfuse.queue.clickhouse_writer.request");
         await Promise.all([
           this.flush(TableName.Traces, fullQueue),
+          this.flush(TableName.TracesMt, fullQueue),
           this.flush(TableName.Scores, fullQueue),
           this.flush(TableName.Observations, fullQueue),
           this.flush(TableName.BlobStorageFileLog, fullQueue),
@@ -237,6 +240,7 @@ export class ClickhouseWriter {
 
 export enum TableName {
   Traces = "traces",
+  TracesMt = "traces_mt",
   Scores = "scores",
   Observations = "observations",
   BlobStorageFileLog = "blob_storage_file_log",
@@ -248,9 +252,11 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
     ? ObservationRecordInsertType
     : T extends TableName.Traces
       ? TraceRecordInsertType
-      : T extends TableName.BlobStorageFileLog
-        ? BlobStorageFileLogInsertType
-        : never;
+      : T extends TableName.TracesMt
+        ? TraceMtRecordInsertType
+        : T extends TableName.BlobStorageFileLog
+          ? BlobStorageFileLogInsertType
+          : never;
 
 type ClickhouseQueue = {
   [T in TableName]: ClickhouseWriterQueueItem<T>[];
