@@ -202,8 +202,13 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   };
 
   const onValueChange = useCallback(
-    (value: string) =>
-      updateMessage(message.type, message.id, "content", value),
+    (value: string) => {
+      if (message.type === ChatMessageType.Placeholder) {
+        updateMessage(message.type, message.id, "name", value);
+      } else {
+        updateMessage(message.type, message.id, "content", value);
+      }
+    },
     [message.id, message.type, updateMessage],
   );
 

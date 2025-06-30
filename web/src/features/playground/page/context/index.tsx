@@ -171,7 +171,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   }, [playgroundCache, setModelParams]);
 
   const updatePromptVariables = useCallback(() => {
-    const messageContents = messages.map((m) => m.content).join("\n");
+    const messageContents = messages.map((m) => ('content' in m ? m.content : m.name)).join("\n");
     const variables = extractVariables(messageContents)
       .map((v) => v.trim())
       .filter(Boolean);
