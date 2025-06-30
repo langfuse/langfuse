@@ -312,6 +312,22 @@ export function WidgetForm({
       internal: "internalValue",
     },
   ];
+  if (selectedView === "scores-categorical") {
+    filterColumns.push({
+      name: "Score String Value",
+      id: "stringValue",
+      type: "string",
+      internal: "internalValue",
+    });
+  }
+  if (selectedView === "scores-numeric") {
+    filterColumns.push({
+      name: "Score Value",
+      id: "value",
+      type: "number",
+      internal: "internalValue",
+    });
+  }
 
   // When chart type does not support breakdown, wipe the breakdown dimension
   useEffect(() => {
