@@ -393,6 +393,7 @@ export type LLMApiKey =
     ? z.infer<typeof LLMApiKeySchema>
     : never;
 
+// NOTE: This string is whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts#L90.
 export const PROMPT_EXPERIMENT_ENVIRONMENT =
   "langfuse-prompt-experiment" as const;
 

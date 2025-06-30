@@ -538,7 +538,7 @@ export const legacyObservationUpdateEvent = base.extend({
   body: LegacyObservationBody,
 });
 
-export const ingestionEvent = z.discriminatedUnion("type", [
+const ingestionEvent = z.discriminatedUnion("type", [
   traceEvent,
   scoreEvent,
   eventCreateEvent,
