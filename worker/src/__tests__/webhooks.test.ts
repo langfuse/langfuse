@@ -11,12 +11,15 @@ import { v4 } from "uuid";
 import {
   ActionExecutionStatus,
   JobConfigState,
+  PromptDomainSchema,
   WebhookActionConfigWithSecrets,
 } from "@langfuse/shared";
 import {
+  PromptService,
   WebhookInput,
   createOrgProjectAndApiKey,
   executeWebhook,
+  redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -180,10 +183,16 @@ describe("Webhook Integration Tests", () => {
 
   afterAll(() => {
     webhookServer.teardown();
+    redis?.disconnect();
   });
 
   describe("executeWebhook function", () => {
     it("should execute webhook successfully with signature", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
       const webhookInput: WebhookInput = {
         eventId: v4(),
         projectId,
@@ -191,8 +200,7 @@ describe("Webhook Integration Tests", () => {
         triggerId,
         executionId,
         payload: {
-          promptName: "test-prompt",
-          promptVersion: 1,
+          prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt",
         },
@@ -273,6 +281,10 @@ describe("Webhook Integration Tests", () => {
     it("should fail webhook execution if secret key does not exist and retry the bull job", async () => {
       const executionId = v4();
 
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
       await prisma.action.update({
         where: { id: actionId },
         data: {
@@ -310,8 +322,7 @@ describe("Webhook Integration Tests", () => {
         triggerId,
         executionId,
         payload: {
-          promptName: "test-prompt",
-          promptVersion: 1,
+          prompt: PromptDomainSchema.parse({}),
           action: "created",
           type: "prompt",
         },
@@ -329,6 +340,10 @@ describe("Webhook Integration Tests", () => {
     });
 
     it("should handle webhook endpoint returning error", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
       const action = await prisma.action.findUnique({
         where: { id: actionId },
       });
@@ -373,8 +388,7 @@ describe("Webhook Integration Tests", () => {
         triggerId,
         executionId,
         payload: {
-          promptName: "test-prompt",
-          promptVersion: 1,
+          prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt",
         },
@@ -397,7 +411,10 @@ describe("Webhook Integration Tests", () => {
     });
 
     it("should disable trigger after 5 consecutive failures", async () => {
-      // Update action to point to error endpoint
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
       const action = await prisma.action.findUnique({
         where: { id: actionId },
       });
@@ -446,8 +463,7 @@ describe("Webhook Integration Tests", () => {
           triggerId,
           executionId,
           payload: {
-            promptName: "test-prompt",
-            promptVersion: 1,
+            prompt: PromptDomainSchema.parse(fullPrompt),
             action: "created",
             type: "prompt",
           },
