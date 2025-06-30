@@ -1500,6 +1500,7 @@ export const getGenerationsForPostHog = async function* (
       t.user_id as trace_user_id,
       t.release as trace_release,
       t.tags as trace_tags,
+      t.environment as trace_environment,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM observations o FINAL
     LEFT JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
@@ -1556,6 +1557,7 @@ export const getGenerationsForPostHog = async function* (
       langfuse_model: record.model,
       langfuse_level: record.level,
       langfuse_tags: record.trace_tags,
+      langfuse_environment: record.trace_environment,
       langfuse_event_version: "1.0.0",
       $session_id: record.posthog_session_id ?? null,
       $set: {
