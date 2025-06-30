@@ -43,7 +43,7 @@
     "dd-trace": "^5.36.0",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
-    "exponential-backoff": "^3.1.1",
+    "exponential-backoff": "^3.1.2",
     "express": "^4.21.0",
     "handlebars": "^4.7.8",
     "helmet": "^7.1.0",
