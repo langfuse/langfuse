@@ -56,7 +56,7 @@ export const MessagePlaceholderComponent: React.FC<{
       </div>
 
       <CodeMirrorEditor
-        value={JSON.stringify(value, null, 2)}
+        value={value.length === 0 ? `[\n  {\n    "role": "",\n    "content": ""\n  }\n]` : JSON.stringify(value, null, 2)}
         onChange={handleInputChange}
         mode="json"
         minHeight="none"
