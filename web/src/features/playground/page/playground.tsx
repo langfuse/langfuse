@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Plus, SlidersHorizontal } from "lucide-react";
+import { Plus, PlusCircleIcon, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import {
   Tooltip,
@@ -44,119 +44,133 @@ export default function Playground() {
 
   return (
     <div className="flex h-full flex-col space-y-4">
-      {/* Top bar for model configuration summary */}
-      <div className="flex items-center justify-between border-b bg-muted px-2 py-2">
-        {availableProviders.length === 0 ? (
-          // Show the CreateLLMApiKeyDialog as a button with text (default behavior)
-          <CreateLLMApiKeyDialog />
-        ) : (
-          <div className="flex w-full items-center gap-4 text-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">Provider:</span>
-                <Select
-                  value={modelParams.provider.value}
-                  onValueChange={(value) => {
-                    updateModelParamValue("provider", value);
-                  }}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Select provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProviders.map((provider) => (
-                      <SelectItem key={provider} value={provider}>
-                        {provider}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">Model:</span>
-                <Select
-                  value={modelParams.model.value}
-                  onValueChange={(value) => {
-                    updateModelParamValue("model", value);
-                  }}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Select model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[...new Set(availableModels)].map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* Variables button */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 p-0"
-                      onClick={() => setVariablesDialogOpen(true)}
-                    >
-                      <SlidersHorizontal className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    Configure variables
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <Dialog
-                open={variablesDialogOpen}
-                onOpenChange={setVariablesDialogOpen}
-              >
-                <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
-                  <DialogHeader>
-                    <DialogTitle>Configure Variables</DialogTitle>
-                  </DialogHeader>
-                  <div className="flex max-w-xl flex-col rounded-lg bg-background p-4 shadow">
-                    <Variables />
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-            <div className="flex-grow" />
-            {/* Add API key button on the far right with tooltip and dialog, only if there are API keys */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 p-0"
-                    onClick={() => setApiKeyDialogOpen(true)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  Add a new LLM API key
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <Dialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen}>
-              <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
-                <CreateLLMApiKeyDialog />
-              </DialogContent>
-            </Dialog>
-          </div>
-        )}
-      </div>
-      {/* Main content area: only the message area remains */}
       <div className="flex flex-1 flex-row space-x-8">
-        <div className="h-full w-full overflow-auto">
-          <Messages {...playgroundContext} />
+        {/* Main content area as a card with top bar and messages grouped */}
+        <div className="flex h-full w-full flex-col overflow-auto rounded-lg bg-background p-6 shadow">
+          {/* Top bar for model configuration summary (now inside the card) */}
+          <div className="mb-4 flex items-center justify-between">
+            {availableProviders.length === 0 ? (
+              <CreateLLMApiKeyDialog />
+            ) : (
+              <div className="flex w-full items-center gap-4 text-sm">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Provider:</span>
+                    <Select
+                      value={modelParams.provider.value}
+                      onValueChange={(value) => {
+                        updateModelParamValue("provider", value);
+                      }}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Select provider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableProviders.map((provider) => (
+                          <SelectItem key={provider} value={provider}>
+                            {provider}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Model:</span>
+                    <Select
+                      value={modelParams.model.value}
+                      onValueChange={(value) => {
+                        updateModelParamValue("model", value);
+                      }}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Select model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[...new Set(availableModels)].map((model) => (
+                          <SelectItem key={model} value={model}>
+                            {model}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Variables button */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 p-0"
+                          onClick={() => setVariablesDialogOpen(true)}
+                        >
+                          <SlidersHorizontal className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Configure variables
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <Dialog
+                    open={variablesDialogOpen}
+                    onOpenChange={setVariablesDialogOpen}
+                  >
+                    <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
+                      <DialogHeader>
+                        <DialogTitle>Configure Variables</DialogTitle>
+                      </DialogHeader>
+                      <div className="flex max-w-xl flex-col rounded-lg bg-background p-4 shadow">
+                        <Variables />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+                <div className="flex-grow" />
+                {/* Add API key button on the far right with tooltip and dialog, only if there are API keys */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 p-0"
+                        onClick={() => setApiKeyDialogOpen(true)}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      Add a new LLM API key
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Dialog
+                  open={apiKeyDialogOpen}
+                  onOpenChange={setApiKeyDialogOpen}
+                >
+                  <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
+                    <CreateLLMApiKeyDialog />
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
+          </div>
+          {/* Messages area */}
+          <div className="flex min-h-[500px] flex-1 flex-col">
+            <Messages {...playgroundContext} />
+          </div>
         </div>
-        {/* Sidebar removed: PlaygroundTools and StructuredOutputSchemaSection are hidden for now */}
+        {/* Floating plus button */}
+        <div className="px-12">
+          <button
+            className="absolute right-12 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full border border-input bg-background p-3 shadow transition-all hover:bg-muted"
+            style={{ marginLeft: "32px" }}
+            aria-label="Add new prompt section"
+          >
+            <PlusCircleIcon size={28} className="text-primary" />
+          </button>
+        </div>
       </div>
     </div>
   );
