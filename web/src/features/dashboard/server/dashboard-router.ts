@@ -20,6 +20,7 @@ import {
   DashboardService,
   DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
+import { noHtmlCheck } from "@langfuse/shared";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import {
@@ -53,15 +54,23 @@ const UpdateDashboardDefinitionInput = z.object({
 const UpdateDashboardInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
-  name: z.string().min(1, "Dashboard name is required"),
-  description: z.string(),
+  name: z.string().min(1, "Dashboard name is required").refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
+  description: z.string().refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
 });
 
 // Create dashboard input schema
 const CreateDashboardInput = z.object({
   projectId: z.string(),
-  name: z.string().min(1, "Dashboard name is required"),
-  description: z.string(),
+  name: z.string().min(1, "Dashboard name is required").refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
+  description: z.string().refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
 });
 
 // Clone dashboard input schema

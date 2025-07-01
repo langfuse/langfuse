@@ -7,6 +7,7 @@ import * as z from "zod/v4";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { noHtmlCheck } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
@@ -22,7 +23,9 @@ export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
     .input(
       z.object({
-        name: z.string(),
+        name: z.string().refine((value) => noHtmlCheck(value), {
+          message: "Input should not contain HTML",
+        }),
         orgId: z.string(),
       }),
     )

@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { LLMJSONSchema } from "@langfuse/shared";
+import { LLMJSONSchema, noHtmlCheck } from "@langfuse/shared";
 
 export const LLMSchemaNameSchema = z
   .string()
@@ -11,7 +11,9 @@ export const LLMSchemaNameSchema = z
 
 export const LLMSchemaInput = z.object({
   name: LLMSchemaNameSchema,
-  description: z.string(),
+  description: z.string().refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
   schema: LLMJSONSchema,
 });
 

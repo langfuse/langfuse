@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { noHtmlCheck } from "@langfuse/shared";
 
 export const UsageTypeSchema = z.string().regex(/^[a-zA-Z0-9_-]+$/);
 export const PriceSchema = z.number().nonnegative();
@@ -31,7 +32,9 @@ export type GetModelResult = z.infer<typeof GetModelResultSchema>;
 export const UpsertModelSchema = z.object({
   modelId: z.string().nullable(),
   projectId: z.string(),
-  modelName: z.string().min(1),
+  modelName: z.string().min(1).refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
   matchPattern: z.string().min(1),
   tokenizerId: z
     .enum(["openai", "claude", "None"])
@@ -48,7 +51,9 @@ export const UpsertModelSchema = z.object({
 export type UpsertModel = z.infer<typeof UpsertModelSchema>;
 
 export const FormUpsertModelSchema = z.object({
-  modelName: z.string().min(1),
+  modelName: z.string().min(1).refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
   matchPattern: z.string().min(1),
   tokenizerId: z.enum(["openai", "claude", "None"]).nullish(),
   tokenizerConfig: z

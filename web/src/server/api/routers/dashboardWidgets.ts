@@ -3,7 +3,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { orderBy, singleFilter, optionalPaginationZod } from "@langfuse/shared";
+import { orderBy, singleFilter, optionalPaginationZod, noHtmlCheck } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DashboardWidgetChartType,
@@ -21,8 +21,12 @@ import { LangfuseConflictError } from "@langfuse/shared";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
-  name: z.string().min(1, "Widget name is required"),
-  description: z.string(),
+  name: z.string().min(1, "Widget name is required").refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
+  description: z.string().refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
   view: views,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
@@ -35,8 +39,12 @@ const CreateDashboardWidgetInput = z.object({
 const UpdateDashboardWidgetInput = z.object({
   projectId: z.string(),
   widgetId: z.string(),
-  name: z.string().min(1, "Widget name is required"),
-  description: z.string(),
+  name: z.string().min(1, "Widget name is required").refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
+  description: z.string().refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
   view: views,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),

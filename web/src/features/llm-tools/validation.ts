@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { LLMJSONSchema } from "@langfuse/shared";
+import { LLMJSONSchema, noHtmlCheck } from "@langfuse/shared";
 
 export const LLMToolNameSchema = z
   .string()
@@ -11,7 +11,9 @@ export const LLMToolNameSchema = z
 
 export const LLMToolInput = z.object({
   name: LLMToolNameSchema,
-  description: z.string(),
+  description: z.string().refine((value) => noHtmlCheck(value), {
+    message: "Input should not contain HTML",
+  }),
   parameters: LLMJSONSchema,
 });
 

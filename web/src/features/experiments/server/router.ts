@@ -8,6 +8,7 @@ import {
   ZodModelConfig,
   ExperimentCreateQueue,
   type PlaceholderMessage,
+  noHtmlCheck,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -160,7 +161,9 @@ export const experimentsRouter = createTRPCRouter({
         name: z.string().optional(),
         promptId: z.string().min(1, "Please select a prompt"),
         datasetId: z.string().min(1, "Please select a dataset"),
-        description: z.string().max(1000).optional(),
+        description: z.string().max(1000).optional().refine((value) => !value || noHtmlCheck(value), {
+          message: "Input should not contain HTML",
+        }),
         modelConfig: z.object({
           provider: z.string().min(1, "Please select a provider"),
           model: z.string().min(1, "Please select a model"),

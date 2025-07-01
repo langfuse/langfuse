@@ -5,6 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod/v4";
+import { noHtmlCheck } from "@langfuse/shared";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -46,7 +47,9 @@ export const projectApiKeysRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        note: z.string().optional(),
+        note: z.string().optional().refine((value) => !value || noHtmlCheck(value), {
+          message: "Input should not contain HTML",
+        }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -77,7 +80,9 @@ export const projectApiKeysRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         keyId: z.string(),
-        note: z.string(),
+        note: z.string().refine((value) => noHtmlCheck(value), {
+          message: "Input should not contain HTML",
+        }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
