@@ -6,6 +6,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import useColumnSizing from "@/src/features/column-visibility/hooks/useColumnSizing";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -1003,6 +1004,11 @@ export default function TracesTable({
     columns,
   );
 
+  const [columnSizing, setColumnSizing] = useColumnSizing<TracesTableRow>(
+    `traceColumnSizing-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
+    columns,
+  );
+
   const { getNavigationPath, expandPeek } = useTracePeekNavigation();
   const { setPeekView } = useTracePeekState();
 
@@ -1204,6 +1210,8 @@ export default function TracesTable({
         onColumnVisibilityChange={setColumnVisibility}
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
+        columnSizing={columnSizing}
+        onColumnSizingChange={setColumnSizing}
         rowHeight={rowHeight}
         pinFirstColumn={!hideControls}
         peekView={peekConfig}

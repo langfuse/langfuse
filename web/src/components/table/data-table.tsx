@@ -22,6 +22,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { cn } from "@/src/utils/tailwind";
 import {
   type ColumnOrderState,
+  type ColumnSizingState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -54,6 +55,8 @@ interface DataTableProps<TData, TValue> {
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
+  columnSizing?: ColumnSizingState;
+  onColumnSizingChange?: OnChangeFn<ColumnSizingState>;
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
@@ -109,6 +112,8 @@ export function DataTable<TData extends object, TValue>({
   onColumnVisibilityChange,
   columnOrder,
   onColumnOrderChange,
+  columnSizing,
+  onColumnSizingChange,
   help,
   orderBy,
   setOrderBy,
@@ -141,6 +146,7 @@ export function DataTable<TData extends object, TValue>({
     columns,
     onColumnFiltersChange: setColumnFilters,
     onColumnOrderChange: onColumnOrderChange,
+    onColumnSizingChange: onColumnSizingChange,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
     manualPagination: pagination !== undefined,
@@ -168,6 +174,7 @@ export function DataTable<TData extends object, TValue>({
       columnOrder: columnOrder
         ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
         : undefined,
+      columnSizing,
       rowSelection,
     },
     manualFiltering: true,
