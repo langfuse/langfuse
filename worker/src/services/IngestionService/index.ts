@@ -220,6 +220,14 @@ export class IngestionService {
       clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
+      finalScoreRecord.trace_id
+    ) {
+      const traceMtRecord = this.convertScoreToTraceMt(finalScoreRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+    }
   }
 
   private async processTraceEventList(params: {
@@ -453,6 +461,14 @@ export class IngestionService {
       TableName.Observations,
       finalObservationRecord,
     );
+
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
+      finalObservationRecord.trace_id
+    ) {
+      const traceMtRecord = this.convertObservationToTraceMt(finalObservationRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+    }
   }
 
   private async mergeScoreRecords(params: {
@@ -540,6 +556,90 @@ export class IngestionService {
       created_at: traceRecord.created_at,
       updated_at: traceRecord.updated_at,
       event_ts: traceRecord.event_ts,
+    };
+  }
+
+  private convertObservationToTraceMt(
+    observationRecord: ObservationRecordInsertType,
+  ): TraceMtRecordInsertType {
+    return {
+      // Identifiers
+      project_id: observationRecord.project_id,
+      // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+      id: observationRecord.trace_id || "", 
+      start_time: observationRecord.start_time,
+      end_time: observationRecord.end_time || null,
+      name: "",
+
+      // Metadata properties
+      metadata: {},
+      user_id: '',
+      session_id: '',
+      environment: observationRecord.environment,
+      tags: [],
+      version: null,
+      release: null,
+
+      // UI properties - nullable to prevent absent values being interpreted as overwrites
+      bookmarked: null,
+      public: null,
+
+      // Aggregations - include this observation ID
+      observation_ids: [observationRecord.id],
+      score_ids: [],
+      // We can fill the cost details here, but we shouldn't trust them.
+      // Only used for verification to estimate how big the double-counting is.
+      cost_details: observationRecord.cost_details || {},
+      usage_details: observationRecord.usage_details || {},
+
+      // Input/Output
+      input: "",
+      output: "",
+
+      created_at: observationRecord.created_at,
+      updated_at: observationRecord.updated_at,
+      event_ts: observationRecord.event_ts,
+    };
+  }
+
+  private convertScoreToTraceMt(
+    scoreRecord: ScoreRecordInsertType,
+  ): TraceMtRecordInsertType {
+    return {
+      // Identifiers
+      project_id: scoreRecord.project_id,
+      // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+      id: scoreRecord.trace_id || "", 
+      start_time: scoreRecord.timestamp,
+      end_time: null, // scores don't have end_time
+      name: "",
+
+      // Metadata properties
+      metadata: {},
+      user_id: '',
+      session_id: '',
+      environment: scoreRecord.environment,
+      tags: [], // scores don't have tags
+      version: null, // scores don't have version
+      release: null, // scores don't have release
+
+      // UI properties - nullable to prevent absent values being interpreted as overwrites
+      bookmarked: null,
+      public: null,
+
+      // Aggregations - include this score ID
+      observation_ids: [],
+      score_ids: [scoreRecord.id],
+      cost_details: {},
+      usage_details: {},
+
+      // Input/Output
+      input: "", // scores don't have input
+      output: "", // scores don't have output
+
+      created_at: scoreRecord.created_at,
+      updated_at: scoreRecord.updated_at,
+      event_ts: scoreRecord.event_ts,
     };
   }
 
