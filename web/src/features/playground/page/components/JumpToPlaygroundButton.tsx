@@ -122,7 +122,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
       title={
         isAvailable
           ? "Test in LLM playground"
-          : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a Github issue."
+          : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue."
       }
       onClick={handleClick}
       asChild
