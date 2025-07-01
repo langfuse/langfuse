@@ -48,15 +48,14 @@ import {
   Hash,
   BarChart3,
   Table,
-  X,
   Plus,
+  X,
 } from "lucide-react";
 import {
   buildWidgetName,
   buildWidgetDescription,
   formatMetricName,
 } from "@/src/features/widgets/utils";
-import { Badge } from "@/src/components/ui/badge";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
@@ -284,40 +283,74 @@ export function WidgetForm({
     setPivotDimensions(newDimensions);
   };
 
-  // Helper functions for multiple metrics management
-  const addMetric = () => {
-    // Check if we've reached the maximum metrics limit
-    if (selectedMetrics.length >= MAX_PIVOT_TABLE_METRICS) {
-      showErrorToast(
-        "Error",
-        `Maximum ${MAX_PIVOT_TABLE_METRICS} metrics allowed for pivot tables`,
-      );
-      return;
+  // Helper function for updating pivot table metrics
+  const updatePivotMetric = (
+    index: number,
+    measure: string,
+    aggregation?: z.infer<typeof metricAggregations>,
+  ) => {
+    const newMetrics = [...selectedMetrics];
+
+    if (measure && measure !== "none") {
+      let finalAggregation: z.infer<typeof metricAggregations>;
+
+      if (measure === "count") {
+        finalAggregation = "count";
+      } else {
+        // Get available aggregations for this measure at this index
+        const availableAggregations = getAvailableAggregations(index, measure);
+
+        if (aggregation && availableAggregations.includes(aggregation)) {
+          // Use provided aggregation if it's available
+          finalAggregation = aggregation as z.infer<typeof metricAggregations>;
+        } else {
+          // Use the first available aggregation as default
+          finalAggregation =
+            availableAggregations.length > 0
+              ? availableAggregations[0]
+              : ("sum" as z.infer<typeof metricAggregations>);
+        }
+      }
+
+      const newMetric: SelectedMetric = {
+        id: `${finalAggregation}_${measure}`,
+        measure: measure,
+        aggregation: finalAggregation as z.infer<typeof metricAggregations>,
+        label: `${startCase(finalAggregation)} ${startCase(measure)}`,
+      };
+
+      // Set the metric at the specified index
+      newMetrics[index] = newMetric;
+    } else {
+      // Clear this metric and all subsequent ones
+      newMetrics.splice(index);
     }
 
-    const newMetric: SelectedMetric = {
-      id: `${selectedAggregation}_${selectedMeasure}`,
-      measure: selectedMeasure,
-      aggregation: selectedAggregation,
-      label: `${startCase(selectedAggregation)} ${startCase(selectedMeasure)}`,
-    };
+    setSelectedMetrics(newMetrics);
+  };
 
-    // Check if this metric combination already exists
-    const existingMetric = selectedMetrics.find((m) => m.id === newMetric.id);
-    if (existingMetric) {
-      showErrorToast("Error", "This metric combination is already selected");
-      return;
+  // Add a new empty metric slot
+  const addNewMetricSlot = () => {
+    if (selectedMetrics.length < MAX_PIVOT_TABLE_METRICS) {
+      const newMetrics = [...selectedMetrics];
+      newMetrics.push({
+        id: `temp_${selectedMetrics.length}`,
+        measure: "",
+        aggregation: "sum" as z.infer<typeof metricAggregations>,
+        label: "",
+      });
+      setSelectedMetrics(newMetrics);
     }
-
-    setSelectedMetrics([...selectedMetrics, newMetric]);
   };
 
-  const removeMetric = (metricId: string) => {
-    setSelectedMetrics(selectedMetrics.filter((m) => m.id !== metricId));
-  };
-
-  const clearAllMetrics = () => {
-    setSelectedMetrics([]);
+  // Remove a metric slot and roll up subsequent ones
+  const removeMetricSlot = (index: number) => {
+    if (index > 0) {
+      // Can't remove the first metric (it's required)
+      const newMetrics = [...selectedMetrics];
+      newMetrics.splice(index, 1); // Remove only the metric at this index
+      setSelectedMetrics(newMetrics);
+    }
   };
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
@@ -586,18 +619,62 @@ export function WidgetForm({
       );
   }, [selectedView, selectedChartType, selectedMetrics]);
 
-  // Get available aggregations for the selected measure (for pivot tables)
-  const availableAggregations = useMemo(() => {
-    if (selectedChartType === "PIVOT_TABLE" && selectedMeasure) {
+  // Get available aggregations for a specific metric index in pivot tables
+  const getAvailableAggregations = (
+    metricIndex: number,
+    measureKey: string,
+  ): z.infer<typeof metricAggregations>[] => {
+    if (selectedChartType === "PIVOT_TABLE" && measureKey) {
       return metricAggregations.options.filter(
         (agg) =>
           !selectedMetrics.some(
-            (m) => m.measure === selectedMeasure && m.aggregation === agg,
+            (m, idx) =>
+              idx !== metricIndex &&
+              m.measure === measureKey &&
+              m.aggregation === agg,
           ),
-      );
+      ) as z.infer<typeof metricAggregations>[];
     }
-    return metricAggregations.options;
-  }, [selectedChartType, selectedMeasure, selectedMetrics]);
+    return metricAggregations.options as z.infer<typeof metricAggregations>[];
+  };
+
+  // Get available metrics for a specific metric index in pivot tables
+  const getAvailableMetrics = (metricIndex: number) => {
+    if (selectedChartType === "PIVOT_TABLE") {
+      const viewDeclaration = viewDeclarations[selectedView];
+      return Object.entries(viewDeclaration.measures)
+        .filter(([measureKey]) => {
+          // For count, there's only one aggregation option
+          if (measureKey === "count") {
+            return !selectedMetrics.some(
+              (m, idx) => idx !== metricIndex && m.measure === "count",
+            );
+          }
+
+          // For other measures, check if there are any aggregations left
+          const selectedAggregationsForMeasure = selectedMetrics
+            .filter((m, idx) => idx !== metricIndex && m.measure === measureKey)
+            .map((m) => m.aggregation);
+
+          const availableAggregationsForMeasure =
+            metricAggregations.options.filter(
+              (agg) =>
+                agg !== "histogram" &&
+                !selectedAggregationsForMeasure.includes(agg),
+            );
+
+          return availableAggregationsForMeasure.length > 0;
+        })
+        .map(([key]) => ({
+          value: key,
+          label: startCase(key),
+        }))
+        .sort((a, b) =>
+          a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+        );
+    }
+    return availableMetrics;
+  };
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
@@ -631,10 +708,12 @@ export function WidgetForm({
     // Determine metrics based on chart type
     const queryMetrics =
       selectedChartType === "PIVOT_TABLE"
-        ? selectedMetrics.map((metric) => ({
-            measure: metric.measure,
-            aggregation: metric.aggregation,
-          }))
+        ? selectedMetrics
+            .filter((metric) => metric.measure && metric.measure !== "")
+            .map((metric) => ({
+              measure: metric.measure,
+              aggregation: metric.aggregation,
+            }))
         : [
             {
               measure: selectedMeasure,
@@ -748,7 +827,10 @@ export function WidgetForm({
     }
 
     // Validate pivot table requirements
-    if (selectedChartType === "PIVOT_TABLE" && selectedMetrics.length === 0) {
+    const validMetrics = selectedMetrics.filter(
+      (m) => m.measure && m.measure !== "",
+    );
+    if (selectedChartType === "PIVOT_TABLE" && validMetrics.length === 0) {
       showErrorToast(
         "Error",
         "At least one metric is required for pivot tables",
@@ -768,7 +850,7 @@ export function WidgetForm({
             : [],
       metrics:
         selectedChartType === "PIVOT_TABLE"
-          ? selectedMetrics.map((metric) => ({
+          ? validMetrics.map((metric) => ({
               measure: metric.measure,
               agg: metric.aggregation,
             }))
@@ -813,9 +895,13 @@ export function WidgetForm({
 
     // For pivot tables, extract actual metric names for the new formatting
     const isPivotTable = selectedChartType === "PIVOT_TABLE";
+
+    const validMetricsForNaming = selectedMetrics.filter(
+      (m) => m.measure && m.measure !== "",
+    );
     const metricNames =
-      isPivotTable && selectedMetrics.length > 0
-        ? selectedMetrics.map((m) => m.id) // Use the ID which is "${aggregation}_${measure}"
+      isPivotTable && validMetricsForNaming.length > 0
+        ? validMetricsForNaming.map((m) => m.id) // Use the ID which is "${aggregation}_${measure}"
         : undefined;
 
     const suggested = buildWidgetName({
@@ -824,7 +910,7 @@ export function WidgetForm({
       dimension: dimensionForNaming,
       view: selectedView,
       metrics: metricNames,
-      isMultiMetric: isPivotTable && selectedMetrics.length > 0,
+      isMultiMetric: isPivotTable && validMetricsForNaming.length > 0,
     });
 
     setWidgetName(suggested);
@@ -851,9 +937,12 @@ export function WidgetForm({
 
     // For pivot tables, extract actual metric names for the new formatting
     const isPivotTable = selectedChartType === "PIVOT_TABLE";
+    const validMetricsForDescription = selectedMetrics.filter(
+      (m) => m.measure && m.measure !== "",
+    );
     const metricNames =
-      isPivotTable && selectedMetrics.length > 0
-        ? selectedMetrics.map((m) => m.id) // Use the ID which is "${aggregation}_${measure}"
+      isPivotTable && validMetricsForDescription.length > 0
+        ? validMetricsForDescription.map((m) => m.id) // Use the ID which is "${aggregation}_${measure}"
         : undefined;
 
     const suggested = buildWidgetDescription({
@@ -863,7 +952,7 @@ export function WidgetForm({
       view: selectedView,
       filters: userFilterState,
       metrics: metricNames,
-      isMultiMetric: isPivotTable && selectedMetrics.length > 0,
+      isMultiMetric: isPivotTable && validMetricsForDescription.length > 0,
     });
 
     setWidgetDescription(suggested);
@@ -934,132 +1023,139 @@ export function WidgetForm({
                 {/* For pivot tables: multiple metrics selection */}
                 {selectedChartType === "PIVOT_TABLE" ? (
                   <div className="space-y-3">
-                    {/* Selected metrics display */}
-                    {selectedMetrics.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">
-                            Selected Metrics ({selectedMetrics.length})
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={clearAllMetrics}
-                            className="h-auto p-1 text-xs"
-                          >
-                            Clear All
-                          </Button>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedMetrics.map((metric) => (
-                            <Badge
-                              key={metric.id}
-                              variant="secondary"
-                              className="flex items-center gap-1"
-                            >
-                              <span className="text-xs">{metric.label}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeMetric(metric.id)}
-                                className="h-auto p-0 hover:bg-transparent"
+                    {/* Metric selection dropdowns */}
+                    {Array.from(
+                      { length: Math.max(1, selectedMetrics.length) },
+                      (_, index) => {
+                        const isEnabled =
+                          index === 0 ||
+                          (selectedMetrics[index - 1] &&
+                            selectedMetrics[index - 1].measure);
+                        const currentMetric = selectedMetrics[index];
+                        const currentMeasure = currentMetric?.measure || "";
+                        const currentAggregation =
+                          currentMetric?.aggregation || "sum";
+
+                        const metricsForIndex = getAvailableMetrics(index);
+                        const aggregationsForIndex = getAvailableAggregations(
+                          index,
+                          currentMeasure,
+                        );
+
+                        const canEdit = metricsForIndex.length > 0;
+
+                        return (
+                          <div key={index} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor={`pivot-metric-${index}`}>
+                                Metric {index + 1}{" "}
+                                {index === 0 ? "(Required)" : "(Optional)"}
+                              </Label>
+                              {index > 0 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeMetricSlot(index)}
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              <Select
+                                value={currentMeasure}
+                                onValueChange={(value) =>
+                                  updatePivotMetric(
+                                    index,
+                                    value,
+                                    // Don't pass current aggregation when measure changes
+                                    // Let the function determine the best default
+                                    undefined,
+                                  )
+                                }
+                                disabled={!isEnabled || !canEdit}
                               >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
+                                <SelectTrigger id={`pivot-metric-${index}`}>
+                                  <SelectValue
+                                    placeholder={
+                                      !isEnabled
+                                        ? "Select previous metric first"
+                                        : !canEdit
+                                          ? "No more measures available"
+                                          : "Select measure"
+                                    }
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {metricsForIndex.map((metric) => {
+                                    const meta =
+                                      viewDeclarations[selectedView]
+                                        ?.measures?.[metric.value];
+                                    return (
+                                      <WidgetPropertySelectItem
+                                        key={metric.value}
+                                        value={metric.value}
+                                        label={metric.label}
+                                        description={meta?.description}
+                                        unit={meta?.unit}
+                                        type={meta?.type}
+                                      />
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+
+                              {currentMeasure && currentMeasure !== "count" && (
+                                <Select
+                                  value={currentAggregation}
+                                  onValueChange={(value) =>
+                                    updatePivotMetric(
+                                      index,
+                                      currentMeasure,
+                                      value as z.infer<
+                                        typeof metricAggregations
+                                      >,
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select aggregation" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {aggregationsForIndex.map((aggregation) => (
+                                      <SelectItem
+                                        key={aggregation}
+                                        value={aggregation}
+                                      >
+                                        {startCase(aggregation)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      },
                     )}
 
-                    {/* Add new metric controls */}
-                    <div className="space-y-2 rounded-md border p-3">
-                      <span className="text-sm font-medium">Add Metric</span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Select
-                          value={selectedMeasure}
-                          onValueChange={(value) => setSelectedMeasure(value)}
+                    {/* Add new metric button */}
+                    {selectedMetrics.length < MAX_PIVOT_TABLE_METRICS &&
+                      getAvailableMetrics(selectedMetrics.length).length >
+                        0 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addNewMetricSlot}
+                          className="w-full"
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select measure" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableMetrics.map((metric) => {
-                              const meta =
-                                viewDeclarations[selectedView]?.measures?.[
-                                  metric.value
-                                ];
-                              return (
-                                <WidgetPropertySelectItem
-                                  key={metric.value}
-                                  value={metric.value}
-                                  label={metric.label}
-                                  description={meta?.description}
-                                  unit={meta?.unit}
-                                  type={meta?.type}
-                                />
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-
-                        {selectedMeasure !== "count" && (
-                          <Select
-                            value={selectedAggregation}
-                            onValueChange={(value) =>
-                              setSelectedAggregation(
-                                value as z.infer<typeof metricAggregations>,
-                              )
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Aggregation" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableAggregations.map((aggregation) => (
-                                <SelectItem
-                                  key={aggregation}
-                                  value={aggregation}
-                                >
-                                  {startCase(aggregation)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={addMetric}
-                        className="w-full"
-                        disabled={
-                          selectedMetrics.length >= MAX_PIVOT_TABLE_METRICS ||
-                          !selectedMeasure ||
-                          (selectedMeasure !== "count" &&
-                            availableAggregations.length === 0) ||
-                          (selectedMeasure === "count" &&
-                            selectedMetrics.some((m) => m.measure === "count"))
-                        }
-                      >
-                        <Plus className="mr-1 h-3 w-3" />
-                        Add Metric
-                        {selectedMetrics.length >= MAX_PIVOT_TABLE_METRICS &&
-                          ` (Max ${MAX_PIVOT_TABLE_METRICS})`}
-                        {selectedMeasure &&
-                          selectedMeasure !== "count" &&
-                          availableAggregations.length === 0 &&
-                          selectedMetrics.length < MAX_PIVOT_TABLE_METRICS &&
-                          ` (All aggregations selected)`}
-                        {selectedMeasure === "count" &&
-                          selectedMetrics.some((m) => m.measure === "count") &&
-                          selectedMetrics.length < MAX_PIVOT_TABLE_METRICS &&
-                          ` (Count already selected)`}
-                      </Button>
-                    </div>
+                          <Plus className="mr-1 h-3 w-3" />
+                          Add Metric {selectedMetrics.length + 1}
+                        </Button>
+                      )}
                   </div>
                 ) : (
                   /* For regular charts: single metric selection */
