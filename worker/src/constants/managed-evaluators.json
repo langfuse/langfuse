@@ -168,10 +168,10 @@
     "partner": "ragas",
     "version": 1,
     "outputSchema": {
-      "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
-      "reasoning": "One sentence reasoning for the score"
+      "score": "Score between 0 and 1 computed as supported_claims / total_claims",
+      "reasoning": "One concise sentence explaining why unsupported claims are unsupported"
     },
-    "prompt": "Given a question and an answer, analyze the complexity of each sentence in the answer. Break down each sentence into one or more fully understandable statements. Ensure that no pronouns are used in any statement.\nQuestion: {{question}}\nAnswer: {{answer}}"
+    "prompt": "Evaluate how faithful the answer is to the retrieved context.\n\nDefinition\nFaithfulness = supported_claims / total_claims, where a claim is supported if it is directly grounded in the context.\n\nInstructions\n1. Break the answer into individual factual claims (short pronoun-free sentences).\n2. For each claim, decide whether the context supports it.\n   • SUPPORTED if at least one context sentence backs the claim.\n   • UNSUPPORTED otherwise.\n3. Compute score = supported_claims / total_claims as a float between 0 and 1 rounded to two decimals.\n4. Provide one concise sentence explaining why unsupported claims are unsupported.\n\nInput\nQuestion: {{question}}\nContext: {{context}}\nAnswer: {{answer}}\n\nOutput (JSON only)\n{\n  \"score\": <float between 0 and 1>,\n  \"reasoning\": \"<single sentence explanation>\"\n}\n\nThink step by step but ONLY return the JSON object."
   },
   {
     "id": "cmal6wart010lynrdtpv6olag",
