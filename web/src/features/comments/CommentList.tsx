@@ -11,8 +11,9 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
+import { CommentMarkdownView } from "@/src/features/comments/CommentMarkdownView";
+import { CommentMentionInput } from "@/src/features/comments/CommentMentionInput";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
@@ -90,7 +91,7 @@ export function CommentList({
   });
 
   const commentsWithFormattedTimestamp = useMemo(() => {
-    return comments.data?.map((comment) => ({
+    return comments.data?.map((comment: any) => ({
       ...comment,
       timestamp: getRelativeTimestampFromNow(comment.createdAt),
     }));
@@ -147,22 +148,10 @@ export function CommentList({
           </div>
           <Form {...form}>
             <form className="relative">
-              <FormField
+              <CommentMentionInput
                 control={form.control}
-                name="content"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Add comment..."
-                        {...field}
-                        onKeyDown={handleKeyDown} // cmd+enter to submit
-                        className="border-none text-sm focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
-                      />
-                    </FormControl>
-                    <FormMessage className="ml-2 text-sm" />
-                  </FormItem>
-                )}
+                onKeyDown={handleKeyDown}
+                projectId={projectId}
               />
               <div className="flex justify-end">
                 <Button
@@ -195,7 +184,7 @@ export function CommentList({
                 {comment.authorUserName
                   ? comment.authorUserName
                       .split(" ")
-                      .map((word) => word[0])
+                      .map((word: string) => word[0])
                       .slice(0, 2)
                       .concat("")
                   : (comment.authorUserId ?? "U")}
@@ -239,7 +228,7 @@ export function CommentList({
                   </div>
                 </div>
               </div>
-              <MarkdownView markdown={comment.content} />
+              <CommentMarkdownView markdown={comment.content} />
             </div>
           </div>
         ))}

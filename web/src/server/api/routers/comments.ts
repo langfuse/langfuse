@@ -13,7 +13,33 @@ import { validateCommentReferenceObject } from "@/src/features/comments/validate
 import {
   getTracesIdentifierForSession,
   logger,
+  sendCommentMentionEmail,
 } from "@langfuse/shared/src/server";
+import { generateObjectLink } from "@/src/features/comments/utils/generateObjectLink";
+import { env } from "@/src/env.mjs";
+
+// Helper function to extract mentioned user IDs from comment content
+function extractMentionedUserIds(
+  content: string,
+  projectMembers: Array<{ user: { id: string; name: string | null; email: string } }>
+): string[] {
+  const mentionRegex = /@([^\s@]+(?:\s+[^\s@]+)*)/g;
+  const mentions = [];
+  let match;
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    const mentionText = match[1];
+    // Find the user by name or email
+    const user = projectMembers.find(
+      (member) => member.user.name === mentionText || member.user.email === mentionText
+    );
+    if (user) {
+      mentions.push(user.user.id);
+    }
+  }
+
+  return [...new Set(mentions)]; // Remove duplicates
+}
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -38,6 +64,42 @@ export const commentsRouter = createTRPCRouter({
           });
         }
 
+        // Extract mentioned user IDs from content if there are any @ mentions
+        let mentionedUserIds: string[] = input.mentionedUserIds || [];
+        
+        if (input.content.includes("@")) {
+          // Fetch project members to validate mentions
+          const projectMembers = await ctx.prisma.projectMembership.findMany({
+            where: {
+              projectId: input.projectId,
+              organizationMembership: {
+                orgId: ctx.session.orgId,
+              },
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          });
+
+          // Extract valid mentioned user IDs
+          const extractedMentions = extractMentionedUserIds(input.content, projectMembers);
+          
+          // Use extracted mentions if not provided explicitly, or validate provided ones
+          if (input.mentionedUserIds && input.mentionedUserIds.length > 0) {
+            // Validate that all provided mentioned user IDs are valid project members
+            const validUserIds = new Set(projectMembers.map((member: any) => member.user.id));
+            mentionedUserIds = input.mentionedUserIds.filter((id: string) => validUserIds.has(id));
+          } else {
+            mentionedUserIds = extractedMentions;
+          }
+        }
+
         const comment = await ctx.prisma.comment.create({
           data: {
             projectId: input.projectId,
@@ -45,6 +107,7 @@ export const commentsRouter = createTRPCRouter({
             objectId: input.objectId,
             objectType: input.objectType,
             authorUserId: ctx.session.user.id,
+            mentionedUserIds: mentionedUserIds,
           },
         });
 
@@ -55,6 +118,75 @@ export const commentsRouter = createTRPCRouter({
           action: "create",
           after: comment,
         });
+
+        // Send notification emails to mentioned users
+        if (mentionedUserIds.length > 0) {
+          try {
+            // Get project and organization details for email context
+            const project = await ctx.prisma.project.findUnique({
+              where: { id: input.projectId },
+              include: {
+                organization: {
+                  select: { name: true },
+                },
+              },
+            });
+
+            if (project) {
+              // Get mentioned users' email addresses
+              const mentionedUsers = await ctx.prisma.user.findMany({
+                where: {
+                  id: { in: mentionedUserIds },
+                  organizationMemberships: {
+                    some: {
+                      orgId: ctx.session.orgId,
+                    },
+                  },
+                },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              });
+
+              // Generate the object link based on environment
+              const baseUrl = env.NEXTAUTH_URL || "https://cloud.langfuse.com";
+              const objectLink = generateObjectLink(
+                baseUrl,
+                input.projectId,
+                input.objectType,
+                input.objectId
+              );
+
+              // Send email to each mentioned user
+              const emailPromises = mentionedUsers
+                .filter((user: any) => user.email && user.id !== ctx.session.user.id) // Don't notify the author
+                .map((user: any) =>
+                  sendCommentMentionEmail({
+                    env,
+                    to: user.email!,
+                    mentionedByName: ctx.session.user.name || ctx.session.user.email || "A user",
+                    mentionedByEmail: ctx.session.user.email || "",
+                    commentContent: input.content,
+                    objectType: input.objectType,
+                    objectId: input.objectId,
+                    projectName: project.name,
+                    orgName: project.organization.name,
+                    objectLink,
+                  })
+                );
+
+              // Send emails in parallel but don't block the response
+              Promise.all(emailPromises).catch((error) => {
+                logger.error("Failed to send some comment mention emails", error);
+              });
+            }
+          } catch (error) {
+            logger.error("Failed to send comment mention notifications", error);
+            // Don't throw - email failures shouldn't break comment creation
+          }
+        }
 
         return comment;
       } catch (error) {
@@ -247,7 +379,7 @@ export const commentsRouter = createTRPCRouter({
         });
 
         return new Map(
-          commentCounts.map(({ objectId, _count }) => [
+          commentCounts.map(({ objectId, _count }: { objectId: string; _count: { objectId: number } }) => [
             objectId,
             _count.objectId,
           ]),
