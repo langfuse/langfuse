@@ -19,7 +19,7 @@ export default function Playground() {
           <div className="mb-4 flex-shrink-0 overflow-y-auto">
             <ModelParameters {...playgroundContext} />
           </div>
-          <div className="mb-4 max-h-[25vh] flex-shrink-0 overflow-y-auto">
+          <div className="mb-4 min-h-0 max-h-[30vh] overflow-y-auto">
             <PlaygroundTools />
           </div>
           <div className="mb-4 flex-shrink-0">

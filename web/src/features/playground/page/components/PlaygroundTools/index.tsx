@@ -116,8 +116,8 @@ export const PlaygroundTools = () => {
   };
 
   return (
-    <div className="flex h-full flex-col pr-1">
-      <div className="mb-2 flex items-center justify-between">
+    <div className="flex h-full flex-col pr-1 min-h-0">
+      <div className="mb-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <p className="font-semibold">Tools</p>
           <a
@@ -203,13 +203,13 @@ export const PlaygroundTools = () => {
         </Popover>
       </div>
 
-      <ScrollArea className="h-[calc(100%-2rem)]">
+      <ScrollArea className="flex-1 min-h-0">
         {tools.length === 0 ? (
           <div className="flex h-16 flex-col items-center justify-center p-4 text-center">
             <p className="text-xs text-muted-foreground">No tools attached.</p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1 p-1">
             {tools.map((tool) => (
               <CreateOrEditLLMToolDialog
                 key={tool.id}
