@@ -26,7 +26,7 @@
     <a href="https://langfuse.com/roadmap"><strong>路线图</strong></a> ·
   </div>
   <br/>
-  <span>Langfuse 使用 <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a> 作为支持和功能请求的平台。</span>
+  <span>Langfuse 使用 <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a> 作为支持和功能请求的平台。</span>
   <br/>
   <span><b>我们正在招聘。</b> <a href="https://langfuse.com/careers"><strong>加入我们</strong></a>，从事产品工程和技术市场职位。</span>
   <br/>

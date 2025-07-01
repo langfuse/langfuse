@@ -40,6 +40,7 @@ const PromptFilterOptions = z.object({
   orderBy: orderBy,
   ...paginationZod,
   pathPrefix: z.string().optional(),
+  searchQuery: z.string().optional(),
 });
 
 export const promptRouter = createTRPCRouter({
@@ -90,6 +91,10 @@ export const promptRouter = createTRPCRouter({
         ? Prisma.sql` AND (p.name LIKE ${input.pathPrefix + "/%"} OR p.name = ${input.pathPrefix})`
         : Prisma.empty;
 
+      const searchFilter = input.searchQuery
+        ? Prisma.sql` AND p.name ILIKE ${`%${input.searchQuery}%`}`
+        : Prisma.empty;
+
       const [prompts, promptCount] = await Promise.all([
         // prompts
         ctx.prisma.$queryRaw<Array<Prompt>>(
@@ -111,20 +116,22 @@ export const promptRouter = createTRPCRouter({
             input.limit,
             input.page,
             pathFilter,
+            searchFilter,
           ),
         ),
-        // promptCount
-        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
-          generatePromptQuery(
-            Prisma.sql` count(*) AS "totalCount"`,
-            input.projectId,
-            filterCondition,
-            Prisma.empty,
-            1, // limit
-            0, // page,
-            pathFilter,
+                  // promptCount
+          ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+            generatePromptQuery(
+              Prisma.sql` count(*) AS "totalCount"`,
+              input.projectId,
+              filterCondition,
+              Prisma.empty,
+              1, // limit
+              0, // page,
+              pathFilter,
+              searchFilter,
+            ),
           ),
-        ),
       ]);
 
       return {
@@ -1233,6 +1240,7 @@ const generatePromptQuery = (
   limit: number,
   page: number,
   pathFilter: Prisma.Sql = Prisma.empty,
+  searchFilter: Prisma.Sql = Prisma.empty,
 ) => {
   return Prisma.sql`
   SELECT
@@ -1244,11 +1252,13 @@ const generatePromptQuery = (
      WHERE "project_id" = ${projectId}
      ${filterCondition}
      ${pathFilter}
+     ${searchFilter}
           GROUP BY name
         )
     AND "project_id" = ${projectId}
   ${filterCondition}
   ${pathFilter}
+  ${searchFilter}
   ${orderCondition}
   LIMIT ${limit} OFFSET ${page * limit};
 `;

@@ -871,7 +871,7 @@ model JobExecution {
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
 
   jobTemplateId String?       @map("job_template_id")
-  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull)
+  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")
@@ -902,7 +902,7 @@ model DefaultLlmModel {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   projectId String  @map("project_id")
-  Project   Project @relation(fields: [projectId], references: [id])
+  Project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   llmApiKeyId String     @map("llm_api_key_id")
   LlmApiKey   LlmApiKeys @relation("LlmApiKeyId", fields: [llmApiKeyId], references: [id], onDelete: Cascade)
