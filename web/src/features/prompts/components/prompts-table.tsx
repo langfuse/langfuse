@@ -12,7 +12,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
-import { NumberParam, StringParam, useQueryParams, withDefault } from "use-query-params";
+import { NumberParam, StringParam, useQueryParams, withDefault, useQueryParam } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -95,6 +95,22 @@ export function PromptTable() {
     folder: StringParam,
   });
 
+  const [searchQuery, setSearchQuery] = useQueryParam(
+    "search",
+    withDefault(StringParam, null),
+  );
+
+  // Reset pagination when search query changes
+  useEffect(() => {
+    if (searchQuery) {
+      setQueryParams({
+        pageIndex: 0,
+        pageSize: queryParams.pageSize,
+        folder: queryParams.folder,
+      });
+    }
+  }, [searchQuery, setQueryParams, queryParams.pageSize, queryParams.folder]);
+
   const paginationState = {
     pageIndex: queryParams.pageIndex,
     pageSize: queryParams.pageSize,
@@ -110,6 +126,7 @@ export function PromptTable() {
       filter: filterState,
       orderBy: orderByState,
       pathPrefix: currentFolderPath,
+      searchQuery: searchQuery || undefined,
     },
     {
       enabled: Boolean(projectId),
@@ -451,6 +468,14 @@ export function PromptTable() {
         filterState={filterState}
         setFilterState={useDebounce(setFilterState)}
         columnsWithCustomSelect={["labels", "tags"]}
+        searchConfig={{
+          metadataSearchFields: ["Name"],
+          updateQuery: useDebounce(setSearchQuery, 300),
+          currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
+        }}
       />
       <DataTable
         columns={promptColumns}
