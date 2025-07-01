@@ -931,7 +931,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(response.body).toHaveProperty("error");
       expect(response.body).toHaveProperty("message");
       // @ts-expect-error
-      expect(response.body.message).toContain("used as both variables and placeholders");
+      expect(response.body.message).toContain("variables and placeholders must be unique");
       // @ts-expect-error
       expect(response.body.message).toContain("userName");
     });
