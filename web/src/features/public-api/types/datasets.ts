@@ -113,7 +113,7 @@ export const GetDatasetsV2Response = z
 
 // GET /v2/datasets/{datasetName}
 export const GetDatasetV2Query = z.object({
-  datasetName: queryStringZod,
+  datasetName: z.string(),
 });
 export const GetDatasetV2Response = APIDataset.strict();
 
