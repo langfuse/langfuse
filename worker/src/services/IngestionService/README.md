@@ -118,16 +118,16 @@ SELECT
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
     argMaxState(t0.name, if(t0.name <> '', t0.event_ts, toDateTime64(0, 3)))                   as name_argmax,
-    anyLast(t0.name)                                                                           as name,
+    anyLastIf(t0.name, t0.name != '')                                                         as name,
 
     -- Metadata properties
     argMaxState(t0.metadata, t0.event_ts)                                                      as metadata,
     argMaxState(t0.user_id, if(t0.user_id <> '', t0.event_ts, toDateTime64(0, 3)))             as user_id_argmax,
     argMaxState(t0.session_id, if(t0.session_id <> '', t0.event_ts, toDateTime64(0, 3)))       as session_id_argmax,
     argMaxState(t0.environment, if(t0.environment <> '', t0.event_ts, toDateTime64(0, 3)))     as environment_argmax,
-    anyLast(t0.user_id)                                                                        as user_id,
-    anyLast(t0.session_id)                                                                     as session_id,
-    anyLast(t0.environment)                                                                    as environment,
+    anyLastIf(t0.user_id, t0.user_id != '')                                                   as user_id,
+    anyLastIf(t0.session_id, t0.session_id != '')                                             as session_id,
+    anyLastIf(t0.environment, t0.environment != '')                                           as environment,
     groupUniqArrayArray(t0.tags)                                                                    as tags,
     argMaxState(t0.version, if(t0.version <> '', t0.event_ts, toDateTime64(0, 3)))             as version,
     argMaxState(t0.release, if(t0.release <> '', t0.event_ts, toDateTime64(0, 3)))             as release,
@@ -145,8 +145,8 @@ SELECT
     -- Input/Output
     argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input_argmax,
     argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output_argmax,
-    anyLast(input)                                                                             as input,
-    anyLast(output)                                                                            as output,
+    anyLastIf(input, input != '')                                                              as input,
+    anyLastIf(output, output != '')                                                            as output,
 
     min(t0.created_at)                                                                         as created_at,
     max(t0.updated_at)                                                                         as updated_at
@@ -212,16 +212,16 @@ SELECT
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
     argMaxState(t0.name, if(t0.name <> '', t0.event_ts, toDateTime64(0, 3)))                   as name_argmax,
-    anyLast(t0.name)                                                                           as name,
+    anyLastIf(t0.name, t0.name != '')                                                          as name,
 
     -- Metadata properties
     argMaxState(t0.metadata, t0.event_ts)                                                      as metadata,
     argMaxState(t0.user_id, if(t0.user_id <> '', t0.event_ts, toDateTime64(0, 3)))             as user_id_argmax,
     argMaxState(t0.session_id, if(t0.session_id <> '', t0.event_ts, toDateTime64(0, 3)))       as session_id_argmax,
     argMaxState(t0.environment, if(t0.environment <> '', t0.event_ts, toDateTime64(0, 3)))     as environment_argmax,
-    anyLast(t0.user_id)                                                                        as user_id,
-    anyLast(t0.session_id)                                                                     as session_id,
-    anyLast(t0.environment)                                                                    as environment,
+    anyLastIf(t0.user_id, t0.user_id != '')                                                   as user_id,
+    anyLastIf(t0.session_id, t0.session_id != '')                                             as session_id,
+    anyLastIf(t0.environment, t0.environment != '')                                           as environment,
     groupUniqArrayArray(t0.tags)                                                                    as tags,
     argMaxState(t0.version, if(t0.version <> '', t0.event_ts, toDateTime64(0, 3)))             as version,
     argMaxState(t0.release, if(t0.release <> '', t0.event_ts, toDateTime64(0, 3)))             as release,
@@ -239,8 +239,8 @@ SELECT
     -- Input/Output
     argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input_argmax,
     argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output_argmax,
-    anyLast(input)                                                                             as input,
-    anyLast(output)                                                                            as output,
+    anyLastIf(input, input != '')                                                              as input,
+    anyLastIf(output, output != '')                                                            as output,
 
     min(t0.created_at)                                                                         as created_at,
     max(t0.updated_at)                                                                         as updated_at
@@ -306,16 +306,16 @@ SELECT
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
     argMaxState(t0.name, if(t0.name <> '', t0.event_ts, toDateTime64(0, 3)))                   as name_argmax,
-    anyLast(t0.name)                                                                           as name,
+    anyLastIf(t0.name, t0.name != '')                                                         as name,
 
     -- Metadata properties
     argMaxState(t0.metadata, t0.event_ts)                                                      as metadata,
     argMaxState(t0.user_id, if(t0.user_id <> '', t0.event_ts, toDateTime64(0, 3)))             as user_id_argmax,
     argMaxState(t0.session_id, if(t0.session_id <> '', t0.event_ts, toDateTime64(0, 3)))       as session_id_argmax,
     argMaxState(t0.environment, if(t0.environment <> '', t0.event_ts, toDateTime64(0, 3)))     as environment_argmax,
-    anyLast(t0.user_id)                                                                        as user_id,
-    anyLast(t0.session_id)                                                                     as session_id,
-    anyLast(t0.environment)                                                                    as environment,
+    anyLastIf(t0.user_id, t0.user_id != '')                                                   as user_id,
+    anyLastIf(t0.session_id, t0.session_id != '')                                             as session_id,
+    anyLastIf(t0.environment, t0.environment != '')                                           as environment,
     groupUniqArrayArray(t0.tags)                                                                    as tags,
     argMaxState(t0.version, if(t0.version <> '', t0.event_ts, toDateTime64(0, 3)))             as version,
     argMaxState(t0.release, if(t0.release <> '', t0.event_ts, toDateTime64(0, 3)))             as release,
@@ -333,14 +333,16 @@ SELECT
     -- Input/Output
     argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input_argmax,
     argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output_argmax,
-    anyLast(input)                                                                             as input,
-    anyLast(output)                                                                            as output,
+    anyLastIf(input, input != '')                                                              as input,
+    anyLastIf(output, output != '')                                                            as output,
 
     min(t0.created_at)                                                                         as created_at,
     max(t0.updated_at)                                                                         as updated_at
 FROM traces_mt t0
 GROUP BY project_id, id;
 ```
+
+## Query AggregatingMergeTrees
 
 We can query the properties of the resulting AggregatingMergeTree via (make sure to pick the right timeframe:
 ```sql
@@ -385,4 +387,123 @@ SELECT
     updated_at
 FROM traces_all_amt
 LIMIT 100;
+```
+
+## Find discrepancies
+
+We can identify discrepancies in the original and the new data using
+```sql
+-- Query to compare traces_all_amt with traces table and identify discrepancies
+WITH amt_data AS (
+-- First get the finalized values from the AMT table
+    SELECT project_id,
+           id,
+           start_time,
+           end_time,
+           finalizeAggregation(name_argmax)        AS name_argmax_value,
+           name                                    AS name_anylast_value,
+
+           finalizeAggregation(metadata)           AS metadata_value,
+           finalizeAggregation(user_id_argmax)     AS user_id_argmax_value,
+           user_id                                 AS user_id_anylast_value,
+           finalizeAggregation(session_id_argmax)  AS session_id_argmax_value,
+           session_id                              AS session_id_anylast_value,
+           finalizeAggregation(environment_argmax) AS environment_argmax_value,
+           environment                             AS environment_anylast_value,
+           tags,
+           finalizeAggregation(version)            AS version_value,
+           finalizeAggregation(release)            AS release_value,
+
+           finalizeAggregation(bookmarked)         AS bookmarked_value,
+           finalizeAggregation(public)             AS public_value,
+
+           finalizeAggregation(input_argmax)       AS input_argmax_value,
+           input                                   AS input_anylast_value,
+           finalizeAggregation(output_argmax)      AS output_argmax_value,
+           output                                  AS output_anylast_value,
+
+           created_at,
+           updated_at
+    FROM traces_all_amt
+)
+
+-- Main query to compare AMT with original traces table
+SELECT t.project_id,
+       t.id,
+       -- Identify differences between tables
+       t.timestamp != a.start_time                AS timestamp_diff,
+       t.name != a.name_anylast_value             AS name_diff,
+       t.user_id != a.user_id_anylast_value       AS user_id_diff,
+       t.session_id != a.session_id_anylast_value AS session_id_diff,
+       t.release != a.release_value               AS release_diff,
+       t.version != a.version_value               AS version_diff,
+       t.public != a.public_value                 AS public_diff,
+       t.bookmarked != a.bookmarked_value         AS bookmarked_diff,
+       arraySort(t.tags) != arraySort(a.tags)     AS tags_diff,
+       t.input != a.input_anylast_value           AS input_diff,
+       t.output != a.output_anylast_value         AS output_diff,
+
+       a.name_argmax_value != a.name_anylast_value AS amt_name_diff,
+       a.user_id_argmax_value != a.user_id_anylast_value AS amt_user_id_diff,
+       a.session_id_argmax_value != a.session_id_anylast_value AS amt_session_id_diff,
+       a.environment_argmax_value != a.environment_anylast_value AS amt_environment_diff,
+       a.input_argmax_value != a.input_anylast_value AS amt_input_diff,
+       a.output_argmax_value != a.output_anylast_value AS amt_output_diff,
+
+       -- Include original values for comparison
+       t.timestamp                                AS traces_timestamp,
+       a.start_time                               AS amt_start_time,
+       t.name                                     AS traces_name,
+       a.name_anylast_value                       AS amt_name_anylast,
+       a.name_argmax_value                        AS amt_name_argmax,
+       t.user_id                                  AS traces_user_id,
+       a.user_id_anylast_value                    AS amt_user_id_anylast,
+       a.user_id_argmax_value                     AS amt_user_id_argmax,
+       t.session_id                               AS traces_session_id,
+       a.session_id_anylast_value                 AS amt_session_id_anylast,
+       a.session_id_argmax_value                  AS amt_session_id_argmax,
+       t.environment                              AS traces_environment,
+       a.environment_anylast_value                AS amt_environment_anylast,
+       a.environment_argmax_value                 AS amt_environment_argmax,
+
+       arraySort(t.tags)                          AS traces_tags,
+       arraySort(a.tags)                          AS amt_tags,
+       t.bookmarked                               AS traces_bookmarked,
+       a.bookmarked_value                         AS amt_bookmarked,
+       t.public                                   AS traces_public,
+       a.public_value                             AS amt_public,
+       t.release                                  AS traces_release,
+       a.release_value                            AS amt_release,
+       t.version                                  AS traces_version,
+       a.version_value                            AS amt_version,
+
+       t.input                                    AS traces_input,
+       a.input_anylast_value                      AS amt_input_anylast,
+       a.input_argmax_value                       AS amt_input_argmax,
+       t.output                                   AS traces_output,
+       a.output_anylast_value                     AS amt_output_anylast,
+       a.output_argmax_value                      AS amt_output_argmax,
+
+       timestamp_diff +
+       name_diff +
+       user_id_diff +
+       session_id_diff +
+       release_diff +
+       version_diff +
+       public_diff +
+       bookmarked_diff +
+       tags_diff +
+       input_diff +
+       output_diff
+           AS total_diff
+
+FROM traces t
+         LEFT JOIN amt_data a ON t.project_id = a.project_id AND t.id = a.id
+where (t.timestamp >= '2025-07-01'
+or a.start_time >= '2025-07-01')
+and t.project_id in (
+  'some-project-id'
+)
+ORDER BY total_diff desc
+LIMIT 1000;
 ```
