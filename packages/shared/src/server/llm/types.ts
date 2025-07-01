@@ -115,6 +115,8 @@ export enum ChatMessageRole {
   Tool = "tool",
 }
 
+// Thought: should placeholder not semantically be part of this, because it can be
+// PublicAPICreated of type? Works for now though.
 export enum ChatMessageType {
   System = "system",
   Developer = "developer",
@@ -123,6 +125,7 @@ export enum ChatMessageType {
   AssistantToolCall = "assistant-tool-call",
   ToolResult = "tool-result",
   PublicAPICreated = "public-api-created",
+  Placeholder = "placeholder",
 }
 
 export const SystemMessageSchema = z.object({
@@ -171,6 +174,12 @@ export const ToolResultMessageSchema = z.object({
 });
 export type ToolResultMessage = z.infer<typeof ToolResultMessageSchema>;
 
+export const PlaceholderMessageSchema = z.object({
+  type: z.literal(ChatMessageType.Placeholder),
+  name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"),
+});
+export type PlaceholderMessage = z.infer<typeof PlaceholderMessageSchema>;
+
 export const ChatMessageDefaultRoleSchema = z.enum(ChatMessageRole);
 export const ChatMessageSchema = z.union([
   SystemMessageSchema,
@@ -193,12 +202,16 @@ export const ChatMessageSchema = z.union([
 ]);
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-export type ChatMessageWithId = ChatMessage & { id: string };
+export type ChatMessageWithId = (ChatMessage & { id: string }) | (PlaceholderMessage & { id: string });
+export type ChatMessageWithIdNoPlaceholders = (ChatMessage & { id: string });
 
-export const PromptChatMessageSchema = z.object({
-  role: z.string(),
-  content: z.string(),
-});
+export const PromptChatMessageSchema = z.union([
+  z.object({
+    role: z.string(),
+    content: z.string(),
+  }),
+  PlaceholderMessageSchema,
+]);
 export const PromptChatMessageListSchema = z.array(PromptChatMessageSchema);
 
 export type PromptVariable = { name: string; value: string; isUsed: boolean };
@@ -218,11 +231,11 @@ export const SYSTEM_ROLES: string[] = [
   ChatMessageRole.Developer,
 ];
 
-export const TextPromptSchema = z.string().min(1, "Enter a prompt");
+export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 
 export const PromptContentSchema = z.union([
   PromptChatMessageListSchema,
-  TextPromptSchema,
+  TextPromptContentSchema,
 ]);
 export type PromptContent = z.infer<typeof PromptContentSchema>;
 

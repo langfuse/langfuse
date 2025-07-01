@@ -1,11 +1,6 @@
 import { z } from "zod/v4";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  CreatePromptTRPCSchema,
-  PromptLabelSchema,
-  PromptType,
-} from "@/src/features/prompts/server/utils/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -17,12 +12,15 @@ import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import {
+  CreatePromptTRPCSchema,
   InvalidRequestError,
+  LATEST_PROMPT_LABEL,
   optionalPaginationZod,
   paginationZod,
+  PromptLabelSchema,
+  PromptType,
 } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
-import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import {
   orderByToPrismaSql,
   PromptService,
@@ -89,7 +87,7 @@ export const promptRouter = createTRPCRouter({
       );
 
       const pathFilter = input.pathPrefix
-        ? Prisma.sql` AND (p.name LIKE ${input.pathPrefix + '/%'} OR p.name = ${input.pathPrefix})`
+        ? Prisma.sql` AND (p.name LIKE ${input.pathPrefix + "/%"} OR p.name = ${input.pathPrefix})`
         : Prisma.empty;
 
       const [prompts, promptCount] = await Promise.all([

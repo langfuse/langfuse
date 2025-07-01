@@ -43,6 +43,9 @@ export * from "./features/experiments/utils";
 // prompts
 export * from "./features/prompts/parsePromptDependencyTags";
 export * from "./features/prompts/validation";
+export * from "./features/prompts/types";
+export * from "./features/prompts/constants";
+export * from "./server/llm/compileChatMessages";
 
 // export db types only
 export * from "@prisma/client";

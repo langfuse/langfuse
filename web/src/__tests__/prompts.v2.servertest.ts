@@ -3,20 +3,22 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
-import { type Prompt } from "@langfuse/shared";
 import {
   PromptSchema,
   PromptType,
   type ValidatedPrompt,
-} from "@/src/features/prompts/server/utils/validation";
+  type ChatMessage,
+  type Prompt,
+} from "@langfuse/shared";
 import { parsePromptDependencyTags } from "@langfuse/shared";
-import { nanoid } from "ai";
+import { generateId, nanoid } from "ai";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
+  ChatMessageType,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 
@@ -452,6 +454,52 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.commitMessage).toBe("chore: setup initial prompt");
     });
 
+    it("should create and fetch a chat prompt with message placeholders", async () => {
+      const promptName = `prompt-name-message-placeholders${generateId()}`;
+      const commitMessage = "feat: add message placeholders support";
+      const chatMessages = [
+        { role: "system", content: "You are a helpful assistant with conversation context." },
+        {
+          type: ChatMessageType.Placeholder,
+          name: "conversation_history"
+        },
+        { role: "user", content: "{{user_question}}" }
+      ];
+
+      const response = await makeAPICall("POST", baseURI, {
+        name: promptName,
+        prompt: chatMessages,
+        type: "chat",
+        labels: ["production"],
+        commitMessage: commitMessage
+      });
+
+      expect(response.status).toBe(201);
+
+      const { body: fetchedPrompt } = await makeAPICall(
+        "GET",
+        `${baseURI}/${promptName}`,
+        undefined,
+      );
+
+      const validatedPrompt = validatePrompt(fetchedPrompt);
+
+      expect(validatedPrompt.name).toBe(promptName);
+      expect(validatedPrompt.prompt).toEqual(chatMessages);
+      expect(validatedPrompt.type).toBe("chat");
+      expect(validatedPrompt.version).toBe(1);
+      expect(validatedPrompt.labels).toEqual(["production", "latest"]);
+      expect(validatedPrompt.createdBy).toBe("API");
+      expect(validatedPrompt.config).toEqual({});
+      expect(validatedPrompt.commitMessage).toBe(commitMessage);
+
+      // Verify the placeholder message structure is preserved
+      const messages = validatedPrompt.prompt as ChatMessage[];
+      const placeholderMessage = messages[1] as { type: ChatMessageType.Placeholder; name: string };
+      expect(placeholderMessage.type).toBe(ChatMessageType.Placeholder);
+      expect(placeholderMessage.name).toBe("conversation_history");
+    });
+
     it("should fail if chat prompt has string prompt", async () => {
       const promptName = "prompt-name";
       const response = await makeAPICall("POST", baseURI, {
@@ -705,7 +753,9 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         });
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Invalid request data");
-        const hasExpectedMessage = JSON.stringify(response.body.error).includes(`"message":"${expectedError}"`);
+        const hasExpectedMessage = JSON.stringify(response.body.error).includes(
+          `"message":"${expectedError}"`,
+        );
         expect(hasExpectedMessage).toBe(true);
       };
 
@@ -723,10 +773,19 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       it("should reject invalid prompt names", async () => {
         // Test invalid patterns
-        await testInvalidName("/invalid-name", "Name cannot start with a slash");
+        await testInvalidName(
+          "/invalid-name",
+          "Name cannot start with a slash",
+        );
         await testInvalidName("invalid-name/", "Name cannot end with a slash");
-        await testInvalidName("invalid//name", "Name cannot contain consecutive slashes");
-        await testInvalidName("invalid|name", "Prompt name cannot contain '|' character");
+        await testInvalidName(
+          "invalid//name",
+          "Name cannot contain consecutive slashes",
+        );
+        await testInvalidName(
+          "invalid|name",
+          "Prompt name cannot contain '|' character",
+        );
         await testInvalidName("new", "Prompt name cannot be 'new'");
         await testInvalidName("", "Enter a name");
       });
@@ -848,7 +907,9 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       // Verify the name with slashes is preserved
       expect(validatedPrompt.name).toBe(promptName);
       expect(validatedPrompt.name).toContain("/");
-      expect(validatedPrompt.prompt).toBe("This is a prompt in a folder structure");
+      expect(validatedPrompt.prompt).toBe(
+        "This is a prompt in a folder structure",
+      );
     });
   });
 

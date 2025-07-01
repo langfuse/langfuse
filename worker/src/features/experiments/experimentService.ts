@@ -3,20 +3,24 @@ import {
   ChatMessageRole,
   LLMApiKeySchema,
   logger,
-  PromptContent,
+  type PromptContent,
   ExperimentMetadataSchema,
   PromptContentSchema,
   DatasetRunItemUpsertQueue,
   ChatMessageType,
-  ChatMessage,
+  type ChatMessage,
   PromptService,
+  compileChatMessages,
+  extractPlaceholderNames,
+  type MessagePlaceholderValues,
+  type PromptMessage,
 } from "@langfuse/shared/src/server";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
+import { type ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
-  Prisma,
+  type Prisma,
   extractVariables,
   datasetItemMatchesVariable,
   stringifyValue,
@@ -24,7 +28,7 @@ import {
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 import { compileHandlebarString } from "../../features/utilities";
 import { DatasetStatus } from "../../../../packages/shared/dist/prisma/generated/types";
@@ -64,13 +68,62 @@ const replaceVariablesInPrompt = (
         type: ChatMessageType.System as const,
       },
     ];
-  } else {
-    return prompt.map((message) => ({
-      ...message,
-      content: processContent(message.content),
+  }
+
+  const placeholderNames = extractPlaceholderNames(prompt as PromptMessage[]);
+  const placeholderValues: MessagePlaceholderValues = {};
+  // itemInput to placeholderValues
+  for (const placeholderName of placeholderNames) {
+    if (!(placeholderName in itemInput)) {
+      // TODO: handle missing placeholder values
+      // throw new Error(`Missing placeholder value for '${placeholderName}'`);
+      continue;
+    }
+    const value = itemInput[placeholderName];
+
+    // for stringified arrays (e.g. from dataset processing)
+    let actualValue = value;
+    if (typeof value === 'string') {
+      try {
+        actualValue = JSON.parse(value);
+      } catch (_e) {
+        throw new Error(`Invalid placeholder value for '${placeholderName}': unable to parse JSON`);
+      }
+    }
+
+    if (!Array.isArray(actualValue)) {
+      throw new Error(`Placeholder '${placeholderName}' must be an array of messages`);
+    }
+
+    const validMessages = actualValue.every(msg =>
+      typeof msg === 'object' &&
+      msg !== null &&
+      'role' in msg &&
+      'content' in msg
+    );
+    if (!validMessages) {
+      throw new Error(`Invalid placeholder value for '${placeholderName}': messages must have 'role' and 'content' properties`);
+    }
+
+    placeholderValues[placeholderName] = actualValue.map(msg => ({
+      ...msg,
       type: ChatMessageType.PublicAPICreated as const,
     }));
   }
+
+  const compiledMessages = compileChatMessages(
+    prompt as PromptMessage[],
+    placeholderValues,
+    {}
+  );
+
+  // TODO: validate correctness
+  // handlebars variable substitution to all messages
+  return compiledMessages.map((message) => ({
+    ...message,
+    content: processContent(message.content),
+    type: ChatMessageType.PublicAPICreated as const,
+  }));
 };
 
 const validateDatasetItem = (
@@ -203,14 +256,20 @@ export const createExperimentJob = async ({
       : JSON.stringify(prompt.prompt),
   );
 
+  // also extract placeholder names if prompt is an array
+  const placeholderNames = prompt?.type !== "text" && Array.isArray(validatedPrompt.data)
+    ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
+    : [];
+  const allVariables = [...extractedVariables, ...placeholderNames];
+
   // validate dataset items against prompt configuration
   const validatedDatasetItems = datasetItems
-    .filter(({ input }) => validateDatasetItem(input, extractedVariables))
+    .filter(({ input }) => validateDatasetItem(input, allVariables))
     .map((datasetItem) => ({
       ...datasetItem,
       input: parseDatasetItemInput(
         datasetItem.input as Prisma.JsonObject, // this is safe because we already filtered for valid input
-        extractedVariables,
+        allVariables,
       ),
     }));
 

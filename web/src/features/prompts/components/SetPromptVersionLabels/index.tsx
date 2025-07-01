@@ -15,10 +15,9 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import { type Prompt } from "@langfuse/shared";
+import { PRODUCTION_LABEL, type Prompt } from "@langfuse/shared";
 import { AddLabelForm } from "./AddLabelForm";
 import { LabelCommandItem } from "./LabelCommandItem";
-import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
@@ -47,7 +46,9 @@ export function SetPromptVersionLabels({
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [labels, setLabels] = useState<string[]>([]);
   const [isAddingLabel, setIsAddingLabel] = useState(false);
-  const labelsChanged = JSON.stringify([...selectedLabels].sort()) !== JSON.stringify([...prompt.labels].sort());
+  const labelsChanged =
+    JSON.stringify([...selectedLabels].sort()) !==
+    JSON.stringify([...prompt.labels].sort());
   const customLabelScrollRef = useRef<HTMLDivElement | null>(null);
 
   const usedLabelsInProject = api.prompts.allLabels.useQuery(

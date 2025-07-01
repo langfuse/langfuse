@@ -396,21 +396,27 @@ export const InnerEvaluatorForm = (props: {
     <div className="flex items-center gap-2">
       {form.watch("target") === "trace" && !props.disabled && (
         <>
-          <span className="text-xs text-muted-foreground">Show preview</span>
+          <span className="text-xs text-muted-foreground">Show Preview</span>
           <Switch
             checked={showPreview}
             onCheckedChange={setShowPreview}
             disabled={props.disabled}
           />
-          {traceWithObservations && showPreview && (
-            <DetailPageNav
-              currentId={traceWithObservations.id}
-              listKey="traces"
-              path={(entry) =>
-                `/project/${props.projectId}/evals/new?evaluator=${props.evalTemplate.id}&traceId=${entry.id}`
-              }
-            />
-          )}
+          {showPreview &&
+            (traceWithObservations ? (
+              <DetailPageNav
+                currentId={traceWithObservations.id}
+                listKey="traces"
+                path={(entry) =>
+                  `/project/${props.projectId}/evals/new?evaluator=${props.evalTemplate.id}&traceId=${entry.id}`
+                }
+              />
+            ) : (
+              <div className="flex flex-row gap-1">
+                <Skeleton className="h-8 w-[54px]" />
+                <Skeleton className="h-8 w-[54px]" />
+              </div>
+            ))}
         </>
       )}
     </div>
@@ -723,11 +729,12 @@ export const InnerEvaluatorForm = (props: {
                         controlButtons={mappingControlButtons}
                       />
                     ) : (
-                      <div className="flex max-h-full min-h-[200px] w-full flex-col gap-1 lg:w-2/3">
-                        <div className="flex flex-row items-end justify-between">
-                          <span className="h-fit px-1 text-start text-sm font-medium">
-                            Evaluation Prompt
-                          </span>
+                      <div className="flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">
+                        <div className="flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
+                          <div className="flex flex-row items-center gap-2">
+                            Evaluation Prompt Preview
+                            <Skeleton className="h-[25px] w-[63px]" />
+                          </div>
                           <div className="flex justify-end">
                             {mappingControlButtons}
                           </div>
