@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import {
   Tooltip,
@@ -21,7 +21,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 
 export default function Playground() {
   const playgroundContext = usePlaygroundContext();
@@ -32,15 +37,17 @@ export default function Playground() {
     updateModelParamValue,
   } = playgroundContext;
 
-
   // State for controlling the API key dialog
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  // State for controlling the variables dialog
+  const [variablesDialogOpen, setVariablesDialogOpen] = useState(false);
 
   return (
     <div className="flex h-full flex-col space-y-4">
       {/* Top bar for model configuration summary */}
       <div className="flex items-center justify-between border-b bg-muted px-2 py-2">
         {availableProviders.length === 0 ? (
+          // Show the CreateLLMApiKeyDialog as a button with text (default behavior)
           <CreateLLMApiKeyDialog />
         ) : (
           <div className="flex w-full items-center gap-4 text-sm">
@@ -85,6 +92,37 @@ export default function Playground() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Variables button */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setVariablesDialogOpen(true)}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Configure variables
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Dialog
+                open={variablesDialogOpen}
+                onOpenChange={setVariablesDialogOpen}
+              >
+                <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
+                  <DialogHeader>
+                    <DialogTitle>Configure Variables</DialogTitle>
+                  </DialogHeader>
+                  <div className="flex max-w-xl flex-col rounded-lg bg-background p-4 shadow">
+                    <Variables />
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
             <div className="flex-grow" />
             {/* Add API key button on the far right with tooltip and dialog, only if there are API keys */}
@@ -125,9 +163,6 @@ export default function Playground() {
             </div>
             <div className="mb-4 flex-shrink-0">
               <StructuredOutputSchemaSection />
-            </div>
-            <div className="flex-grow overflow-y-auto">
-              <Variables />
             </div>
           </div>
         </div>
