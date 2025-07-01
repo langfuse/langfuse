@@ -92,7 +92,7 @@ export const promptRouter = createTRPCRouter({
         : Prisma.empty;
 
       const searchFilter = input.searchQuery
-        ? Prisma.sql` AND p.name ILIKE ${`%${input.searchQuery}%`}`
+        ? Prisma.sql` AND (p.name ILIKE ${`%${input.searchQuery}%`} OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`}))`
         : Prisma.empty;
 
       const [prompts, promptCount] = await Promise.all([
@@ -119,19 +119,19 @@ export const promptRouter = createTRPCRouter({
             searchFilter,
           ),
         ),
-                  // promptCount
-          ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
-            generatePromptQuery(
-              Prisma.sql` count(*) AS "totalCount"`,
-              input.projectId,
-              filterCondition,
-              Prisma.empty,
-              1, // limit
-              0, // page,
-              pathFilter,
-              searchFilter,
-            ),
+        // promptCount
+        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+          generatePromptQuery(
+            Prisma.sql` count(*) AS "totalCount"`,
+            input.projectId,
+            filterCondition,
+            Prisma.empty,
+            1, // limit
+            0, // page,
+            pathFilter,
+            searchFilter,
           ),
+        ),
       ]);
 
       return {
