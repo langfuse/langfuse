@@ -7,4 +7,5 @@ export const projectRetentionSchema = z.object({
     .refine((value) => value === 0 || value >= 3, {
       message: "Value must be 0 or at least 3 days",
     }),
+  environments: z.array(z.string()).optional().default(["default"]),
 });
