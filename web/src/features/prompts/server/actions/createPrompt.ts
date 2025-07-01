@@ -79,7 +79,7 @@ export const createPrompt = async ({
     const conflictingNames = variables.filter(v => placeholders.includes(v));
     if (conflictingNames.length > 0) {
       throw new InvalidRequestError(
-        `Cannot create prompt: variables and placeholders must be unique, the following are not: ${conflictingNames.join(", ")}`
+        `Cannot create prompt, variables and placeholders must be unique, the following are not: ${conflictingNames.join(", ")}`
       );
     }
   }
