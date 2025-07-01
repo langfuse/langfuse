@@ -92,7 +92,7 @@ export const promptRouter = createTRPCRouter({
         : Prisma.empty;
 
       const searchFilter = input.searchQuery
-        ? Prisma.sql` AND p.name ILIKE ${`%${input.searchQuery}%`}`
+        ? Prisma.sql` AND (p.name ILIKE ${`%${input.searchQuery}%`} OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`}))`
         : Prisma.empty;
 
       const [prompts, promptCount] = await Promise.all([
