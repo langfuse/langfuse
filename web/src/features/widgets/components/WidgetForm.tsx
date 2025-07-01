@@ -542,6 +542,40 @@ export function WidgetForm({
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
     const viewDeclaration = viewDeclarations[selectedView];
+
+    // For pivot tables, only show measures that still have available aggregations
+    if (selectedChartType === "PIVOT_TABLE") {
+      return Object.entries(viewDeclaration.measures)
+        .filter(([measureKey]) => {
+          // For count, there's only one aggregation option
+          if (measureKey === "count") {
+            return !selectedMetrics.some((m) => m.measure === "count");
+          }
+
+          // For other measures, check if there are any aggregations left
+          const selectedAggregationsForMeasure = selectedMetrics
+            .filter((m) => m.measure === measureKey)
+            .map((m) => m.aggregation);
+
+          const availableAggregationsForMeasure =
+            metricAggregations.options.filter(
+              (agg) =>
+                agg !== "histogram" &&
+                !selectedAggregationsForMeasure.includes(agg),
+            );
+
+          return availableAggregationsForMeasure.length > 0;
+        })
+        .map(([key]) => ({
+          value: key,
+          label: startCase(key),
+        }))
+        .sort((a, b) =>
+          a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+        );
+    }
+
+    // For regular charts, show all metrics
     return Object.entries(viewDeclaration.measures)
       .map(([key]) => ({
         value: key,
@@ -550,7 +584,20 @@ export function WidgetForm({
       .sort((a, b) =>
         a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
       );
-  }, [selectedView]);
+  }, [selectedView, selectedChartType, selectedMetrics]);
+
+  // Get available aggregations for the selected measure (for pivot tables)
+  const availableAggregations = useMemo(() => {
+    if (selectedChartType === "PIVOT_TABLE" && selectedMeasure) {
+      return metricAggregations.options.filter(
+        (agg) =>
+          !selectedMetrics.some(
+            (m) => m.measure === selectedMeasure && m.aggregation === agg,
+          ),
+      );
+    }
+    return metricAggregations.options;
+  }, [selectedChartType, selectedMeasure, selectedMetrics]);
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
@@ -971,7 +1018,7 @@ export function WidgetForm({
                               <SelectValue placeholder="Aggregation" />
                             </SelectTrigger>
                             <SelectContent>
-                              {metricAggregations.options.map((aggregation) => (
+                              {availableAggregations.map((aggregation) => (
                                 <SelectItem
                                   key={aggregation}
                                   value={aggregation}
@@ -990,13 +1037,27 @@ export function WidgetForm({
                         onClick={addMetric}
                         className="w-full"
                         disabled={
-                          selectedMetrics.length >= MAX_PIVOT_TABLE_METRICS
+                          selectedMetrics.length >= MAX_PIVOT_TABLE_METRICS ||
+                          !selectedMeasure ||
+                          (selectedMeasure !== "count" &&
+                            availableAggregations.length === 0) ||
+                          (selectedMeasure === "count" &&
+                            selectedMetrics.some((m) => m.measure === "count"))
                         }
                       >
                         <Plus className="mr-1 h-3 w-3" />
                         Add Metric
                         {selectedMetrics.length >= MAX_PIVOT_TABLE_METRICS &&
                           ` (Max ${MAX_PIVOT_TABLE_METRICS})`}
+                        {selectedMeasure &&
+                          selectedMeasure !== "count" &&
+                          availableAggregations.length === 0 &&
+                          selectedMetrics.length < MAX_PIVOT_TABLE_METRICS &&
+                          ` (All aggregations selected)`}
+                        {selectedMeasure === "count" &&
+                          selectedMetrics.some((m) => m.measure === "count") &&
+                          selectedMetrics.length < MAX_PIVOT_TABLE_METRICS &&
+                          ` (Count already selected)`}
                       </Button>
                     </div>
                   </div>
