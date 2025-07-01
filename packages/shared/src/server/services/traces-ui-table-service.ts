@@ -25,6 +25,23 @@ import {
 import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+// Doris imports
+import {
+  isDorisBackend,
+  convertDateToAnalyticsDateTime,
+} from "../repositories/analytics";
+import { queryDoris } from "../repositories/doris";
+import {
+  createDorisFilterFromFilterState,
+  getDorisProjectIdDefaultFilter,
+} from "../queries/doris-sql/factory";
+import {
+  StringFilter as DorisStringFilter,
+  StringOptionsFilter as DorisStringOptionsFilter,
+  DateTimeFilter as DorisDateTimeFilter,
+} from "../queries/doris-sql/doris-filter";
+import { orderByToDorisSQL } from "../queries/doris-sql/orderby-factory";
+import { dorisSearchCondition } from "../queries/doris-sql/search";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -98,6 +115,25 @@ export const convertToUiTableRows = (
   };
 };
 
+
+
+export type TracesTableMetricsClickhouseReturnType = {
+  id: string;
+  project_id: string;
+  timestamp: Date;
+  level: ObservationLevelType;
+  observation_count: number | null;
+  latency: string | null;
+  usage_details: Record<string, number>;
+  cost_details: Record<string, number>;
+  scores_avg: Array<{ name: string; avg_value: number }>;
+  score_categories: Array<string>;
+  error_count: number | null;
+  warning_count: number | null;
+  default_count: number | null;
+  debug_count: number | null;
+};
+
 export const convertToUITableMetrics = (
   row: TracesTableMetricsClickhouseReturnType,
 ): Omit<TracesMetricsUiReturnType, "scores"> => {
@@ -138,22 +174,6 @@ export const convertToUITableMetrics = (
     errorCount: BigInt(row.error_count ?? 0),
     defaultCount: BigInt(row.default_count ?? 0),
   };
-};
-
-export type TracesTableMetricsClickhouseReturnType = {
-  id: string;
-  project_id: string;
-  timestamp: Date;
-  level: ObservationLevelType;
-  observation_count: number | null;
-  latency: string | null;
-  usage_details: Record<string, number>;
-  cost_details: Record<string, number>;
-  scores_avg: Array<{ name: string; avg_value: number }>;
-  error_count: number | null;
-  warning_count: number | null;
-  default_count: number | null;
-  debug_count: number | null;
 };
 
 export type FetchTracesTableProps = {
@@ -217,6 +237,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     clickhouseConfigs,
   } = props;
 
+  // 共用的 SELECT 语句生成逻辑
   let sqlSelect: string;
   switch (select) {
     case "count":
@@ -265,6 +286,319 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       throw new Error(`Unknown select type: ${select}`);
   }
 
+  if (isDorisBackend()) {
+    const { tracesFilter, scoresFilter, observationsFilter } =
+      getDorisProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
+
+    tracesFilter.push(
+      ...createDorisFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+    );
+
+    const traceIdFilter = tracesFilter.find(
+      (f) => f.table === "traces" && f.field === "id",
+    ) as DorisStringFilter | DorisStringOptionsFilter | undefined;
+
+    traceIdFilter
+      ? scoresFilter.push(
+          new DorisStringOptionsFilter({
+            clickhouseTable: "scores",
+            field: "trace_id",
+            operator: "any of",
+            values:
+              traceIdFilter instanceof DorisStringFilter
+                ? [traceIdFilter.value]
+                : traceIdFilter.values,
+          }),
+        )
+      : null;
+    traceIdFilter
+      ? observationsFilter.push(
+          new DorisStringOptionsFilter({
+            clickhouseTable: "observations",
+            field: "trace_id",
+            operator: "any of",
+            values:
+              traceIdFilter instanceof DorisStringFilter
+                ? [traceIdFilter.value]
+                : traceIdFilter.values,
+          }),
+        )
+      : null;
+
+    const timeStampFilter = tracesFilter.find(
+      (f) =>
+        f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    ) as DorisDateTimeFilter | undefined;
+
+    const requiresScoresJoin =
+      tracesFilter.find((f) => f.table === "scores") !== undefined ||
+      tracesTableUiColumnDefinitions.find(
+        (c) =>
+          c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
+      )?.clickhouseTableName === "scores";
+
+    const requiresObservationsJoin =
+      tracesFilter.find((f) => f.table === "observations") !== undefined ||
+      tracesTableUiColumnDefinitions.find(
+        (c) =>
+          c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
+      )?.clickhouseTableName === "observations";
+
+    const tracesFilterRes = tracesFilter.apply();
+    const scoresFilterRes = scoresFilter.apply();
+    const observationFilterRes = observationsFilter.apply();
+
+    const search = dorisSearchCondition(searchQuery, searchType);
+
+    const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
+    const orderByCols = [
+      ...tracesTableUiColumnDefinitions,
+      {
+        clickhouseSelect: "DATE(t.timestamp)",
+        uiTableName: "timestamp_to_date",
+        uiTableId: "timestamp_to_date",
+        clickhouseTableName: "traces",
+      },
+      {
+        clickhouseSelect: "t.event_ts",
+        uiTableName: "event_ts",
+        uiTableId: "event_ts",
+        clickhouseTableName: "traces",
+      },
+    ];
+    const dorisOrderBy = orderByToDorisSQL(
+      [
+        defaultOrder
+          ? [
+              {
+                column: "timestamp_to_date",
+                order: orderBy.order,
+              },
+              { column: "timestamp", order: orderBy.order },
+              { column: "event_ts", order: "DESC" as "DESC" },
+            ]
+          : null,
+        orderBy ?? null,
+      ].flat(),
+      orderByCols,
+    );
+
+    // Doris version of the complex query
+    const observations_stats_cte = select === "metrics" || requiresObservationsJoin ? `
+      observations_stats AS (
+        SELECT
+          agg.trace_id,
+          agg.project_id,
+          agg.observation_count,
+          agg.total_cost,
+          agg.latency_milliseconds,
+          agg.error_count,
+          agg.warning_count,
+          agg.default_count,
+          agg.debug_count,
+          agg.aggregated_level,
+          maps.usage_details,
+          maps.cost_details
+        FROM (
+          SELECT
+            trace_id,
+            project_id,
+            COUNT(*) AS observation_count,
+            SUM(total_cost) AS total_cost,
+            -- Doris 中计算毫秒差值 - 使用 CASE WHEN 替代 least/greatest
+            milliseconds_diff(
+              CASE WHEN min(start_time) < min(end_time) THEN min(start_time) ELSE min(end_time) END,
+              CASE WHEN max(start_time) > max(end_time) THEN max(start_time) ELSE max(end_time) END
+            ) as latency_milliseconds,
+            -- 条件计数
+            sum(CASE WHEN level = 'ERROR' THEN 1 ELSE 0 END) as error_count,
+            sum(CASE WHEN level = 'WARNING' THEN 1 ELSE 0 END) as warning_count,
+            sum(CASE WHEN level = 'DEFAULT' THEN 1 ELSE 0 END) as default_count,
+            sum(CASE WHEN level = 'DEBUG' THEN 1 ELSE 0 END) as debug_count,
+            -- 级别聚合
+            CASE 
+              WHEN ARRAY_CONTAINS(collect_list(level), 'ERROR') THEN 'ERROR'
+              WHEN ARRAY_CONTAINS(collect_list(level), 'WARNING') THEN 'WARNING'
+              WHEN ARRAY_CONTAINS(collect_list(level), 'DEFAULT') THEN 'DEFAULT'
+              ELSE 'DEBUG'
+            END AS aggregated_level
+          FROM (
+            SELECT
+              trace_id,
+              project_id,
+              level,
+              start_time,
+              end_time,
+              total_cost
+            FROM observations
+            WHERE project_id = {projectId: String}
+            ${timeStampFilter ? `AND start_time >= DATE_SUB({traceTimestamp: DateTime}, INTERVAL 2 DAY)` : ""}
+            ${observationFilterRes ? `AND ${observationFilterRes.query}` : ""}
+          ) obs
+          GROUP BY trace_id, project_id
+        ) agg
+        LEFT JOIN (
+          SELECT
+            trace_id,
+            project_id,
+            -- 在这个独立查询中重建 map
+            map_agg(usage_key, usage_sum) as usage_details,
+            map_agg(cost_key, cost_sum) as cost_details
+          FROM (
+            SELECT
+              o.trace_id,
+              o.project_id,
+              usage_key,
+              sum(usage_value) as usage_sum,
+              cost_key,
+              sum(cost_value) as cost_sum
+            FROM observations o
+            LATERAL VIEW explode_map(usage_details) usage_exploded AS usage_key, usage_value
+            LATERAL VIEW explode_map(cost_details) cost_exploded AS cost_key, cost_value
+            WHERE o.project_id = {projectId: String}
+            ${timeStampFilter ? `AND o.start_time >= DATE_SUB({traceTimestamp: DateTime}, INTERVAL 2 DAY)` : ""}
+            ${observationFilterRes ? `AND ${observationFilterRes.query}` : ""}
+            AND usage_details IS NOT NULL
+            AND cost_details IS NOT NULL
+            GROUP BY 
+              o.trace_id,
+              o.project_id,
+              usage_key,
+              cost_key
+          ) kv_pairs
+          GROUP BY trace_id, project_id
+        ) maps ON agg.trace_id = maps.trace_id AND agg.project_id = maps.project_id
+      )` : "";
+
+    const scores_avg_cte = select === "metrics" || requiresScoresJoin ? `
+      scores_avg AS (
+        SELECT
+          project_id,
+          trace_id,
+          -- 数值分数：使用字符串拼接 'name:avg_value' 格式（因为 collect_list 不支持 struct）
+          -- 过滤 NULL 值以与 ClickHouse 的 groupArrayIf 行为保持一致
+          array_except(
+            collect_list(
+              CASE WHEN data_type IN ('NUMERIC', 'BOOLEAN') THEN 
+                CONCAT(name, ':', CAST(avg_value AS STRING))
+              ELSE NULL END
+            ), 
+            [NULL]
+          ) AS scores_avg,
+          -- 分类分数：构建 name:value 格式字符串数组（与 ClickHouse 保持一致）
+          -- 过滤 NULL 值以与 ClickHouse 的 groupArrayIf 行为保持一致
+          array_except(
+            collect_list(
+              CASE WHEN data_type = 'CATEGORICAL' AND string_value IS NOT NULL AND string_value != '' THEN 
+                CONCAT(name, ':', string_value)
+              ELSE NULL END
+            ),
+            [NULL]
+          ) AS score_categories
+        FROM (
+          SELECT 
+            project_id,
+            trace_id,
+            name,
+            data_type,
+            string_value,
+            avg(value) as avg_value
+          FROM scores s 
+          WHERE 
+            project_id = {projectId: String}
+            ${timeStampFilter ? `AND s.timestamp >= DATE_SUB({traceTimestamp: DateTime}, INTERVAL 1 HOUR)` : ""}
+            ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
+          GROUP BY 
+            project_id,
+            trace_id,
+            name,
+            data_type,
+            string_value
+        ) tmp
+        GROUP BY project_id, trace_id
+      )` : "";
+
+    const withClause = [observations_stats_cte, scores_avg_cte]
+      .filter(Boolean)
+      .join(",\n");
+
+    const query = `
+      ${withClause ? `WITH ${withClause}` : ""}
+      SELECT ${sqlSelect}
+      FROM traces t
+      ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
+      ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
+      WHERE t.project_id = {projectId: String}
+      ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
+      ${search.query}
+      ${dorisOrderBy}
+      ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    `;
+
+    // Define Doris-specific return type for metrics
+    type DorisMetricsReturnType = Omit<TracesTableMetricsClickhouseReturnType, 'scores_avg' | 'score_categories'> & {
+      scores_avg: Array<string>; // Doris format: ['name:value', ...]
+      score_categories: Array<string>; // Same format as ClickHouse
+    };
+
+    const res = await queryDoris<
+      SelectReturnTypeMap[keyof SelectReturnTypeMap]
+    >({
+      query: query,
+      params: {
+        limit: limit,
+        offset: limit && page ? limit * page : 0,
+        ...(timeStampFilter
+          ? { traceTimestamp: convertDateToAnalyticsDateTime(timeStampFilter.value) }
+          : {}),
+        projectId: projectId,
+        ...tracesFilterRes.params,
+        ...observationFilterRes.params,
+        ...scoresFilterRes.params,
+        ...search.params,
+      },
+      tags: {
+        ...(props.tags ?? {}),
+        feature: "tracing",
+        type: "traces-table",
+        projectId,
+      },
+    });
+
+    // Post-process Doris results to match ClickHouse format
+    if (select === "metrics") {
+      const processedRes = (res as unknown as DorisMetricsReturnType[]).map(row => {
+        // Convert Doris string array format to ClickHouse object array format
+        const parsedScoresAvg: Array<{ name: string; avg_value: number }> = [];
+        
+        if (Array.isArray(row.scores_avg)) {
+          row.scores_avg
+            .filter(s => s && s.includes(':'))
+            .forEach(scoreStr => {
+              const [name, value] = scoreStr.split(':');
+              if (name && value) {
+                parsedScoresAvg.push({
+                  name: name,
+                  avg_value: parseFloat(value) || 0
+                });
+              }
+            });
+        }
+
+        // Return row with ClickHouse-compatible format
+        return {
+          ...row,
+          scores_avg: parsedScoresAvg
+        } as TracesTableMetricsClickhouseReturnType;
+      });
+
+      return processedRes as Array<SelectReturnTypeMap[keyof SelectReturnTypeMap]>;
+    }
+
+    return res;
+  }
+
+  // Original ClickHouse implementation continues below...
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
@@ -273,7 +607,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
   );
 
   const traceIdFilter = tracesFilter.find(
-    (f) => f.clickhouseTable === "traces" && f.field === "id",
+    (f) => f.table === "traces" && f.field === "id",
   ) as StringFilter | StringOptionsFilter | undefined;
 
   traceIdFilter
@@ -311,14 +645,14 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
   ) as DateTimeFilter | undefined;
 
   const requiresScoresJoin =
-    tracesFilter.find((f) => f.clickhouseTable === "scores") !== undefined ||
+    tracesFilter.find((f) => f.table === "scores") !== undefined ||
     tracesTableUiColumnDefinitions.find(
       (c) =>
         c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
     )?.clickhouseTableName === "scores";
 
   const requiresObservationsJoin =
-    tracesFilter.find((f) => f.clickhouseTable === "observations") !==
+    tracesFilter.find((f) => f.table === "observations") !==
       undefined ||
     tracesTableUiColumnDefinitions.find(
       (c) =>
