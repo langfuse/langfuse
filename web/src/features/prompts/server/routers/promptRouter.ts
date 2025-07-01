@@ -119,19 +119,19 @@ export const promptRouter = createTRPCRouter({
             searchFilter,
           ),
         ),
-                  // promptCount
-          ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
-            generatePromptQuery(
-              Prisma.sql` count(*) AS "totalCount"`,
-              input.projectId,
-              filterCondition,
-              Prisma.empty,
-              1, // limit
-              0, // page,
-              pathFilter,
-              searchFilter,
-            ),
+        // promptCount
+        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+          generatePromptQuery(
+            Prisma.sql` count(*) AS "totalCount"`,
+            input.projectId,
+            filterCondition,
+            Prisma.empty,
+            1, // limit
+            0, // page,
+            pathFilter,
+            searchFilter,
           ),
+        ),
       ]);
 
       return {
