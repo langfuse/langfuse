@@ -638,7 +638,7 @@ export const CreateExperimentsForm = ({
                                 <span>
                                   Given current prompt, dataset item input must
                                   contain at least one of these first-level JSON
-                                  keys, mapped to a string value:
+                                  keys:
                                 </span>
                                 <ul className="my-2 ml-2 list-inside list-disc">
                                   {expectedColumns.map((col) => (
@@ -646,8 +646,9 @@ export const CreateExperimentsForm = ({
                                   ))}
                                 </ul>
                                 <span>
-                                  These will be used as the input to your
-                                  prompt.
+                                  Variables (like {"{{variable}}"}) should be mapped to string values.
+                                  Placeholders should be mapped to arrays of message objects.
+                                  These will be used as the input to your prompt.
                                 </span>
                               </div>
                             ) : (
