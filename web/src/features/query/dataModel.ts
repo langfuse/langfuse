@@ -14,12 +14,14 @@ export const traceView: ViewDeclarationType = {
     "Traces represent a group of observations and typically represent a single request or operation.",
   dimensions: {
     id: {
-      sql: "id",
+      sql: "traces.id",
+      alias: "id",
       type: "string",
       description: "Unique identifier of the trace.",
     },
     name: {
-      sql: "name",
+      sql: "traces.name",
+      alias: "name",
       type: "string",
       description:
         "Name assigned to the trace (often the endpoint or operation).",
@@ -47,24 +49,32 @@ export const traceView: ViewDeclarationType = {
       description: "Release version of the trace.",
     },
     version: {
-      sql: "version",
+      sql: "traces.version",
+      alias: "version",
       type: "string",
       description: "Version of the trace.",
     },
     environment: {
-      sql: "environment",
+      sql: "traces.environment",
+      alias: "environment",
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
     },
+    level: {
+      sql: "multiIf(arrayExists(x -> x = 'ERROR', groupArray(observations.level)), 'ERROR', arrayExists(x -> x = 'WARNING', groupArray(observations.level)), 'WARNING', arrayExists(x -> x = 'DEFAULT', groupArray(observations.level)), 'DEFAULT', 'DEBUG')",
+      alias: "aggregated_level",
+      type: "string",
+      relationTable: "observations",
+    },
     observationName: {
-      sql: "name",
+      sql: "observations.name",
       alias: "observationName",
       type: "string",
       relationTable: "observations",
       description: "Name of the observation.",
     },
     scoreName: {
-      sql: "name",
+      sql: "scores.name",
       alias: "scoreName",
       type: "string",
       relationTable: "scores",
@@ -146,25 +156,27 @@ export const observationsView: ViewDeclarationType = {
     "Observations represent individual requests or operations within a trace. They are grouped into Spans, Generations, and Events.",
   dimensions: {
     id: {
-      sql: "id",
+      sql: "observations.id",
+      alias: "id",
       type: "string",
       description: "Unique identifier for the observation.",
     },
     traceId: {
-      sql: "trace_id",
+      sql: "observations.trace_id",
       alias: "traceId",
       type: "string",
       description: "Identifier linking the observation to its parent trace.",
     },
     traceName: {
-      sql: "name",
+      sql: "traces.name",
       alias: "traceName",
       type: "string",
       relationTable: "traces",
       description: "Name of the parent trace.",
     },
     environment: {
-      sql: "environment",
+      sql: "observations.environment",
+      alias: "environment",
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
     },
@@ -182,7 +194,8 @@ export const observationsView: ViewDeclarationType = {
         "Type of the observation. Can be a SPAN, GENERATION, or EVENT.",
     },
     name: {
-      sql: "name",
+      sql: "observations.name",
+      alias: "name",
       type: "string",
       description: "Name of the observation.",
     },
@@ -192,7 +205,8 @@ export const observationsView: ViewDeclarationType = {
       description: "Logging level of the observation.",
     },
     version: {
-      sql: "version",
+      sql: "observations.version",
+      alias: "version",
       type: "string",
       description: "Version of the observation.",
     },
@@ -380,17 +394,20 @@ export const observationsView: ViewDeclarationType = {
 
 const scoreBaseDimensions: DimensionsDeclarationType = {
   id: {
-    sql: "id",
+    sql: "scores.id",
+    alias: "id",
     type: "string",
     description: "Unique identifier of the score entry.",
   },
   environment: {
-    sql: "environment",
+    sql: "scores.environment",
+    alias: "environment",
     type: "string",
     description: "Deployment environment (e.g., production, staging).",
   },
   name: {
-    sql: "name",
+    sql: "scores.name",
+    alias: "name",
     type: "string",
     description: "Name of the score (e.g., accuracy, toxicity).",
   },

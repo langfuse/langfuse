@@ -200,6 +200,80 @@ describe("queryBuilder", () => {
           orderBy: null,
         } as QueryType,
       ],
+      [
+        "trace query with level aggregation",
+        {
+          view: "traces",
+          dimensions: [{ field: "name" }, { field: "level" }],
+          metrics: [
+            {
+              measure: "count",
+              aggregation: "count",
+            },
+          ],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: "2025-01-01T00:00:00.000Z",
+          toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
+        } as QueryType,
+      ],
+      [
+        "trace query with level aggregation and filter",
+        {
+          view: "traces",
+          dimensions: [{ field: "name" }, { field: "level" }],
+          metrics: [
+            {
+              measure: "count",
+              aggregation: "count",
+            },
+          ],
+          filters: [
+            {
+              column: "level",
+              operator: "=",
+              value: "WARNING",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: "2025-01-01T00:00:00.000Z",
+          toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
+        } as QueryType,
+      ],
+      [
+        "trace query with level aggregation and multiple filters",
+        {
+          view: "traces",
+          dimensions: [{ field: "name" }, { field: "level" }],
+          metrics: [
+            {
+              measure: "count",
+              aggregation: "count",
+            },
+          ],
+          filters: [
+            {
+              column: "level",
+              operator: "=",
+              value: "WARNING",
+              type: "string",
+            },
+            {
+              column: "name",
+              operator: "=",
+              value: "trace-1",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: "2025-01-01T00:00:00.000Z",
+          toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
+        } as QueryType,
+      ],
     ])(
       "should compile query to valid SQL: (%s)",
       async (_name, query: QueryType) => {
@@ -1908,6 +1982,112 @@ describe("queryBuilder", () => {
         expect(result.data).toHaveLength(2);
         expect(result.data[0].name).toBe("trace-with-metadata-1");
         expect(result.data[0].count_count).toBe("1");
+      });
+
+      it("should aggregate observation levels correctly", async () => {
+        // Setup
+        const projectId = randomUUID();
+
+        // Create traces with observations of different levels
+        const trace1 = createTrace({
+          project_id: projectId,
+          name: "trace-with-error",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+
+        const trace2 = createTrace({
+          project_id: projectId,
+          name: "trace-with-warning",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+
+        const trace3 = createTrace({
+          project_id: projectId,
+          name: "trace-with-mixed-levels",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+
+        await createTracesCh([trace1, trace2, trace3]);
+
+        // Create observations with different levels
+        const observations = [
+          // ERROR observations
+          createObservation({
+            project_id: projectId,
+            trace_id: trace1.id,
+            level: "ERROR",
+          }),
+          // WARNING observations
+          createObservation({
+            project_id: projectId,
+            trace_id: trace2.id,
+            level: "WARNING",
+          }),
+          // Mixed level observations (ERROR + WARNING)
+          createObservation({
+            project_id: projectId,
+            trace_id: trace3.id,
+            level: "ERROR",
+          }),
+          createObservation({
+            project_id: projectId,
+            trace_id: trace3.id,
+            level: "WARNING",
+          }),
+        ];
+
+        await createObservationsCh(observations);
+
+        // Define query to test level aggregation
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }, { field: "level" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(), // yesterday
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(), // tomorrow
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert
+        expect(result.data).toHaveLength(5);
+
+        // Find each trace by name
+        const traceWithError = result.data.find(
+          (row: any) => row.name === "trace-with-error",
+        );
+        const traceWithWarning = result.data.find(
+          (row: any) => row.name === "trace-with-warning",
+        );
+        const traceWithMixed = result.data.find(
+          (row: any) => row.name === "trace-with-mixed-levels",
+        );
+
+        // Check that levels are correctly aggregated
+        expect(traceWithError.aggregated_level).toBe("ERROR");
+        expect(traceWithWarning.aggregated_level).toBe("WARNING");
+        expect(traceWithMixed.aggregated_level).toBe("ERROR"); // Should be ERROR as it's the highest priority
       });
     });
 
