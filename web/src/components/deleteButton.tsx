@@ -339,6 +339,7 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
         })
       }
       entityToDeleteName="running evaluator"
+      customDeletePrompt="This will delete the evaluator configuration. Associated scores will remain but become orphaned."
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={evaluatorMutation.isLoading}
     />
