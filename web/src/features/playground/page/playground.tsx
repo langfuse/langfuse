@@ -36,9 +36,11 @@ export default function Playground() {
 
   return (
     <div className="flex h-full flex-col space-y-4">
-      <div className="flex flex-1 flex-row space-x-8">
+      <div className="flex flex-1 flex-row flex-nowrap space-x-8 overflow-x-auto">
         {instances.map((instance, idx) => (
-          <PromptPlaygroundInstance key={idx} playgroundContext={instance} />
+          <div key={idx} className="min-w-[500px] flex-1 flex-shrink-0">
+            <PromptPlaygroundInstance playgroundContext={instance} />
+          </div>
         ))}
         {/* Floating plus button */}
         <div className="px-12">
