@@ -17,6 +17,8 @@ import {
   getObservationCostByTypeByTime,
   getObservationUsageByTypeByTime,
   queryClickhouse,
+  queryDoris,
+  isDorisBackend,
   DashboardService,
   DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
@@ -329,23 +331,38 @@ export async function executeQuery(
     const { query: compiledQuery, parameters } = new QueryBuilder(
       query.chartConfig,
     ).build(query, projectId);
-
-    const result = await queryClickhouse<Record<string, unknown>>({
-      query: compiledQuery,
-      params: parameters,
-      clickhouseConfigs: {
-        clickhouse_settings: {
-          date_time_output_format: "iso",
+    logger.info("Executing query", { query: compiledQuery, parameters });
+    // Check if we should use Doris backend
+    if (isDorisBackend()) {
+      const result = await queryDoris<Record<string, unknown>>({
+        query: compiledQuery,
+        params: parameters,
+        tags: {
+          feature: "custom-queries",
+          type: query.view,
+          kind: "analytic",
+          projectId,
         },
-      },
-      tags: {
-        feature: "custom-queries",
-        type: query.view,
-        kind: "analytic",
-        projectId,
-      },
-    });
-    return result;
+      });
+      return result;
+    } else {
+      const result = await queryClickhouse<Record<string, unknown>>({
+        query: compiledQuery,
+        params: parameters,
+        clickhouseConfigs: {
+          clickhouse_settings: {
+            date_time_output_format: "iso",
+          },
+        },
+        tags: {
+          feature: "custom-queries",
+          type: query.view,
+          kind: "analytic",
+          projectId,
+        },
+      });
+      return result;
+    }
   } catch (error) {
     logger.error("Error executing query", error, { projectId, query });
     throw new TRPCError({
