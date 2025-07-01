@@ -151,21 +151,12 @@ export default function Playground() {
           </div>
         )}
       </div>
-      {/* Main content area */}
+      {/* Main content area: only the message area remains */}
       <div className="flex flex-1 flex-row space-x-8">
-        <div className="h-full basis-3/4 overflow-auto">
+        <div className="h-full w-full overflow-auto">
           <Messages {...playgroundContext} />
         </div>
-        <div className="max-h-full min-h-0 basis-1/4 pr-2">
-          <div className="flex h-full flex-col gap-4 overflow-auto">
-            <div className="mb-4 max-h-[25vh] flex-shrink-0 overflow-y-auto">
-              <PlaygroundTools />
-            </div>
-            <div className="mb-4 flex-shrink-0">
-              <StructuredOutputSchemaSection />
-            </div>
-          </div>
-        </div>
+        {/* Sidebar removed: PlaygroundTools and StructuredOutputSchemaSection are hidden for now */}
       </div>
     </div>
   );
