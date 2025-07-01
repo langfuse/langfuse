@@ -4,28 +4,131 @@ import { Variables } from "./components/Variables";
 import { Messages } from "./components/Messages";
 import { PlaygroundTools } from "./components/PlaygroundTools";
 import { StructuredOutputSchemaSection } from "./components/StructuredOutputSchemaSection";
+import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
+import { Button } from "@/src/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { Plus } from "lucide-react";
+import { useState } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 
 export default function Playground() {
   const playgroundContext = usePlaygroundContext();
+  const {
+    modelParams,
+    availableProviders,
+    availableModels,
+    updateModelParamValue,
+  } = playgroundContext;
+
+
+  // State for controlling the API key dialog
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
 
   return (
-    <div className="flex h-full flex-row space-x-8">
-      <div className="h-full basis-3/4 overflow-auto">
-        <Messages {...playgroundContext} />
+    <div className="flex h-full flex-col space-y-4">
+      {/* Top bar for model configuration summary */}
+      <div className="flex items-center justify-between border-b bg-muted px-2 py-2">
+        {availableProviders.length === 0 ? (
+          <CreateLLMApiKeyDialog />
+        ) : (
+          <div className="flex w-full items-center gap-4 text-sm">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Provider:</span>
+                <Select
+                  value={modelParams.provider.value}
+                  onValueChange={(value) => {
+                    updateModelParamValue("provider", value);
+                  }}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProviders.map((provider) => (
+                      <SelectItem key={provider} value={provider}>
+                        {provider}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Model:</span>
+                <Select
+                  value={modelParams.model.value}
+                  onValueChange={(value) => {
+                    updateModelParamValue("model", value);
+                  }}
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Select model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[...new Set(availableModels)].map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex-grow" />
+            {/* Add API key button on the far right with tooltip and dialog, only if there are API keys */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 p-0"
+                    onClick={() => setApiKeyDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Add a new LLM API key
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Dialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen}>
+              <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
+                <CreateLLMApiKeyDialog />
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </div>
-      <div className="max-h-full min-h-0 basis-1/4 pr-2">
-        <div className="flex h-full flex-col gap-4 overflow-auto">
-          <div className="mb-4 flex-shrink-0 overflow-y-auto">
-            <ModelParameters {...playgroundContext} />
-          </div>
-          <div className="mb-4 max-h-[25vh] flex-shrink-0 overflow-y-auto">
-            <PlaygroundTools />
-          </div>
-          <div className="mb-4 flex-shrink-0">
-            <StructuredOutputSchemaSection />
-          </div>
-          <div className="flex-grow overflow-y-auto">
-            <Variables />
+      {/* Main content area */}
+      <div className="flex flex-1 flex-row space-x-8">
+        <div className="h-full basis-3/4 overflow-auto">
+          <Messages {...playgroundContext} />
+        </div>
+        <div className="max-h-full min-h-0 basis-1/4 pr-2">
+          <div className="flex h-full flex-col gap-4 overflow-auto">
+            <div className="mb-4 max-h-[25vh] flex-shrink-0 overflow-y-auto">
+              <PlaygroundTools />
+            </div>
+            <div className="mb-4 flex-shrink-0">
+              <StructuredOutputSchemaSection />
+            </div>
+            <div className="flex-grow overflow-y-auto">
+              <Variables />
+            </div>
           </div>
         </div>
       </div>
