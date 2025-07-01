@@ -118,16 +118,16 @@ SELECT
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
     argMaxState(t0.name, if(t0.name <> '', t0.event_ts, toDateTime64(0, 3)))                   as name_argmax,
-    anyLast(if(t0.name != '', t0.name, null))                                             as name,
+    anyLast(t0.name)                                             as name,
 
     -- Metadata properties
     argMaxState(t0.metadata, if(t0.metadata <> '{}', t0.event_ts, toDateTime64(0,3)))            as metadata,
     argMaxState(t0.user_id, if(t0.user_id <> '', t0.event_ts, toDateTime64(0, 3)))             as user_id_argmax,
     argMaxState(t0.session_id, if(t0.session_id <> '', t0.event_ts, toDateTime64(0, 3)))       as session_id_argmax,
     argMaxState(t0.environment, if(t0.environment <> '', t0.event_ts, toDateTime64(0, 3)))     as environment_argmax,
-    anyLast(if(t0.user_id != '', t0.user_id, null))                                                  as user_id,
-    anyLast(if(t0.session_id != '', t0.session_id, null))                                             as session_id,
-    anyLast(if(t0.environment != '', t0.environment, null))                               as environment,
+    anyLast(t0.user_id)                                                  as user_id,
+    anyLast(t0.session_id)                                             as session_id,
+    anyLast(t0.environment)                               as environment,
     groupUniqArrayArray(t0.tags)                                                                    as tags,
     argMaxState(t0.version, if(t0.version <> '', t0.event_ts, toDateTime64(0, 3)))             as version,
     argMaxState(t0.release, if(t0.release <> '', t0.event_ts, toDateTime64(0, 3)))             as release,
@@ -145,8 +145,8 @@ SELECT
     -- Input/Output
     argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input_argmax,
     argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output_argmax,
-    anyLast(if(input != '', input, null))                                                 as input,
-    anyLast(if(output != '', output, null))                                               as output,
+    anyLast(input)                                                 as input,
+    anyLast(output)                                               as output,
 
     min(t0.created_at)                                                                         as created_at,
     max(t0.updated_at)                                                                         as updated_at
@@ -212,16 +212,16 @@ SELECT
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
     argMaxState(t0.name, if(t0.name <> '', t0.event_ts, toDateTime64(0, 3)))                   as name_argmax,
-    anyLast(if(t0.name != '', t0.name, null))                                              as name,
+    anyLast(t0.name)                                              as name,
 
     -- Metadata properties
     argMaxState(t0.metadata, if(t0.metadata <> '{}', t0.event_ts, toDateTime64(0,3)))            as metadata,
     argMaxState(t0.user_id, if(t0.user_id <> '', t0.event_ts, toDateTime64(0, 3)))             as user_id_argmax,
     argMaxState(t0.session_id, if(t0.session_id <> '', t0.event_ts, toDateTime64(0, 3)))       as session_id_argmax,
     argMaxState(t0.environment, if(t0.environment <> '', t0.event_ts, toDateTime64(0, 3)))     as environment_argmax,
-    anyLast(if(t0.user_id != '', t0.user_id, null))                                       as user_id,
-    anyLast(if(t0.session_id != '', t0.session_id, null))                                 as session_id,
-    anyLast(if(t0.environment != '', t0.environment, null))                               as environment,
+    anyLast(t0.user_id)                                       as user_id,
+    anyLast(t0.session_id)                                 as session_id,
+    anyLast(t0.environment)                               as environment,
     groupUniqArrayArray(t0.tags)                                                                    as tags,
     argMaxState(t0.version, if(t0.version <> '', t0.event_ts, toDateTime64(0, 3)))             as version,
     argMaxState(t0.release, if(t0.release <> '', t0.event_ts, toDateTime64(0, 3)))             as release,
@@ -239,8 +239,8 @@ SELECT
     -- Input/Output
     argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input_argmax,
     argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output_argmax,
-    anyLast(if(input != '', input, null))                                                 as input,
-    anyLast(if(output != '', output, null))                                               as output,
+    anyLast(input)                                                 as input,
+    anyLast(output)                                               as output,
 
     min(t0.created_at)                                                                         as created_at,
     max(t0.updated_at)                                                                         as updated_at
@@ -306,16 +306,16 @@ SELECT
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
     argMaxState(t0.name, if(t0.name <> '', t0.event_ts, toDateTime64(0, 3)))                   as name_argmax,
-    anyLast(if(t0.name != '', t0.name, null))                                             as name,
+    anyLast(t0.name)                                             as name,
 
     -- Metadata properties
     argMaxState(t0.metadata, if(t0.metadata <> '{}', t0.event_ts, toDateTime64(0,3)))            as metadata,
     argMaxState(t0.user_id, if(t0.user_id <> '', t0.event_ts, toDateTime64(0, 3)))             as user_id_argmax,
     argMaxState(t0.session_id, if(t0.session_id <> '', t0.event_ts, toDateTime64(0, 3)))       as session_id_argmax,
     argMaxState(t0.environment, if(t0.environment <> '', t0.event_ts, toDateTime64(0, 3)))     as environment_argmax,
-    anyLast(if(t0.user_id != '', t0.user_id, null))                                       as user_id,
-    anyLast(if(t0.session_id != '', t0.session_id, null))                                 as session_id,
-    anyLast(if(t0.environment != '', t0.environment, null))                               as environment,
+    anyLast(t0.user_id)                                       as user_id,
+    anyLast(t0.session_id)                                 as session_id,
+    anyLast(t0.environment)                               as environment,
     groupUniqArrayArray(t0.tags)                                                                    as tags,
     argMaxState(t0.version, if(t0.version <> '', t0.event_ts, toDateTime64(0, 3)))             as version,
     argMaxState(t0.release, if(t0.release <> '', t0.event_ts, toDateTime64(0, 3)))             as release,
