@@ -8,6 +8,7 @@ import {
   type CreatePromptTRPCType,
   LATEST_PROMPT_LABEL,
   PromptType,
+  extractVariables,
 } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
@@ -16,6 +17,7 @@ import {
   PromptContentSchema,
   PromptService,
   redis,
+  extractPlaceholderNames,
 } from "@langfuse/shared/src/server";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
@@ -31,6 +33,22 @@ type DuplicatePromptParams = {
   createdBy: string;
   prisma: PrismaClient;
 };
+
+const extractChatVariableAndPlaceholderNames = (
+  chatPrompt: Array<any>,
+): { variables: string[], placeholders: string[] } => {
+  const placeholders = extractPlaceholderNames(chatPrompt);
+
+  const variables: string[] = [];
+  for (const message of chatPrompt) {
+    if (message && 'content' in message && typeof message.content === 'string') {
+      variables.push(...extractVariables(message.content));
+    }
+  }
+
+  return { variables: [...new Set(variables)], placeholders: [...new Set(placeholders)] };
+};
+
 
 export const createPrompt = async ({
   projectId,
@@ -53,6 +71,17 @@ export const createPrompt = async ({
     throw new InvalidRequestError(
       "Previous versions have different prompt type. Create a new prompt with a different name.",
     );
+  }
+
+  // Prevent naming collisions between variables and placeholders
+  if (type === PromptType.Chat && Array.isArray(prompt)) {
+    const { variables, placeholders } = extractChatVariableAndPlaceholderNames(prompt);
+    const conflictingNames = variables.filter(v => placeholders.includes(v));
+    if (conflictingNames.length > 0) {
+      throw new InvalidRequestError(
+        `Cannot create prompt: variables and placeholders must be unique, the following are not: ${conflictingNames.join(", ")}`
+      );
+    }
   }
 
   const finalLabels = [...labels, LATEST_PROMPT_LABEL]; // Newly created prompts are always labeled as 'latest'
@@ -185,7 +214,7 @@ export const duplicatePrompt = async ({
   });
 
   if (!existingPrompt) {
-    throw new Error(`Existing prompt not found: ${promptId}`);
+    throw new InvalidRequestError(`Existing prompt not found: ${promptId}`);
   }
 
   // if defined as single version, duplicate current prompt as new prompt v1
@@ -253,7 +282,7 @@ export const duplicatePrompt = async ({
     return promptResult;
   });
 
-  // If you need the created prompt, fetch it separately since createMany doesn't return created records
+  // Fetch the created prompt to return
   const createdPrompt = await prisma.prompt.findFirst({
     where: {
       name,
