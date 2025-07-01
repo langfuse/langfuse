@@ -333,8 +333,8 @@ SELECT
     -- Input/Output
     argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input_argmax,
     argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output_argmax,
-    anyLast(if(input != '', input, null))                                                 as input,
-    anyLast(if(output != '', output, null))                                               as output,
+    anyLast(input)                                                                             as input,
+    anyLast(output)                                                                            as output,
 
     min(t0.created_at)                                                                         as created_at,
     max(t0.updated_at)                                                                         as updated_at
