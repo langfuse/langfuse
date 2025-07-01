@@ -22,14 +22,15 @@ export default function Playground() {
   ]);
 
   const handleAddInstance = () => {
-    const first = instances[0];
     setInstances((prev) => [
       ...prev,
       {
-        ...first,
-        messages: cloneMessages(first.messages),
-        promptVariables: first.promptVariables.map((v: any) => ({ ...v })),
-        modelParams: { ...first.modelParams },
+        ...playgroundContext,
+        messages: cloneMessages(playgroundContext.messages),
+        promptVariables: playgroundContext.promptVariables.map((v: any) => ({
+          ...v,
+        })),
+        modelParams: { ...playgroundContext.modelParams },
       },
     ]);
   };
@@ -37,8 +38,11 @@ export default function Playground() {
   return (
     <div className="flex h-full flex-col space-y-4">
       <div className="flex flex-1 flex-row flex-nowrap space-x-8 overflow-x-auto">
-        {instances.map((instance, idx) => (
-          <div key={idx} className="min-w-[500px] flex-1 flex-shrink-0">
+        <div className="min-w-[500px] flex-1 flex-shrink-0">
+          <PromptPlaygroundInstance playgroundContext={playgroundContext} />
+        </div>
+        {instances.slice(1).map((instance, idx) => (
+          <div key={idx + 1} className="min-w-[500px] flex-1 flex-shrink-0">
             <PromptPlaygroundInstance playgroundContext={instance} />
           </div>
         ))}
