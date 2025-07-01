@@ -48,9 +48,12 @@ const replaceVariablesInPrompt = (
   variables: string[],
 ): ChatMessage[] => {
   const processContent = (content: string) => {
-    // Extract only relevant variables from itemInput
+    // Extract only Handlebars variables from itemInput (exclude message placeholders)
+    const placeholderNames = extractPlaceholderNames(prompt as PromptMessage[]);
     const filteredContext = Object.fromEntries(
-      Object.entries(itemInput).filter(([key]) => variables.includes(key)),
+      Object.entries(itemInput).filter(([key]) =>
+        variables.includes(key) && !placeholderNames.includes(key)
+      ),
     );
 
     // Apply Handlebars ONLY if the content contains `{{variable}}` pattern
