@@ -6,14 +6,17 @@ import { type ChatMessage, PromptChatMessageListSchema } from "@langfuse/shared"
 
 import { usePlaygroundContext } from "../context";
 import { type PlaceholderMessageFillIn } from "../types";
+import { useNamingConflicts } from "../hooks/useNamingConflicts";
 
 export const MessagePlaceholderComponent: React.FC<{
   messagePlaceholder: PlaceholderMessageFillIn;
 }> = ({ messagePlaceholder }) => {
-  const { updateMessagePlaceholderValue, deleteMessagePlaceholder } =
+  const { updateMessagePlaceholderValue, deleteMessagePlaceholder, promptVariables, messagePlaceholders } =
     usePlaygroundContext();
   const { name, value, isUsed } = messagePlaceholder;
   const [error, setError] = useState<string | null>(null);
+  const { isPlaceholderConflicting } = useNamingConflicts(promptVariables, messagePlaceholders);
+  const hasConflict = isPlaceholderConflicting(name);
 
   const handleInputChange = useCallback((jsonString: string) => {
     try {
@@ -39,7 +42,7 @@ export const MessagePlaceholderComponent: React.FC<{
       <div className="mb-1 flex flex-row items-center">
         <span className="flex flex-1 flex-row space-x-2 text-xs">
           <UsedIcon size={16} color={iconColor} />
-          <p className="min-w-[90px] truncate font-mono" title={name}>
+          <p className={`min-w-[90px] truncate font-mono ${hasConflict ? 'text-red-500' : ''}`} title={name}>
             {name ? name : "Unnamed placeholder"}
           </p>
         </span>
@@ -60,12 +63,17 @@ export const MessagePlaceholderComponent: React.FC<{
         onChange={handleInputChange}
         mode="json"
         minHeight="none"
-        className="max-h-[15rem] w-full resize-y p-1 font-mono text-xs focus:outline-none"
+        className={`max-h-[15rem] w-full resize-y p-1 font-mono text-xs focus:outline-none ${hasConflict ? 'border border-red-500' : ''}`}
         editable={true}
         lineNumbers={false}
         placeholder={`[\n  {\n    "role": "user",\n    "content": "Hello!"\n  },\n  {\n    "role": "assistant",\n    "content": "Hi there!"\n  }\n]`}
       />
 
+      {hasConflict && (
+        <p className="mt-1 text-xs text-red-500">
+          Placeholder name conflicts with variable. Names must be unique.
+        </p>
+      )}
       {error && (
         <p className="mt-1 text-xs text-red-500">{error}</p>
       )}

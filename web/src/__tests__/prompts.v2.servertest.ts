@@ -911,6 +911,65 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         "This is a prompt in a folder structure",
       );
     });
+
+    it("should prevent creating a prompt with both a variable and placeholder with the same name", async () => {
+      const promptName = "prompt-same-name-conflict-" + nanoid();
+
+      // Try to create a prompt where the same name is used as both a variable and a placeholder
+      const response = await makeAPICall("POST", baseURI, {
+        name: promptName,
+        prompt: [
+          { role: "system", content: "Hello {{userName}}" },
+          { type: ChatMessageType.Placeholder, name: "userName" },
+          { role: "user", content: "How are you?" }
+        ],
+        type: "chat",
+      });
+
+      // This should fail with a 400 error
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("error");
+      expect(response.body).toHaveProperty("message");
+      // @ts-expect-error
+      expect(response.body.message).toContain("variables and placeholders must be unique");
+      // @ts-expect-error
+      expect(response.body.message).toContain("userName");
+    });
+
+    it("should allow creating a new version of a prompt with placeholder names that conflict a variable name in a previous version", async () => {
+      const promptName = "prompt-with-variable-conflict-" + nanoid();
+
+      // First, create a chat prompt with a message variable
+      const v1Response = await makeAPICall("POST", baseURI, {
+        name: promptName,
+        prompt: [
+          { role: "system", content: "You are a helpful {{conversationHistory}}" },
+          { role: "user", content: "Continue our conversation" }
+        ],
+        type: "chat",
+        labels: ["production"],
+      });
+
+      expect(v1Response.status).toBe(201);
+
+      // Try to create a new version with a text variable that has the same name as the placeholder
+      const v2Response = await makeAPICall("POST", baseURI, {
+        name: promptName,
+        prompt: [
+          { role: "system", content: "You are a helpful assistant with context: {{newHistory}}" },
+          { type: "placeholder", name: "conversationHistory" },
+          { role: "user", content: "Continue our conversation" }
+        ],
+        type: "chat"
+      });
+
+      // This should succeed, we allow cross-version name reuse
+      expect(v2Response.status).toBe(201);
+      expect(v2Response.body).toHaveProperty("id");
+      expect(v2Response.body).toHaveProperty("version");
+      // @ts-expect-error - Response body type is flexible for testing
+      expect(v2Response.body.version).toBe(2);
+    });
   });
 
   describe("when fetching a prompt list", () => {
