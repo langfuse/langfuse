@@ -114,14 +114,13 @@ export function PromptTable() {
 
   // Reset pagination when search query changes
   useEffect(() => {
-    if (searchQuery) {
-      setQueryParams({
-        pageIndex: 0,
-        pageSize: queryParams.pageSize,
-        folder: queryParams.folder,
-      });
-    }
-  }, [searchQuery, setQueryParams, queryParams.pageSize, queryParams.folder]);
+    setQueryParams({
+      pageIndex: 0,
+      pageSize: queryParams.pageSize,
+      folder: queryParams.folder,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   const paginationState = {
     pageIndex: queryParams.pageIndex,
