@@ -1059,82 +1059,89 @@ export function WidgetForm({
                                   onClick={() => removeMetricSlot(index)}
                                   className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                                 >
-                                  <X className="h-3 w-3" />
+                                  <X className="h-4 w-4" />
                                 </Button>
                               )}
                             </div>
-                            <div className="space-y-2">
-                              <Select
-                                value={currentMeasure}
-                                onValueChange={(value) =>
-                                  updatePivotMetric(
-                                    index,
-                                    value,
-                                    // Don't pass current aggregation when measure changes
-                                    // Let the function determine the best default
-                                    undefined,
-                                  )
-                                }
-                                disabled={!isEnabled || !canEdit}
-                              >
-                                <SelectTrigger id={`pivot-metric-${index}`}>
-                                  <SelectValue
-                                    placeholder={
-                                      !isEnabled
-                                        ? "Select previous metric first"
-                                        : !canEdit
-                                          ? "No more measures available"
-                                          : "Select measure"
-                                    }
-                                  />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {metricsForIndex.map((metric) => {
-                                    const meta =
-                                      viewDeclarations[selectedView]
-                                        ?.measures?.[metric.value];
-                                    return (
-                                      <WidgetPropertySelectItem
-                                        key={metric.value}
-                                        value={metric.value}
-                                        label={metric.label}
-                                        description={meta?.description}
-                                        unit={meta?.unit}
-                                        type={meta?.type}
-                                      />
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
-
-                              {currentMeasure && currentMeasure !== "count" && (
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1">
                                 <Select
-                                  value={currentAggregation}
+                                  value={currentMeasure}
                                   onValueChange={(value) =>
                                     updatePivotMetric(
                                       index,
-                                      currentMeasure,
-                                      value as z.infer<
-                                        typeof metricAggregations
-                                      >,
+                                      value,
+                                      // Don't pass current aggregation when measure changes
+                                      // Let the function determine the best default
+                                      undefined,
                                     )
                                   }
+                                  disabled={!isEnabled || !canEdit}
                                 >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select aggregation" />
+                                  <SelectTrigger id={`pivot-metric-${index}`}>
+                                    <SelectValue
+                                      placeholder={
+                                        !isEnabled
+                                          ? "Select previous metric first"
+                                          : !canEdit
+                                            ? "No more measures available"
+                                            : "Select measure"
+                                      }
+                                    />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {aggregationsForIndex.map((aggregation) => (
-                                      <SelectItem
-                                        key={aggregation}
-                                        value={aggregation}
-                                      >
-                                        {startCase(aggregation)}
-                                      </SelectItem>
-                                    ))}
+                                    {metricsForIndex.map((metric) => {
+                                      const meta =
+                                        viewDeclarations[selectedView]
+                                          ?.measures?.[metric.value];
+                                      return (
+                                        <WidgetPropertySelectItem
+                                          key={metric.value}
+                                          value={metric.value}
+                                          label={metric.label}
+                                          description={meta?.description}
+                                          unit={meta?.unit}
+                                          type={meta?.type}
+                                        />
+                                      );
+                                    })}
                                   </SelectContent>
                                 </Select>
-                              )}
+                              </div>
+
+                              {currentMeasure &&
+                                currentMeasure !== "count" && (
+                                  <div className="flex-1">
+                                    <Select
+                                      value={currentAggregation}
+                                      onValueChange={(value) =>
+                                        updatePivotMetric(
+                                          index,
+                                          currentMeasure,
+                                          value as z.infer<
+                                            typeof metricAggregations
+                                          >,
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select aggregation" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {aggregationsForIndex.map(
+                                          (aggregation) => (
+                                            <SelectItem
+                                              key={aggregation}
+                                              value={aggregation}
+                                            >
+                                              {startCase(aggregation)}
+                                            </SelectItem>
+                                          ),
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
                             </div>
                           </div>
                         );
