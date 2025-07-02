@@ -25,6 +25,7 @@ import {
   compileChatMessagesWithIds,
   ToolCallResponseSchema,
   type LLMToolCall,
+  LLMAdapter,
 } from "@langfuse/shared";
 
 import {
@@ -112,7 +113,7 @@ const createDefaultColumnState = (
     max_tokens: { value: 256, enabled: false },
     top_p: { value: 1, enabled: false },
     maxTemperature: { value: 2, enabled: true },
-    adapter: { value: "openai", enabled: true },
+    adapter: { value: LLMAdapter.OpenAI, enabled: true },
   },
   tools: baseState?.tools ?? [],
   structuredOutputSchema: baseState?.structuredOutputSchema ?? null,

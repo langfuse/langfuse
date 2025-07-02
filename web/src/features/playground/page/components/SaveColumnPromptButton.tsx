@@ -6,7 +6,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { type ChatMessage } from "@langfuse/shared";
+import { type ChatMessage, PromptType } from "@langfuse/shared";
 
 interface SaveColumnPromptButtonProps {
   columnId: string;
@@ -50,10 +50,8 @@ export const SaveColumnPromptButton: React.FC<SaveColumnPromptButtonProps> = ({
       return messageWithoutId as ChatMessage;
     });
 
-    createPromptMutation.mutate({
-      projectId: projectId as string,
-      name: `Playground ${new Date().toISOString()}`,
-      prompt: promptMessages,
+    // Build config object with model parameters
+    const config: Record<string, unknown> = {
       modelProvider: column.modelParams.provider.value,
       modelName: column.modelParams.model.value,
       modelParameters: {
@@ -67,9 +65,23 @@ export const SaveColumnPromptButton: React.FC<SaveColumnPromptButtonProps> = ({
           ? column.modelParams.top_p.value
           : undefined,
       },
-      tools: column.tools.length > 0 ? column.tools : undefined,
-      structuredOutputSchema: column.structuredOutputSchema?.schema,
-      labels: ["playground"],
+    };
+
+    if (column.tools.length > 0) {
+      config.tools = column.tools;
+    }
+
+    if (column.structuredOutputSchema) {
+      config.structuredOutputSchema = column.structuredOutputSchema.schema;
+    }
+
+    createPromptMutation.mutate({
+      projectId: projectId as string,
+      name: `Playground ${new Date().toISOString()}`,
+      type: PromptType.Chat,
+      prompt: promptMessages,
+      config,
+      labels: ["production"],
     });
   };
 
