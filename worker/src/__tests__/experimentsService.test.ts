@@ -175,19 +175,6 @@ describe("create experiment jobs", () => {
     const runId = randomUUID();
     const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
 
-    // Prompt with variable that won't match dataset item
-    await prisma.prompt.create({
-      data: {
-        id: promptId,
-        projectId,
-        name: "Test Prompt",
-        prompt: "Hello {{name}}",
-        type: "text",
-        version: 1,
-        createdBy: "test-user",
-      },
-    });
-
     // Create dataset
     await prisma.dataset.create({
       data: {
@@ -386,7 +373,7 @@ describe("create experiment jobs with placeholders", () => {
         id: randomUUID(),
         projectId,
         datasetId,
-        input: { 
+        input: {
           conversation_history: [
             { role: "user", content: "Hello!" },
             { role: "assistant", content: "Hi there!" }
@@ -488,7 +475,7 @@ describe("create experiment jobs with placeholders", () => {
         id: randomUUID(),
         projectId,
         datasetId,
-        input: { 
+        input: {
           empty_history: []
         },
       },
@@ -584,7 +571,7 @@ describe("create experiment jobs with placeholders", () => {
         id: randomUUID(),
         projectId,
         datasetId,
-        input: { 
+        input: {
           invalid_messages: "this should be an array or object"
         },
       },
