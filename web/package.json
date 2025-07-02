@@ -141,7 +141,7 @@
     "react-resizable-panels": "^2.1.1",
     "react-responsive": "^10.0.0",
     "react-syntax-highlighter": "^15.6.1",
-    "react18-json-view": "^0.2.8-canary.6",
+    "react18-json-view": "^0.2.9",
     "recharts": "^2.15.2",
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
