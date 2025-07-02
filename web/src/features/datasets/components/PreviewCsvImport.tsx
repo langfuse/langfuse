@@ -456,13 +456,15 @@ export function PreviewCsvImport({
         </Button>
         <Button
           disabled={
-            selectedInputColumn.size === 0 &&
+            (selectedInputColumn.size === 0 &&
             selectedExpectedColumn.size === 0 &&
-            selectedMetadataColumn.size === 0
+            selectedMetadataColumn.size === 0) ||
+            progress.status === "processing"
           }
+          loading={progress.status === "processing"}
           onClick={handleImport}
         >
-          Import
+          {progress.status === "processing" ? "Importing..." : "Import"}
         </Button>
         {progress.status === "processing" && (
           <div className="mt-2">
