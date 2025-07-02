@@ -42,6 +42,32 @@ const isValidPrismaJsonObject = (
   input !== undefined &&
   !Array.isArray(input);
 
+const extractVariablesFromPlaceholderContent = (
+  itemInput: Record<string, any>,
+  placeholderNames: string[],
+): string[] => {
+  const variables = new Set<string>();
+  
+  for (const placeholderName of placeholderNames) {
+    const placeholderValue = itemInput[placeholderName];
+    if (Array.isArray(placeholderValue)) {
+      for (const message of placeholderValue) {
+        if (
+          typeof message === 'object' && 
+          message !== null && 
+          'content' in message && 
+          typeof message.content === 'string'
+        ) {
+          const messageVariables = extractVariables(message.content);
+          messageVariables.forEach(v => variables.add(v));
+        }
+      }
+    }
+  }
+  
+  return Array.from(variables);
+};
+
 const replaceVariablesInPrompt = (
   prompt: PromptContent,
   itemInput: Record<string, any>,
@@ -260,7 +286,20 @@ export const createExperimentJob = async ({
   const placeholderNames = prompt?.type === PromptType.Chat && Array.isArray(validatedPrompt.data)
     ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
     : [];
-  const allVariables = [...extractedVariables, ...placeholderNames];
+
+  // Extract variables from placeholder content across all dataset items for validation
+  const allPlaceholderVariables = new Set<string>();
+  for (const datasetItem of datasetItems) {
+    if (isValidPrismaJsonObject(datasetItem.input)) {
+      const itemPlaceholderVars = extractVariablesFromPlaceholderContent(
+        datasetItem.input,
+        placeholderNames,
+      );
+      itemPlaceholderVars.forEach(v => allPlaceholderVariables.add(v));
+    }
+  }
+
+  const allVariables = [...extractedVariables, ...placeholderNames, ...Array.from(allPlaceholderVariables)];
 
   // validate dataset items against prompt configuration
   const validatedDatasetItems = datasetItems

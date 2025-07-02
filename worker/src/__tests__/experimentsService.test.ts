@@ -427,6 +427,25 @@ describe("create experiment jobs with placeholders", () => {
     expect(runItems[0].project_id).toBe(projectId);
     expect(runItems[0].dataset_run_id).toBe(runId);
     expect(runItems[0].trace_id).toBeDefined();
+
+    // Verify that callLLM was called with placeholder variables resolved
+    expect(callLLM).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "user",
+          content: "Hello John!" // Variable should be resolved in placeholder
+        }),
+        expect.objectContaining({
+          role: "system", 
+          content: "User is a developer" // Variable should be resolved in placeholder
+        })
+      ]),
+      expect.any(Object),
+      expect.any(String),
+      expect.any(String),
+      expect.any(Object)
+    );
   }, 10_000);
 
   test("handles empty placeholder arrays", async () => {
