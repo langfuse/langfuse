@@ -7,6 +7,8 @@ import {
   type PlaceholderMessage,
   type PromptVariable,
   type UIModelParams,
+  type ChatMessageWithId,
+  type LLMToolCall,
 } from "@langfuse/shared";
 
 export type PlaygroundTool = LLMToolDefinition & {
@@ -37,4 +39,47 @@ export type PlaygroundCache = {
   // TODO: also cache placeholders?
   tools?: PlaygroundTool[];
   structuredOutputSchema?: PlaygroundSchema | null;
+} | null;
+
+// Multi-column playground types
+export interface PlaygroundColumnState {
+  id: string;
+  messages: ChatMessageWithId[];
+  modelParams: UIModelParams;
+  tools: PlaygroundTool[];
+  structuredOutputSchema: PlaygroundSchema | null;
+  output: string;
+  outputJson: string;
+  outputToolCalls: LLMToolCall[];
+  isStreaming: boolean;
+  // Sync flags per category
+  syncFlags: {
+    prompt: boolean;
+    modelParams: boolean;
+    tools: boolean;
+    structuredOutput: boolean;
+  };
+}
+
+export interface MultiPlaygroundState {
+  columns: PlaygroundColumnState[];
+  // Global state
+  promptVariables: PromptVariable[];
+  messagePlaceholders: PlaceholderMessageFillIn[];
+  // Global sync settings
+  globalSyncEnabled: boolean;
+}
+
+export type MultiPlaygroundCache = {
+  columns: Array<{
+    messages: (ChatMessage | PlaceholderMessage)[];
+    modelParams?: Partial<UIModelParams> & Pick<UIModelParams, "provider" | "model">;
+    output?: string | null;
+    tools?: PlaygroundTool[];
+    structuredOutputSchema?: PlaygroundSchema | null;
+    syncFlags?: PlaygroundColumnState["syncFlags"];
+  }>;
+  promptVariables?: PromptVariable[];
+  messagePlaceholders?: PlaceholderMessageFillIn[];
+  globalSyncEnabled?: boolean;
 } | null;
