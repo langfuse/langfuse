@@ -314,27 +314,20 @@ describe("create experiment jobs", () => {
 });
 
 describe("create experiment jobs with placeholders", () => {
-  test("creates experiment job with multiple placeholders", async () => {
+  const setupPlaceholderTest = async (promptConfig: any, datasetItemInput: any) => {
     await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
     const runId = randomUUID();
     const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
 
-    // Create prompt with multiple placeholders
-    const promptWithPlaceholders = [
-      { role: "system", content: "You are a helpful assistant." },
-      { type: "placeholder", name: "conversation_history" },
-      { type: "placeholder", name: "user_context" },
-      { role: "user", content: "Please help me." }
-    ];
-
+    // Create prompt
     await prisma.prompt.create({
       data: {
         id: promptId,
         projectId,
-        name: "Test Multiple Placeholders",
-        prompt: promptWithPlaceholders,
+        name: promptConfig.name,
+        prompt: promptConfig.prompt,
         type: "chat",
         version: 1,
         createdBy: "test-user",
@@ -367,21 +360,13 @@ describe("create experiment jobs with placeholders", () => {
       })
       .execute();
 
-    // Create dataset item with multiple placeholder values
+    // Create dataset item
     await prisma.datasetItem.create({
       data: {
         id: randomUUID(),
         projectId,
         datasetId,
-        input: {
-          conversation_history: [
-            { role: "user", content: "Hello!" },
-            { role: "assistant", content: "Hi there!" }
-          ],
-          user_context: [
-            { role: "system", content: "User is a developer" }
-          ]
-        },
+        input: datasetItemInput,
       },
     });
 
@@ -396,6 +381,31 @@ describe("create experiment jobs with placeholders", () => {
         secretKey: encrypt("test-key"),
       },
     });
+
+    return { projectId, datasetId, runId };
+  };
+
+  test("creates experiment job with multiple placeholders", async () => {
+    const { projectId, datasetId, runId } = await setupPlaceholderTest(
+      {
+        name: "Test Multiple Placeholders",
+        prompt: [
+          { role: "system", content: "You are a helpful assistant." },
+          { type: "placeholder", name: "conversation_history" },
+          { type: "placeholder", name: "user_context" },
+          { role: "user", content: "Please help me." }
+        ]
+      },
+      {
+        conversation_history: [
+          { role: "user", content: "Hello!" },
+          { role: "assistant", content: "Hi there!" }
+        ],
+        user_context: [
+          { role: "system", content: "User is a developer" }
+        ]
+      }
+    );
 
     const payload = {
       projectId,
@@ -418,80 +428,17 @@ describe("create experiment jobs with placeholders", () => {
   }, 10_000);
 
   test("handles empty placeholder arrays", async () => {
-    await pruneDatabase();
-    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-    const datasetId = randomUUID();
-    const runId = randomUUID();
-    const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
-
-    // Create prompt with placeholder
-    const promptWithPlaceholder = [
-      { role: "system", content: "You are a helpful assistant." },
-      { type: "placeholder", name: "empty_history" },
-      { role: "user", content: "Start conversation." }
-    ];
-
-    await prisma.prompt.create({
-      data: {
-        id: promptId,
-        projectId,
+    const { projectId, datasetId, runId } = await setupPlaceholderTest(
+      {
         name: "Test Empty Placeholder",
-        prompt: promptWithPlaceholder,
-        type: "chat",
-        version: 1,
-        createdBy: "test-user",
+        prompt: [
+          { role: "system", content: "You are a helpful assistant." },
+          { type: "placeholder", name: "empty_history" },
+          { role: "user", content: "Start conversation." }
+        ]
       },
-    });
-
-    // Create dataset
-    await prisma.dataset.create({
-      data: {
-        id: datasetId,
-        projectId,
-        name: "Test Dataset",
-      },
-    });
-
-    // Create dataset run with metadata
-    await kyselyPrisma.$kysely
-      .insertInto("dataset_runs")
-      .values({
-        id: runId,
-        name: "Test Run",
-        project_id: projectId,
-        dataset_id: datasetId,
-        metadata: {
-          prompt_id: promptId,
-          provider: "openai",
-          model: "gpt-3.5-turbo",
-          model_params: { temperature: 0 },
-        },
-      })
-      .execute();
-
-    // Create dataset item with empty placeholder array
-    await prisma.datasetItem.create({
-      data: {
-        id: randomUUID(),
-        projectId,
-        datasetId,
-        input: {
-          empty_history: []
-        },
-      },
-    });
-
-    // Create API key
-    await prisma.llmApiKeys.create({
-      data: {
-        id: randomUUID(),
-        projectId,
-        provider: "openai",
-        adapter: LLMAdapter.OpenAI,
-        displaySecretKey: "test-key",
-        secretKey: encrypt("test-key"),
-      },
-    });
+      { empty_history: [] }
+    );
 
     const payload = {
       projectId,
@@ -514,80 +461,17 @@ describe("create experiment jobs with placeholders", () => {
   }, 10_000);
 
   test("fails when placeholder has invalid message format", async () => {
-    await pruneDatabase();
-    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-    const datasetId = randomUUID();
-    const runId = randomUUID();
-    const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
-
-    // Create prompt with placeholder
-    const promptWithPlaceholder = [
-      { role: "system", content: "You are a helpful assistant." },
-      { type: "placeholder", name: "invalid_messages" },
-      { role: "user", content: "Help me." }
-    ];
-
-    await prisma.prompt.create({
-      data: {
-        id: promptId,
-        projectId,
+    const { projectId, datasetId, runId } = await setupPlaceholderTest(
+      {
         name: "Test Invalid Placeholder",
-        prompt: promptWithPlaceholder,
-        type: "chat",
-        version: 1,
-        createdBy: "test-user",
+        prompt: [
+          { role: "system", content: "You are a helpful assistant." },
+          { type: "placeholder", name: "invalid_messages" },
+          { role: "user", content: "Help me." }
+        ]
       },
-    });
-
-    // Create dataset
-    await prisma.dataset.create({
-      data: {
-        id: datasetId,
-        projectId,
-        name: "Test Dataset",
-      },
-    });
-
-    // Create dataset run with metadata
-    await kyselyPrisma.$kysely
-      .insertInto("dataset_runs")
-      .values({
-        id: runId,
-        name: "Test Run",
-        project_id: projectId,
-        dataset_id: datasetId,
-        metadata: {
-          prompt_id: promptId,
-          provider: "openai",
-          model: "gpt-3.5-turbo",
-          model_params: { temperature: 0 },
-        },
-      })
-      .execute();
-
-    // Create dataset item with invalid placeholder format
-    await prisma.datasetItem.create({
-      data: {
-        id: randomUUID(),
-        projectId,
-        datasetId,
-        input: {
-          invalid_messages: "this should be an array or object"
-        },
-      },
-    });
-
-    // Create API key
-    await prisma.llmApiKeys.create({
-      data: {
-        id: randomUUID(),
-        projectId,
-        provider: "openai",
-        adapter: LLMAdapter.OpenAI,
-        displaySecretKey: "test-key",
-        secretKey: encrypt("test-key"),
-      },
-    });
+      { invalid_messages: "this should be an array or object" }
+    );
 
     const payload = {
       projectId,
