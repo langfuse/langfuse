@@ -45,7 +45,7 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
-export type TokenCountDelegate = (p: {
+export type TokenCountDelegate = (p: { // eslint-disable-line no-unused-vars
   model: Model;
   text: unknown;
 }) => number | undefined;

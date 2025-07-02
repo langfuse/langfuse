@@ -70,8 +70,9 @@ export function getQueue(
       return ScoreDeleteQueue.getInstance();
     case QueueName.DeadLetterRetryQueue:
       return DeadLetterRetryQueue.getInstance();
-    default:
-      const exhaustiveCheckDefault: never = queueName;
+    default: {
+      const exhaustiveCheckDefault: never = queueName; // eslint-disable-line no-case-declarations, no-unused-vars
       throw new Error(`Queue ${queueName} not found`);
+    }
   }
 }

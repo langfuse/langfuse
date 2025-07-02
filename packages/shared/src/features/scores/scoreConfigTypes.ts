@@ -150,7 +150,7 @@ const ValidatedScoreConfigSchema = z
  */
 export const filterAndValidateDbScoreConfigList = (
   scoreConfigs: ScoreConfigDbType[],
-  onParseError?: (error: z.ZodError) => void,
+  onParseError?: (error: z.ZodError) => void, // eslint-disable-line no-unused-vars
 ): ValidatedScoreConfig[] =>
   scoreConfigs.reduce((acc, ts) => {
     const result = ValidatedScoreConfigSchema.safeParse(ts);
