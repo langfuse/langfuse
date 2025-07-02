@@ -338,6 +338,7 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
           source: isTableAction ? "table-single-row" : "eval config detail",
         })
       }
+      customDeletePrompt="This action cannot be undone and removes all logs associated with this running evaluator. Scores produced by this evaluator will not be deleted."
       entityToDeleteName="running evaluator"
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={evaluatorMutation.isLoading}
