@@ -133,32 +133,32 @@ export const checkTraceExists = async ({
     )
   `;
 
-  const params = {
-    projectId,
-    ...tracesFilterRes.params,
-    ...(observationFilterRes ? observationFilterRes.params : {}),
-    ...(timestamp
-      ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
-      : {}),
-    ...(maxTimeStamp
-      ? { maxTimeStamp: convertDateToClickhouseDateTime(maxTimeStamp) }
-      : {}),
-    ...(exactTimestamp
-      ? { exactTimestamp: convertDateToClickhouseDateTime(exactTimestamp) }
-      : {}),
-  };
-
-  const tags = {
-    feature: "tracing",
-    type: "trace",
-    kind: "exists",
-    projectId,
-  };
-
   return measureAndReturn({
     operationName: "checkTraceExists",
     projectId,
-    input: { params, tags },
+    input: {
+      params: {
+        projectId,
+        ...tracesFilterRes.params,
+        ...(observationFilterRes ? observationFilterRes.params : {}),
+        ...(timestamp
+          ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+          : {}),
+        ...(maxTimeStamp
+          ? { maxTimeStamp: convertDateToClickhouseDateTime(maxTimeStamp) }
+          : {}),
+        ...(exactTimestamp
+          ? { exactTimestamp: convertDateToClickhouseDateTime(exactTimestamp) }
+          : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "exists",
+        projectId,
+      },
+      timestamp: timestamp ?? exactTimestamp,
+    },
     existingExecution: async (input) => {
       const query = `
         ${observations_cte}
@@ -185,7 +185,7 @@ export const checkTraceExists = async ({
       return rows.length > 0;
     },
     newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(timestamp ?? exactTimestamp);
+      const traceAmt = getTimeframesTracesAMT(input.timestamp);
       const query = `
         ${observations_cte}
         SELECT 
@@ -304,27 +304,55 @@ export const getTracesBySessionId = async (
 };
 
 export const hasAnyTrace = async (projectId: string) => {
-  const query = `
-    SELECT 1
-    FROM traces
-    WHERE project_id = {projectId: String}
-    LIMIT 1
-  `;
-
-  const rows = await queryClickhouse<{ 1: number }>({
-    query,
-    params: {
+  return measureAndReturn({
+    operationName: "hasAnyTrace",
+    projectId,
+    input: {
       projectId,
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "hasAny",
+        projectId,
+      },
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "hasAny",
-      projectId,
+    existingExecution: async (input) => {
+      const query = `
+        SELECT 1
+        FROM traces
+        WHERE project_id = {projectId: String}
+        LIMIT 1
+      `;
+
+      const rows = await queryClickhouse<{ 1: number }>({
+        query,
+        params: {
+          projectId: input.projectId,
+        },
+        tags: input.tags,
+      });
+
+      return rows.length > 0;
+    },
+    newExecution: async (input) => {
+      const query = `
+        SELECT 1
+        FROM traces_all_amt
+        WHERE project_id = {projectId: String}
+        LIMIT 1
+      `;
+
+      const rows = await queryClickhouse<{ 1: number }>({
+        query,
+        params: {
+          projectId: input.projectId,
+        },
+        tags: input.tags,
+      });
+
+      return rows.length > 0;
     },
   });
-
-  return rows.length > 0;
 };
 
 export const getTraceCountsByProjectInCreationInterval = async ({

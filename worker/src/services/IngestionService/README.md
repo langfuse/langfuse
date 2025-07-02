@@ -523,3 +523,46 @@ and t.project_id in (
 ORDER BY total_diff desc
 LIMIT 1000;
 ```
+
+## Traces Table Access Pattern Checklist
+
+This checklist documents all references and invocations to the `traces` table grouped by their access pattern. Use this as a baseline to perform transformations like the one in `@/packages/shared/src/server/repositories/traces.ts` with the `measureAndReturn` utility.
+
+### 1. Single Record Lookups (by ID)
+- [ ] **IngestionService.getClickhouseRecord()** - `worker/src/services/IngestionService/index.ts:1047-1065`
+- [ ] **getTraceById()** - `packages/shared/src/server/repositories/traces.ts:443-486`
+- [ ] **getTracesByIds()** - `packages/shared/src/server/repositories/traces.ts:233-264`
+
+### 2. Session-Based Queries
+- [ ] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
+- [ ] **getTracesIdentifierForSession()** - `packages/shared/src/server/repositories/traces.ts:642-688`
+- [ ] **traceWithSessionIdExists()** - `packages/shared/src/server/repositories/traces.ts:1143-1170`
+
+### 3. Existence Checks
+- [x] **checkTraceExists()** - `packages/shared/src/server/repositories/traces.ts:73-210`
+- [x] **hasAnyTrace()** - `packages/shared/src/server/repositories/traces.ts:306-356`
+- [ ] **hasAnyUser()** - `packages/shared/src/server/repositories/traces.ts:763-787`
+
+### 4. Aggregation and Analytics Queries
+- [ ] **getTracesGroupedByName()** - `packages/shared/src/server/repositories/traces.ts:489-535`
+- [ ] **getTracesGroupedByUsers()** - `packages/shared/src/server/repositories/traces.ts:537-597`
+- [ ] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
+- [ ] **getTotalUserCount()** - `packages/shared/src/server/repositories/traces.ts:789-827`
+- [ ] **getUserMetrics()** - `packages/shared/src/server/repositories/traces.ts:829-978`
+- [ ] **getTracesTableGeneric()** - `packages/shared/src/server/services/traces-ui-table-service.ts:207++`
+- [ ] **getSessionsTableGeneric()** - `packages/shared/src/server/services/sessions-ui-table-service.ts:121++`)
+- [ ] **generateTracesForPublicApi()** - `web/src/features/public-api/server/traces.ts:36++`
+
+### 5. Data Export and Migration
+- [ ] **getTracesForPostHog()** - `packages/shared/src/server/repositories/traces.ts:1026-1113`
+- [ ] **getTracesForBlobStorageExport()** - `packages/shared/src/server/repositories/traces.ts:980-1024`
+
+### 6. Count and Statistics Queries
+- [ ] **getTraceCountsByProjectInCreationInterval()** - `packages/shared/src/server/repositories/traces.ts:358-392`
+- [ ] **getTraceCountOfProjectsSinceCreationDate()** - `packages/shared/src/server/repositories/traces.ts:394-423`
+
+### 7. Cross-Project Queries
+- [ ] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
+  - Pattern: `SELECT id, project_id FROM traces WHERE id IN ({traceIds}) ORDER BY event_ts DESC LIMIT 1 by id, project_id`
+  - Used for: Cross-project trace lookup
+  - Access: Direct table access with FINAL not used

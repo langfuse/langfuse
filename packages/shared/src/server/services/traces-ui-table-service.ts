@@ -400,7 +400,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     scores_avg AS (
       SELECT
         project_id,
-        trace_id,
+        trace_id,   
         -- For numeric scores, use tuples of (name, avg_value)
         groupArrayIf(
           tuple(name, avg_value),
