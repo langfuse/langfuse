@@ -493,13 +493,37 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             },
           });
 
+          // Enhanced revocation checks
+          if (!dbUser) {
+            return {
+              ...session,
+              environment: {
+                enableExperimentalFeatures:
+                  env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+                selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
+              },
+              user: null, // This effectively revokes access
+            };
+          }
+
+          // Check if user has at least one organization membership (unless they're an admin)
+          if (dbUser.organizationMemberships.length === 0 && !dbUser.admin) {
+            return {
+              ...session,
+              environment: {
+                enableExperimentalFeatures:
+                  env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+                selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
+              },
+              user: null, // Revoke access if user has no organization memberships
+            };
+          }
+
           return {
             ...session,
             environment: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-              // Enables features that are only available under an enterprise license when self-hosting Langfuse
-              // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
             },
             user:

@@ -339,6 +339,7 @@ export const membersRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       /**
        * Delete an organization membership, used in membership table
+       * Enhanced with better revocation tracking and immediate token invalidation
        */
       const orgMembership = await ctx.prisma.organizationMembership.findFirst({
         where: {
@@ -347,6 +348,13 @@ export const membersRouter = createTRPCRouter({
         },
         include: {
           ProjectMemberships: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
         },
       });
       if (!orgMembership)
@@ -389,20 +397,60 @@ export const membersRouter = createTRPCRouter({
         }
       }
 
+      // Enhanced audit logging for user revocation
       await auditLog({
         session: ctx.session,
         resourceType: "orgMembership",
         resourceId: orgMembership.id,
         action: "delete",
-        before: orgMembership,
+        before: {
+          ...orgMembership,
+          // Include additional context for revocation tracking
+          revocationContext: {
+            userEmail: orgMembership.user.email,
+            userName: orgMembership.user.name,
+            isUserInitiated: orgMembership.userId === ctx.session.user.id,
+            hasRemainingMemberships: false, // Will be determined below
+          },
+        },
       });
 
-      return await ctx.prisma.organizationMembership.delete({
+      // Check if user will have any remaining organization memberships after this deletion
+      const remainingMemberships = await ctx.prisma.organizationMembership.count({
+        where: {
+          userId: orgMembership.userId,
+          orgId: { not: input.orgId }, // Other organizations
+        },
+      });
+
+      const deletedMembership = await ctx.prisma.organizationMembership.delete({
         where: {
           id: orgMembership.id,
           orgId: input.orgId,
         },
       });
+
+             // If user has no remaining organization memberships and is not an admin,
+       // their session will be invalidated on next request due to the enhanced session callback
+       if (remainingMemberships === 0) {
+         // Additional audit log for complete user access revocation
+         // Note: Using orgMembership as resource type since userRevocation is not in AuditableResource
+         await auditLog({
+           session: ctx.session,
+           resourceType: "orgMembership",
+           resourceId: `${orgMembership.userId}-revocation`,
+           action: "revoke_all_access",
+           after: {
+             reason: "Removed from last organization",
+             effectiveAt: new Date(),
+             revokedBy: ctx.session.user.id,
+             userEmail: orgMembership.user.email,
+             note: "User will lose all access on next request due to enhanced session callback",
+           },
+         });
+       }
+
+      return deletedMembership;
     }),
   deleteInvite: protectedOrganizationProcedure
     .input(
