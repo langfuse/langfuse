@@ -63,7 +63,7 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 };
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & {
+  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
     streaming: true;
   },
 ): Promise<{
@@ -72,7 +72,7 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & {
+  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
     streaming: false;
   },
 ): Promise<{
@@ -81,7 +81,7 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & {
+  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
     streaming: false;
     structuredOutputSchema: ZodSchema;
   },
@@ -91,7 +91,7 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & {
+  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
     tools: LLMToolDefinition[];
     streaming: false;
   },

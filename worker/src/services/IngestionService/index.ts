@@ -93,8 +93,8 @@ export class IngestionService {
   constructor(
     private redis: Redis | Cluster,
     private prisma: PrismaClient,
-    private clickHouseWriter: ClickhouseWriter,
-    private clickhouseClient: ClickhouseClientType,
+    private clickHouseWriter: ClickhouseWriter, // eslint-disable-line no-unused-vars
+    private clickhouseClient: ClickhouseClientType, // eslint-disable-line no-unused-vars
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -813,7 +813,7 @@ export class IngestionService {
   > {
     const providedUsageDetails = Object.fromEntries(
       Object.entries(observationRecord.provided_usage_details).filter(
-        ([k, v]) => v != null && v >= 0,
+        ([k, v]) => v != null && v >= 0, // eslint-disable-line no-unused-vars
       ),
     );
 
@@ -871,7 +871,7 @@ export class IngestionService {
     const { provided_cost_details } = observationRecord;
 
     const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null)
+      .filter(([_, value]) => value != null) // eslint-disable-line no-unused-vars
       .map(([key]) => key);
 
     // If user has provided any cost point, do not calculate any other cost points
@@ -918,7 +918,7 @@ export class IngestionService {
       finalTotalCost = finalCostDetails.total;
     } else if (finalCostEntries.length > 0) {
       finalTotalCost = finalCostEntries.reduce(
-        (acc, [_, cost]) => acc + cost,
+        (acc, [_, cost]) => acc + cost, // eslint-disable-line no-unused-vars
         0,
       );
 
@@ -982,7 +982,7 @@ export class IngestionService {
     return result;
   }
 
-  private async getClickhouseRecord(params: {
+  private async getClickhouseRecord(params: { // eslint-disable-line no-unused-vars
     projectId: string;
     entityId: string;
     table: TableName.Traces;
@@ -991,7 +991,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<TraceRecordInsertType | null>;
-  private async getClickhouseRecord(params: {
+  private async getClickhouseRecord(params: { // eslint-disable-line no-unused-vars, no-dupe-class-members
     projectId: string;
     entityId: string;
     table: TableName.Scores;
@@ -1000,7 +1000,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ScoreRecordInsertType | null>;
-  private async getClickhouseRecord(params: {
+  private async getClickhouseRecord(params: { // eslint-disable-line no-unused-vars, no-dupe-class-members
     projectId: string;
     entityId: string;
     table: TableName.Observations;
@@ -1009,7 +1009,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ObservationRecordInsertType | null>;
-  private async getClickhouseRecord(params: {
+  private async getClickhouseRecord(params: { // eslint-disable-line no-dupe-class-members
     projectId: string;
     entityId: string;
     table: TableName;
@@ -1207,7 +1207,7 @@ export class IngestionService {
         ...("usageDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.usageDetails ?? {}).filter(
-                ([_, val]) => val != null,
+                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
               ),
             ) as Record<string, number>)
           : {}),
@@ -1228,7 +1228,7 @@ export class IngestionService {
         ...("costDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.costDetails ?? {}).filter(
-                ([_, val]) => val != null,
+                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
               ),
             ) as Record<string, number>)
           : {}),

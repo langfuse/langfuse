@@ -28,21 +28,21 @@ type UploadFile = {
 };
 
 export interface StorageService {
-  uploadFile(params: UploadFile): Promise<{ signedUrl: string }>;
+  uploadFile(params: UploadFile): Promise<{ signedUrl: string }>; // eslint-disable-line no-unused-vars
 
-  uploadJson(path: string, body: Record<string, unknown>[]): Promise<void>;
+  uploadJson(path: string, body: Record<string, unknown>[]): Promise<void>; // eslint-disable-line no-unused-vars
 
-  download(path: string): Promise<string>;
+  download(path: string): Promise<string>; // eslint-disable-line no-unused-vars
 
-  listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
+  listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>; // eslint-disable-line no-unused-vars
 
   getSignedUrl(
-    fileName: string,
-    ttlSeconds: number,
-    asAttachment?: boolean,
+    fileName: string, // eslint-disable-line no-unused-vars
+    ttlSeconds: number, // eslint-disable-line no-unused-vars
+    asAttachment?: boolean, // eslint-disable-line no-unused-vars
   ): Promise<string>;
 
-  getSignedUploadUrl(params: {
+  getSignedUploadUrl(params: { // eslint-disable-line no-unused-vars
     path: string;
     ttlSeconds: number;
     sha256Hash: string;
@@ -50,7 +50,7 @@ export interface StorageService {
     contentLength: number;
   }): Promise<string>;
 
-  deleteFiles(paths: string[]): Promise<void>;
+  deleteFiles(paths: string[]): Promise<void>; // eslint-disable-line no-unused-vars
 }
 
 export class StorageServiceFactory {
@@ -213,7 +213,7 @@ class AzureBlobStorageService implements StorageService {
   }
 
   private async streamToString(
-    readableStream: NodeJS.ReadableStream,
+    readableStream: NodeJS.ReadableStream, // eslint-disable-line no-undef
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: string[] = [];

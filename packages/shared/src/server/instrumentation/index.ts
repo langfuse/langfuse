@@ -22,7 +22,7 @@ export type SpanCtx = {
   traceContext?: TCarrier;
 };
 
-type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>;
+type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>; // eslint-disable-line no-unused-vars
 
 export async function instrumentAsync<T>(
   ctx: SpanCtx,
@@ -64,7 +64,7 @@ export async function instrumentAsync<T>(
   );
 }
 
-type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
+type SyncCallbackFn<T> = (span: opentelemetry.Span) => T; // eslint-disable-line no-unused-vars
 
 export function instrumentSync<T>(
   ctx: SpanCtx,
