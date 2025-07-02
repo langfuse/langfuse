@@ -173,7 +173,7 @@ export class DefaultEvalModelService {
     if (!parsedKey.success) {
       return {
         valid: false,
-        error: `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} "${selectedModel.provider}" in project ${projectId}.`,
+        error: `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} "${selectedModel.provider}" not found in project ${projectId}.`,
       };
     }
 
