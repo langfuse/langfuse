@@ -79,19 +79,27 @@ const getDelay = (delay: number | null) => {
 };
 
 /**
+ * Options for event batch processing.
+ * @property delay - Delay in ms to wait before processing events in the batch.
+ * @property source - Source of the events for metrics tracking (e.g., "otel", "api").
+ * @property isLangfuseInternal - Whether the events are being ingested by Langfuse internally (e.g. traces created for prompt experiments).
+ */
+type ProcessEventBatchOptions = {
+  delay?: number | null;
+  source?: "api" | "otel";
+  isLangfuseInternal?: boolean;
+};
+
+/**
  * Processes a batch of events.
  * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
  * @param authCheck - AuthHeaderValidVerificationResult
- * @param delay - (Optional) Delay in ms to wait before processing events in the batch.
- * @param source - (Optional) Source of the events for metrics tracking (e.g., "otel", "api").
- * @param isLangfuseInternal - (Optional) Whether the events are being ingested by Langfuse internally (e.g. traces created for prompt experiments).
+ * @param options - (Optional) Options for the event batch processing.
  */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResult,
-  delay: number | null = null,
-  source: "api" | "otel" = "api",
-  isLangfuseInternal: boolean = false,
+  options: ProcessEventBatchOptions = {},
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -101,6 +109,8 @@ export const processEventBatch = async (
     error?: string;
   }[];
 }> => {
+  const { delay = null, source = "api", isLangfuseInternal = false } = options;
+
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
   recordIncrement("langfuse.ingestion.event", input.length, { source });

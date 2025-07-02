@@ -99,7 +99,7 @@ export default withMiddlewares({
 
       // We set a delay of 0 for OTel, as we never expect updates.
       // We also set the source to "otel" which helps us with metric tracking and skipping list calls for S3.
-      return processEventBatch(events, auth, 0, "otel");
+      return processEventBatch(events, auth, { delay: 0, source: "otel" });
     },
   }),
 });
