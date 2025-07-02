@@ -385,7 +385,7 @@ describe("create experiment jobs with placeholders", () => {
     return { projectId, datasetId, runId };
   };
 
-  test("creates experiment job with multiple placeholders", async () => {
+  test("creates experiment job with multiple placeholders containing variables", async () => {
     const { projectId, datasetId, runId } = await setupPlaceholderTest(
       {
         name: "Test Multiple Placeholders",
@@ -398,12 +398,14 @@ describe("create experiment jobs with placeholders", () => {
       },
       {
         conversation_history: [
-          { role: "user", content: "Hello!" },
+          { role: "user", content: "Hello {{name}}!" },
           { role: "assistant", content: "Hi there!" }
         ],
         user_context: [
-          { role: "system", content: "User is a developer" }
-        ]
+          { role: "system", content: "User is a {{role}}" }
+        ],
+        name: "John",
+        role: "developer"
       }
     );
 
