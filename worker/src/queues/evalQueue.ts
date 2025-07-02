@@ -13,6 +13,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { randomUUID } from "crypto";
+import { delayInMs, ONE_DAY_IN_MS } from "./utils/delays";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -97,14 +98,14 @@ export const evalJobExecutorQueueProcessor = async (
           .executeTakeFirstOrThrow();
         if (
           // Do nothing if job execution is older than 24h
-          jobExecution.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)
+          jobExecution.created_at < new Date(Date.now() - ONE_DAY_IN_MS)
         ) {
           logger.info(
             `Job ${job.data.payload.jobExecutionId} is rate limited for more than 24h. Stop retrying.`,
           );
         } else {
           // Add the job into the queue with a random delay between 1 and 10min and return
-          const delay = Math.floor(Math.random() * 9 + 1) * 60 * 1000;
+          const delay = delayInMs(); // 1-10min in milliseconds
           logger.info(
             `Job ${job.data.payload.jobExecutionId} is rate limited. Retrying in ${delay}ms.`,
           );

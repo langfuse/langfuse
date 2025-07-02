@@ -17,6 +17,7 @@ import {
 } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
+import { delayInMs, ONE_DAY_IN_MS } from "./utils/delays";
 
 export const experimentCreateQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.ExperimentCreate]>,
@@ -49,7 +50,7 @@ export const experimentCreateQueueProcessor = async (
         if (
           // Do nothing if dataset run is older than 24h. The dataset run is created upon triggering an experiment (API/UI).
           datasetRun &&
-          datasetRun.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)
+          datasetRun.created_at < new Date(Date.now() - ONE_DAY_IN_MS)
         ) {
           logger.info(
             `Creating dataset run items for run ${job.data.payload.runId} is rate limited for more than 24h. Stop retrying.`,
@@ -57,7 +58,7 @@ export const experimentCreateQueueProcessor = async (
         } else {
           // Add the experiment creation job into the queue with a random delay between 1 and 10min and return
           // It is safe to retry the experiment creation job as any dataset item for which a dataset run item has been created already will be skipped.
-          const delay = Math.floor(Math.random() * 9 + 1) * 60 * 1000;
+          const delay = delayInMs(); // 1-10min in milliseconds
           logger.info(
             `Creating dataset run items for run ${job.data.payload.runId} is rate limited. Retrying in ${delay}ms.`,
           );
