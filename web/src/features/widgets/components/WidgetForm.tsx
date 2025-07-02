@@ -1425,53 +1425,7 @@ export function WidgetForm({
                 <Label htmlFor="chart-type-select">Chart Type</Label>
                 <Select
                   value={selectedChartType}
-                  onValueChange={(value) => {
-                    const newChartType = value as DashboardWidgetChartType;
-                    const wasPivotTable = selectedChartType === "PIVOT_TABLE";
-                    const willBePivotTable = newChartType === "PIVOT_TABLE";
-
-                    // Handle transition from regular chart to pivot table
-                    if (!wasPivotTable && willBePivotTable) {
-                      // Initialize pivot table with current single metric if it's valid for the current view
-                      const currentViewDeclaration =
-                        viewDeclarations[selectedView];
-                      if (selectedMeasure in currentViewDeclaration.measures) {
-                        setSelectedMetrics([
-                          {
-                            id: `${selectedAggregation}_${selectedMeasure}`,
-                            measure: selectedMeasure,
-                            aggregation: selectedAggregation,
-                            label: `${startCase(selectedAggregation)} ${startCase(selectedMeasure)}`,
-                          },
-                        ]);
-                      } else {
-                        // Fallback to count if current metric is invalid
-                        setSelectedMetrics([
-                          {
-                            id: "count_count",
-                            measure: "count",
-                            aggregation: "count" as z.infer<
-                              typeof metricAggregations
-                            >,
-                            label: "Count Count",
-                          },
-                        ]);
-                      }
-                      // Initialize with current dimension if valid, otherwise empty
-                      const currentViewDimensions =
-                        currentViewDeclaration.dimensions;
-                      if (
-                        selectedDimension !== "none" &&
-                        selectedDimension in currentViewDimensions
-                      ) {
-                        setPivotDimensions([selectedDimension]);
-                      } else {
-                        setPivotDimensions([]);
-                      }
-                    }
-
-                    setSelectedChartType(newChartType);
-                  }}
+                  onValueChange={setSelectedChartType}
                 >
                   <SelectTrigger id="chart-type-select">
                     <SelectValue placeholder="Select a chart type" />
