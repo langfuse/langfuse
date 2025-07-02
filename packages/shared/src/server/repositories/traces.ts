@@ -185,7 +185,7 @@ export const checkTraceExists = async ({
       return rows.length > 0;
     },
     newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(timestamp || exactTimestamp);
+      const traceAmt = getTimeframesTracesAMT(timestamp ?? exactTimestamp);
       const query = `
         ${observations_cte}
         SELECT 

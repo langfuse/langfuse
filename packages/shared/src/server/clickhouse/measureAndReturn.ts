@@ -5,7 +5,7 @@ import { logger } from "../logger";
 
 const executionWrapper = async <T, Y>(
   input: T,
-  fn: (input: T) => Promise<Y>,
+  fn: (input: T) => Promise<Y>, // eslint-disable-line no-unused-vars
   span?: opentelemetry.Span,
   attributePrefix?: string,
 ): Promise<[Y, number]> => {
@@ -20,8 +20,8 @@ export const measureAndReturn = async <T, Y>(args: {
   operationName: string;
   projectId: string;
   input: T;
-  existingExecution: (input: T) => Promise<Y>;
-  newExecution: (input: T) => Promise<Y>;
+  existingExecution: (input: T) => Promise<Y>; // eslint-disable-line no-unused-vars
+  newExecution: (input: T) => Promise<Y>; // eslint-disable-line no-unused-vars
 }): Promise<Y> => {
   return instrumentAsync(
     {
