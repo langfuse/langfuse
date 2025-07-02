@@ -1,7 +1,7 @@
 CREATE TABLE event_log
 (
-    `id`          varchar(50),
-    `project_id`  varchar(50),
+    `id`          varchar(65533),
+    `project_id`  varchar(65533),
     `entity_type` String,
     `entity_id`   String,
     `event_id`    String,
@@ -15,5 +15,5 @@ CREATE TABLE event_log
 DUPLICATE KEY(`id`, `project_id`)
 DISTRIBUTED BY HASH(`project_id`) BUCKETS 64
 PROPERTIES (
-"replication_allocation" = "tag.location.default: 3"
+"replication_allocation" = "tag.location.default: 1"
 );

@@ -8,5 +8,5 @@ CREATE TABLE project_environments (
 DUPLICATE KEY(project_id)
 DISTRIBUTED BY HASH(project_id) BUCKETS 64
 PROPERTIES (
-"replication_allocation" = "tag.location.default: 3"
+"replication_allocation" = "tag.location.default: 1"
 );

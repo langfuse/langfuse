@@ -1,3 +1,3 @@
-ALTER TABLE traces ADD COLUMN environment String DEFAULT 'default' AFTER timestamp_date;
-ALTER TABLE observations ADD COLUMN environment String DEFAULT 'default' AFTER start_time_date;
-ALTER TABLE scores ADD COLUMN environment String DEFAULT 'default' AFTER name;
+-- ALTER TABLE traces ADD COLUMN environment varchar(65533) DEFAULT 'default';
+-- ALTER TABLE observations ADD COLUMN environment varchar(65533) DEFAULT 'default';
+-- ALTER TABLE scores ADD COLUMN environment varchar(65533) DEFAULT 'default';

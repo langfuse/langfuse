@@ -1,1 +1,1 @@
-ALTER TABLE scores ADD COLUMN metadata Map<String, String> AFTER comment;
+-- ALTER TABLE scores ADD COLUMN metadata Map<String, String> AFTER comment;

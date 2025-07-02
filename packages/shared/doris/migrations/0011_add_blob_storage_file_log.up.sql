@@ -1,6 +1,6 @@
 CREATE TABLE blob_storage_file_log
 (
-    event_ts DateTime,
+    event_ts Datetime(3),
     is_deleted int,
     `id`          String,
     `project_id`  String,
@@ -17,5 +17,5 @@ CREATE TABLE blob_storage_file_log
 UNIQUE KEY(event_ts, is_deleted)
 DISTRIBUTED BY HASH(event_ts) BUCKETS 64
 PROPERTIES (
-"replication_allocation" = "tag.location.default: 3"
+"replication_allocation" = "tag.location.default: 1"
 );

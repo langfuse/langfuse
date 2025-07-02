@@ -1,1 +1,1 @@
-ALTER TABLE scores MODIFY COLUMN trace_id String;
+-- ALTER TABLE scores MODIFY COLUMN trace_id String;
