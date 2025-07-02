@@ -30,10 +30,10 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 
-enum TracesAMTs {
-  Traces7dAMT = "traces_7d_amt",
-  Traces30dAMT = "traces_30d_amt",
-  TracesAllAMT = "traces_all_amt",
+enum TracesAMTs { // eslint-disable-line no-unused-vars
+  Traces7dAMT = "traces_7d_amt", // eslint-disable-line no-unused-vars
+  Traces30dAMT = "traces_30d_amt", // eslint-disable-line no-unused-vars
+  TracesAllAMT = "traces_all_amt", // eslint-disable-line no-unused-vars
 }
 
 /**
@@ -178,14 +178,14 @@ export const checkTraceExists = async ({
 
       const rows = await queryClickhouse<{ id: string; project_id: string }>({
         query,
-        params,
-        tags,
+        params: input.params,
+        tags: input.tags,
       });
 
       return rows.length > 0;
     },
     newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(timestamp);
+      const traceAmt = getTimeframesTracesAMT(timestamp || exactTimestamp);
       const query = `
         ${observations_cte}
         SELECT 
@@ -200,8 +200,8 @@ export const checkTraceExists = async ({
 
       const rows = await queryClickhouse<{ id: string; project_id: string }>({
         query,
-        params,
-        tags,
+        params: input.params,
+        tags: input.tags,
       });
 
       return rows.length > 0;
