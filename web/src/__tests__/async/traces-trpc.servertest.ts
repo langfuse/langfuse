@@ -1,8 +1,7 @@
 /** @jest-environment node */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
-import type { Session } from "next-auth";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
+import { getTrpcCaller, pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -19,41 +18,7 @@ describe("traces trpc", () => {
 
   beforeEach(async () => await pruneDatabase());
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-            },
-          ],
-        },
-      ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      },
-      admin: true,
-    },
-    environment: {} as any,
-  };
-
-  const ctx = createInnerTRPCContext({ session });
-  const caller = appRouter.createCaller({ ...ctx, prisma });
+  const caller = getTrpcCaller(projectId);
 
   describe("traces.byId", () => {
     it("access private trace", async () => {

@@ -5,6 +5,9 @@ import {
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
+import type { Session } from "next-auth";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {
@@ -140,3 +143,42 @@ export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
 
   return { body: resBody, status };
 }
+
+export const getTrpcCaller = (projectId: string) => {
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: "user-1",
+      canCreateOrganizations: true,
+      name: "Demo User",
+      organizations: [
+        {
+          id: "seed-org-id",
+          name: "Test Organization",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+              retentionDays: 30,
+              deletedAt: null,
+              name: "Test Project",
+            },
+          ],
+        },
+      ],
+      featureFlags: {
+        excludeClickhouseRead: false,
+        templateFlag: true,
+      },
+      admin: true,
+    },
+    environment: {} as any,
+  };
+
+  const ctx = createInnerTRPCContext({ session });
+  const caller = appRouter.createCaller({ ...ctx, prisma });
+  return caller;
+};
