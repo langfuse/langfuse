@@ -24,6 +24,7 @@ import {
   LangfuseNotFoundError,
   type Prisma,
   PromptType,
+  QUEUE_ERROR_MESSAGES,
   stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
@@ -51,8 +52,8 @@ const replaceVariablesInPrompt = (
   const processContent = (content: string) => {
     // Extract only Handlebars variables from itemInput (exclude message placeholders)
     const filteredContext = Object.fromEntries(
-      Object.entries(itemInput).filter(([key]) =>
-        variables.includes(key) && !placeholderNames.includes(key)
+      Object.entries(itemInput).filter(
+        ([key]) => variables.includes(key) && !placeholderNames.includes(key),
       ),
     );
 
@@ -85,29 +86,36 @@ const replaceVariablesInPrompt = (
 
     // for stringified arrays (e.g. from dataset processing)
     let actualValue = value;
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       try {
         actualValue = JSON.parse(value);
       } catch (_e) {
-        throw new Error(`Invalid placeholder value for '${placeholderName}': unable to parse JSON`);
+        throw new Error(
+          `Invalid placeholder value for '${placeholderName}': unable to parse JSON`,
+        );
       }
     }
 
     if (!Array.isArray(actualValue)) {
-      throw new Error(`Placeholder '${placeholderName}' must be an array of messages`);
+      throw new Error(
+        `Placeholder '${placeholderName}' must be an array of messages`,
+      );
     }
 
-    const validMessages = actualValue.every(msg =>
-      typeof msg === 'object' &&
-      msg !== null &&
-      'role' in msg &&
-      'content' in msg
+    const validMessages = actualValue.every(
+      (msg) =>
+        typeof msg === "object" &&
+        msg !== null &&
+        "role" in msg &&
+        "content" in msg,
     );
     if (!validMessages) {
-      throw new Error(`Invalid placeholder value for '${placeholderName}': messages must have 'role' and 'content' properties`);
+      throw new Error(
+        `Invalid placeholder value for '${placeholderName}': messages must have 'role' and 'content' properties`,
+      );
     }
 
-    placeholderValues[placeholderName] = actualValue.map(msg => ({
+    placeholderValues[placeholderName] = actualValue.map((msg) => ({
       ...msg,
       type: ChatMessageType.PublicAPICreated as const,
     }));
@@ -116,7 +124,7 @@ const replaceVariablesInPrompt = (
   const compiledMessages = compileChatMessages(
     prompt as PromptMessage[],
     placeholderValues,
-    {}
+    {},
   );
 
   return compiledMessages.map((message) => ({
@@ -227,13 +235,13 @@ export const createExperimentJob = async ({
   });
   if (!apiKey) {
     throw new LangfuseNotFoundError(
-      `API key for provider ${provider} not found`,
+      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found`,
     );
   }
   const validatedApiKey = LLMApiKeySchema.safeParse(apiKey);
   if (!validatedApiKey.success) {
     throw new InvalidRequestError(
-      `API key for provider ${provider} not found.`,
+      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found.`,
     );
   }
 
@@ -257,9 +265,10 @@ export const createExperimentJob = async ({
   );
 
   // also extract placeholder names if prompt is a chat prompt
-  const placeholderNames = prompt?.type === PromptType.Chat && Array.isArray(validatedPrompt.data)
-    ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
-    : [];
+  const placeholderNames =
+    prompt?.type === PromptType.Chat && Array.isArray(validatedPrompt.data)
+      ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
+      : [];
   const allVariables = [...extractedVariables, ...placeholderNames];
 
   // validate dataset items against prompt configuration
