@@ -7,9 +7,9 @@ import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEm
 import { Button } from "@/src/components/ui/button";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import {
-  type PlaygroundTool,
   type PlaygroundCache,
   type PlaygroundSchema,
+  type PlaygroundTool,
 } from "@/src/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -27,6 +27,9 @@ import {
   type ChatMessage,
   OpenAIResponseFormatSchema,
   type Prisma,
+  PlaceholderMessageSchema,
+  type PlaceholderMessage,
+  isPlaceholder,
   PromptType,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -119,7 +122,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
       title={
         isAvailable
           ? "Test in LLM playground"
-          : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a Github issue."
+          : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue."
       }
       onClick={handleClick}
       asChild
@@ -138,34 +141,38 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 };
 
 const ParsedChatMessageListSchema = z.array(
-  z.object({
-    role: z.enum(ChatMessageRole),
-    content: z.union([
-      z.string(),
-      z
-        .array(
-          z
-            .object({
-              text: z.string(),
-            })
-            .transform((v) => v.text),
-        )
-        .transform((v) => v.join("")),
-      z.union([z.null(), z.undefined()]).transform((_) => ""),
-      z.any().transform((v) => JSON.stringify(v, null, 2)),
-    ]),
-    tool_calls: z
-      .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
-      .optional(),
-    tool_call_id: z.string().optional(),
-    additional_kwargs: z
-      .object({
-        tool_calls: z
-          .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
-          .optional(),
-      })
-      .optional(),
-  }),
+  z.union([
+    // Regular chat message
+    z.object({
+      role: z.enum(ChatMessageRole),
+      content: z.union([
+        z.string(),
+        z
+          .array(
+            z
+              .object({
+                text: z.string(),
+              })
+              .transform((v) => v.text),
+          )
+          .transform((v) => v.join("")),
+        z.union([z.null(), z.undefined()]).transform((_) => ""),
+        z.any().transform((v) => JSON.stringify(v, null, 2)),
+      ]),
+      tool_calls: z
+        .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
+        .optional(),
+      tool_call_id: z.string().optional(),
+      additional_kwargs: z
+        .object({
+          tool_calls: z
+            .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
+            .optional(),
+        })
+        .optional(),
+    }),
+    PlaceholderMessageSchema,
+  ])
 );
 
 // Langchain integration has the tool definition in a tool message
@@ -173,6 +180,9 @@ const ParsedChatMessageListSchema = z.array(
 const isLangchainToolDefinitionMessage = (
   message: z.infer<typeof ParsedChatMessageListSchema>[0],
 ): message is { content: string; role: ChatMessageRole } => {
+  if (!("content" in message) || typeof message.content !== "string") {
+    return false;
+  }
   try {
     return OpenAIToolSchema.safeParse(JSON.parse(message.content)).success;
   } catch {
@@ -182,15 +192,22 @@ const isLangchainToolDefinitionMessage = (
 
 const transformToPlaygroundMessage = (
   message: z.infer<typeof ParsedChatMessageListSchema>[0],
-): ChatMessage => {
-  const { role, content } = message;
+): ChatMessage | PlaceholderMessage => {
+  // Return placeholder messages as-is
+  if (isPlaceholder(message)) {
+    return message;
+  }
+
+  // Handle regular chat messages - remove the placeholder type
+  const regularMessage = message as Exclude<typeof message, PlaceholderMessage>;
+  const { role, content } = regularMessage;
 
   if (
-    message.role === "assistant" &&
-    (message.tool_calls || message.additional_kwargs?.tool_calls)
+    regularMessage.role === "assistant" &&
+    (regularMessage.tool_calls || regularMessage.additional_kwargs?.tool_calls)
   ) {
     const toolCalls =
-      message.tool_calls ?? message.additional_kwargs?.tool_calls ?? [];
+      regularMessage.tool_calls ?? regularMessage.additional_kwargs?.tool_calls ?? [];
 
     const playgroundMessage: ChatMessage = {
       role: ChatMessageRole.Assistant,
@@ -210,12 +227,12 @@ const transformToPlaygroundMessage = (
     };
 
     return playgroundMessage;
-  } else if (message.role === "tool") {
+  } else if (regularMessage.role === "tool") {
     const playgroundMessage: ChatMessage = {
       role: ChatMessageRole.Tool,
       content,
       type: ChatMessageType.ToolResult,
-      toolCallId: message.tool_call_id ?? "",
+      toolCallId: regularMessage.tool_call_id ?? "",
     };
 
     return playgroundMessage;

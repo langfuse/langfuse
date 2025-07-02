@@ -105,10 +105,11 @@ const EnvSchema = z.object({
     .number()
     .default(80e6), // 80MB
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(240_000), // 4 minutes
+  LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
 });
 
 export const env: z.infer<typeof EnvSchema> =
-  process.env.DOCKER_BUILD === "1"
+  process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
     : EnvSchema.parse(removeEmptyEnvVariables(process.env));

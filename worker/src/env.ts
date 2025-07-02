@@ -225,9 +225,13 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(120_000), // 2 minutes
+
+  LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
+    .enum(["true", "false"])
+    .default("false"),
 });
 
 export const env: z.infer<typeof EnvSchema> =
-  process.env.DOCKER_BUILD === "1"
+  process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
     : EnvSchema.parse(removeEmptyEnvVariables(process.env));

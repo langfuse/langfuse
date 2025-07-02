@@ -1336,6 +1336,7 @@ export const getScoresForPostHog = async function* (
       s.name as name,
       s.value as value,
       s.comment as comment,
+      s.environment as environment,
       t.name as trace_name,
       t.session_id as trace_session_id,
       t.user_id as trace_user_id,
@@ -1388,6 +1389,7 @@ export const getScoresForPostHog = async function* (
       langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
       langfuse_release: record.trace_release,
       langfuse_tags: record.trace_tags,
+      langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       $session_id: record.posthog_session_id ?? null,
       $set: {

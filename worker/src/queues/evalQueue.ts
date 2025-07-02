@@ -1,5 +1,10 @@
 import { Job } from "bullmq";
-import { ApiError, BaseError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  ApiError,
+  BaseError,
+  LangfuseNotFoundError,
+  QUEUE_ERROR_MESSAGES,
+} from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -150,22 +155,20 @@ export const evalJobExecutorQueueProcessor = async (
       e instanceof LangfuseNotFoundError ||
       (e instanceof BaseError &&
         e.message.includes(
-          "Could not parse response content as the length limit was reached",
+          QUEUE_ERROR_MESSAGES.OUTPUT_TOKENS_TOO_LONG_ERROR,
         )) || // output tokens too long
-      (e instanceof BaseError && e.message.includes("API key for provider")) || // api key not provided
       (e instanceof BaseError &&
-        e.message.includes(
-          "`No default model or custom model found for project",
-        )) || // api key not provided
+        e.message.includes(QUEUE_ERROR_MESSAGES.API_KEY_ERROR)) || // api key not provided
+      (e instanceof BaseError &&
+        e.message.includes(QUEUE_ERROR_MESSAGES.NO_DEFAULT_MODEL_ERROR)) || // api key not provided
       (e instanceof ApiError && e.httpCode >= 400 && e.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
       (e instanceof ApiError && e.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
       (e instanceof ApiError &&
-        e.message.includes("Error: Unterminated string in JSON at position")) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
-      (e instanceof ApiError && e.message.includes("is not valid JSON")) || // When evaluator model is not consistently returning valid JSON on structured output calls
+        e.message.includes(QUEUE_ERROR_MESSAGES.TOO_LOW_MAX_TOKENS_ERROR)) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
+      (e instanceof ApiError &&
+        e.message.includes(QUEUE_ERROR_MESSAGES.INVALID_JSON_ERROR)) || // When evaluator model is not consistently returning valid JSON on structured output calls
       (e instanceof BaseError &&
-        e.message.includes(
-          "Please ensure the mapped data exists and consider extending the job delay.",
-        )) // Trace not found.
+        e.message.includes(QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR)) // Trace not found.
     ) {
       return;
     }

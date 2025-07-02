@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { context, SpanKind, trace } from "@opentelemetry/api";
+import { backOff } from "exponential-backoff";
 import {
   StorageService,
   StorageServiceFactory,
@@ -203,6 +204,18 @@ export async function* queryClickhouseStream<T>(opts: {
   }
 }
 
+/**
+ * Determines if an error is retryable (socket hang up, connection reset, etc.)
+ */
+function isRetryableError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const errorMessage = (error as Error).message?.toLowerCase() || "";
+
+  // Check for socket hang up and other network-related errors
+  return errorMessage.includes("socket hang up");
+}
+
 export async function queryClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
@@ -218,40 +231,78 @@ export async function queryClickhouse<T>(opts: {
       span.setAttribute("db.query.text", opts.query);
       span.setAttribute("db.operation.name", "SELECT");
 
-      const res = await clickhouseClient(opts.clickhouseConfigs).query({
-        query: opts.query,
-        format: "JSONEachRow",
-        query_params: opts.params,
-        clickhouse_settings: {
-          log_comment: JSON.stringify(opts.tags ?? {}),
-        },
-      });
-      // same logic as for prisma. we want to see queries in development
-      if (env.NODE_ENV === "development") {
-        logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
-      }
+      // Retry logic for socket hang up and other network errors
+      return await backOff(
+        async () => {
+          const res = await clickhouseClient(opts.clickhouseConfigs).query({
+            query: opts.query,
+            format: "JSONEachRow",
+            query_params: opts.params,
+            clickhouse_settings: {
+              log_comment: JSON.stringify(opts.tags ?? {}),
+            },
+          });
 
-      span.setAttribute("ch.queryId", res.query_id);
-
-      // add summary headers to the span. Helps to tune performance
-      const summaryHeader = res.response_headers["x-clickhouse-summary"];
-      if (summaryHeader) {
-        try {
-          const summary = Array.isArray(summaryHeader)
-            ? JSON.parse(summaryHeader[0])
-            : JSON.parse(summaryHeader);
-          for (const key in summary) {
-            span.setAttribute(`ch.${key}`, summary[key]);
+          // same logic as for prisma. we want to see queries in development
+          if (env.NODE_ENV === "development") {
+            logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
           }
-        } catch (error) {
-          logger.debug(
-            `Failed to parse clickhouse summary header ${summaryHeader}`,
-            error,
-          );
-        }
-      }
 
-      return await res.json<T>();
+          span.setAttribute("ch.queryId", res.query_id);
+
+          // add summary headers to the span. Helps to tune performance
+          const summaryHeader = res.response_headers["x-clickhouse-summary"];
+          if (summaryHeader) {
+            try {
+              const summary = Array.isArray(summaryHeader)
+                ? JSON.parse(summaryHeader[0])
+                : JSON.parse(summaryHeader);
+              for (const key in summary) {
+                span.setAttribute(`ch.${key}`, summary[key]);
+              }
+            } catch (error) {
+              logger.debug(
+                `Failed to parse clickhouse summary header ${summaryHeader}`,
+                error,
+              );
+            }
+          }
+
+          return await res.json<T>();
+        },
+        {
+          numOfAttempts: env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS,
+          retry: (error: Error, attemptNumber: number) => {
+            const shouldRetry = isRetryableError(error);
+            if (shouldRetry) {
+              logger.warn(
+                `ClickHouse query failed with retryable error (attempt ${attemptNumber}/${env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS}): ${error.message}`,
+                {
+                  error: error.message,
+                  attemptNumber,
+                  tags: opts.tags,
+                },
+              );
+              span.addEvent("clickhouse-query-retry", {
+                "retry.attempt": attemptNumber,
+                "retry.error": error.message,
+              });
+            } else {
+              logger.error(
+                `ClickHouse query failed with non-retryable error: ${error.message}`,
+                {
+                  error: error.message,
+                  tags: opts.tags,
+                },
+              );
+            }
+            return shouldRetry;
+          },
+          startingDelay: 100,
+          timeMultiple: 1,
+          maxDelay: 100,
+        },
+      );
     },
   );
 }

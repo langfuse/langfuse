@@ -11,7 +11,7 @@ export function transformStreamToCsv(): Transform {
     objectMode: true,
     transform(
       row: Record<string, any>,
-      encoding: BufferEncoding,
+      encoding: BufferEncoding, // eslint-disable-line no-undef
       callback: TransformCallback,
     ): void {
       if (isFirstChunk) {

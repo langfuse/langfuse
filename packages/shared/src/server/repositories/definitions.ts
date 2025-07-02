@@ -122,6 +122,43 @@ export const traceRecordInsertSchema = traceRecordBaseSchema.extend({
 });
 export type TraceRecordInsertType = z.infer<typeof traceRecordInsertSchema>;
 
+export const traceMtRecordInsertSchema = z.object({
+  // Identifiers
+  project_id: z.string(),
+  id: z.string(),
+  start_time: z.number(),
+  end_time: z.number().nullish(),
+  name: z.string(),
+
+  // Metadata properties
+  metadata: z.record(z.string(), z.string()),
+  user_id: z.string(),
+  session_id: z.string(),
+  environment: z.string(),
+  tags: z.array(z.string()),
+  version: z.string().nullish(),
+  release: z.string().nullish(),
+
+  // UI properties - nullable to prevent absent values being interpreted as overwrites
+  bookmarked: z.boolean().nullish(),
+  public: z.boolean().nullish(),
+
+  // Aggregations
+  observation_ids: z.array(z.string()),
+  score_ids: z.array(z.string()),
+  cost_details: z.record(z.string(), z.number()),
+  usage_details: z.record(z.string(), z.number()),
+
+  // Input/Output
+  input: z.string(),
+  output: z.string(),
+
+  created_at: z.number(),
+  updated_at: z.number(),
+  event_ts: z.number(),
+});
+export type TraceMtRecordInsertType = z.infer<typeof traceMtRecordInsertSchema>;
+
 export const scoreRecordBaseSchema = z.object({
   id: z.string(),
   project_id: z.string(),

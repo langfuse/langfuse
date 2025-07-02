@@ -33,6 +33,7 @@ import {
   TraceEventType,
   traceRecordInsertSchema,
   TraceRecordInsertType,
+  TraceMtRecordInsertType,
   traceRecordReadSchema,
   TraceUpsertQueue,
   UsageCostType,
@@ -92,8 +93,8 @@ export class IngestionService {
   constructor(
     private redis: Redis | Cluster,
     private prisma: PrismaClient,
-    private clickHouseWriter: ClickhouseWriter,
-    private clickhouseClient: ClickhouseClientType,
+    private clickHouseWriter: ClickhouseWriter, // eslint-disable-line no-unused-vars
+    private clickhouseClient: ClickhouseClientType, // eslint-disable-line no-unused-vars
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -219,6 +220,14 @@ export class IngestionService {
       clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
+      finalScoreRecord.trace_id
+    ) {
+      const traceMtRecord = this.convertScoreToTraceMt(finalScoreRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+    }
   }
 
   private async processTraceEventList(params: {
@@ -317,6 +326,14 @@ export class IngestionService {
     }
 
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+
+    // Experimental: Also write to traces_mt table if experiment flag is enabled
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
+    ) {
+      const traceMtRecord = this.convertTraceToTraceMt(finalTraceRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+    }
 
     // Add trace into trace upsert queue for eval processing
     const traceUpsertQueue = TraceUpsertQueue.getInstance();
@@ -444,6 +461,14 @@ export class IngestionService {
       TableName.Observations,
       finalObservationRecord,
     );
+
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
+      finalObservationRecord.trace_id
+    ) {
+      const traceMtRecord = this.convertObservationToTraceMt(finalObservationRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+    }
   }
 
   private async mergeScoreRecords(params: {
@@ -494,13 +519,136 @@ export class IngestionService {
     return traceRecordInsertSchema.parse(mergedRecord);
   }
 
+  private convertTraceToTraceMt(
+    traceRecord: TraceRecordInsertType,
+  ): TraceMtRecordInsertType {
+    return {
+      // Identifiers
+      project_id: traceRecord.project_id,
+      id: traceRecord.id,
+      start_time: traceRecord.timestamp,
+      end_time: null, // traces don't have end_time, will be null
+      name: traceRecord.name || "",
+
+      // Metadata properties
+      metadata: traceRecord.metadata,
+      user_id: traceRecord.user_id || "",
+      session_id: traceRecord.session_id || "",
+      environment: traceRecord.environment,
+      tags: traceRecord.tags,
+      version: traceRecord.version,
+      release: traceRecord.release,
+
+      // UI properties - nullable to prevent absent values being interpreted as overwrites
+      bookmarked: traceRecord.bookmarked,
+      public: traceRecord.public,
+
+      // Aggregations - empty for now, will be populated by aggregation processes
+      observation_ids: [],
+      score_ids: [],
+      cost_details: {},
+      usage_details: {},
+
+      // Input/Output
+      input: traceRecord.input || "",
+      output: traceRecord.output || "",
+
+      created_at: traceRecord.created_at,
+      updated_at: traceRecord.updated_at,
+      event_ts: traceRecord.event_ts,
+    };
+  }
+
+  private convertObservationToTraceMt(
+    observationRecord: ObservationRecordInsertType,
+  ): TraceMtRecordInsertType {
+    return {
+      // Identifiers
+      project_id: observationRecord.project_id,
+      // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+      id: observationRecord.trace_id || "", 
+      start_time: observationRecord.start_time,
+      end_time: observationRecord.end_time || null,
+      name: "",
+
+      // Metadata properties
+      metadata: {},
+      user_id: '',
+      session_id: '',
+      environment: observationRecord.environment,
+      tags: [],
+      version: null,
+      release: null,
+
+      // UI properties - nullable to prevent absent values being interpreted as overwrites
+      bookmarked: null,
+      public: null,
+
+      // Aggregations - include this observation ID
+      observation_ids: [observationRecord.id],
+      score_ids: [],
+      // We can fill the cost details here, but we shouldn't trust them.
+      // Only used for verification to estimate how big the double-counting is.
+      cost_details: observationRecord.cost_details || {},
+      usage_details: observationRecord.usage_details || {},
+
+      // Input/Output
+      input: "",
+      output: "",
+
+      created_at: observationRecord.created_at,
+      updated_at: observationRecord.updated_at,
+      event_ts: observationRecord.event_ts,
+    };
+  }
+
+  private convertScoreToTraceMt(
+    scoreRecord: ScoreRecordInsertType,
+  ): TraceMtRecordInsertType {
+    return {
+      // Identifiers
+      project_id: scoreRecord.project_id,
+      // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+      id: scoreRecord.trace_id || "", 
+      start_time: scoreRecord.timestamp,
+      end_time: null, // scores don't have end_time
+      name: "",
+
+      // Metadata properties
+      metadata: {},
+      user_id: '',
+      session_id: '',
+      environment: scoreRecord.environment,
+      tags: [], // scores don't have tags
+      version: null, // scores don't have version
+      release: null, // scores don't have release
+
+      // UI properties - nullable to prevent absent values being interpreted as overwrites
+      bookmarked: null,
+      public: null,
+
+      // Aggregations - include this score ID
+      observation_ids: [],
+      score_ids: [scoreRecord.id],
+      cost_details: {},
+      usage_details: {},
+
+      // Input/Output
+      input: "", // scores don't have input
+      output: "", // scores don't have output
+
+      created_at: scoreRecord.created_at,
+      updated_at: scoreRecord.updated_at,
+      event_ts: scoreRecord.event_ts,
+    };
+  }
+
   private async mergeObservationRecords(params: {
     projectId: string;
     observationRecords: ObservationRecordInsertType[];
     clickhouseObservationRecord?: ObservationRecordInsertType | null;
   }): Promise<ObservationRecordInsertType> {
-    const { projectId, observationRecords, clickhouseObservationRecord } =
-      params;
+    const { observationRecords, clickhouseObservationRecord } = params;
 
     // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
@@ -665,7 +813,7 @@ export class IngestionService {
   > {
     const providedUsageDetails = Object.fromEntries(
       Object.entries(observationRecord.provided_usage_details).filter(
-        ([k, v]) => v != null && v >= 0,
+        ([k, v]) => v != null && v >= 0, // eslint-disable-line no-unused-vars
       ),
     );
 
@@ -723,7 +871,7 @@ export class IngestionService {
     const { provided_cost_details } = observationRecord;
 
     const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null)
+      .filter(([_, value]) => value != null) // eslint-disable-line no-unused-vars
       .map(([key]) => key);
 
     // If user has provided any cost point, do not calculate any other cost points
@@ -770,7 +918,7 @@ export class IngestionService {
       finalTotalCost = finalCostDetails.total;
     } else if (finalCostEntries.length > 0) {
       finalTotalCost = finalCostEntries.reduce(
-        (acc, [_, cost]) => acc + cost,
+        (acc, [_, cost]) => acc + cost, // eslint-disable-line no-unused-vars
         0,
       );
 
@@ -834,7 +982,7 @@ export class IngestionService {
     return result;
   }
 
-  private async getClickhouseRecord(params: {
+  private async getClickhouseRecord(params: { // eslint-disable-line no-unused-vars
     projectId: string;
     entityId: string;
     table: TableName.Traces;
@@ -843,7 +991,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<TraceRecordInsertType | null>;
-  private async getClickhouseRecord(params: {
+  private async getClickhouseRecord(params: { // eslint-disable-line no-unused-vars, no-dupe-class-members
     projectId: string;
     entityId: string;
     table: TableName.Scores;
@@ -852,7 +1000,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ScoreRecordInsertType | null>;
-  private async getClickhouseRecord(params: {
+  private async getClickhouseRecord(params: { // eslint-disable-line no-unused-vars, no-dupe-class-members
     projectId: string;
     entityId: string;
     table: TableName.Observations;
@@ -861,7 +1009,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ObservationRecordInsertType | null>;
-  private async getClickhouseRecord(params: {
+  private async getClickhouseRecord(params: { // eslint-disable-line no-dupe-class-members
     projectId: string;
     entityId: string;
     table: TableName;
@@ -1059,7 +1207,7 @@ export class IngestionService {
         ...("usageDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.usageDetails ?? {}).filter(
-                ([_, val]) => val != null,
+                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
               ),
             ) as Record<string, number>)
           : {}),
@@ -1080,7 +1228,7 @@ export class IngestionService {
         ...("costDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.costDetails ?? {}).filter(
-                ([_, val]) => val != null,
+                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
               ),
             ) as Record<string, number>)
           : {}),

@@ -1,13 +1,12 @@
 import { z } from "zod/v4";
-import { Prompt } from "../../../prisma/generated/types";
+import type { Prompt } from "../../../prisma/generated/types";
 import { jsonSchema } from "../../utils/zod";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "./constants";
+import { PromptChatMessageSchema } from "../../server/llm/types";
 import { PromptNameSchema } from "./validation";
 
-export const SingleChatMessageSchema = z.object({
-  role: z.string(),
-  content: z.string(),
-});
+export const SingleChatMessageSchema = PromptChatMessageSchema;
+export type SingleChatMessage = z.infer<typeof SingleChatMessageSchema>;
 
 export enum PromptType {
   // eslint-disable-next-line no-unused-vars
@@ -44,7 +43,7 @@ const BaseCreateChatPromptSchema = z.object({
   name: PromptNameSchema,
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Chat),
-  prompt: z.array(SingleChatMessageSchema),
+  prompt: z.array(PromptChatMessageSchema),
   config: jsonSchema.nullable().default({}),
   tags: z.array(z.string()).nullish(),
 });
@@ -137,7 +136,7 @@ export const BaseChatPromptSchema = z.object({
   tags: z.array(z.string()),
   labels: z.array(PromptLabelSchema),
   type: z.literal(PromptType.Chat),
-  prompt: z.array(SingleChatMessageSchema),
+  prompt: z.array(PromptChatMessageSchema),
   config: jsonSchema,
 });
 

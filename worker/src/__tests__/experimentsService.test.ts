@@ -314,6 +314,187 @@ describe("create experiment jobs", () => {
   }, 10_000);
 });
 
+describe("create experiment jobs with placeholders", () => {
+  const setupPlaceholderTest = async (promptConfig: any, datasetItemInput: any) => {
+    await pruneDatabase();
+    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+    const datasetId = randomUUID();
+    const runId = randomUUID();
+    const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
+
+    // Create prompt
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        projectId,
+        name: promptConfig.name,
+        prompt: promptConfig.prompt,
+        type: "chat",
+        version: 1,
+        createdBy: "test-user",
+      },
+    });
+
+    // Create dataset
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        projectId,
+        name: "Test Dataset",
+      },
+    });
+
+    // Create dataset run with metadata
+    await kyselyPrisma.$kysely
+      .insertInto("dataset_runs")
+      .values({
+        id: runId,
+        name: "Test Run",
+        project_id: projectId,
+        dataset_id: datasetId,
+        metadata: {
+          prompt_id: promptId,
+          provider: "openai",
+          model: "gpt-3.5-turbo",
+          model_params: { temperature: 0 },
+        },
+      })
+      .execute();
+
+    // Create dataset item
+    await prisma.datasetItem.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        datasetId,
+        input: datasetItemInput,
+      },
+    });
+
+    // Create API key
+    await prisma.llmApiKeys.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "test-key",
+        secretKey: encrypt("test-key"),
+      },
+    });
+
+    return { projectId, datasetId, runId };
+  };
+
+  test("creates experiment job with multiple placeholders containing variables", async () => {
+    const { projectId, datasetId, runId } = await setupPlaceholderTest(
+      {
+        name: "Test Multiple Placeholders",
+        prompt: [
+          { role: "system", content: "You are a helpful assistant." },
+          { type: "placeholder", name: "conversation_history" },
+          { type: "placeholder", name: "user_context" },
+          { role: "user", content: "Please help me." }
+        ]
+      },
+      {
+        conversation_history: [
+          { role: "user", content: "Hello {{name}}!" },
+          { role: "assistant", content: "Hi there!" }
+        ],
+        user_context: [
+          { role: "system", content: "User is a {{role}}" }
+        ],
+        name: "John",
+        role: "developer"
+      }
+    );
+
+    const payload = {
+      projectId,
+      datasetId,
+      runId,
+    };
+
+    await createExperimentJob({ event: payload });
+
+    const runItems = await kyselyPrisma.$kysely
+      .selectFrom("dataset_run_items")
+      .selectAll()
+      .where("project_id", "=", projectId)
+      .execute();
+
+    expect(runItems.length).toBe(1);
+    expect(runItems[0].project_id).toBe(projectId);
+    expect(runItems[0].dataset_run_id).toBe(runId);
+    expect(runItems[0].trace_id).toBeDefined();
+  }, 10_000);
+
+  test("handles empty placeholder arrays", async () => {
+    const { projectId, datasetId, runId } = await setupPlaceholderTest(
+      {
+        name: "Test Empty Placeholder",
+        prompt: [
+          { role: "system", content: "You are a helpful assistant." },
+          { type: "placeholder", name: "empty_history" },
+          { role: "user", content: "Start conversation." }
+        ]
+      },
+      { empty_history: [] }
+    );
+
+    const payload = {
+      projectId,
+      datasetId,
+      runId,
+    };
+
+    await createExperimentJob({ event: payload });
+
+    const runItems = await kyselyPrisma.$kysely
+      .selectFrom("dataset_run_items")
+      .selectAll()
+      .where("project_id", "=", projectId)
+      .execute();
+
+    expect(runItems.length).toBe(1);
+    expect(runItems[0].project_id).toBe(projectId);
+    expect(runItems[0].dataset_run_id).toBe(runId);
+    expect(runItems[0].trace_id).toBeDefined();
+  }, 10_000);
+
+  test("fails when placeholder has invalid message format", async () => {
+    const { projectId, datasetId, runId } = await setupPlaceholderTest(
+      {
+        name: "Test Invalid Placeholder",
+        prompt: [
+          { role: "system", content: "You are a helpful assistant." },
+          { type: "placeholder", name: "invalid_messages" },
+          { role: "user", content: "Help me." }
+        ]
+      },
+      { invalid_messages: "this should be an array or object" }
+    );
+
+    const payload = {
+      projectId,
+      datasetId,
+      runId,
+    };
+
+    await createExperimentJob({ event: payload });
+
+    // Should not create run items for invalid placeholder format
+    const runItems = await kyselyPrisma.$kysely
+      .selectFrom("dataset_run_items")
+      .selectAll()
+      .where("project_id", "=", projectId)
+      .execute();
+
+    expect(runItems.length).toBe(0);
+  }, 10_000);
+});
+
 describe("create experiment job calls with langfuse server side tracing", async () => {
   await pruneDatabase();
   const mockEvent = {

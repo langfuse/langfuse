@@ -3,30 +3,36 @@ import {
   ChatMessageRole,
   LLMApiKeySchema,
   logger,
-  PromptContent,
+  type PromptContent,
   ExperimentMetadataSchema,
   PromptContentSchema,
   DatasetRunItemUpsertQueue,
   ChatMessageType,
-  ChatMessage,
+  type ChatMessage,
   PromptService,
   PROMPT_EXPERIMENT_ENVIRONMENT,
   TraceParams,
+  compileChatMessages,
+  extractPlaceholderNames,
+  type MessagePlaceholderValues,
+  type PromptMessage,
 } from "@langfuse/shared/src/server";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
+import { type ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
 import {
+  datasetItemMatchesVariable,
+  extractVariables,
   InvalidRequestError,
   LangfuseNotFoundError,
-  Prisma,
-  extractVariables,
-  datasetItemMatchesVariable,
+  type Prisma,
+  PromptType,
+  QUEUE_ERROR_MESSAGES,
   stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 import { compileHandlebarString } from "../../features/utilities";
 import { DatasetStatus } from "../../../../packages/shared/dist/prisma/generated/types";
@@ -43,11 +49,14 @@ const replaceVariablesInPrompt = (
   prompt: PromptContent,
   itemInput: Record<string, any>,
   variables: string[],
+  placeholderNames: string[] = [],
 ): ChatMessage[] => {
   const processContent = (content: string) => {
-    // Extract only relevant variables from itemInput
+    // Extract only Handlebars variables from itemInput (exclude message placeholders)
     const filteredContext = Object.fromEntries(
-      Object.entries(itemInput).filter(([key]) => variables.includes(key)),
+      Object.entries(itemInput).filter(
+        ([key]) => variables.includes(key) && !placeholderNames.includes(key),
+      ),
     );
 
     // Apply Handlebars ONLY if the content contains `{{variable}}` pattern
@@ -66,13 +75,65 @@ const replaceVariablesInPrompt = (
         type: ChatMessageType.System as const,
       },
     ];
-  } else {
-    return prompt.map((message) => ({
-      ...message,
-      content: processContent(message.content),
+  }
+
+  const placeholderValues: MessagePlaceholderValues = {};
+  // itemInput to placeholderValues
+  for (const placeholderName of placeholderNames) {
+    if (!(placeholderName in itemInput)) {
+      // TODO: should we throw?
+      throw new Error(`Missing placeholder value for '${placeholderName}'`);
+    }
+    const value = itemInput[placeholderName];
+
+    // for stringified arrays (e.g. from dataset processing)
+    let actualValue = value;
+    if (typeof value === "string") {
+      try {
+        actualValue = JSON.parse(value);
+      } catch (_e) {
+        throw new Error(
+          `Invalid placeholder value for '${placeholderName}': unable to parse JSON`,
+        );
+      }
+    }
+
+    if (!Array.isArray(actualValue)) {
+      throw new Error(
+        `Placeholder '${placeholderName}' must be an array of messages`,
+      );
+    }
+
+    const validMessages = actualValue.every(
+      (msg) =>
+        typeof msg === "object" &&
+        msg !== null &&
+        "role" in msg &&
+        "content" in msg,
+    );
+    if (!validMessages) {
+      throw new Error(
+        `Invalid placeholder value for '${placeholderName}': messages must have 'role' and 'content' properties`,
+      );
+    }
+
+    placeholderValues[placeholderName] = actualValue.map((msg) => ({
+      ...msg,
       type: ChatMessageType.PublicAPICreated as const,
     }));
   }
+
+  const compiledMessages = compileChatMessages(
+    prompt as PromptMessage[],
+    placeholderValues,
+    {},
+  );
+
+  return compiledMessages.map((message) => ({
+    ...message,
+    content: processContent(message.content),
+    type: ChatMessageType.PublicAPICreated as const,
+  }));
 };
 
 const validateDatasetItem = (
@@ -176,13 +237,13 @@ export const createExperimentJob = async ({
   });
   if (!apiKey) {
     throw new LangfuseNotFoundError(
-      `API key for provider ${provider} not found`,
+      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found`,
     );
   }
   const validatedApiKey = LLMApiKeySchema.safeParse(apiKey);
   if (!validatedApiKey.success) {
     throw new InvalidRequestError(
-      `API key for provider ${provider} not found.`,
+      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found.`,
     );
   }
 
@@ -200,25 +261,32 @@ export const createExperimentJob = async ({
 
   // extract variables from prompt
   const extractedVariables = extractVariables(
-    prompt?.type === "text"
+    prompt?.type === PromptType.Text
       ? (prompt.prompt?.toString() ?? "")
       : JSON.stringify(prompt.prompt),
   );
 
+  // also extract placeholder names if prompt is a chat prompt
+  const placeholderNames =
+    prompt?.type === PromptType.Chat && Array.isArray(validatedPrompt.data)
+      ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
+      : [];
+  const allVariables = [...extractedVariables, ...placeholderNames];
+
   // validate dataset items against prompt configuration
   const validatedDatasetItems = datasetItems
-    .filter(({ input }) => validateDatasetItem(input, extractedVariables))
+    .filter(({ input }) => validateDatasetItem(input, allVariables))
     .map((datasetItem) => ({
       ...datasetItem,
       input: parseDatasetItemInput(
         datasetItem.input as Prisma.JsonObject, // this is safe because we already filtered for valid input
-        extractedVariables,
+        allVariables,
       ),
     }));
 
   if (!validatedDatasetItems.length) {
     throw new InvalidRequestError(
-      `No Dataset ${datasetId} item input matches expected prompt variable format`,
+      `No Dataset ${datasetId} item input matches expected prompt variables or placeholders format`,
     );
   }
 
@@ -248,7 +316,8 @@ export const createExperimentJob = async ({
       messages = replaceVariablesInPrompt(
         validatedPrompt.data,
         datasetItem.input, // validated format
-        extractedVariables,
+        allVariables,
+        placeholderNames,
       );
     } catch (error) {
       // skip this dataset item if there is an error replacing variables
