@@ -212,7 +212,7 @@ const InternalEnvironmentName = z
   .regex(/^[a-z0-9-_]+$/, INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
   .default("default");
 
-/** @deprecated Use createIngestionEventSchema() instead */
+/** @deprecated Use PublicEnvironmentName or InternalEnvironmentName instead */
 export const EnvironmentName = PublicEnvironmentName;
 
 // Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
@@ -293,6 +293,7 @@ const createAllIngestionSchemas = (environmentSchema: z.ZodSchema) => {
     promptName: z.string().nullish(),
     promptVersion: z.number().int().nullish(),
   }).refine((value) => {
+    // ensure that either promptName and promptVersion are set, or none
     if (!value.promptName && !value.promptVersion) return true;
     if (value.promptName && value.promptVersion) return true;
     return false;
