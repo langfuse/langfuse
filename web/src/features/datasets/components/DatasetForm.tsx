@@ -57,7 +57,14 @@ const formSchema = z.object({
     .min(1, { message: "Input is required" })
     .refine((name) => name.trim().length > 0, {
       message: "Input should not be only whitespace",
-    }),
+    })
+    .refine(
+      (name) => /^[a-zA-Z0-9_-]+$/.test(name.trim()),
+      {
+        message:
+          "Name must be alphanumeric and can only contain letters, numbers, underscores, or hyphens.",
+      },
+    ),
   description: z.string(),
   metadata: z.string().refine(
     (value) => {
