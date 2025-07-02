@@ -41,7 +41,8 @@ import {
   DateTimeFilter as DorisDateTimeFilter,
 } from "../queries/doris-sql/doris-filter";
 import { orderByToDorisSQL } from "../queries/doris-sql/orderby-factory";
-import { dorisSearchCondition } from "../queries/doris-sql/search";
+import { dorisSearchCondition, DorisSearchContext } from "../queries/doris-sql/search";
+import { logger } from "../logger";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -99,11 +100,18 @@ export type TracesMetricsUiReturnType = {
 export const convertToUiTableRows = (
   row: TracesTableReturnType,
 ): TracesTableUiReturnType => {
+  // Handle timestamp format differences between ClickHouse (string) and Doris (Date object)
+  // Use type assertion since TypeScript doesn't know the runtime type can be Date | string
+  const timestampValue = row.timestamp as unknown;
+  const timestamp = timestampValue instanceof Date 
+    ? timestampValue as Date
+    : parseClickhouseUTCDateTimeFormat(row.timestamp as string);
+
   return {
     id: row.id,
     projectId: row.project_id,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-    tags: row.tags,
+    timestamp: timestamp,
+    tags: row.tags ?? [], // Ensure tags is always an array, never null
     bookmarked: row.bookmarked,
     name: row.name ?? null,
     release: row.release ?? null,
@@ -114,8 +122,6 @@ export const convertToUiTableRows = (
     public: row.public,
   };
 };
-
-
 
 export type TracesTableMetricsClickhouseReturnType = {
   id: string;
@@ -146,18 +152,18 @@ export const convertToUITableMetrics = (
     promptTokens: BigInt(usageDetails.input ?? 0),
     completionTokens: BigInt(usageDetails.output ?? 0),
     totalTokens: BigInt(usageDetails.total ?? 0),
-    usageDetails: Object.fromEntries(
+    usageDetails: row.usage_details ? Object.fromEntries(
       Object.entries(row.usage_details).map(([key, value]) => [
         key,
         Number(value),
       ]),
-    ),
-    costDetails: Object.fromEntries(
+    ) : {},
+    costDetails: row.cost_details ? Object.fromEntries(
       Object.entries(row.cost_details).map(([key, value]) => [
         key,
         Number(value),
       ]),
-    ),
+    ) : {},
     observationCount: BigInt(row.observation_count ?? 0),
     calculatedTotalCost: row.cost_details?.total
       ? new Decimal(row.cost_details.total)
@@ -259,7 +265,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         os.observation_count as observation_count,
         s.scores_avg as scores_avg,
         s.score_categories as score_categories,
-        t.public as public`;
+        t.\`public\` as \`public\``;
       break;
     case "rows":
       sqlSelect = `
@@ -269,12 +275,12 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         t.tags as tags,
         t.bookmarked as bookmarked,
         t.name as name,
-        t.release as release,
+        t.\`release\` as \`release\`,
         t.version as version,
         t.user_id as user_id,
         t.environment as environment,
         t.session_id as session_id,
-        t.public as public`;
+        t.\`public\` as \`public\``;
       break;
     case "identifiers":
       sqlSelect = `
@@ -348,7 +354,9 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     const scoresFilterRes = scoresFilter.apply();
     const observationFilterRes = observationsFilter.apply();
 
-    const search = dorisSearchCondition(searchQuery, searchType);
+    const search = dorisSearchCondition(searchQuery, searchType, {
+      type: "traces",
+    });
 
     const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
     const orderByCols = [
@@ -407,8 +415,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
             SUM(total_cost) AS total_cost,
             -- Doris 中计算毫秒差值 - 使用 CASE WHEN 替代 least/greatest
             milliseconds_diff(
-              CASE WHEN min(start_time) < min(end_time) THEN min(start_time) ELSE min(end_time) END,
-              CASE WHEN max(start_time) > max(end_time) THEN max(start_time) ELSE max(end_time) END
+            CASE WHEN max(start_time) > max(end_time) THEN max(start_time) ELSE max(end_time) END,
+            CASE WHEN min(start_time) < min(end_time) THEN min(start_time) ELSE min(end_time) END
             ) as latency_milliseconds,
             -- 条件计数
             sum(CASE WHEN level = 'ERROR' THEN 1 ELSE 0 END) as error_count,
@@ -430,7 +438,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
               start_time,
               end_time,
               total_cost
-            FROM observations
+            FROM observations o
             WHERE project_id = {projectId: String}
             ${timeStampFilter ? `AND start_time >= DATE_SUB({traceTimestamp: DateTime}, INTERVAL 2 DAY)` : ""}
             ${observationFilterRes ? `AND ${observationFilterRes.query}` : ""}
@@ -536,9 +544,11 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     `;
 
     // Define Doris-specific return type for metrics
-    type DorisMetricsReturnType = Omit<TracesTableMetricsClickhouseReturnType, 'scores_avg' | 'score_categories'> & {
-      scores_avg: Array<string>; // Doris format: ['name:value', ...]
-      score_categories: Array<string>; // Same format as ClickHouse
+    type DorisMetricsReturnType = Omit<TracesTableMetricsClickhouseReturnType, 'scores_avg' | 'score_categories' | 'usage_details' | 'cost_details'> & {
+      scores_avg: string | Array<string>; // Doris format: JSON string or array
+      score_categories: string | Array<string>; // JSON string or array
+      usage_details: string | Record<string, number> | null; // Doris returns string, ClickHouse returns object
+      cost_details: string | Record<string, number> | null; // Doris returns string, ClickHouse returns object
     };
 
     const res = await queryDoris<
@@ -568,28 +578,131 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     // Post-process Doris results to match ClickHouse format
     if (select === "metrics") {
       const processedRes = (res as unknown as DorisMetricsReturnType[]).map(row => {
+        // Helper function to parse details fields (usage_details, cost_details)
+        const parseDetails = (details: string | Record<string, number> | null): Record<string, number> => {
+          if (!details) {
+            return {};
+          }
+          
+          // If already an object (ClickHouse format), return as is
+          if (typeof details === 'object' && !Array.isArray(details)) {
+            return details;
+          }
+          
+          // If it's a string (Doris format), parse it
+          if (typeof details === 'string') {
+            const trimmed = details.trim();
+            
+            // Handle common null/empty cases
+            if (!trimmed || trimmed === 'null' || trimmed === 'NULL') {
+              return {};
+            }
+            
+            // Handle empty object/array cases
+            if (trimmed === '{}' || trimmed === '[]') {
+              return {};
+            }
+            
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+                // Convert values to numbers
+                const result: Record<string, number> = {};
+                for (const [key, value] of Object.entries(parsed)) {
+                  result[key] = Number(value) || 0;
+                }
+                return result;
+              }
+              return {};
+            } catch (error) {
+              logger.warn('Failed to parse details JSON:', { error, rawValue: trimmed.substring(0, 100) });
+              return {};
+            }
+          }
+          
+          return {};
+        };
+
         // Convert Doris string array format to ClickHouse object array format
         const parsedScoresAvg: Array<{ name: string; avg_value: number }> = [];
         
-        if (Array.isArray(row.scores_avg)) {
-          row.scores_avg
-            .filter(s => s && s.includes(':'))
-            .forEach(scoreStr => {
-              const [name, value] = scoreStr.split(':');
-              if (name && value) {
-                parsedScoresAvg.push({
-                  name: name,
-                  avg_value: parseFloat(value) || 0
-                });
-              }
-            });
+        // Handle scores_avg - could be string or array
+        let scoresAvgArray: string[] = [];
+        if (typeof row.scores_avg === 'string') {
+          try {
+            scoresAvgArray = JSON.parse(row.scores_avg);
+          } catch {
+            scoresAvgArray = [];
+          }
+        } else if (Array.isArray(row.scores_avg)) {
+          scoresAvgArray = row.scores_avg;
+        }
+        
+        scoresAvgArray
+          .filter(s => s && s.includes(':'))
+          .forEach(scoreStr => {
+            const [name, value] = scoreStr.split(':');
+            if (name && value) {
+              parsedScoresAvg.push({
+                name: name,
+                avg_value: parseFloat(value) || 0
+              });
+            }
+          });
+
+        // Handle score_categories - could be string or array
+        let scoreCategoriesArray: string[] = [];
+        if (typeof row.score_categories === 'string') {
+          try {
+            scoreCategoriesArray = JSON.parse(row.score_categories);
+          } catch {
+            scoreCategoriesArray = [];
+          }
+        } else if (Array.isArray(row.score_categories)) {
+          scoreCategoriesArray = row.score_categories;
         }
 
         // Return row with ClickHouse-compatible format
         return {
           ...row,
-          scores_avg: parsedScoresAvg
+          scores_avg: parsedScoresAvg,
+          score_categories: scoreCategoriesArray,
+          usage_details: parseDetails(row.usage_details),
+          cost_details: parseDetails(row.cost_details)
         } as TracesTableMetricsClickhouseReturnType;
+      });
+
+      return processedRes as Array<SelectReturnTypeMap[keyof SelectReturnTypeMap]>;
+    }
+
+    // Post-process Doris results for rows to ensure tags field is properly formatted as array
+    if (select === "rows") {
+      const processedRes = (res as unknown as TracesTableReturnType[]).map(row => {
+        // Ensure tags is always an array
+        let processedTags: string[] = [];
+        
+        if (Array.isArray(row.tags)) {
+          processedTags = row.tags;
+        } else if (typeof row.tags === 'string') {
+          try {
+            // Try to parse as JSON array
+            const parsed = JSON.parse(row.tags);
+            processedTags = Array.isArray(parsed) ? parsed : [row.tags];
+          } catch {
+            // If parsing fails, treat as single tag
+            processedTags = row.tags ? [row.tags] : [];
+          }
+        } else if (row.tags == null) {
+          processedTags = [];
+        } else {
+          // Convert any other type to empty array
+          processedTags = [];
+        }
+        
+        return {
+          ...row,
+          tags: processedTags
+        } as TracesTableReturnType;
       });
 
       return processedRes as Array<SelectReturnTypeMap[keyof SelectReturnTypeMap]>;
@@ -920,6 +1033,10 @@ export const getTraceIdentifiers = async (props: {
   return identifiers.map((row) => ({
     id: row.id,
     projectId: row.projectId,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    // Handle timestamp format differences between ClickHouse (string) and Doris (Date object)
+    // Use type assertion since TypeScript doesn't know the runtime type can be Date | string
+    timestamp: (row.timestamp as unknown) instanceof Date 
+      ? (row.timestamp as unknown as Date)
+      : parseClickhouseUTCDateTimeFormat(row.timestamp),
   }));
 };

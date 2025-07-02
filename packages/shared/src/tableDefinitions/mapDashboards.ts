@@ -23,7 +23,7 @@ export const dashboardColumnDefinitions: UiColumnMappings = [
   },
   {
     clickhouseTableName: "scores",
-    clickhouseSelect: "name",
+    clickhouseSelect: "s.name",
     uiTableId: "scoreName",
     uiTableName: "Score Name",
   },
@@ -35,19 +35,19 @@ export const dashboardColumnDefinitions: UiColumnMappings = [
   },
   {
     clickhouseTableName: "scores",
-    clickhouseSelect: "source",
+    clickhouseSelect: "s.source",
     uiTableId: "scoreSource",
     uiTableName: "Score Source",
   },
   {
     clickhouseTableName: "scores",
-    clickhouseSelect: "data_type",
+    clickhouseSelect: "s.data_type",
     uiTableId: "scoreDataType",
     uiTableName: "Scores Data Type",
   },
   {
     clickhouseTableName: "scores",
-    clickhouseSelect: "value",
+    clickhouseSelect: "s.`value`",
     uiTableId: "value",
     uiTableName: "value",
   },
@@ -95,7 +95,7 @@ export const dashboardColumnDefinitions: UiColumnMappings = [
   },
   {
     clickhouseTableName: "traces",
-    clickhouseSelect: "environment",
+    clickhouseSelect: "t.environment",
     uiTableId: "environment",
     uiTableName: "Environment",
   },

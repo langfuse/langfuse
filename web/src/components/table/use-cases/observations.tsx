@@ -908,6 +908,27 @@ export default function ObservationsTable({
   const rows: ObservationsTableRow[] = useMemo(() => {
     return generations.isSuccess
       ? generations.data.generations.map((generation) => {
+          // Ensure traceTags is always an array, similar to traces solution
+          const processedTraceTags = (() => {
+            if (Array.isArray(generation.traceTags)) {
+              return generation.traceTags;
+            } else if (typeof generation.traceTags === 'string') {
+              try {
+                // Try to parse as JSON array
+                const parsed = JSON.parse(generation.traceTags);
+                return Array.isArray(parsed) ? parsed : [generation.traceTags];
+              } catch {
+                // If parsing fails, treat as single tag
+                return generation.traceTags ? [generation.traceTags] : [];
+              }
+            } else if (generation.traceTags == null) {
+              return [];
+            } else {
+              // Convert any other type to empty array
+              return [];
+            }
+          })();
+
           return {
             id: generation.id,
             traceId: generation.traceId ?? undefined,
@@ -940,7 +961,7 @@ export default function ObservationsTable({
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,
             promptVersion: generation.promptVersion?.toString() ?? undefined,
-            traceTags: generation.traceTags ?? undefined,
+            traceTags: processedTraceTags,
             timestamp: generation.traceTimestamp ?? undefined,
             usageDetails: generation.usageDetails ?? {},
             costDetails: generation.costDetails ?? {},

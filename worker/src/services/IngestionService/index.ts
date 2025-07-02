@@ -166,7 +166,7 @@ export class IngestionService {
         table: TableName.Scores,
         additionalFilters: {
           whereCondition: timestamp
-            ? " AND timestamp >= ? "
+            ? " AND timestamp >= {timestamp: DateTime64(3)} "
             : "",
           params: { timestamp },
         },
@@ -265,7 +265,7 @@ export class IngestionService {
       table: TableName.Traces,
       additionalFilters: {
         whereCondition: timestamp
-          ? " AND timestamp >= ? "
+          ? " AND timestamp >= {timestamp: DateTime64(3)} "
           : "",
         params: { timestamp },
       },
@@ -389,7 +389,7 @@ export class IngestionService {
         entityId,
         table: TableName.Observations,
         additionalFilters: {
-          whereCondition: `AND type = ? ${startTime ? "AND start_time >= ? " : ""}`,
+          whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime64(3)} " : ""}`,
           params: {
             type,
             startTime,
@@ -1043,9 +1043,9 @@ export class IngestionService {
         let dorisQuery = `
           SELECT *
           FROM ${table}
-          WHERE project_id = ?
-          AND id = ?
-          ${additionalFilters.whereCondition.replace(/\{(\w+):\s*[^}]+\}/g, '?')}
+          WHERE project_id = {projectId: String}
+          AND id = {entityId: String}
+          ${additionalFilters.whereCondition}
           ORDER BY event_ts DESC
           LIMIT 1
         `;

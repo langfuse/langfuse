@@ -41,7 +41,7 @@ import {
   StringFilter as DorisStringFilter,
   DateTimeFilter as DorisDateTimeFilter,
 } from "../queries/doris-sql/doris-filter";
-import { dorisSearchCondition } from "../queries/doris-sql/search";
+import { dorisSearchCondition, DorisSearchContext } from "../queries/doris-sql/search";
 
 
 /**
@@ -881,7 +881,9 @@ export const getTracesGroupedByUsers = async (
     );
 
     const tracesFilterRes = tracesFilter.apply();
-    const search = dorisSearchCondition(searchQuery);
+    const search = dorisSearchCondition(searchQuery, undefined, {
+      type: "traces",
+    });
 
     const query = `
         select 
@@ -1363,7 +1365,9 @@ export const getTotalUserCount = async (
     );
 
     const tracesFilterRes = tracesFilter.apply();
-    const search = dorisSearchCondition(searchQuery);
+    const search = dorisSearchCondition(searchQuery, undefined, {
+      type: "traces",
+    });
 
     const query = `
       SELECT COUNT(DISTINCT t.user_id) AS totalCount
@@ -1478,7 +1482,7 @@ export const getUserMetrics = async (
                       observations o
                   WHERE
                       o.project_id = {projectId: String }
-                      ${timestampFilter ? `AND o.start_time >= DATE_SUB({traceTimestamp: DateTime}, INTERVAL 2 DAY)` : ""}
+                      ${timestampFilter ? `AND o.start_time >= DATE_SUB({traceTimestamp: DateTime}, ${OBSERVATIONS_TO_TRACE_INTERVAL})` : ""}
                       AND o.trace_id in (
                           SELECT
                               distinct id
@@ -1827,7 +1831,7 @@ export const getTracesForPostHog = async function* (
                ) / 1000 as latency_milliseconds
         FROM observations o
         WHERE o.project_id = {projectId: String}
-        AND o.start_time >= DATE_SUB({minTimestamp: DateTime}, INTERVAL 2 DAY)
+        AND o.start_time >= DATE_SUB({minTimestamp: DateTime}, ${TRACE_TO_OBSERVATIONS_INTERVAL})
         GROUP BY o.project_id, o.trace_id
       )
 
