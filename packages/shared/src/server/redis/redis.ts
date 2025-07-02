@@ -167,9 +167,9 @@ const createRedisClient = () => {
 
 declare global {
   // eslint-disable-next-line no-var
-  var redis: undefined | ReturnType<typeof createRedisClient>;
+  var redis: undefined | ReturnType<typeof createRedisClient>; // eslint-disable-line no-unused-vars
 }
 
-export const redis = globalThis.redis ?? createRedisClient();
+export const redis = globalThis.redis ?? createRedisClient(); // eslint-disable-line no-undef
 
-if (env.NODE_ENV !== "production") globalThis.redis = redis;
+if (env.NODE_ENV !== "production") globalThis.redis = redis; // eslint-disable-line no-undef

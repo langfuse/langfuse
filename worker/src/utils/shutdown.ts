@@ -9,7 +9,7 @@ import { WorkerManager } from "../queues/workerManager";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 
-export const onShutdown: NodeJS.SignalsListener = async (signal) => {
+export const onShutdown: NodeJS.SignalsListener = async (signal) => { // eslint-disable-line no-undef
   logger.info(`Received ${signal}, closing server...`);
   setSigtermReceived();
 
