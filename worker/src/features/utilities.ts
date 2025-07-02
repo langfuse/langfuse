@@ -64,31 +64,45 @@ export async function callLLM(
   model: string,
   traceParams?: Omit<TraceParams, "tokenCountDelegate">,
 ): Promise<string> {
-  const { completion, processTracedEvents } = await fetchLLMCompletion({
-    streaming: false,
-    apiKey: decrypt(llmApiKey.secretKey),
-    extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
-    baseURL: llmApiKey.baseURL || undefined,
-    messages,
-    modelParams: {
-      provider,
-      model,
-      adapter: llmApiKey.adapter,
-      ...modelParams,
-    },
-    config: llmApiKey.config,
-    traceParams: traceParams
-      ? { ...traceParams, tokenCountDelegate: tokenCount }
-      : undefined,
-    maxRetries: 1,
-    throwOnError: false,
-  });
+  try {
+    const { completion, processTracedEvents } = await fetchLLMCompletion({
+      streaming: false,
+      apiKey: decrypt(llmApiKey.secretKey),
+      extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
+      baseURL: llmApiKey.baseURL || undefined,
+      messages,
+      modelParams: {
+        provider,
+        model,
+        adapter: llmApiKey.adapter,
+        ...modelParams,
+      },
+      config: llmApiKey.config,
+      traceParams: traceParams
+        ? { ...traceParams, tokenCountDelegate: tokenCount }
+        : undefined,
+      maxRetries: 1,
+      throwOnError: false,
+    });
 
-  if (traceParams) {
-    await processTracedEvents();
+    if (traceParams) {
+      await processTracedEvents();
+    }
+
+    return completion;
+  } catch (e) {
+    if (
+      e instanceof Error &&
+      (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
+    ) {
+      throw new ApiError(e.name, 429);
+    }
+
+    throw new ApiError(
+      `Failed to call LLM: ${e}`,
+      (e as any)?.response?.status ?? (e as any)?.status,
+    );
   }
-
-  return completion;
 }
 
 export function compileHandlebarString(
