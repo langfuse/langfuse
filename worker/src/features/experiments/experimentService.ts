@@ -18,11 +18,12 @@ import {
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { type ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
 import {
+  datasetItemMatchesVariable,
+  extractVariables,
   InvalidRequestError,
   LangfuseNotFoundError,
   type Prisma,
-  extractVariables,
-  datasetItemMatchesVariable,
+  PromptType,
   stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
@@ -45,11 +46,14 @@ const replaceVariablesInPrompt = (
   prompt: PromptContent,
   itemInput: Record<string, any>,
   variables: string[],
+  placeholderNames: string[] = [],
 ): ChatMessage[] => {
   const processContent = (content: string) => {
-    // Extract only relevant variables from itemInput
+    // Extract only Handlebars variables from itemInput (exclude message placeholders)
     const filteredContext = Object.fromEntries(
-      Object.entries(itemInput).filter(([key]) => variables.includes(key)),
+      Object.entries(itemInput).filter(([key]) =>
+        variables.includes(key) && !placeholderNames.includes(key)
+      ),
     );
 
     // Apply Handlebars ONLY if the content contains `{{variable}}` pattern
@@ -70,14 +74,12 @@ const replaceVariablesInPrompt = (
     ];
   }
 
-  const placeholderNames = extractPlaceholderNames(prompt as PromptMessage[]);
   const placeholderValues: MessagePlaceholderValues = {};
   // itemInput to placeholderValues
   for (const placeholderName of placeholderNames) {
     if (!(placeholderName in itemInput)) {
-      // TODO: handle missing placeholder values
-      // throw new Error(`Missing placeholder value for '${placeholderName}'`);
-      continue;
+      // TODO: should we throw?
+      throw new Error(`Missing placeholder value for '${placeholderName}'`);
     }
     const value = itemInput[placeholderName];
 
@@ -117,8 +119,6 @@ const replaceVariablesInPrompt = (
     {}
   );
 
-  // TODO: validate correctness
-  // handlebars variable substitution to all messages
   return compiledMessages.map((message) => ({
     ...message,
     content: processContent(message.content),
@@ -251,13 +251,13 @@ export const createExperimentJob = async ({
 
   // extract variables from prompt
   const extractedVariables = extractVariables(
-    prompt?.type === "text"
+    prompt?.type === PromptType.Text
       ? (prompt.prompt?.toString() ?? "")
       : JSON.stringify(prompt.prompt),
   );
 
-  // also extract placeholder names if prompt is an array
-  const placeholderNames = prompt?.type !== "text" && Array.isArray(validatedPrompt.data)
+  // also extract placeholder names if prompt is a chat prompt
+  const placeholderNames = prompt?.type === PromptType.Chat && Array.isArray(validatedPrompt.data)
     ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
     : [];
   const allVariables = [...extractedVariables, ...placeholderNames];
@@ -275,7 +275,7 @@ export const createExperimentJob = async ({
 
   if (!validatedDatasetItems.length) {
     throw new InvalidRequestError(
-      `No Dataset ${datasetId} item input matches expected prompt variable format`,
+      `No Dataset ${datasetId} item input matches expected prompt variables or placeholders format`,
     );
   }
 
@@ -305,7 +305,8 @@ export const createExperimentJob = async ({
       messages = replaceVariablesInPrompt(
         validatedPrompt.data,
         datasetItem.input, // validated format
-        extractedVariables,
+        allVariables,
+        placeholderNames,
       );
     } catch (error) {
       // skip this dataset item if there is an error replacing variables
