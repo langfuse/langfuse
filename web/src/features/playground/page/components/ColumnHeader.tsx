@@ -1,5 +1,5 @@
 import React from "react";
-import { XIcon, SaveIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { SaveColumnPromptButton } from "./SaveColumnPromptButton";
 

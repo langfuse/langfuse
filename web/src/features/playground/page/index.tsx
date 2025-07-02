@@ -34,6 +34,7 @@ export default function PlaygroundPage() {
                 onClick={() => {
                   setMultiColumnMode(false);
                   // Remove mode from URL
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
                   const { mode, ...query } = router.query;
                   void router.replace({
                     pathname: router.pathname,

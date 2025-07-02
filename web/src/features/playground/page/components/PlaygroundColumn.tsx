@@ -1,6 +1,4 @@
-import React, { useState } from "react";
-import { XIcon } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
+import React from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -56,7 +54,15 @@ export const PlaygroundColumn: React.FC<PlaygroundColumnProps> = ({
             <ResizablePanelGroup direction="vertical" className="h-full">
               <ResizablePanel defaultSize={60} minSize={30}>
                 <div className="h-full overflow-auto p-2">
-                  <ColumnMessages />
+                  <CollapsibleSection
+                    title="Prompt"
+                    syncable
+                    synced={column.syncFlags.prompt}
+                    onSyncToggle={() => toggleColumnSync(column.id, 'prompt')}
+                    defaultOpen={true}
+                  >
+                    <ColumnMessages />
+                  </CollapsibleSection>
                 </div>
               </ResizablePanel>
               

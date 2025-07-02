@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon, PlayIcon } from "lucide-react";
 import { useMultiPlaygroundContext } from "./context/multi-playground-context";

@@ -5,7 +5,6 @@ import React, {
   useContext,
   useEffect,
   useState,
-  useReducer,
 } from "react";
 
 import { v4 as uuidv4 } from "uuid";
@@ -31,7 +30,6 @@ import {
 import {
   type PlaygroundColumnState,
   type MultiPlaygroundState,
-  type PlaygroundTool,
   type PlaygroundSchema,
   type PlaceholderMessageFillIn,
   type MultiPlaygroundCache,
@@ -150,7 +148,7 @@ export const MultiPlaygroundProvider: React.FC<PropsWithChildren> = ({
     if (multiCache?.columns) {
       // Load from multi-column cache
       return {
-        columns: multiCache.columns.map((col, index) => 
+        columns: multiCache.columns.map((col) => 
           createDefaultColumnState(
             uuidv4(),
             {
@@ -286,15 +284,16 @@ export const MultiPlaygroundProvider: React.FC<PropsWithChildren> = ({
       
       // Apply sync logic if global sync is enabled
       if (prev.globalSyncEnabled) {
-        const syncableKeys: Array<keyof PlaygroundColumnState['syncFlags']> = ['prompt', 'modelParams', 'tools', 'structuredOutput'];
+        // Define mapping from state keys to sync flag keys
+        const keyToSyncFlag: Record<string, keyof PlaygroundColumnState['syncFlags']> = {
+          'messages': 'prompt',
+          'modelParams': 'modelParams',
+          'tools': 'tools',
+          'structuredOutputSchema': 'structuredOutput',
+        };
         
         Object.entries(updates).forEach(([key, value]) => {
-          // Map update keys to sync flag keys
-          let syncKey: keyof PlaygroundColumnState['syncFlags'] | null = null;
-          if (key === 'messages') syncKey = 'prompt';
-          else if (key === 'modelParams') syncKey = 'modelParams';
-          else if (key === 'tools') syncKey = 'tools';
-          else if (key === 'structuredOutputSchema') syncKey = 'structuredOutput';
+          const syncKey = keyToSyncFlag[key];
           
           // Check if this property should be synced
           if (syncKey && updatedColumn.syncFlags[syncKey]) {
@@ -498,6 +497,16 @@ export const MultiPlaygroundProvider: React.FC<PropsWithChildren> = ({
   }, [state.columns, state.promptVariables, state.messagePlaceholders, updateColumnState, projectId, capture]);
 
   const executeAllColumns = useCallback(async () => {
+    // Validate all columns have required settings
+    const invalidColumns = state.columns.filter(
+      col => !col.modelParams.provider.value || !col.modelParams.model.value
+    );
+    
+    if (invalidColumns.length > 0) {
+      alert(`Please select a model for all columns before executing.`);
+      return;
+    }
+    
     // Mark all columns as streaming
     state.columns.forEach(col => {
       updateColumnState(col.id, { isStreaming: true });
@@ -517,6 +526,7 @@ export const MultiPlaygroundProvider: React.FC<PropsWithChildren> = ({
     const multiCache: MultiPlaygroundCache = {
       columns: state.columns.map(col => ({
         messages: col.messages.map(m => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { id, ...messageWithoutId } = m;
           return messageWithoutId;
         }),

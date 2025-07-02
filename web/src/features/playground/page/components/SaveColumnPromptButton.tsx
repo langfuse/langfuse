@@ -6,7 +6,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { type ChatMessage, ChatMessageRole } from "@langfuse/shared";
+import { type ChatMessage } from "@langfuse/shared";
 
 interface SaveColumnPromptButtonProps {
   columnId: string;
@@ -44,24 +44,10 @@ export const SaveColumnPromptButton: React.FC<SaveColumnPromptButtonProps> = ({
 
     // Convert messages to the format expected by the API
     const promptMessages = column.messages.map(msg => {
-      const baseMessage: ChatMessage = {
-        role: msg.role,
-        content: msg.content,
-      };
-      
-      if ('name' in msg && msg.name) {
-        baseMessage.name = msg.name;
-      }
-      
-      if ('toolCalls' in msg && msg.toolCalls) {
-        baseMessage.toolCalls = msg.toolCalls;
-      }
-      
-      if ('toolCallId' in msg && msg.toolCallId) {
-        baseMessage.toolCallId = msg.toolCallId;
-      }
-      
-      return baseMessage;
+      // Remove the id field and keep the rest
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, ...messageWithoutId } = msg;
+      return messageWithoutId as ChatMessage;
     });
 
     createPromptMutation.mutate({

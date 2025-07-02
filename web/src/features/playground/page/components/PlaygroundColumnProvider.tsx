@@ -1,7 +1,6 @@
-import React, { useMemo, useCallback, createContext, useContext } from "react";
+import React, { useMemo, createContext, useContext } from "react";
 import {
   type PlaygroundColumnState,
-  type PlaceholderMessageFillIn,
   type PlaygroundTool,
   type PlaygroundSchema,
 } from "@/src/features/playground/page/types";
