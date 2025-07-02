@@ -118,8 +118,10 @@ export const DatasetForm = (props: DatasetFormProps) => {
     },
   );
 
-  const allDatasetNames = useMemo(() => {
-    return allDatasets.data?.map((dataset) => ({ value: dataset.name })) ?? [];
+  const allDatasetNames = useMemo<{ value: string }[]>(() => {
+    return (
+      allDatasets.data?.map((dataset: { name: string }) => ({ value: dataset.name })) ?? []
+    );
   }, [allDatasets.data]);
 
   useUniqueNameValidation({
