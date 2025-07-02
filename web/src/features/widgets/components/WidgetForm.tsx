@@ -991,9 +991,42 @@ export function WidgetForm({
                   value={selectedView}
                   onValueChange={(value) => {
                     if (value !== selectedView) {
+                      const newView = value as z.infer<typeof views>;
+                      const newViewDeclaration = viewDeclarations[newView];
+
+                      // Reset regular chart fields
                       setSelectedMeasure("count");
                       setSelectedAggregation("count");
                       setSelectedDimension("none");
+
+                      // Handle pivot table metrics - filter out invalid measures for the new view
+                      if (selectedChartType === "PIVOT_TABLE") {
+                        const validMetrics = selectedMetrics.filter(
+                          (metric) =>
+                            metric.measure in newViewDeclaration.measures,
+                        );
+
+                        // Ensure we have at least one valid metric (count is always available)
+                        if (validMetrics.length === 0) {
+                          validMetrics.push({
+                            id: "count_count",
+                            measure: "count",
+                            aggregation: "count" as z.infer<
+                              typeof metricAggregations
+                            >,
+                            label: "Count Count",
+                          });
+                        }
+
+                        setSelectedMetrics(validMetrics);
+
+                        // Handle pivot table dimensions - filter out invalid dimensions for the new view
+                        const validDimensions = pivotDimensions.filter(
+                          (dimension) =>
+                            dimension in newViewDeclaration.dimensions,
+                        );
+                        setPivotDimensions(validDimensions);
+                      }
                     }
                     setSelectedView(value as z.infer<typeof views>);
                   }}
@@ -1109,39 +1142,38 @@ export function WidgetForm({
                                 </Select>
                               </div>
 
-                              {currentMeasure &&
-                                currentMeasure !== "count" && (
-                                  <div className="flex-1">
-                                    <Select
-                                      value={currentAggregation}
-                                      onValueChange={(value) =>
-                                        updatePivotMetric(
-                                          index,
-                                          currentMeasure,
-                                          value as z.infer<
-                                            typeof metricAggregations
-                                          >,
-                                        )
-                                      }
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Select aggregation" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {aggregationsForIndex.map(
-                                          (aggregation) => (
-                                            <SelectItem
-                                              key={aggregation}
-                                              value={aggregation}
-                                            >
-                                              {startCase(aggregation)}
-                                            </SelectItem>
-                                          ),
-                                        )}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                )}
+                              {currentMeasure && currentMeasure !== "count" && (
+                                <div className="flex-1">
+                                  <Select
+                                    value={currentAggregation}
+                                    onValueChange={(value) =>
+                                      updatePivotMetric(
+                                        index,
+                                        currentMeasure,
+                                        value as z.infer<
+                                          typeof metricAggregations
+                                        >,
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select aggregation" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {aggregationsForIndex.map(
+                                        (aggregation) => (
+                                          <SelectItem
+                                            key={aggregation}
+                                            value={aggregation}
+                                          >
+                                            {startCase(aggregation)}
+                                          </SelectItem>
+                                        ),
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
