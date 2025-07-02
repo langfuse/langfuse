@@ -507,22 +507,12 @@ export const MultiPlaygroundProvider: React.FC<PropsWithChildren> = ({ children 
   }, [updateColumnState]);
 
   const updateColumnModelParams = useCallback((columnId: string, params: Partial<UIModelParams>) => {
-    setColumns(prev => prev.map(column => {
-      if (column.id !== columnId) return column;
-      const updatedParams = { ...column.modelParams, ...params };
-      const updated = { ...column, modelParams: updatedParams };
-      
-      // Propagate if synced
-      if (syncSettings.modelParams) {
-        setColumns(prevColumns => prevColumns.map(col => 
-          col.id === columnId ? updated : { ...col, modelParams: updatedParams }
-        ));
-        return updated;
-      }
-      
-      return updated;
-    }));
-  }, [syncSettings.modelParams]);
+    const sourceColumn = columns.find(c => c.id === columnId);
+    if (!sourceColumn) return;
+    
+    const updatedParams = { ...sourceColumn.modelParams, ...params };
+    updateColumnState(columnId, { modelParams: updatedParams });
+  }, [columns, updateColumnState]);
 
   const updateColumnTools = useCallback((columnId: string, tools: PlaygroundTool[]) => {
     updateColumnState(columnId, { tools });
