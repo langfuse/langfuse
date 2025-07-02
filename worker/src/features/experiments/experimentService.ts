@@ -46,10 +46,10 @@ const replaceVariablesInPrompt = (
   prompt: PromptContent,
   itemInput: Record<string, any>,
   variables: string[],
+  placeholderNames: string[] = [],
 ): ChatMessage[] => {
   const processContent = (content: string) => {
     // Extract only Handlebars variables from itemInput (exclude message placeholders)
-    const placeholderNames = extractPlaceholderNames(prompt as PromptMessage[]);
     const filteredContext = Object.fromEntries(
       Object.entries(itemInput).filter(([key]) =>
         variables.includes(key) && !placeholderNames.includes(key)
@@ -74,7 +74,6 @@ const replaceVariablesInPrompt = (
     ];
   }
 
-  const placeholderNames = extractPlaceholderNames(prompt as PromptMessage[]);
   const placeholderValues: MessagePlaceholderValues = {};
   // itemInput to placeholderValues
   for (const placeholderName of placeholderNames) {
@@ -307,6 +306,7 @@ export const createExperimentJob = async ({
         validatedPrompt.data,
         datasetItem.input, // validated format
         allVariables,
+        placeholderNames,
       );
     } catch (error) {
       // skip this dataset item if there is an error replacing variables
