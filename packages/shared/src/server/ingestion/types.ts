@@ -193,178 +193,309 @@ export const UsageDetails = z
   ])
   .nullish();
 
-const ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
-  "Only alphanumeric lower case characters, hyphens, and underscores are allowed, and it must not start with 'langfuse'";
+const INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
+  "Only alphanumeric lower case characters, hyphens, and underscores are allowed";
 
-export const EnvironmentName = z
+const ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
+  INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE +
+  " and it must not start with 'langfuse'";
+
+const PublicEnvironmentName = z
   .string()
   .max(40, "Maximum length is 40 characters")
   .regex(/^(?!langfuse)[a-z0-9-_]+$/, ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
   .default("default");
 
+const InternalEnvironmentName = z
+  .string()
+  .max(40, "Maximum length is 40 characters")
+  .regex(/^[a-z0-9-_]+$/, INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
+  .default("default");
+
+/** @deprecated Use createIngestionEventSchema() instead */
+export const EnvironmentName = PublicEnvironmentName;
+
 // Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
 // With this setup parsing should be more lightweight and doesn't block other requests.
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
-export const TraceBody = z.object({
-  id: idSchema.nullish(),
-  timestamp: stringDateTime,
-  name: z.string().max(1000).nullish(),
-  externalId: z.string().nullish(),
-  input: z.any().nullish(),
-  output: z.any().nullish(),
-  sessionId: z.string().nullish(),
-  userId: z.string().nullish(),
-  environment: EnvironmentName,
-  metadata: jsonSchema.nullish(),
-  release: z.string().nullish(),
-  version: z.string().nullish(),
-  public: z.boolean().nullish(),
-  tags: z.array(z.string()).nullish(),
-});
 
-export const OptionalObservationBody = z.object({
-  traceId: idSchema.nullish(),
-  environment: EnvironmentName,
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  metadata: jsonSchema.nullish(),
-  input: z.any().nullish(),
-  output: z.any().nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  parentObservationId: z.string().nullish(),
-  version: z.string().nullish(),
-});
+// Complete schema factory - single source of truth for ALL schemas
+const createAllIngestionSchemas = (environmentSchema: z.ZodSchema) => {
+  // Base schemas with environment
+  const TraceBody = z.object({
+    id: idSchema.nullish(),
+    timestamp: stringDateTime,
+    name: z.string().max(1000).nullish(),
+    externalId: z.string().nullish(),
+    input: z.any().nullish(),
+    output: z.any().nullish(),
+    sessionId: z.string().nullish(),
+    userId: z.string().nullish(),
+    environment: environmentSchema,
+    metadata: jsonSchema.nullish(),
+    release: z.string().nullish(),
+    version: z.string().nullish(),
+    public: z.boolean().nullish(),
+    tags: z.array(z.string()).nullish(),
+  });
 
-export const CreateEventEvent = OptionalObservationBody.extend({
-  id: idSchema,
-});
+  const OptionalObservationBody = z.object({
+    traceId: idSchema.nullish(),
+    environment: environmentSchema,
+    name: z.string().nullish(),
+    startTime: stringDateTime,
+    metadata: jsonSchema.nullish(),
+    input: z.any().nullish(),
+    output: z.any().nullish(),
+    level: ObservationLevel.nullish(),
+    statusMessage: z.string().nullish(),
+    parentObservationId: z.string().nullish(),
+    version: z.string().nullish(),
+  });
 
-export const UpdateEventEvent = OptionalObservationBody.extend({
-  id: idSchema,
-});
+  // Derivative schemas
+  const CreateEventEvent = OptionalObservationBody.extend({
+    id: idSchema,
+  });
 
-export const CreateSpanBody = CreateEventEvent.extend({
-  endTime: stringDateTime,
-});
+  const UpdateEventEvent = OptionalObservationBody.extend({
+    id: idSchema,
+  });
 
-export const UpdateSpanBody = UpdateEventEvent.extend({
-  endTime: stringDateTime,
-});
+  const CreateSpanBody = CreateEventEvent.extend({
+    endTime: stringDateTime,
+  });
 
-export const CreateGenerationBody = CreateSpanBody.extend({
-  completionStartTime: stringDateTime,
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z
-        .union([
-          z.string(),
-          z.number(),
-          z.boolean(),
-          z.array(z.string()),
-          z.record(z.string(), z.string()),
-        ])
-        .nullish(),
-    )
-    .nullish(),
-  usage: usage,
-  usageDetails: UsageDetails,
-  costDetails: CostDetails,
-  promptName: z.string().nullish(),
-  promptVersion: z.number().int().nullish(),
-}).refine((value) => {
-  // ensure that either promptName and promptVersion are set, or none
+  const UpdateSpanBody = UpdateEventEvent.extend({
+    endTime: stringDateTime,
+  });
 
-  if (!value.promptName && !value.promptVersion) return true;
-  if (value.promptName && value.promptVersion) return true;
-  return false;
-});
+  const CreateGenerationBody = CreateSpanBody.extend({
+    completionStartTime: stringDateTime,
+    model: z.string().nullish(),
+    modelParameters: z
+      .record(
+        z.string(),
+        z
+          .union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.array(z.string()),
+            z.record(z.string(), z.string()),
+          ])
+          .nullish(),
+      )
+      .nullish(),
+    usage: usage,
+    usageDetails: UsageDetails,
+    costDetails: CostDetails,
+    promptName: z.string().nullish(),
+    promptVersion: z.number().int().nullish(),
+  }).refine((value) => {
+    if (!value.promptName && !value.promptVersion) return true;
+    if (value.promptName && value.promptVersion) return true;
+    return false;
+  });
 
-export const UpdateGenerationBody = UpdateSpanBody.extend({
-  completionStartTime: stringDateTime,
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z
-        .union([
-          z.string(),
-          z.number(),
-          z.boolean(),
-          z.array(z.string()),
-          z.record(z.string(), z.string()),
-        ])
-        .nullish(),
-    )
-    .nullish(),
-  usage: usage,
-  usageDetails: UsageDetails,
-  costDetails: CostDetails,
-  promptName: z.string().nullish(),
-  promptVersion: z.number().int().nullish(),
-}).refine((value) => {
-  // ensure that either promptName and promptVersion are set, or none
+  const UpdateGenerationBody = UpdateSpanBody.extend({
+    completionStartTime: stringDateTime,
+    model: z.string().nullish(),
+    modelParameters: z
+      .record(
+        z.string(),
+        z
+          .union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.array(z.string()),
+            z.record(z.string(), z.string()),
+          ])
+          .nullish(),
+      )
+      .nullish(),
+    usage: usage,
+    usageDetails: UsageDetails,
+    costDetails: CostDetails,
+    promptName: z.string().nullish(),
+    promptVersion: z.number().int().nullish(),
+  }).refine((value) => {
+    // ensure that either promptName and promptVersion are set, or none
+    if (!value.promptName && !value.promptVersion) return true;
+    if (value.promptName && value.promptVersion) return true;
+    return false;
+  });
 
-  if (!value.promptName && !value.promptVersion) return true;
-  if (value.promptName && value.promptVersion) return true;
-  return false;
-});
+  const BaseScoreBody = z.object({
+    id: idSchema.nullish(),
+    name: NonEmptyString,
+    traceId: z.string().nullish(),
+    sessionId: z.string().nullish(),
+    datasetRunId: z.string().nullish(),
+    environment: environmentSchema,
+    observationId: z.string().nullish(),
+    comment: z.string().nullish(),
+    metadata: jsonSchema.nullish(),
+    source: z
+      .enum(["API", "EVAL", "ANNOTATION"])
+      .default("API" as ScoreSourceType),
+  });
 
-const BaseScoreBody = z.object({
-  id: idSchema.nullish(),
-  name: NonEmptyString,
-  traceId: z.string().nullish(),
-  sessionId: z.string().nullish(),
-  datasetRunId: z.string().nullish(),
-  environment: EnvironmentName,
-  observationId: z.string().nullish(),
-  comment: z.string().nullish(),
-  metadata: jsonSchema.nullish(),
-  source: z
-    .enum(["API", "EVAL", "ANNOTATION"])
-    .default("API" as ScoreSourceType),
-});
+  const ScoreBody = applyScoreValidation(
+    z.discriminatedUnion("dataType", [
+      BaseScoreBody.merge(
+        z.object({
+          value: z.number(),
+          dataType: z.literal("NUMERIC"),
+          configId: z.string().nullish(),
+        }),
+      ),
+      BaseScoreBody.merge(
+        z.object({
+          value: z.string(),
+          dataType: z.literal("CATEGORICAL"),
+          configId: z.string().nullish(),
+        }),
+      ),
+      BaseScoreBody.merge(
+        z.object({
+          value: z.number().refine((value) => value === 0 || value === 1, {
+            message:
+              "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
+          }),
+          dataType: z.literal("BOOLEAN"),
+          configId: z.string().nullish(),
+        }),
+      ),
+      BaseScoreBody.merge(
+        z.object({
+          value: z.union([z.string(), z.number()]),
+          dataType: z.undefined(),
+          configId: z.string().nullish(),
+        }),
+      ),
+    ]),
+  );
+
+  // Event schemas
+  const base = z.object({
+    id: idSchema,
+    timestamp: z.string().datetime({ offset: true }),
+    metadata: jsonSchema.nullish(),
+  });
+
+  const traceEvent = base.extend({
+    type: z.literal(eventTypes.TRACE_CREATE),
+    body: TraceBody,
+  });
+
+  const eventCreateEvent = base.extend({
+    type: z.literal(eventTypes.EVENT_CREATE),
+    body: CreateEventEvent,
+  });
+
+  const spanCreateEvent = base.extend({
+    type: z.literal(eventTypes.SPAN_CREATE),
+    body: CreateSpanBody,
+  });
+
+  const spanUpdateEvent = base.extend({
+    type: z.literal(eventTypes.SPAN_UPDATE),
+    body: UpdateSpanBody,
+  });
+
+  const generationCreateEvent = base.extend({
+    type: z.literal(eventTypes.GENERATION_CREATE),
+    body: CreateGenerationBody,
+  });
+
+  const generationUpdateEvent = base.extend({
+    type: z.literal(eventTypes.GENERATION_UPDATE),
+    body: UpdateGenerationBody,
+  });
+
+  const scoreEvent = base.extend({
+    type: z.literal(eventTypes.SCORE_CREATE),
+    body: ScoreBody,
+  });
+
+  const sdkLogEvent = base.extend({
+    type: z.literal(eventTypes.SDK_LOG),
+    body: SdkLogEvent,
+  });
+
+  const legacyObservationCreateEvent = base.extend({
+    type: z.literal(eventTypes.OBSERVATION_CREATE),
+    body: LegacyObservationBody,
+  });
+
+  const legacyObservationUpdateEvent = base.extend({
+    type: z.literal(eventTypes.OBSERVATION_UPDATE),
+    body: LegacyObservationBody,
+  });
+
+  const ingestionEvent = z.discriminatedUnion("type", [
+    traceEvent,
+    scoreEvent,
+    eventCreateEvent,
+    spanCreateEvent,
+    spanUpdateEvent,
+    generationCreateEvent,
+    generationUpdateEvent,
+    sdkLogEvent,
+    // LEGACY, only required for backwards compatibility
+    legacyObservationCreateEvent,
+    legacyObservationUpdateEvent,
+  ]);
+
+  return {
+    // Body schemas
+    TraceBody,
+    OptionalObservationBody,
+    CreateEventEvent,
+    UpdateEventEvent,
+    CreateSpanBody,
+    UpdateSpanBody,
+    CreateGenerationBody,
+    UpdateGenerationBody,
+    BaseScoreBody,
+    ScoreBody,
+    // Event schemas
+    traceEvent,
+    eventCreateEvent,
+    spanCreateEvent,
+    spanUpdateEvent,
+    generationCreateEvent,
+    generationUpdateEvent,
+    scoreEvent,
+    sdkLogEvent,
+    legacyObservationCreateEvent,
+    legacyObservationUpdateEvent,
+    // Complete schema
+    ingestionEvent,
+  };
+};
+
+// Create both public and internal schema instances
+const publicSchemas = createAllIngestionSchemas(PublicEnvironmentName);
+const internalSchemas = createAllIngestionSchemas(InternalEnvironmentName);
+
+// Export individual schemas for backwards compatibility
+export const TraceBody = publicSchemas.TraceBody;
+export const OptionalObservationBody = publicSchemas.OptionalObservationBody;
+export const CreateEventEvent = publicSchemas.CreateEventEvent;
+export const UpdateEventEvent = publicSchemas.UpdateEventEvent;
+export const CreateSpanBody = publicSchemas.CreateSpanBody;
+export const UpdateSpanBody = publicSchemas.UpdateSpanBody;
+export const CreateGenerationBody = publicSchemas.CreateGenerationBody;
+export const UpdateGenerationBody = publicSchemas.UpdateGenerationBody;
+export const BaseScoreBody = publicSchemas.BaseScoreBody;
 
 /**
  * ScoreBody exactly mirrors `PostScoresBody` in the public API. Please refer there for source of truth.
  */
-export const ScoreBody = applyScoreValidation(
-  z.discriminatedUnion("dataType", [
-    BaseScoreBody.merge(
-      z.object({
-        value: z.number(),
-        dataType: z.literal("NUMERIC"),
-        configId: z.string().nullish(),
-      }),
-    ),
-    BaseScoreBody.merge(
-      z.object({
-        value: z.string(),
-        dataType: z.literal("CATEGORICAL"),
-        configId: z.string().nullish(),
-      }),
-    ),
-    BaseScoreBody.merge(
-      z.object({
-        value: z.number().refine((value) => value === 0 || value === 1, {
-          message:
-            "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
-        }),
-        dataType: z.literal("BOOLEAN"),
-        configId: z.string().nullish(),
-      }),
-    ),
-    BaseScoreBody.merge(
-      z.object({
-        value: z.union([z.string(), z.number()]),
-        dataType: z.undefined(),
-        configId: z.string().nullish(),
-      }),
-    ),
-  ]),
-);
+export const ScoreBody = publicSchemas.ScoreBody;
 
 // LEGACY, only required for backwards compatibility
 export const LegacySpanPostSchema = z.object({
@@ -489,96 +620,42 @@ export const eventTypes = {
   OBSERVATION_UPDATE: "observation-update",
 } as const;
 
-const base = z.object({
-  id: idSchema,
-  timestamp: z.string().datetime({ offset: true }),
-  metadata: jsonSchema.nullish(),
-});
-export const traceEvent = base.extend({
-  type: z.literal(eventTypes.TRACE_CREATE),
-  body: TraceBody,
-});
-export type TraceEventType = z.infer<typeof traceEvent>;
+// Export individual event schemas for backwards compatibility
+export const traceEvent = publicSchemas.traceEvent;
+export const eventCreateEvent = publicSchemas.eventCreateEvent;
+export const spanCreateEvent = publicSchemas.spanCreateEvent;
+export const spanUpdateEvent = publicSchemas.spanUpdateEvent;
+export const generationCreateEvent = publicSchemas.generationCreateEvent;
+export const generationUpdateEvent = publicSchemas.generationUpdateEvent;
+export const scoreEvent = publicSchemas.scoreEvent;
+export const sdkLogEvent = publicSchemas.sdkLogEvent;
+export const legacyObservationCreateEvent =
+  publicSchemas.legacyObservationCreateEvent;
+export const legacyObservationUpdateEvent =
+  publicSchemas.legacyObservationUpdateEvent;
 
-export const eventCreateEvent = base.extend({
-  type: z.literal(eventTypes.EVENT_CREATE),
-  body: CreateEventEvent,
-});
-export const spanCreateEvent = base.extend({
-  type: z.literal(eventTypes.SPAN_CREATE),
-  body: CreateSpanBody,
-});
-export const spanUpdateEvent = base.extend({
-  type: z.literal(eventTypes.SPAN_UPDATE),
-  body: UpdateSpanBody,
-});
-export const generationCreateEvent = base.extend({
-  type: z.literal(eventTypes.GENERATION_CREATE),
-  body: CreateGenerationBody,
-});
-export const generationUpdateEvent = base.extend({
-  type: z.literal(eventTypes.GENERATION_UPDATE),
-  body: UpdateGenerationBody,
-});
-export const scoreEvent = base.extend({
-  type: z.literal(eventTypes.SCORE_CREATE),
-  body: ScoreBody,
-});
-export type ScoreEventType = z.infer<typeof scoreEvent>;
-export const sdkLogEvent = base.extend({
-  type: z.literal(eventTypes.SDK_LOG),
-  body: SdkLogEvent,
-});
-export const legacyObservationCreateEvent = base.extend({
-  type: z.literal(eventTypes.OBSERVATION_CREATE),
-  body: LegacyObservationBody,
-});
-export const legacyObservationUpdateEvent = base.extend({
-  type: z.literal(eventTypes.OBSERVATION_UPDATE),
-  body: LegacyObservationBody,
-});
-
-const ingestionEvent = z.discriminatedUnion("type", [
-  traceEvent,
-  scoreEvent,
-  eventCreateEvent,
-  spanCreateEvent,
-  spanUpdateEvent,
-  generationCreateEvent,
-  generationUpdateEvent,
-  sdkLogEvent,
-  // LEGACY, only required for backwards compatibility
-  legacyObservationCreateEvent,
-  legacyObservationUpdateEvent,
-]);
-export type IngestionEventType = z.infer<typeof ingestionEvent>;
+/** @deprecated Use createIngestionEventSchema() instead */
+export const ingestionEvent = publicSchemas.ingestionEvent;
 
 /**
- * Creates an ingestion event schema that overrides environment regex validation errors when isLangfuseInternal is true.
+ * Type definitions for both schema variants (public and internal).
+ * These types are equivalent to the return types of createIngestionEventSchema() and all exported schemas,
+ * since the factory patterns only differ in environment validation rules, not in the actual TypeScript types.
+ * The environment field remains `string` in all cases - only the validation logic differs.
+ */
+export type IngestionEventType = z.infer<typeof ingestionEvent>;
+export type TraceEventType = z.infer<typeof traceEvent>;
+export type ScoreEventType = z.infer<typeof scoreEvent>;
+
+/**
+ * Creates an ingestion event schema with appropriate environment validation.
  * @param isLangfuseInternal - Whether the events are being ingested by Langfuse internally (e.g. traces created for prompt experiments).
  * @returns The ingestion event schema.
  */
 export const createIngestionEventSchema = (isLangfuseInternal = false) => {
-  const schema = ingestionEvent;
-
-  if (!isLangfuseInternal) {
-    return schema;
-  }
-
-  return schema.check((ctx) => {
-    // Override environment regex validation errors when isLangfuseInternal is true
-    const filteredIssues = ctx.issues.filter((issue) => {
-      // Remove issues related to environment field regex validation
-      const isEnvironmentRegexError =
-        issue.path?.includes("environment") &&
-        issue.message === ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE;
-      return !isEnvironmentRegexError;
-    });
-
-    // Clear all issues and add back only the non-environment regex ones
-    ctx.issues.length = 0;
-    ctx.issues.push(...filteredIssues);
-  });
+  return isLangfuseInternal
+    ? internalSchemas.ingestionEvent
+    : publicSchemas.ingestionEvent;
 };
 
 export type ObservationEvent =
