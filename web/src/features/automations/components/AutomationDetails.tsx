@@ -72,15 +72,13 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   };
 
   if (isLoading) {
-    return (
-      <div className="py-4 text-center">Loading automation details...</div>
-    );
+    return <div className="py-4 text-center">Loading webhook details...</div>;
   }
 
   if (!automation) {
     return (
       <div className="py-4 text-center text-muted-foreground">
-        Automation not found.
+        Webhook not found.
       </div>
     );
   }

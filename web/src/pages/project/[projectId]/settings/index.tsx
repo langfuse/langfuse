@@ -177,13 +177,6 @@ export const getProjectSettingsPages = ({
     content: <ScoreConfigSettings projectId={project.id} />,
   },
   {
-    title: "Automations",
-    slug: "automations",
-    cmdKKeywords: ["webhook", "trigger", "action", "integration"],
-    content: <AutomationsSettingsPage />,
-    show: showAutomationsSettings,
-  },
-  {
     title: "Members",
     slug: "members",
     cmdKKeywords: ["invite", "user"],

@@ -122,14 +122,10 @@ export const AutomationForm = ({
   // Get default values based on action type
   const getDefaultValues = (): FormValues => {
     const actionType = getActionType();
-    const today = new Date()
-      .toLocaleString("sv")
-      .replace("T", " ")
-      .replace(":", "-")
-      .slice(0, 16); // YYYY-MM-DD hh-mm format
+    const today = new Date().toLocaleString("sv").split("T")[0]; // YYYY-MM-DD
 
     const baseValues = {
-      name: isEditing && automation ? automation.name : `Automation ${today}`,
+      name: isEditing && automation ? automation.name : `Webhook ${today}`,
       eventSource: automation
         ? automation.trigger.eventSource
         : TriggerEventSource.Prompt,
@@ -234,7 +230,7 @@ export const AutomationForm = ({
 
   // Update button text based on if we're editing an existing automation
   const submitButtonText =
-    isEditing && automation ? "Update Automation" : "Save Automation";
+    isEditing && automation ? "Update Webhook" : "Save Webhook";
 
   // Update required fields based on action type
   const handleActionTypeChange = (value: ActionTypes) => {

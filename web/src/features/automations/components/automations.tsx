@@ -4,7 +4,9 @@ import { AutomationDetails } from "@/src/features/automations/components/Automat
 import { AutomationForm } from "@/src/features/automations/components/automationForm";
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
+import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
@@ -231,17 +233,30 @@ export default function AutomationsPage() {
   };
 
   return (
-    <>
-      <div className="flex min-h-[60vh]">
+    <Page
+      headerProps={{
+        title: "Webhooks",
+        breadcrumb: [
+          {
+            name: "Webhooks",
+            href: `/project/${projectId}/automations`,
+          },
+        ],
+        actionButtonsRight: (
+          <Button onClick={handleCreateAutomation}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Webhook
+          </Button>
+        ),
+      }}
+    >
+      <div className="flex h-full">
         <AutomationSidebar
           projectId={projectId}
           selectedAutomation={selectedAutomation}
           onAutomationSelect={handleAutomationSelect}
-          onCreateAutomation={handleCreateAutomation}
         />
-        <div className="flex-1 overflow-auto max-h-[60vh]">
-          {renderMainContent()}
-        </div>
+        <div className="flex-1 overflow-auto">{renderMainContent()}</div>
       </div>
 
       {/* Webhook Secret Dialog */}
@@ -271,6 +286,6 @@ export default function AutomationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </Page>
   );
 }
