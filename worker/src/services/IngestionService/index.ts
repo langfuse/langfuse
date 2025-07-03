@@ -107,6 +107,7 @@ export class IngestionService {
     eventBodyId: string,
     createdAtTimestamp: Date,
     events: IngestionEventType[],
+    jobId: string,
   ): Promise<void> {
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
@@ -119,6 +120,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
+          jobId,
         });
       case "observation":
         return await this.processObservationEventList({
@@ -126,6 +128,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
+          jobId,
         });
       case "score": {
         return await this.processScoreEventList({
@@ -133,6 +136,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
+          jobId,
         });
       }
     }
@@ -143,8 +147,9 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     scoreEventList: ScoreEventType[];
+    jobId: string;
   }) {
-    const { projectId, entityId, createdAtTimestamp, scoreEventList } = params;
+    const { projectId, entityId, createdAtTimestamp, scoreEventList, jobId } = params;
     if (scoreEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -221,15 +226,19 @@ export class IngestionService {
     finalScoreRecord.created_at =
       clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
-    this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+<<<<<<< HEAD
+    this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord, jobId);
 
     if (
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
       finalScoreRecord.trace_id
     ) {
       const traceMtRecord = convertScoreToTraceMt(finalScoreRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord, jobId);
     }
+=======
+    this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord, jobId);
+>>>>>>> ee3e54358 (fix: clickhouse worker failed when over maxattempt)
   }
 
   private async processTraceEventList(params: {
@@ -237,8 +246,9 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
+    jobId: string;
   }) {
-    const { projectId, entityId, createdAtTimestamp, traceEventList } = params;
+    const { projectId, entityId, createdAtTimestamp, traceEventList, jobId } = params;
     if (traceEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -327,14 +337,14 @@ export class IngestionService {
       }
     }
 
-    this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+    this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord, jobId);
 
     // Experimental: Also write to traces_mt table if experiment flag is enabled
     if (
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
     ) {
       const traceMtRecord = convertTraceToTraceMt(finalTraceRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord, jobId);
     }
 
     // Add trace into trace upsert queue for eval processing
@@ -359,8 +369,9 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
+    jobId: string;
   }) {
-    const { projectId, entityId, createdAtTimestamp, observationEventList } =
+    const { projectId, entityId, createdAtTimestamp, observationEventList, jobId } =
       params;
     if (observationEventList.length === 0) return;
 
@@ -455,13 +466,14 @@ export class IngestionService {
         is_deleted: 0,
       };
 
-      this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
+      this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord, jobId);
       finalObservationRecord.trace_id = finalObservationRecord.id;
     }
 
     this.clickHouseWriter.addToQueue(
       TableName.Observations,
       finalObservationRecord,
+      jobId,
     );
 
     if (
@@ -469,7 +481,7 @@ export class IngestionService {
       finalObservationRecord.trace_id
     ) {
       const traceMtRecord = convertObservationToTraceMt(finalObservationRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord, jobId);
     }
   }
 

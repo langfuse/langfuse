@@ -69,7 +69,9 @@ export const ingestionQueueProcessorBuilder = (
           updated_at: new Date().getTime(),
           event_ts: new Date().getTime(),
           is_deleted: 0,
-        });
+        },
+        job.id,
+      );
       }
 
       // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
@@ -228,6 +230,7 @@ export const ingestionQueueProcessorBuilder = (
         job.data.payload.data.eventBodyId,
         firstS3WriteTime,
         events,
+        job.id,
       );
     } catch (e) {
       logger.error(

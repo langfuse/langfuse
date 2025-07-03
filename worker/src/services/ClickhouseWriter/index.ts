@@ -10,12 +10,15 @@ import {
   ScoreRecordInsertType,
   TraceRecordInsertType,
   TraceMtRecordInsertType,
+  getQueue,
+  QueueName,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
+import { Queue, Job } from "bullmq";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -178,7 +181,13 @@ export class ClickhouseWriter {
             attempts: item.attempts + 1,
           });
         } else {
-          // TODO - Add to a dead letter queue in Redis rather than dropping
+          const queue = getQueue(QueueName.IngestionQueue);
+          const job = queue.getJob(item.jobId);
+          if (job) {
+            job.moveToFailed({
+              message: `Max attempts reached for ${tableName} record. Dropping record.`,
+            });
+          }
           recordIncrement("langfuse.queue.clickhouse_writer.error");
           logger.error(
             `Max attempts reached for ${tableName} record. Dropping record.`,
@@ -192,11 +201,13 @@ export class ClickhouseWriter {
   public addToQueue<T extends TableName>(
     tableName: T,
     data: RecordInsertType<T>,
+    jobId: string,
   ) {
     const entityQueue = this.queue[tableName];
     entityQueue.push({
       createdAt: Date.now(),
       attempts: 1,
+      jobId,
       data,
     });
 
@@ -265,5 +276,6 @@ type ClickhouseQueue = {
 type ClickhouseWriterQueueItem<T extends TableName> = {
   createdAt: number;
   attempts: number;
+  jobId: string;
   data: RecordInsertType<T>;
 };
