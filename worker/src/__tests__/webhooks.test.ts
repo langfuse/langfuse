@@ -213,7 +213,7 @@ describe("Webhook Integration Tests", () => {
           triggerId,
           actionId,
           status: ActionExecutionStatus.PENDING,
-          sourceId: webhookInput.eventId,
+          sourceId: webhookInput.executionId,
           input: webhookInput,
         },
       });
