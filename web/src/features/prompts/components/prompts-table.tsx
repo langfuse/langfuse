@@ -12,27 +12,21 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
-import {
-  NumberParam,
-  StringParam,
-  useQueryParams,
-  withDefault,
-  useQueryParam,
-} from "use-query-params";
+import { useQueryParam, withDefault, StringParam } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/src/components/ui/breadcrumb";
-import { Slash, Folder, Home } from "lucide-react";
+import { Folder } from "lucide-react";
+import { 
+  isFolder, 
+  getDisplayName, 
+  processFolderableItems,
+  type FolderableItem 
+} from "@/src/features/table/utils/folderUtils";
+import { FolderBreadcrumb } from "@/src/features/table/components/FolderBreadcrumb";
+import { useFolderNavigation } from "@/src/features/table/hooks/useFolderNavigation";
 
 type PromptTableRow = {
   id: string;
@@ -62,34 +56,10 @@ function createRow(
   };
 }
 
-function isFolder(
-  row: PromptTableRow,
-): row is PromptTableRow & { type: "folder" } {
-  return row.type === "folder";
-}
-
-function getDisplayName(fullPath: string, currentFolderPath: string): string {
-  return currentFolderPath === ""
-    ? fullPath
-    : fullPath.substring(currentFolderPath.length + 1);
-}
-
-function createBreadcrumbItems(currentFolderPath: string) {
-  if (!currentFolderPath) return [];
-
-  const segments = currentFolderPath.split("/");
-  return segments.map((name, i) => {
-    const folderPath = segments.slice(0, i + 1).join("/");
-    return {
-      name,
-      folderPath,
-    };
-  });
-}
-
 export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
+  const { currentFolderPath, navigateToFolder, queryParams, setQueryParams, paginationState } = useFolderNavigation();
 
   const [filterState, setFilterState] = useQueryFilterState(
     [],
@@ -100,11 +70,6 @@ export function PromptTable() {
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
     order: "DESC",
-  });
-  const [queryParams, setQueryParams] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
-    folder: StringParam,
   });
 
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -121,13 +86,6 @@ export function PromptTable() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
-
-  const paginationState = {
-    pageIndex: queryParams.pageIndex,
-    pageSize: queryParams.pageSize,
-  };
-
-  const currentFolderPath = queryParams.folder || "";
 
   const prompts = api.prompts.all.useQuery(
     {
@@ -180,79 +138,42 @@ export function PromptTable() {
     })),
   );
 
-  // Filter and group prompts based on current folder path
+  // Filter and group prompts based on current folder path using abstracted utility
   const processedRowData = useMemo(() => {
     if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
 
-    const uniqueFolders = new Set<string>();
-    const matchingPrompts: typeof promptsRowData.rows = [];
+    // Map prompts to FolderableItem compatible structure
+    const folderablePrompts = promptsRowData.rows.map((p) => ({
+      ...p, // Spread original data for access in createRow
+      id: p.id,
+      name: p.id,
+    }));
 
-    // Identify immediate subfolders from backend-filtered prompts
-    for (const prompt of promptsRowData.rows) {
-      const promptName = prompt.id;
-
-      if (currentFolderPath) {
-        const prefix = `${currentFolderPath}/`;
-        if (promptName.startsWith(prefix)) {
-          const remainingPath = promptName.substring(prefix.length);
-          const slashIndex = remainingPath.indexOf("/");
-
-          if (slashIndex > 0) {
-            // Subfolder
-            const subFolderName = remainingPath.substring(0, slashIndex);
-            const fullSubFolderPath = `${currentFolderPath}/${subFolderName}`;
-            uniqueFolders.add(fullSubFolderPath);
-          } else {
-            // Direct prompt in current folder
-            matchingPrompts.push(prompt);
-          }
-        }
-      } else {
-        // Root level
-        const slashIndex = promptName.indexOf("/");
-        if (slashIndex > 0) {
-          const folderName = promptName.substring(0, slashIndex);
-          uniqueFolders.add(folderName);
-        } else {
-          matchingPrompts.push(prompt);
-        }
-      }
-    }
-
-    // Create combined rows: folders first, then prompts
-    const combinedRows: PromptTableRow[] = [];
-
-    // Add folder rows
-    for (const folderPath of uniqueFolders) {
-      const folderName = getDisplayName(folderPath, currentFolderPath);
-      combinedRows.push(
-        createRow({
-          id: folderPath,
-          name: folderName,
-          type: "folder",
-        }),
-      );
-    }
-
-    // Add matching prompts
-    for (const prompt of matchingPrompts) {
-      combinedRows.push(
-        createRow({
-          id: prompt.id,
-          name: prompt.id,
-          type: prompt.type as "text" | "chat",
-          version: prompt.version,
-          createdAt: prompt.createdAt,
-          labels: prompt.labels,
-          tags: prompt.tags,
-          numberOfObservations: Number(prompt.observationCount ?? 0),
-        }),
-      );
-    }
+    const processedItems = processFolderableItems(
+      folderablePrompts,
+      currentFolderPath,
+      // Create prompt row
+      (item) => createRow({
+        id: item.id,
+        name: item.id,
+        type: item.type as "text" | "chat",
+        version: item.version,
+        createdAt: item.createdAt,
+        labels: item.labels,
+        tags: item.tags,
+        numberOfObservations: Number(item.observationCount ?? 0),
+      }),
+      // Create folder row  
+      (folderPath, folderName) => createRow({
+        id: folderPath,
+        name: folderName,
+        type: "folder",
+      })
+    );
 
     return {
       ...promptsRowData,
-      rows: combinedRows,
+      rows: processedItems,
     };
   }, [promptsRowData, currentFolderPath]);
 
@@ -310,13 +231,7 @@ export function PromptTable() {
                   {displayName}
                 </>
               }
-              onClick={() => {
-                setQueryParams({
-                  folder: rowData.id,
-                  pageIndex: 0,
-                  pageSize: queryParams.pageSize,
-                });
-              }}
+              onClick={() => navigateToFolder(rowData.id)}
               title={displayName || ""}
             />
           );
@@ -426,55 +341,10 @@ export function PromptTable() {
 
   return (
     <>
-      {currentFolderPath && (
-        <div className="ml-2 pt-2">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink
-                  className="cursor-pointer hover:underline"
-                  onClick={() => {
-                    setQueryParams({
-                      folder: undefined,
-                      pageIndex: 0,
-                      pageSize: queryParams.pageSize,
-                    });
-                  }}
-                >
-                  <Home className="h-4 w-4" />
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              {createBreadcrumbItems(currentFolderPath).flatMap(
-                (item, index, array) => [
-                  index > 0 && (
-                    <BreadcrumbSeparator key={`sep-${item.folderPath}`}>
-                      <Slash />
-                    </BreadcrumbSeparator>
-                  ),
-                  <BreadcrumbItem key={item.folderPath}>
-                    {index === array.length - 1 ? (
-                      <BreadcrumbPage>{item.name}</BreadcrumbPage>
-                    ) : (
-                      <BreadcrumbLink
-                        className="cursor-pointer hover:underline"
-                        onClick={() => {
-                          setQueryParams({
-                            folder: item.folderPath,
-                            pageIndex: 0,
-                            pageSize: queryParams.pageSize,
-                          });
-                        }}
-                      >
-                        {item.name}
-                      </BreadcrumbLink>
-                    )}
-                  </BreadcrumbItem>,
-                ],
-              )}
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-      )}
+      <FolderBreadcrumb 
+        currentFolderPath={currentFolderPath}
+        onNavigate={navigateToFolder}
+      />
       <DataTableToolbar
         columns={promptColumns}
         filterColumnDefinition={promptsTableColsWithOptions(
