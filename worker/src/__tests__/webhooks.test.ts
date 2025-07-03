@@ -176,7 +176,6 @@ describe("Webhook Integration Tests", () => {
         name: "Test Automation",
       },
     });
-    automationId = v4();
     executionId = v4();
   });
 
