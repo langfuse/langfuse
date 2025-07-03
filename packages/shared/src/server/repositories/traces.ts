@@ -303,7 +303,7 @@ export const getTracesByIds = async (
         FROM traces_all_amt
         WHERE id IN ({traceIds: Array(String)})
         AND project_id = {projectId: String}
-        LIMIT 1
+        LIMIT 1 BY project_id, id
       `;
 
       return queryClickhouse<TraceRecordReadType>({
