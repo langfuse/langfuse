@@ -73,9 +73,10 @@ export function getQueue(
       return DeadLetterRetryQueue.getInstance();
     case QueueName.WebhookQueue:
       return WebhookQueue.getInstance();
-    default:
+    default: {
       // eslint-disable-next-line no-case-declarations, no-unused-vars
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);
+    }
   }
 }

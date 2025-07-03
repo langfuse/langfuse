@@ -11,11 +11,13 @@ import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
 import {
   NumberParam,
   StringParam,
   useQueryParams,
   withDefault,
+  useQueryParam,
 } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -106,6 +108,21 @@ export function PromptTable() {
     folder: StringParam,
   });
 
+  const [searchQuery, setSearchQuery] = useQueryParam(
+    "search",
+    withDefault(StringParam, null),
+  );
+
+  // Reset pagination when search query changes
+  useEffect(() => {
+    setQueryParams({
+      pageIndex: 0,
+      pageSize: queryParams.pageSize,
+      folder: queryParams.folder,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
   const paginationState = {
     pageIndex: queryParams.pageIndex,
     pageSize: queryParams.pageSize,
@@ -121,6 +138,7 @@ export function PromptTable() {
       filter: filterState,
       orderBy: orderByState,
       pathPrefix: currentFolderPath,
+      searchQuery: searchQuery || undefined,
     },
     {
       enabled: Boolean(projectId),
@@ -466,6 +484,14 @@ export function PromptTable() {
         filterState={filterState}
         setFilterState={useDebounce(setFilterState)}
         columnsWithCustomSelect={["labels", "tags"]}
+        searchConfig={{
+          metadataSearchFields: ["Name", "Tags"],
+          updateQuery: useDebounce(setSearchQuery, 300),
+          currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
+        }}
       />
       <DataTable
         columns={promptColumns}

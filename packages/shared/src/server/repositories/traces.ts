@@ -957,6 +957,7 @@ export const getTracesForPostHog = async function* (
       t.release as release,
       t.version as version,
       t.tags as tags,
+      t.environment as environment,
       t.metadata['$posthog_session_id'] as posthog_session_id,
       o.total_cost as total_cost,
       o.latency_milliseconds / 1000 as latency,
@@ -1006,6 +1007,7 @@ export const getTracesForPostHog = async function* (
       langfuse_release: record.release,
       langfuse_version: record.version,
       langfuse_tags: record.tags,
+      langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       $session_id: record.posthog_session_id ?? null,
       $set: {

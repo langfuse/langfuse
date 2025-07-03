@@ -37,7 +37,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 72",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 0",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
@@ -88,7 +88,7 @@
     "jsonpath-plus": "10.3.0",
     "kysely": "^0.27.4",
     "langchain": "^0.3.28",
-    "langfuse-langchain": "3.37.4",
+    "langfuse-langchain": "3.38.1",
     "lodash": "^4.17.21",
     "lossless-json": "^4.1.1",
     "next-auth": "^4.24.11",

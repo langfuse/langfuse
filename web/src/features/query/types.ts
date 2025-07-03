@@ -114,7 +114,7 @@ export const query = z
         }),
       )
       .nullable(),
-    // Chart configuration for chart-specific settings like histogram bins
+    // Chart configuration for chart-specific settings like histogram bins and pivot table dimensions
     chartConfig: z
       .object({
         type: z.string(),

@@ -1527,6 +1527,7 @@ export const getGenerationsForPostHog = async function* (
       o.provided_model_name as model,
       o.level as level,
       o.version as version,
+      o.environment as environment,
       t.id as trace_id,
       t.name as trace_name,
       t.session_id as trace_session_id,
@@ -1589,6 +1590,7 @@ export const getGenerationsForPostHog = async function* (
       langfuse_model: record.model,
       langfuse_level: record.level,
       langfuse_tags: record.trace_tags,
+      langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       $session_id: record.posthog_session_id ?? null,
       $set: {
