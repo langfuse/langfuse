@@ -94,7 +94,6 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
                       <DropdownMenuItem key={subItem.title} asChild>
                         <Link
                           href={subItem.url}
-                          target={subItem.newTab ? "_blank" : undefined}
                           className={cn(
                             "flex cursor-pointer items-center",
                             subItem.isActive &&
