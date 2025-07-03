@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { useMultiPlaygroundContext } from "@/src/features/playground/page/context/multi-playground-context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,7 +43,9 @@ export const Messages: React.FC<MessagesContext> = (props) => {
 };
 
 const SubmitButton = () => {
-  const { handleSubmit, isStreaming } = usePlaygroundContext();
+  const { handleSubmitAll, isAnyStreaming } = useMultiPlaygroundContext();
+  const handleSubmit = handleSubmitAll;
+  const isStreaming = isAnyStreaming;
   const defaultStreamingEnabled =
     env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT === "true";
   const [streamingEnabled, setStreamingEnabled] = useLocalStorage(

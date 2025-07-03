@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "./multi-column/PlaygroundColumnProvider";
 import { CheckIcon, CopyIcon, PlusIcon } from "@radix-ui/react-icons";
 import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
 import { BracesIcon } from "lucide-react";

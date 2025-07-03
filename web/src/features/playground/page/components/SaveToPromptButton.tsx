@@ -30,17 +30,6 @@ export const SaveToPromptButton: React.FC = () => {
   const [selectedPromptId, setSelectedPromptId] = useState("");
   const { columns, promptVariables } = useMultiPlaygroundContext();
   const capture = usePostHogClientCapture();
-
-  // For saving, use the first column's data as the primary data
-  const firstColumn = columns[0];
-  const modelParams = firstColumn?.modelParams;
-  const messages = firstColumn?.messages || [];
-  const output = firstColumn?.output || "";
-
-  // Don't render the button if there are no columns
-  if (!firstColumn) {
-    return null;
-  }
   const router = useRouter();
   const projectId = useProjectIdFromURL();
   const { setPlaygroundCache } = usePlaygroundCache();
@@ -58,6 +47,17 @@ export const SaveToPromptButton: React.FC = () => {
         name: prompt.name,
         id: prompt.id,
       })) ?? [];
+
+  // For saving, use the first column's data as the primary data
+  const firstColumn = columns[0];
+  const modelParams = firstColumn?.modelParams;
+  const messages = firstColumn?.messages || [];
+  const output = firstColumn?.output || "";
+
+  // Don't render the button if there are no columns
+  if (!firstColumn) {
+    return null;
+  }
 
   const handleNewPrompt = async () => {
     capture("playground:save_to_new_prompt_button_click", { projectId });
