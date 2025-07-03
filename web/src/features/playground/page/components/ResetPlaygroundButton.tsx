@@ -2,14 +2,20 @@ import { ListRestartIcon } from "lucide-react";
 import { useRouter } from "next/router";
 
 import { Button } from "@/src/components/ui/button";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 
 export const ResetPlaygroundButton: React.FC = () => {
   const router = useRouter();
-  const { setPlaygroundCache } = usePlaygroundCache();
+  const { clearAllCaches } = usePersistedWindowIds();
+  const { clearModelPreferences } = useModelParams();
 
   const handleClick = () => {
-    setPlaygroundCache(null);
+    // Clear all playground caches and reset window IDs
+    clearAllCaches();
+
+    // Clear model preferences from localStorage
+    clearModelPreferences();
 
     router.reload();
   };

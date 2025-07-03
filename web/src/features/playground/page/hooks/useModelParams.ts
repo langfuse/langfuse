@@ -183,6 +183,27 @@ export const useModelParams = (windowId?: string) => {
     }
   }, [selectedProviderApiKey?.adapter]);
 
+  /**
+   * Clear model preferences from localStorage
+   * Removes all persisted model names and providers for all windows
+   */
+  const clearModelPreferences = useCallback(() => {
+    const localKeysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith("llmModelName") || key.startsWith("llmModelProvider"))
+      ) {
+        localKeysToRemove.push(key);
+      }
+    }
+
+    localKeysToRemove.forEach((key) => {
+      localStorage.removeItem(key);
+    });
+  }, []);
+
   return {
     modelParams,
     setModelParams,
@@ -190,6 +211,7 @@ export const useModelParams = (windowId?: string) => {
     availableModels,
     updateModelParamValue,
     setModelParamEnabled,
+    clearModelPreferences,
   };
 };
 

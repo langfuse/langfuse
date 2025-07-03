@@ -134,14 +134,19 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   }, [] as string[]);
 
   // Load state from cache
+  const [cacheLoaded, setCacheLoaded] = useState(false);
   useEffect(() => {
-    if (!playgroundCache) return;
+    if (!playgroundCache) {
+      setCacheLoaded(true);
+      return;
+    }
 
     const {
       messages: cachedMessages,
       modelParams: cachedModelParams,
       output: cachedOutput,
       promptVariables: cachedPromptVariables,
+      messagePlaceholders: cachedMessagePlaceholders,
       tools: cachedTools,
       structuredOutputSchema: cachedStructuredOutputSchema,
     } = playgroundCache;
@@ -170,6 +175,10 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       setPromptVariables(cachedPromptVariables);
     }
 
+    if (cachedMessagePlaceholders) {
+      setMessagePlaceholders(cachedMessagePlaceholders);
+    }
+
     if (cachedTools) {
       setTools(cachedTools);
     }
@@ -177,6 +186,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     if (cachedStructuredOutputSchema) {
       setStructuredOutputSchema(cachedStructuredOutputSchema);
     }
+
+    setCacheLoaded(true);
   }, [playgroundCache, setModelParams]);
 
   const updatePromptVariables = useCallback(() => {
@@ -383,6 +394,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           modelParams,
           output: response,
           promptVariables,
+          messagePlaceholders,
           tools,
           structuredOutputSchema,
         });
@@ -481,6 +493,36 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   }, [messages]);
 
   useEffect(updateMessagePlaceholders, [messages, updateMessagePlaceholders]);
+
+  // Save state to cache whenever it changes
+  // This ensures that user changes are persisted across refreshes and navigation
+  useEffect(() => {
+    // Only save after cache has been loaded to avoid overwriting with initial state
+    if (!cacheLoaded) return;
+
+    // Don't save empty initial state to avoid overwriting valid cache
+    if (messages.length > 0 && modelParams.provider.value) {
+      setPlaygroundCache({
+        messages,
+        modelParams,
+        output,
+        promptVariables,
+        messagePlaceholders,
+        tools,
+        structuredOutputSchema,
+      });
+    }
+  }, [
+    messages,
+    modelParams,
+    output,
+    promptVariables,
+    messagePlaceholders,
+    tools,
+    structuredOutputSchema,
+    setPlaygroundCache,
+    cacheLoaded,
+  ]);
 
   // Window self-registration for global coordination
   // This effect registers the window with the global coordination system

@@ -132,7 +132,6 @@ function PlaygroundWindow({
               {canRemove && (
                 <Button
                   variant="ghost"
-                  size="sm"
                   onClick={handleRemove}
                   className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
                   title="Remove window"

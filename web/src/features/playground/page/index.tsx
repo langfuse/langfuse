@@ -1,9 +1,9 @@
 import React, { useCallback, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { Button } from "@/src/components/ui/button";
 import { Plus, Play, Square, Loader2 } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
+import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   MULTI_WINDOW_CONFIG,
   type MultiWindowState,
@@ -24,6 +24,7 @@ import MultiWindowPlayground from "@/src/features/playground/page/components/Mul
  * - Global execution controls (Run All, Stop All)
  * - Window count display and management
  * - Reset playground functionality for starting fresh
+ * - Persistent window IDs across page refreshes
  *
  * Architecture:
  * - Page-level window state management
@@ -32,67 +33,44 @@ import MultiWindowPlayground from "@/src/features/playground/page/components/Mul
  * - Clean single-header design
  */
 export default function PlaygroundPage() {
-  // Window state management at page level
-  const [windowState, setWindowState] = useState<MultiWindowState>({
-    windowIds: [uuidv4()], // Start with one window
-    isExecutingAll: false,
-  });
+  const { windowIds, isLoaded, addWindowId, removeWindowId } =
+    usePersistedWindowIds();
+  const [isExecutingAll, setIsExecutingAll] = useState(false);
 
   // Global coordination hook for managing window actions
   const {
     executeAllWindows,
     stopAllWindows,
     getExecutionStatus,
-    isExecutingAll,
+    isExecutingAll: globalIsExecutingAll,
   } = useWindowCoordination();
 
   /**
    * Add a new window to the playground
    */
   const addWindow = useCallback(() => {
-    setWindowState((prev) => {
-      if (prev.windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
-        console.warn(
-          `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
-        );
-        return prev;
-      }
-
-      const newWindowId = uuidv4();
-      return {
-        ...prev,
-        windowIds: [...prev.windowIds, newWindowId],
-      };
-    });
-  }, []);
+    addWindowId();
+  }, [addWindowId]);
 
   /**
    * Remove a window from the playground
    */
-  const removeWindow = useCallback((windowId: string) => {
-    setWindowState((prev) => {
-      if (prev.windowIds.length <= 1) {
-        console.warn("Cannot remove the last remaining window");
-        return prev;
-      }
-
-      const updatedWindowIds = prev.windowIds.filter((id) => id !== windowId);
-      return {
-        ...prev,
-        windowIds: updatedWindowIds,
-      };
-    });
-  }, []);
+  const removeWindow = useCallback(
+    (windowId: string) => {
+      removeWindowId(windowId);
+    },
+    [removeWindowId],
+  );
 
   /**
    * Handle global execution of all windows
    */
   const handleExecuteAll = useCallback(() => {
-    setWindowState((prev) => ({ ...prev, isExecutingAll: true }));
+    setIsExecutingAll(true);
     executeAllWindows();
 
     setTimeout(() => {
-      setWindowState((prev) => ({ ...prev, isExecutingAll: false }));
+      setIsExecutingAll(false);
     }, 1000);
   }, [executeAllWindows]);
 
@@ -100,15 +78,41 @@ export default function PlaygroundPage() {
    * Handle global stop of all windows
    */
   const handleStopAll = useCallback(() => {
-    setWindowState((prev) => ({ ...prev, isExecutingAll: false }));
+    setIsExecutingAll(false);
     stopAllWindows();
   }, [stopAllWindows]);
+
+  // Don't render until window IDs are loaded
+  if (!isLoaded) {
+    return (
+      <Page
+        withPadding={false}
+        headerProps={{
+          title: "Playground",
+          help: {
+            description:
+              "A sandbox to test and iterate your prompts across multiple windows",
+            href: "https://langfuse.com/docs/playground",
+          },
+        }}
+      >
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </Page>
+    );
+  }
 
   // Execution status and control states
   const executionStatus = getExecutionStatus();
   const isAddWindowDisabled =
-    windowState.windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS;
-  const isRunAllDisabled = isExecutingAll || windowState.isExecutingAll;
+    windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS;
+  const isRunAllDisabled = globalIsExecutingAll || isExecutingAll;
+
+  const windowState: MultiWindowState = {
+    windowIds,
+    isExecutingAll: globalIsExecutingAll,
+  };
 
   return (
     <Page
@@ -125,8 +129,8 @@ export default function PlaygroundPage() {
             {/* Window Count Display */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>
-                {windowState.windowIds.length} window
-                {windowState.windowIds.length === 1 ? "" : "s"}
+                {windowIds.length} window
+                {windowIds.length === 1 ? "" : "s"}
               </span>
               {executionStatus && (
                 <>
@@ -157,7 +161,7 @@ export default function PlaygroundPage() {
             <Button
               variant="outline"
               onClick={handleStopAll}
-              disabled={!isExecutingAll}
+              disabled={!globalIsExecutingAll}
               className="gap-1"
             >
               <Square className="h-3 w-3" />

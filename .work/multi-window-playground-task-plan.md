@@ -56,7 +56,7 @@
 
 ## Phase 3: Multi-Window Container Implementation
 
-- [ ] **Step 3.1**: Create multi-window playground container
+- [x] **Step 3.1**: Create multi-window playground container
 
   - **Task**: Create `MultiWindowPlayground` component that manages an array of windows, provides global controls (Run All, Stop All, Add Window), and implements the responsive layout system. Include window management logic and horizontal scrolling.
   - **Files**:
@@ -64,7 +64,7 @@
   - **Step Dependencies**: Step 2.3
   - **User Instructions**: None
 
-- [ ] **Step 3.2**: Create individual playground window component
+- [x] **Step 3.2**: Create individual playground window component
   - **Task**: Create `PlaygroundWindow` component that wraps a single playground instance with window-specific controls (close button, individual submit/stop buttons) and provides the isolated PlaygroundProvider context.
   - **Files**:
     - `web/src/features/playground/page/components/PlaygroundWindow.tsx`: Create individual window wrapper
@@ -73,7 +73,7 @@
 
 ## Phase 4: UI Layout and Styling
 
-- [ ] **Step 4.1**: Implement responsive layout CSS
+- [x] **Step 4.1**: Implement responsive layout CSS
 
   - **Task**: Create CSS classes for the multi-window layout system including CSS Grid for equal-width distribution, horizontal scrolling, mobile responsiveness, and proper window spacing. Use existing design tokens and Tailwind classes.
   - **Files**:
@@ -81,7 +81,7 @@
   - **Step Dependencies**: Step 3.2
   - **User Instructions**: None
 
-- [ ] **Step 4.2**: Create window header and controls
+- [x] **Step 4.2**: Create window header and controls
 
   - **Task**: Design and implement window headers with close buttons, window identification, and individual action buttons. Style using existing Shadcn/UI components and design system patterns.
   - **Files**:
@@ -89,7 +89,7 @@
   - **Step Dependencies**: Step 4.1
   - **User Instructions**: None
 
-- [ ] **Step 4.3**: Implement global controls header
+- [x] **Step 4.3**: Implement global controls header
   - **Task**: Create global controls section with "Add Window", "Run All", and "Stop All" buttons. Position appropriately in the layout and style consistently with existing playground controls.
   - **Files**:
     - `web/src/features/playground/page/components/MultiWindowPlayground.tsx`: Add global controls header
@@ -98,7 +98,7 @@
 
 ## Phase 5: Integration and Page Updates
 
-- [ ] **Step 5.1**: Update playground page to use multi-window system
+- [x] **Step 5.1**: Update playground page to use multi-window system
 
   - **Task**: Modify the main playground page to use `MultiWindowPlayground` instead of the single playground. Ensure all existing functionality (save to prompt, reset playground) continues to work with the new architecture.
   - **Files**:

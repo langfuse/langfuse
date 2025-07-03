@@ -34,7 +34,7 @@ export type PlaygroundCache = {
     Pick<UIModelParams, "provider" | "model">;
   output?: string | null;
   promptVariables?: PromptVariable[];
-  // TODO: also cache placeholders?
+  messagePlaceholders?: PlaceholderMessageFillIn[];
   tools?: PlaygroundTool[];
   structuredOutputSchema?: PlaygroundSchema | null;
 } | null;
