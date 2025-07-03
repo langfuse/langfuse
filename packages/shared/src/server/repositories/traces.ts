@@ -618,21 +618,42 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
   });
 };
 
+/**
+ * Delete traces older than the specified date for a project.
+ * Optionally filter by specific environments.
+ *
+ * @param projectId - The project ID to delete traces from
+ * @param beforeDate - Delete traces created before this date
+ * @param environments - Optional array of environments to filter by. If not provided, deletes from all environments.
+ */
 export const deleteTracesOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
+  environments?: string[],
 ) => {
+  const environmentFilter = environments && environments.length > 0
+    ? `AND environment IN ({environments: Array(String)})`
+    : '';
+
   const query = `
     DELETE FROM traces
     WHERE project_id = {projectId: String}
-    AND timestamp < {cutoffDate: DateTime64(3)};
+    AND timestamp < {cutoffDate: DateTime64(3)}
+    ${environmentFilter};
   `;
+
+  const params: Record<string, any> = {
+    projectId,
+    cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+  };
+
+  if (environments && environments.length > 0) {
+    params.environments = environments;
+  }
+
   await commandClickhouse({
     query: query,
-    params: {
-      projectId,
-      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
-    },
+    params,
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },

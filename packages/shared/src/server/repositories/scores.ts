@@ -1044,21 +1044,42 @@ export const deleteScoresByProjectId = async (projectId: string) => {
   });
 };
 
+/**
+ * Delete scores older than the specified date for a project.
+ * Optionally filter by specific environments.
+ *
+ * @param projectId - The project ID to delete scores from
+ * @param beforeDate - Delete scores created before this date
+ * @param environments - Optional array of environments to filter by. If not provided, deletes from all environments.
+ */
 export const deleteScoresOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
+  environments?: string[],
 ) => {
+  const environmentFilter = environments && environments.length > 0
+    ? `AND environment IN ({environments: Array(String)})`
+    : '';
+
   const query = `
     DELETE FROM scores
     WHERE project_id = {projectId: String}
-    AND timestamp < {cutoffDate: DateTime64(3)};
+    AND timestamp < {cutoffDate: DateTime64(3)}
+    ${environmentFilter};
   `;
+
+  const params: Record<string, any> = {
+    projectId,
+    cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+  };
+
+  if (environments && environments.length > 0) {
+    params.environments = environments;
+  }
+
   await commandClickhouse({
     query: query,
-    params: {
-      projectId,
-      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
-    },
+    params,
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
