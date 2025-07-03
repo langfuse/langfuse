@@ -4,7 +4,14 @@ import { performance } from "perf_hooks";
 import { randomUUID } from "crypto";
 import { makeAPICall, getTrpcCaller } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
-import { getTraceById, getObservationById } from "@langfuse/shared/src/server";
+import {
+  getTraceById,
+  getObservationById,
+  createTrace,
+  createTracesCh,
+  createObservation,
+  createObservationsCh,
+} from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 function makeTrpcCaller() {
@@ -110,6 +117,77 @@ async function insertObservation(length: number) {
   return { observationId, traceId, time: endTime - startTime, payloadSizeInMB };
 }
 
+async function insertTraceDirect(length: number, traceId = randomUUID()) {
+  const largeJsonData = generateLargeJsonPayload(length);
+
+  const trace = createTrace({
+    id: traceId,
+    project_id: projectId,
+    metadata: largeJsonData,
+    input: largeJsonData,
+    output: largeJsonData,
+  });
+
+  const payloadSizeInMB =
+    Buffer.from(JSON.stringify(trace)).length / (1024 * 1024);
+
+  const startTime = performance.now();
+  await createTracesCh([trace]);
+  const endTime = performance.now();
+
+  await waitForExpect(async () => {
+    const trace = await getTraceById({
+      traceId,
+      projectId,
+    });
+    expect(trace).toBeDefined();
+    expect(trace!.id).toBe(traceId);
+    expect(trace!.projectId).toBe(projectId);
+  });
+
+  return { traceId, time: endTime - startTime, payloadSizeInMB };
+}
+
+async function insertObservationDirect(length: number) {
+  const observationId = randomUUID();
+  const traceId = randomUUID();
+  const largeJsonData = generateLargeJsonPayload(length);
+
+  // Create the parent trace first
+  await insertTraceDirect(1, traceId);
+
+  const observation = createObservation({
+    id: observationId,
+    trace_id: traceId,
+    project_id: projectId,
+    type: "GENERATION",
+    name: "test-generation",
+    metadata: largeJsonData,
+    input: largeJsonData,
+    output: largeJsonData,
+  });
+
+  const payloadSizeInMB =
+    Buffer.from(JSON.stringify(observation)).length / (1024 * 1024);
+
+  const startTime = performance.now();
+  await createObservationsCh([observation]);
+  const endTime = performance.now();
+
+  await waitForExpect(async () => {
+    const observation = await getObservationById({
+      id: observationId,
+      projectId,
+      fetchWithInputOutput: true,
+    });
+    expect(observation).toBeDefined();
+    expect(observation!.id).toBe(observationId);
+    expect(observation!.projectId).toBe(projectId);
+  });
+
+  return { observationId, traceId, time: endTime - startTime, payloadSizeInMB };
+}
+
 // Helper functions for retrieval
 async function retrieveTraceGET(traceId: string) {
   const startTime = performance.now();
@@ -164,16 +242,46 @@ async function testObservation(size: number) {
   );
   return { ingestionTime, getTime, trpcTime, payloadSizeInMB, size };
 }
+
+async function testTraceDirect(size: number) {
+  const {
+    traceId,
+    time: ingestionTime,
+    payloadSizeInMB,
+  } = await insertTraceDirect(size);
+  const { time: getTime } = await retrieveTraceGET(traceId);
+  const { time: trpcTime } = await retrieveTraceTRPC(traceId);
+  return { ingestionTime, getTime, trpcTime, payloadSizeInMB, size };
+}
+
+async function testObservationDirect(size: number) {
+  const {
+    observationId,
+    time: ingestionTime,
+    traceId,
+    payloadSizeInMB,
+  } = await insertObservationDirect(size);
+  const { time: getTime } = await retrieveObservationGET(observationId);
+  const { time: trpcTime } = await retrieveObservationTRPC(
+    observationId,
+    traceId,
+  );
+  return { ingestionTime, getTime, trpcTime, payloadSizeInMB, size };
+}
+
 function logPerformance(
   entityType: "Trace" | "Observation",
+  ingestionMethod: "API" | "Direct",
   result: Awaited<ReturnType<typeof testTrace | typeof testObservation>>,
 ) {
   console.log(
-    `${entityType} (size: ${result.size}, ~${result.payloadSizeInMB.toFixed(
+    `${entityType} (${ingestionMethod}, size: ${result.size}, ~${
+      result.payloadSizeInMB
+    } MB): Ingestion=${result.ingestionTime.toFixed(
       2,
-    )} MB): Ingestion=${result.ingestionTime.toFixed(
+    )}ms, GET=${result.getTime.toFixed(2)}ms, TRPC=${result.trpcTime.toFixed(
       2,
-    )}ms, GET=${result.getTime.toFixed(2)}ms, TRPC=${result.trpcTime.toFixed(2)}ms`,
+    )}ms`,
   );
 }
 
@@ -185,37 +293,69 @@ describe("JSON Performance Tests", () => {
     await testTrace(1);
     await testObservation(1);
     console.log("Warm-up complete.");
-  }, 10000); // 10s timeout for warm-up
+  }, 20000); // 20s timeout for warm-up
 
-  it("should measure performance for a small trace", async () => {
-    logPerformance("Trace", await testTrace(100));
+  it("should measure performance for a s trace", async () => {
+    const size = 100;
+    logPerformance("Trace", "API", await testTrace(size));
+    logPerformance("Trace", "Direct", await testTraceDirect(size));
   });
 
-  it("should measure performance for a medium trace", async () => {
-    logPerformance("Trace", await testTrace(1000));
+  it("should measure performance for a m trace", async () => {
+    const size = 1000;
+    logPerformance("Trace", "API", await testTrace(size));
+    logPerformance("Trace", "Direct", await testTraceDirect(size));
   });
 
-  it("should measure performance for a large trace", async () => {
-    logPerformance("Trace", await testTrace(5000));
+  it("should measure performance for a l trace", async () => {
+    const size = 6700;
+    logPerformance("Trace", "API", await testTrace(size));
+    logPerformance("Trace", "Direct", await testTraceDirect(size));
   });
 
-  it("should measure performance for a extra large trace", async () => {
-    logPerformance("Trace", await testTrace(6700));
+  it("should measure performance for a xl trace", async () => {
+    const size = 10000;
+    // API is not supported for this size
+    // logPerformance("Trace", "API", await testTrace(size));
+    logPerformance("Trace", "Direct", await testTraceDirect(size));
   });
 
-  it("should measure performance for a small observation", async () => {
-    logPerformance("Observation", await testObservation(100));
+  it("should measure performance for a xxl trace", async () => {
+    const size = 40000;
+    // API is not supported for this size
+    // logPerformance("Trace", "API", await testTrace(size));
+    logPerformance("Trace", "Direct", await testTraceDirect(size));
   });
 
-  it("should measure performance for a medium observation", async () => {
-    logPerformance("Observation", await testObservation(1000));
+  it("should measure performance for a s observation", async () => {
+    const size = 100;
+    logPerformance("Observation", "API", await testObservation(size));
+    logPerformance("Observation", "Direct", await testObservationDirect(size));
   });
 
-  it("should measure performance for a large observation", async () => {
-    logPerformance("Observation", await testObservation(5000));
+  it("should measure performance for a m observation", async () => {
+    const size = 1000;
+    logPerformance("Observation", "API", await testObservation(size));
+    logPerformance("Observation", "Direct", await testObservationDirect(size));
   });
 
-  it("should measure performance for a extra large observation", async () => {
-    logPerformance("Observation", await testObservation(6700));
+  it("should measure performance for a xl observation", async () => {
+    const size = 6700;
+    logPerformance("Observation", "API", await testObservation(size));
+    logPerformance("Observation", "Direct", await testObservationDirect(size));
+  });
+
+  it("should measure performance for a xxl observation", async () => {
+    const size = 10000;
+    // API is not supported for this size
+    // logPerformance("Observation", "API", await testObservation(size));
+    logPerformance("Observation", "Direct", await testObservationDirect(size));
+  });
+
+  it("should measure performance for a xxxl observation", async () => {
+    const size = 40000;
+    // API is not supported for this size
+    // logPerformance("Observation", "API", await testObservation(size));
+    logPerformance("Observation", "Direct", await testObservationDirect(size));
   });
 });
