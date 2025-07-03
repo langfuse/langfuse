@@ -74,8 +74,8 @@ const formatQueryKey = (queryKey?: QueryKeyType): QueryKeyType => {
 // Run items are added async for prompt experiment runs, so we must continue to refetch until all items are present
 // As evaluations are added async too, we must compare the scores for all run items to check if they're all complete
 const isDataComplete = (
-  prevData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
-  newData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+  prevData: RouterOutputs["datasets"]["runItemsByRunId"],
+  newData: RouterOutputs["datasets"]["runItemsByRunId"],
 ) => {
   if (prevData.totalRunItems !== newData.totalRunItems) return false;
 
@@ -152,7 +152,7 @@ export function DatasetCompareRunsTable(props: {
     () =>
       (props.runIds ?? []).map((runId) => ({
         runId,
-        queryKey: getQueryKey(api.datasets.runitemsByRunIdOrItemId, {
+        queryKey: getQueryKey(api.datasets.runItemsByRunId, {
           projectId: props.projectId,
           datasetRunId: runId,
           page: paginationState.pageIndex,
@@ -180,8 +180,8 @@ export function DatasetCompareRunsTable(props: {
         if (
           prevData &&
           isDataComplete(
-            prevData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
-            newData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+            prevData as RouterOutputs["datasets"]["runItemsByRunId"],
+            newData as RouterOutputs["datasets"]["runItemsByRunId"],
           )
         ) {
           const newCount = prevCount + 1;
@@ -197,7 +197,7 @@ export function DatasetCompareRunsTable(props: {
   // 3. Use the queries with success callback
   const runs = runQueries.map(({ runId }) => ({
     runId,
-    items: api.datasets.runitemsByRunIdOrItemId.useQuery(
+    items: api.datasets.runItemsByRunId.useQuery(
       {
         projectId: props.projectId,
         datasetRunId: runId,

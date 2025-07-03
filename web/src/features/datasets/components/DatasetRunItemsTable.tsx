@@ -63,11 +63,35 @@ export function DatasetRunItemsTable(
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 20),
   });
-  const runItems = api.datasets.runitemsByRunIdOrItemId.useQuery({
-    ...props,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-  });
+
+  const runItemsByDatasetRunId = api.datasets.runItemsByRunId.useQuery(
+    {
+      projectId: props.projectId,
+      datasetRunId: (props as any).datasetRunId,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    {
+      enabled: "datasetRunId" in props,
+    },
+  );
+
+  const runItemsByDatasetItemId = api.datasets.runItemsByItemId.useQuery(
+    {
+      projectId: props.projectId,
+      datasetItemId: (props as any).datasetItemId as string,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    {
+      enabled: "datasetItemId" in props,
+    },
+  );
+
+  // Use the appropriate query result based on the props
+  const runItems =
+    "datasetRunId" in props ? runItemsByDatasetRunId : runItemsByDatasetItemId;
+
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
 
   useEffect(() => {
