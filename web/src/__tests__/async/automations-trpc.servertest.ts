@@ -119,7 +119,7 @@ describe("automations trpc", () => {
       });
 
       // Link trigger to action
-      await prisma.automations.create({
+      await prisma.automation.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,
@@ -278,10 +278,11 @@ describe("automations trpc", () => {
       await expect(
         caller.automations.getAutomation({
           projectId: project.id,
-          triggerId: "non-existent-trigger",
-          actionId: "non-existent-action",
+          automationId: "non-existent-automation",
         }),
-      ).rejects.toThrow(`Automation with id non-existent-action not found.`);
+      ).rejects.toThrow(
+        `Automation with id non-existent-automation not found.`,
+      );
     });
   });
 
