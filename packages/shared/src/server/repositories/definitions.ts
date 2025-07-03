@@ -128,12 +128,12 @@ export const traceMtRecordInsertSchema = z.object({
   id: z.string(),
   start_time: z.number(),
   end_time: z.number().nullish(),
-  name: z.string(),
+  name: z.string().nullish(),
 
   // Metadata properties
   metadata: z.record(z.string(), z.string()),
-  user_id: z.string(),
-  session_id: z.string(),
+  user_id: z.string().nullish(),
+  session_id: z.string().nullish(),
   environment: z.string(),
   tags: z.array(z.string()),
   version: z.string().nullish(),
@@ -409,5 +409,130 @@ export const convertPostgresScoreToInsert = (
     updated_at: score.updated_at?.getTime(),
     event_ts: score.timestamp?.getTime(),
     is_deleted: 0,
+  };
+};
+
+export const convertTraceToTraceMt = (
+  traceRecord: TraceRecordInsertType,
+): TraceMtRecordInsertType => {
+  return {
+    // Identifiers
+    project_id: traceRecord.project_id,
+    id: traceRecord.id,
+    start_time: traceRecord.timestamp,
+    end_time: null, // traces don't have end_time, will be null
+    name: traceRecord.name || null,
+
+    // Metadata properties
+    metadata: traceRecord.metadata,
+    user_id: traceRecord.user_id || null,
+    session_id: traceRecord.session_id || null,
+    environment: traceRecord.environment,
+    tags: traceRecord.tags,
+    version: traceRecord.version || null,
+    release: traceRecord.release || null,
+
+    // UI properties - nullable to prevent absent values being interpreted as overwrites
+    bookmarked: traceRecord.bookmarked ?? null,
+    public: traceRecord.public ?? null,
+
+    // Aggregations - empty for now, will be populated by aggregation processes
+    observation_ids: [],
+    score_ids: [],
+    cost_details: {},
+    usage_details: {},
+
+    // Input/Output
+    input: traceRecord.input || "",
+    output: traceRecord.output || "",
+
+    created_at: traceRecord.created_at,
+    updated_at: traceRecord.updated_at,
+    event_ts: traceRecord.event_ts,
+  };
+};
+
+export const convertObservationToTraceMt = (
+  observationRecord: ObservationRecordInsertType,
+): TraceMtRecordInsertType => {
+  return {
+    // Identifiers
+    project_id: observationRecord.project_id,
+    // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+    id: observationRecord.trace_id || "",
+    start_time: observationRecord.start_time,
+    end_time: observationRecord.end_time || null,
+    name: null,
+
+    // Metadata properties
+    metadata: {},
+    user_id: null,
+    session_id: null,
+    environment: observationRecord.environment,
+    tags: [],
+    version: null,
+    release: null,
+
+    // UI properties - nullable to prevent absent values being interpreted as overwrites
+    bookmarked: null,
+    public: null,
+
+    // Aggregations - include this observation ID
+    observation_ids: [observationRecord.id],
+    score_ids: [],
+    // We can fill the cost details here, but we shouldn't trust them.
+    // Only used for verification to estimate how big the double-counting is.
+    // Actually, we don't as this will make backfills challenging.
+    cost_details: {}, // observationRecord.cost_details || {},
+    usage_details: {}, // observationRecord.usage_details || {},
+
+    // Input/Output
+    input: "",
+    output: "",
+
+    created_at: observationRecord.created_at,
+    updated_at: observationRecord.updated_at,
+    event_ts: observationRecord.event_ts,
+  };
+};
+
+export const convertScoreToTraceMt = (
+  scoreRecord: ScoreRecordInsertType,
+): TraceMtRecordInsertType => {
+  return {
+    // Identifiers
+    project_id: scoreRecord.project_id,
+    // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+    id: scoreRecord.trace_id || "",
+    start_time: scoreRecord.timestamp,
+    end_time: null, // scores don't have end_time
+    name: null,
+
+    // Metadata properties
+    metadata: {},
+    user_id: null,
+    session_id: null,
+    environment: scoreRecord.environment,
+    tags: [], // scores don't have tags
+    version: null, // scores don't have version
+    release: null, // scores don't have release
+
+    // UI properties - nullable to prevent absent values being interpreted as overwrites
+    bookmarked: null,
+    public: null,
+
+    // Aggregations - include this score ID
+    observation_ids: [],
+    score_ids: [scoreRecord.id],
+    cost_details: {},
+    usage_details: {},
+
+    // Input/Output
+    input: "", // scores don't have input
+    output: "", // scores don't have output
+
+    created_at: scoreRecord.created_at,
+    updated_at: scoreRecord.updated_at,
+    event_ts: scoreRecord.event_ts,
   };
 };
