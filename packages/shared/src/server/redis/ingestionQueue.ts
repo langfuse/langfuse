@@ -73,7 +73,7 @@ export class IngestionQueue {
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,
-            attempts: 5,
+            attempts: 6,
             backoff: {
               type: "exponential",
               delay: 5000,
