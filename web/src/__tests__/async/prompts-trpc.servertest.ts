@@ -55,7 +55,7 @@ async function prepare() {
 
 describe("prompts trpc", () => {
   afterAll(async () => {
-    disconnectQueues();
+    await disconnectQueues();
   });
 
   describe("prompts.setLabels", () => {

@@ -97,7 +97,7 @@ const setupTriggerAndAction = async (projectId: string) => {
   action.id;
 
   // Link trigger to action
-  await prisma.triggersOnActions.create({
+  await prisma.automation.create({
     data: {
       projectId: projectId,
       triggerId: trigger.id,
@@ -132,7 +132,7 @@ const testPromptEquality = (
 describe("/api/public/v2/prompts API Endpoint", () => {
   afterAll(async () => {
     await pruneDatabase();
-    disconnectQueues();
+    await disconnectQueues();
     redis?.disconnect();
   });
 
@@ -485,7 +485,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     afterAll(async () => {
-      disconnectQueues();
+      await disconnectQueues();
       redis?.disconnect();
     });
 
@@ -1679,9 +1679,9 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 
   describe("prompt composability", () => {
     beforeEach(() => pruneDatabase());
-    afterAll(() => {
+    afterAll(async () => {
       pruneDatabase();
-      disconnectQueues();
+      await disconnectQueues();
     });
 
     it("can create a prompt with dependencies linked via label", async () => {

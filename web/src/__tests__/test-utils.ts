@@ -40,8 +40,13 @@ export const getQueues = () => {
   );
 };
 
-export const disconnectQueues = () => {
-  getQueues().forEach((queue) => queue?.disconnect());
+export const disconnectQueues = async () => {
+  getQueues().forEach(async (queue) => {
+    if (queue) {
+      await queue.close();
+      queue.disconnect();
+    }
+  });
 };
 
 export const truncateClickhouseTables = async () => {
