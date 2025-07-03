@@ -10,28 +10,21 @@ export default function Playground() {
   const playgroundContext = usePlaygroundContext();
 
   return (
-    <div className="flex h-full flex-row space-x-8">
-      <div className="h-full basis-3/4 overflow-auto">
-        <Messages {...playgroundContext} />
-      </div>
-      <div className="max-h-full min-h-0 basis-1/4 pr-2">
-        <div className="flex h-full flex-col gap-4 overflow-auto">
-          <div className="mb-4 flex-shrink-0 overflow-y-auto">
-            <ModelParameters {...playgroundContext} />
-          </div>
-          <div className="mb-4 max-h-[25vh] flex-shrink-0 overflow-y-auto">
-            <PlaygroundTools />
-          </div>
-          <div className="mb-4 flex-shrink-0">
-            <StructuredOutputSchemaSection />
-          </div>
-          <div className="flex-grow overflow-y-auto">
-            <div className="space-y-6">
-              <Variables />
-              <MessagePlaceholders />
-            </div>
-          </div>
+    <div className="flex h-full flex-col">
+      {/* Configuration Panel - Stacked at top */}
+      <div className="flex-shrink-0 border-b bg-muted/20 p-4">
+        <div className="space-y-4">
+          <ModelParameters {...playgroundContext} />
+          <PlaygroundTools />
+          <StructuredOutputSchemaSection />
+          <Variables />
+          <MessagePlaceholders />
         </div>
+      </div>
+
+      {/* Messages and Output - Below configuration */}
+      <div className="flex-1 overflow-auto p-4">
+        <Messages {...playgroundContext} />
       </div>
     </div>
   );
