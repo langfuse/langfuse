@@ -15,7 +15,6 @@ import {
   FileJson,
   Search,
   Home,
-  Zap,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
