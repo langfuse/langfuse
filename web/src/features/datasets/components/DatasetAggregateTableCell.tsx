@@ -89,6 +89,12 @@ const DatasetAggregateCell = ({
 
   const data = observationId === undefined ? trace.data : observation.data;
   const scoresEntries = Object.entries(scores);
+  
+  const showScores = selectedMetrics.includes("scores");
+  const showResourceMetrics = selectedMetrics.includes("resourceMetrics");
+  
+  // If no metrics are selected, show a minimal view with just the output
+  const hasAnyMetricsSelected = showScores || showResourceMetrics;
 
   return (
     <div
@@ -98,7 +104,7 @@ const DatasetAggregateCell = ({
       )}
     >
       {actionButtons}
-      {selectedMetrics.includes("scores") && (
+      {showScores && (
         <div className="flex flex-shrink-0">
           <div className="w-fit min-w-0 border-r px-1">
             <ChartNoAxesCombined className="mt-2 h-4 w-4 text-muted-foreground" />
@@ -131,7 +137,7 @@ const DatasetAggregateCell = ({
           </div>
         </div>
       )}
-      {selectedMetrics.includes("resourceMetrics") && (
+      {showResourceMetrics && (
         <div className="flex flex-shrink-0">
           <div className="w-fit min-w-0 border-r px-1">
             <GaugeCircle className="mt-1 h-4 w-4 text-muted-foreground" />
@@ -155,82 +161,88 @@ const DatasetAggregateCell = ({
           </div>
         </div>
       )}
-      <div className="flex min-h-0 flex-grow">
-        <div className="w-fit min-w-0 border-r px-1">
-          <ListCheck className="mt-1 h-4 w-4 text-muted-foreground" />
-        </div>
-        <div className="relative w-full min-w-0 overflow-auto p-1">
-          <IOTableCell
-            isLoading={
-              (!!!observationId ? trace.isLoading : observation.isLoading) ||
-              !data
-            }
-            data={data?.output ?? "null"}
-            className={"bg-accent-light-green"}
-            singleLine={false}
-          />
-          {output && data?.output && (
-            <Dialog
-              open={isOpen}
-              onOpenChange={(open) => {
-                setIsOpen(open);
-              }}
-            >
-              <DialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  title="Compare expected output with actual output"
-                  className="absolute right-2 top-2 rounded bg-background p-1 opacity-0 transition-opacity hover:bg-secondary group-hover:opacity-100"
-                  aria-label="Action button"
-                >
-                  <FileDiffIcon className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-
-              <DialogContent
-                size="xl"
-                onClick={(event) => event.stopPropagation()}
+      {hasAnyMetricsSelected ? (
+        <div className="flex min-h-0 flex-grow">
+          <div className="w-fit min-w-0 border-r px-1">
+            <ListCheck className="mt-1 h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="relative w-full min-w-0 overflow-auto p-1">
+            <IOTableCell
+              isLoading={
+                (!!!observationId ? trace.isLoading : observation.isLoading) ||
+                !data
+              }
+              data={data?.output ?? "null"}
+              className={"bg-accent-light-green"}
+              singleLine={false}
+            />
+            {output && data?.output && (
+              <Dialog
+                open={isOpen}
+                onOpenChange={(open) => {
+                  setIsOpen(open);
+                }}
               >
-                <DialogHeader>
-                  <DialogTitle>Expected Output → Actual Output</DialogTitle>
-                </DialogHeader>
-                <DialogBody>
-                  <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
-                    <div className="space-y-6">
-                      <div className="space-y-4">
-                        <div>
-                          <DiffViewer
-                            oldString={JSON.stringify(output, null, 2)}
-                            newString={JSON.stringify(
-                              data?.output ?? "null",
-                              null,
-                              2,
-                            )}
-                            oldLabel="Expected Output"
-                            newLabel="Actual Output"
-                          />
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    title="Compare expected output with actual output"
+                    className="absolute right-2 top-2 rounded bg-background p-1 opacity-0 transition-opacity hover:bg-secondary group-hover:opacity-100"
+                    aria-label="Action button"
+                  >
+                    <FileDiffIcon className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+
+                <DialogContent
+                  size="xl"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <DialogHeader>
+                    <DialogTitle>Expected Output → Actual Output</DialogTitle>
+                  </DialogHeader>
+                  <DialogBody>
+                    <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
+                      <div className="space-y-6">
+                        <div className="space-y-4">
+                          <div>
+                            <DiffViewer
+                              oldString={JSON.stringify(output, null, 2)}
+                              newString={JSON.stringify(
+                                data?.output ?? "null",
+                                null,
+                                2,
+                              )}
+                              oldLabel="Expected Output"
+                              newLabel="Actual Output"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </DialogBody>
+                  </DialogBody>
 
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      setIsOpen(false);
-                    }}
-                    className="w-full"
-                  >
-                    Close
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
+                  <DialogFooter>
+                    <Button
+                      onClick={() => {
+                        setIsOpen(false);
+                      }}
+                      className="w-full"
+                    >
+                      Close
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex h-12 items-center justify-center">
+          <span className="text-xs text-muted-foreground">No metrics selected</span>
+        </div>
+      )}
     </div>
   );
 };
