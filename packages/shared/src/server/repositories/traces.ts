@@ -44,7 +44,13 @@ enum TracesAMTs { // eslint-disable-line no-unused-vars
  *
  * @param fromTimestamp
  */
-export const getTimeframesTracesAMT = (fromTimestamp: Date): TracesAMTs => {
+export const getTimeframesTracesAMT = (
+  fromTimestamp: Date | undefined,
+): TracesAMTs => {
+  if (!fromTimestamp) {
+    return TracesAMTs.TracesAllAMT;
+  }
+
   const now = new Date();
   const diffInDays = Math.floor(
     (now.getTime() - fromTimestamp.getTime()) / (1000 * 60 * 60 * 24),
