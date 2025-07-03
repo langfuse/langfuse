@@ -302,7 +302,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.projectId).toBe(projectId);
       expect(fetchedScore.body?.environment).toBe("production");
       expect(fetchedScore.body?.metadata).toEqual({
-        "test-key": "test-value-updated",
+        "test-key": "test-value",
       });
     });
   });
