@@ -214,19 +214,19 @@ export const generateTracesForPublicApi = async ({
           CONCAT('/project/', t.project_id, '/traces/', t.id) as "htmlPath",
           t.project_id as project_id,
           t.start_time as timestamp,
-          finalizeAggregation(t.name_argmax) as name,
+          t.name as name,
           t.environment as environment,
-          finalizeAggregation(t.session_id_argmax) as session_id,
-          finalizeAggregation(t.user_id_argmax) as user_id,
-          finalizeAggregation(t.release) as release,
-          finalizeAggregation(t.version) as version,
+          t.session_id as session_id,
+          t.user_id as user_id,
+          t.release as release,
+          t.version as version,
           finalizeAggregation(t.bookmarked) as bookmarked,
           finalizeAggregation(t.public) as public,
           t.tags as tags,
           t.created_at as created_at,
           t.updated_at as updated_at
           -- IO fields (conditional)
-          ${includeIO ? ", finalizeAggregation(t.input_argmax) as input, finalizeAggregation(t.output_argmax) as output, finalizeAggregation(t.metadata_argmax) as metadata" : ""}
+          ${includeIO ? ", finalizeAggregation(t.input) as input, finalizeAggregation(t.output) as output, t.metadata as metadata" : ""}
           -- Scores (conditional)
           ${includeScores ? ", s.score_ids as scores" : ""}
           -- Observations (conditional)
