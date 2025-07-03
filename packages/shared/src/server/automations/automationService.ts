@@ -141,7 +141,7 @@ export class AutomationService<T> {
     });
 
     switch (actionConfig.type) {
-      case "WEBHOOK":
+      case "WEBHOOK": {
         await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
           timestamp: new Date(),
           id: v4(),
@@ -149,10 +149,11 @@ export class AutomationService<T> {
           name: QueueJobs.WebhookJob,
         });
         break;
-
-      default:
+      }
+      default: {
         const _exhaustiveCheck: never = actionConfig.type;
         throw new Error(`Unhandled action type: ${_exhaustiveCheck}`);
+      }
     }
 
     logger.debug(
