@@ -409,16 +409,14 @@ export function Trace(props: {
                     </DropdownMenuSub>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                {props.trace && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={downloadTraceAsJson}
-                    title="Download trace as JSON"
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={downloadTraceAsJson}
+                  title="Download trace as JSON"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
                 <Switch
                   checked={props.selectedTab?.includes("timeline")}
                   onCheckedChange={(checked) =>

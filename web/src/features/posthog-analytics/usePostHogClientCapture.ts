@@ -15,11 +15,7 @@ const events = {
     "bookmark_button_click",
     "column_visibility_changed",
   ],
-  trace: [
-    "delete_form_open",
-    "delete",
-    "delete_form_submit",
-  ],
+  trace: ["delete_form_open", "delete", "delete_form_submit"],
   trace_detail: [
     "publish_button_click",
     "bookmark_button_click",
