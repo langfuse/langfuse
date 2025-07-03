@@ -10,6 +10,22 @@ import Page from "@/src/components/layouts/page";
 import { Trace } from "@/src/components/trace";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { Button } from "@/src/components/ui/button";
+import { Download } from "lucide-react";
+
+function downloadTraceAsJson(traceData: any, traceId: string) {
+  const jsonString = JSON.stringify(traceData, null, 2);
+  const blob = new Blob([jsonString], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `trace-${traceId}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 export function TracePage({
   traceId,
@@ -128,6 +144,14 @@ export function TracePage({
         ),
         actionButtonsRight: (
           <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => downloadTraceAsJson(trace.data, traceId)}
+              title="Download trace as JSON"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
