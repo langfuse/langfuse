@@ -54,7 +54,6 @@ import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import { AutomationsButton } from "@/src/features/automations/components/automationsButton";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 
 export type ObservationsTableRow = {
@@ -977,20 +976,17 @@ export default function ObservationsTable({
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
-          <>
-            <BatchExportTableButton
-              {...{
-                projectId,
-                filterState,
-                orderByState,
-                searchQuery,
-                searchType,
-              }}
-              tableName={BatchExportTableName.Observations}
-              key="batchExport"
-            />
-            <AutomationsButton projectId={projectId} />
-          </>
+          <BatchExportTableButton
+            {...{
+              projectId,
+              filterState,
+              orderByState,
+              searchQuery,
+              searchType,
+            }}
+            tableName={BatchExportTableName.Observations}
+            key="batchExport"
+          />
         }
         environmentFilter={{
           values: selectedEnvironments,
