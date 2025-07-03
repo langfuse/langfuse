@@ -355,8 +355,8 @@ export const automationsRouter = createTRPCRouter({
           },
         });
 
-        // Update the automation name in TriggersOnActions
-        await tx.triggersOnActions.update({
+        // Update the automation name in Automation
+        await tx.automation.update({
           where: {
             triggerId_actionId: {
               triggerId: input.triggerId,
@@ -420,7 +420,7 @@ export const automationsRouter = createTRPCRouter({
       }
 
       await ctx.prisma.$transaction(async (tx) => {
-        await tx.triggersOnActions.delete({
+        await tx.automation.delete({
           where: {
             triggerId_actionId: {
               triggerId: input.triggerId,

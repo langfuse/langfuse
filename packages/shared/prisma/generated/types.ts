@@ -221,6 +221,14 @@ export type AuditLog = {
     before: string | null;
     after: string | null;
 };
+export type Automation = {
+    id: string;
+    name: string;
+    trigger_id: string;
+    action_id: string;
+    created_at: Generated<Timestamp>;
+    project_id: string;
+};
 export type BackgroundMigration = {
     id: string;
     name: string;
@@ -727,13 +735,6 @@ export type Trigger = {
     filter: unknown | null;
     status: Generated<JobConfigState>;
 };
-export type TriggersOnActions = {
-    name: string;
-    trigger_id: string;
-    action_id: string;
-    created_at: Generated<Timestamp>;
-    project_id: string;
-};
 export type User = {
     id: string;
     name: string | null;
@@ -759,6 +760,7 @@ export type DB = {
     annotation_queues: AnnotationQueue;
     api_keys: ApiKey;
     audit_logs: AuditLog;
+    automations: Automation;
     background_migrations: BackgroundMigration;
     batch_exports: BatchExport;
     billing_meter_backups: BillingMeterBackup;
@@ -801,7 +803,6 @@ export type DB = {
     trace_sessions: TraceSession;
     traces: LegacyPrismaTrace;
     triggers: Trigger;
-    triggers_on_actions: TriggersOnActions;
     users: User;
     verification_tokens: VerificationToken;
 };

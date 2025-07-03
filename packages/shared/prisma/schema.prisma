@@ -160,7 +160,7 @@ model Project {
   actions                Action[]
   triggers               Trigger[]
   ActionExecution        ActionExecution[]
-  TriggersOnActions      TriggersOnActions[]
+  Automation             Automation[]
   DefaultLlmModel        DefaultLlmModel[]
 
   @@index([orgId])
@@ -1235,7 +1235,7 @@ model Action {
   // For ANNOTATION_QUEUE: { version: "1.0", queueId: "..." }
 
   // Relations
-  triggers        TriggersOnActions[] // Changed to use the join table
+  triggers        Automation[] // Changed to use the join table
   ActionExecution ActionExecution[]
 
   @@index([projectId])
@@ -1256,7 +1256,7 @@ model Trigger {
   filter       Json? // Filter conditions (format: { field: "name", operator: "equals", value: "my_trace" })
 
   // What action to perform when triggered - removed direct relation and added many-to-many
-  actions TriggersOnActions[]
+  actions Automation[]
 
   // Additional attributes
   status JobConfigState @default(ACTIVE) @map("status")
@@ -1268,7 +1268,8 @@ model Trigger {
   @@map("triggers")
 }
 
-model TriggersOnActions {
+model Automation {
+  id        String   @id @default(cuid())
   name      String   @map("name")
   trigger   Trigger  @relation(fields: [triggerId], references: [id], onDelete: Cascade)
   triggerId String   @map("trigger_id")
@@ -1278,10 +1279,9 @@ model TriggersOnActions {
   projectId String   @map("project_id")
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@id([triggerId, actionId])
   @@index([projectId, actionId, triggerId])
   @@index([projectId, name])
-  @@map("triggers_on_actions")
+  @@map("automations")
 }
 
 enum ActionType {

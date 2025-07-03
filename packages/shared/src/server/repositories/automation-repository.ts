@@ -139,7 +139,7 @@ export const getAutomations = async ({
   triggerId?: string;
   actionId?: string;
 }): Promise<AutomationDomain[]> => {
-  const automations = await prisma.triggersOnActions.findMany({
+  const automations = await prisma.automation.findMany({
     where: {
       projectId,
       ...(triggerId ? { triggerId } : {}),
