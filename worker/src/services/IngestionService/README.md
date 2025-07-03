@@ -320,44 +320,38 @@ GROUP BY project_id, id;
 We can query the properties of the resulting AggregatingMergeTree via (make sure to pick the right timeframe:
 ```sql
 SELECT
-    -- Identifiers
-    project_id,
-    id,
-    start_time,
-    end_time,
-    finalizeAggregation(name_argmax) AS name_argmax_value,
-    name,
+  -- Identifiers
+  project_id,
+  id,
+  start_time,
+  end_time,
+  name,
 
-    -- Metadata properties
-    finalizeAggregation(metadata) AS metadata_value,
-    finalizeAggregation(user_id_argmax) AS user_id_argmax_value,
-    finalizeAggregation(session_id_argmax) AS session_id_argmax_value,
-    finalizeAggregation(environment_argmax) AS environment_argmax_value,
-    user_id,
-    session_id,
-    environment,
-    tags,
-    finalizeAggregation(version) AS version_value,
-    finalizeAggregation(release) AS release_value,
+  -- Metadata properties
+  metadata,
+  user_id,
+  session_id,
+  environment,
+  tags,
+  version,
+  release,
 
-    -- UI properties
-    finalizeAggregation(bookmarked) AS bookmarked_value,
-    finalizeAggregation(public) AS public_value,
+  -- UI properties
+  finalizeAggregation(bookmarked) AS bookmarked_value,
+  finalizeAggregation(public) AS public_value,
 
-    -- Aggregations
-    observation_ids,
-    score_ids,
-    cost_details,
-    usage_details,
+  -- Aggregations
+  observation_ids,
+  score_ids,
+  cost_details,
+  usage_details,
 
-    -- Input/Output
-    finalizeAggregation(input_argmax) AS input_argmax_value,
-    finalizeAggregation(output_argmax) AS output_argmax_value,
-    input,
-    output,
+  -- Input/Output
+  finalizeAggregation(input) AS input_value,
+  finalizeAggregation(output) AS output_value,
 
-    created_at,
-    updated_at
+  created_at,
+  updated_at
 FROM traces_all_amt
 LIMIT 100;
 ```
@@ -369,36 +363,29 @@ We can identify discrepancies in the original and the new data using
 -- Query to compare traces_all_amt with traces table and identify discrepancies
 WITH amt_data AS (
 -- First get the finalized values from the AMT table
-    SELECT project_id,
-           id,
-           start_time,
-           end_time,
-           finalizeAggregation(name_argmax)        AS name_argmax_value,
-           name                                    AS name_anylast_value,
+  SELECT project_id,
+         id,
+         start_time,
+         end_time,
+         name,
 
-           finalizeAggregation(metadata_argmax)    AS metadata_argmax_value,
-           metadata                                AS metadata_anylast_value,
-           finalizeAggregation(user_id_argmax)     AS user_id_argmax_value,
-           user_id                                 AS user_id_anylast_value,
-           finalizeAggregation(session_id_argmax)  AS session_id_argmax_value,
-           session_id                              AS session_id_anylast_value,
-           finalizeAggregation(environment_argmax) AS environment_argmax_value,
-           environment                             AS environment_anylast_value,
-           tags,
-           finalizeAggregation(version)            AS version_value,
-           finalizeAggregation(release)            AS release_value,
+         metadata,
+         user_id,
+         session_id,
+         environment,
+         tags,
+         version,
+         release,
 
-           finalizeAggregation(bookmarked)         AS bookmarked_value,
-           finalizeAggregation(public)             AS public_value,
+         finalizeAggregation(bookmarked) AS bookmarked_value,
+         finalizeAggregation(public) AS public_value,
 
-           finalizeAggregation(input_argmax)       AS input_argmax_value,
-           input                                   AS input_anylast_value,
-           finalizeAggregation(output_argmax)      AS output_argmax_value,
-           output                                  AS output_anylast_value,
+         finalizeAggregation(input) AS input_value,
+         finalizeAggregation(output) AS output_value,
 
-           created_at,
-           updated_at
-    FROM traces_all_amt
+         created_at,
+         updated_at
+  FROM traces_all_amt
 )
 
 -- Main query to compare AMT with original traces table
@@ -406,45 +393,33 @@ SELECT t.project_id,
        t.id,
        -- Identify differences between tables
        t.timestamp != a.start_time                AS timestamp_diff,
-       t.name != a.name_anylast_value             AS name_diff,
-       t.user_id != a.user_id_anylast_value       AS user_id_diff,
-       t.session_id != a.session_id_anylast_value AS session_id_diff,
-       t.release != a.release_value               AS release_diff,
-       t.version != a.version_value               AS version_diff,
+       t.name != a.name                           AS name_diff,
+       t.user_id != a.user_id                     AS user_id_diff,
+       t.session_id != a.session_id               AS session_id_diff,
+       t.release != a.release                     AS release_diff,
+       t.version != a.version                     AS version_diff,
        t.public != a.public_value                 AS public_diff,
        t.bookmarked != a.bookmarked_value         AS bookmarked_diff,
        arraySort(t.tags) != arraySort(a.tags)     AS tags_diff,
-       t.input != a.input_anylast_value           AS input_diff,
-       t.output != a.output_anylast_value         AS output_diff,
-       t.metadata != a.metadata_anylast_value     AS metadata_diff,
-       
-       a.name_argmax_value != a.name_anylast_value AS amt_name_diff,
-       a.user_id_argmax_value != a.user_id_anylast_value AS amt_user_id_diff,
-       a.session_id_argmax_value != a.session_id_anylast_value AS amt_session_id_diff,
-       a.environment_argmax_value != a.environment_anylast_value AS amt_environment_diff,
-       a.input_argmax_value != a.input_anylast_value AS amt_input_diff,
-       a.output_argmax_value != a.output_anylast_value AS amt_output_diff,
-       a.metadata_argmax_value != a.metadata_anylast_value AS amt_metadata_diff,
+       t.input != a.input_value                   AS input_diff,
+       t.output != a.output_value                 AS output_diff,
+       t.metadata != a.metadata                   AS metadata_diff,
+       t.environment != a.environment             AS environment_diff,
 
        -- Include original values for comparison
        t.timestamp                                AS traces_timestamp,
        a.start_time                               AS amt_start_time,
        t.name                                     AS traces_name,
-       a.name_anylast_value                       AS amt_name_anylast,
-       a.name_argmax_value                        AS amt_name_argmax,
+       a.name                                     AS amt_name,
        t.user_id                                  AS traces_user_id,
-       a.user_id_anylast_value                    AS amt_user_id_anylast,
-       a.user_id_argmax_value                     AS amt_user_id_argmax,
+       a.user_id                                  AS amt_user_id,
        t.session_id                               AS traces_session_id,
-       a.session_id_anylast_value                 AS amt_session_id_anylast,
-       a.session_id_argmax_value                  AS amt_session_id_argmax,
+       a.session_id                               AS amt_session_id,
        t.environment                              AS traces_environment,
-       a.environment_anylast_value                AS amt_environment_anylast,
-       a.environment_argmax_value                 AS amt_environment_argmax,
+       a.environment                              AS amt_environment,
 
        t.metadata                                 AS traces_metadata,
-       a.metadata_anylast_value                   AS amt_metadata_anylast,
-       a.metadata_argmax_value                    AS amt_metadata_argmax,
+       a.metadata                                 AS amt_metadata,
        arraySort(t.tags)                          AS traces_tags,
        arraySort(a.tags)                          AS amt_tags,
        t.bookmarked                               AS traces_bookmarked,
@@ -452,16 +427,14 @@ SELECT t.project_id,
        t.public                                   AS traces_public,
        a.public_value                             AS amt_public,
        t.release                                  AS traces_release,
-       a.release_value                            AS amt_release,
+       a.release                                  AS amt_release,
        t.version                                  AS traces_version,
-       a.version_value                            AS amt_version,
+       a.version                                  AS amt_version,
 
        t.input                                    AS traces_input,
-       a.input_anylast_value                      AS amt_input_anylast,
-       a.input_argmax_value                       AS amt_input_argmax,
+       a.input_value                              AS amt_input,
        t.output                                   AS traces_output,
-       a.output_anylast_value                     AS amt_output_anylast,
-       a.output_argmax_value                      AS amt_output_argmax,
+       a.output_value                             AS amt_output,
 
        timestamp_diff +
        name_diff +
@@ -474,17 +447,17 @@ SELECT t.project_id,
        tags_diff +
        input_diff +
        output_diff +
-       metadata_diff
-           AS total_diff
+       metadata_diff +
+       environment_diff
+                                                  AS total_diff
 
 FROM traces t FINAL
 LEFT JOIN amt_data a ON t.project_id = a.project_id AND t.id = a.id
-where (t.timestamp >= '2025-07-01'
-or a.start_time >= '2025-07-01')
-and t.project_id in (
+WHERE (t.timestamp >= '2025-07-01' OR a.start_time >= '2025-07-01')
+AND t.project_id IN (
   'some-project-id'
 )
-ORDER BY total_diff desc
+ORDER BY total_diff DESC
 LIMIT 1000;
 ```
 
