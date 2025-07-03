@@ -10,7 +10,7 @@ import {
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { Settings2, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import { Settings2, ChevronsUpDown, ChevronsDownUp, Download } from "lucide-react";
 import { useCallback, useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
@@ -67,6 +67,7 @@ export function Trace(props: {
     newValue?: string | null,
     updateType?: UrlUpdateType,
   ) => void;
+  fullTraceData?: any; // Full trace data for download
 }) {
   const viewType = props.viewType ?? "detailed";
   const isValidObservationId = props.isValidObservationId ?? true;
@@ -205,6 +206,24 @@ export function Trace(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const downloadTraceAsJson = useCallback(() => {
+    if (props.fullTraceData) {
+      const jsonString = JSON.stringify(props.fullTraceData, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `trace-${props.trace.id}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      capture("trace_detail:download_json", { traceId: props.trace.id });
+    }
+  }, [props.fullTraceData, props.trace.id, capture]);
+
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${props.trace.id}-expanded`,
     [`trace-${props.trace.id}`],
@@ -260,6 +279,15 @@ export function Trace(props: {
             )}
             {viewType === "detailed" && (
               <div className="flex flex-row items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={downloadTraceAsJson}
+                  title="Download trace as JSON"
+                  disabled={!props.fullTraceData}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon">
