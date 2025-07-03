@@ -1,6 +1,7 @@
 import React from "react";
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -9,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import TableLink from "@/src/components/table/table-link";
 import { type TriggerEventSource } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 
 type ActionExecutionRow = {
   id: string;
@@ -35,6 +37,11 @@ export const AutomationExecutionsTable: React.FC<
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "automation-executions",
+    "s",
+  );
 
   const { data, isLoading, isError, error } =
     api.automations.getAutomationExecutions.useQuery({
@@ -170,18 +177,26 @@ export const AutomationExecutionsTable: React.FC<
   }
 
   return (
-    <DataTable
-      columns={columns}
-      data={{
-        isLoading,
-        isError,
-        data: rows,
-      }}
-      pagination={{
-        totalCount: data?.totalCount ?? 0,
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-    />
+    <>
+      <DataTableToolbar
+        columns={columns}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+      />
+      <DataTable
+        columns={columns}
+        data={{
+          isLoading,
+          isError,
+          data: rows,
+        }}
+        pagination={{
+          totalCount: data?.totalCount ?? 0,
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        rowHeight={rowHeight}
+      />
+    </>
   );
 };
