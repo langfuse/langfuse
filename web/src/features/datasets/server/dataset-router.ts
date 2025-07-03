@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { DatasetRepository } from "@/src/features/datasets/server/DatasetRepository";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -1030,5 +1031,92 @@ export const datasetRouter = createTRPCRouter({
         source: source,
         dataType: dataType,
       }));
+    }),
+
+  updateTemplate: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        template: z.object({
+          input: z.any().nullable(),
+          expectedOutput: z.any().nullable(),
+          metadata: z.any().nullable(),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const datasetRepo = new DatasetRepository(ctx.prisma);
+
+      try {
+        const dataset = await datasetRepo.updateTemplate(
+          input.projectId,
+          input.datasetId,
+          input.template,
+        );
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "dataset",
+          resourceId: input.datasetId,
+          action: "update",
+          after: dataset,
+        });
+
+        return dataset;
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to update dataset template",
+          cause: error,
+        });
+      }
+    }),
+
+  getTemplate: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const datasetRepo = new DatasetRepository(ctx.prisma);
+
+      try {
+        const template = await datasetRepo.getTemplate(
+          input.projectId,
+          input.datasetId,
+        );
+
+        if (template === null) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Dataset not found",
+          });
+        }
+        return template;
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get dataset template",
+          cause: error,
+        });
+      }
     }),
 });

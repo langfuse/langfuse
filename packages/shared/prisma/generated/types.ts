@@ -292,6 +292,9 @@ export type Dataset = {
     name: string;
     description: string | null;
     metadata: unknown | null;
+    input_template: unknown | null;
+    expected_output_template: unknown | null;
+    metadata_template: unknown | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };

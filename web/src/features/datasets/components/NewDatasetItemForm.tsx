@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -121,6 +121,62 @@ export const NewDatasetItemForm = (props: {
       metadata: formatJsonValue(props.metadata),
     },
   });
+
+  // Monitor dataset selection changes
+  const selectedDatasetIds = form.watch("datasetIds");
+  const firstSelectedDatasetId = selectedDatasetIds?.[0];
+
+  // Check if template should be applied (when no pre-filled data)
+  const shouldApplyTemplate = !props.input && !props.output && !props.metadata;
+
+  // Get template data for currently selected dataset
+  const { data: templateData } = api.datasets.getTemplate.useQuery(
+    {
+      projectId: props.projectId,
+      datasetId: firstSelectedDatasetId!,
+    },
+    {
+      enabled: !!firstSelectedDatasetId && shouldApplyTemplate,
+    },
+  );
+
+  // Function to apply template to form
+  const applyTemplateToForm = useCallback(
+    (template: typeof templateData) => {
+      if (!template || !shouldApplyTemplate) return;
+
+      const currentValues = form.getValues();
+
+      // Only apply template when fields are empty
+      const shouldApplyInput = !currentValues.input && template.input;
+      const shouldApplyOutput =
+        !currentValues.expectedOutput && template.expectedOutput;
+      const shouldApplyMetadata = !currentValues.metadata && template.metadata;
+
+      if (shouldApplyInput || shouldApplyOutput || shouldApplyMetadata) {
+        const newValues = {
+          ...currentValues,
+          input: shouldApplyInput
+            ? JSON.stringify(template.input, null, 2)
+            : currentValues.input,
+          expectedOutput: shouldApplyOutput
+            ? JSON.stringify(template.expectedOutput, null, 2)
+            : currentValues.expectedOutput,
+          metadata: shouldApplyMetadata
+            ? JSON.stringify(template.metadata, null, 2)
+            : currentValues.metadata,
+        };
+
+        form.reset(newValues);
+      }
+    },
+    [shouldApplyTemplate, form],
+  );
+
+  // Apply template when template data changes
+  useEffect(() => {
+    applyTemplateToForm(templateData);
+  }, [templateData, firstSelectedDatasetId, applyTemplateToForm]);
 
   const datasets = api.datasets.allDatasetMeta.useQuery({
     projectId: props.projectId,
