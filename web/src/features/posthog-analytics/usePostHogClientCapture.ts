@@ -15,7 +15,11 @@ const events = {
     "bookmark_button_click",
     "column_visibility_changed",
   ],
-  trace: ["delete_form_open", "delete", "delete_form_submit"],
+  trace: [
+    "delete_form_open",
+    "delete",
+    "delete_form_submit",
+  ],
   trace_detail: [
     "publish_button_click",
     "bookmark_button_click",
@@ -27,6 +31,7 @@ const events = {
     "io_pretty_format_toggle_group",
     "test_in_playground_button_click",
     "display_mode_switch",
+    "download_button_click",
   ],
   generations: ["export"],
   saved_views: [

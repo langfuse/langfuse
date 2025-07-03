@@ -220,7 +220,7 @@ export function Trace(props: {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      capture("trace_detail:download_json", { traceId: props.trace.id });
+      capture("trace_detail:download_button_click", { traceId: props.trace.id });
     }
   }, [props.fullTraceData, props.trace.id, capture]);
 
