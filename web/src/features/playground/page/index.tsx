@@ -1,14 +1,14 @@
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { SaveToPromptButton } from "@/src/features/playground/page/components/SaveToPromptButton";
 import Page from "@/src/components/layouts/page";
-import { PlaygroundProvider } from "@/src/features/playground/page/context";
-import Playground from "@/src/features/playground/page/playground";
+import { MultiPlaygroundProvider } from "@/src/features/playground/page/context/multi-playground-context";
+import { MultiPlayground } from "@/src/features/playground/page/components/multi-column/MultiPlayground";
 
 export default function PlaygroundPage() {
   return (
-    <PlaygroundProvider>
+    <MultiPlaygroundProvider>
       <Page
-        withPadding
+        withPadding={false} // Remove padding for full-width multi-column layout
         headerProps={{
           title: "Playground",
           help: {
@@ -23,10 +23,10 @@ export default function PlaygroundPage() {
           ),
         }}
       >
-        <div className="flex-1 overflow-auto">
-          <Playground />
+        <div className="flex-1 overflow-hidden">
+          <MultiPlayground />
         </div>
       </Page>
-    </PlaygroundProvider>
+    </MultiPlaygroundProvider>
   );
 }

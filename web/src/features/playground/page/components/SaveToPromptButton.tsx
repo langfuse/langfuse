@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { useMultiPlaygroundContext } from "@/src/features/playground/page/context/multi-playground-context";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -28,8 +28,7 @@ import { PromptType } from "@langfuse/shared";
 
 export const SaveToPromptButton: React.FC = () => {
   const [selectedPromptId, setSelectedPromptId] = useState("");
-  const { modelParams, messages, output, promptVariables } =
-    usePlaygroundContext();
+  const { columns, promptVariables } = useMultiPlaygroundContext();
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const projectId = useProjectIdFromURL();
@@ -49,14 +48,28 @@ export const SaveToPromptButton: React.FC = () => {
         id: prompt.id,
       })) ?? [];
 
+  // For saving, use the first column's data as the primary data
+  const firstColumn = columns[0];
+  const modelParams = firstColumn?.modelParams;
+  const messages = firstColumn?.messages || [];
+  const output = firstColumn?.output || "";
+
+  // Don't render the button if there are no columns
+  if (!firstColumn) {
+    return null;
+  }
+
   const handleNewPrompt = async () => {
     capture("playground:save_to_new_prompt_button_click", { projectId });
 
+    // Convert first column data back to the old cache format for backward compatibility
     setPlaygroundCache({
       modelParams,
-      messages,
+      messages: messages.map(({ id, ...msg }) => msg), // Remove id field
       output,
       promptVariables,
+      tools: firstColumn?.tools || [],
+      structuredOutputSchema: firstColumn?.structuredOutputSchema || null,
     });
 
     await router.push(
@@ -67,11 +80,14 @@ export const SaveToPromptButton: React.FC = () => {
   const handleNewPromptVersion = async () => {
     capture("playground:save_to_prompt_version_button_click", { projectId });
 
+    // Convert first column data back to the old cache format for backward compatibility
     setPlaygroundCache({
       modelParams,
-      messages,
+      messages: messages.map(({ id, ...msg }) => msg), // Remove id field
       output,
       promptVariables,
+      tools: firstColumn?.tools || [],
+      structuredOutputSchema: firstColumn?.structuredOutputSchema || null,
     });
 
     await router.push(

@@ -1,10 +1,10 @@
 import { Divider } from "@tremor/react";
 
-import { usePlaygroundContext } from "../context";
+import { useMultiPlaygroundContext } from "../context/multi-playground-context";
 import { PromptVariableComponent } from "./PromptVariableComponent";
 
 export const Variables = () => {
-  const { promptVariables } = usePlaygroundContext();
+  const { promptVariables } = useMultiPlaygroundContext();
   const renderNoVariables = () => (
     <div className="mt-4 text-xs">
       <p className="mb-2">No variables defined.</p>

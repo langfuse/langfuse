@@ -7,6 +7,8 @@ import {
   type PlaceholderMessage,
   type PromptVariable,
   type UIModelParams,
+  type ChatMessageWithId,
+  type LLMToolCall,
 } from "@langfuse/shared";
 
 export type PlaygroundTool = LLMToolDefinition & {
@@ -37,4 +39,37 @@ export type PlaygroundCache = {
   // TODO: also cache placeholders?
   tools?: PlaygroundTool[];
   structuredOutputSchema?: PlaygroundSchema | null;
+} | null;
+
+// Multi-column types
+export interface PlaygroundColumnState {
+  id: string;
+  messages: ChatMessageWithId[];
+  modelParams: UIModelParams;
+  tools: PlaygroundTool[];
+  structuredOutputSchema: PlaygroundSchema | null;
+  messagePlaceholders: PlaceholderMessageFillIn[];
+  output: string;
+  outputJson: string;
+  outputToolCalls: LLMToolCall[];
+  isStreaming: boolean;
+}
+
+export interface SyncSettings {
+  modelParams: boolean;
+  tools: boolean;
+  structuredOutputSchema: boolean;
+  messages: boolean;
+}
+
+export interface MultiPlaygroundState {
+  columns: PlaygroundColumnState[];
+  syncSettings: SyncSettings;
+  promptVariables: PromptVariable[];
+}
+
+export type MultiPlaygroundCache = {
+  columns: PlaygroundColumnState[];
+  syncSettings: SyncSettings;
+  promptVariables: PromptVariable[];
 } | null;
