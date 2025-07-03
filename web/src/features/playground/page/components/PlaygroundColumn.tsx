@@ -5,7 +5,10 @@ import {
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
 import { useMultiPlaygroundContext } from "../context/multi-playground-context";
-import { PlaygroundColumnProvider, usePlaygroundContext } from "./PlaygroundColumnProvider";
+import {
+  PlaygroundColumnProvider,
+  usePlaygroundContext,
+} from "./PlaygroundColumnProvider";
 import { Messages } from "./Messages";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { PlaygroundTools } from "./PlaygroundTools";
@@ -25,15 +28,16 @@ export const PlaygroundColumn: React.FC<PlaygroundColumnProps> = ({
   index,
   totalColumns,
 }) => {
-  const { updateColumnState, removeColumn, toggleColumnSync } = useMultiPlaygroundContext();
-  
+  const { updateColumnState, removeColumn, toggleColumnSync } =
+    useMultiPlaygroundContext();
+
   // Calculate responsive width
-  const columnWidth = totalColumns <= 3 ? `${100 / totalColumns}%` : '400px';
-  
+  const columnWidth = totalColumns <= 3 ? `${100 / totalColumns}%` : "400px";
+
   return (
-    <div 
-      className="flex-shrink-0 border-r last:border-r-0 h-full"
-      style={{ width: columnWidth, minWidth: '300px' }}
+    <div
+      className="h-full flex-shrink-0 border-r last:border-r-0"
+      style={{ width: columnWidth, minWidth: "300px" }}
     >
       <PlaygroundColumnProvider
         columnState={column}
@@ -48,7 +52,7 @@ export const PlaygroundColumn: React.FC<PlaygroundColumnProps> = ({
             canRemove={totalColumns > 1}
             modelName={column.modelParams.model.value}
           />
-          
+
           {/* Column content with vertical layout */}
           <div className="flex-1 overflow-hidden">
             <ResizablePanelGroup direction="vertical" className="h-full">
@@ -58,41 +62,45 @@ export const PlaygroundColumn: React.FC<PlaygroundColumnProps> = ({
                     title="Prompt"
                     syncable
                     synced={column.syncFlags.prompt}
-                    onSyncToggle={() => toggleColumnSync(column.id, 'prompt')}
+                    onSyncToggle={() => toggleColumnSync(column.id, "prompt")}
                     defaultOpen={true}
                   >
                     <ColumnMessages />
                   </CollapsibleSection>
                 </div>
               </ResizablePanel>
-              
+
               <ResizableHandle withHandle className="bg-transparent" />
-              
+
               <ResizablePanel defaultSize={40} minSize={20}>
-                <div className="h-full overflow-auto p-2 space-y-3">
+                <div className="h-full space-y-3 overflow-auto p-2">
                   <CollapsibleSection
                     title="Model"
                     syncable
                     synced={column.syncFlags.modelParams}
-                    onSyncToggle={() => toggleColumnSync(column.id, 'modelParams')}
+                    onSyncToggle={() =>
+                      toggleColumnSync(column.id, "modelParams")
+                    }
                   >
                     <ColumnModelParameters />
                   </CollapsibleSection>
-                  
+
                   <CollapsibleSection
                     title="Tools"
                     syncable
                     synced={column.syncFlags.tools}
-                    onSyncToggle={() => toggleColumnSync(column.id, 'tools')}
+                    onSyncToggle={() => toggleColumnSync(column.id, "tools")}
                   >
-                    <PlaygroundTools />
+                    <ColumnPlaygroundTools />
                   </CollapsibleSection>
-                  
+
                   <CollapsibleSection
                     title="Structured Output"
                     syncable
                     synced={column.syncFlags.structuredOutput}
-                    onSyncToggle={() => toggleColumnSync(column.id, 'structuredOutput')}
+                    onSyncToggle={() =>
+                      toggleColumnSync(column.id, "structuredOutput")
+                    }
                   >
                     <StructuredOutputSchemaSection />
                   </CollapsibleSection>
@@ -115,4 +123,8 @@ const ColumnMessages: React.FC = () => {
 const ColumnModelParameters: React.FC = () => {
   const context = usePlaygroundContext();
   return <ModelParameters {...context} />;
+};
+
+const ColumnPlaygroundTools: React.FC = () => {
+  return <PlaygroundTools />;
 };
