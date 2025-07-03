@@ -33,7 +33,6 @@ import {
   TraceEventType,
   traceRecordInsertSchema,
   TraceRecordInsertType,
-  TraceMtRecordInsertType,
   traceRecordReadSchema,
   TraceUpsertQueue,
   UsageCostType,
