@@ -4,7 +4,10 @@ import {
   ActionExecutionStatus,
   JobConfigState,
 } from "../../../prisma/generated/types";
-import { PromptWebhookOutboundSchema } from "../../domain";
+import {
+  PromptWebhookOutboundSchema,
+  WebhookDefaultHeaders,
+} from "../../domain";
 import { prisma } from "../../db";
 import { TQueueJobTypes, QueueName, WebhookInput } from "../queues";
 import {
@@ -91,7 +94,10 @@ export const executeWebhook = async (input: WebhookInput) => {
     });
 
     // Prepare headers with signature if secret exists
-    const requestHeaders = { ...webhookConfig.headers };
+    const requestHeaders: Record<string, string> = {
+      ...WebhookDefaultHeaders,
+      ...webhookConfig.headers,
+    };
 
     if (!webhookConfig.secretKey) {
       logger.warn(

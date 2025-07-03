@@ -351,7 +351,9 @@ export const AutomationForm = ({
                       <SelectItem value={TriggerEventSource.Prompt}>
                         Prompt
                       </SelectItem>
-                      {/* Add more event sources as they become available */}
+                      <SelectItem disabled={true} value="planned">
+                        More coming soon...
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription>

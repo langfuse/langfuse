@@ -47,7 +47,6 @@ export async function processWebhookActionConfig({
   const finalActionConfig = {
     ...actionConfig,
     headers: {
-      ...WebhookDefaultHeaders,
       ...actionConfig.headers,
     },
     secretKey: existingAction?.config.secretKey ?? encrypt(newSecretKey),

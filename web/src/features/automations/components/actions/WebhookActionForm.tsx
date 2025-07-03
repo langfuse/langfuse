@@ -44,7 +44,7 @@ import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 
 export const webhookSchema = z.object({
-  url: z.url({ protocol: /^https$/ }),
+  url: z.url(),
   headers: z.array(
     z.object({
       name: z.string().refine(
@@ -121,7 +121,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
               />
             </FormControl>
             <FormDescription>
-              The HTTPS URL to call when the trigger fires. We will send a POST
+              The HTTP URL to call when the trigger fires. We will send a POST
               request to this URL. Only HTTPS URLs are allowed for security.
             </FormDescription>
             <FormMessage />

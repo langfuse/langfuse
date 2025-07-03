@@ -70,5 +70,5 @@ export function promptsTableColsWithOptions(
 }
 
 export function webhookActionFilterOptions(): ColumnDefinition[] {
-  return promptsTableCols.filter((col) => col.id !== "name");
+  return promptsTableCols.filter((col) => col.id === "name");
 }
