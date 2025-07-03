@@ -169,7 +169,6 @@ export function TracePage({
           observations={trace.data.observations}
           selectedTab={selectedTab}
           setSelectedTab={setSelectedTab}
-          fullTraceData={trace.data}
         />
       </div>
     </Page>

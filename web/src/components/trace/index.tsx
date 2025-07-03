@@ -67,7 +67,6 @@ export function Trace(props: {
     newValue?: string | null,
     updateType?: UrlUpdateType,
   ) => void;
-  fullTraceData?: any; // Full trace data for download
 }) {
   const viewType = props.viewType ?? "detailed";
   const isValidObservationId = props.isValidObservationId ?? true;
@@ -207,22 +206,25 @@ export function Trace(props: {
   }, []);
 
   const downloadTraceAsJson = useCallback(() => {
-    if (props.fullTraceData) {
-      const jsonString = JSON.stringify(props.fullTraceData, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `trace-${props.trace.id}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      capture("trace_detail:download_button_click", { traceId: props.trace.id });
-    }
-  }, [props.fullTraceData, props.trace.id, capture]);
+    const exportData = {
+      trace: props.trace,
+      observations: props.observations,
+    };
+    
+    const jsonString = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `trace-${props.trace.id}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    capture("trace_detail:download_json", { traceId: props.trace.id });
+  }, [props.trace, props.observations, capture]);
 
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${props.trace.id}-expanded`,
@@ -407,7 +409,7 @@ export function Trace(props: {
                     </DropdownMenuSub>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                {props.fullTraceData && (
+                {props.trace && (
                   <Button
                     variant="ghost"
                     size="icon"
