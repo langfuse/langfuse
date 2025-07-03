@@ -12,6 +12,7 @@ import { prisma } from "../../db";
 import { TQueueJobTypes, QueueName, WebhookInput } from "../queues";
 import {
   getActionByIdWithSecrets,
+  getAutomationById,
   getConsecutiveAutomationFailures,
 } from "../repositories";
 import { logger } from "..";
@@ -34,18 +35,25 @@ export const webhookProcessor: Processor = async (
 export const executeWebhook = async (input: WebhookInput) => {
   const executionStart = new Date();
 
-  const { projectId, actionId, triggerId, executionId } = input;
+  const { projectId, automationId, executionId } = input;
   let httpStatus: number | undefined;
   let responseBody: string | undefined;
 
   try {
-    logger.debug(
-      `Executing webhook for action ${actionId} and execution ${executionId}`,
-    );
+    logger.debug(`Executing webhook for automation ${automationId}`);
+
+    const automation = await getAutomationById({
+      projectId,
+      automationId,
+    });
+
+    if (!automation) {
+      throw new LangfuseNotFoundError(`Automation ${automationId} not found`);
+    }
 
     const actionConfig = await getActionByIdWithSecrets({
       projectId,
-      actionId,
+      actionId: automation.action.id,
     });
 
     if (!actionConfig) {
@@ -75,7 +83,7 @@ export const executeWebhook = async (input: WebhookInput) => {
     }
 
     const validatedPayload = PromptWebhookOutboundSchema.safeParse({
-      id: input.eventId,
+      id: input.executionId,
       timestamp: new Date(),
       type: input.payload.type,
       action: input.payload.action,
@@ -103,7 +111,7 @@ export const executeWebhook = async (input: WebhookInput) => {
 
     if (!webhookConfig.secretKey) {
       logger.warn(
-        `Webhook config for action ${actionId} has no secret key, failing webhook execution`,
+        `Webhook config for action ${automation.action.id} has no secret key, failing webhook execution`,
       );
       throw new InternalServerError(
         "Webhook config has no secret key, failing webhook execution",
@@ -162,8 +170,8 @@ export const executeWebhook = async (input: WebhookInput) => {
     await prisma.actionExecution.update({
       where: {
         projectId,
-        triggerId,
-        actionId,
+        triggerId: automation.trigger.id,
+        actionId: automation.action.id,
         id: executionId,
       },
       data: {
@@ -177,16 +185,29 @@ export const executeWebhook = async (input: WebhookInput) => {
       },
     });
 
-    logger.debug(`Webhook executed successfully for action ${actionId}`);
+    logger.debug(
+      `Webhook executed successfully for action ${automation.action.id}`,
+    );
   } catch (error) {
     logger.error("Error executing webhook", error);
+
+    const automation = await getAutomationById({
+      projectId,
+      automationId,
+    });
+
+    if (!automation) {
+      throw new LangfuseNotFoundError(`Automation ${automationId} not found`);
+    }
 
     const shouldRetryJob =
       error instanceof LangfuseNotFoundError ||
       error instanceof InternalServerError;
 
     if (shouldRetryJob) {
-      logger.warn(`Retrying bullmq for webhook job for action ${actionId}`);
+      logger.warn(
+        `Retrying bullmq for webhook job for action ${automation.action.id}`,
+      );
       throw error;
     }
 
@@ -197,8 +218,8 @@ export const executeWebhook = async (input: WebhookInput) => {
         where: {
           id: executionId,
           projectId,
-          triggerId,
-          actionId,
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
         },
         data: {
           status: ActionExecutionStatus.ERROR,
@@ -216,28 +237,29 @@ export const executeWebhook = async (input: WebhookInput) => {
 
       // Check consecutive failures from execution history
       const consecutiveFailures = await getConsecutiveAutomationFailures({
-        triggerId,
-        actionId,
+        automationId,
         projectId,
       });
 
       logger.info(
-        `Consecutive failures: ${consecutiveFailures} for trigger ${triggerId} in project ${projectId}`,
+        `Consecutive failures: ${consecutiveFailures} for trigger ${automation.trigger.id} in project ${projectId}`,
       );
 
       // Check if trigger should be disabled (>= 5 consecutive failures)
       if (consecutiveFailures >= 4) {
         await tx.trigger.update({
-          where: { id: triggerId, projectId },
+          where: { id: automation.trigger.id, projectId },
           data: { status: JobConfigState.INACTIVE },
         });
 
         logger.warn(
-          `Automation ${triggerId} disabled after ${consecutiveFailures} consecutive failures in project ${projectId}`,
+          `Automation ${automation.trigger.id} disabled after ${consecutiveFailures} consecutive failures in project ${projectId}`,
         );
       }
     });
 
-    logger.debug(`Webhook failed for action ${actionId}`);
+    logger.debug(
+      `Webhook failed for action ${automation.action.id} in project ${projectId}`,
+    );
   }
 };

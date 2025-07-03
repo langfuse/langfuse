@@ -102,6 +102,7 @@ describe("Webhook Integration Tests", () => {
   let projectId: string;
   let triggerId: string;
   let actionId: string;
+  let automationId: string;
   let promptId: string;
   let executionId: string;
 
@@ -165,14 +166,17 @@ describe("Webhook Integration Tests", () => {
     });
 
     // Link trigger to action
+    automationId = v4();
     await prisma.automation.create({
       data: {
+        id: automationId,
         projectId,
         triggerId,
         actionId,
         name: "Test Automation",
       },
     });
+    automationId = v4();
     executionId = v4();
   });
 
@@ -192,10 +196,8 @@ describe("Webhook Integration Tests", () => {
       });
 
       const webhookInput: WebhookInput = {
-        eventId: v4(),
         projectId,
-        actionId,
-        triggerId,
+        automationId,
         executionId,
         payload: {
           prompt: PromptDomainSchema.parse(fullPrompt),
@@ -254,7 +256,7 @@ describe("Webhook Integration Tests", () => {
 
       expect(signature).toBe(expectedSignature);
 
-      expect(payload.id).toBe(webhookInput.eventId);
+      expect(payload.id).toBe(webhookInput.executionId);
       expect(payload.type).toBe("prompt");
       expect(payload.action).toBe("created");
       expect(payload.prompt.name).toBe("test-prompt");
@@ -318,10 +320,8 @@ describe("Webhook Integration Tests", () => {
       });
 
       const webhookInput: WebhookInput = {
-        eventId: v4(),
         projectId,
-        actionId,
-        triggerId,
+        automationId,
         executionId,
         payload: {
           prompt: PromptDomainSchema.parse(fullPrompt),
@@ -384,10 +384,8 @@ describe("Webhook Integration Tests", () => {
       });
       // Create action pointing to error endpoint
       const webhookInput: WebhookInput = {
-        eventId: v4(),
         projectId,
-        actionId,
-        triggerId,
+        automationId,
         executionId,
         payload: {
           prompt: PromptDomainSchema.parse(fullPrompt),
@@ -459,10 +457,8 @@ describe("Webhook Integration Tests", () => {
         });
 
         const webhookInput: WebhookInput = {
-          eventId: v4(),
           projectId,
-          actionId,
-          triggerId,
+          automationId,
           executionId,
           payload: {
             prompt: PromptDomainSchema.parse(fullPrompt),

@@ -139,10 +139,8 @@ export const WebhookOutboundEnvelopeSchema = z.object({
 });
 
 export const WebhookInputSchema = z.object({
-  eventId: z.string(),
   projectId: z.string(),
-  actionId: z.string(),
-  triggerId: z.string(),
+  automationId: z.string(),
   executionId: z.string(),
   payload: WebhookOutboundEnvelopeSchema,
 });

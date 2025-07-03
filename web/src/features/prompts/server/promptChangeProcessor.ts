@@ -13,6 +13,7 @@ import {
   QueueJobs,
   InMemoryFilterService,
   type PromptResult,
+  getAutomations,
 } from "@langfuse/shared/src/server";
 import { TriggerEventSource } from "@langfuse/shared";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
@@ -184,8 +185,18 @@ async function executeWebhookAction({
     throw new Error(`Action ${actionId} not found`);
   }
 
+  const automations = await getAutomations({
+    projectId: promptData.projectId,
+    actionId,
+  });
+
+  if (automations.length !== 1) {
+    throw new InternalServerError(
+      `Expected 1 automation for action ${actionId}, got ${automations.length}`,
+    );
+  }
+
   const executionId = v4();
-  const eventId = `evt_${v4()}`;
 
   // Create execution record
   const execution = await prisma.actionExecution.create({
@@ -200,7 +211,7 @@ async function executeWebhookAction({
         promptName: promptData.name,
         promptVersion: promptData.version,
         promptId: promptData.id,
-        action: action,
+        automationId: automations[0].id,
         type: "prompt",
       },
     },
@@ -216,10 +227,8 @@ async function executeWebhookAction({
     id: v4(),
     payload: {
       projectId: actionConfig.projectId,
-      actionId: actionConfig.id,
-      triggerId: triggerId,
+      automationId: automations[0].id,
       executionId: executionId,
-      eventId: eventId,
       payload: {
         action: action as TriggerEventAction,
         type: "prompt",
