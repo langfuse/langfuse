@@ -3,11 +3,7 @@ import {
   encrypt,
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
-import {
-  type ActionCreate,
-  WebhookDefaultHeaders,
-  type ActionConfig,
-} from "@langfuse/shared";
+import { type ActionCreate, type ActionConfig } from "@langfuse/shared";
 import { getActionByIdWithSecrets } from "@langfuse/shared/src/server";
 
 interface WebhookConfigOptions {
