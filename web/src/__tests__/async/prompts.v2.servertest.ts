@@ -1,11 +1,7 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  disconnectQueues,
-  makeAPICall,
-  pruneDatabase,
-} from "@/src/__tests__/test-utils";
+import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
 import {
   PromptSchema,
@@ -131,14 +127,11 @@ const testPromptEquality = (
 
 describe("/api/public/v2/prompts API Endpoint", () => {
   afterAll(async () => {
-    await pruneDatabase();
     await disconnectQueues();
     redis?.disconnect();
   });
 
   describe("when fetching a prompt", () => {
-    beforeAll(pruneDatabase);
-
     it("should return a 401 if key is invalid", async () => {
       const projectId = uuidv4();
       const response = await makeAPICall(
@@ -476,8 +469,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     let triggerId: string;
     let actionId: string;
     beforeAll(async () => {
-      await pruneDatabase();
-
       const { actionId: newActionId, triggerId: newTriggerId } =
         await setupTriggerAndAction(projectId);
       actionId = newActionId;
@@ -1123,7 +1114,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     const otherProjectPromptName = "prompt-5";
 
     beforeAll(async () => {
-      pruneDatabase();
       // Create a prompt in a different project
       await prisma.user.upsert({
         where: { id: "user-test" },
@@ -1678,10 +1668,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   });
 
   describe("prompt composability", () => {
-    beforeEach(() => pruneDatabase());
     afterAll(async () => {
       await disconnectQueues();
-      await pruneDatabase();
     });
 
     it("can create a prompt with dependencies linked via label", async () => {
