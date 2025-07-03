@@ -130,6 +130,36 @@ const convertActionToDomain = (action: Action): ActionDomain => {
   };
 };
 
+export const getAutomationById = async ({
+  projectId,
+  automationId,
+}: {
+  projectId: string;
+  automationId: string;
+}): Promise<AutomationDomain | null> => {
+  const automation = await prisma.automation.findFirst({
+    where: {
+      id: automationId,
+      projectId,
+    },
+    include: {
+      action: true,
+      trigger: true,
+    },
+  });
+
+  if (!automation) {
+    return null;
+  }
+
+  return {
+    id: automation.id,
+    name: automation.name,
+    trigger: convertTriggerToDomain(automation.trigger),
+    action: convertActionToDomain(automation.action),
+  };
+};
+
 export const getAutomations = async ({
   projectId,
   triggerId,
@@ -155,6 +185,7 @@ export const getAutomations = async ({
   });
 
   return automations.map((automation) => ({
+    id: automation.id,
     name: automation.name,
     trigger: convertTriggerToDomain(automation.trigger),
     action: convertActionToDomain(automation.action),
@@ -162,14 +193,25 @@ export const getAutomations = async ({
 };
 
 export const getConsecutiveAutomationFailures = async ({
-  triggerId,
-  actionId,
+  automationId,
   projectId,
 }: {
-  triggerId: string;
-  actionId: string;
+  automationId: string;
   projectId: string;
 }): Promise<number> => {
+  // First get the automation to extract triggerId and actionId
+  const automation = await prisma.automation.findFirst({
+    where: {
+      id: automationId,
+      projectId,
+    },
+  });
+
+  if (!automation) {
+    return 0;
+  }
+
+  const { triggerId, actionId } = automation;
   const executions = await prisma.actionExecution.findMany({
     where: {
       triggerId,

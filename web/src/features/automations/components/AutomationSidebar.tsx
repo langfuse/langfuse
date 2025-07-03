@@ -7,7 +7,7 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 
 interface AutomationSidebarProps {
   projectId: string;
-  selectedAutomation?: { triggerId: string; actionId: string };
+  selectedAutomation?: { automationId: string };
   onAutomationSelect: (automation: AutomationDomain) => void;
 }
 
@@ -49,12 +49,11 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
           <div className="space-y-2">
             {automations.map((automation) => {
               const isSelected =
-                selectedAutomation?.triggerId === automation.trigger.id &&
-                selectedAutomation?.actionId === automation.action.id;
+                selectedAutomation?.automationId === automation.id;
 
               return (
                 <div
-                  key={`${automation.trigger.id}-${automation.action.id}`}
+                  key={automation.id}
                   className={cn(
                     "group relative rounded-lg border p-3 transition-colors hover:bg-background/50",
                     isSelected

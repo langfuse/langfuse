@@ -12,16 +12,14 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 
 interface DeleteAutomationButtonProps {
   projectId: string;
-  triggerId: string;
-  actionId: string;
+  automationId: string;
   onSuccess?: () => void;
   variant?: "icon" | "button"; // "icon" for list view, "button" for form view
 }
 
 export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
   projectId,
-  triggerId,
-  actionId,
+  automationId,
   onSuccess,
   variant = "icon",
 }) => {
@@ -87,8 +85,7 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
             onClick={() => {
               void deleteAutomationMutation.mutateAsync({
                 projectId,
-                triggerId,
-                actionId,
+                automationId,
               });
               setIsOpen(false);
             }}

@@ -3,6 +3,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
   createBasicAuthHeader,
+  getQueue,
+  IngestionQueue,
+  QueueName,
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
@@ -24,6 +27,21 @@ export const pruneDatabase = async () => {
   await prisma.media.deleteMany();
 
   await truncateClickhouseTables();
+};
+
+export const getQueues = () => {
+  const queues: string[] = Object.values(QueueName);
+  queues.push(...IngestionQueue.getShardNames());
+
+  return queues.map((queueName) =>
+    queueName.startsWith(QueueName.IngestionQueue)
+      ? IngestionQueue.getInstance({ shardName: queueName })
+      : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
+  );
+};
+
+export const disconnectQueues = () => {
+  getQueues().forEach((queue) => queue?.disconnect());
 };
 
 export const truncateClickhouseTables = async () => {

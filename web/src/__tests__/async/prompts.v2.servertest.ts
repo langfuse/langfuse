@@ -1,7 +1,11 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import {
+  disconnectQueues,
+  makeAPICall,
+  pruneDatabase,
+} from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
 import {
   PromptSchema,
@@ -17,10 +21,7 @@ import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/
 import {
   createOrgProjectAndApiKey,
   getObservationById,
-  getQueue,
-  IngestionQueue,
   MAX_PROMPT_NESTING_DEPTH,
-  QueueName,
   WebhookQueue,
   ChatMessageType,
 } from "@langfuse/shared/src/server";
@@ -43,21 +44,6 @@ type CreatePromptInDBParams = {
   tags?: string[];
   createdAt?: Date;
   updatedAt?: Date;
-};
-
-export const getQueues = () => {
-  const queues: string[] = Object.values(QueueName);
-  queues.push(...IngestionQueue.getShardNames());
-
-  return queues.map((queueName) =>
-    queueName.startsWith(QueueName.IngestionQueue)
-      ? IngestionQueue.getInstance({ shardName: queueName })
-      : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
-  );
-};
-
-export const disconnectQueues = () => {
-  getQueues().forEach((queue) => queue?.disconnect());
 };
 
 const createPromptInDB = async (params: CreatePromptInDBParams) => {

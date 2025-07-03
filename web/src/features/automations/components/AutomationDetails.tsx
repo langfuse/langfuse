@@ -24,8 +24,7 @@ import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
 interface AutomationDetailsProps {
   projectId: string;
-  triggerId: string;
-  actionId: string;
+  automationId: string;
   onEditSuccess?: () => void;
   onEdit?: (automation: AutomationDomain) => void;
   onDelete?: () => void;
@@ -33,8 +32,7 @@ interface AutomationDetailsProps {
 
 export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   projectId,
-  triggerId,
-  actionId,
+  automationId,
   onEditSuccess,
   onEdit,
   onDelete,
@@ -49,11 +47,10 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
     api.automations.getAutomation.useQuery(
       {
         projectId,
-        triggerId,
-        actionId,
+        automationId,
       },
       {
-        enabled: !!projectId && !!triggerId && !!actionId,
+        enabled: !!projectId && !!automationId,
       },
     );
 
@@ -135,8 +132,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                 </Button>
                 <DeleteAutomationButton
                   projectId={projectId}
-                  triggerId={automation.trigger.id}
-                  actionId={automation.action.id}
+                  automationId={automationId}
                   variant="button"
                   onSuccess={onDelete}
                 />
@@ -146,8 +142,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
 
           <AutomationFailureBanner
             projectId={projectId}
-            triggerId={triggerId}
-            actionId={actionId}
+            automationId={automationId}
           />
 
           <TabsBar
@@ -168,8 +163,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
               <SettingsTableCard>
                 <AutomationExecutionsTable
                   projectId={projectId}
-                  triggerId={triggerId}
-                  actionId={actionId}
+                  automationId={automationId}
                   eventSource={automation.trigger.eventSource}
                 />
               </SettingsTableCard>

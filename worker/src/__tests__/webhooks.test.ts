@@ -165,7 +165,7 @@ describe("Webhook Integration Tests", () => {
     });
 
     // Link trigger to action
-    await prisma.triggersOnActions.create({
+    await prisma.automation.create({
       data: {
         projectId,
         triggerId,
@@ -262,6 +262,10 @@ describe("Webhook Integration Tests", () => {
       expect(payload.timestamp).toBeDefined();
       expect(payload.prompt.createdAt).toBeDefined();
       expect(payload.prompt.updatedAt).toBeDefined();
+
+      // Verify prompt is the last field in the payload
+      const payloadKeys = Object.keys(payload);
+      expect(payloadKeys[payloadKeys.length - 1]).toBe("prompt");
 
       // Verify database execution record was updated
       const execution = await prisma.actionExecution.findUnique({

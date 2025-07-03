@@ -29,16 +29,15 @@ export default function AutomationsPage() {
 
   const [urlParams, setUrlParams] = useQueryParams({
     view: withDefault(StringParam, "list"),
-    triggerId: StringParam,
-    actionId: StringParam,
+    automationId: StringParam,
     tab: withDefault(StringParam, "executions"),
   });
 
-  const { view, triggerId, actionId } = urlParams;
+  const { view, automationId } = urlParams;
 
   const selectedAutomation = useMemo(
-    () => (triggerId && actionId ? { triggerId, actionId } : undefined),
-    [triggerId, actionId],
+    () => (automationId ? { automationId } : undefined),
+    [automationId],
   );
 
   // Fetch automations to check if any exist
@@ -50,11 +49,10 @@ export default function AutomationsPage() {
   const { data: editingAutomation } = api.automations.getAutomation.useQuery(
     {
       projectId,
-      triggerId: triggerId!,
-      actionId: actionId!,
+      automationId: automationId!,
     },
     {
-      enabled: view === "edit" && !!triggerId && !!actionId,
+      enabled: view === "edit" && !!automationId,
     },
   );
 
@@ -67,8 +65,7 @@ export default function AutomationsPage() {
     ) {
       setUrlParams({
         view: "list",
-        triggerId: undefined,
-        actionId: undefined,
+        automationId: undefined,
         tab: urlParams.tab,
       });
     }
@@ -77,8 +74,7 @@ export default function AutomationsPage() {
   const handleCreateAutomation = () => {
     setUrlParams({
       view: "create",
-      triggerId: undefined,
-      actionId: undefined,
+      automationId: undefined,
       tab: urlParams.tab,
     });
   };
@@ -86,8 +82,7 @@ export default function AutomationsPage() {
   const handleEditAutomation = (automation: AutomationDomain) => {
     setUrlParams({
       view: "edit",
-      triggerId: automation.trigger.id,
-      actionId: automation.action.id,
+      automationId: automation.id,
       tab: urlParams.tab,
     });
   };
@@ -100,8 +95,7 @@ export default function AutomationsPage() {
   };
 
   const handleCreateSuccess = (
-    triggerId?: string,
-    actionId?: string,
+    automationId?: string,
     webhookSecret?: string,
   ) => {
     // Show webhook secret if provided
@@ -111,11 +105,10 @@ export default function AutomationsPage() {
     }
 
     // Navigate to the newly created automation detail page
-    if (triggerId && actionId) {
+    if (automationId) {
       setUrlParams({
         view: "list",
-        triggerId,
-        actionId,
+        automationId,
         tab: urlParams.tab,
       });
     } else {
@@ -138,8 +131,7 @@ export default function AutomationsPage() {
   const handleAutomationSelect = (automation: AutomationDomain) => {
     setUrlParams({
       view: "list",
-      triggerId: automation.trigger.id,
-      actionId: automation.action.id,
+      automationId: automation.id,
       tab: urlParams.tab, // Preserve the current tab selection
     });
   };
@@ -149,9 +141,7 @@ export default function AutomationsPage() {
     if (!automations || !selectedAutomation) return;
 
     const currentIndex = automations.findIndex(
-      (automation) =>
-        automation.trigger.id === selectedAutomation.triggerId &&
-        automation.action.id === selectedAutomation.actionId,
+      (automation) => automation.id === selectedAutomation.automationId,
     );
 
     if (currentIndex === -1) return;
@@ -168,8 +158,7 @@ export default function AutomationsPage() {
       // This was the only automation, clear selection
       setUrlParams({
         view: "list",
-        triggerId: undefined,
-        actionId: undefined,
+        automationId: undefined,
         tab: urlParams.tab,
       });
       return;
@@ -179,8 +168,7 @@ export default function AutomationsPage() {
     if (nextAutomation) {
       setUrlParams({
         view: "list",
-        triggerId: nextAutomation.trigger.id,
-        actionId: nextAutomation.action.id,
+        automationId: nextAutomation.id,
         tab: urlParams.tab,
       });
     }
@@ -218,10 +206,9 @@ export default function AutomationsPage() {
       return (
         <div className="p-6">
           <AutomationDetails
-            key={`${selectedAutomation.triggerId}-${selectedAutomation.actionId}`}
+            key={selectedAutomation.automationId}
             projectId={projectId}
-            triggerId={selectedAutomation.triggerId}
-            actionId={selectedAutomation.actionId}
+            automationId={selectedAutomation.automationId}
             onEditSuccess={handleEditSuccess}
             onEdit={handleEditAutomation}
             onDelete={handleDeleteAutomation}

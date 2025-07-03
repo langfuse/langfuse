@@ -11,6 +11,7 @@ import { v4 } from "uuid";
 import {
   getActionById,
   getAutomations,
+  getAutomationById,
   getConsecutiveAutomationFailures,
   logger,
 } from "@langfuse/shared/src/server";
@@ -32,8 +33,7 @@ export const CreateAutomationInputSchema = z.object({
 });
 
 export const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
-  triggerId: z.string(),
-  actionId: z.string(),
+  automationId: z.string(),
 });
 
 export const automationsRouter = createTRPCRouter({
@@ -42,8 +42,7 @@ export const automationsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        triggerId: z.string(),
-        actionId: z.string(),
+        automationId: z.string(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -55,8 +54,7 @@ export const automationsRouter = createTRPCRouter({
       });
 
       const recentlyDisabled = await getConsecutiveAutomationFailures({
-        triggerId: input.triggerId,
-        actionId: input.actionId,
+        automationId: input.automationId,
         projectId: input.projectId,
       });
 
@@ -68,7 +66,7 @@ export const automationsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        actionId: z.string(),
+        automationId: z.string(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -79,16 +77,28 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      // Get existing action
+      // Get automation and action
+      const automation = await getAutomationById({
+        projectId: input.projectId,
+        automationId: input.automationId,
+      });
+
+      if (!automation) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Automation with id ${input.automationId} not found.`,
+        });
+      }
+
       const existingAction = await getActionById({
         projectId: input.projectId,
-        actionId: input.actionId,
+        actionId: automation.action.id,
       });
 
       if (!existingAction || existingAction.type !== "WEBHOOK") {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: `Action with id ${input.actionId} not found.`,
+          message: `Action with id ${automation.action.id} not found.`,
         });
       }
 
@@ -99,7 +109,7 @@ export const automationsRouter = createTRPCRouter({
       await auditLog({
         session: ctx.session,
         resourceType: "webhook",
-        resourceId: input.actionId,
+        resourceId: automation.action.id,
         action: "regenerateSecret",
         before: {
           displaySecretKey: existingAction.config.displaySecretKey,
@@ -117,7 +127,7 @@ export const automationsRouter = createTRPCRouter({
       };
 
       await ctx.prisma.action.update({
-        where: { id: input.actionId, projectId: ctx.session.projectId },
+        where: { id: automation.action.id, projectId: ctx.session.projectId },
         data: { config: updatedConfig },
       });
 
@@ -142,13 +152,12 @@ export const automationsRouter = createTRPCRouter({
       });
     }),
 
-  // Get a single automation by trigger and action ID
+  // Get a single automation by automation ID
   getAutomation: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        triggerId: z.string(),
-        actionId: z.string(),
+        automationId: z.string(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -159,20 +168,19 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      const automations = await getAutomations({
+      const automation = await getAutomationById({
         projectId: input.projectId,
-        triggerId: input.triggerId,
-        actionId: input.actionId,
+        automationId: input.automationId,
       });
 
-      if (automations.length === 0) {
+      if (!automation) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: `Automation with id ${input.actionId} not found.`,
+          message: `Automation with id ${input.automationId} not found.`,
         });
       }
 
-      return automations[0];
+      return automation;
     }),
 
   // Get execution history for an automation
@@ -180,8 +188,7 @@ export const automationsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        triggerId: z.string(),
-        actionId: z.string(),
+        automationId: z.string(),
         page: z.number().min(0).default(0),
         limit: z.number().min(1).max(1000).default(50),
       }),
@@ -194,11 +201,24 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
+      // First get the automation to extract triggerId and actionId
+      const automation = await getAutomationById({
+        projectId: input.projectId,
+        automationId: input.automationId,
+      });
+
+      if (!automation) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Automation with id ${input.automationId} not found.`,
+        });
+      }
+
       const executions = await ctx.prisma.actionExecution.findMany({
         where: {
           projectId: ctx.session.projectId,
-          triggerId: input.triggerId,
-          actionId: input.actionId,
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
         },
         orderBy: {
           createdAt: "desc",
@@ -210,8 +230,8 @@ export const automationsRouter = createTRPCRouter({
       const totalCount = await ctx.prisma.actionExecution.count({
         where: {
           projectId: ctx.session.projectId,
-          triggerId: input.triggerId,
-          actionId: input.actionId,
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
         },
       });
 
@@ -242,39 +262,42 @@ export const automationsRouter = createTRPCRouter({
           projectId: input.projectId,
         });
 
-      const [trigger, action] = await ctx.prisma.$transaction(async (tx) => {
-        const trigger = await tx.trigger.create({
-          data: {
-            id: triggerId,
-            projectId: ctx.session.projectId,
-            eventSource: input.eventSource,
-            eventActions: input.eventAction,
-            filter: input.filter || [],
-            status: input.status,
-          },
-        });
-
-        // First create the action
-        const action = await tx.action.create({
-          data: {
-            id: actionId,
-            projectId: ctx.session.projectId,
-            type: input.actionType,
-            config: finalActionConfig,
-            triggers: {
-              create: [
-                {
-                  projectId: ctx.session.projectId,
-                  triggerId: triggerId,
-                  name: input.name,
-                },
-              ],
+      const [trigger, action, automation] = await ctx.prisma.$transaction(
+        async (tx) => {
+          const trigger = await tx.trigger.create({
+            data: {
+              id: triggerId,
+              projectId: ctx.session.projectId,
+              eventSource: input.eventSource,
+              eventActions: input.eventAction,
+              filter: input.filter || [],
+              status: input.status,
             },
-          },
-        });
+          });
 
-        return [trigger, action];
-      });
+          // First create the action
+          const action = await tx.action.create({
+            data: {
+              id: actionId,
+              projectId: ctx.session.projectId,
+              type: input.actionType,
+              config: finalActionConfig,
+            },
+          });
+
+          // Create the automation
+          const automation = await tx.automation.create({
+            data: {
+              projectId: ctx.session.projectId,
+              triggerId: triggerId,
+              actionId: actionId,
+              name: input.name,
+            },
+          });
+
+          return [trigger, action, automation];
+        },
+      );
 
       await auditLog({
         session: ctx.session,
@@ -283,6 +306,7 @@ export const automationsRouter = createTRPCRouter({
         action: "create",
         before: undefined,
         after: {
+          automation,
           action: action,
           trigger: trigger,
         },
@@ -293,6 +317,7 @@ export const automationsRouter = createTRPCRouter({
       return {
         action,
         trigger,
+        automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
       };
     }),
@@ -308,68 +333,75 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      const existingAutomation = await getAutomations({
+      const existingAutomation = await getAutomationById({
         projectId: input.projectId,
-        triggerId: input.triggerId,
-        actionId: input.actionId,
+        automationId: input.automationId,
       });
 
-      if (existingAutomation.length === 0) {
+      if (!existingAutomation) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: `Automation with id ${input.actionId} not found.`,
+          message: `Automation with id ${input.automationId} not found.`,
         });
       }
 
       // Process webhook action configuration using helper
       const { finalActionConfig } = await processWebhookActionConfig({
         actionConfig: input.actionConfig,
-        actionId: input.actionId,
+        actionId: existingAutomation.action.id,
         projectId: input.projectId,
       });
 
-      const [action, trigger] = await ctx.prisma.$transaction(async (tx) => {
-        // Update the action
-        const action = await tx.action.update({
-          where: {
-            id: input.actionId,
-            projectId: ctx.session.projectId,
-          },
-          data: {
-            type: input.actionType,
-            config: finalActionConfig,
-          },
-        });
-
-        // Update the trigger
-        const trigger = await tx.trigger.update({
-          where: {
-            id: input.triggerId,
-            projectId: ctx.session.projectId,
-          },
-          data: {
-            eventSource: input.eventSource,
-            eventActions: input.eventAction,
-            filter: input.filter || [],
-            status: input.status,
-          },
-        });
-
-        // Update the automation name in Automation
-        await tx.automation.update({
-          where: {
-            triggerId_actionId: {
-              triggerId: input.triggerId,
-              actionId: input.actionId,
+      const [action, trigger, automation] = await ctx.prisma.$transaction(
+        async (tx) => {
+          // Update the action
+          const action = await tx.action.update({
+            where: {
+              id: existingAutomation.action.id,
+              projectId: ctx.session.projectId,
             },
-          },
-          data: {
-            name: input.name,
-          },
-        });
+            data: {
+              type: input.actionType,
+              config: finalActionConfig,
+            },
+          });
 
-        return [action, trigger];
-      });
+          // Update the trigger
+          const trigger = await tx.trigger.update({
+            where: {
+              id: existingAutomation.trigger.id,
+              projectId: ctx.session.projectId,
+            },
+            data: {
+              eventSource: input.eventSource,
+              eventActions: input.eventAction,
+              filter: input.filter || [],
+              status: input.status,
+            },
+          });
+
+          // Update the automation name in Automation
+          await tx.automation.update({
+            where: {
+              id: input.automationId,
+              projectId: ctx.session.projectId,
+            },
+            data: {
+              name: input.name,
+            },
+          });
+
+          // Get the updated automation
+          const automation = await tx.automation.findFirst({
+            where: {
+              id: input.automationId,
+              projectId: ctx.session.projectId,
+            },
+          });
+
+          return [action, trigger, automation];
+        },
+      );
 
       await auditLog({
         session: ctx.session,
@@ -377,16 +409,18 @@ export const automationsRouter = createTRPCRouter({
         resourceId: trigger.id,
         action: "update",
         before: {
-          action: existingAutomation[0].action,
-          trigger: existingAutomation[0].trigger,
+          automation: existingAutomation,
+          action: existingAutomation.action,
+          trigger: existingAutomation.trigger,
         },
         after: {
+          automation: automation,
           action: action,
           trigger: trigger,
         },
       });
 
-      return { action, trigger };
+      return { action, trigger, automation };
     }),
 
   // Delete an automation (both trigger and action)
@@ -394,8 +428,7 @@ export const automationsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        triggerId: z.string(),
-        actionId: z.string(),
+        automationId: z.string(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -406,47 +439,43 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      const existingAutomation = await getAutomations({
+      const existingAutomation = await getAutomationById({
         projectId: input.projectId,
-        triggerId: input.triggerId,
-        actionId: input.actionId,
+        automationId: input.automationId,
       });
 
-      if (existingAutomation.length === 0) {
+      if (!existingAutomation) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: `Automation with id ${input.actionId} not found.`,
+          message: `Automation with id ${input.automationId} not found.`,
         });
       }
 
       await ctx.prisma.$transaction(async (tx) => {
         await tx.automation.delete({
           where: {
-            triggerId_actionId: {
-              triggerId: input.triggerId,
-              actionId: input.actionId,
-            },
+            id: input.automationId,
             projectId: ctx.session.projectId,
           },
         });
 
         await tx.actionExecution.deleteMany({
           where: {
-            triggerId: input.triggerId,
-            actionId: input.actionId,
+            triggerId: existingAutomation.trigger.id,
+            actionId: existingAutomation.action.id,
           },
         });
 
         await tx.action.delete({
           where: {
-            id: input.actionId,
+            id: existingAutomation.action.id,
             projectId: ctx.session.projectId,
           },
         });
 
         await tx.trigger.delete({
           where: {
-            id: input.triggerId,
+            id: existingAutomation.trigger.id,
             projectId: ctx.session.projectId,
           },
         });
@@ -454,9 +483,9 @@ export const automationsRouter = createTRPCRouter({
         await auditLog({
           session: ctx.session,
           resourceType: "automation",
-          resourceId: input.triggerId,
+          resourceId: input.automationId,
           action: "delete",
-          before: existingAutomation[0],
+          before: existingAutomation,
         });
       });
     }),

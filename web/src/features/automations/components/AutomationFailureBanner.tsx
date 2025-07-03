@@ -6,20 +6,18 @@ import { api } from "@/src/utils/api";
 
 interface AutomationFailureBannerProps {
   projectId: string;
-  triggerId: string;
-  actionId: string;
+  automationId: string;
 }
 
 export const AutomationFailureBanner: React.FC<
   AutomationFailureBannerProps
-> = ({ projectId, triggerId, actionId }) => {
+> = ({ projectId, automationId }) => {
   const [dismissed, setDismissed] = React.useState(false);
 
   const { data: failureData } =
     api.automations.getCountOfConsecutiveFailures.useQuery({
       projectId,
-      triggerId,
-      actionId,
+      automationId,
     });
 
   if (dismissed || !failureData || failureData.count < 5) {

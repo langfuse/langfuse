@@ -72,8 +72,7 @@ type FormValues = z.infer<typeof formSchema>;
 interface AutomationFormProps {
   projectId: string;
   onSuccess?: (
-    triggerId?: string,
-    actionId?: string,
+    automationId?: string,
     webhookSecret?: string,
   ) => void;
   onCancel?: () => void;
@@ -201,15 +200,11 @@ export const AutomationForm = ({
 
     const actionConfig = handler.buildActionConfig(data);
 
-    let triggerId: string;
-    let actionId: string;
-
     if (isEditing && automation) {
       // Update existing automation
       await updateAutomationMutation.mutateAsync({
         projectId,
-        triggerId: automation.trigger.id,
-        actionId: automation.action.id,
+        automationId: automation.id,
         name: data.name,
         eventSource: data.eventSource,
         eventAction: data.eventAction,
@@ -218,10 +213,8 @@ export const AutomationForm = ({
         actionType: data.actionType,
         actionConfig: actionConfig,
       });
-      triggerId = automation.trigger.id;
-      actionId = automation.action.id;
 
-      onSuccess?.(triggerId, actionId);
+      onSuccess?.(automation.id);
     } else {
       // Create new automation
       const result = await createAutomationMutation.mutateAsync({
@@ -234,10 +227,7 @@ export const AutomationForm = ({
         actionType: data.actionType,
         actionConfig: actionConfig,
       });
-      triggerId = result.trigger.id;
-      actionId = result.action.id;
-
-      onSuccess?.(triggerId, actionId, result.webhookSecret);
+      onSuccess?.(result.automation.id, result.webhookSecret);
     }
   };
 

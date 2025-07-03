@@ -23,6 +23,7 @@ export type TriggerDomain = Omit<
 };
 
 export type AutomationDomain = {
+  id: string;
   name: string;
   trigger: TriggerDomain;
   action: ActionDomain;

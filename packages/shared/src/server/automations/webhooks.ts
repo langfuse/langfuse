@@ -88,9 +88,11 @@ export const executeWebhook = async (input: WebhookInput) => {
       );
     }
 
-    // Prepare webhook payload
+    // Prepare webhook payload with prompt always last
+    const { prompt, ...otherFields } = validatedPayload.data;
     const webhookPayload = JSON.stringify({
-      ...validatedPayload.data,
+      ...otherFields,
+      prompt,
     });
 
     // Prepare headers with signature if secret exists

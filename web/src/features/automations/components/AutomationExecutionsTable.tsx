@@ -24,14 +24,13 @@ type ActionExecutionRow = {
 
 interface AutomationExecutionsTableProps {
   projectId: string;
-  triggerId: string;
-  actionId: string;
+  automationId: string;
   eventSource: TriggerEventSource;
 }
 
 export const AutomationExecutionsTable: React.FC<
   AutomationExecutionsTableProps
-> = ({ projectId, triggerId, actionId, eventSource }) => {
+> = ({ projectId, automationId, eventSource }) => {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -40,8 +39,7 @@ export const AutomationExecutionsTable: React.FC<
   const { data, isLoading, isError, error } =
     api.automations.getAutomationExecutions.useQuery({
       projectId,
-      triggerId,
-      actionId,
+      automationId,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     });
