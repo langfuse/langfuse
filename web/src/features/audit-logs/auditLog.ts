@@ -33,6 +33,7 @@ export type AuditableResource =
   | "batchExport"
   | "stripeCheckoutSession"
   | "batchAction"
+  | "spanIframeConfig"
   // legacy resources
   | "membership";
 

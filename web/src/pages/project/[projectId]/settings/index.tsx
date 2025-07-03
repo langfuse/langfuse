@@ -26,6 +26,7 @@ import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
+import { SpanIframeConfigSettings } from "@/src/features/span-iframe-configs/components/SpanIframeConfigSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -161,6 +162,12 @@ export const getProjectSettingsPages = ({
     cmdKKeywords: ["prompt", "label", "protect", "lock"],
     content: <ProtectedLabelsSettings projectId={project.id} />,
     show: showProtectedLabelsSettings,
+  },
+  {
+    title: "Span Iframe Configs",
+    slug: "span-iframe-configs",
+    cmdKKeywords: ["iframe", "span", "custom", "renderer", "visualization"],
+    content: <SpanIframeConfigSettings projectId={project.id} />,
   },
   {
     title: "Scores / Evaluation",

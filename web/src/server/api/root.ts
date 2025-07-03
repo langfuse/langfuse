@@ -40,6 +40,7 @@ import { dashboardWidgetRouter } from "./routers/dashboardWidgets";
 import { TableViewPresetsRouter } from "@/src/server/api/routers/tableViewPresets";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { plainRouter } from "@/src/features/support-chat/trpc/plain";
+import { spanIframeConfigRouter } from "@/src/features/span-iframe-configs/server/router";
 
 /**
  * This is the primary router for your server.
@@ -88,6 +89,7 @@ export const appRouter = createTRPCRouter({
   dashboardWidgets: dashboardWidgetRouter,
   TableViewPresets: TableViewPresetsRouter,
   plain: plainRouter,
+  spanIframeConfigs: spanIframeConfigRouter,
 });
 
 // export type definition of API

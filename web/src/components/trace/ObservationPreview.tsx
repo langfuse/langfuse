@@ -34,6 +34,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
+import { SpanIframeRenderer } from "@/src/features/span-iframe-configs/components/SpanIframeRenderer";
 
 export const ObservationPreview = ({
   observations,
@@ -58,7 +59,7 @@ export const ObservationPreview = ({
     "view",
     withDefault(StringParam, "preview"),
   );
-  const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const [currentView, setCurrentView] = useState<string>("pretty");
   const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
@@ -99,6 +100,19 @@ export const ObservationPreview = ({
 
   const preloadedObservation = observations.find(
     (o) => o.id === currentObservationId,
+  );
+
+  // Query for applicable iframe configurations
+  const iframeConfigs = api.spanIframeConfigs.forSpan.useQuery(
+    {
+      projectId: projectId,
+      spanName: preloadedObservation?.name || undefined,
+    },
+    {
+      enabled: isAuthenticatedAndProjectMember && !!preloadedObservation,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
   );
 
   const thisCost = preloadedObservation
@@ -367,22 +381,33 @@ export const ObservationPreview = ({
               {showScoresTab && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
-              {selectedTab.includes("preview") && isPrettyViewAvailable && (
+              {selectedTab.includes("preview") && (isPrettyViewAvailable || (iframeConfigs.data && iframeConfigs.data.length > 0)) && (
                 <Tabs
                   className="ml-auto mr-1 h-fit px-2 py-0.5"
                   value={currentView}
                   onValueChange={(value) => {
                     capture("trace_detail:io_mode_switch", { view: value });
-                    setCurrentView(value as "pretty" | "json");
+                    setCurrentView(value);
                   }}
                 >
                   <TabsList className="h-fit py-0.5">
-                    <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-                      Formatted
-                    </TabsTrigger>
+                    {isPrettyViewAvailable && (
+                      <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                        Formatted
+                      </TabsTrigger>
+                    )}
                     <TabsTrigger value="json" className="h-fit px-1 text-xs">
                       JSON
                     </TabsTrigger>
+                    {iframeConfigs.data?.map((config) => (
+                      <TabsTrigger 
+                        key={config.id} 
+                        value={config.id} 
+                        className="h-fit px-1 text-xs"
+                      >
+                        {config.name}
+                      </TabsTrigger>
+                    ))}
                   </TabsList>
                 </Tabs>
               )}
@@ -393,19 +418,44 @@ export const ObservationPreview = ({
             className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-3"
           >
             <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
-              <div>
-                <IOPreview
-                  key={preloadedObservation.id + "-input"}
-                  input={observationWithInputAndOutput.data?.input ?? undefined}
-                  output={
-                    observationWithInputAndOutput.data?.output ?? undefined
-                  }
-                  isLoading={observationWithInputAndOutput.isLoading}
-                  media={observationMedia.data}
-                  currentView={currentView}
-                  setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-                />
-              </div>
+              {/* Check if currentView is an iframe config ID */}
+              {(() => {
+                const selectedIframeConfig = iframeConfigs.data?.find(config => config.id === currentView);
+                
+                if (selectedIframeConfig && observationWithInputAndOutput.data) {
+                  return (
+                    <div key={`iframe-${selectedIframeConfig.id}-${preloadedObservation.id}`}>
+                      <SpanIframeRenderer
+                        config={selectedIframeConfig}
+                        observation={{
+                          id: observationWithInputAndOutput.data.id,
+                          input: observationWithInputAndOutput.data.input,
+                          output: observationWithInputAndOutput.data.output,
+                          metadata: observationWithInputAndOutput.data.metadata,
+                        }}
+                        className="min-h-[400px]"
+                      />
+                    </div>
+                  );
+                }
+                
+                // Default rendering for non-iframe views
+                return (
+                  <div>
+                    <IOPreview
+                      key={preloadedObservation.id + "-input"}
+                      input={observationWithInputAndOutput.data?.input ?? undefined}
+                      output={
+                        observationWithInputAndOutput.data?.output ?? undefined
+                      }
+                      isLoading={observationWithInputAndOutput.isLoading}
+                      media={observationMedia.data}
+                      currentView={currentView === "pretty" || currentView === "json" ? currentView : "json"}
+                      setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+                    />
+                  </div>
+                );
+              })()}
               <div>
                 {preloadedObservation.statusMessage && (
                   <JSONView
