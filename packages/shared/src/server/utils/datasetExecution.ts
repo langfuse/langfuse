@@ -10,9 +10,8 @@ import { logger } from "../logger";
  */
 export function getDatasetRunItemsExecutionStrategy() {
   return {
-    shouldWriteToClickHouse: env.LANGFUSE_DATASET_RUN_ITEMS_WRITE_TO_CLICKHOUSE,
-    shouldReadFromClickHouse:
-      env.LANGFUSE_DATASET_RUN_ITEMS_READ_FROM_CLICKHOUSE,
+    shouldWriteToClickHouse: env.LANGFUSE_DATASET_RUN_ITEMS_WRITE_CH,
+    shouldReadFromClickHouse: env.LANGFUSE_DATASET_RUN_ITEMS_READ_CH,
   };
 }
 
