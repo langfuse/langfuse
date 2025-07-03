@@ -5,7 +5,6 @@ import {
   type RunMetrics,
   type RunAggregate,
   type DatasetCompareRunRowData,
-  type DatasetRunMetric,
 } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
@@ -14,7 +13,6 @@ export const constructDatasetRunAggregateColumns = ({
   runAggregateColumnProps,
   projectId,
   scoreKeyToDisplayName,
-  selectedMetrics,
   cellsLoading = false,
 }: {
   runAggregateColumnProps: {
@@ -25,7 +23,6 @@ export const constructDatasetRunAggregateColumns = ({
   }[];
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
-  selectedMetrics: DatasetRunMetric[];
   cellsLoading?: boolean;
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
   return runAggregateColumnProps.map((col) => {
@@ -62,7 +59,6 @@ export const constructDatasetRunAggregateColumns = ({
             value={value}
             projectId={projectId}
             scoreKeyToDisplayName={scoreKeyToDisplayName}
-            selectedMetrics={selectedMetrics}
           />
         );
       },
