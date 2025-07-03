@@ -104,6 +104,3 @@ export function createSignatureHeader(payload: string, secret: string): string {
   const signature = generateWebhookSignature(payload, timestamp, secret);
   return `t=${timestamp},v1=${signature}`;
 }
-
-// Export verification function for users to implement in their webhook endpoints
-export { verifyWebhookSignature as verifyLangfuseWebhookSignature };
