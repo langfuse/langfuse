@@ -5,11 +5,9 @@ import { type ButtonProps } from "@/src/components/ui/button";
 
 export const WebhookButton = ({
   projectId,
-  variant = "outline",
   ...buttonProps
 }: {
   projectId: string;
-  variant?: "outline" | "default";
 } & ButtonProps) => {
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -21,7 +19,6 @@ export const WebhookButton = ({
       href={`/project/${projectId}/automations`}
       icon={<Zap className="h-4 w-4" aria-hidden="true" />}
       hasAccess={hasAccess}
-      variant={variant}
       title="Webhooks"
       {...buttonProps}
     >
