@@ -1,4 +1,3 @@
-import { disconnectQueues } from "@/src/__tests__/test-utils";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -54,10 +53,6 @@ async function prepare() {
 }
 
 describe("prompts trpc", () => {
-  afterAll(async () => {
-    await disconnectQueues();
-  });
-
   describe("prompts.setLabels", () => {
     it("should set labels on a prompt and remove them from other versions", async () => {
       const { project, caller } = await prepare();

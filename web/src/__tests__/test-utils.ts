@@ -29,28 +29,6 @@ export const pruneDatabase = async () => {
   await truncateClickhouseTables();
 };
 
-export const getQueues = () => {
-  const queues: string[] = Object.values(QueueName);
-  queues.push(...IngestionQueue.getShardNames());
-
-  return queues.map((queueName) =>
-    queueName.startsWith(QueueName.IngestionQueue)
-      ? IngestionQueue.getInstance({ shardName: queueName })
-      : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
-  );
-};
-
-export const disconnectQueues = async () => {
-  await Promise.all(
-    getQueues().map(async (queue) => {
-      if (queue) {
-        await queue.close();
-        queue.disconnect();
-      }
-    }),
-  );
-};
-
 export const truncateClickhouseTables = async () => {
   if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
     throw new Error("You cannot prune clickhouse unless running on localhost.");

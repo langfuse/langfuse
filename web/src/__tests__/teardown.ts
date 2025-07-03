@@ -12,8 +12,4 @@ export default async function teardown() {
   logger.debug("Teardown complete");
 
   logger.debug("Checking for leaked handles");
-  // require("leaked-handles").set({
-  //   fullStack: true, // use full stack traces
-  //   debugSockets: true, // pretty print tcp thrown exceptions.
-  // });
 }
