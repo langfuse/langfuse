@@ -124,15 +124,34 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const handleClick = () => {
     capture(props.analyticsEventName);
 
-    // Use the stable window ID and save the cache to it
-    const addedWindowId = addWindowWithId(stableWindowId);
-
-    // Save the cache to the window-specific key
-    if (capturedState && addedWindowId) {
-      setPlaygroundCache(capturedState);
+    // First, ensure we have state to save
+    if (!capturedState) {
+      console.warn("No captured state available for playground");
+      return;
     }
 
-    router.push(`/project/${projectId}/playground`);
+    // Add the window to the list first
+    const addedWindowId = addWindowWithId(stableWindowId);
+
+    if (!addedWindowId) {
+      console.warn("Failed to add window to list, maximum windows reached");
+      return;
+    }
+
+    // Use requestAnimationFrame to ensure the state update has been processed
+    requestAnimationFrame(() => {
+      try {
+        setPlaygroundCache(capturedState);
+        console.log(`Cache saved for window ${stableWindowId}`);
+
+        // Navigate after cache is successfully saved
+        router.push(`/project/${projectId}/playground`);
+      } catch (error) {
+        console.error("Failed to save playground cache:", error);
+        // Navigate anyway, but user might not see their data
+        router.push(`/project/${projectId}/playground`);
+      }
+    });
   };
 
   return (
