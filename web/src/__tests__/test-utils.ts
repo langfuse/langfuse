@@ -3,9 +3,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
   createBasicAuthHeader,
-  getQueue,
-  IngestionQueue,
-  QueueName,
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
