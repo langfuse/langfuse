@@ -530,8 +530,9 @@ This checklist documents all references and invocations to the `traces` table gr
 
 ### 1. Single Record Lookups (by ID)
 - [ ] **IngestionService.getClickhouseRecord()** - `worker/src/services/IngestionService/index.ts:1047-1065`
-- [ ] **getTraceById()** - `packages/shared/src/server/repositories/traces.ts:443-486`
-- [ ] **getTracesByIds()** - `packages/shared/src/server/repositories/traces.ts:233-264`
+  - Can probably be skipped as read for updates won't be a thing in the new flow. 
+- [x] **getTraceById()** - `packages/shared/src/server/repositories/traces.ts:443-486`
+- [x] **getTracesByIds()** - `packages/shared/src/server/repositories/traces.ts:233-264`
 
 ### 2. Session-Based Queries
 - [ ] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
@@ -563,6 +564,3 @@ This checklist documents all references and invocations to the `traces` table gr
 
 ### 7. Cross-Project Queries
 - [ ] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
-  - Pattern: `SELECT id, project_id FROM traces WHERE id IN ({traceIds}) ORDER BY event_ts DESC LIMIT 1 by id, project_id`
-  - Used for: Cross-project trace lookup
-  - Access: Direct table access with FINAL not used

@@ -236,28 +236,77 @@ export const getTracesByIds = async (
   timestamp?: Date,
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined,
 ) => {
-  const query = `
-      SELECT * 
-      FROM traces
-      WHERE id IN ({traceIds: Array(String)})
-      AND project_id = {projectId: String}
-      ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""} 
-      ORDER BY event_ts DESC
-      LIMIT 1 by id, project_id;`;
-  const records = await queryClickhouse<TraceRecordReadType>({
-    query,
-    params: {
-      traceIds,
-      projectId,
-      timestamp: timestamp ? convertDateToClickhouseDateTime(timestamp) : null,
+  const records = await measureAndReturn({
+    operationName: "getTracesByIds",
+    projectId,
+    input: {
+      params: {
+        traceIds,
+        projectId,
+        timestamp: timestamp
+          ? convertDateToClickhouseDateTime(timestamp)
+          : null,
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "byId",
+        projectId,
+      },
+      clickhouseConfigs,
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "byId",
-      projectId,
+    existingExecution: (input) => {
+      const query = `
+        SELECT * 
+        FROM traces
+        WHERE id IN ({traceIds: Array(String)})
+        AND project_id = {projectId: String}
+        ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""} 
+        ORDER BY event_ts DESC
+        LIMIT 1 by id, project_id;
+      `;
+      return queryClickhouse<TraceRecordReadType>({
+        query,
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs: input.clickhouseConfigs,
+      });
     },
-    clickhouseConfigs,
+    newExecution: (input) => {
+      const query = `
+        SELECT 
+          id,
+          finalizeAggregation(name_argmax) as name,
+          finalizeAggregation(user_id_argmax) as user_id,
+          finalizeAggregation(metadata_argmax) as metadata,
+          finalizeAggregation(release) as release,
+          finalizeAggregation(version) as version,
+          project_id,
+          environment,
+          finalizeAggregation(public) as public,
+          finalizeAggregation(bookmarked) as bookmarked,
+          tags,
+          finalizeAggregation(input_argmax) as input,
+          finalizeAggregation(output_argmax) as output,
+          finalizeAggregation(session_id_argmax) as session_id,
+          0 as is_deleted,
+          start_time as timestamp,
+          created_at,
+          updated_at,
+          updated_at as event_ts
+        FROM traces_all_amt
+        WHERE id IN ({traceIds: Array(String)})
+        AND project_id = {projectId: String}
+        LIMIT 1
+      `;
+
+      return queryClickhouse<TraceRecordReadType>({
+        query,
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs: input.clickhouseConfigs,
+      });
+    },
   });
 
   return records.map(convertClickhouseToDomain);
@@ -440,34 +489,78 @@ export const getTraceById = async ({
   timestamp?: Date;
   fromTimestamp?: Date;
 }) => {
-  const query = `
-    SELECT * 
-    FROM traces
-    WHERE id = {traceId: String} 
-    AND project_id = {projectId: String}
-    ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
-    ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""} 
-    ORDER BY event_ts DESC 
-    LIMIT 1
-  `;
-
-  const records = await queryClickhouse<TraceRecordReadType>({
-    query,
-    params: {
-      traceId,
-      projectId,
-      ...(timestamp
-        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
-        : {}),
-      ...(fromTimestamp
-        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
-        : {}),
+  const records = await measureAndReturn({
+    operationName: "getTraceById",
+    projectId,
+    input: {
+      params: {
+        traceId,
+        projectId,
+        ...(timestamp
+          ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+          : {}),
+        ...(fromTimestamp
+          ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+          : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "byId",
+        projectId,
+      },
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "byId",
-      projectId,
+    existingExecution: (input) => {
+      const query = `
+        SELECT * 
+        FROM traces
+        WHERE id = {traceId: String} 
+        AND project_id = {projectId: String}
+        ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
+        ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""} 
+        ORDER BY event_ts DESC 
+        LIMIT 1
+      `;
+
+      return queryClickhouse<TraceRecordReadType>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+    },
+    newExecution: (input) => {
+      const query = `
+        SELECT 
+          id,
+          finalizeAggregation(name_argmax) as name,
+          finalizeAggregation(user_id_argmax) as user_id,
+          finalizeAggregation(metadata_argmax) as metadata,
+          finalizeAggregation(release) as release,
+          finalizeAggregation(version) as version,
+          project_id,
+          environment,
+          finalizeAggregation(public) as public,
+          finalizeAggregation(bookmarked) as bookmarked,
+          tags,
+          finalizeAggregation(input_argmax) as input,
+          finalizeAggregation(output_argmax) as output,
+          finalizeAggregation(session_id_argmax) as session_id,
+          0 as is_deleted,
+          start_time as timestamp,
+          created_at,
+          updated_at,
+          updated_at as event_ts
+        FROM traces_all_amt
+        WHERE id = {traceId: String}
+        AND project_id = {projectId: String}
+        LIMIT 1
+      `;
+
+      return queryClickhouse<TraceRecordReadType>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
     },
   });
 
