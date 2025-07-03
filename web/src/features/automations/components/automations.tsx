@@ -4,7 +4,6 @@ import { AutomationDetails } from "@/src/features/automations/components/Automat
 import { AutomationForm } from "@/src/features/automations/components/automationForm";
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
-import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
@@ -18,9 +17,8 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
-import Header from "@/src/components/layouts/header";
 
-export default function AutomationsSettingsPage() {
+export default function AutomationsPage() {
   const router = useRouter();
   const utils = api.useUtils();
   const projectId = router.query.projectId as string;
@@ -177,7 +175,7 @@ export default function AutomationsSettingsPage() {
   const renderMainContent = () => {
     if (view === "create") {
       return (
-        <div className="">
+        <div className="p-6">
           <AutomationForm
             projectId={projectId}
             onSuccess={handleCreateSuccess}
@@ -190,7 +188,7 @@ export default function AutomationsSettingsPage() {
 
     if (view === "edit" && editingAutomation) {
       return (
-        <div className="">
+        <div className="p-6">
           <AutomationForm
             projectId={projectId}
             onSuccess={handleEditSuccess}
@@ -204,7 +202,7 @@ export default function AutomationsSettingsPage() {
 
     if (selectedAutomation) {
       return (
-        <div className="">
+        <div className="p-6">
           <AutomationDetails
             key={selectedAutomation.automationId}
             projectId={projectId}
@@ -218,7 +216,7 @@ export default function AutomationsSettingsPage() {
     }
 
     return (
-      <div className="">
+      <div className="p-6">
         <div className="flex h-full items-center justify-center text-muted-foreground">
           <div className="text-center">
             <h3 className="text-lg font-medium">Select an automation</h3>
@@ -233,28 +231,17 @@ export default function AutomationsSettingsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <Header
-        title="Automations"
-        help={{
-          description: "Automate actions based on events in your project",
-          href: "https://langfuse.com/docs/automations",
-        }}
-        actionButtons={
-          <Button onClick={handleCreateAutomation}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Automation
-          </Button>
-        }
-      />
-
-      <div className="flex h-full">
+    <>
+      <div className="flex min-h-[60vh]">
         <AutomationSidebar
           projectId={projectId}
           selectedAutomation={selectedAutomation}
           onAutomationSelect={handleAutomationSelect}
+          onCreateAutomation={handleCreateAutomation}
         />
-        <div className="flex-1 overflow-auto">{renderMainContent()}</div>
+        <div className="flex-1 overflow-auto max-h-[60vh]">
+          {renderMainContent()}
+        </div>
       </div>
 
       {/* Webhook Secret Dialog */}
@@ -284,6 +271,6 @@ export default function AutomationsSettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

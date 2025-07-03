@@ -180,11 +180,7 @@ export const getProjectSettingsPages = ({
     title: "Automations",
     slug: "automations",
     cmdKKeywords: ["webhook", "trigger", "action", "integration"],
-    content: (
-      <div className="flex flex-col gap-6">
-        <AutomationsSettingsPage />
-      </div>
-    ),
+    content: <AutomationsSettingsPage />,
     show: showAutomationsSettings,
   },
   {

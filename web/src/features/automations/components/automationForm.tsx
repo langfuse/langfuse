@@ -122,7 +122,11 @@ export const AutomationForm = ({
   // Get default values based on action type
   const getDefaultValues = (): FormValues => {
     const actionType = getActionType();
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+    const today = new Date()
+      .toLocaleString("sv")
+      .replace("T", " ")
+      .replace(":", "-")
+      .slice(0, 16); // YYYY-MM-DD hh-mm format
 
     const baseValues = {
       name: isEditing && automation ? automation.name : `Automation ${today}`,

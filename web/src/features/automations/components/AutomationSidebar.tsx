@@ -1,29 +1,38 @@
 import React from "react";
 import { api } from "@/src/utils/api";
-import { JobConfigState } from "@langfuse/shared";
 import { type AutomationDomain } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { Button } from "@/src/components/ui/button";
+import { Plus } from "lucide-react";
 
 interface AutomationSidebarProps {
   projectId: string;
   selectedAutomation?: { automationId: string };
   onAutomationSelect: (automation: AutomationDomain) => void;
+  onCreateAutomation: () => void;
 }
 
 export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
   projectId,
   selectedAutomation,
   onAutomationSelect,
+  onCreateAutomation,
 }) => {
   const { data: automations, isLoading } =
     api.automations.getAutomations.useQuery({
       projectId,
     });
 
+  const sidebarWidth = "w-40 sm:w-64";
+
   if (isLoading) {
     return (
-      <div className="flex h-full w-40 flex-col border-r bg-muted/10 sm:w-80">
+      <div
+        className={cn(
+          "flex h-full flex-col border-r bg-muted/10",
+          sidebarWidth,
+        )}
+      >
         <div className="p-4 text-center text-sm text-muted-foreground">
           Loading automations...
         </div>
@@ -33,7 +42,12 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
 
   if (!automations || automations.length === 0) {
     return (
-      <div className="flex h-full w-40 flex-col border-r bg-muted/10 sm:w-80">
+      <div
+        className={cn(
+          "flex h-full flex-col border-r bg-muted/10",
+          sidebarWidth,
+        )}
+      >
         <div className="p-4 text-center text-sm text-muted-foreground">
           No automations configured. Create your first automation to automate
           workflows.
@@ -43,9 +57,24 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
   }
 
   return (
-    <div className="flex h-full w-40 flex-col border-r bg-muted/10 sm:w-80">
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4">
+    <div
+      className={cn(
+        "flex min-h-[60vh] flex-col border-r bg-muted/10",
+        sidebarWidth,
+      )}
+    >
+      <div className="flex-shrink-0 px-4 py-4">
+        <Button
+          onClick={onCreateAutomation}
+          className="w-full bg-primary text-primary-foreground shadow-md transition-all duration-200 hover:bg-primary/90 hover:shadow-lg"
+          size="sm"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Create Automation
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="px-4 pt-4">
           <div className="space-y-2">
             {automations.map((automation) => {
               const isSelected =
@@ -71,11 +100,11 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                         <h4 className="truncate text-sm font-medium leading-tight">
                           {automation.name}
                         </h4>
-                        {automation.trigger.status === JobConfigState.ACTIVE ? (
+                        {/* {automation.trigger.status === JobConfigState.ACTIVE ? (
                           <StatusBadge type={"active"} />
                         ) : (
                           <StatusBadge type={"inactive"} />
-                        )}
+                        )} */}
                       </div>
 
                       {/* Bottom row: eventSource -> automation type */}
