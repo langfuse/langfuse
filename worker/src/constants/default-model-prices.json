@@ -1863,6 +1863,9 @@
       "output": 2.5e-6,
       "candidates_token_count": 2.5e-6,
       "candidatesTokenCount": 2.5e-6,
+      "thoughtsTokenCount": 2.5e-6,
+      "thoughts_token_count": 2.5e-6,
+      "output_reasoning": 2.5e-6,
       "input_audio_tokens": 1e-6
     },
     "tokenizer_config": null,
@@ -1881,6 +1884,9 @@
       "output": 0.4e-6,
       "candidates_token_count": 0.4e-6,
       "candidatesTokenCount": 0.4e-6,
+      "thoughtsTokenCount": 0.4e-6,
+      "thoughts_token_count": 0.4e-6,
+      "output_reasoning": 0.4e-6,
       "input_audio_tokens": 0.5e-6
     },
     "tokenizer_config": null,
