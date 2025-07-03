@@ -106,12 +106,14 @@
   - **Step Dependencies**: Step 4.3
   - **User Instructions**: None
 
-- [ ] **Step 5.2**: Update existing playground components for multi-window compatibility
+- [x] **Step 5.2**: Update existing playground components for multi-window compatibility
   - **Task**: Review and update existing playground components (SaveToPromptButton, ResetPlaygroundButton, etc.) to work correctly with the multi-window system. Ensure they don't interfere with window-specific state.
   - **Files**:
-    - `web/src/features/playground/page/components/SaveToPromptButton.tsx`: Update for multi-window compatibility
-    - `web/src/features/playground/page/components/ResetPlaygroundButton.tsx`: Update for multi-window compatibility
-    - `web/src/features/playground/page/components/JumpToPlaygroundButton.tsx`: Update for multi-window compatibility
+    - `web/src/features/playground/page/components/SaveToPromptButton.tsx`: Updated for multi-window compatibility
+    - `web/src/features/playground/page/components/ResetPlaygroundButton.tsx`: Updated for multi-window compatibility
+    - `web/src/features/playground/page/components/JumpToPlaygroundButton.tsx`: Updated for multi-window compatibility
+    - `web/src/features/playground/page/hooks/usePersistedWindowIds.ts`: Enhanced to support JumpToPlaygroundButton compatibility
+    - `web/src/__tests__/playground/multi-window-compatibility.test.tsx`: Added comprehensive tests for multi-window compatibility
   - **Step Dependencies**: Step 5.1
   - **User Instructions**: None
 

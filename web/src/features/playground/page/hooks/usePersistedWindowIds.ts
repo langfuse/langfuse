@@ -6,6 +6,12 @@ import { MULTI_WINDOW_CONFIG } from "../types";
  * Hook to persist window IDs across page refreshes
  * Manages the list of active playground windows in sessionStorage
  *
+ * Features:
+ * - Maintains window IDs in sessionStorage for persistence
+ * - Handles window addition/removal with proper validation
+ * - Supports adding windows with specific IDs for external integrations
+ * - Cleans up associated caches and model parameters when windows are removed
+ *
  * @returns Object with window IDs state and management functions
  */
 export function usePersistedWindowIds() {
@@ -29,8 +35,9 @@ export function usePersistedWindowIds() {
       }
     }
 
-    // Default to one window if no saved IDs
+    // Default to one window with UUID if no saved IDs exist
     setWindowIds([uuidv4()]);
+
     setIsLoaded(true);
   }, []);
 
@@ -44,6 +51,7 @@ export function usePersistedWindowIds() {
   /**
    * Add a new window ID to the list
    * Respects the maximum window limit
+   * Always generates a new UUID for additional windows
    */
   const addWindowId = useCallback(() => {
     setWindowIds((prev) => {
@@ -58,8 +66,39 @@ export function usePersistedWindowIds() {
   }, []);
 
   /**
+   * Add a window with a specific ID to the list
+   * Respects the maximum window limit
+   * Returns the window ID if successful, or null if failed
+   * If the window ID already exists, returns the existing ID
+   */
+  const addWindowWithId = useCallback((windowId: string) => {
+    let resultWindowId: string | null = null;
+    setWindowIds((prev) => {
+      // Check if the window ID already exists
+      if (prev.includes(windowId)) {
+        resultWindowId = windowId;
+        return prev; // No change needed
+      }
+
+      // Check maximum window limit
+      if (prev.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
+        console.warn(
+          `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
+        );
+        return prev;
+      }
+
+      // Add the new window ID
+      resultWindowId = windowId;
+      return [...prev, windowId];
+    });
+    return resultWindowId;
+  }, []);
+
+  /**
    * Remove a window ID from the list
    * Also cleans up the associated cache entry and model parameters
+   * Prevents removal of the last remaining window
    */
   const removeWindowId = useCallback((windowId: string) => {
     setWindowIds((prev) => {
@@ -133,6 +172,7 @@ export function usePersistedWindowIds() {
     windowIds,
     isLoaded,
     addWindowId,
+    addWindowWithId,
     removeWindowId,
     clearAllCaches,
   };

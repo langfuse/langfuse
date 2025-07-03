@@ -2,10 +2,11 @@ import { Terminal } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import { z } from "zod/v4";
+import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { Button } from "@/src/components/ui/button";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
   type PlaygroundSchema,
@@ -34,6 +35,7 @@ import {
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -61,9 +63,20 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { setPlaygroundCache } = usePlaygroundCache();
+  const { addWindowWithId } = usePersistedWindowIds();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
+
+  // Generate a stable window ID based on the source data
+  const stableWindowId = useMemo(() => {
+    if (props.source === "prompt") {
+      return `playground-prompt-${props.prompt.id}`;
+    } else if (props.source === "generation") {
+      return `playground-generation-${props.generation.id}`;
+    }
+    return `playground-${uuidv4()}`;
+  }, [props]);
+  const { setPlaygroundCache } = usePlaygroundCache(stableWindowId);
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
@@ -110,7 +123,14 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
   const handleClick = () => {
     capture(props.analyticsEventName);
-    setPlaygroundCache(capturedState);
+
+    // Use the stable window ID and save the cache to it
+    const addedWindowId = addWindowWithId(stableWindowId);
+
+    // Save the cache to the window-specific key
+    if (capturedState && addedWindowId) {
+      setPlaygroundCache(capturedState);
+    }
 
     router.push(`/project/${projectId}/playground`);
   };
@@ -172,7 +192,7 @@ const ParsedChatMessageListSchema = z.array(
         .optional(),
     }),
     PlaceholderMessageSchema,
-  ])
+  ]),
 );
 
 // Langchain integration has the tool definition in a tool message
@@ -207,7 +227,9 @@ const transformToPlaygroundMessage = (
     (regularMessage.tool_calls || regularMessage.additional_kwargs?.tool_calls)
   ) {
     const toolCalls =
-      regularMessage.tool_calls ?? regularMessage.additional_kwargs?.tool_calls ?? [];
+      regularMessage.tool_calls ??
+      regularMessage.additional_kwargs?.tool_calls ??
+      [];
 
     const playgroundMessage: ChatMessage = {
       role: ChatMessageRole.Assistant,
