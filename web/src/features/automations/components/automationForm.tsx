@@ -71,10 +71,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface AutomationFormProps {
   projectId: string;
-  onSuccess?: (
-    automationId?: string,
-    webhookSecret?: string,
-  ) => void;
+  onSuccess?: (automationId?: string, webhookSecret?: string) => void;
   onCancel?: () => void;
   automation?: AutomationDomain;
   isEditing?: boolean;
@@ -476,8 +473,7 @@ export const AutomationForm = ({
               <div>
                 <DeleteAutomationButton
                   projectId={projectId}
-                  triggerId={automation.trigger.id}
-                  actionId={automation.action.id}
+                  automationId={automation.id}
                   variant="button"
                   onSuccess={() => {
                     utils.automations.invalidate();
