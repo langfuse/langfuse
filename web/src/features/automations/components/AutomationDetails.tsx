@@ -86,6 +86,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   }
 
   const automationForForm: AutomationDomain = {
+    id: automation.id,
     name: automation.name,
     trigger: {
       ...automation.trigger,
