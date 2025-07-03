@@ -220,7 +220,9 @@ export const EnvironmentName = PublicEnvironmentName;
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 
 // Complete schema factory - single source of truth for ALL schemas
-const createAllIngestionSchemas = (environmentSchema: z.ZodSchema) => {
+const createAllIngestionSchemas = (
+  environmentSchema: z.ZodDefault<z.ZodString>,
+) => {
   // Base schemas with environment
   const TraceBody = z.object({
     id: idSchema.nullish(),
