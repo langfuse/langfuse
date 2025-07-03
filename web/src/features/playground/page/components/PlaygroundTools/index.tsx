@@ -116,7 +116,7 @@ export const PlaygroundTools = () => {
   };
 
   return (
-    <div className="flex h-full flex-col pr-1">
+    <div className="flex h-full w-full flex-col overflow-hidden pr-1">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <p className="font-semibold">Tools</p>
@@ -138,7 +138,7 @@ export const PlaygroundTools = () => {
               <PlusIcon size={14} />
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="p-1">
+          <PopoverContent align="end" className="p-1 w-80 max-w-[95vw]">
             <Command className="flex flex-col">
               <CommandInput
                 placeholder="Search tools..."
@@ -152,7 +152,7 @@ export const PlaygroundTools = () => {
                       key={tool.id}
                       value={tool.name}
                       onSelect={() => handleSelectTool(tool)}
-                      className="flex items-center justify-between px-1 py-2"
+                      className="flex items-center justify-between px-1 py-2 min-w-0 overflow-hidden"
                     >
                       <div className="flex min-w-0 items-center gap-2">
                         <WrenchIcon
@@ -203,13 +203,13 @@ export const PlaygroundTools = () => {
         </Popover>
       </div>
 
-      <ScrollArea className="h-[calc(100%-2rem)]">
+      <ScrollArea className="h-[calc(100%-2rem)] w-full">
         {tools.length === 0 ? (
           <div className="flex h-16 flex-col items-center justify-center p-4 text-center">
             <p className="text-xs text-muted-foreground">No tools attached.</p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="w-full space-y-1">
             {tools.map((tool) => (
               <CreateOrEditLLMToolDialog
                 key={tool.id}
@@ -227,7 +227,7 @@ export const PlaygroundTools = () => {
                     : undefined
                 }
               >
-                <div className="min-w-0 cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
+                <div className="min-w-0 w-full cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50 overflow-hidden">
                   <div className="mb-1 flex items-center justify-between">
                     <div className="flex min-w-0 items-center gap-1">
                       <WrenchIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
