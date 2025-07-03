@@ -74,45 +74,43 @@ export const PlaygroundTools = () => {
   }, [savedTools, tools, setTools]);
 
   const handleSelectTool = (selectedLLMTool: LlmTool) => {
-    setTools((prev: PlaygroundTool[]) => {
-      let existingToolIndex = -1;
-      existingToolIndex = prev.findIndex((t) => t.id === selectedLLMTool.id);
+    let existingToolIndex = -1;
+    existingToolIndex = tools.findIndex((t) => t.id === selectedLLMTool.id);
 
-      if (existingToolIndex === -1) {
-        const unsavedToolIndexWithSameName = prev.findIndex(
-          (t) => t.name === selectedLLMTool.name,
-        );
+    if (existingToolIndex === -1) {
+      const unsavedToolIndexWithSameName = tools.findIndex(
+        (t) => t.name === selectedLLMTool.name,
+      );
 
-        if (unsavedToolIndexWithSameName !== -1) {
-          existingToolIndex = unsavedToolIndexWithSameName;
-        }
+      if (unsavedToolIndexWithSameName !== -1) {
+        existingToolIndex = unsavedToolIndexWithSameName;
       }
+    }
 
-      const newTool: PlaygroundTool = {
-        id: selectedLLMTool.id,
-        name: selectedLLMTool.name,
-        description: selectedLLMTool.description,
-        parameters: selectedLLMTool.parameters as Record<string, unknown>,
-        existingLlmTool: selectedLLMTool,
-      };
+    const newTool: PlaygroundTool = {
+      id: selectedLLMTool.id,
+      name: selectedLLMTool.name,
+      description: selectedLLMTool.description,
+      parameters: selectedLLMTool.parameters as Record<string, unknown>,
+      existingLlmTool: selectedLLMTool,
+    };
 
-      if (existingToolIndex !== -1) {
-        const newTools = [...prev];
-        newTools[existingToolIndex] = newTool;
+    if (existingToolIndex !== -1) {
+      const newTools = [...tools];
+      newTools[existingToolIndex] = newTool;
+      setTools(newTools);
+    } else {
+      setTools([...tools, newTool]);
+    }
 
-        return newTools;
-      }
-
-      return [...prev, newTool];
-    });
     setIsSearchOpen(false);
   };
 
   const handleRemoveTool = (toolId: string) => {
-    setTools(
-      (prev: PlaygroundTool[]) =>
-        prev.filter((t) => !(t.id === toolId)) as PlaygroundTool[],
-    );
+    const filteredTools = tools.filter(
+      (t) => !(t.id === toolId),
+    ) as PlaygroundTool[];
+    setTools(filteredTools);
   };
 
   return (
