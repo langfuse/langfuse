@@ -7,8 +7,6 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
-import TableLink from "@/src/components/table/table-link";
-import { type TriggerEventSource } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 
@@ -27,12 +25,11 @@ type ActionExecutionRow = {
 interface AutomationExecutionsTableProps {
   projectId: string;
   automationId: string;
-  eventSource: TriggerEventSource;
 }
 
 export const AutomationExecutionsTable: React.FC<
   AutomationExecutionsTableProps
-> = ({ projectId, automationId, eventSource }) => {
+> = ({ projectId, automationId }) => {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -59,26 +56,6 @@ export const AutomationExecutionsTable: React.FC<
       cell: ({ row }) => {
         const status = row.getValue("status") as string;
         return <StatusBadge type={status.toLowerCase()} />;
-      },
-    },
-    {
-      accessorKey: "sourceId",
-      header: eventSource === "prompt" ? "Prompt ID" : "Source ID",
-      id: "sourceId",
-      cell: ({ row }) => {
-        const value = row.getValue("sourceId") as string;
-        return (
-          <span className="font-mono text-xs">
-            {eventSource === "prompt" ? (
-              <TableLink
-                path={`/project/${projectId}/prompts/${value}`}
-                value={value}
-              />
-            ) : (
-              value
-            )}
-          </span>
-        );
       },
     },
     {

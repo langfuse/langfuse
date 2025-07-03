@@ -165,7 +165,6 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                 <AutomationExecutionsTable
                   projectId={projectId}
                   automationId={automationId}
-                  eventSource={automation.trigger.eventSource}
                 />
               </SettingsTableCard>
             </TabsBarContent>

@@ -119,7 +119,7 @@ describe("automations trpc", () => {
       });
 
       // Link trigger to action
-      await prisma.triggersOnActions.create({
+      await prisma.automations.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,
@@ -236,7 +236,7 @@ describe("automations trpc", () => {
         },
       });
 
-      await prisma.triggersOnActions.create({
+      const automation = await prisma.automation.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,
@@ -247,8 +247,7 @@ describe("automations trpc", () => {
 
       const response = await caller.automations.getAutomation({
         projectId: project.id,
-        triggerId: trigger.id,
-        actionId: action.id,
+        automationId: automation.id,
       });
 
       expect(response).toMatchObject({
@@ -339,7 +338,7 @@ describe("automations trpc", () => {
       expect(typeof response.webhookSecret).toBe("string");
 
       // Verify the automation link was created
-      const automation = await prisma.triggersOnActions.findFirst({
+      const automation = await prisma.automation.findFirst({
         where: {
           triggerId: response.trigger.id,
           actionId: response.action.id,
@@ -456,7 +455,7 @@ describe("automations trpc", () => {
         },
       });
 
-      await prisma.triggersOnActions.create({
+      const automation = await prisma.automation.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,
@@ -467,8 +466,7 @@ describe("automations trpc", () => {
 
       const response = await caller.automations.updateAutomation({
         projectId: project.id,
-        triggerId: trigger.id,
-        actionId: action.id,
+        automationId: automation.id,
         name: "Updated Name",
         eventSource: "prompt",
         eventAction: ["created", "updated"],
@@ -504,10 +502,9 @@ describe("automations trpc", () => {
       // The important test is that it doesn't appear in getAutomations/getAutomation responses
 
       // Verify the automation name was updated
-      const updatedAutomation = await prisma.triggersOnActions.findFirst({
+      const updatedAutomation = await prisma.automation.findFirst({
         where: {
-          triggerId: trigger.id,
-          actionId: action.id,
+          id: automation.id,
         },
       });
 
@@ -548,7 +545,7 @@ describe("automations trpc", () => {
         },
       });
 
-      await prisma.triggersOnActions.create({
+      const automation = await prisma.automation.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,
@@ -593,8 +590,8 @@ describe("automations trpc", () => {
       const beforeExecutions = await prisma.actionExecution.findMany({
         where: { triggerId: trigger.id, actionId: action.id },
       });
-      const beforeAutomation = await prisma.triggersOnActions.findFirst({
-        where: { triggerId: trigger.id, actionId: action.id },
+      const beforeAutomation = await prisma.automation.findFirst({
+        where: { id: automation.id },
       });
 
       expect(beforeTrigger).not.toBeNull();
@@ -605,8 +602,7 @@ describe("automations trpc", () => {
       // Delete the automation
       await caller.automations.deleteAutomation({
         projectId: project.id,
-        triggerId: trigger.id,
-        actionId: action.id,
+        automationId: automation.id,
       });
 
       // Verify all data is deleted
@@ -619,8 +615,8 @@ describe("automations trpc", () => {
       const afterExecutions = await prisma.actionExecution.findMany({
         where: { triggerId: trigger.id, actionId: action.id },
       });
-      const afterAutomation = await prisma.triggersOnActions.findFirst({
-        where: { triggerId: trigger.id, actionId: action.id },
+      const afterAutomation = await prisma.automation.findFirst({
+        where: { id: automation.id },
       });
 
       expect(afterTrigger).toBeNull();
@@ -663,6 +659,15 @@ describe("automations trpc", () => {
         },
       });
 
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Test Automation",
+        },
+      });
+
       // Create multiple executions
       const executions = [];
       for (let i = 0; i < 5; i++) {
@@ -687,8 +692,7 @@ describe("automations trpc", () => {
 
       const response = await caller.automations.getAutomationExecutions({
         projectId: project.id,
-        triggerId: trigger.id,
-        actionId: action.id,
+        automationId: automation.id,
         page: 0,
         limit: 3,
       });
@@ -732,6 +736,15 @@ describe("automations trpc", () => {
         },
       });
 
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Test Automation",
+        },
+      });
+
       // Create 10 executions
       for (let i = 0; i < 10; i++) {
         await prisma.actionExecution.create({
@@ -750,8 +763,7 @@ describe("automations trpc", () => {
       // Test first page
       const page1 = await caller.automations.getAutomationExecutions({
         projectId: project.id,
-        triggerId: trigger.id,
-        actionId: action.id,
+        automationId: automation.id,
         page: 0,
         limit: 5,
       });
@@ -762,8 +774,7 @@ describe("automations trpc", () => {
       // Test second page
       const page2 = await caller.automations.getAutomationExecutions({
         projectId: project.id,
-        triggerId: trigger.id,
-        actionId: action.id,
+        automationId: automation.id,
         page: 1,
         limit: 5,
       });
@@ -811,6 +822,15 @@ describe("automations trpc", () => {
         },
       });
 
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Test Automation",
+        },
+      });
+
       // Create consecutive failed executions
       for (let i = 0; i < 3; i++) {
         await prisma.actionExecution.create({
@@ -830,8 +850,7 @@ describe("automations trpc", () => {
 
       const response = await caller.automations.getCountOfConsecutiveFailures({
         projectId: project.id,
-        triggerId: trigger.id,
-        actionId: action.id,
+        automationId: automation.id,
       });
 
       expect(response.count).toBe(3);

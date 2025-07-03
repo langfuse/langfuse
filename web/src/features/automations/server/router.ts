@@ -66,7 +66,7 @@ export const automationsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        automationId: z.string(),
+        actionId: z.string(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -77,28 +77,15 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      // Get automation and action
-      const automation = await getAutomationById({
-        projectId: input.projectId,
-        automationId: input.automationId,
-      });
-
-      if (!automation) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: `Automation with id ${input.automationId} not found.`,
-        });
-      }
-
       const existingAction = await getActionById({
         projectId: input.projectId,
-        actionId: automation.action.id,
+        actionId: input.actionId,
       });
 
       if (!existingAction || existingAction.type !== "WEBHOOK") {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: `Action with id ${automation.action.id} not found.`,
+          message: `Action with id ${input.actionId} not found.`,
         });
       }
 
@@ -108,9 +95,9 @@ export const automationsRouter = createTRPCRouter({
 
       await auditLog({
         session: ctx.session,
-        resourceType: "webhook",
-        resourceId: automation.action.id,
-        action: "regenerateSecret",
+        resourceType: "action",
+        resourceId: input.actionId,
+        action: "update",
         before: {
           displaySecretKey: existingAction.config.displaySecretKey,
         },
@@ -127,7 +114,7 @@ export const automationsRouter = createTRPCRouter({
       };
 
       await ctx.prisma.action.update({
-        where: { id: automation.action.id, projectId: ctx.session.projectId },
+        where: { id: input.actionId, projectId: ctx.session.projectId },
         data: { config: updatedConfig },
       });
 

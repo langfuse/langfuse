@@ -34,7 +34,7 @@ export type AuditableResource =
   | "stripeCheckoutSession"
   | "batchAction"
   | "automation"
-  | "webhook"
+  | "action"
   // legacy resources
   | "membership";
 
