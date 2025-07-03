@@ -90,7 +90,7 @@ describe("prompts trpc", () => {
       });
 
       // Link trigger to action
-      await prisma.triggersOnActions.create({
+      await prisma.automation.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,
@@ -207,7 +207,7 @@ describe("prompts trpc", () => {
       });
 
       // Link trigger to action
-      await prisma.triggersOnActions.create({
+      await prisma.automation.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,
@@ -339,7 +339,7 @@ describe("prompts trpc", () => {
       });
 
       // Link trigger to action
-      await prisma.triggersOnActions.create({
+      await prisma.automation.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,
@@ -445,7 +445,7 @@ describe("prompts trpc", () => {
       });
 
       // Link trigger to action
-      await prisma.triggersOnActions.create({
+      await prisma.automation.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,
@@ -546,7 +546,7 @@ describe("prompts trpc", () => {
       });
 
       // Link trigger to action
-      await prisma.triggersOnActions.create({
+      await prisma.automation.create({
         data: {
           projectId: project.id,
           triggerId: trigger.id,

@@ -96,7 +96,7 @@ export const AutomationExecutionsTable: React.FC<
       id: "input",
       cell: ({ row }) => {
         const value = row.getValue("input");
-        return <IOTableCell data={value} singleLine={true} />;
+        return <IOTableCell data={value} />;
       },
     },
     {
@@ -106,7 +106,7 @@ export const AutomationExecutionsTable: React.FC<
       cell: ({ row }) => {
         const value = row.getValue("output");
         if (!value) return <span className="text-muted-foreground">-</span>;
-        return <IOTableCell data={value} singleLine={true} />;
+        return <IOTableCell data={value} />;
       },
     },
     {
