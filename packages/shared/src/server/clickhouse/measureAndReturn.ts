@@ -43,6 +43,16 @@ export const measureAndReturn = async <T, Y>(args: {
         return existingExecution(input);
       }
 
+      // If not whitelisted, apply sampling logic
+      if (
+        !env.LANGFUSE_EXPERIMENT_WHITELISTED_PROJECT_IDS.includes(
+          args.projectId,
+        ) &&
+        Math.random() > env.LANGFUSE_EXPERIMENT_SAMPLING_RATE
+      ) {
+        return existingExecution(input);
+      }
+
       try {
         const [[existingResult, existingDuration], [newResult, newDuration]] =
           await Promise.all([
@@ -68,7 +78,9 @@ export const measureAndReturn = async <T, Y>(args: {
           currentSpan?.setAttribute("new-result", JSON.stringify(newResult));
         }
 
-        return existingResult;
+        return env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
+          ? newResult
+          : existingResult;
       } catch (e) {
         logger.error(
           "Failed to run experiment wrapper. Retrying existing query",
