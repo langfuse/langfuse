@@ -14,6 +14,7 @@ export * from "./llm/types";
 export * from "./llm/compileChatMessages";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
+export * from "./utils/datasetExecution";
 export * from "./clickhouse/client";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";

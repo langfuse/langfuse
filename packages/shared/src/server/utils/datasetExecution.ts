@@ -16,34 +16,48 @@ export function getDatasetRunItemsExecutionStrategy() {
   };
 }
 
+export enum DatasetRunItemsOperationType {
+  READ = "read",
+  WRITE = "write",
+}
+
 /**
  * Executes the appropriate database operation based on the execution strategy.
  *
  * @param postgresExecution - Function to execute PostgreSQL operation
  * @param clickhouseExecution - Function to execute ClickHouse operation
+ * @param operationType - Type of operation ("read" or "write")
  * @returns Result from the selected execution strategy
  */
-export async function executeWithDatasetRunItemsStrategy<T>({
+export async function executeWithDatasetRunItemsStrategy<TInput, TOutput>({
+  input,
+  operationType,
   postgresExecution,
   clickhouseExecution,
-  shouldExecuteClickhouse = false,
 }: {
-  postgresExecution: () => Promise<T>;
-  clickhouseExecution: () => Promise<T>;
-  shouldExecuteClickhouse?: boolean;
-}): Promise<T> {
+  input: TInput;
+  operationType: DatasetRunItemsOperationType;
+  postgresExecution: (input: TInput) => Promise<TOutput>;
+  clickhouseExecution: (input: TInput) => Promise<TOutput>;
+}): Promise<TOutput> {
+  const strategy = getDatasetRunItemsExecutionStrategy();
+  const shouldExecuteClickhouse =
+    operationType === DatasetRunItemsOperationType.READ
+      ? strategy.shouldReadFromClickHouse
+      : strategy.shouldWriteToClickHouse;
+
   if (shouldExecuteClickhouse) {
     try {
-      return await clickhouseExecution();
+      return await clickhouseExecution(input);
     } catch (error) {
       logger.error("ClickHouse execution failed, falling back to PostgreSQL", {
         error: error instanceof Error ? error.message : String(error),
-        operation: "dataset_run_items_read",
+        operation: `dataset_run_items_${operationType}`,
       });
       // Fallback to PostgreSQL for reliability
-      return await postgresExecution();
+      return await postgresExecution(input);
     }
   } else {
-    return await postgresExecution();
+    return await postgresExecution(input);
   }
 }
