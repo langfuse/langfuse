@@ -6,9 +6,75 @@ import {
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
+export const ensureTestDatabaseExists = async () => {
+  // Only create test database if we're using a test database URL
+  if (!env.DATABASE_URL.includes("langfuse_test")) {
+    return; // Not using test database, skip
+  }
+
+  try {
+    // Try to connect to the test database
+    await prisma.$queryRaw`SELECT 1`;
+    console.log("Test database already exists and is accessible");
+  } catch (error) {
+    console.log("Test database not accessible, attempting to create...");
+    
+    // Parse the database URL to get connection details
+    const url = new URL(env.DATABASE_URL);
+    const dbName = url.pathname.slice(1); // Remove leading slash
+    
+    // Create connection to postgres database to create the test database
+    const adminUrl = new URL(env.DATABASE_URL);
+    adminUrl.pathname = "/postgres";
+    
+    const { PrismaClient } = await import("@prisma/client");
+    const adminPrisma = new PrismaClient({
+      datasources: {
+        db: {
+          url: adminUrl.toString(),
+        },
+      },
+    });
+
+    try {
+      // Create the test database
+      await adminPrisma.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
+      console.log(`Created test database: ${dbName}`);
+      
+      // Now run migrations on the test database
+      const { execSync } = await import("child_process");
+      const path = await import("path");
+      const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+      
+      execSync("pnpm run db:migrate", {
+        cwd: sharedDir,
+        env: { ...process.env, DATABASE_URL: env.DATABASE_URL },
+        stdio: "inherit"
+      });
+      console.log("Applied migrations to test database");
+      
+    } catch (createError: any) {
+      if (createError.message?.includes("already exists")) {
+        console.log("Test database already exists");
+      } else {
+        console.error("Failed to create test database:", createError);
+      }
+    } finally {
+      await adminPrisma.$disconnect();
+    }
+  }
+};
+
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {
     throw new Error("You cannot prune database unless running on localhost.");
+  }
+  
+  // Additional safety check for test database
+  if (env.DATABASE_URL.includes("langfuse_test") || env.DATABASE_URL.includes("test")) {
+    console.log("Running tests against test database:", env.DATABASE_URL);
+  } else if (!env.DATABASE_URL.includes("postgres")) {
+    throw new Error("Database URL must contain 'postgres' or 'langfuse_test' for safety.");
   }
 
   await prisma.scoreConfig.deleteMany();
@@ -29,6 +95,13 @@ export const pruneDatabase = async () => {
 export const truncateClickhouseTables = async () => {
   if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
     throw new Error("You cannot prune clickhouse unless running on localhost.");
+  }
+  
+  // Additional safety check for test database
+  if (env.CLICKHOUSE_DB === "test") {
+    console.log("Running tests against test ClickHouse database:", env.CLICKHOUSE_DB);
+  } else if (env.CLICKHOUSE_DB !== "default") {
+    console.log("Running tests against ClickHouse database:", env.CLICKHOUSE_DB);
   }
 
   await clickhouseClient().command({
