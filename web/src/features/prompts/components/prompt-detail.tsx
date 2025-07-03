@@ -52,6 +52,7 @@ import {
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import { ExportPromptButton } from "@/src/features/prompts/components/export-prompt-button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
@@ -453,6 +454,14 @@ export const PromptDetail = ({
                     align="end"
                     className="flex flex-col [&>*]:w-full [&>*]:justify-start"
                   >
+                    <DropdownMenuItem asChild>
+                      <ExportPromptButton
+                        promptVersionId={prompt.id}
+                        projectId={projectId as string}
+                        promptName={prompt.name}
+                        promptVersion={prompt.version}
+                      />
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <DeletePromptVersion
                         promptVersionId={prompt.id}

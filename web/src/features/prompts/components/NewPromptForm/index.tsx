@@ -49,6 +49,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
+import { ImportPromptSection } from "@/src/features/prompts/components/import-prompt-section";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -194,12 +195,52 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     form,
   });
 
+  const handleImport = (importData: {
+    name: string;
+    type: 'text' | 'chat';
+    prompt: any;
+    config: any;
+    labels: string[];
+    tags: string[];
+    commitMessage?: string;
+  }) => {
+    // For new prompts, populate all fields
+    if (!initialPrompt) {
+      form.setValue("name", importData.name);
+      form.setValue("type", importData.type as PromptType);
+    }
+    
+    // Always populate these fields
+    if (importData.type === PromptType.Text) {
+      form.setValue("textPrompt", importData.prompt);
+      form.setValue("chatPrompt", []);
+    } else {
+      form.setValue("chatPrompt", importData.prompt);
+      form.setValue("textPrompt", "");
+    }
+    
+    form.setValue("config", JSON.stringify(importData.config, null, 2));
+    form.setValue("commitMessage", importData.commitMessage || "");
+    
+    // Set initial messages for chat prompts
+    if (importData.type === PromptType.Chat) {
+      setInitialMessages(importData.prompt);
+    }
+  };
+
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-6"
       >
+        {/* Import section */}
+        <ImportPromptSection
+          onImport={handleImport}
+          isNewPrompt={!initialPrompt}
+          existingPromptType={initialPrompt?.type as PromptType}
+        />
+
         {/* Prompt name field - text vs. chat only for new prompts */}
         {!initialPrompt ? (
           <FormField

@@ -202,6 +202,44 @@ export const promptRouter = createTRPCRouter({
         },
       });
     }),
+  export: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        promptVersionId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+      
+      const prompt = await ctx.prisma.prompt.findFirst({
+        where: {
+          id: input.promptVersionId,
+          projectId: input.projectId,
+        },
+      });
+
+      if (!prompt) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Prompt version not found",
+        });
+      }
+
+      return {
+        name: prompt.name,
+        type: prompt.type,
+        prompt: prompt.prompt,
+        config: prompt.config,
+        labels: prompt.labels,
+        tags: prompt.tags,
+        commitMessage: prompt.commitMessage,
+      };
+    }),
   create: protectedProjectProcedure
     .input(CreatePromptTRPCSchema)
     .mutation(async ({ input, ctx }) => {
