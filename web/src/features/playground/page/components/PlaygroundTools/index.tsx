@@ -154,16 +154,16 @@ export const PlaygroundTools = () => {
                       onSelect={() => handleSelectTool(tool)}
                       className="flex items-center justify-between px-1 py-2"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
                         <WrenchIcon
                           size={12}
-                          className="text-muted-foreground"
+                          className="shrink-0 text-muted-foreground"
                         />
-                        <div className="flex-1 overflow-hidden">
+                        <div className="min-w-0 flex-1 overflow-hidden">
                           <div className="truncate font-medium">
                             {tool.name}
                           </div>
-                          <div className="line-clamp-1 break-words text-xs text-muted-foreground">
+                          <div className="line-clamp-1 break-all text-xs text-muted-foreground">
                             {tool.description}
                           </div>
                         </div>
@@ -227,23 +227,23 @@ export const PlaygroundTools = () => {
                     : undefined
                 }
               >
-                <div className="cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
+                <div className="min-w-0 cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
                   <div className="mb-1 flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <WrenchIcon className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex min-w-0 items-center gap-1">
+                      <WrenchIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <h3
-                        className="max-w-[200px] truncate text-ellipsis text-sm font-medium"
+                        className="min-w-0 truncate text-sm font-medium"
                         title={tool.name}
                       >
                         {tool.name}
                       </h3>
                       {!isToolSaved(tool) ? (
-                        <span className="rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                        <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
                           Unsaved
                         </span>
                       ) : null}
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -258,7 +258,7 @@ export const PlaygroundTools = () => {
                     </div>
                   </div>
                   <p
-                    className="line-clamp-2 break-words text-xs text-muted-foreground"
+                    className="line-clamp-2 break-all text-xs text-muted-foreground"
                     title={tool.description}
                   >
                     {tool.description}
