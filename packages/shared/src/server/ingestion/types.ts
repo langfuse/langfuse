@@ -215,6 +215,20 @@ const InternalEnvironmentName = z
 /** @deprecated Use PublicEnvironmentName or InternalEnvironmentName instead */
 export const EnvironmentName = PublicEnvironmentName;
 
+export const eventTypes = {
+  TRACE_CREATE: "trace-create",
+  SCORE_CREATE: "score-create",
+  EVENT_CREATE: "event-create",
+  SPAN_CREATE: "span-create",
+  SPAN_UPDATE: "span-update",
+  GENERATION_CREATE: "generation-create",
+  GENERATION_UPDATE: "generation-update",
+  SDK_LOG: "sdk-log",
+  // LEGACY, only required for backwards compatibility
+  OBSERVATION_CREATE: "observation-create",
+  OBSERVATION_UPDATE: "observation-update",
+} as const;
+
 // Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
 // With this setup parsing should be more lightweight and doesn't block other requests.
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
@@ -608,20 +622,6 @@ export const SdkLogEvent = z.object({
   log: jsonSchema,
   id: z.string().nullish(), // Not used, but makes downstream processing easier.
 });
-
-export const eventTypes = {
-  TRACE_CREATE: "trace-create",
-  SCORE_CREATE: "score-create",
-  EVENT_CREATE: "event-create",
-  SPAN_CREATE: "span-create",
-  SPAN_UPDATE: "span-update",
-  GENERATION_CREATE: "generation-create",
-  GENERATION_UPDATE: "generation-update",
-  SDK_LOG: "sdk-log",
-  // LEGACY, only required for backwards compatibility
-  OBSERVATION_CREATE: "observation-create",
-  OBSERVATION_UPDATE: "observation-update",
-} as const;
 
 // Export individual event schemas for backwards compatibility
 export const traceEvent = publicSchemas.traceEvent;
