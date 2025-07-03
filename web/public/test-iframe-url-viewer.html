@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test URL Template Iframe Viewer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #ffffff;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 8px 8px 0 0;
+            border: 1px solid #e5e7eb;
+            border-bottom: none;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #3b82f6;
+        }
+
+        .subtitle {
+            margin: 4px 0 0 0;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .content {
+            border: 1px solid #e5e7eb;
+            border-radius: 0 0 8px 8px;
+            overflow: hidden;
+        }
+
+        .url-info {
+            background: #fef3c7;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .data-table th {
+            background: #f9fafb;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .data-table td {
+            font-size: 14px;
+            vertical-align: top;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .field-name {
+            font-weight: 600;
+            color: #3b82f6;
+            min-width: 120px;
+        }
+
+        .json-content {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: #f9fafb;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #e5e7eb;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .status {
+            padding: 12px 16px;
+            text-align: center;
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        .param-list {
+            margin: 8px 0;
+        }
+
+        .param-item {
+            background: #fff;
+            margin: 4px 0;
+            padding: 4px 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">🔗 Test URL Template Iframe Viewer</h1>
+            <p class="subtitle">Displays span data received via URL parameters</p>
+        </div>
+        
+        <div class="content">
+            <div class="url-info">
+                <strong>URL Parameters received:</strong>
+                <div id="paramList" class="param-list">
+                    <!-- URL parameters will be listed here -->
+                </div>
+            </div>
+            
+            <div id="status" class="status">
+                <!-- Status will be shown here -->
+            </div>
+            
+            <table id="dataTable" class="data-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Field</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Parse URL parameters
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const result = {};
+            for (const [key, value] of params) {
+                result[key] = value;
+            }
+            return result;
+        }
+
+        // Display URL parameters
+        function displayUrlParams(params) {
+            const paramList = document.getElementById('paramList');
+            
+            if (Object.keys(params).length === 0) {
+                paramList.innerHTML = '<em>No parameters found in URL</em>';
+                return;
+            }
+            
+            paramList.innerHTML = '';
+            Object.entries(params).forEach(([key, value]) => {
+                const div = document.createElement('div');
+                div.className = 'param-item';
+                div.textContent = `${key} = ${value.substring(0, 100)}${value.length > 100 ? '...' : ''}`;
+                paramList.appendChild(div);
+            });
+        }
+
+        // Parse JSON safely
+        function parseJSON(str) {
+            try {
+                return JSON.parse(decodeURIComponent(str));
+            } catch (error) {
+                return str; // Return as string if parsing fails
+            }
+        }
+
+        // Format value for display
+        function formatValue(value) {
+            if (value === null || value === undefined) {
+                return '<em>null</em>';
+            }
+            
+            if (typeof value === 'string') {
+                return value;
+            }
+            
+            // For objects/arrays, display as formatted JSON
+            return `<div class="json-content">${JSON.stringify(value, null, 2)}</div>`;
+        }
+
+        // Display span data in table
+        function displaySpanData(params) {
+            const tableBody = document.getElementById('tableBody');
+            const status = document.getElementById('status');
+            const table = document.getElementById('dataTable');
+            
+            // Clear existing content
+            tableBody.innerHTML = '';
+            
+            // Try to extract span data from URL parameters
+            const spanData = {
+                span_id: params.span_id || 'Not provided',
+                input: params.input ? parseJSON(params.input) : null,
+                output: params.output ? parseJSON(params.output) : null,
+                metadata: params.metadata ? parseJSON(params.metadata) : null
+            };
+            
+            // Check if we have any actual data
+            const hasData = params.input || params.output || params.metadata || params.span_id;
+            
+            if (!hasData) {
+                status.innerHTML = '⚠️ No span data found in URL parameters. Expected: input, output, metadata, or span_id';
+                status.style.color = '#d97706';
+                return;
+            }
+            
+            // Add each field
+            const fields = [
+                { name: 'Span ID', value: spanData.span_id },
+                { name: 'Input', value: spanData.input },
+                { name: 'Output', value: spanData.output },
+                { name: 'Metadata', value: spanData.metadata }
+            ];
+            
+            fields.forEach(field => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="field-name">${field.name}</td>
+                    <td>${formatValue(field.value)}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Show table, hide status
+            status.style.display = 'none';
+            table.style.display = 'table';
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            const params = getUrlParams();
+            displayUrlParams(params);
+            displaySpanData(params);
+        });
+    </script>
+</body>
+</html>

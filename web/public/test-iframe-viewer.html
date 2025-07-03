@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Span Iframe Viewer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        /* Light theme (default) */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+            --header-bg: #f9fafb;
+            --accent-color: #3b82f6;
+        }
+
+        /* Dark theme */
+        [data-theme="dark"] {
+            --bg-color: #1f2937;
+            --text-color: #f9fafb;
+            --border-color: #374151;
+            --header-bg: #111827;
+            --accent-color: #60a5fa;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: var(--header-bg);
+            padding: 16px;
+            border-radius: 8px 8px 0 0;
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+
+        .subtitle {
+            margin: 4px 0 0 0;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .content {
+            border: 1px solid var(--border-color);
+            border-radius: 0 0 8px 8px;
+            overflow: hidden;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table th {
+            background: var(--header-bg);
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .data-table td {
+            font-size: 14px;
+            vertical-align: top;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .field-name {
+            font-weight: 600;
+            color: var(--accent-color);
+            min-width: 120px;
+        }
+
+        .json-content {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: var(--header-bg);
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .status {
+            padding: 12px 16px;
+            text-align: center;
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border-color);
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .metadata {
+            margin-top: 20px;
+            font-size: 12px;
+            opacity: 0.6;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">🔍 Test Span Iframe Viewer</h1>
+            <p class="subtitle">Displays span data received via postMessage API</p>
+        </div>
+        
+        <div class="content">
+            <div id="status" class="status loading">
+                <div class="spinner"></div>
+                <span>Waiting for span data...</span>
+            </div>
+            
+            <table id="dataTable" class="data-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Field</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="metadata">
+            Theme: <span id="themeIndicator">Light</span> | 
+            Read-only: <span id="readOnlyIndicator">Unknown</span> |
+            Last updated: <span id="lastUpdated">Never</span>
+        </div>
+    </div>
+
+    <script>
+        let spanData = null;
+        let settings = null;
+
+        // Update theme
+        function updateTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.getElementById('themeIndicator').textContent = 
+                theme === 'dark' ? 'Dark' : 'Light';
+        }
+
+        // Format value for display
+        function formatValue(value) {
+            if (value === null || value === undefined) {
+                return '<em>null</em>';
+            }
+            
+            if (typeof value === 'string') {
+                return value;
+            }
+            
+            // For objects/arrays, display as formatted JSON
+            return `<div class="json-content">${JSON.stringify(value, null, 2)}</div>`;
+        }
+
+        // Display span data in table
+        function displaySpanData(data) {
+            const tableBody = document.getElementById('tableBody');
+            const status = document.getElementById('status');
+            const table = document.getElementById('dataTable');
+            
+            // Clear existing content
+            tableBody.innerHTML = '';
+            
+            // Add each field
+            const fields = [
+                { name: 'Span ID', value: data.span_id },
+                { name: 'Input', value: data.input },
+                { name: 'Output', value: data.output },
+                { name: 'Metadata', value: data.metadata }
+            ];
+            
+            fields.forEach(field => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="field-name">${field.name}</td>
+                    <td>${formatValue(field.value)}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Show table, hide status
+            status.style.display = 'none';
+            table.style.display = 'table';
+            
+            // Update timestamp
+            document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+        }
+
+        // Handle messages from parent
+        window.addEventListener('message', function(event) {
+            try {
+                const message = event.data;
+                
+                if (message.type === 'settings') {
+                    settings = message.settings;
+                    updateTheme(settings.theme);
+                    document.getElementById('readOnlyIndicator').textContent = 
+                        settings.readOnly ? 'Yes' : 'No';
+                }
+                
+                if (message.type === 'data') {
+                    spanData = message.data;
+                    displaySpanData(spanData);
+                }
+                
+            } catch (error) {
+                console.error('Error handling message:', error);
+                document.getElementById('status').innerHTML = 
+                    '<span style="color: red;">Error: ' + error.message + '</span>';
+            }
+        });
+
+        // Request data when page loads (in case data was sent before we were ready)
+        window.addEventListener('load', function() {
+            // Give parent a moment to set up, then request data
+            setTimeout(function() {
+                if (!spanData) {
+                    try {
+                        window.parent.postMessage({ type: 'request-data' }, '*');
+                    } catch (error) {
+                        console.log('Could not request data from parent:', error);
+                    }
+                }
+            }, 100);
+        });
+
+        // Also request data periodically if we haven't received any
+        let dataRequestInterval = setInterval(function() {
+            if (!spanData) {
+                try {
+                    window.parent.postMessage({ type: 'request-data' }, '*');
+                } catch (error) {
+                    console.log('Could not request data from parent:', error);
+                }
+            } else {
+                clearInterval(dataRequestInterval);
+            }
+        }, 1000);
+
+        // Stop requesting after 10 seconds
+        setTimeout(function() {
+            clearInterval(dataRequestInterval);
+            if (!spanData) {
+                document.getElementById('status').innerHTML = 
+                    '<span style="color: orange;">No data received. This might be a configuration issue.</span>';
+            }
+        }, 10000);
+    </script>
+</body>
+</html>
