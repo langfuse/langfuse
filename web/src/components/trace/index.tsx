@@ -279,15 +279,6 @@ export function Trace(props: {
             )}
             {viewType === "detailed" && (
               <div className="flex flex-row items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={downloadTraceAsJson}
-                  title="Download trace as JSON"
-                  disabled={!props.fullTraceData}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon">
@@ -416,6 +407,16 @@ export function Trace(props: {
                     </DropdownMenuSub>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                {props.fullTraceData && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={downloadTraceAsJson}
+                    title="Download trace as JSON"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                )}
                 <Switch
                   checked={props.selectedTab?.includes("timeline")}
                   onCheckedChange={(checked) =>
