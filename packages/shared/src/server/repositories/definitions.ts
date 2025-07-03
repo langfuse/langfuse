@@ -128,12 +128,12 @@ export const traceMtRecordInsertSchema = z.object({
   id: z.string(),
   start_time: z.number(),
   end_time: z.number().nullish(),
-  name: z.string(),
+  name: z.string().nullish(),
 
   // Metadata properties
   metadata: z.record(z.string(), z.string()),
-  user_id: z.string(),
-  session_id: z.string(),
+  user_id: z.string().nullish(),
+  session_id: z.string().nullish(),
   environment: z.string(),
   tags: z.array(z.string()),
   version: z.string().nullish(),
