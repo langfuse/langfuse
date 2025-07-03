@@ -31,15 +31,11 @@ export const measureAndReturn = async <T, Y>(args: {
     async (currentSpan) => {
       const { input, existingExecution, newExecution } = args;
 
-      currentSpan.setAttribute(
-        `run-experiment`,
-        env.LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES,
-      );
-
       if (
         env.LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES !==
         "true"
       ) {
+        currentSpan.setAttribute(`run-experiment`, "disabled");
         return existingExecution(input);
       }
 
@@ -50,8 +46,11 @@ export const measureAndReturn = async <T, Y>(args: {
         ) &&
         Math.random() > env.LANGFUSE_EXPERIMENT_SAMPLING_RATE
       ) {
+        currentSpan.setAttribute(`run-experiment`, "sampled-out");
         return existingExecution(input);
       }
+
+      currentSpan.setAttribute(`run-experiment`, "true");
 
       try {
         const [[existingResult, existingDuration], [newResult, newDuration]] =
