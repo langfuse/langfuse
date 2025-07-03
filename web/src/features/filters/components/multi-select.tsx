@@ -22,6 +22,7 @@ import { Separator } from "@/src/components/ui/separator";
 import { type FilterOption } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import { useRef, useState } from "react";
+import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
 const getFreeTextInput = (
   isCustomSelectEnabled: boolean,
@@ -152,7 +153,7 @@ export function MultiSelect({
               {options.map((option) => {
                 if (option.value.length === 0) return;
                 const isSelected = selectedValues.has(option.value);
-                return (
+                const commandItem = (
                   <InputCommandItem
                     key={option.value}
                     onSelect={() => {
@@ -187,6 +188,18 @@ export function MultiSelect({
                       </span>
                     ) : null}
                   </InputCommandItem>
+                );
+
+                return option.description ? (
+                  <PropertyHoverCard
+                    key={option.value}
+                    label={option.displayValue ?? option.value}
+                    description={option.description}
+                  >
+                    {commandItem}
+                  </PropertyHoverCard>
+                ) : (
+                  commandItem
                 );
               })}
             </InputCommandGroup>

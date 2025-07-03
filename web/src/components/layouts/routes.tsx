@@ -145,12 +145,6 @@ export const ROUTES: Route[] = [
     productModule: "datasets",
   },
   {
-    title: "Automations",
-    pathname: `/project/[projectId]/automations`,
-    icon: Zap,
-    projectRbacScopes: ["automations:read"],
-  },
-  {
     title: "Upgrade",
     icon: Sparkle,
     pathname: "/project/[projectId]/settings/billing",

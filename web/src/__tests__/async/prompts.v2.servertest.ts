@@ -1,7 +1,11 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import {
+  disconnectQueues,
+  makeAPICall,
+  pruneDatabase,
+} from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
 import {
   PromptSchema,
@@ -128,6 +132,7 @@ const testPromptEquality = (
 describe("/api/public/v2/prompts API Endpoint", () => {
   afterAll(async () => {
     await pruneDatabase();
+    await disconnectQueues();
     redis?.disconnect();
   });
 
@@ -480,6 +485,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     afterAll(async () => {
+      await disconnectQueues();
       redis?.disconnect();
     });
 
@@ -1674,7 +1680,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   describe("prompt composability", () => {
     beforeEach(() => pruneDatabase());
     afterAll(async () => {
-      pruneDatabase();
+      await disconnectQueues();
+      await pruneDatabase();
     });
 
     it("can create a prompt with dependencies linked via label", async () => {

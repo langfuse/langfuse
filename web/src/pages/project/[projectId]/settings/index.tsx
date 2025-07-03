@@ -26,6 +26,7 @@ import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
+import AutomationsSettingsPage from "@/src/features/automations/components/automations";
 
 type ProjectSettingsPage = {
   title: string;
@@ -42,6 +43,10 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
+  const showAutomationsSettings = useHasProjectAccess({
+    projectId: project?.id ?? "",
+    scope: "automations:read",
+  });
 
   if (!project || !organization || !router.query.projectId) {
     return [];
@@ -54,6 +59,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     showRetentionSettings,
     showLLMConnectionsSettings: true,
     showProtectedLabelsSettings,
+    showAutomationsSettings,
   });
 }
 
@@ -64,6 +70,7 @@ export const getProjectSettingsPages = ({
   showRetentionSettings,
   showLLMConnectionsSettings,
   showProtectedLabelsSettings,
+  showAutomationsSettings,
 }: {
   project: { id: string; name: string; metadata: Record<string, unknown> };
   organization: { id: string; name: string; metadata: Record<string, unknown> };
@@ -71,6 +78,7 @@ export const getProjectSettingsPages = ({
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
   showProtectedLabelsSettings: boolean;
+  showAutomationsSettings: boolean;
 }): ProjectSettingsPage[] => [
   {
     title: "General",
@@ -167,6 +175,17 @@ export const getProjectSettingsPages = ({
     slug: "scores",
     cmdKKeywords: ["config"],
     content: <ScoreConfigSettings projectId={project.id} />,
+  },
+  {
+    title: "Automations",
+    slug: "automations",
+    cmdKKeywords: ["webhook", "trigger", "action", "integration"],
+    content: (
+      <div className="flex flex-col gap-6">
+        <AutomationsSettingsPage />
+      </div>
+    ),
+    show: showAutomationsSettings,
   },
   {
     title: "Members",

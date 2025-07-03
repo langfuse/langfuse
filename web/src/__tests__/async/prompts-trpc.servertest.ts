@@ -4,6 +4,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
+import { disconnectQueues } from "../test-utils";
 
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -54,6 +55,9 @@ async function prepare() {
 
 describe("prompts trpc", () => {
   describe("prompts.setLabels", () => {
+    afterAll(async () => {
+      await disconnectQueues();
+    });
     it("should set labels on a prompt and remove them from other versions", async () => {
       const { project, caller } = await prepare();
 

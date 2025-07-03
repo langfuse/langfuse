@@ -246,7 +246,7 @@ export const AutomationForm = ({
     if (onCancel) {
       onCancel();
     } else {
-      router.push(`/project/${projectId}/automations/list`);
+      router.push(`/project/${projectId}/settings/automations`);
     }
   };
 
@@ -363,9 +363,20 @@ export const AutomationForm = ({
                       values={field.value}
                       onValueChange={field.onChange}
                       options={[
-                        { value: "created" },
-                        { value: "updated" },
-                        { value: "deleted" },
+                        {
+                          value: "created",
+                          description:
+                            "Whenever a new prompt version is created",
+                        },
+                        {
+                          value: "updated",
+                          description:
+                            "Whenever tags or labels on a prompt version are updated",
+                        },
+                        {
+                          value: "deleted",
+                          description: "Whenever a prompt version is deleted",
+                        },
                       ]}
                       className="my-0 w-auto overflow-hidden"
                       disabled={!hasAccess || !isEditing}
@@ -477,7 +488,7 @@ export const AutomationForm = ({
                   variant="button"
                   onSuccess={() => {
                     utils.automations.invalidate();
-                    router.push(`/project/${projectId}/automations/list`);
+                    router.push(`/project/${projectId}/settings/automations`);
                   }}
                 />
               </div>
