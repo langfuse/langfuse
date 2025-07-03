@@ -75,6 +75,8 @@ CREATE TABLE traces_all_amt
     -- If we spread it across multiple rows (keys + values) we might be able to allow updates/overwrites.
     -- Indexing speed in this case is unclear though.
     `metadata_argmax`    AggregateFunction(argMax, Map(LowCardinality(String), String), DateTime64(3)),
+    -- Using maxMap here might be an option that takes the max value seen per key. This merges as expected, but may produce random cases on updates.
+    -- Alternatively, we can stick with just the latest or go down the route of the spreading above.
     `metadata`           SimpleAggregateFunction(anyLast, Map(String, String)),
     `user_id_argmax`     AggregateFunction(argMax, String, DateTime64(3)),
     `session_id_argmax`  AggregateFunction(argMax, String, DateTime64(3)),
