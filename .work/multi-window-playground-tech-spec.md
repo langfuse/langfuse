@@ -16,19 +16,18 @@ Extend the existing Langfuse playground to support multiple side-by-side prompt 
 ### System Architecture
 
 ```
-MultiPlaygroundProvider (Top Level)
-├── WindowManager (Add/Remove Controls)
-├── GlobalExecutionControls (Run All, Stop All)
-└── PlaygroundWindowContainer (Horizontal Scrollable)
-    ├── PlaygroundWindow 1 (PlaygroundProvider)
-    │   ├── Messages Component
-    │   ├── GenerationOutput Component
-    │   ├── ModelParameters Component
-    │   ├── Variables Component
-    │   ├── PlaygroundTools Component
-    │   └── Individual Controls (Submit, Stop)
-    ├── PlaygroundWindow 2 (PlaygroundProvider)
-    └── PlaygroundWindow N (PlaygroundProvider)
+MultiWindowPlayground (Container Component)
+├── Global Controls (Run All, Stop All, Add Window)
+├── Window Container (Horizontal Scrollable)
+│   ├── PlaygroundWindow 1 (PlaygroundProvider windowId="abc")
+│   │   └── Playground (existing component)
+│   ├── PlaygroundWindow 2 (PlaygroundProvider windowId="def")
+│   │   └── Playground (existing component)
+│   └── PlaygroundWindow N (PlaygroundProvider windowId="xyz")
+│       └── Playground (existing component)
+└── Global Coordination
+    ├── globalWindowRegistry (Map<windowId, PlaygroundHandle>)
+    └── globalEventBus (EventTarget for coordination)
 ```
 
 ## 2. Project Structure
@@ -38,29 +37,20 @@ MultiPlaygroundProvider (Top Level)
 ```
 web/src/features/playground/page/
 ├── components/
-│   ├── MultiPlayground.tsx               # Main multi-window container
-│   ├── MultiPlaygroundProvider.tsx       # Top-level state management
-│   ├── WindowManager.tsx                 # Add/remove window controls
-│   ├── GlobalExecutionControls.tsx       # Run All/Stop All buttons
-│   ├── PlaygroundWindowContainer.tsx     # Scrollable window container
-│   ├── PlaygroundWindow.tsx              # Individual window wrapper
-│   └── WindowCloseButton.tsx             # Individual window close button
+│   └── MultiWindowPlayground.tsx           # Main multi-window container
 └── hooks/
-    ├── useMultiPlayground.tsx             # Multi-window state hook
-    ├── useWindowExecution.tsx             # Individual window execution
-    └── useParallelExecution.tsx           # Parallel execution coordinator
+    └── useWindowCoordination.ts             # Global coordination hook
 ```
 
 ### Files to Modify
 
 ```
 web/src/features/playground/page/
-├── index.tsx                             # Wrap with MultiPlaygroundProvider
-├── playground.tsx                        # Refactor for single window use
-├── context/index.tsx                     # Make reusable for individual windows
-└── components/
-    ├── Messages.tsx                      # Remove global controls, add window-specific
-    └── ResetPlaygroundButton.tsx         # Update for multi-window context
+├── index.tsx                               # Use MultiWindowPlayground instead of single
+├── hooks/
+│   ├── usePlaygroundCache.ts               # Add windowId parameter
+│   └── useModelParams.ts                   # Add windowId parameter
+└── context/index.tsx                       # Add windowId prop and self-registration
 ```
 
 ## 3. Feature Specification
@@ -71,20 +61,79 @@ web/src/features/playground/page/
 
 **Implementation Steps**:
 
-1. Create `MultiPlaygroundProvider` to manage array of window configurations
-2. Implement `addWindow()` function that copies last created window's state
-3. Implement `removeWindow(windowId)` function with confirmation
-4. Create `WindowManager` component with "Add Window" button
-5. Add close button (X) to each window header
-6. Handle edge case of removing last window (prevent)
+1. Create `MultiWindowPlayground` container component to manage window array
+2. Implement `addWindow()` function that generates new windowId
+3. Implement `removeWindow(windowId)` function with last-window prevention
+4. Add close button (X) to each window header
+5. Handle cleanup when windows are removed
 
 **Error Handling**:
 
 - Prevent removing the last remaining window
-- Handle memory cleanup when windows are removed
+- Clean up global registry when windows are removed
 - Graceful handling of execution interruption on window removal
 
-### 3.2 Responsive Layout System
+### 3.2 Window State Isolation
+
+**User Story**: As a user, I want each window to maintain completely independent configurations without affecting other windows.
+
+**Implementation Steps**:
+
+1. Modify `usePlaygroundCache` to accept `windowId` parameter
+2. Update cache keys to be window-specific: `playgroundCache_${windowId}`
+3. Modify `useModelParams` to accept `windowId` parameter
+4. Update localStorage keys to be window-specific: `llmModelName_${windowId}`
+5. Pass `windowId` through `PlaygroundProvider` props
+
+**Cache Isolation**:
+
+```typescript
+// Before: Shared cache key
+const playgroundCacheKey = "playgroundCache";
+
+// After: Window-specific cache key
+export default function usePlaygroundCache(windowId: string = "default") {
+  const playgroundCacheKey = `playgroundCache_${windowId}`;
+  // ... rest unchanged
+}
+```
+
+### 3.3 Global Coordination System
+
+**User Story**: As a user, I want to execute all windows simultaneously to quickly compare results across configurations.
+
+**Implementation Steps**:
+
+1. Create global window registry using `Map<string, PlaygroundHandle>`
+2. Create global event bus using `EventTarget`
+3. Each window self-registers on mount and unregisters on unmount
+4. Implement global "Run All" using event bus dispatch
+5. Implement global "Stop All" using registry iteration
+
+**Global Coordination Logic**:
+
+```typescript
+// Global registry - no React state
+const globalWindowRegistry = new Map<string, PlaygroundHandle>();
+const globalEventBus = new EventTarget();
+
+// Each window self-registers
+useEffect(() => {
+  globalWindowRegistry.set(windowId, { handleSubmit, stopExecution });
+  globalEventBus.addEventListener("execute-all", handleGlobalExecute);
+
+  return () => {
+    globalWindowRegistry.delete(windowId);
+    globalEventBus.removeEventListener("execute-all", handleGlobalExecute);
+  };
+}, [windowId, handleSubmit]);
+
+// Global actions don't cause re-renders
+const executeAll = () =>
+  globalEventBus.dispatchEvent(new CustomEvent("execute-all"));
+```
+
+### 3.4 Responsive Layout System
 
 **User Story**: As a user, I want windows to be evenly distributed and scrollable horizontally on desktop, and stacked vertically on mobile.
 
@@ -116,69 +165,6 @@ web/src/features/playground/page/
   }
 }
 ```
-
-### 3.3 Independent Window Execution
-
-**User Story**: As a user, I want to execute each window independently to test specific configurations.
-
-**Implementation Steps**:
-
-1. Maintain individual `PlaygroundProvider` per window
-2. Add individual Submit/Stop buttons to each window
-3. Implement window-specific execution state (loading, success, error)
-4. Use `AbortController` for individual stop functionality
-5. Display execution results within each window
-
-**State Interface**:
-
-```typescript
-interface WindowExecutionState {
-  isExecuting: boolean;
-  hasError: boolean;
-  errorMessage?: string;
-  abortController?: AbortController;
-}
-```
-
-### 3.4 Parallel Execution System
-
-**User Story**: As a user, I want to execute all windows simultaneously to quickly compare results across configurations.
-
-**Implementation Steps**:
-
-1. Create `useParallelExecution` hook to coordinate multiple executions
-2. Implement global "Run All" button that triggers all windows
-3. Implement global "Stop All" button using `AbortController.abort()`
-4. Show global execution status (e.g., "Running 3 of 5 windows")
-5. Handle individual window failures without stopping others
-
-**Parallel Execution Logic**:
-
-```typescript
-const executeAllWindows = async () => {
-  const promises = windows.map((window) =>
-    window.playgroundProvider.handleSubmit(),
-  );
-
-  try {
-    await Promise.allSettled(promises);
-  } catch (error) {
-    // Handle global execution errors
-  }
-};
-```
-
-### 3.5 State Isolation
-
-**User Story**: As a user, I want each window to maintain completely independent configurations without affecting other windows.
-
-**Implementation Steps**:
-
-1. Wrap each window in its own `PlaygroundProvider`
-2. Ensure no shared state between providers
-3. Implement deep copying for window duplication
-4. Prevent variable name conflicts between windows
-5. Maintain separate execution contexts
 
 ## 4. Database Schema
 
@@ -222,75 +208,91 @@ const executeAllWindows = async () => {
 **Window Layout Structure**:
 
 ```tsx
-<div className="playground-window border rounded-lg bg-background">
-  <div className="window-header flex justify-between items-center p-4 border-b">
-    <div className="execution-controls">
-      <Button>Submit</Button>
-      <Button variant="outline">Stop</Button>
+<div className="playground-window border rounded-lg bg-background min-w-[320px] flex-1">
+  <div className="window-header flex justify-between items-center p-3 border-b bg-muted/50">
+    <div className="text-sm font-medium text-muted-foreground">
+      Window {windowId.slice(-4)}
     </div>
-    <Button variant="ghost" size="icon">
-      <X className="h-4 w-4" />
+    <Button variant="ghost" size="sm" onClick={onRemove}>
+      <X className="h-3 w-3" />
     </Button>
   </div>
-  <div className="window-content p-4">{/* Existing playground content */}</div>
+  <div className="window-content">
+    <PlaygroundProvider windowId={windowId}>
+      <Playground />
+    </PlaygroundProvider>
+  </div>
 </div>
 ```
 
 ## 7. Component Architecture
 
-### 7.1 Server Components
+### 7.1 Core Interfaces
 
-**Note**: All components are client-side React components due to interactive nature.
-
-### 7.2 Client Components
-
-#### MultiPlaygroundProvider
+#### PlaygroundHandle
 
 ```typescript
-interface MultiPlaygroundContextType {
-  windows: PlaygroundWindowConfig[];
-  addWindow: () => void;
-  removeWindow: (windowId: string) => void;
-  executeAllWindows: () => Promise<void>;
+interface PlaygroundHandle {
+  handleSubmit: (streaming?: boolean) => Promise<void>;
+  stopExecution: () => void;
+  isStreaming: boolean;
+}
+```
+
+#### PlaygroundProvider Props
+
+```typescript
+interface PlaygroundProviderProps {
+  children: React.ReactNode;
+  windowId?: string;
+}
+```
+
+#### MultiWindowPlayground State
+
+```typescript
+interface MultiWindowState {
+  windowIds: string[];
+  isExecutingAll: boolean;
+}
+```
+
+### 7.2 Hook Interfaces
+
+#### useWindowCoordination
+
+```typescript
+interface WindowCoordinationReturn {
+  registerWindow: (windowId: string, handle: PlaygroundHandle) => void;
+  unregisterWindow: (windowId: string) => void;
+  executeAllWindows: () => void;
   stopAllWindows: () => void;
-  isGlobalExecution: boolean;
-}
-
-interface PlaygroundWindowConfig {
-  id: string;
-  playgroundState: PlaygroundCache;
-  executionState: WindowExecutionState;
+  getExecutionStatus: () => string | null;
+  isExecutingAll: boolean;
 }
 ```
 
-#### PlaygroundWindow
+#### usePlaygroundCache
 
 ```typescript
-interface PlaygroundWindowProps {
-  windowId: string;
-  initialState: PlaygroundCache;
-  onRemove: (windowId: string) => void;
-  isGlobalExecution: boolean;
-}
+// Updated signature
+export default function usePlaygroundCache(windowId?: string): {
+  playgroundCache: PlaygroundCache;
+  setPlaygroundCache: (cache: PlaygroundCache) => void;
+};
 ```
 
-#### WindowManager
+#### useModelParams
 
 ```typescript
-interface WindowManagerProps {
-  onAddWindow: () => void;
-  windowCount: number;
-}
-```
-
-#### GlobalExecutionControls
-
-```typescript
-interface GlobalExecutionControlsProps {
-  onExecuteAll: () => Promise<void>;
-  onStopAll: () => void;
-  isExecuting: boolean;
-  executionStatus: string;
+// Updated signature
+export const useModelParams = (windowId?: string): {
+  modelParams: UIModelParams;
+  setModelParams: React.Dispatch<React.SetStateAction<UIModelParams>>;
+  availableProviders: string[];
+  availableModels: string[];
+  updateModelParamValue: (key: string, value: any) => void;
+  setModelParamEnabled: (key: string, enabled: boolean) => void;
 }
 ```
 
@@ -303,26 +305,24 @@ interface GlobalExecutionControlsProps {
 ### State Management Architecture
 
 ```
-MultiPlaygroundProvider
-├── windows: PlaygroundWindowConfig[]
-├── globalExecutionState: GlobalExecutionState
-└── windowActions: { add, remove, executeAll, stopAll }
+MultiWindowPlayground (Container - No State Provider)
+├── windowIds: string[] (local state)
+├── Global Registry: Map<windowId, PlaygroundHandle>
+└── Global Event Bus: EventTarget
 
-Individual PlaygroundProvider (per window)
-├── messages: ChatMessageWithId[]
-├── modelParams: UIModelParams
-├── variables: PromptVariable[]
-├── tools: PlaygroundTool[]
-├── executionState: { output, isStreaming, etc. }
-└── playgroundActions: { handleSubmit, updateMessage, etc. }
+Individual PlaygroundProvider (per window - windowId prop)
+├── Isolated Cache: playgroundCache_${windowId}
+├── Isolated Preferences: llmModelName_${windowId}
+├── Independent State: messages, variables, tools, etc.
+└── Self-Registration: registers with global registry
 ```
 
 ### Data Flow Patterns
 
-1. **Window Creation**: MultiPlaygroundProvider → creates new PlaygroundProvider → copies last window state
-2. **Individual Execution**: PlaygroundWindow → PlaygroundProvider.handleSubmit() → API call → update window state
-3. **Parallel Execution**: GlobalExecutionControls → MultiPlaygroundProvider.executeAll() → Promise.allSettled() → update all window states
-4. **Window Removal**: PlaygroundWindow.onClose → MultiPlaygroundProvider.removeWindow() → cleanup state
+1. **Window Creation**: MultiWindowPlayground → generates windowId → creates PlaygroundProvider with windowId
+2. **Individual Execution**: PlaygroundProvider → handleSubmit() → API call → update isolated state
+3. **Global Execution**: Global Controls → dispatch 'execute-all' event → all windows execute independently
+4. **Window Removal**: MultiWindowPlayground → removes windowId → PlaygroundProvider unmounts → auto-cleanup
 
 ## 10. Testing
 
@@ -331,48 +331,40 @@ Individual PlaygroundProvider (per window)
 **Key Test Cases**:
 
 ```typescript
-// MultiPlaygroundProvider Tests
-describe("MultiPlaygroundProvider", () => {
-  test("should add new window with copied configuration", () => {
-    // Test window addition logic
+// Global Coordination Tests
+describe("Global Window Coordination", () => {
+  test("should register and unregister windows correctly", () => {
+    // Test global registry management
   });
 
-  test("should remove window and cleanup state", () => {
-    // Test window removal logic
+  test("should execute all windows when execute-all event is dispatched", () => {
+    // Test event bus coordination
   });
 
-  test("should prevent removing last window", () => {
-    // Test edge case handling
-  });
-});
-
-// Parallel Execution Tests
-describe("useParallelExecution", () => {
-  test("should execute all windows in parallel", () => {
-    // Test parallel execution coordination
-  });
-
-  test("should handle individual window failures gracefully", () => {
-    // Test error handling in parallel execution
-  });
-
-  test("should stop all executions when requested", () => {
-    // Test abort controller functionality
+  test("should stop all windows when requested", () => {
+    // Test global stop functionality
   });
 });
 
-// Layout Tests
-describe("PlaygroundWindowContainer", () => {
-  test("should distribute windows equally within viewport", () => {
-    // Test responsive layout calculation
+// Cache Isolation Tests
+describe("Window Cache Isolation", () => {
+  test("should create separate cache keys for different windows", () => {
+    // Test cache key generation
   });
 
-  test("should enable horizontal scrolling when needed", () => {
-    // Test overflow behavior
+  test("should not interfere with other window caches", () => {
+    // Test cache isolation
+  });
+});
+
+// Model Preferences Isolation Tests
+describe("Model Preferences Isolation", () => {
+  test("should create separate localStorage keys for different windows", () => {
+    // Test localStorage key generation
   });
 
-  test("should stack vertically on mobile", () => {
-    // Test responsive behavior
+  test("should maintain independent model selections", () => {
+    // Test model preference isolation
   });
 });
 ```

@@ -1,6 +1,5 @@
 import React, {
   createContext,
-  type PropsWithChildren,
   useCallback,
   useContext,
   useEffect,
@@ -38,9 +37,16 @@ import {
   type PlaygroundSchema,
   type PlaygroundTool,
   type PlaceholderMessageFillIn,
+  type PlaygroundProviderProps,
+  type PlaygroundHandle,
+  PLAYGROUND_EVENTS,
+  MULTI_WINDOW_CONFIG,
 } from "@/src/features/playground/page/types";
+import {
+  getPlaygroundEventBus,
+  getPlaygroundWindowRegistry,
+} from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
@@ -80,14 +86,17 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
-export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
+export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   children,
+  windowId,
 }) => {
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { playgroundCache, setPlaygroundCache } = usePlaygroundCache();
+  const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(windowId);
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
-  const [messagePlaceholders, setMessagePlaceholders] = useState<PlaceholderMessageFillIn[]>([]);
+  const [messagePlaceholders, setMessagePlaceholders] = useState<
+    PlaceholderMessageFillIn[]
+  >([]);
   const [output, setOutput] = useState("");
   const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
@@ -115,7 +124,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     availableModels,
     updateModelParamValue,
     setModelParamEnabled,
-  } = useModelParams();
+  } = useModelParams(windowId);
 
   const toolCallIds = messages.reduce((acc, m) => {
     if (m.type === ChatMessageType.AssistantToolCall) {
@@ -171,7 +180,9 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   }, [playgroundCache, setModelParams]);
 
   const updatePromptVariables = useCallback(() => {
-    const messageContents = messages.map((m) => ('content' in m ? m.content : m.name)).join("\n");
+    const messageContents = messages
+      .map((m) => ("content" in m ? m.content : m.name))
+      .join("\n");
     const variables = extractVariables(messageContents)
       .map((v) => v.trim())
       .filter(Boolean);
@@ -231,7 +242,10 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
         return toolCallMessage;
       } else if (message.type === ChatMessageType.Placeholder) {
-        const placeholderMessage = { ...message, id: uuidv4() } as ChatMessageWithId;
+        const placeholderMessage = {
+          ...message,
+          id: uuidv4(),
+        } as ChatMessageWithId;
         setMessages((prev) => [...prev, placeholderMessage]);
         return placeholderMessage;
       } else {
@@ -279,7 +293,11 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         setOutputJson("");
         setOutputToolCalls([]);
 
-        const finalMessages = getFinalMessages(promptVariables, messages, messagePlaceholders);
+        const finalMessages = getFinalMessages(
+          promptVariables,
+          messages,
+          messagePlaceholders,
+        );
         const leftOverVariables = extractVariables(
           finalMessages.map((m) => m.content).join("\n"),
         );
@@ -411,11 +429,14 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     setPromptVariables((prev) => prev.filter((v) => v.name !== variable));
   }, []);
 
-  const updateMessagePlaceholderValue = useCallback((name: string, value: ChatMessage[]) => {
-    setMessagePlaceholders((prev) =>
-      prev.map((p) => (p.name === name ? { ...p, value } : p)),
-    );
-  }, []);
+  const updateMessagePlaceholderValue = useCallback(
+    (name: string, value: ChatMessage[]) => {
+      setMessagePlaceholders((prev) =>
+        prev.map((p) => (p.name === name ? { ...p, value } : p)),
+      );
+    },
+    [],
+  );
 
   const deleteMessagePlaceholder = useCallback((name: string) => {
     setMessagePlaceholders((prev) => prev.filter((p) => p.name !== name));
@@ -423,22 +444,30 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   const updateMessagePlaceholders = useCallback(() => {
     const placeholderNames = messages
-      .filter((msg): msg is ChatMessageWithId & { type: ChatMessageType.Placeholder; name: string } =>
-        msg.type === ChatMessageType.Placeholder
+      .filter(
+        (
+          msg,
+        ): msg is ChatMessageWithId & {
+          type: ChatMessageType.Placeholder;
+          name: string;
+        } => msg.type === ChatMessageType.Placeholder,
       )
       .map((msg) => msg.name);
 
     setMessagePlaceholders((prev) => {
       // Set isUsed flag for existing placeholders and remove unused ones
-      const next = prev.reduce<PlaceholderMessageFillIn[]>((updatedPlaceholders, p) => {
-        const isUsed = placeholderNames.includes(p.name);
-        // Remove unused placeholders
-        if (!isUsed && p.value.length === 0) {
+      const next = prev.reduce<PlaceholderMessageFillIn[]>(
+        (updatedPlaceholders, p) => {
+          const isUsed = placeholderNames.includes(p.name);
+          // Remove unused placeholders
+          if (!isUsed && p.value.length === 0) {
+            return updatedPlaceholders;
+          }
+          updatedPlaceholders.push({ ...p, isUsed });
           return updatedPlaceholders;
-        }
-        updatedPlaceholders.push({ ...p, isUsed });
-        return updatedPlaceholders;
-      }, []);
+        },
+        [],
+      );
 
       // Add new placeholders
       for (const name of placeholderNames) {
@@ -452,6 +481,83 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   }, [messages]);
 
   useEffect(updateMessagePlaceholders, [messages, updateMessagePlaceholders]);
+
+  // Window self-registration for global coordination
+  // This effect registers the window with the global coordination system
+  // and sets up event listeners for global actions like "Run All" and "Stop All"
+  useEffect(() => {
+    const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
+    const playgroundRegistry = getPlaygroundWindowRegistry();
+    const playgroundEventBus = getPlaygroundEventBus();
+
+    // Create the handle for this window that other windows can use to coordinate actions
+    const playgroundHandle: PlaygroundHandle = {
+      handleSubmit,
+      stopExecution: () => {
+        setIsStreaming(false);
+      },
+      isStreaming,
+    };
+
+    // Register this window with the global coordination system
+    playgroundRegistry.set(effectiveWindowId, playgroundHandle);
+
+    // Dispatch registration event for potential listeners
+    playgroundEventBus.dispatchEvent(
+      new CustomEvent(PLAYGROUND_EVENTS.WINDOW_REGISTERED, {
+        detail: { windowId: effectiveWindowId },
+      }),
+    );
+
+    // Event handler for global "execute all" command
+    const handleGlobalExecute = () => {
+      // Only execute if not already streaming to avoid conflicts
+      if (!isStreaming) {
+        handleSubmit(true); // Execute with streaming enabled
+      }
+    };
+
+    // Event handler for global "stop all" command
+    const handleGlobalStop = () => {
+      // Only stop if currently streaming
+      if (isStreaming) {
+        setIsStreaming(false);
+      }
+    };
+
+    // Set up event listeners for global coordination
+    playgroundEventBus.addEventListener(
+      PLAYGROUND_EVENTS.EXECUTE_ALL,
+      handleGlobalExecute,
+    );
+    playgroundEventBus.addEventListener(
+      PLAYGROUND_EVENTS.STOP_ALL,
+      handleGlobalStop,
+    );
+
+    // Cleanup function: unregister window and remove event listeners
+    return () => {
+      // Remove from global registry
+      playgroundRegistry.delete(effectiveWindowId);
+
+      // Dispatch unregistration event
+      playgroundEventBus.dispatchEvent(
+        new CustomEvent(PLAYGROUND_EVENTS.WINDOW_UNREGISTERED, {
+          detail: { windowId: effectiveWindowId },
+        }),
+      );
+
+      // Remove event listeners
+      playgroundEventBus.removeEventListener(
+        PLAYGROUND_EVENTS.EXECUTE_ALL,
+        handleGlobalExecute,
+      );
+      playgroundEventBus.removeEventListener(
+        PLAYGROUND_EVENTS.STOP_ALL,
+        handleGlobalStop,
+      );
+    };
+  }, [windowId, handleSubmit, isStreaming]);
 
   return (
     <PlaygroundContext.Provider
@@ -690,13 +796,11 @@ function getFinalMessages(
     );
   }
 
-  const placeholderValues: MessagePlaceholderValues = messagePlaceholders.reduce(
-    (placeholderMap, p) => {
+  const placeholderValues: MessagePlaceholderValues =
+    messagePlaceholders.reduce((placeholderMap, p) => {
       placeholderMap[p.name] = p.value;
       return placeholderMap;
-    },
-    {} as MessagePlaceholderValues,
-  );
+    }, {} as MessagePlaceholderValues);
 
   const textVariables = promptVariables.reduce(
     (variableMap, v) => {
@@ -715,7 +819,8 @@ function getFinalMessages(
   // Filter empty messages (except tool calls), e.g. if placeholder value was empty
   return compiledMessages.filter(
     (m) =>
-      m.content.length > 0 || ("toolCalls" in m && m.toolCalls && m.toolCalls.length > 0),
+      m.content.length > 0 ||
+      ("toolCalls" in m && m.toolCalls && m.toolCalls.length > 0),
   );
 }
 
