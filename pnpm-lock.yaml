@@ -224,8 +224,8 @@ importers:
         specifier: ^0.3.28
         version: 0.3.28(@langchain/anthropic@0.3.22(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(zod@3.25.62))(axios@1.8.2)(cheerio@1.0.0)(handlebars@4.7.8)(openai@4.104.0(zod@3.25.62))
       langfuse-langchain:
-        specifier: 3.38.1
-        version: 3.38.1(langchain@0.3.28(@langchain/anthropic@0.3.22(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(zod@3.25.62))(axios@1.8.2)(cheerio@1.0.0)(handlebars@4.7.8)(openai@4.104.0(zod@3.25.62)))
+        specifier: 3.38.2
+        version: 3.38.2(langchain@0.3.28(@langchain/anthropic@0.3.22(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(zod@3.25.62))(axios@1.8.2)(cheerio@1.0.0)(handlebars@4.7.8)(openai@4.104.0(zod@3.25.62)))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -8936,18 +8936,18 @@ packages:
       typeorm:
         optional: true
 
-  langfuse-core@3.38.1:
-    resolution: {integrity: sha512-qZsHZZ05eHv+EQoPmfrm6bWUflzvlCSAfT8EP1PP1WeHSwEcwT4p7qAs9H0EnWcUtm0dAdyd6U75HGWu3/ETUA==}
+  langfuse-core@3.38.2:
+    resolution: {integrity: sha512-qtiFTAL8EwjZcPvd4axiQ2IGdBIzCV/rWnlBUl2+Y7touztM328UU0XjUWKJzT372bbMbI1nJsgS3VcPejL9PQ==}
     engines: {node: '>=18'}
 
-  langfuse-langchain@3.38.1:
-    resolution: {integrity: sha512-lkgEwUuGEtkmtxcMhfFn90FRAlGOSGVWczyBFMXck+1YcqnYLIuE/MNg3ufN54yPRVJFfEXj0kesZSLERGQ8eQ==}
+  langfuse-langchain@3.38.2:
+    resolution: {integrity: sha512-SKLeCFR+GAWrl2EfSz0BLL1Aou1YGlFTt/NlyoasobibumGRdjkiRm6RPVg3i8NryICwWU2Ui5psuJOtqIQk6w==}
     engines: {node: '>=18'}
     peerDependencies:
       langchain: '>=0.0.157 <0.4.0'
 
-  langfuse@3.38.1:
-    resolution: {integrity: sha512-rv0x+NWi4JDN8KUyGcl8JQ7xmM/0UBXEcYmtBR+msLLImsM3I07CPE6imp3N2I4AbByPNKF4IU8Kq/LFS3D34A==}
+  langfuse@3.38.2:
+    resolution: {integrity: sha512-F7W2/NyPyfoXYMUj2qTBgb+BP9/LIlzrLzlxJDiPayiM2xKlTgZ/zuI8POYc34d8M8A2N/Y+x5t+xBzRPGcPcg==}
     engines: {node: '>=18'}
 
   langium@3.0.0:
@@ -22451,19 +22451,19 @@ snapshots:
       - openai
       - ws
 
-  langfuse-core@3.38.1:
+  langfuse-core@3.38.2:
     dependencies:
       mustache: 4.2.0
 
-  langfuse-langchain@3.38.1(langchain@0.3.28(@langchain/anthropic@0.3.22(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(zod@3.25.62))(axios@1.8.2)(cheerio@1.0.0)(handlebars@4.7.8)(openai@4.104.0(zod@3.25.62))):
+  langfuse-langchain@3.38.2(langchain@0.3.28(@langchain/anthropic@0.3.22(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(zod@3.25.62))(axios@1.8.2)(cheerio@1.0.0)(handlebars@4.7.8)(openai@4.104.0(zod@3.25.62))):
     dependencies:
       langchain: 0.3.28(@langchain/anthropic@0.3.22(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@4.104.0(zod@3.25.62)))(zod@3.25.62))(axios@1.8.2)(cheerio@1.0.0)(handlebars@4.7.8)(openai@4.104.0(zod@3.25.62))
-      langfuse: 3.38.1
-      langfuse-core: 3.38.1
+      langfuse: 3.38.2
+      langfuse-core: 3.38.2
 
-  langfuse@3.38.1:
+  langfuse@3.38.2:
     dependencies:
-      langfuse-core: 3.38.1
+      langfuse-core: 3.38.2
 
   langium@3.0.0:
     dependencies:

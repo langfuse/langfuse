@@ -349,7 +349,10 @@ export async function executeQuery(
   } catch (error) {
     // If the error is a known invalid request, return a 400 error
     if (error instanceof InvalidRequestError) {
-      logger.warn("Bad request in query execution", error, { projectId, query });
+      logger.warn("Bad request in query execution", error, {
+        projectId,
+        query,
+      });
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: error.message || "Invalid request",

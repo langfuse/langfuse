@@ -2,7 +2,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import type { Session } from "next-auth";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -10,8 +9,6 @@ import { TRPCError } from "@trpc/server";
 
 describe("organization API keys trpc", () => {
   const organizationId = "seed-org-id";
-
-  beforeEach(async () => await pruneDatabase());
 
   const ownerSession: Session = {
     expires: "1",

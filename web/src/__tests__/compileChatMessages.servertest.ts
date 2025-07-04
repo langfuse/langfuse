@@ -1,6 +1,10 @@
 /** @jest-environment node */
 
-import { ChatMessageType, compileChatMessages, extractPlaceholderNames } from "@langfuse/shared";
+import {
+  ChatMessageType,
+  compileChatMessages,
+  extractPlaceholderNames,
+} from "@langfuse/shared";
 
 describe("compileChatMessages", () => {
   it("should compile message placeholders with provided values", () => {
@@ -11,28 +15,28 @@ describe("compileChatMessages", () => {
       { role: "system", content: "You are a helpful assistant." },
       {
         type: ChatMessageType.Placeholder,
-        name: "conversation_history"
+        name: "conversation_history",
       },
-      { role: "user", content: "{{user_question}}" }
+      { role: "user", content: "{{user_question}}" },
     ];
 
     const placeholderValues = {
       conversation_history: [
         { role: "user", content: "Hello!" },
         { role: "assistant", content: "Hi there! How can I help you?" },
-        { role: "user", content: "What's the weather like?" }
-      ]
+        { role: "user", content: "What's the weather like?" },
+      ],
     };
 
     const textVariables = {
-      user_question: "Can you continue our conversation?"
+      user_question: "Can you continue our conversation?",
     };
 
     // Simulate compilation logic that would happen in playground/experiments
     const compiledMessages = compileChatMessages(
       promptTemplate,
       placeholderValues,
-      textVariables
+      textVariables,
     );
 
     expect(compiledMessages).toEqual([
@@ -40,7 +44,7 @@ describe("compileChatMessages", () => {
       { role: "user", content: "Hello!" },
       { role: "assistant", content: "Hi there! How can I help you?" },
       { role: "user", content: "What's the weather like?" },
-      { role: "user", content: "Can you continue our conversation?" }
+      { role: "user", content: "Can you continue our conversation?" },
     ]);
   });
 
@@ -49,9 +53,9 @@ describe("compileChatMessages", () => {
       { role: "system", content: "You are a helpful assistant." },
       {
         type: ChatMessageType.Placeholder,
-        name: "missing_placeholder"
+        name: "missing_placeholder",
       },
-      { role: "user", content: "Hello" }
+      { role: "user", content: "Hello" },
     ];
 
     const placeholderValues = {};
@@ -65,58 +69,67 @@ describe("compileChatMessages", () => {
     const promptTemplate = [
       {
         type: ChatMessageType.Placeholder,
-        name: "invalid_messages"
-      }
+        name: "invalid_messages",
+      },
     ];
 
     // Test missing role property
     const placeholderValuesNoRole = {
-      invalid_messages: [
-        { content: "Hello" }
-      ]
+      invalid_messages: [{ content: "Hello" }],
     };
 
     expect(() => {
       compileChatMessages(promptTemplate, placeholderValuesNoRole);
-    }).toThrow("Invalid message format in placeholder 'invalid_messages': messages must have 'role' and 'content' properties");
+    }).toThrow(
+      "Invalid message format in placeholder 'invalid_messages': messages must have 'role' and 'content' properties",
+    );
 
     // Test missing content property
     const placeholderValuesNoContent = {
-      invalid_messages: [
-        { role: "user" }
-      ]
+      invalid_messages: [{ role: "user" }],
     };
 
     expect(() => {
       compileChatMessages(promptTemplate, placeholderValuesNoContent);
-    }).toThrow("Invalid message format in placeholder 'invalid_messages': messages must have 'role' and 'content' properties");
+    }).toThrow(
+      "Invalid message format in placeholder 'invalid_messages': messages must have 'role' and 'content' properties",
+    );
   });
 
   it("should compile placeholders without applying text substitutions when no variables provided", () => {
     const promptTemplate = [
-      { role: "system", content: "You are a helpful assistant. {{system_var}}" },
+      {
+        role: "system",
+        content: "You are a helpful assistant. {{system_var}}",
+      },
       {
         type: ChatMessageType.Placeholder,
-        name: "history"
+        name: "history",
       },
-      { role: "user", content: "{{user_var}}" }
+      { role: "user", content: "{{user_var}}" },
     ];
 
     const placeholderValues = {
       history: [
         { role: "user", content: "Previous message with {{var}}" },
-        { role: "assistant", content: "Response with {{another_var}}" }
-      ]
+        { role: "assistant", content: "Response with {{another_var}}" },
+      ],
     };
 
     // No text variables provided
-    const compiledMessages = compileChatMessages(promptTemplate, placeholderValues);
+    const compiledMessages = compileChatMessages(
+      promptTemplate,
+      placeholderValues,
+    );
 
     expect(compiledMessages).toEqual([
-      { role: "system", content: "You are a helpful assistant. {{system_var}}" },
+      {
+        role: "system",
+        content: "You are a helpful assistant. {{system_var}}",
+      },
       { role: "user", content: "Previous message with {{var}}" },
       { role: "assistant", content: "Response with {{another_var}}" },
-      { role: "user", content: "{{user_var}}" }
+      { role: "user", content: "{{user_var}}" },
     ]);
   });
 
@@ -125,13 +138,13 @@ describe("compileChatMessages", () => {
       { role: "system", content: "System message" },
       {
         type: ChatMessageType.Placeholder,
-        name: "history"
+        name: "history",
       },
       { role: "user", content: "User message" },
       {
         type: ChatMessageType.Placeholder,
-        name: "context"
-      }
+        name: "context",
+      },
     ];
 
     const placeholderNames = extractPlaceholderNames(promptTemplate);
@@ -142,7 +155,7 @@ describe("compileChatMessages", () => {
   it("should return empty array when no placeholders exist", () => {
     const promptTemplate = [
       { role: "system", content: "System message" },
-      { role: "user", content: "User message" }
+      { role: "user", content: "User message" },
     ];
 
     const placeholderNames = extractPlaceholderNames(promptTemplate);

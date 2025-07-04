@@ -18,7 +18,7 @@ export default function PromptsWithFolder() {
   const projectId = router.query.projectId as string;
   const routeSegments = router.query.folder;
   const [queryParams] = useQueryParams({ folder: StringParam });
-  const folderQueryParam = queryParams.folder || '';
+  const folderQueryParam = queryParams.folder || "";
 
   // Determine view type based on route segments
   // NOTE: there is a bug here, that if the user directly accesses a prompt name which ends in `/metrics`,
@@ -26,10 +26,15 @@ export default function PromptsWithFolder() {
   // this in the UI (we URL encode here and don't strip metrics). We could resolve this with another API call
   // to check the prompt name existence.
   const segmentsArray = Array.isArray(routeSegments) ? routeSegments : [];
-  const isMetricsPage = segmentsArray.length > 0 && segmentsArray[segmentsArray.length - 1] === 'metrics';
-  const promptNameFromRoute = segmentsArray.length > 0
-    ? (isMetricsPage ? segmentsArray.slice(0, -1).join('/') : segmentsArray.join('/'))
-    : '';
+  const isMetricsPage =
+    segmentsArray.length > 0 &&
+    segmentsArray[segmentsArray.length - 1] === "metrics";
+  const promptNameFromRoute =
+    segmentsArray.length > 0
+      ? isMetricsPage
+        ? segmentsArray.slice(0, -1).join("/")
+        : segmentsArray.join("/")
+      : "";
 
   const capture = usePostHogClientCapture();
   const hasCUDAccess = useHasProjectAccess({
@@ -86,7 +91,7 @@ export default function PromptsWithFolder() {
           <ActionButton
             icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
             hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ''}`}
+            href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
             variant="default"
             limit={promptLimit}
             limitValue={Number(count?.totalCount ?? 0)}

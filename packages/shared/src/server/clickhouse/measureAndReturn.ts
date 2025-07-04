@@ -12,7 +12,10 @@ const executionWrapper = async <T, Y>(
   const startTime = Date.now();
   const res = await fn(input);
   const duration = Date.now() - startTime;
-  span?.setAttribute(`${attributePrefix}-duration`, duration);
+  span?.setAttribute(
+    `langfuse.experiment.amts.${attributePrefix}-duration`,
+    duration,
+  );
   return [res, duration];
 };
 
@@ -35,7 +38,7 @@ export const measureAndReturn = async <T, Y>(args: {
         env.LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES !==
         "true"
       ) {
-        currentSpan.setAttribute(`run-experiment`, "disabled");
+        currentSpan.setAttribute(`langfuse.experiment.amts.run`, "disabled");
         return existingExecution(input);
       }
 
@@ -46,11 +49,11 @@ export const measureAndReturn = async <T, Y>(args: {
         ) &&
         Math.random() > env.LANGFUSE_EXPERIMENT_SAMPLING_RATE
       ) {
-        currentSpan.setAttribute(`run-experiment`, "sampled-out");
+        currentSpan.setAttribute(`langfuse.experiment.amts.run`, "sampled-out");
         return existingExecution(input);
       }
 
-      currentSpan.setAttribute(`run-experiment`, "true");
+      currentSpan.setAttribute(`langfuse.experiment.amts.run`, "true");
 
       try {
         const [[existingResult, existingDuration], [newResult, newDuration]] =
@@ -61,7 +64,7 @@ export const measureAndReturn = async <T, Y>(args: {
         // Positive duration difference means new is faster
         const durationDifference = existingDuration - newDuration;
         currentSpan?.setAttribute(
-          "execution-time-difference",
+          "langfuse.experiment.amts.execution-time-difference",
           durationDifference,
         );
 
@@ -71,10 +74,13 @@ export const measureAndReturn = async <T, Y>(args: {
           )
         ) {
           currentSpan?.setAttribute(
-            "existing-result",
+            "langfuse.experiment.amts.existing-result",
             JSON.stringify(existingResult),
           );
-          currentSpan?.setAttribute("new-result", JSON.stringify(newResult));
+          currentSpan?.setAttribute(
+            "langfuse.experiment.amts.new-result",
+            JSON.stringify(newResult),
+          );
         }
 
         return env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
