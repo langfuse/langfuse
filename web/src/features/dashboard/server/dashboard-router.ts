@@ -346,7 +346,7 @@ export async function executeQuery(
       },
     });
     return result;
-  } catch (error: Error) {
+  } catch (error) {
     // If the error is a known invalid request, return a 400 error
     if (error instanceof InvalidRequestError) {
       logger.warn("Bad request in query execution", error, { projectId, query });
