@@ -1,7 +1,7 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import { makeAPICall } from "@/src/__tests__/test-utils";
+import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
 import {
   PromptSchema,
@@ -1604,9 +1604,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   let triggerId: string;
   let actionId: string;
 
-  afterAll(() => {
-    WebhookQueue.getInstance()?.disconnect();
-    redis?.disconnect();
+  afterAll(async () => {
+    await disconnectQueues();
   });
 
   it("should update the labels of a prompt", async () => {
