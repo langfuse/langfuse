@@ -6,16 +6,24 @@ export function generateWebhookSecret(): {
   displaySecretKey: string;
 } {
   // Generate 32 random bytes and encode as hex (64 characters)
-  const secretKey = crypto.randomBytes(32).toString("hex");
+  const rawSecret = crypto.randomBytes(32).toString("hex");
+  const secretKey = `whsec_${rawSecret}`;
   return { secretKey, displaySecretKey: getDisplaySecretKey(secretKey) };
 }
 
 // Create display version of webhook secret
 export function getDisplaySecretKey(secretKey: string): string {
-  if (!secretKey || secretKey.length < 8) {
+  if (!secretKey || secretKey.length < 12) {
+    // whsec_ + at least 4 chars
     return "****";
   }
+
   return `whsec_...${secretKey.slice(-4)}`;
+}
+
+// Extract the raw secret from a prefixed webhook secret
+function extractRawSecret(secret: string): string {
+  return secret.slice(6); // Remove "whsec_" prefix
 }
 
 // Generate HMAC-SHA256 signature for webhook payload
@@ -24,9 +32,10 @@ export function generateWebhookSignature(
   timestamp: number,
   secret: string,
 ) {
+  const rawSecret = extractRawSecret(secret);
   const signedPayload = `${timestamp}.${payload}`;
   return crypto
-    .createHmac("sha256", secret)
+    .createHmac("sha256", rawSecret)
     .update(signedPayload, "utf8")
     .digest("hex");
 }
