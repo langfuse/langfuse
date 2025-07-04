@@ -187,7 +187,11 @@ export const PeekDatasetCompareDetail = ({
                                   ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
                                   : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`;
                                 const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
-                                window.open(pathnameWithBasePath, "_blank", "noopener noreferrer");
+                                window.open(
+                                  pathnameWithBasePath,
+                                  "_blank",
+                                  "noopener noreferrer",
+                                );
                               }}
                             >
                               <ListTree className="h-4 w-4" />

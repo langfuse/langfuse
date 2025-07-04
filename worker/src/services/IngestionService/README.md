@@ -26,12 +26,12 @@ CREATE TABLE traces_mt
     `id`              String,
     `start_time`      DateTime64(3),
     `end_time`        Nullable(DateTime64(3)),
-    `name`            String,
+    `name`            Nullable(String),
 
     -- Metadata properties
     `metadata`        Map(LowCardinality(String), String),
-    `user_id`         String,
-    `session_id`      String,
+    `user_id`         Nullable(String),
+    `session_id`      Nullable(String),
     `environment`     String,
     `tags`            Array(String),
     `version`         Nullable(String),
@@ -61,30 +61,22 @@ CREATE TABLE traces_mt
 
 -- Create the all AMT
 CREATE TABLE traces_all_amt
-(
+(    
     -- Identifiers
     `project_id`         String,
     `id`                 String,
     `start_time`         SimpleAggregateFunction(min, DateTime64(3)),
     `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3))),
-    `name_argmax`        AggregateFunction(argMax, String, DateTime64(3)),
-    `name`               SimpleAggregateFunction(anyLast, String),
+    `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- Metadata properties
-    -- Metadata takes the last seen value in this form.
-    -- If we spread it across multiple rows (keys + values) we might be able to allow updates/overwrites.
-    -- Indexing speed in this case is unclear though.
-    `metadata_argmax`    AggregateFunction(argMax, Map(LowCardinality(String), String), DateTime64(3)),
-    `metadata`           SimpleAggregateFunction(anyLast, Map(String, String)),
-    `user_id_argmax`     AggregateFunction(argMax, String, DateTime64(3)),
-    `session_id_argmax`  AggregateFunction(argMax, String, DateTime64(3)),
-    `environment_argmax` AggregateFunction(argMax, String, DateTime64(3)),
-    `user_id`            SimpleAggregateFunction(anyLast, String),
-    `session_id`         SimpleAggregateFunction(anyLast, String),
+    `metadata`           SimpleAggregateFunction(minMap, Map(String, String)),
+    `user_id`            SimpleAggregateFunction(anyLast, Nullable(String)),
+    `session_id`         SimpleAggregateFunction(anyLast, Nullable(String)),
     `environment`        SimpleAggregateFunction(anyLast, String),
     `tags`               SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
-    `version`            AggregateFunction(argMax, Nullable(String), DateTime64(3)),
-    `release`            AggregateFunction(argMax, Nullable(String), DateTime64(3)),
+    `version`            SimpleAggregateFunction(anyLast, Nullable(String)),
+    `release`            SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- UI properties
     `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
@@ -96,19 +88,20 @@ CREATE TABLE traces_all_amt
     `cost_details`       SimpleAggregateFunction(sumMap, Map(String, Decimal(38, 12))),
     `usage_details`      SimpleAggregateFunction(sumMap, Map(String, UInt64)),
 
-    -- Input/Output
-    `input_argmax`       AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
-    `output_argmax`      AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
-    `input`              SimpleAggregateFunction(anyLast, String),
-    `output`             SimpleAggregateFunction(anyLast, String),
+    -- Input/Output -> prefer correctness via argMax
+    `input`       AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
+    `output`      AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
 
     `created_at`         SimpleAggregateFunction(min, DateTime64(3)),
     `updated_at`         SimpleAggregateFunction(max, DateTime64(3)),
 
     -- Indexes
-    INDEX idx_environment environment TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_user_id user_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1
+    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_name name TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_version version TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_release release TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_tags tags TYPE bloom_filter(0.001) GRANULARITY 1
 ) Engine = AggregatingMergeTree()
       ORDER BY (project_id, id);
 
@@ -121,21 +114,16 @@ SELECT
     t0.id                                                                                      as id,
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
-    argMaxState(t0.name, if(t0.name <> '', t0.event_ts, toDateTime64(0, 3)))                   as name_argmax,
     anyLast(t0.name)                                                                           as name,
 
     -- Metadata properties
-    argMaxState(t0.metadata, if(t0.metadata <> '{}', t0.event_ts, toDateTime64(0,3)))          as metadata_argmax,
-    anyLastMap(t0.metadata)                                                                    as metadata,
-    argMaxState(t0.user_id, if(t0.user_id <> '', t0.event_ts, toDateTime64(0, 3)))             as user_id_argmax,
-    argMaxState(t0.session_id, if(t0.session_id <> '', t0.event_ts, toDateTime64(0, 3)))       as session_id_argmax,
-    argMaxState(t0.environment, if(t0.environment <> '', t0.event_ts, toDateTime64(0, 3)))     as environment_argmax,
+    minMap(t0.metadata)                                                                        as metadata,
     anyLast(t0.user_id)                                                                        as user_id,
     anyLast(t0.session_id)                                                                     as session_id,
     anyLast(t0.environment)                                                                    as environment,
     groupUniqArrayArray(t0.tags)                                                               as tags,
-    argMaxState(t0.version, if(t0.version <> '', t0.event_ts, toDateTime64(0, 3)))             as version,
-    argMaxState(t0.release, if(t0.release <> '', t0.event_ts, toDateTime64(0, 3)))             as release,
+    anyLast(t0.version)                                                                        as version,
+    anyLast(t0.release)                                                                        as release,
 
     -- UI properties
     argMaxState(t0.bookmarked, if(t0.bookmarked is not null, t0.event_ts, toDateTime64(0, 3))) as bookmarked,
@@ -148,10 +136,8 @@ SELECT
     sumMap(t0.usage_details)                                                                   as usage_details,
 
     -- Input/Output
-    argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input_argmax,
-    argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output_argmax,
-    anyLast(input)                                                                             as input,
-    anyLast(output)                                                                            as output,
+    argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input,
+    argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output,
 
     min(t0.created_at)                                                                         as created_at,
     max(t0.updated_at)                                                                         as updated_at
@@ -166,21 +152,16 @@ CREATE TABLE traces_7d_amt
     `id`                 String,
     `start_time`         SimpleAggregateFunction(min, DateTime64(3)),
     `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3))),
-    `name_argmax`        AggregateFunction(argMax, String, DateTime64(3)),
-    `name`               SimpleAggregateFunction(anyLast, String),
+    `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- Metadata properties
-    `metadata_argmax`    AggregateFunction(argMax, Map(LowCardinality(String), String), DateTime64(3)),
-    `metadata`           SimpleAggregateFunction(anyLast, Map(String, String)),
-    `user_id_argmax`     AggregateFunction(argMax, String, DateTime64(3)),
-    `session_id_argmax`  AggregateFunction(argMax, String, DateTime64(3)),
-    `environment_argmax` AggregateFunction(argMax, String, DateTime64(3)),
-    `user_id`            SimpleAggregateFunction(anyLast, String),
-    `session_id`         SimpleAggregateFunction(anyLast, String),
+    `metadata`           SimpleAggregateFunction(minMap, Map(String, String)),
+    `user_id`            SimpleAggregateFunction(anyLast, Nullable(String)),
+    `session_id`         SimpleAggregateFunction(anyLast, Nullable(String)),
     `environment`        SimpleAggregateFunction(anyLast, String),
     `tags`               SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
-    `version`            AggregateFunction(argMax, Nullable(String), DateTime64(3)),
-    `release`            AggregateFunction(argMax, Nullable(String), DateTime64(3)),
+    `version`            SimpleAggregateFunction(anyLast, Nullable(String)),
+    `release`            SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- UI properties
     `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
@@ -192,19 +173,20 @@ CREATE TABLE traces_7d_amt
     `cost_details`       SimpleAggregateFunction(sumMap, Map(String, Decimal(38, 12))),
     `usage_details`      SimpleAggregateFunction(sumMap, Map(String, UInt64)),
 
-    -- Input/Output
-    `input_argmax`       AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
-    `output_argmax`      AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
-    `input`              SimpleAggregateFunction(anyLast, String),
-    `output`             SimpleAggregateFunction(anyLast, String),
+    -- Input/Output -> prefer correctness via argMax
+    `input`       AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
+    `output`      AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
 
     `created_at`         SimpleAggregateFunction(min, DateTime64(3)),
     `updated_at`         SimpleAggregateFunction(max, DateTime64(3)),
 
     -- Indexes
-    INDEX idx_environment environment TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_user_id user_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1
+    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_name name TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_version version TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_release release TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_tags tags TYPE bloom_filter(0.001) GRANULARITY 1
 ) Engine = AggregatingMergeTree()
     ORDER BY (project_id, id)
     TTL toDate(start_time) + INTERVAL 7 DAY;
@@ -217,21 +199,16 @@ SELECT
     t0.id                                                                                      as id,
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
-    argMaxState(t0.name, if(t0.name <> '', t0.event_ts, toDateTime64(0, 3)))                   as name_argmax,
     anyLast(t0.name)                                                                           as name,
 
     -- Metadata properties
-    argMaxState(t0.metadata, if(t0.metadata <> '{}', t0.event_ts, toDateTime64(0,3)))          as metadata_argmax,
-    anyLastMap(t0.metadata)                                                                    as metadata,
-    argMaxState(t0.user_id, if(t0.user_id <> '', t0.event_ts, toDateTime64(0, 3)))             as user_id_argmax,
-    argMaxState(t0.session_id, if(t0.session_id <> '', t0.event_ts, toDateTime64(0, 3)))       as session_id_argmax,
-    argMaxState(t0.environment, if(t0.environment <> '', t0.event_ts, toDateTime64(0, 3)))     as environment_argmax,
+    minMap(t0.metadata)                                                                        as metadata,
     anyLast(t0.user_id)                                                                        as user_id,
     anyLast(t0.session_id)                                                                     as session_id,
     anyLast(t0.environment)                                                                    as environment,
     groupUniqArrayArray(t0.tags)                                                               as tags,
-    argMaxState(t0.version, if(t0.version <> '', t0.event_ts, toDateTime64(0, 3)))             as version,
-    argMaxState(t0.release, if(t0.release <> '', t0.event_ts, toDateTime64(0, 3)))             as release,
+    anyLast(t0.version)                                                                        as version,
+    anyLast(t0.release)                                                                        as release,
 
     -- UI properties
     argMaxState(t0.bookmarked, if(t0.bookmarked is not null, t0.event_ts, toDateTime64(0, 3))) as bookmarked,
@@ -244,10 +221,8 @@ SELECT
     sumMap(t0.usage_details)                                                                   as usage_details,
 
     -- Input/Output
-    argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input_argmax,
-    argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output_argmax,
-    anyLast(input)                                                                             as input,
-    anyLast(output)                                                                            as output,
+    argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input,
+    argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output,
 
     min(t0.created_at)                                                                         as created_at,
     max(t0.updated_at)                                                                         as updated_at
@@ -262,21 +237,16 @@ CREATE TABLE traces_30d_amt
     `id`                 String,
     `start_time`         SimpleAggregateFunction(min, DateTime64(3)),
     `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3))),
-    `name_argmax`        AggregateFunction(argMax, String, DateTime64(3)),
-    `name`               SimpleAggregateFunction(anyLast, String),
+    `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- Metadata properties
-    `metadata_argmax`    AggregateFunction(argMax, Map(LowCardinality(String), String), DateTime64(3)),
-    `metadata`           SimpleAggregateFunction(anyLast, Map(String, String)),
-    `user_id_argmax`     AggregateFunction(argMax, String, DateTime64(3)),
-    `session_id_argmax`  AggregateFunction(argMax, String, DateTime64(3)),
-    `environment_argmax` AggregateFunction(argMax, String, DateTime64(3)),
-    `user_id`            SimpleAggregateFunction(anyLast, String),
-    `session_id`         SimpleAggregateFunction(anyLast, String),
+    `metadata`           SimpleAggregateFunction(minMap, Map(String, String)),
+    `user_id`            SimpleAggregateFunction(anyLast, Nullable(String)),
+    `session_id`         SimpleAggregateFunction(anyLast, Nullable(String)),
     `environment`        SimpleAggregateFunction(anyLast, String),
     `tags`               SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
-    `version`            AggregateFunction(argMax, Nullable(String), DateTime64(3)),
-    `release`            AggregateFunction(argMax, Nullable(String), DateTime64(3)),
+    `version`            SimpleAggregateFunction(anyLast, Nullable(String)),
+    `release`            SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- UI properties
     `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
@@ -288,19 +258,20 @@ CREATE TABLE traces_30d_amt
     `cost_details`       SimpleAggregateFunction(sumMap, Map(String, Decimal(38, 12))),
     `usage_details`      SimpleAggregateFunction(sumMap, Map(String, UInt64)),
 
-    -- Input/Output
-    `input_argmax`       AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
-    `output_argmax`      AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
-    `input`              SimpleAggregateFunction(anyLast, String),
-    `output`             SimpleAggregateFunction(anyLast, String),
+    -- Input/Output -> prefer correctness via argMax
+    `input`       AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
+    `output`      AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
 
     `created_at`         SimpleAggregateFunction(min, DateTime64(3)),
     `updated_at`         SimpleAggregateFunction(max, DateTime64(3)),
 
     -- Indexes
-    INDEX idx_environment environment TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_user_id user_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1
+    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_name name TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_version version TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_release release TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_tags tags TYPE bloom_filter(0.001) GRANULARITY 1
 ) Engine = AggregatingMergeTree()
     ORDER BY (project_id, id)
     TTL toDate(start_time) + INTERVAL 30 DAY;
@@ -313,21 +284,16 @@ SELECT
     t0.id                                                                                      as id,
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
-    argMaxState(t0.name, if(t0.name <> '', t0.event_ts, toDateTime64(0, 3)))                   as name_argmax,
     anyLast(t0.name)                                                                           as name,
 
     -- Metadata properties
-    argMaxState(t0.metadata, if(t0.metadata <> '{}', t0.event_ts, toDateTime64(0,3)))          as metadata_argmax,
-    anyLastMap(t0.metadata)                                                                    as metadata,
-    argMaxState(t0.user_id, if(t0.user_id <> '', t0.event_ts, toDateTime64(0, 3)))             as user_id_argmax,
-    argMaxState(t0.session_id, if(t0.session_id <> '', t0.event_ts, toDateTime64(0, 3)))       as session_id_argmax,
-    argMaxState(t0.environment, if(t0.environment <> '', t0.event_ts, toDateTime64(0, 3)))     as environment_argmax,
+    minMap(t0.metadata)                                                                        as metadata,
     anyLast(t0.user_id)                                                                        as user_id,
     anyLast(t0.session_id)                                                                     as session_id,
     anyLast(t0.environment)                                                                    as environment,
     groupUniqArrayArray(t0.tags)                                                               as tags,
-    argMaxState(t0.version, if(t0.version <> '', t0.event_ts, toDateTime64(0, 3)))             as version,
-    argMaxState(t0.release, if(t0.release <> '', t0.event_ts, toDateTime64(0, 3)))             as release,
+    anyLast(t0.version)                                                                        as version,
+    anyLast(t0.release)                                                                        as release,
 
     -- UI properties
     argMaxState(t0.bookmarked, if(t0.bookmarked is not null, t0.event_ts, toDateTime64(0, 3))) as bookmarked,
@@ -340,10 +306,8 @@ SELECT
     sumMap(t0.usage_details)                                                                   as usage_details,
 
     -- Input/Output
-    argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input_argmax,
-    argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output_argmax,
-    anyLast(input)                                                                             as input,
-    anyLast(output)                                                                            as output,
+    argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input,
+    argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output,
 
     min(t0.created_at)                                                                         as created_at,
     max(t0.updated_at)                                                                         as updated_at
@@ -356,44 +320,38 @@ GROUP BY project_id, id;
 We can query the properties of the resulting AggregatingMergeTree via (make sure to pick the right timeframe:
 ```sql
 SELECT
-    -- Identifiers
-    project_id,
-    id,
-    start_time,
-    end_time,
-    finalizeAggregation(name_argmax) AS name_argmax_value,
-    name,
+  -- Identifiers
+  project_id,
+  id,
+  start_time,
+  end_time,
+  name,
 
-    -- Metadata properties
-    finalizeAggregation(metadata) AS metadata_value,
-    finalizeAggregation(user_id_argmax) AS user_id_argmax_value,
-    finalizeAggregation(session_id_argmax) AS session_id_argmax_value,
-    finalizeAggregation(environment_argmax) AS environment_argmax_value,
-    user_id,
-    session_id,
-    environment,
-    tags,
-    finalizeAggregation(version) AS version_value,
-    finalizeAggregation(release) AS release_value,
+  -- Metadata properties
+  metadata,
+  user_id,
+  session_id,
+  environment,
+  tags,
+  version,
+  release,
 
-    -- UI properties
-    finalizeAggregation(bookmarked) AS bookmarked_value,
-    finalizeAggregation(public) AS public_value,
+  -- UI properties
+  finalizeAggregation(bookmarked) AS bookmarked_value,
+  finalizeAggregation(public) AS public_value,
 
-    -- Aggregations
-    observation_ids,
-    score_ids,
-    cost_details,
-    usage_details,
+  -- Aggregations
+  observation_ids,
+  score_ids,
+  cost_details,
+  usage_details,
 
-    -- Input/Output
-    finalizeAggregation(input_argmax) AS input_argmax_value,
-    finalizeAggregation(output_argmax) AS output_argmax_value,
-    input,
-    output,
+  -- Input/Output
+  finalizeAggregation(input) AS input_value,
+  finalizeAggregation(output) AS output_value,
 
-    created_at,
-    updated_at
+  created_at,
+  updated_at
 FROM traces_all_amt
 LIMIT 100;
 ```
@@ -405,36 +363,29 @@ We can identify discrepancies in the original and the new data using
 -- Query to compare traces_all_amt with traces table and identify discrepancies
 WITH amt_data AS (
 -- First get the finalized values from the AMT table
-    SELECT project_id,
-           id,
-           start_time,
-           end_time,
-           finalizeAggregation(name_argmax)        AS name_argmax_value,
-           name                                    AS name_anylast_value,
+  SELECT project_id,
+         id,
+         start_time,
+         end_time,
+         name,
 
-           finalizeAggregation(metadata_argmax)    AS metadata_argmax_value,
-           metadata                                AS metadata_anylast_value,
-           finalizeAggregation(user_id_argmax)     AS user_id_argmax_value,
-           user_id                                 AS user_id_anylast_value,
-           finalizeAggregation(session_id_argmax)  AS session_id_argmax_value,
-           session_id                              AS session_id_anylast_value,
-           finalizeAggregation(environment_argmax) AS environment_argmax_value,
-           environment                             AS environment_anylast_value,
-           tags,
-           finalizeAggregation(version)            AS version_value,
-           finalizeAggregation(release)            AS release_value,
+         metadata,
+         user_id,
+         session_id,
+         environment,
+         tags,
+         version,
+         release,
 
-           finalizeAggregation(bookmarked)         AS bookmarked_value,
-           finalizeAggregation(public)             AS public_value,
+         finalizeAggregation(bookmarked) AS bookmarked_value,
+         finalizeAggregation(public) AS public_value,
 
-           finalizeAggregation(input_argmax)       AS input_argmax_value,
-           input                                   AS input_anylast_value,
-           finalizeAggregation(output_argmax)      AS output_argmax_value,
-           output                                  AS output_anylast_value,
+         finalizeAggregation(input) AS input_value,
+         finalizeAggregation(output) AS output_value,
 
-           created_at,
-           updated_at
-    FROM traces_all_amt
+         created_at,
+         updated_at
+  FROM traces_all_amt
 )
 
 -- Main query to compare AMT with original traces table
@@ -442,45 +393,33 @@ SELECT t.project_id,
        t.id,
        -- Identify differences between tables
        t.timestamp != a.start_time                AS timestamp_diff,
-       t.name != a.name_anylast_value             AS name_diff,
-       t.user_id != a.user_id_anylast_value       AS user_id_diff,
-       t.session_id != a.session_id_anylast_value AS session_id_diff,
-       t.release != a.release_value               AS release_diff,
-       t.version != a.version_value               AS version_diff,
+       t.name != a.name                           AS name_diff,
+       t.user_id != a.user_id                     AS user_id_diff,
+       t.session_id != a.session_id               AS session_id_diff,
+       t.release != a.release                     AS release_diff,
+       t.version != a.version                     AS version_diff,
        t.public != a.public_value                 AS public_diff,
        t.bookmarked != a.bookmarked_value         AS bookmarked_diff,
        arraySort(t.tags) != arraySort(a.tags)     AS tags_diff,
-       t.input != a.input_anylast_value           AS input_diff,
-       t.output != a.output_anylast_value         AS output_diff,
-       t.metadata != a.metadata_anylast_value     AS metadata_diff,
-       
-       a.name_argmax_value != a.name_anylast_value AS amt_name_diff,
-       a.user_id_argmax_value != a.user_id_anylast_value AS amt_user_id_diff,
-       a.session_id_argmax_value != a.session_id_anylast_value AS amt_session_id_diff,
-       a.environment_argmax_value != a.environment_anylast_value AS amt_environment_diff,
-       a.input_argmax_value != a.input_anylast_value AS amt_input_diff,
-       a.output_argmax_value != a.output_anylast_value AS amt_output_diff,
-       a.metadata_argmax_value != a.metadata_anylast_value AS amt_metadata_diff,
+       t.input != a.input_value                   AS input_diff,
+       t.output != a.output_value                 AS output_diff,
+       t.metadata != a.metadata                   AS metadata_diff,
+       t.environment != a.environment             AS environment_diff,
 
        -- Include original values for comparison
        t.timestamp                                AS traces_timestamp,
        a.start_time                               AS amt_start_time,
        t.name                                     AS traces_name,
-       a.name_anylast_value                       AS amt_name_anylast,
-       a.name_argmax_value                        AS amt_name_argmax,
+       a.name                                     AS amt_name,
        t.user_id                                  AS traces_user_id,
-       a.user_id_anylast_value                    AS amt_user_id_anylast,
-       a.user_id_argmax_value                     AS amt_user_id_argmax,
+       a.user_id                                  AS amt_user_id,
        t.session_id                               AS traces_session_id,
-       a.session_id_anylast_value                 AS amt_session_id_anylast,
-       a.session_id_argmax_value                  AS amt_session_id_argmax,
+       a.session_id                               AS amt_session_id,
        t.environment                              AS traces_environment,
-       a.environment_anylast_value                AS amt_environment_anylast,
-       a.environment_argmax_value                 AS amt_environment_argmax,
+       a.environment                              AS amt_environment,
 
        t.metadata                                 AS traces_metadata,
-       a.metadata_anylast_value                   AS amt_metadata_anylast,
-       a.metadata_argmax_value                    AS amt_metadata_argmax,
+       a.metadata                                 AS amt_metadata,
        arraySort(t.tags)                          AS traces_tags,
        arraySort(a.tags)                          AS amt_tags,
        t.bookmarked                               AS traces_bookmarked,
@@ -488,16 +427,14 @@ SELECT t.project_id,
        t.public                                   AS traces_public,
        a.public_value                             AS amt_public,
        t.release                                  AS traces_release,
-       a.release_value                            AS amt_release,
+       a.release                                  AS amt_release,
        t.version                                  AS traces_version,
-       a.version_value                            AS amt_version,
+       a.version                                  AS amt_version,
 
        t.input                                    AS traces_input,
-       a.input_anylast_value                      AS amt_input_anylast,
-       a.input_argmax_value                       AS amt_input_argmax,
+       a.input_value                              AS amt_input,
        t.output                                   AS traces_output,
-       a.output_anylast_value                     AS amt_output_anylast,
-       a.output_argmax_value                      AS amt_output_argmax,
+       a.output_value                             AS amt_output,
 
        timestamp_diff +
        name_diff +
@@ -510,16 +447,57 @@ SELECT t.project_id,
        tags_diff +
        input_diff +
        output_diff +
-       metadata_diff
-           AS total_diff
+       metadata_diff +
+       environment_diff
+                                                  AS total_diff
 
 FROM traces t FINAL
 LEFT JOIN amt_data a ON t.project_id = a.project_id AND t.id = a.id
-where (t.timestamp >= '2025-07-01'
-or a.start_time >= '2025-07-01')
-and t.project_id in (
+WHERE (t.timestamp >= '2025-07-01' OR a.start_time >= '2025-07-01')
+AND t.project_id IN (
   'some-project-id'
 )
-ORDER BY total_diff desc
+ORDER BY total_diff DESC
 LIMIT 1000;
 ```
+
+## Traces Table Access Pattern Checklist
+
+This checklist documents all references and invocations to the `traces` table grouped by their access pattern. Use this as a baseline to perform transformations like the one in `@/packages/shared/src/server/repositories/traces.ts` with the `measureAndReturn` utility.
+
+### 1. Single Record Lookups (by ID)
+- [ ] **IngestionService.getClickhouseRecord()** - `worker/src/services/IngestionService/index.ts:1047-1065`
+  - Can probably be skipped as read for updates won't be a thing in the new flow. 
+- [x] **getTraceById()** - `packages/shared/src/server/repositories/traces.ts:443-486`
+- [x] **getTracesByIds()** - `packages/shared/src/server/repositories/traces.ts:233-264`
+
+### 2. Session-Based Queries
+- [ ] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
+- [ ] **getTracesIdentifierForSession()** - `packages/shared/src/server/repositories/traces.ts:642-688`
+- [ ] **traceWithSessionIdExists()** - `packages/shared/src/server/repositories/traces.ts:1143-1170`
+
+### 3. Existence Checks
+- [x] **checkTraceExists()** - `packages/shared/src/server/repositories/traces.ts:73-210`
+- [x] **hasAnyTrace()** - `packages/shared/src/server/repositories/traces.ts:306-356`
+- [ ] **hasAnyUser()** - `packages/shared/src/server/repositories/traces.ts:763-787`
+
+### 4. Aggregation and Analytics Queries
+- [ ] **getTracesGroupedByName()** - `packages/shared/src/server/repositories/traces.ts:489-535`
+- [ ] **getTracesGroupedByUsers()** - `packages/shared/src/server/repositories/traces.ts:537-597`
+- [ ] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
+- [ ] **getTotalUserCount()** - `packages/shared/src/server/repositories/traces.ts:789-827`
+- [ ] **getUserMetrics()** - `packages/shared/src/server/repositories/traces.ts:829-978`
+- [ ] **getTracesTableGeneric()** - `packages/shared/src/server/services/traces-ui-table-service.ts:207++`
+- [ ] **getSessionsTableGeneric()** - `packages/shared/src/server/services/sessions-ui-table-service.ts:121++`)
+- [x] **generateTracesForPublicApi()** - `web/src/features/public-api/server/traces.ts:36++`
+
+### 5. Data Export and Migration
+- [ ] **getTracesForPostHog()** - `packages/shared/src/server/repositories/traces.ts:1026-1113`
+- [ ] **getTracesForBlobStorageExport()** - `packages/shared/src/server/repositories/traces.ts:980-1024`
+
+### 6. Count and Statistics Queries
+- [ ] **getTraceCountsByProjectInCreationInterval()** - `packages/shared/src/server/repositories/traces.ts:358-392`
+- [ ] **getTraceCountOfProjectsSinceCreationDate()** - `packages/shared/src/server/repositories/traces.ts:394-423`
+
+### 7. Cross-Project Queries
+- [ ] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`

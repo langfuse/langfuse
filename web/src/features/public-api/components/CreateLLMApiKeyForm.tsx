@@ -276,7 +276,6 @@ export function CreateLLMApiKeyForm({
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
-      console.error(error);
       form.setError("root", {
         type: "manual",
         message:

@@ -646,9 +646,10 @@ export const CreateExperimentsForm = ({
                                   ))}
                                 </ul>
                                 <span>
-                                  Variables (like {"{{variable}}"}) should be mapped to string values.
-                                  Placeholders should be mapped to arrays of message objects.
-                                  These will be used as the input to your prompt.
+                                  Variables (like {"{{variable}}"}) should be
+                                  mapped to string values. Placeholders should
+                                  be mapped to arrays of message objects. These
+                                  will be used as the input to your prompt.
                                 </span>
                               </div>
                             ) : (
@@ -722,7 +723,8 @@ export const CreateExperimentsForm = ({
                       <Loader2 className="h-3 w-3 animate-spin" />
                     </CardTitle>
                     <CardDescription className="text-foreground">
-                      Checking dataset items against prompt variables and placeholders
+                      Checking dataset items against prompt variables and
+                      placeholders
                     </CardDescription>
                   </CardHeader>
                 </Card>
@@ -748,7 +750,8 @@ export const CreateExperimentsForm = ({
                       <CircleCheck className="h-4 w-4" />
                     </CardTitle>
                     <div className="text-sm">
-                      Matches between dataset items and prompt variables/placeholders
+                      Matches between dataset items and prompt
+                      variables/placeholders
                       <ul className="my-2 ml-2 list-inside list-disc">
                         {Object.entries(
                           validationResult.data.variablesMap ?? {},
@@ -761,8 +764,8 @@ export const CreateExperimentsForm = ({
                           </li>
                         ))}
                       </ul>
-                      Items missing all required variables and placeholders will be excluded from
-                      the experiment.
+                      Items missing all required variables and placeholders will
+                      be excluded from the experiment.
                     </div>
                   </CardHeader>
                 </Card>
