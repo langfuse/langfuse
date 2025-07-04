@@ -526,7 +526,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       await waitForExpect(async () => {
         // check that the action execution is created
-        const actionExecution = await prisma.actionExecution.findFirst({
+        const actionExecution = await prisma.automationExecution.findFirst({
           where: {
             projectId,
             triggerId,
@@ -1650,7 +1650,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 
     // check that the action execution is created
     await waitForExpect(async () => {
-      const actionExecution = await prisma.actionExecution.findFirst({
+      const actionExecution = await prisma.automationExecution.findFirst({
         where: {
           projectId: newProjectId,
           triggerId: newTriggerId,
@@ -1731,7 +1731,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     expect(promptV1?.labels).toEqual([]);
 
     await waitForExpect(async () => {
-      const actionExecution = await prisma.actionExecution.findFirst({
+      const actionExecution = await prisma.automationExecution.findFirst({
         where: {
           projectId: newProjectId,
           triggerId,
@@ -1743,7 +1743,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       expect(actionExecution?.status).toBe("PENDING");
       expect(actionExecution?.sourceId).toBe(promptV2?.id);
 
-      const actionExecution2 = await prisma.actionExecution.findFirst({
+      const actionExecution2 = await prisma.automationExecution.findFirst({
         where: {
           projectId: newProjectId,
           triggerId,

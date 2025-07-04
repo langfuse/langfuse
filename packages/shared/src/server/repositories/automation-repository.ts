@@ -28,9 +28,6 @@ export const getActionByIdWithSecrets = async ({
       id: actionId,
       projectId,
     },
-    include: {
-      triggers: true,
-    },
   });
 
   if (!actionConfig) {
@@ -63,9 +60,6 @@ export const getActionById = async ({
       id: actionId,
       projectId,
     },
-    include: {
-      triggers: true,
-    },
   });
 
   if (!actionConfig) {
@@ -95,13 +89,17 @@ export const getTriggerConfigurations = async ({
       status,
     },
     include: {
-      actions: true,
+      automations: {
+        include: {
+          action: true,
+        },
+      },
     },
   });
 
   const triggerConfigurations = triggers.map((trigger) => ({
     ...convertTriggerToDomain(trigger),
-    actionIds: trigger.actions.map((action) => action.actionId),
+    actionIds: trigger.automations.map((automation) => automation.action.id),
   }));
 
   return triggerConfigurations;
@@ -212,7 +210,7 @@ export const getConsecutiveAutomationFailures = async ({
   }
 
   const { triggerId, actionId } = automation;
-  const executions = await prisma.actionExecution.findMany({
+  const executions = await prisma.automationExecution.findMany({
     where: {
       triggerId,
       actionId,

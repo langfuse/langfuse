@@ -43,11 +43,12 @@ CREATE TABLE "automations" (
 );
 
 -- CreateTable
-CREATE TABLE "action_executions" (
+CREATE TABLE "automation_executions" (
     "id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "source_id" TEXT NOT NULL,
+    "automation_id" TEXT NOT NULL,
     "trigger_id" TEXT NOT NULL,
     "action_id" TEXT NOT NULL,
     "project_id" TEXT NOT NULL,
@@ -58,7 +59,7 @@ CREATE TABLE "action_executions" (
     "finished_at" TIMESTAMP(3),
     "error" TEXT,
 
-    CONSTRAINT "action_executions_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "automation_executions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -74,13 +75,13 @@ CREATE INDEX "automations_project_id_action_id_trigger_id_idx" ON "automations"(
 CREATE INDEX "automations_project_id_name_idx" ON "automations"("project_id", "name");
 
 -- CreateIndex
-CREATE INDEX "action_executions_trigger_id_idx" ON "action_executions"("trigger_id");
+CREATE INDEX "automation_executions_trigger_id_idx" ON "automation_executions"("trigger_id");
 
 -- CreateIndex
-CREATE INDEX "action_executions_action_id_idx" ON "action_executions"("action_id");
+CREATE INDEX "automation_executions_action_id_idx" ON "automation_executions"("action_id");
 
 -- CreateIndex
-CREATE INDEX "action_executions_project_id_idx" ON "action_executions"("project_id");
+CREATE INDEX "automation_executions_project_id_idx" ON "automation_executions"("project_id");
 
 -- AddForeignKey
 ALTER TABLE "actions" ADD CONSTRAINT "actions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -98,10 +99,13 @@ ALTER TABLE "automations" ADD CONSTRAINT "automations_action_id_fkey" FOREIGN KE
 ALTER TABLE "automations" ADD CONSTRAINT "automations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "action_executions" ADD CONSTRAINT "action_executions_trigger_id_fkey" FOREIGN KEY ("trigger_id") REFERENCES "triggers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "automation_executions" ADD CONSTRAINT "automation_executions_automation_id_fkey" FOREIGN KEY ("automation_id") REFERENCES "automations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "action_executions" ADD CONSTRAINT "action_executions_action_id_fkey" FOREIGN KEY ("action_id") REFERENCES "actions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "automation_executions" ADD CONSTRAINT "automation_executions_trigger_id_fkey" FOREIGN KEY ("trigger_id") REFERENCES "triggers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "action_executions" ADD CONSTRAINT "action_executions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "automation_executions" ADD CONSTRAINT "automation_executions_action_id_fkey" FOREIGN KEY ("action_id") REFERENCES "actions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "automation_executions" ADD CONSTRAINT "automation_executions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;

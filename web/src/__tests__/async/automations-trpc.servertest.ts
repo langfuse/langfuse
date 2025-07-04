@@ -556,7 +556,7 @@ describe("automations trpc", () => {
       });
 
       // Create some executions
-      await prisma.actionExecution.create({
+      await prisma.automationExecution.create({
         data: {
           id: v4(),
           projectId: project.id,
@@ -568,7 +568,7 @@ describe("automations trpc", () => {
         },
       });
 
-      await prisma.actionExecution.create({
+      await prisma.automationExecution.create({
         data: {
           id: v4(),
           projectId: project.id,
@@ -588,7 +588,7 @@ describe("automations trpc", () => {
       const beforeAction = await prisma.action.findUnique({
         where: { id: action.id },
       });
-      const beforeExecutions = await prisma.actionExecution.findMany({
+      const beforeExecutions = await prisma.automationExecution.findMany({
         where: { triggerId: trigger.id, actionId: action.id },
       });
       const beforeAutomation = await prisma.automation.findFirst({
@@ -613,7 +613,7 @@ describe("automations trpc", () => {
       const afterAction = await prisma.action.findUnique({
         where: { id: action.id },
       });
-      const afterExecutions = await prisma.actionExecution.findMany({
+      const afterExecutions = await prisma.automationExecution.findMany({
         where: { triggerId: trigger.id, actionId: action.id },
       });
       const afterAutomation = await prisma.automation.findFirst({
@@ -672,7 +672,7 @@ describe("automations trpc", () => {
       // Create multiple executions
       const executions = [];
       for (let i = 0; i < 5; i++) {
-        const execution = await prisma.actionExecution.create({
+        const execution = await prisma.automationExecution.create({
           data: {
             id: v4(),
             projectId: project.id,
@@ -748,7 +748,7 @@ describe("automations trpc", () => {
 
       // Create 10 executions
       for (let i = 0; i < 10; i++) {
-        await prisma.actionExecution.create({
+        await prisma.automationExecution.create({
           data: {
             id: v4(),
             projectId: project.id,
@@ -834,7 +834,7 @@ describe("automations trpc", () => {
 
       // Create consecutive failed executions
       for (let i = 0; i < 3; i++) {
-        await prisma.actionExecution.create({
+        await prisma.automationExecution.create({
           data: {
             id: v4(),
             projectId: project.id,

@@ -148,7 +148,7 @@ describe("prompts trpc", () => {
       );
 
       await waitForExpect(async () => {
-        const executions = await prisma.actionExecution.findMany({
+        const executions = await prisma.automationExecution.findMany({
           where: {
             projectId: project.id,
             triggerId: trigger.id,
@@ -279,7 +279,7 @@ describe("prompts trpc", () => {
       });
 
       await waitForExpect(async () => {
-        const executions = await prisma.actionExecution.findMany({
+        const executions = await prisma.automationExecution.findMany({
           where: {
             projectId: project.id,
             triggerId: trigger.id,
@@ -389,7 +389,7 @@ describe("prompts trpc", () => {
       expect(remainingPrompts).toHaveLength(0);
       await waitForExpect(async () => {
         // Verify automation executions were created for both deleted prompts
-        const executions = await prisma.actionExecution.findMany({
+        const executions = await prisma.automationExecution.findMany({
           where: {
             projectId: project.id,
             triggerId: trigger.id,
@@ -498,7 +498,7 @@ describe("prompts trpc", () => {
 
       await waitForExpect(async () => {
         // Verify automation execution was created for the deleted prompt
-        const executions = await prisma.actionExecution.findMany({
+        const executions = await prisma.automationExecution.findMany({
           where: {
             projectId: project.id,
             triggerId: trigger.id,
@@ -599,7 +599,7 @@ describe("prompts trpc", () => {
 
       await waitForExpect(async () => {
         // Verify automation execution was created for the duplicated prompt
-        const executions = await prisma.actionExecution.findMany({
+        const executions = await prisma.automationExecution.findMany({
           where: {
             projectId: project.id,
             triggerId: trigger.id,

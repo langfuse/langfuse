@@ -152,21 +152,6 @@ export type Action = {
     type: ActionType;
     config: unknown;
 };
-export type ActionExecution = {
-    id: string;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-    source_id: string;
-    trigger_id: string;
-    action_id: string;
-    project_id: string;
-    status: Generated<ActionExecutionStatus>;
-    input: unknown;
-    output: unknown | null;
-    started_at: Timestamp | null;
-    finished_at: Timestamp | null;
-    error: string | null;
-};
 export type AnnotationQueue = {
     id: string;
     name: string;
@@ -228,6 +213,22 @@ export type Automation = {
     action_id: string;
     created_at: Generated<Timestamp>;
     project_id: string;
+};
+export type AutomationExecution = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    source_id: string;
+    automation_id: string;
+    trigger_id: string;
+    action_id: string;
+    project_id: string;
+    status: Generated<ActionExecutionStatus>;
+    input: unknown;
+    output: unknown | null;
+    started_at: Timestamp | null;
+    finished_at: Timestamp | null;
+    error: string | null;
 };
 export type BackgroundMigration = {
     id: string;
@@ -754,12 +755,12 @@ export type VerificationToken = {
 };
 export type DB = {
     Account: Account;
-    action_executions: ActionExecution;
     actions: Action;
     annotation_queue_items: AnnotationQueueItem;
     annotation_queues: AnnotationQueue;
     api_keys: ApiKey;
     audit_logs: AuditLog;
+    automation_executions: AutomationExecution;
     automations: Automation;
     background_migrations: BackgroundMigration;
     batch_exports: BatchExport;

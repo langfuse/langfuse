@@ -159,7 +159,7 @@ model Project {
   TableViewPreset        TableViewPreset[]
   actions                Action[]
   triggers               Trigger[]
-  ActionExecution        ActionExecution[]
+  automationExecutions   AutomationExecution[]
   Automation             Automation[]
   DefaultLlmModel        DefaultLlmModel[]
 
@@ -1234,9 +1234,8 @@ model Action {
   // For WEBHOOK: { version: "1.0", url: "...", method: "POST", headers: {...}, secretId: "..." }
   // For ANNOTATION_QUEUE: { version: "1.0", queueId: "..." }
 
-  // Relations
-  triggers        Automation[] // Changed to use the join table
-  ActionExecution ActionExecution[]
+  automations          Automation[]
+  automationExecutions AutomationExecution[]
 
   @@index([projectId])
   @@map("actions")
@@ -1255,29 +1254,28 @@ model Trigger {
   eventActions String[] // created, updated, deleted
   filter       Json? // Filter conditions (format: { field: "name", operator: "equals", value: "my_trace" })
 
-  // What action to perform when triggered - removed direct relation and added many-to-many
-  actions Automation[]
-
   // Additional attributes
   status JobConfigState @default(ACTIVE) @map("status")
 
   // Link to executions
-  ActionExecution ActionExecution[]
+  automationExecutions AutomationExecution[]
+  automations          Automation[]
 
   @@index([projectId])
   @@map("triggers")
 }
 
 model Automation {
-  id        String   @id @default(cuid())
-  name      String   @map("name")
-  trigger   Trigger  @relation(fields: [triggerId], references: [id], onDelete: Cascade)
-  triggerId String   @map("trigger_id")
-  action    Action   @relation(fields: [actionId], references: [id], onDelete: Cascade)
-  actionId  String   @map("action_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  projectId String   @map("project_id")
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                  String                @id @default(cuid())
+  name                String                @map("name")
+  trigger             Trigger               @relation(fields: [triggerId], references: [id], onDelete: Cascade)
+  triggerId           String                @map("trigger_id")
+  action              Action                @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  actionId            String                @map("action_id")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  projectId           String                @map("project_id")
+  project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  AutomationExecution AutomationExecution[]
 
   @@index([projectId, actionId, triggerId])
   @@index([projectId, name])
@@ -1296,11 +1294,14 @@ enum ActionExecutionStatus {
   CANCELLED
 }
 
-model ActionExecution {
+model AutomationExecution {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   sourceId  String   @map("source_id")
+
+  automationId String     @map("automation_id")
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
 
   triggerId String  @map("trigger_id")
   trigger   Trigger @relation(fields: [triggerId], references: [id], onDelete: Cascade)
@@ -1321,5 +1322,5 @@ model ActionExecution {
   @@index([triggerId])
   @@index([actionId])
   @@index([projectId])
-  @@map("action_executions")
+  @@map("automation_executions")
 }

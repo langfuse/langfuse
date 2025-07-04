@@ -167,7 +167,7 @@ export const executeWebhook = async (input: WebhookInput) => {
     );
 
     // Update action execution status on success
-    await prisma.actionExecution.update({
+    await prisma.automationExecution.update({
       where: {
         projectId,
         triggerId: automation.trigger.id,
@@ -214,7 +214,7 @@ export const executeWebhook = async (input: WebhookInput) => {
     // Update action execution status and check if we should disable trigger
     await prisma.$transaction(async (tx) => {
       // Update execution status
-      await tx.actionExecution.update({
+      await tx.automationExecution.update({
         where: {
           id: executionId,
           projectId,

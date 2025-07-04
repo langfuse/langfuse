@@ -58,7 +58,7 @@ export const promptVersionChangeWorker = async (
   try {
     logger.info(
       `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
-      { event: JSON.stringify(event, null, 2) }
+      { event: JSON.stringify(event, null, 2) },
     );
 
     // Get active prompt triggers
@@ -218,7 +218,7 @@ async function executeWebhookAction({
   const executionId = v4();
 
   // Create execution record
-  const execution = await prisma.actionExecution.create({
+  const execution = await prisma.automationExecution.create({
     data: {
       id: executionId,
       projectId,

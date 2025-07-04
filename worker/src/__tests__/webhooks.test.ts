@@ -205,7 +205,7 @@ describe("Webhook Integration Tests", () => {
         },
       };
 
-      await prisma.actionExecution.create({
+      await prisma.automationExecution.create({
         data: {
           id: executionId,
           projectId,
@@ -269,7 +269,7 @@ describe("Webhook Integration Tests", () => {
       expect(payloadKeys[payloadKeys.length - 1]).toBe("prompt");
 
       // Verify database execution record was updated
-      const execution = await prisma.actionExecution.findUnique({
+      const execution = await prisma.automationExecution.findUnique({
         where: { id: executionId },
       });
       expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
@@ -301,7 +301,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await prisma.actionExecution.create({
+      await prisma.automationExecution.create({
         data: {
           id: executionId,
           projectId,
@@ -333,7 +333,7 @@ describe("Webhook Integration Tests", () => {
         "Webhook config has no secret key, failing webhook execution",
       );
 
-      const execution = await prisma.actionExecution.findUnique({
+      const execution = await prisma.automationExecution.findUnique({
         where: { id: executionId },
       });
 
@@ -365,7 +365,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await prisma.actionExecution.create({
+      await prisma.automationExecution.create({
         data: {
           id: executionId,
           projectId,
@@ -396,7 +396,7 @@ describe("Webhook Integration Tests", () => {
       await executeWebhook(webhookInput);
 
       // Verify execution was marked as error
-      const execution = await prisma.actionExecution.findUnique({
+      const execution = await prisma.automationExecution.findUnique({
         where: { id: executionId },
       });
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
@@ -438,7 +438,7 @@ describe("Webhook Integration Tests", () => {
       for (let i = 0; i < 5; i++) {
         const executionId = v4();
 
-        await prisma.actionExecution.create({
+        await prisma.automationExecution.create({
           data: {
             id: executionId,
             projectId,
@@ -469,7 +469,7 @@ describe("Webhook Integration Tests", () => {
         await executeWebhook(webhookInput);
 
         // Verify execution was marked as error
-        const execution = await prisma.actionExecution.findUnique({
+        const execution = await prisma.automationExecution.findUnique({
           where: { id: executionId },
         });
         expect(execution?.status).toBe(ActionExecutionStatus.ERROR);

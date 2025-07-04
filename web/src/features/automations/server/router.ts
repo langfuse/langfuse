@@ -201,7 +201,7 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
-      const executions = await ctx.prisma.actionExecution.findMany({
+      const executions = await ctx.prisma.automationExecution.findMany({
         where: {
           projectId: ctx.session.projectId,
           triggerId: automation.trigger.id,
@@ -214,7 +214,7 @@ export const automationsRouter = createTRPCRouter({
         take: input.limit,
       });
 
-      const totalCount = await ctx.prisma.actionExecution.count({
+      const totalCount = await ctx.prisma.automationExecution.count({
         where: {
           projectId: ctx.session.projectId,
           triggerId: automation.trigger.id,
@@ -446,7 +446,7 @@ export const automationsRouter = createTRPCRouter({
           },
         });
 
-        await tx.actionExecution.deleteMany({
+        await tx.automationExecution.deleteMany({
           where: {
             triggerId: existingAutomation.trigger.id,
             actionId: existingAutomation.action.id,
