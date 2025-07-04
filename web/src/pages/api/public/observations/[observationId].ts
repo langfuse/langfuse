@@ -57,6 +57,9 @@ export default withMiddlewares({
           })
         : undefined;
 
+      console.warn(`Model found: ${JSON.stringify(model)}`);
+      console.warn(`Observation found: ${JSON.stringify(clickhouseObservation)}`);
+
       const observation = {
         ...clickhouseObservation,
         modelId: model?.id ?? null,
