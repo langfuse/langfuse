@@ -7,23 +7,22 @@ import {
 import { type z } from "zod/v4";
 
 export const ensureTestDatabaseExists = async () => {
-  // Only create test database if we're using a test database URL
-  if (!env.DATABASE_URL.includes("langfuse_test")) {
-    return; // Not using test database, skip
+  // Only create test database if we're in test environment with test database URL
+  if (
+    !env.DATABASE_URL.includes("langfuse_test") ||
+    process.env.NODE_ENV !== "test"
+  ) {
+    return; // Not using test database or not in test environment, skip
   }
 
   try {
-    // Try to connect to the test database
     await prisma.$queryRaw`SELECT 1`;
     console.log("Test database already exists and is accessible");
   } catch (error) {
-    console.log("Test database not accessible, attempting to create...");
+    console.log("Test database not accessible, creating...");
 
-    // Parse the database URL to get connection details
     const url = new URL(env.DATABASE_URL);
     const dbName = url.pathname.slice(1); // Remove leading slash
-
-    // Create connection to postgres database to create the test database
     const adminUrl = new URL(env.DATABASE_URL);
     adminUrl.pathname = "/postgres";
 
@@ -37,11 +36,10 @@ export const ensureTestDatabaseExists = async () => {
     });
 
     try {
-      // Create the test database
       await adminPrisma.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
       console.log(`Created test database: ${dbName}`);
 
-      // Now run migrations on the test database
+      // Migrations
       const { execSync } = await import("child_process");
       const path = await import("path");
       const sharedDir = path.resolve(__dirname, "../../../packages/shared");
@@ -63,21 +61,21 @@ export const ensureTestDatabaseExists = async () => {
     }
   }
 
-  // Ensure ClickHouse test database exists and has the required tables
   await ensureClickHouseTestDatabaseExists();
-
-  // Ensure MinIO test buckets exist
   await ensureMinIOTestBucketsExist();
 };
 
 export const ensureClickHouseTestDatabaseExists = async () => {
-  // Only set up ClickHouse test database if we're using a test database
-  if (!env.DATABASE_URL.includes("langfuse_test") || !env.CLICKHOUSE_DB) {
+  // Only set up ClickHouse test database if we're in test environment with test database
+  if (
+    !env.DATABASE_URL.includes("langfuse_test") ||
+    !env.CLICKHOUSE_DB ||
+    process.env.NODE_ENV !== "test"
+  ) {
     return;
   }
 
   try {
-    // Create the database using direct SQL command to the default database
     const { createClient } = await import("@clickhouse/client");
 
     const defaultClient = createClient({
@@ -100,14 +98,12 @@ export const ensureClickHouseTestDatabaseExists = async () => {
       );
     }
 
-    // Now try to connect to the test database and check if tables exist
     const testClient = createClient({
       url: env.CLICKHOUSE_URL,
       username: env.CLICKHOUSE_USER,
       password: env.CLICKHOUSE_PASSWORD,
       database: env.CLICKHOUSE_DB,
     });
-
     await testClient.command({
       query: "SELECT 1",
     });
@@ -169,8 +165,11 @@ export const ensureClickHouseTestDatabaseExists = async () => {
 };
 
 export const ensureMinIOTestBucketsExist = async () => {
-  // Only set up MinIO test buckets if we're using a test database
-  if (!env.DATABASE_URL.includes("langfuse_test")) {
+  // Only set up MinIO test buckets if we're in test environment with test database
+  if (
+    !env.DATABASE_URL.includes("langfuse_test") ||
+    process.env.NODE_ENV !== "test"
+  ) {
     return;
   }
 
@@ -221,25 +220,13 @@ export const ensureMinIOTestBucketsExist = async () => {
     }
   } catch (error) {
     console.error("Failed to set up MinIO test buckets:", error);
-    // Don't throw error as MinIO might be optional for some tests
+    // Don't throw error MinIO optional for some tests
   }
 };
 
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {
     throw new Error("You cannot prune database unless running on localhost.");
-  }
-
-  // Additional safety check for test database
-  if (
-    env.DATABASE_URL.includes("langfuse_test") ||
-    env.DATABASE_URL.includes("test")
-  ) {
-    console.log("Running tests against test database:", env.DATABASE_URL);
-  } else if (!env.DATABASE_URL.includes("postgres")) {
-    throw new Error(
-      "Database URL must contain 'postgres' or 'langfuse_test' for safety.",
-    );
   }
 
   await prisma.scoreConfig.deleteMany();
