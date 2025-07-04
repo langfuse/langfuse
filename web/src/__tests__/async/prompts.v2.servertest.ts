@@ -485,6 +485,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
   describe("when creating a prompt", () => {
     it("should create and fetch a chat prompt", async () => {
       const { auth } = await createOrgProjectAndApiKey();
+      const { actionId, triggerId } = await setupTriggerAndAction(projectId);
       const promptName = "prompt-name" + nanoid();
       const chatMessages = [
         { role: "system", content: "You are a bot" },
