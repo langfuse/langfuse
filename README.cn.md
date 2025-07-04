@@ -94,7 +94,7 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
   
 - [提示管理](https://langfuse.com/docs/prompts/get-started) 帮助你集中管理、版本控制并协作迭代提示。得益于服务器和客户端的高效缓存，你可以在不增加延迟的情况下反复迭代提示。
 
-- [评估](https://langfuse.com/docs/scores/overview) 是 LLM 应用开发流程的关键组成部分，Langfuse 能够满足你的多样需求。它支持 LLM 作为“裁判”、用户反馈收集、手动标注以及通过 API/SDK 实现自定义评估流程。
+- [评估](https://langfuse.com/docs/scores/overview) 是 LLM 应用开发流程的关键组成部分，Langfuse 能够满足你的多样需求。它支持 LLM 作为"裁判"、用户反馈收集、手动标注以及通过 API/SDK 实现自定义评估流程。
 
 - [数据集](https://langfuse.com/docs/datasets/overview) 为评估你的 LLM 应用提供测试集和基准。它们支持持续改进、部署前测试、结构化实验、灵活评估，并能与 LangChain、LlamaIndex 等框架无缝整合。
 
@@ -136,6 +136,8 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
 - [虚拟机](https://langfuse.com/self-hosting/docker-compose)：使用 Docker Compose 在单台虚拟机上部署 Langfuse。
 
 - 【计划中】：针对各云平台的部署指南，欢迎在以下讨论中投票和评论：[AWS](https://github.com/orgs/langfuse/discussions/4645)、[Google Cloud](https://github.com/langfuse/discussions/4646)、[Azure](https://github.com/orgs/langfuse/discussions/4647)。
+
+Terraform 模板: [AWS](https://langfuse.com/self-hosting/aws)、[Azure](https://langfuse.com/self-hosting/azure)、[GCP](https://langfuse.com/self-hosting/gcp)
 
 请参阅 [自托管文档](https://langfuse.com/self-hosting) 了解更多关于架构和配置选项的信息。
 
@@ -253,7 +255,7 @@ _[Langfuse 中的公共示例追踪](https://cloud.langfuse.com/project/cloramnk
 
 - 我们的 [文档](https://langfuse.com/docs) 是查找答案的最佳起点。内容全面，我们投入大量时间进行维护。你也可以通过 GitHub 提出文档修改建议。
 - [Langfuse 常见问题](https://langfuse.com/faq) 解答了最常见的问题。
-- 使用 “[Ask AI](https://langfuse.com/docs/ask-ai)” 立即获取问题答案。
+- 使用 "Ask AI" 立即获取问题答案。
 
 支持渠道：
 
@@ -351,4 +353,4 @@ _[Langfuse 中的公共示例追踪](https://cloud.langfuse.com/project/cloramnk
 所有数据均不会与第三方共享，也不包含任何敏感信息。我们对这一过程保持高度透明，你可以在 [此处](/web/src/features/telemetry/index.ts) 查看我们收集的具体数据。
 
 你可以通过设置 `TELEMETRY_ENABLED=false` 来选择退出。
-````
+```
