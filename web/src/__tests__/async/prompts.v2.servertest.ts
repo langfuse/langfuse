@@ -1134,7 +1134,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
   describe("when fetching a prompt list", () => {
     const otherProjectPromptName = "prompt-5";
     let otherProjectId: string;
-    let otherAuth: string;
     let projectId: string;
     let auth: string;
 
@@ -1143,7 +1142,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       ({ projectId: projectId, auth: auth } =
         await createOrgProjectAndApiKey());
 
-      ({ projectId: otherProjectId, auth: otherAuth } =
+      ({ projectId: otherProjectId } =
         await createOrgProjectAndApiKey());
 
       await createPromptInDB({
