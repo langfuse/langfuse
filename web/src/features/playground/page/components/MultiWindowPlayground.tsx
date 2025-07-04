@@ -155,14 +155,7 @@ function PlaygroundWindow({
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Show full SaveToPromptButton on wider screens */}
-              <div className="hidden sm:block">
-                <SaveToPromptButton />
-              </div>
-              {/* Show compact SaveToPromptButton on narrow screens */}
-              <div className="sm:hidden">
-                <SaveToPromptButton variant="compact" />
-              </div>
+              <SaveToPromptButton />
 
               <Button
                 variant="ghost"

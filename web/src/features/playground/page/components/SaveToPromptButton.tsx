@@ -1,5 +1,4 @@
 import { Check, FileInput } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
 
@@ -27,12 +26,10 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { PromptType } from "@langfuse/shared";
 
 interface SaveToPromptButtonProps {
-  variant?: "default" | "compact";
   className?: string;
 }
 
 export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
-  variant = "default",
   className,
 }) => {
   const [selectedPromptId, setSelectedPromptId] = useState("");
@@ -87,22 +84,16 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
     );
   };
 
-  const isCompact = variant === "compact";
-
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          variant={"outline"}
-          title="Save to prompt"
-          className={cn(isCompact && "px-2", className)}
-          asChild
+          variant="ghost"
+          className={cn("h-6 w-6 p-0 hover:bg-muted", className)}
+          title="Save current configuration as a prompt template for reuse across your project"
         >
-          <Link href={`/project/${projectId}/playground`}>
-            <FileInput className={cn("h-4 w-4", !isCompact && "mr-1")} />
-            {!isCompact && <span>Save as prompt</span>}
-            {isCompact && <span className="sr-only">Save as prompt</span>}
-          </Link>
+          <FileInput className="h-3 w-3" />
+          <span className="sr-only">Save as prompt</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent>
