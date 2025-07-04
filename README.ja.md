@@ -141,9 +141,7 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 - **[VM](https://langfuse.com/self-hosting/docker-compose):**  
   Docker Composeを使用して、単一の仮想マシン上でLangfuseを実行します。
 
-- **Planned:**  
-  クラウド固有のデプロイガイドは計画中です。以下のスレッドに対して投票やコメントをお願いします:  
-  [AWS](https://github.com/orgs/langfuse/discussions/4645), [Google Cloud](https://github.com/orgs/langfuse/discussions/4646), [Azure](https://github.com/orgs/langfuse/discussions/4647).
+- Terraform テンプレート: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)
 
 [セルフホスティングのドキュメント](https://langfuse.com/self-hosting)を参照し、アーキテクチャや設定オプションの詳細をご確認ください。
 

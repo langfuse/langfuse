@@ -135,9 +135,7 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
 
 - [虚拟机](https://langfuse.com/self-hosting/docker-compose)：使用 Docker Compose 在单台虚拟机上部署 Langfuse。
 
-- 【计划中】：针对各云平台的部署指南，欢迎在以下讨论中投票和评论：[AWS](https://github.com/orgs/langfuse/discussions/4645)、[Google Cloud](https://github.com/langfuse/discussions/4646)、[Azure](https://github.com/orgs/langfuse/discussions/4647)。
-
-Terraform 模板: [AWS](https://langfuse.com/self-hosting/aws)、[Azure](https://langfuse.com/self-hosting/azure)、[GCP](https://langfuse.com/self-hosting/gcp)
+- Terraform 模板: [AWS](https://langfuse.com/self-hosting/aws)、[Azure](https://langfuse.com/self-hosting/azure)、[GCP](https://langfuse.com/self-hosting/gcp)
 
 请参阅 [自托管文档](https://langfuse.com/self-hosting) 了解更多关于架构和配置选项的信息。
 
@@ -157,6 +155,7 @@ Terraform 模板: [AWS](https://langfuse.com/self-hosting/aws)、[Azure](https:/
 | [LiteLLM](https://langfuse.com/docs/integrations/litellm)               | Python, JS/TS (仅代理)     | 允许使用任何 LLM 替代 GPT。支持 Azure、OpenAI、Cohere、Anthropic、Ollama、VLLM、Sagemaker、HuggingFace、Replicate（100+ LLMs）。         |
 | [Vercel AI SDK](https://langfuse.com/docs/integrations/vercel-ai-sdk)     | JS/TS                    | 基于 TypeScript 的工具包，帮助开发者使用 React、Next.js、Vue、Svelte 和 Node.js 构建 AI 驱动的应用。                                           |
 | [API](https://langfuse.com/docs/api)                                    |                          | 直接调用公共 API。提供 OpenAPI 规格。                                                                                                       |
+| [Google VertexAI 和 Gemini](https://langfuse.com/docs/integrations/google-vertex-ai) | 模型                | 在 Google 上运行基础模型和微调模型。                                                                         |
 
 ### 与 Langfuse 集成的软件包：
 
@@ -166,7 +165,6 @@ Terraform 模板: [AWS](https://langfuse.com/self-hosting/aws)、[Azure](https:/
 | [DSPy](https://langfuse.com/docs/integrations/dspy)                     | 库                  | 一个系统性优化语言模型提示和权重的框架。                                                                 |
 | [Mirascope](https://langfuse.com/docs/integrations/mirascope)           | 库                  | 构建 LLM 应用的 Python 工具包。                                                                           |
 | [Ollama](https://langfuse.com/docs/integrations/ollama)                 | 模型（本地）         | 在你的机器上轻松运行开源 LLM。                                                                            |
-| [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock) | 模型                | 在 AWS 上运行基础模型和微调模型。                                                                         |
 | [AutoGen](https://langfuse.com/docs/integrations/autogen)               | 代理框架             | 用于构建分布式代理的开源 LLM 平台。                                                                       |
 | [Flowise](https://langfuse.com/docs/integrations/flowise)               | 聊天/代理界面         | 基于 JS/TS 的无代码构建器，用于定制化 LLM 流程。                                                          |
 | [Langflow](https://langfuse.com/docs/integrations/langflow)             | 聊天/代理界面         | 基于 Python 的 LangChain 用户界面，采用 react-flow 设计，提供便捷的实验与原型构建体验。                   |
