@@ -59,6 +59,7 @@ export * from "./services/datasets-ui-table-service";
 export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
+export * from "./clickhouse/measureAndReturn";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";

@@ -12,12 +12,12 @@ async function convertOtelSpanToIngestionEvent(
     projectId: "test-project",
     publicKey,
   });
-  
+
   // For tests, we bypass Redis initialization and directly set the seen traces
   // This is safe because we're testing the conversion logic, not the Redis caching
   (processor as any).seenTraces = seenTraces;
   (processor as any).isInitialized = true;
-  
+
   return await processor.processToIngestionEvents([resourceSpan]);
 }
 
@@ -256,9 +256,14 @@ describe("OTel Resource Span Mapping", () => {
         },
       ];
 
-      const events = (await Promise.all(langfuseOtelSpans.map(async (span) =>
-        await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
-      ))).flat();
+      const events = (
+        await Promise.all(
+          langfuseOtelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+          ),
+        )
+      ).flat();
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const generationEvents = events.filter(
         (e) => e.type === "generation-create",
@@ -449,9 +454,14 @@ describe("OTel Resource Span Mapping", () => {
         },
       ];
 
-      const events = (await Promise.all(langfuseOtelSpans.map(async (span) =>
-        await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
-      ))).flat();
+      const events = (
+        await Promise.all(
+          langfuseOtelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+          ),
+        )
+      ).flat();
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const spanEvents = events.filter((e) => e.type === "span-create");
 
@@ -567,9 +577,12 @@ describe("OTel Resource Span Mapping", () => {
       ];
 
       await expect(
-        Promise.all(langfuseOtelSpans.map(async (span) =>
-          await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
-        ))
+        Promise.all(
+          langfuseOtelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+          ),
+        ),
       ).rejects.toThrowError("Langfuse OTEL SDK span has different public key");
     });
   });
@@ -2127,18 +2140,20 @@ describe("OTel Resource Span Mapping", () => {
 
   describe("Span Counting", () => {
     it("should count spans correctly across multiple resource spans", () => {
-      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
-      
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+
       const resourceSpans = [
         {
           scopeSpans: [
             { spans: [{}, {}, {}] }, // 3 spans
-            { spans: [{}] },         // 1 span
+            { spans: [{}] }, // 1 span
           ],
         },
         {
           scopeSpans: [
-            { spans: [{}, {}] },     // 2 spans
+            { spans: [{}, {}] }, // 2 spans
           ],
         },
       ];
@@ -2149,22 +2164,28 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should handle empty resource spans", () => {
-      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
-      
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+
       const count = (processor as any).getTotalSpanCount([]);
       expect(count).toBe(0);
     });
 
     it("should handle null/undefined resource spans", () => {
-      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
-      
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+
       expect((processor as any).getTotalSpanCount(null)).toBe(0);
       expect((processor as any).getTotalSpanCount(undefined)).toBe(0);
     });
 
     it("should handle malformed resource spans", () => {
-      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
-      
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+
       const resourceSpans = [
         { scopeSpans: null },
         { scopeSpans: undefined },
@@ -2184,16 +2205,20 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should return 0 for non-array input", () => {
-      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
-      
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+
       expect((processor as any).getTotalSpanCount("not-an-array")).toBe(0);
       expect((processor as any).getTotalSpanCount({})).toBe(0);
       expect((processor as any).getTotalSpanCount(123)).toBe(0);
     });
 
     it("should handle deeply nested null/undefined structures", () => {
-      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
-      
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+
       const resourceSpans = [
         null,
         undefined,
@@ -2211,8 +2236,10 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should return -1 and not throw on unexpected errors", () => {
-      const processor = new OtelIngestionProcessor({ projectId: "test-project" });
-      
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+
       // Create a malicious object that throws when accessed
       const maliciousResourceSpan = {
         get scopeSpans() {
@@ -2220,7 +2247,9 @@ describe("OTel Resource Span Mapping", () => {
         },
       };
 
-      const count = (processor as any).getTotalSpanCount([maliciousResourceSpan]);
+      const count = (processor as any).getTotalSpanCount([
+        maliciousResourceSpan,
+      ]);
       expect(count).toBe(-1);
     });
   });
@@ -2246,8 +2275,10 @@ describe("OTel Resource Span Mapping", () => {
       const expectedEndTime = "2025-04-17T07:39:54.084Z";
 
       // Convert timestamps to ISO strings
-      const actualStartTime = OtelIngestionProcessor.convertNanoTimestampToISO(positiveTimestamp);
-      const actualEndTime = OtelIngestionProcessor.convertNanoTimestampToISO(negativeTimestamp);
+      const actualStartTime =
+        OtelIngestionProcessor.convertNanoTimestampToISO(positiveTimestamp);
+      const actualEndTime =
+        OtelIngestionProcessor.convertNanoTimestampToISO(negativeTimestamp);
 
       // Verify conversions match expected values
       expect(actualStartTime).toBe(expectedStartTime);
@@ -2258,9 +2289,9 @@ describe("OTel Resource Span Mapping", () => {
       // Test with string timestamp (nanoseconds)
       const stringTimestamp = "1744317592317227000"; // Same as positiveTimestamp above
       const expectedStringResult = "2025-04-10T20:39:52.317Z";
-      expect(OtelIngestionProcessor.convertNanoTimestampToISO(stringTimestamp)).toBe(
-        expectedStringResult,
-      );
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(stringTimestamp),
+      ).toBe(expectedStringResult);
 
       // Test with zero timestamp
       const zeroTimestamp = {
@@ -2268,9 +2299,9 @@ describe("OTel Resource Span Mapping", () => {
         high: 0,
         unsigned: true,
       };
-      expect(OtelIngestionProcessor.convertNanoTimestampToISO(zeroTimestamp)).toBe(
-        "1970-01-01T00:00:00.000Z",
-      );
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(zeroTimestamp),
+      ).toBe("1970-01-01T00:00:00.000Z");
     });
   });
 
@@ -2298,10 +2329,13 @@ describe("OTel Resource Span Mapping", () => {
                 {
                   traceId: {
                     type: "Buffer",
-                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                    data: [
+                      149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                      49, 17, 32,
+                    ],
                   },
                   spanId: {
-                    type: "Buffer", 
+                    type: "Buffer",
                     data: [212, 62, 55, 183, 209, 126, 84, 118],
                   },
                   parentSpanId: {
@@ -2335,7 +2369,14 @@ describe("OTel Resource Span Mapping", () => {
       ];
 
       // Empty seenTraces set - should create shallow trace for first span
-      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, new Set(), publicKey)))).flat();
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+          ),
+        )
+      ).flat();
 
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const spanEvents = events.filter((e) => e.type === "span-create");
@@ -2345,7 +2386,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(spanEvents.length).toBe(1);
 
       const traceEvent = traceEvents[0];
-      
+
       // Should create shallow trace with minimal information
       expect(traceEvent.body).toMatchObject({
         id: "95f3b926c7d009925bcb5dbc27311120",
@@ -2384,7 +2425,10 @@ describe("OTel Resource Span Mapping", () => {
                 {
                   traceId: {
                     type: "Buffer",
-                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                    data: [
+                      149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                      49, 17, 32,
+                    ],
                   },
                   spanId: {
                     type: "Buffer",
@@ -2421,14 +2465,25 @@ describe("OTel Resource Span Mapping", () => {
       ];
 
       // seenTraces contains the traceId - should NOT create trace
-      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, seenTraces, publicKey)))).flat();
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(
+                span,
+                seenTraces,
+                publicKey,
+              ),
+          ),
+        )
+      ).flat();
 
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const spanEvents = events.filter((e) => e.type === "span-create");
 
       expect(events.length).toBe(1);
       expect(traceEvents.length).toBe(0); // No trace should be created
-      expect(spanEvents.length).toBe(1);   // Only span should be created
+      expect(spanEvents.length).toBe(1); // Only span should be created
 
       const spanEvent = spanEvents[0];
       expect(spanEvent.body).toMatchObject({
@@ -2463,7 +2518,10 @@ describe("OTel Resource Span Mapping", () => {
                 {
                   traceId: {
                     type: "Buffer",
-                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                    data: [
+                      149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                      49, 17, 32,
+                    ],
                   },
                   spanId: {
                     type: "Buffer",
@@ -2497,7 +2555,18 @@ describe("OTel Resource Span Mapping", () => {
       ];
 
       // seenTraces contains the traceId, but span is root - should still create full trace
-      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, seenTraces, publicKey)))).flat();
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(
+                span,
+                seenTraces,
+                publicKey,
+              ),
+          ),
+        )
+      ).flat();
 
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const spanEvents = events.filter((e) => e.type === "span-create");
@@ -2507,7 +2576,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(spanEvents.length).toBe(1);
 
       const traceEvent = traceEvents[0];
-      
+
       // Should create full trace with name and metadata since it's a root span
       expect(traceEvent.body).toMatchObject({
         id: "95f3b926c7d009925bcb5dbc27311120",
@@ -2543,7 +2612,10 @@ describe("OTel Resource Span Mapping", () => {
                 {
                   traceId: {
                     type: "Buffer",
-                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                    data: [
+                      149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                      49, 17, 32,
+                    ],
                   },
                   spanId: {
                     type: "Buffer",
@@ -2587,7 +2659,18 @@ describe("OTel Resource Span Mapping", () => {
         },
       ];
 
-      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, seenTraces, publicKey)))).flat();
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(
+                span,
+                seenTraces,
+                publicKey,
+              ),
+          ),
+        )
+      ).flat();
 
       const traceEvents = events.filter((e) => e.type === "trace-create");
       expect(traceEvents.length).toBe(1);
@@ -2620,7 +2703,10 @@ describe("OTel Resource Span Mapping", () => {
                 {
                   traceId: {
                     type: "Buffer",
-                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                    data: [
+                      149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                      49, 17, 32,
+                    ],
                   },
                   spanId: {
                     type: "Buffer",
@@ -2664,7 +2750,18 @@ describe("OTel Resource Span Mapping", () => {
         },
       ];
 
-      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, seenTraces, publicKey)))).flat();
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(
+                span,
+                seenTraces,
+                publicKey,
+              ),
+          ),
+        )
+      ).flat();
 
       const traceEvents = events.filter((e) => e.type === "trace-create");
       expect(traceEvents.length).toBe(1);
@@ -2697,7 +2794,10 @@ describe("OTel Resource Span Mapping", () => {
                 {
                   traceId: {
                     type: "Buffer",
-                    data: [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32],
+                    data: [
+                      149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                      49, 17, 32,
+                    ],
                   },
                   spanId: {
                     type: "Buffer",
@@ -2738,7 +2838,18 @@ describe("OTel Resource Span Mapping", () => {
       ];
 
       // seenTraces contains the traceId, but span has trace updates - should still create full trace
-      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, seenTraces, publicKey)))).flat();
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(
+                span,
+                seenTraces,
+                publicKey,
+              ),
+          ),
+        )
+      ).flat();
 
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const spanEvents = events.filter((e) => e.type === "span-create");
@@ -2748,7 +2859,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(spanEvents.length).toBe(1);
 
       const traceEvent = traceEvents[0];
-      
+
       // Should create full trace with trace updates
       expect(traceEvent.body).toMatchObject({
         id: "95f3b926c7d009925bcb5dbc27311120",
@@ -2762,7 +2873,9 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should create only ONE trace when multiple spans share the same traceId with empty seenTraces", async () => {
-      const sharedTraceId = [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32];
+      const sharedTraceId = [
+        149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32,
+      ];
 
       const otelSpans = [
         {
@@ -2887,7 +3000,14 @@ describe("OTel Resource Span Mapping", () => {
       ];
 
       // Empty seenTraces set - should create only ONE trace despite multiple spans with same traceId
-      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, new Set(), publicKey)))).flat();
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+          ),
+        )
+      ).flat();
 
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const spanEvents = events.filter((e) => e.type === "span-create");
@@ -2897,7 +3017,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(spanEvents.length).toBe(3); // All three spans should be created
 
       const traceEvent = traceEvents[0];
-      
+
       // Should create shallow trace with minimal information (from first span processed)
       expect(traceEvent.body).toMatchObject({
         id: "95f3b926c7d009925bcb5dbc27311120",
@@ -2917,7 +3037,9 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should filter out shallow traces when full traces exist for the same traceId in same batch", async () => {
-      const sharedTraceId = [149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32];
+      const sharedTraceId = [
+        149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39, 49, 17, 32,
+      ];
 
       const otelSpans = [
         {
@@ -2998,7 +3120,14 @@ describe("OTel Resource Span Mapping", () => {
       ];
 
       // Empty seenTraces set - both spans would normally create traces
-      const events = (await Promise.all(otelSpans.map(async (span) => await convertOtelSpanToIngestionEvent(span, new Set(), publicKey)))).flat();
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+          ),
+        )
+      ).flat();
 
       const traceEvents = events.filter((e) => e.type === "trace-create");
       const spanEvents = events.filter((e) => e.type === "span-create");
@@ -3008,7 +3137,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(spanEvents.length).toBe(2); // Both spans should be created
 
       const traceEvent = traceEvents[0];
-      
+
       // Should be the FULL trace (from root span), not the shallow one
       expect(traceEvent.body).toMatchObject({
         id: "95f3b926c7d009925bcb5dbc27311120",

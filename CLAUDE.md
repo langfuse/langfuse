@@ -152,6 +152,8 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 - Jest for API tests, Playwright for E2E tests
 - For backend/API changes, tests must pass before pushes
 - Add tests for new API endpoints and features
+- When writing tests, focus on decoupling each `it` or `test` block to ensure that they can run independently and concurrently. Tests must never depend on the action or outcome of previous or subsequent tests.
+- When writing tests, especially in the __tests__/async directory, ensure that you avoid `pruneDatabase` calls.
 
 ### Code Conventions
 - **Pages Router** (not App Router)

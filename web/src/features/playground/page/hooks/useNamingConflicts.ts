@@ -15,14 +15,14 @@ export interface NamingConflictInfo {
  */
 export const useNamingConflicts = (
   variables: PromptVariable[],
-  placeholders: PlaceholderMessageFillIn[]
+  placeholders: PlaceholderMessageFillIn[],
 ): NamingConflictInfo => {
   return useMemo(() => {
-    const variableNames = variables.map(v => v.name);
-    const placeholderNames = placeholders.map(p => p.name);
+    const variableNames = variables.map((v) => v.name);
+    const placeholderNames = placeholders.map((p) => p.name);
 
-    const conflictingNames = variableNames.filter(name =>
-      placeholderNames.includes(name)
+    const conflictingNames = variableNames.filter((name) =>
+      placeholderNames.includes(name),
     );
 
     const hasConflicts = conflictingNames.length > 0;

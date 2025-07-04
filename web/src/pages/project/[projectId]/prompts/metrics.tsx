@@ -77,14 +77,16 @@ function joinPromptCoreAndMetricData(
   return { status: "success", combinedData };
 }
 
-export default function PromptVersionTable({ promptName: promptNameProp }: { promptName?: string } = {}) {
+export default function PromptVersionTable({
+  promptName: promptNameProp,
+}: { promptName?: string } = {}) {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const promptName = promptNameProp || (
-    router.query.promptName
+  const promptName =
+    promptNameProp ||
+    (router.query.promptName
       ? decodeURIComponent(router.query.promptName as string)
-      : ''
-  );
+      : "");
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
