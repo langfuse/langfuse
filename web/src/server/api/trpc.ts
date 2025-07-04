@@ -18,7 +18,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { prisma, Role, JSON_OPTIMIZATION_STRATEGIES } from "@langfuse/shared";
 import * as z from "zod/v4";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
@@ -360,6 +360,7 @@ const inputTraceSchema = z.object({
   projectId: z.string(),
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
+  optimization: z.enum(JSON_OPTIMIZATION_STRATEGIES).optional(),
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
@@ -377,12 +378,14 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const projectId = result.data.projectId;
   const timestamp = result.data.timestamp;
   const fromTimestamp = result.data.fromTimestamp;
+  const optimization = result.data.optimization;
 
   const trace = await getTraceById({
     traceId,
     projectId,
     timestamp: timestamp ?? undefined,
     fromTimestamp: fromTimestamp ?? undefined,
+    optimization,
   });
 
   if (!trace) {

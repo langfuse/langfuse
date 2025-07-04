@@ -1,6 +1,6 @@
 import { parseJsonPrioritised } from "../../utils/json";
 import { MetadataDomain } from "../../domain";
-
+//FIXME: do deep optimization
 export function parseMetadataCHRecordToDomain(
   metadata: Record<string, string>,
 ): MetadataDomain {

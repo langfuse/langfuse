@@ -21,6 +21,7 @@ import { UiColumnMappings } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
+import type { JSONOptimizationStrategy } from "../../performance";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
@@ -195,7 +196,7 @@ export const getTracesByIds = async (
     clickhouseConfigs,
   });
 
-  return records.map(convertClickhouseToDomain);
+  return records.map((record) => convertClickhouseToDomain(record));
 };
 
 export const getTracesBySessionId = async (
@@ -226,7 +227,7 @@ export const getTracesBySessionId = async (
     },
   });
 
-  const traces = records.map(convertClickhouseToDomain);
+  const traces = records.map((record) => convertClickhouseToDomain(record));
 
   traces.forEach((trace) => {
     recordDistribution(
@@ -341,11 +342,13 @@ export const getTraceById = async ({
   projectId,
   timestamp,
   fromTimestamp,
+  optimization,
 }: {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   fromTimestamp?: Date;
+  optimization?: JSONOptimizationStrategy;
 }) => {
   const query = `
     SELECT * 
@@ -378,7 +381,7 @@ export const getTraceById = async ({
     },
   });
 
-  const res = records.map(convertClickhouseToDomain);
+  const res = records.map((record) => convertClickhouseToDomain(record, optimization));
 
   res.forEach((trace) => {
     recordDistribution(
