@@ -152,13 +152,18 @@ function PlaygroundWindow({
               <span className="text-sm font-medium text-muted-foreground">
                 Window {windowIndex + 1}
               </span>
-              <span className="text-xs text-muted-foreground/70">
-                {windowId.slice(-8)}
-              </span>
             </div>
 
             <div className="flex items-center gap-2">
-              <SaveToPromptButton />
+              {/* Show full SaveToPromptButton on wider screens */}
+              <div className="hidden sm:block">
+                <SaveToPromptButton />
+              </div>
+              {/* Show compact SaveToPromptButton on narrow screens */}
+              <div className="sm:hidden">
+                <SaveToPromptButton variant="compact" />
+              </div>
+
               <Button
                 variant="ghost"
                 onClick={handleCopy}

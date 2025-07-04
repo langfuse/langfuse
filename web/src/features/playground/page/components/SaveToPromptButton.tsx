@@ -26,7 +26,15 @@ import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { PromptType } from "@langfuse/shared";
 
-export const SaveToPromptButton: React.FC = () => {
+interface SaveToPromptButtonProps {
+  variant?: "default" | "compact";
+  className?: string;
+}
+
+export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
+  variant = "default",
+  className,
+}) => {
   const [selectedPromptId, setSelectedPromptId] = useState("");
   const { modelParams, messages, output, promptVariables } =
     usePlaygroundContext();
@@ -79,13 +87,21 @@ export const SaveToPromptButton: React.FC = () => {
     );
   };
 
+  const isCompact = variant === "compact";
+
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant={"outline"} title="Save to prompt" asChild>
+        <Button
+          variant={"outline"}
+          title="Save to prompt"
+          className={cn(isCompact && "px-2", className)}
+          asChild
+        >
           <Link href={`/project/${projectId}/playground`}>
-            <FileInput className="mr-1 h-4 w-4" />
-            <span>Save as prompt</span>
+            <FileInput className={cn("h-4 w-4", !isCompact && "mr-1")} />
+            {!isCompact && <span>Save as prompt</span>}
+            {isCompact && <span className="sr-only">Save as prompt</span>}
           </Link>
         </Button>
       </PopoverTrigger>
