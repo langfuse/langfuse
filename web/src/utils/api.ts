@@ -123,9 +123,10 @@ export const api = createTRPCNext<AppRouter>({
       links: [
         buildIdLink(),
         loggerLink({
-          enabled: (opts) =>
-            process.env.NODE_ENV === "development" ||
-            (opts.direction === "down" && opts.result instanceof Error),
+          // Only enable in development - production logs would be captured by Sentry
+          // in an unreadable format. We handle 5xx errors via captureException() in
+          // handleTrpcError and use DataDog for additional server-side logging.
+          enabled: () => process.env.NODE_ENV === "development",
         }),
         splitLink({
           condition(op) {
@@ -180,9 +181,10 @@ export const directApi = createTRPCProxyClient<AppRouter>({
   transformer: superjson,
   links: [
     loggerLink({
-      enabled: (opts) =>
-        process.env.NODE_ENV === "development" ||
-        (opts.direction === "down" && opts.result instanceof Error),
+      // Only enable in development - production logs would be captured by Sentry
+      // in an unreadable format. We handle 5xx errors via captureException() in
+      // handleTrpcError and use DataDog for additional server-side logging.
+      enabled: () => process.env.NODE_ENV === "development",
     }),
     httpBatchLink({
       url: `${getBaseUrl()}/api/trpc`,
