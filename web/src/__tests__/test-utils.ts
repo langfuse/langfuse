@@ -96,6 +96,9 @@ export const ensureClickHouseTestDatabaseExists = async () => {
         "Database creation failed or already exists:",
         createDbError.message,
       );
+    } finally {
+      // Always close the default client
+      await defaultClient.close();
     }
 
     const testClient = createClient({
