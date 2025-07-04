@@ -437,7 +437,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
   describe("when creating a prompt", () => {
     it("should create and fetch a chat prompt", async () => {
-      const {  auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
       const chatMessages = [
         { role: "system", content: "You are a bot" },
@@ -478,7 +478,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should create and fetch a chat prompt with message placeholders", async () => {
-      const {  auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = `prompt-name-message-placeholders${generateId()}`;
       const commitMessage = "feat: add message placeholders support";
       const chatMessages = [
@@ -567,7 +567,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should fail if chat prompt has incorrect messages format", async () => {
-      const {  auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
       const incorrectChatMessages = [
         { role: "system", content: "You are a bot" },
@@ -599,7 +599,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should fail if text prompt has message format", async () => {
-      const {  auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
       const response = await makeAPICall(
         "POST",
@@ -909,7 +909,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       });
 
       it("should accept valid prompt names", async () => {
-        const {  auth } = await createOrgProjectAndApiKey();
+        const { auth } = await createOrgProjectAndApiKey();
         const validNames = [
           "simple-name",
           "name_with_underscores",
@@ -934,7 +934,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should update tags across versions", async () => {
-      const {  auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
 
       const createPromptVersion = async (tags?: string[]) => {
@@ -1006,7 +1006,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should create and fetch a test prompt with slashes in the name", async () => {
-      const {  auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = "this/is/a/prompt/with/a/slash" + nanoid();
 
       const response = await makeAPICall(
@@ -1078,7 +1078,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should allow creating a new version of a prompt with placeholder names that conflict a variable name in a previous version", async () => {
-      const {  auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-with-variable-conflict-" + nanoid();
 
       // First, create a chat prompt with a message variable
@@ -1142,8 +1142,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       ({ projectId: projectId, auth: auth } =
         await createOrgProjectAndApiKey());
 
-      ({ projectId: otherProjectId } =
-        await createOrgProjectAndApiKey());
+      ({ projectId: otherProjectId } = await createOrgProjectAndApiKey());
 
       await createPromptInDB({
         name: otherProjectPromptName,
@@ -1251,7 +1250,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.meta.totalItems).toBe(1);
 
       // Test with a different name
-      const response2 = await makeAPICall("GET", `${baseURI}?name=prompt-2`);
+      const response2 = await makeAPICall("GET", `${baseURI}?name=prompt-2`, undefined, auth);
       expect(response2.status).toBe(200);
       const body2 = response2.body as unknown as PromptsMetaResponse;
 
