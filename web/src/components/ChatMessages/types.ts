@@ -1,4 +1,8 @@
-import type { ChatMessage, ChatMessageWithId, PlaceholderMessage } from "@langfuse/shared";
+import type {
+  ChatMessage,
+  ChatMessageWithId,
+  PlaceholderMessage,
+} from "@langfuse/shared";
 
 export type MessagesContext = {
   messages: ChatMessageWithId[];

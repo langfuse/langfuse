@@ -11,7 +11,7 @@ export const createTracesCh = async (trace: TraceRecordInsertType[]) => {
   if (
     env.LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES === "true"
   ) {
-    return await clickhouseClient().insert({
+    await clickhouseClient().insert({
       table: "traces_mt",
       format: "JSONEachRow",
       values: trace.map(convertTraceToTraceMt),
