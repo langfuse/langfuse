@@ -27,6 +27,7 @@
     "dev:web": "turbo run dev --filter=web",
     "dev:web-turbo": "turbo run dev --filter=web -- --turbo",
     "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\"",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
     "prepare": "husky"
