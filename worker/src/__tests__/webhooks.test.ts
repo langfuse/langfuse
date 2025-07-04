@@ -404,7 +404,7 @@ describe("Webhook Integration Tests", () => {
       });
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
       expect(execution?.error).toContain(
-        `Webhook for project ${projectId} failed with status 500`,
+        `Webhook does not return 200: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
       );
       expect(execution?.output).toMatchObject({
         httpStatus: 500,
@@ -478,7 +478,7 @@ describe("Webhook Integration Tests", () => {
         });
         expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
         expect(execution?.error).toContain(
-          `Webhook for project ${projectId} failed with status 500`,
+          `Webhook does not return 200: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
         );
       }
 
