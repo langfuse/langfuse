@@ -437,7 +437,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
   describe("when creating a prompt", () => {
     it("should create and fetch a chat prompt", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const {  auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
       const chatMessages = [
         { role: "system", content: "You are a bot" },
@@ -478,7 +478,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should create and fetch a chat prompt with message placeholders", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const {  auth } = await createOrgProjectAndApiKey();
       const promptName = `prompt-name-message-placeholders${generateId()}`;
       const commitMessage = "feat: add message placeholders support";
       const chatMessages = [
@@ -537,7 +537,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should fail if chat prompt has string prompt", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name";
       const response = await makeAPICall(
         "POST",
@@ -567,7 +567,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should fail if chat prompt has incorrect messages format", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const {  auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
       const incorrectChatMessages = [
         { role: "system", content: "You are a bot" },
@@ -599,7 +599,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should fail if text prompt has message format", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const {  auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
       const response = await makeAPICall(
         "POST",
@@ -627,7 +627,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should fail if previous versions have different prompt type", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       // Create a chat prompt
       const promptName = "prompt-name" + nanoid();
       const chatMessages = [
@@ -698,7 +698,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should correctly handle overwriting labels", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
       // First prompt has multiple labels
       const prompt1 = await makeAPICall(
@@ -804,7 +804,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should create empty object if no config is provided", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const { auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
 
       await makeAPICall(
@@ -882,7 +882,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       };
 
       it("should reject invalid prompt names", async () => {
-        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const { auth } = await createOrgProjectAndApiKey();
         // Test invalid patterns
         await testInvalidName(
           "/invalid-name",
@@ -909,7 +909,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       });
 
       it("should accept valid prompt names", async () => {
-        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const {  auth } = await createOrgProjectAndApiKey();
         const validNames = [
           "simple-name",
           "name_with_underscores",
@@ -934,7 +934,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should update tags across versions", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const {  auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-name" + nanoid();
 
       const createPromptVersion = async (tags?: string[]) => {
@@ -1006,7 +1006,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should create and fetch a test prompt with slashes in the name", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const {  auth } = await createOrgProjectAndApiKey();
       const promptName = "this/is/a/prompt/with/a/slash" + nanoid();
 
       const response = await makeAPICall(
@@ -1078,7 +1078,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
 
     it("should allow creating a new version of a prompt with placeholder names that conflict a variable name in a previous version", async () => {
-      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const {  auth } = await createOrgProjectAndApiKey();
       const promptName = "prompt-with-variable-conflict-" + nanoid();
 
       // First, create a chat prompt with a message variable
