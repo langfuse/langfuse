@@ -5,8 +5,9 @@ import { PromptVariableComponent } from "./PromptVariableComponent";
 
 export const Variables = () => {
   const { promptVariables } = usePlaygroundContext();
+
   const renderNoVariables = () => (
-    <div className="mt-4 text-xs">
+    <div className="text-xs">
       <p className="mb-2">No variables defined.</p>
       <p>
         Use handlebars in your prompts to add a variable:
@@ -14,6 +15,7 @@ export const Variables = () => {
       </p>
     </div>
   );
+
   const renderVariables = () => (
     <div className="h-full overflow-auto">
       {promptVariables
@@ -41,7 +43,6 @@ export const Variables = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <p className="font-semibold">Variables</p>
       {promptVariables.length === 0 ? renderNoVariables() : renderVariables()}
     </div>
   );
