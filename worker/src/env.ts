@@ -186,7 +186,7 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  QUEUE_CONSUMER_PROMPT_VERSION_CHANGE_QUEUE_IS_ENABLED: z
+  QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
 
@@ -242,6 +242,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(2),
 });
 
 export const env: z.infer<typeof EnvSchema> =

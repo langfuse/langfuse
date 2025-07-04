@@ -55,7 +55,7 @@ import {
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
-import { promptVersionChangeQueueProcessor } from "./queues/promptVersionChangeQueue";
+import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 
 const app = express();
 
@@ -346,12 +346,12 @@ if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
   });
 }
 
-if (env.QUEUE_CONSUMER_PROMPT_VERSION_CHANGE_QUEUE_IS_ENABLED === "true") {
+if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
-    QueueName.PromptVersionChangeQueue,
-    promptVersionChangeQueueProcessor,
+    QueueName.EntityChangeQueue,
+    entityChangeQueueProcessor,
     {
-      concurrency: 2, // Low concurrency to avoid overwhelming the database
+      concurrency: env.LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY,
     },
   );
 }

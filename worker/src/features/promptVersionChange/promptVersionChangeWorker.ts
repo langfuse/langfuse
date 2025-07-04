@@ -1,9 +1,7 @@
 import {
   type TriggerEventAction,
-  type Prompt,
   jsonSchemaNullable,
   InternalServerError,
-  FilterCondition,
 } from "@langfuse/shared";
 import {
   getTriggerConfigurations,
@@ -15,7 +13,7 @@ import {
   InMemoryFilterService,
   type PromptResult,
   getAutomations,
-  type PromptVersionChangeEventType,
+  EntityChangeEventType,
 } from "@langfuse/shared/src/server";
 import { TriggerEventSource } from "@langfuse/shared";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
@@ -23,37 +21,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 
 /**
- * Helper function to check if action filter matches the event action
- */
-function actionMatches(
-  action: string,
-  triggerFilters: FilterCondition[],
-): boolean {
-  const actionFilter = triggerFilters.find((f) => f.column === "action");
-  if (!actionFilter) return true;
-
-  const filterValue = actionFilter.value as string[];
-  const operator = actionFilter.operator;
-
-  switch (operator) {
-    case "any of":
-      return Array.isArray(filterValue) ? filterValue.includes(action) : false;
-    case "none of":
-      return Array.isArray(filterValue) ? !filterValue.includes(action) : true;
-    case "=":
-      return filterValue[0] === action;
-    case "<>":
-      return filterValue[0] !== action;
-    default:
-      return false;
-  }
-}
-
-/**
  * Process prompt change events with in-memory filtering
  */
 export const promptVersionChangeWorker = async (
-  event: PromptVersionChangeEventType,
+  event: EntityChangeEventType,
 ): Promise<void> => {
   try {
     logger.info(
@@ -77,26 +48,17 @@ export const promptVersionChangeWorker = async (
     // Process each trigger
     for (const trigger of triggers) {
       try {
-        // Check if action matches
-        if (!actionMatches(event.action, trigger.filter)) {
-          logger.debug(
-            `Action ${event.action} doesn't match trigger ${trigger.id}`,
-            {
-              promptId: event.promptId,
-              projectId: event.projectId,
-            },
-          );
-          continue;
-        }
+        // Create a unified data object that includes both prompt data and the action
+        const eventData = {
+          ...event.prompt,
+          action: event.action,
+        };
 
-        // Check if prompt matches remaining filters using in-memory filtering
-        const nonActionFilters = trigger.filter.filter(
-          (f) => f.column !== "action",
-        );
-
-        // Create a field mapper for prompt data
-        const fieldMapper = (data: Prompt, column: string) => {
+        // Create a field mapper for all data including action
+        const fieldMapper = (data: typeof eventData, column: string) => {
           switch (column) {
+            case "action":
+              return data.action;
             case "name":
               return data.name;
             case "version":
@@ -120,16 +82,18 @@ export const promptVersionChangeWorker = async (
           }
         };
 
-        const promptMatches = InMemoryFilterService.evaluateFilter(
-          event.prompt,
-          nonActionFilters,
+        // Use InMemoryFilterService for all filtering including actions
+        const eventMatches = InMemoryFilterService.evaluateFilter(
+          eventData,
+          trigger.filter,
           fieldMapper,
         );
 
-        if (!promptMatches) {
-          logger.debug(`Prompt doesn't match trigger ${trigger.id} filters`, {
+        if (!eventMatches) {
+          logger.debug(`Event doesn't match trigger ${trigger.id} filters`, {
             promptId: event.promptId,
             projectId: event.projectId,
+            action: event.action,
           });
           continue;
         }

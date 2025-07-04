@@ -22,7 +22,7 @@ import { CreateEvalQueue } from "./createEvalQueue";
 import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlqRetryQueue";
 import { WebhookQueue } from "./webhookQueue";
-import { PromptVersionChangeQueue } from "./promptVersionChangeQueue";
+import { EntityChangeQueue } from "./entityChangeQueue";
 
 // IngestionQueue is sharded and requires a sharding key
 // Use IngestionQueue.getInstance({ shardName: queueName }) directly instead
@@ -74,8 +74,8 @@ export function getQueue(
       return DeadLetterRetryQueue.getInstance();
     case QueueName.WebhookQueue:
       return WebhookQueue.getInstance();
-    case QueueName.PromptVersionChangeQueue:
-      return PromptVersionChangeQueue.getInstance();
+    case QueueName.EntityChangeQueue:
+      return EntityChangeQueue.getInstance();
     default: {
       // eslint-disable-next-line no-case-declarations, no-unused-vars
       const exhaustiveCheckDefault: never = queueName;

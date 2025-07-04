@@ -7,28 +7,28 @@ import {
 } from "./redis";
 import { logger } from "../logger";
 
-export class PromptVersionChangeQueue {
+export class EntityChangeQueue {
   private static instance: Queue<
-    TQueueJobTypes[QueueName.PromptVersionChangeQueue]
+    TQueueJobTypes[QueueName.EntityChangeQueue]
   > | null = null;
 
   public static getInstance(): Queue<
-    TQueueJobTypes[QueueName.PromptVersionChangeQueue]
+    TQueueJobTypes[QueueName.EntityChangeQueue]
   > | null {
-    if (PromptVersionChangeQueue.instance)
-      return PromptVersionChangeQueue.instance;
+    if (EntityChangeQueue.instance)
+      return EntityChangeQueue.instance;
 
     const newRedis = createNewRedisInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
-    PromptVersionChangeQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.PromptVersionChangeQueue]>(
-          QueueName.PromptVersionChangeQueue,
+    EntityChangeQueue.instance = newRedis
+      ? new Queue<TQueueJobTypes[QueueName.EntityChangeQueue]>(
+          QueueName.EntityChangeQueue,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(QueueName.PromptVersionChangeQueue),
+            prefix: getQueuePrefix(QueueName.EntityChangeQueue),
             defaultJobOptions: {
               removeOnComplete: 100,
               removeOnFail: 100_000,
@@ -42,10 +42,10 @@ export class PromptVersionChangeQueue {
         )
       : null;
 
-    PromptVersionChangeQueue.instance?.on("error", (err) => {
-      logger.error("PromptVersionChangeQueue error", err);
+    EntityChangeQueue.instance?.on("error", (err) => {
+      logger.error("EntityChangeQueue error", err);
     });
 
-    return PromptVersionChangeQueue.instance;
+    return EntityChangeQueue.instance;
   }
 }
