@@ -386,4 +386,35 @@ describe("Clickhouse Traces Repository Test", () => {
     });
     expect(exists).toBe(true);
   });
+
+  it("should handle timestamp filter in checkTraceExists", async () => {
+    const traceId = v4();
+    const trace = createTrace({
+      id: traceId,
+      user_id: "user-1",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+      timestamp: Date.now(),
+    });
+
+    await createTracesCh([trace]);
+
+    const exists = await checkTraceExists({
+      projectId,
+      traceId,
+      timestamp: new Date(),
+      filter: [
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: ">=",
+          value: new Date(Date.now() - 3600000),
+        },
+      ],
+      maxTimeStamp: undefined,
+    });
+    expect(exists).toBe(true);
+  });
 });
