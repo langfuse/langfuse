@@ -18,7 +18,6 @@ import {
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
-  WebhookQueue,
   ChatMessageType,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
