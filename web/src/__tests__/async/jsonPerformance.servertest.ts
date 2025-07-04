@@ -14,6 +14,36 @@ import {
 } from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+// cSpell:disable-next-line
+const optimizationStrategies = ["original", "jsonsimd", "worker"] as const;
+type OptimizationStrategy = (typeof optimizationStrategies)[number];
+
+interface PerformanceTestConfig {
+  entityType: "Trace" | "Observation";
+  insertApi: (size: number) => Promise<{
+    id: string;
+    traceId?: string;
+    time: number;
+    payloadSizeInMB: number;
+  }>;
+  insertDirect: (size: number) => Promise<{
+    id: string;
+    traceId?: string;
+    time: number;
+    payloadSizeInMB: number;
+  }>;
+  retrieveGet: (
+    id: string,
+    optimization: OptimizationStrategy,
+  ) => Promise<{ time: number }>;
+  retrieveTrpc: (
+    id: string,
+    traceId: string | undefined,
+    optimization: OptimizationStrategy,
+  ) => Promise<{ time: number }>;
+}
+
 function makeTrpcCaller() {
   const caller = getTrpcCaller(projectId);
   return caller;
@@ -70,7 +100,7 @@ async function insertTrace(length: number, traceId = randomUUID()) {
     expect(trace!.projectId).toBe(projectId);
   });
 
-  return { traceId, time: endTime - startTime, payloadSizeInMB };
+  return { id: traceId, traceId, time: endTime - startTime, payloadSizeInMB };
 }
 
 async function insertObservation(length: number) {
@@ -114,7 +144,12 @@ async function insertObservation(length: number) {
     expect(observation!.projectId).toBe(projectId);
   });
 
-  return { observationId, traceId, time: endTime - startTime, payloadSizeInMB };
+  return {
+    id: observationId,
+    traceId,
+    time: endTime - startTime,
+    payloadSizeInMB,
+  };
 }
 
 async function insertTraceDirect(length: number, traceId = randomUUID()) {
@@ -145,7 +180,7 @@ async function insertTraceDirect(length: number, traceId = randomUUID()) {
     expect(trace!.projectId).toBe(projectId);
   });
 
-  return { traceId, time: endTime - startTime, payloadSizeInMB };
+  return { id: traceId, traceId, time: endTime - startTime, payloadSizeInMB };
 }
 
 async function insertObservationDirect(length: number) {
@@ -185,13 +220,18 @@ async function insertObservationDirect(length: number) {
     expect(observation!.projectId).toBe(projectId);
   });
 
-  return { observationId, traceId, time: endTime - startTime, payloadSizeInMB };
+  return {
+    id: observationId,
+    traceId,
+    time: endTime - startTime,
+    payloadSizeInMB,
+  };
 }
 
 // Helper functions for retrieval
 async function retrieveTraceGET(
   traceId: string,
-  optimization: "original" | "jsonsimd" | "worker",
+  optimization: OptimizationStrategy,
 ) {
   const startTime = performance.now();
   const result = await makeAPICall(
@@ -208,7 +248,7 @@ async function retrieveTraceGET(
 
 async function retrieveObservationGET(
   observationId: string,
-  optimization: "original" | "jsonsimd" | "worker",
+  optimization: OptimizationStrategy,
 ) {
   const startTime = performance.now();
   const result = await makeAPICall(
@@ -225,7 +265,7 @@ async function retrieveObservationGET(
 
 async function retrieveTraceTRPC(
   traceId: string,
-  optimization: "original" | "jsonsimd" | "worker",
+  optimization: OptimizationStrategy,
 ) {
   const caller = makeTrpcCaller();
   const startTime = performance.now();
@@ -240,7 +280,7 @@ async function retrieveTraceTRPC(
 async function retrieveObservationTRPC(
   observationId: string,
   traceId: string,
-  optimization: "original" | "jsonsimd" | "worker",
+  optimization: OptimizationStrategy,
 ) {
   const caller = makeTrpcCaller();
   const startTime = performance.now();
@@ -257,122 +297,93 @@ async function retrieveObservationTRPC(
   return { time: endTime - startTime };
 }
 
-async function runTracePerformanceTest(size: number, name: string) {
-  let traceId: string;
+async function runPerformanceTest(
+  size: number,
+  name: string,
+  config: PerformanceTestConfig,
+) {
+  let ids: { id: string; traceId?: string };
   let payloadSizeInMB: number;
   let apiTime: number | null = null;
   let directTime: number;
 
   if (size <= 6700) {
-    const apiRes = await insertTrace(size);
-    traceId = apiRes.traceId;
+    const apiRes = await config.insertApi(size);
+    ids = { id: apiRes.id, traceId: apiRes.traceId };
     payloadSizeInMB = apiRes.payloadSizeInMB;
     apiTime = apiRes.time;
-    const directRes = await insertTraceDirect(size);
+    const directRes = await config.insertDirect(size);
     directTime = directRes.time;
   } else {
-    const directRes = await insertTraceDirect(size);
-    traceId = directRes.traceId;
+    const directRes = await config.insertDirect(size);
+    ids = { id: directRes.id, traceId: directRes.traceId };
     payloadSizeInMB = directRes.payloadSizeInMB;
     directTime = directRes.time;
   }
 
   // Warm-up
-  await retrieveTraceGET(traceId, "original");
+  await config.retrieveGet(ids.id, "original");
+  await config.retrieveTrpc(ids.id, ids.traceId, "original");
 
   // Timed Retrieval
-  const originalGetTime = (await retrieveTraceGET(traceId, "original")).time;
-  const simdjsonGetTime = (await retrieveTraceGET(traceId, "jsonsimd")).time;
-  const workerGetTime = (await retrieveTraceGET(traceId, "worker")).time;
+  const getTimes: Partial<Record<OptimizationStrategy, number>> = {};
+  for (const opt of optimizationStrategies) {
+    getTimes[opt] = (await config.retrieveGet(ids.id, opt)).time;
+  }
 
-  // Warm-up
-  await retrieveTraceTRPC(traceId, "original");
-
-  const originalTrpcTime = (await retrieveTraceTRPC(traceId, "original")).time;
-  const simdjsonTrpcTime = (await retrieveTraceTRPC(traceId, "jsonsimd")).time;
-  const workerTrpcTime = (await retrieveTraceTRPC(traceId, "worker")).time;
+  const trpcTimes: Partial<Record<OptimizationStrategy, number>> = {};
+  for (const opt of optimizationStrategies) {
+    trpcTimes[opt] = (await config.retrieveTrpc(ids.id, ids.traceId, opt)).time;
+  }
 
   const apiTimeLog = apiTime
     ? `API insertion: ${apiTime.toFixed(2)}ms`
     : "API insertion: skipped (payload too large)";
 
+  const getLogs = optimizationStrategies
+    .map(
+      (opt) => `  GET ${opt.padEnd(8)}: ${(getTimes[opt] ?? 0).toFixed(2)}ms`,
+    )
+    .join("\n");
+
+  const trpcLogs = optimizationStrategies
+    .map(
+      (opt) => `  TRPC ${opt.padEnd(8)}: ${(trpcTimes[opt] ?? 0).toFixed(2)}ms`,
+    )
+    .join("\n");
+
   console.log(
-    `--- Trace (${name}, size: ${size}, ~${payloadSizeInMB.toFixed(2)} MB) ---\n` +
+    `--- ${config.entityType} (${name}, size: ${size}, ~${payloadSizeInMB.toFixed(
+      2,
+    )} MB) ---\n` +
       `${apiTimeLog}\n` +
       `Direct insertion: ${directTime.toFixed(2)}ms\n` +
       `Retrievals (GET):\n` +
-      `  GET original: ${originalGetTime.toFixed(2)}ms\n` +
-      `  GET jsonsimd: ${simdjsonGetTime.toFixed(2)}ms\n` +
-      `  GET worker:   ${workerGetTime.toFixed(2)}ms\n`,
-    `Retrievals (TRPC):\n` +
-      `  TRPC original: ${originalTrpcTime.toFixed(2)}ms\n` +
-      `  TRPC jsonsimd: ${simdjsonTrpcTime.toFixed(2)}ms\n` +
-      `  TRPC worker:   ${workerTrpcTime.toFixed(2)}ms`,
+      `${getLogs}\n` +
+      `Retrievals (TRPC):\n` +
+      `${trpcLogs}`,
   );
 }
 
+async function runTracePerformanceTest(size: number, name: string) {
+  await runPerformanceTest(size, name, {
+    entityType: "Trace",
+    insertApi: insertTrace,
+    insertDirect: insertTraceDirect,
+    retrieveGet: retrieveTraceGET,
+    retrieveTrpc: (id, _, opt) => retrieveTraceTRPC(id, opt),
+  });
+}
+
 async function runObservationPerformanceTest(size: number, name: string) {
-  let observationId: string;
-  let traceId: string;
-  let payloadSizeInMB: number;
-  let apiTime: number | null = null;
-  let directTime: number;
-
-  if (size <= 6700) {
-    const apiRes = await insertObservation(size);
-    observationId = apiRes.observationId;
-    traceId = apiRes.traceId;
-    payloadSizeInMB = apiRes.payloadSizeInMB;
-    apiTime = apiRes.time;
-    const directRes = await insertObservationDirect(size);
-    directTime = directRes.time;
-  } else {
-    const directRes = await insertObservationDirect(size);
-    observationId = directRes.observationId;
-    traceId = directRes.traceId;
-    payloadSizeInMB = directRes.payloadSizeInMB;
-    directTime = directRes.time;
-  }
-
-  // Warm-up
-  await retrieveObservationTRPC(observationId, traceId, "original");
-
-  // Timed Retrieval
-  const originalTrpcTime = (
-    await retrieveObservationTRPC(observationId, traceId, "original")
-  ).time;
-  const simdjsonTrpcTime = (
-    await retrieveObservationTRPC(observationId, traceId, "jsonsimd")
-  ).time;
-  const workerTrpcTime = (
-    await retrieveObservationTRPC(observationId, traceId, "worker")
-  ).time;
-  const originalGetTime = (
-    await retrieveObservationGET(observationId, "original")
-  ).time;
-  const simdjsonGetTime = (
-    await retrieveObservationGET(observationId, "jsonsimd")
-  ).time;
-  const workerGetTime = (await retrieveObservationGET(observationId, "worker"))
-    .time;
-
-  const apiTimeLog = apiTime
-    ? `API insertion: ${apiTime.toFixed(2)}ms`
-    : "API insertion: skipped (payload too large)";
-
-  console.log(
-    `--- Observation (${name}, size: ${size}, ~${payloadSizeInMB.toFixed(2)} MB) ---\n` +
-      `${apiTimeLog}\n` +
-      `Direct insertion: ${directTime.toFixed(2)}ms\n` +
-      `Retrievals (TRPC):\n` +
-      `  TRPC original: ${originalTrpcTime.toFixed(2)}ms\n` +
-      `  TRPC jsonsimd: ${simdjsonTrpcTime.toFixed(2)}ms\n` +
-      `  TRPC worker:   ${workerTrpcTime.toFixed(2)}ms\n` +
-      `Retrievals (GET):\n` +
-      `  GET original: ${originalGetTime.toFixed(2)}ms\n` +
-      `  GET jsonsimd: ${simdjsonGetTime.toFixed(2)}ms\n` +
-      `  GET worker:   ${workerGetTime.toFixed(2)}ms`,
-  );
+  await runPerformanceTest(size, name, {
+    entityType: "Observation",
+    insertApi: insertObservation,
+    insertDirect: insertObservationDirect,
+    retrieveGet: retrieveObservationGET,
+    retrieveTrpc: (id, traceId, opt) =>
+      retrieveObservationTRPC(id, traceId!, opt),
+  });
 }
 
 // Note: it.each is not used to allow easier simple clicks to run single tests in the IDE
@@ -382,7 +393,8 @@ describe("JSON Performance Tests", () => {
     console.log("Running warm-up phase...");
     const { traceId } = await insertTrace(1);
     await retrieveTraceGET(traceId, "original");
-    const { observationId, traceId: obsTraceId } = await insertObservation(1);
+    const { id: observationId, traceId: obsTraceId } =
+      await insertObservation(1);
     await retrieveObservationTRPC(observationId, obsTraceId, "original");
     console.log("Warm-up complete.");
   }, 20000); // 20s timeout for warm-up
