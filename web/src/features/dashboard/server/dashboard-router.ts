@@ -26,7 +26,7 @@ import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
-import { paginationZod, orderBy } from "@langfuse/shared";
+import { paginationZod, orderBy, InvalidRequestError } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 // Define the dashboard list input schema
@@ -346,7 +346,16 @@ export async function executeQuery(
       },
     });
     return result;
-  } catch (error) {
+  } catch (error: Error) {
+    // If the error is a known invalid request, return a 400 error
+    if (error instanceof InvalidRequestError) {
+      logger.warn("Bad request in query execution", error, { projectId, query });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: error.message || "Invalid request",
+        cause: error,
+      });
+    }
     logger.error("Error executing query", error, { projectId, query });
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
