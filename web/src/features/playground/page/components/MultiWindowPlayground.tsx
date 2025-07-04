@@ -3,6 +3,7 @@ import { PlaygroundProvider } from "../context";
 import Playground from "../playground";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { Button } from "@/src/components/ui/button";
+import { Copy } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 
 /**
@@ -16,22 +17,26 @@ import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
  * - Responsive layout with horizontal scrolling
  * - Window-specific state isolation
  * - Equal-width distribution with minimum width constraints
- * - Individual window controls (save, close)
+ * - Individual window controls (save, copy, close)
+ * - Window state copying for rapid iteration
  *
  * Architecture:
  * - Receives window state from parent (page-level management)
  * - Each window gets its own PlaygroundProvider with unique windowId
+ * - State copying handled by parent component through hooks
  * - Clean separation of concerns with parent handling global actions
  */
 
 interface MultiWindowPlaygroundProps {
   windowState: MultiWindowState;
   onRemoveWindow: (windowId: string) => void;
+  onAddWindow: (sourceWindowId?: string) => void;
 }
 
 export default function MultiWindowPlayground({
   windowState,
   onRemoveWindow,
+  onAddWindow,
 }: MultiWindowPlaygroundProps) {
   /**
    * Calculate responsive window width based on screen size and window count
@@ -47,6 +52,19 @@ export default function MultiWindowPlayground({
     // Use CSS minmax to ensure minimum width is respected
     return `minmax(${minWidth}px, ${idealWidth})`;
   }, [windowState.windowIds.length]);
+
+  /**
+   * Handle copying a specific window to create a new window
+   * This is called when the individual window "Copy" button is clicked
+   *
+   * @param sourceWindowId - The window ID to copy from
+   */
+  const handleCopyWindow = useCallback(
+    (sourceWindowId: string) => {
+      onAddWindow(sourceWindowId);
+    },
+    [onAddWindow],
+  );
 
   return (
     <div className="h-full overflow-hidden">
@@ -67,6 +85,7 @@ export default function MultiWindowPlayground({
             windowId={windowId}
             windowIndex={index}
             onRemove={onRemoveWindow}
+            onCopy={handleCopyWindow}
             canRemove={windowState.windowIds.length > 1}
           />
         ))}
@@ -85,12 +104,14 @@ export default function MultiWindowPlayground({
  * - windowId: Unique identifier for this window
  * - windowIndex: Display index for user reference
  * - onRemove: Callback to remove this window
+ * - onCopy: Callback to copy this window's state to a new window
  * - canRemove: Whether this window can be removed (prevents last window removal)
  */
 interface PlaygroundWindowProps {
   windowId: string;
   windowIndex: number;
   onRemove: (windowId: string) => void;
+  onCopy: (windowId: string) => void;
   canRemove: boolean;
 }
 
@@ -98,6 +119,7 @@ function PlaygroundWindow({
   windowId,
   windowIndex,
   onRemove,
+  onCopy,
   canRemove,
 }: PlaygroundWindowProps) {
   /**
@@ -111,6 +133,14 @@ function PlaygroundWindow({
     }
     onRemove(windowId);
   }, [windowId, onRemove, canRemove]);
+
+  /**
+   * Handle copying this window's state to a new window
+   * Creates a new window with an exact copy of the current configuration
+   */
+  const handleCopy = useCallback(() => {
+    onCopy(windowId);
+  }, [windowId, onCopy]);
 
   return (
     <PlaygroundProvider windowId={windowId}>
@@ -129,6 +159,15 @@ function PlaygroundWindow({
 
             <div className="flex items-center gap-2">
               <SaveToPromptButton />
+              <Button
+                variant="ghost"
+                onClick={handleCopy}
+                className="h-6 w-6 p-0 hover:bg-muted"
+                title="Copy window configuration"
+              >
+                <Copy className="h-3 w-3" />
+                <span className="sr-only">Copy window</span>
+              </Button>
               {canRemove && (
                 <Button
                   variant="ghost"

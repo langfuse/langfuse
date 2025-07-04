@@ -33,7 +33,7 @@ import MultiWindowPlayground from "@/src/features/playground/page/components/Mul
  * - Clean single-header design
  */
 export default function PlaygroundPage() {
-  const { windowIds, isLoaded, addWindowId, removeWindowId } =
+  const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
   const [isExecutingAll, setIsExecutingAll] = useState(false);
 
@@ -47,10 +47,19 @@ export default function PlaygroundPage() {
 
   /**
    * Add a new window to the playground
+   * @param sourceWindowId - Optional source window ID to copy state from. If not provided, copies from the most recent window.
    */
-  const addWindow = useCallback(() => {
-    addWindowId();
-  }, [addWindowId]);
+  const addWindow = useCallback(
+    (sourceWindowId?: string) => {
+      const newWindowId = addWindowWithCopy(sourceWindowId);
+      if (newWindowId) {
+        console.log(`Added new window: ${newWindowId}`);
+      } else {
+        console.warn("Failed to add new window");
+      }
+    },
+    [addWindowWithCopy],
+  );
 
   /**
    * Remove a window from the playground
@@ -143,6 +152,17 @@ export default function PlaygroundPage() {
               )}
             </div>
 
+            {/* Add Window Button */}
+            <Button
+              variant="outline"
+              onClick={() => addWindow()}
+              disabled={isAddWindowDisabled}
+              className="gap-1"
+            >
+              <Plus className="h-3 w-3" />
+              Add Window
+            </Button>
+
             {/* Multi-Window Controls */}
             <Button
               variant="outline"
@@ -168,32 +188,17 @@ export default function PlaygroundPage() {
               Stop All
             </Button>
 
-            <Button
-              variant="outline"
-              onClick={addWindow}
-              disabled={isAddWindowDisabled}
-              className="gap-1"
-              title={
-                isAddWindowDisabled
-                  ? `Maximum of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} windows allowed`
-                  : "Add new window"
-              }
-            >
-              <Plus className="h-3 w-3" />
-              Add Window
-            </Button>
-
+            {/* Reset Playground Button */}
             <ResetPlaygroundButton />
           </>
         ),
       }}
     >
-      <div className="h-full w-full">
-        <MultiWindowPlayground
-          windowState={windowState}
-          onRemoveWindow={removeWindow}
-        />
-      </div>
+      <MultiWindowPlayground
+        windowState={windowState}
+        onRemoveWindow={removeWindow}
+        onAddWindow={addWindow}
+      />
     </Page>
   );
 }

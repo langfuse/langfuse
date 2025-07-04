@@ -119,9 +119,9 @@
 
 ## Phase 6: Feature Enhancements
 
-- [ ] **Step 6.1**: Implement window copying on add
+- [x] **Step 6.1**: Implement window copying on add
 
-  - **Task**: When adding a new window, copy the configuration from the most recently created window. Implement deep cloning of all playground state including messages, model parameters, variables, tools, and structured output schemas.
+  - **Task**: When adding a new window using the global button, copy the configuration from the most recently created window. Implement deep cloning of all playground state including messages, model parameters, variables, tools, and structured output schemas. Add a button in each individual playground window to create a new window with the state of this one.
   - **Files**:
     - `web/src/features/playground/page/components/MultiWindowPlayground.tsx`: Add window copying logic
   - **Step Dependencies**: Step 5.2
