@@ -222,6 +222,7 @@ async function executeWebhookAction({
     data: {
       id: executionId,
       projectId,
+      automationId: automations[0].id,
       triggerId: triggerId,
       actionId: actionId,
       status: ActionExecutionStatus.PENDING,
