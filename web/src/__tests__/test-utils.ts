@@ -32,19 +32,33 @@ export const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
   queues.push(...IngestionQueue.getShardNames());
 
-  return queues.map((queueName) =>
-    queueName.startsWith(QueueName.IngestionQueue)
-      ? IngestionQueue.getInstance({ shardName: queueName })
-      : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
-  );
+  const listOfQueuesToIgnore = [
+    QueueName.DataRetentionQueue,
+    QueueName.BlobStorageIntegrationQueue,
+    QueueName.DeadLetterRetryQueue,
+    QueueName.PostHogIntegrationQueue,
+  ];
+
+  return queues
+    .filter(
+      (queueName) => !listOfQueuesToIgnore.includes(queueName as QueueName),
+    )
+    .map((queueName) =>
+      queueName.startsWith(QueueName.IngestionQueue)
+        ? IngestionQueue.getInstance({ shardName: queueName })
+        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
+    );
 };
 
 export const disconnectQueues = async () => {
   await Promise.all(
     getQueues().map(async (queue) => {
       if (queue) {
-        await queue.close();
-        queue.disconnect();
+        try {
+          await queue.drain();
+          await queue.close();
+          queue.disconnect();
+        } catch (error) {}
       }
     }),
   );
