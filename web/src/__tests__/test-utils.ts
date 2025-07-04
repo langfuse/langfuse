@@ -18,15 +18,15 @@ export const ensureTestDatabaseExists = async () => {
     console.log("Test database already exists and is accessible");
   } catch (error) {
     console.log("Test database not accessible, attempting to create...");
-    
+
     // Parse the database URL to get connection details
     const url = new URL(env.DATABASE_URL);
     const dbName = url.pathname.slice(1); // Remove leading slash
-    
+
     // Create connection to postgres database to create the test database
     const adminUrl = new URL(env.DATABASE_URL);
     adminUrl.pathname = "/postgres";
-    
+
     const { PrismaClient } = await import("@prisma/client");
     const adminPrisma = new PrismaClient({
       datasources: {
@@ -40,19 +40,18 @@ export const ensureTestDatabaseExists = async () => {
       // Create the test database
       await adminPrisma.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
       console.log(`Created test database: ${dbName}`);
-      
+
       // Now run migrations on the test database
       const { execSync } = await import("child_process");
       const path = await import("path");
       const sharedDir = path.resolve(__dirname, "../../../packages/shared");
-      
+
       execSync("pnpm run db:migrate", {
         cwd: sharedDir,
         env: { ...process.env, DATABASE_URL: env.DATABASE_URL },
-        stdio: "inherit"
+        stdio: "inherit",
       });
       console.log("Applied migrations to test database");
-      
     } catch (createError: any) {
       if (createError.message?.includes("already exists")) {
         console.log("Test database already exists");
@@ -63,18 +62,184 @@ export const ensureTestDatabaseExists = async () => {
       await adminPrisma.$disconnect();
     }
   }
+
+  // Ensure ClickHouse test database exists and has the required tables
+  await ensureClickHouseTestDatabaseExists();
+
+  // Ensure MinIO test buckets exist
+  await ensureMinIOTestBucketsExist();
+};
+
+export const ensureClickHouseTestDatabaseExists = async () => {
+  // Only set up ClickHouse test database if we're using a test database
+  if (!env.DATABASE_URL.includes("langfuse_test") || !env.CLICKHOUSE_DB) {
+    return;
+  }
+
+  try {
+    // Create the database using direct SQL command to the default database
+    const { createClient } = await import("@clickhouse/client");
+
+    const defaultClient = createClient({
+      url: env.CLICKHOUSE_URL,
+      username: env.CLICKHOUSE_USER,
+      password: env.CLICKHOUSE_PASSWORD,
+      database: "default", // Connect to default database to create test database
+    });
+
+    try {
+      // Create the test database if it doesn't exist
+      await defaultClient.command({
+        query: `CREATE DATABASE IF NOT EXISTS ${env.CLICKHOUSE_DB}`,
+      });
+      console.log(`Created ClickHouse test database: ${env.CLICKHOUSE_DB}`);
+    } catch (createDbError: any) {
+      console.log(
+        "Database creation failed or already exists:",
+        createDbError.message,
+      );
+    }
+
+    // Now try to connect to the test database and check if tables exist
+    const testClient = createClient({
+      url: env.CLICKHOUSE_URL,
+      username: env.CLICKHOUSE_USER,
+      password: env.CLICKHOUSE_PASSWORD,
+      database: env.CLICKHOUSE_DB,
+    });
+
+    await testClient.command({
+      query: "SELECT 1",
+    });
+
+    // Check if the main tables exist
+    const tablesResult = await testClient.query({
+      query: "SHOW TABLES",
+    });
+
+    const tables = await tablesResult.json();
+    const tableNames = tables.data.map((row: any) => row.name);
+
+    const requiredTables = ["traces", "observations", "scores"];
+    const missingTables = requiredTables.filter(
+      (table) => !tableNames.includes(table),
+    );
+
+    if (missingTables.length > 0) {
+      console.log(
+        `Missing ClickHouse tables: ${missingTables.join(", ")}, running migrations...`,
+      );
+
+      // Run ClickHouse migrations
+      const { execSync } = await import("child_process");
+      const path = await import("path");
+      const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+
+      execSync("pnpm run ch:up", {
+        cwd: sharedDir,
+        env: process.env,
+        stdio: "inherit",
+      });
+      console.log("Applied ClickHouse migrations to test database");
+    } else {
+      console.log(
+        "ClickHouse test database already exists and has required tables",
+      );
+    }
+  } catch (error) {
+    console.log("ClickHouse test database setup failed:", error);
+
+    try {
+      // As a fallback, try to run migrations which might create the database
+      const { execSync } = await import("child_process");
+      const path = await import("path");
+      const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+
+      execSync("pnpm run ch:up", {
+        cwd: sharedDir,
+        env: process.env,
+        stdio: "inherit",
+      });
+      console.log("Created ClickHouse test database and applied migrations");
+    } catch (createError: any) {
+      console.error("Failed to create ClickHouse test database:", createError);
+      throw createError;
+    }
+  }
+};
+
+export const ensureMinIOTestBucketsExist = async () => {
+  // Only set up MinIO test buckets if we're using a test database
+  if (!env.DATABASE_URL.includes("langfuse_test")) {
+    return;
+  }
+
+  // Check if MinIO S3 media upload is configured (only service defined in web env)
+  if (
+    !env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ||
+    !env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT
+  ) {
+    console.log(
+      "MinIO S3 media upload not configured, skipping bucket creation",
+    );
+    return;
+  }
+
+  try {
+    const { S3Client, CreateBucketCommand, HeadBucketCommand } = await import(
+      "@aws-sdk/client-s3"
+    );
+
+    // Create S3 client for MinIO using media upload configuration
+    const s3Client = new S3Client({
+      endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION || "us-east-1",
+      credentials: {
+        accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID!,
+        secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY!,
+      },
+      forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+
+    const bucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
+
+    try {
+      // Check if bucket exists
+      await s3Client.send(new HeadBucketCommand({ Bucket: bucket }));
+      console.log(`MinIO bucket '${bucket}' already exists`);
+    } catch (error: any) {
+      if (
+        error.name === "NotFound" ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
+        // Bucket doesn't exist, create it
+        await s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
+        console.log(`Created MinIO bucket: ${bucket}`);
+      } else {
+        console.error(`Error checking MinIO bucket '${bucket}':`, error);
+      }
+    }
+  } catch (error) {
+    console.error("Failed to set up MinIO test buckets:", error);
+    // Don't throw error as MinIO might be optional for some tests
+  }
 };
 
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {
     throw new Error("You cannot prune database unless running on localhost.");
   }
-  
+
   // Additional safety check for test database
-  if (env.DATABASE_URL.includes("langfuse_test") || env.DATABASE_URL.includes("test")) {
+  if (
+    env.DATABASE_URL.includes("langfuse_test") ||
+    env.DATABASE_URL.includes("test")
+  ) {
     console.log("Running tests against test database:", env.DATABASE_URL);
   } else if (!env.DATABASE_URL.includes("postgres")) {
-    throw new Error("Database URL must contain 'postgres' or 'langfuse_test' for safety.");
+    throw new Error(
+      "Database URL must contain 'postgres' or 'langfuse_test' for safety.",
+    );
   }
 
   await prisma.scoreConfig.deleteMany();
@@ -96,12 +261,18 @@ export const truncateClickhouseTables = async () => {
   if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
     throw new Error("You cannot prune clickhouse unless running on localhost.");
   }
-  
+
   // Additional safety check for test database
   if (env.CLICKHOUSE_DB === "test") {
-    console.log("Running tests against test ClickHouse database:", env.CLICKHOUSE_DB);
+    console.log(
+      "Running tests against test ClickHouse database:",
+      env.CLICKHOUSE_DB,
+    );
   } else if (env.CLICKHOUSE_DB !== "default") {
-    console.log("Running tests against ClickHouse database:", env.CLICKHOUSE_DB);
+    console.log(
+      "Running tests against ClickHouse database:",
+      env.CLICKHOUSE_DB,
+    );
   }
 
   await clickhouseClient().command({
