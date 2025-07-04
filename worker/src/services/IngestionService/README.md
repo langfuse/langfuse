@@ -16,6 +16,9 @@ This requires that the following table schema is manually applied on the databas
 -- Setup
 -- Context: https://fiddle.clickhouse.com/d4e84b88-6bd7-455c-9a84-e9126594f92a
 
+  
+-- TODO: Make sure to update migrateTracesToTracesAMTs.ts if the traces_mt schema changes
+  
 -- Create a MergeTree table that serves as a trigger for all others.
 -- We use a MergeTree here to track what was being inserted. Could be replaced
 -- with a NULL table in future to save on storage.
