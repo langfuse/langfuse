@@ -8,11 +8,14 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
+import { z } from "zod/v4";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observation",
-    querySchema: GetObservationV1Query,
+    querySchema: GetObservationV1Query.extend({
+      optimization: z.enum(["original", "jsonsimd", "worker"]).optional(),
+    }),
     responseSchema: GetObservationV1Response,
     fn: async ({ query, auth }) => {
       const clickhouseObservation = await getObservationById({
@@ -73,7 +76,15 @@ export default withMiddlewares({
           "Observation not found within authorized project",
         );
       }
-      return transformDbToApiObservation(observation);
+
+      const transformed = transformDbToApiObservation(observation);
+
+      if (query.optimization && query.optimization !== "original") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (transformed as any).optimization = query.optimization;
+      }
+
+      return transformed;
     },
   }),
 });
