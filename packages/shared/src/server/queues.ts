@@ -144,7 +144,17 @@ export const WebhookInputSchema = z.object({
   payload: WebhookOutboundEnvelopeSchema,
 });
 
+export const PromptVersionChangeEventSchema = z.object({
+  projectId: z.string(),
+  promptId: z.string(),
+  action: EventActionSchema,
+  prompt: PromptDomainSchema,
+});
+
 export type WebhookInput = z.infer<typeof WebhookInputSchema>;
+export type PromptVersionChangeEventType = z.infer<
+  typeof PromptVersionChangeEventSchema
+>;
 
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
@@ -204,6 +214,7 @@ export enum QueueName {
   ScoreDelete = "score-delete",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
+  PromptVersionChangeQueue = "prompt-version-change-queue",
 }
 
 export enum QueueJobs {
@@ -230,6 +241,7 @@ export enum QueueJobs {
   ScoreDelete = "score-delete",
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
+  PromptVersionChangeJob = "prompt-version-change-job",
 }
 
 export type TQueueJobTypes = {
@@ -334,5 +346,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: WebhookInput;
     name: QueueJobs.WebhookJob;
+  };
+  [QueueName.PromptVersionChangeQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: PromptVersionChangeEventType;
+    name: QueueJobs.PromptVersionChangeJob;
   };
 };
