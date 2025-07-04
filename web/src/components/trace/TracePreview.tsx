@@ -36,6 +36,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
+import { TraceThumbsFeedback } from "@/src/components/trace/TraceThumbsFeedback";
 
 export const TracePreview = ({
   trace,
@@ -155,6 +156,13 @@ export const TracePreview = ({
               </>
             )}
           </div>
+        </div>
+        <div className="min-h-10 rounded bg-secondary p-2">
+          <TraceThumbsFeedback
+            traceId={trace.id}
+            projectId={trace.projectId}
+            environment={trace.environment}
+          />
         </div>
         <div className="grid w-full min-w-0 items-center justify-between">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
