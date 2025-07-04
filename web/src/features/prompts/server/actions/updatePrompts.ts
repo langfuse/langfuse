@@ -7,7 +7,7 @@ import {
 } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeProcessor";
+import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
 export type UpdatePromptParams = {
   promptName: string;

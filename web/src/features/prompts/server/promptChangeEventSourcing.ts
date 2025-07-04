@@ -19,28 +19,30 @@ export const promptChangeEventSourcing = async (
     return;
   }
 
-  const queue = PromptVersionChangeQueue.getInstance();
-
+  const event = {
+    timestamp: new Date(),
+    id: v4(),
+    name: QueueJobs.PromptVersionChangeJob as QueueJobs.PromptVersionChangeJob,
+    payload: {
+      projectId: promptData.projectId,
+      promptId: promptData.id,
+      action: action,
+      prompt: {
+        ...promptData,
+        prompt: jsonSchemaNullable.parse(promptData.prompt),
+        config: jsonSchemaNullable.parse(promptData.config),
+      },
+    },
+  };
   try {
     // Queue the prompt version change event for async processing
-    await queue?.add(QueueName.PromptVersionChangeQueue, {
-      timestamp: new Date(),
-      id: v4(),
-      payload: {
-        projectId: promptData.projectId,
-        promptId: promptData.id,
-        action,
-        prompt: {
-          ...promptData,
-          prompt: jsonSchemaNullable.parse(promptData.prompt),
-          config: jsonSchemaNullable.parse(promptData.config),
-        },
-      },
-      name: QueueJobs.PromptVersionChangeJob,
-    });
+    await PromptVersionChangeQueue.getInstance()?.add(
+      QueueName.PromptVersionChangeQueue,
+      event,
+    );
 
     logger.debug(
-      `Queued prompt version change event for prompt ${promptData.id} in project ${promptData.projectId} with action ${action}`,
+      `Queued prompt version change event for prompt ${promptData.id} in project ${promptData.projectId} with action ${action} event ${JSON.stringify(event, null, 2)}`,
     );
   } catch (error) {
     logger.error(

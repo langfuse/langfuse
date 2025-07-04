@@ -347,9 +347,13 @@ if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
 }
 
 if (env.QUEUE_CONSUMER_PROMPT_VERSION_CHANGE_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(QueueName.PromptVersionChangeQueue, promptVersionChangeQueueProcessor, {
-    concurrency: 2, // Low concurrency to avoid overwhelming the database
-  });
+  WorkerManager.register(
+    QueueName.PromptVersionChangeQueue,
+    promptVersionChangeQueueProcessor,
+    {
+      concurrency: 2, // Low concurrency to avoid overwhelming the database
+    },
+  );
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

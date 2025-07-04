@@ -56,26 +56,10 @@ export const promptVersionChangeWorker = async (
   event: PromptVersionChangeEventType,
 ): Promise<void> => {
   try {
-    // Fetch the prompt data from the database
-    const promptData = await prisma.prompt.findFirst({
-      where: {
-        id: event.promptId,
-        projectId: event.projectId,
-      },
-    });
-
-    if (!promptData) {
-      logger.warn(
-        `Prompt ${event.promptId} not found for project ${event.projectId}`,
-      );
-      return;
-    }
-
-    // Add resolutionGraph property to match PromptResult type
-    const promptResult: PromptResult = {
-      ...promptData,
-      resolutionGraph: null, // We don't need the resolution graph for trigger evaluation
-    };
+    logger.info(
+      `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
+      { event: JSON.stringify(event, null, 2) }
+    );
 
     // Get active prompt triggers
     const triggers = await getTriggerConfigurations({
@@ -137,7 +121,7 @@ export const promptVersionChangeWorker = async (
         };
 
         const promptMatches = InMemoryFilterService.evaluateFilter(
-          promptResult,
+          event.prompt,
           nonActionFilters,
           fieldMapper,
         );
@@ -168,10 +152,14 @@ export const promptVersionChangeWorker = async (
         await Promise.all(
           trigger.actionIds.map(async (actionId) =>
             executeWebhookAction({
-              promptData: promptResult,
+              promptData: {
+                ...event.prompt,
+                resolutionGraph: null,
+              },
               action: event.action,
               triggerId: trigger.id,
               actionId,
+              projectId: event.projectId,
             }),
           ),
         );
@@ -198,15 +186,17 @@ async function executeWebhookAction({
   action,
   triggerId,
   actionId,
+  projectId,
 }: {
   promptData: PromptResult;
   action: string;
   triggerId: string;
   actionId: string;
+  projectId: string;
 }): Promise<void> {
   // Get action configuration
   const actionConfig = await getActionById({
-    projectId: promptData.projectId,
+    projectId,
     actionId,
   });
 
@@ -215,7 +205,7 @@ async function executeWebhookAction({
   }
 
   const automations = await getAutomations({
-    projectId: promptData.projectId,
+    projectId,
     actionId,
   });
 
@@ -231,7 +221,7 @@ async function executeWebhookAction({
   const execution = await prisma.actionExecution.create({
     data: {
       id: executionId,
-      projectId: promptData.projectId,
+      projectId,
       triggerId: triggerId,
       actionId: actionId,
       status: ActionExecutionStatus.PENDING,
@@ -247,7 +237,7 @@ async function executeWebhookAction({
   });
 
   logger.debug(
-    `Created action execution ${execution.id} for project ${promptData.projectId} and trigger ${triggerId} and action ${actionId}`,
+    `Created action execution ${execution.id} for project ${projectId} and trigger ${triggerId} and action ${actionId}`,
   );
 
   // Queue webhook
@@ -255,7 +245,7 @@ async function executeWebhookAction({
     timestamp: new Date(),
     id: v4(),
     payload: {
-      projectId: actionConfig.projectId,
+      projectId,
       automationId: automations[0].id,
       executionId: executionId,
       payload: {

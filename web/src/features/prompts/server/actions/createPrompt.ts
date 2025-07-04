@@ -19,7 +19,7 @@ import {
   redis,
   extractPlaceholderNames,
 } from "@langfuse/shared/src/server";
-import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeProcessor";
+import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;
@@ -37,19 +37,25 @@ type DuplicatePromptParams = {
 
 const extractChatVariableAndPlaceholderNames = (
   chatPrompt: Array<any>,
-): { variables: string[], placeholders: string[] } => {
+): { variables: string[]; placeholders: string[] } => {
   const placeholders = extractPlaceholderNames(chatPrompt);
 
   const variables: string[] = [];
   for (const message of chatPrompt) {
-    if (message && 'content' in message && typeof message.content === 'string') {
+    if (
+      message &&
+      "content" in message &&
+      typeof message.content === "string"
+    ) {
       variables.push(...extractVariables(message.content));
     }
   }
 
-  return { variables: [...new Set(variables)], placeholders: [...new Set(placeholders)] };
+  return {
+    variables: [...new Set(variables)],
+    placeholders: [...new Set(placeholders)],
+  };
 };
-
 
 export const createPrompt = async ({
   projectId,
@@ -76,11 +82,12 @@ export const createPrompt = async ({
 
   // Prevent naming collisions between variables and placeholders
   if (type === PromptType.Chat && Array.isArray(prompt)) {
-    const { variables, placeholders } = extractChatVariableAndPlaceholderNames(prompt);
-    const conflictingNames = variables.filter(v => placeholders.includes(v));
+    const { variables, placeholders } =
+      extractChatVariableAndPlaceholderNames(prompt);
+    const conflictingNames = variables.filter((v) => placeholders.includes(v));
     if (conflictingNames.length > 0) {
       throw new InvalidRequestError(
-        `Cannot create prompt, variables and placeholders must be unique, the following are not: ${conflictingNames.join(", ")}`
+        `Cannot create prompt, variables and placeholders must be unique, the following are not: ${conflictingNames.join(", ")}`,
       );
     }
   }
