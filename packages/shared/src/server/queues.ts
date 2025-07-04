@@ -134,7 +134,7 @@ export const DeadLetterRetryQueueEventSchema = z.object({
 export const WebhookOutboundEnvelopeSchema = z.object({
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  type: z.literal("prompt"),
+  type: z.literal("prompt-version"),
 });
 
 export const WebhookInputSchema = z.object({

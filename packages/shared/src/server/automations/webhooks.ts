@@ -71,6 +71,7 @@ export const executeWebhook = async (input: WebhookInput) => {
       id: input.executionId,
       timestamp: new Date(),
       type: input.payload.type,
+      apiVersion: "v1",
       action: input.payload.action,
       prompt: input.payload.prompt,
     });

@@ -180,7 +180,7 @@ async function executeWebhookAction({
         promptVersion: promptData.version,
         promptId: promptData.id,
         automationId: automations[0].id,
-        type: "prompt",
+        type: "prompt-version",
       },
     },
   });

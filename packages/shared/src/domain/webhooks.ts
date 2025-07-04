@@ -10,7 +10,8 @@ export const WebhookDefaultHeaders = {
 export const WebhookOutboundBaseSchema = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),
-  type: z.literal("prompt"),
+  type: z.literal("prompt-version"),
+  apiVersion: z.literal("v1"),
   action: EventActionSchema,
 });
 
