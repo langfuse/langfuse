@@ -25,6 +25,7 @@ export default withMiddlewares({
         id: query.observationId,
         projectId: auth.scope.projectId,
         fetchWithInputOutput: true,
+        optimization: query.optimization,
       });
       if (!clickhouseObservation) {
         throw new LangfuseNotFoundError(
@@ -83,8 +84,10 @@ export default withMiddlewares({
       const transformed = transformDbToApiObservation(observation);
 
       if (query.optimization && query.optimization !== "original") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (transformed as any).optimization = query.optimization;
+        return {
+          ...transformed,
+          optimization: query.optimization,
+        };
       }
 
       return transformed;

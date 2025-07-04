@@ -10,6 +10,7 @@ import {
 import {
   filterAndValidateDbTraceScoreList,
   LangfuseNotFoundError,
+  JSON_OPTIMIZATION_STRATEGIES,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -30,16 +31,17 @@ export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Single Trace",
     querySchema: GetTraceV1Query.extend({
-      optimization: z.string().optional(),
+      optimization: z.enum(JSON_OPTIMIZATION_STRATEGIES).optional(),
     }),
     responseSchema: GetTraceV1Response.extend({
-      optimization: z.string().optional(),
+      optimization: z.enum(JSON_OPTIMIZATION_STRATEGIES).optional(),
     }),
     fn: async ({ query, auth }) => {
       const { traceId } = query;
       const trace = await getTraceById({
         traceId,
         projectId: auth.scope.projectId,
+        optimization: query.optimization,
       });
 
       if (!trace) {
@@ -54,6 +56,7 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
           timestamp: trace?.timestamp,
           includeIO: true,
+          optimization: query.optimization,
         }),
         getScoresForTraces({
           projectId: auth.scope.projectId,
@@ -144,8 +147,6 @@ export default withMiddlewares({
           )
           .toNumber(),
       };
-
-      console.log("!!!", query.optimization);
 
       if (query.optimization && query.optimization !== "original") {
         return {

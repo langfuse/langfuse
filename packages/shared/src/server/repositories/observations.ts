@@ -119,6 +119,7 @@ export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
   projectId: string;
   timestamp?: Date;
   includeIO?: IncludeIO;
+  optimization?: JSONOptimizationStrategy;
 };
 
 export const getObservationsForTrace = async <IncludeIO extends boolean>(
@@ -317,7 +318,9 @@ export const getObservationById = async ({
     type,
     traceId,
   });
-  const mapped = records.map((record) => convertObservation(record, optimization));
+  const mapped = records.map((record) =>
+    convertObservation(record, optimization),
+  );
 
   mapped.forEach((observation) => {
     recordDistribution(
