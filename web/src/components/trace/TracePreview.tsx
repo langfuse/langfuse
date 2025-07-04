@@ -157,13 +157,11 @@ export const TracePreview = ({
             )}
           </div>
         </div>
-        <div className="min-h-10 rounded bg-secondary p-2">
-          <TraceThumbsFeedback
-            traceId={trace.id}
-            projectId={trace.projectId}
-            environment={trace.environment}
-          />
-        </div>
+        <TraceThumbsFeedback
+          traceId={trace.id}
+          projectId={trace.projectId}
+          environment={trace.environment}
+        />
         <div className="grid w-full min-w-0 items-center justify-between">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
             <div className="mb-1 flex min-w-0 max-w-full flex-wrap items-center gap-1">
