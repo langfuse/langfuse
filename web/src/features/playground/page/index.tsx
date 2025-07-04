@@ -134,19 +134,21 @@ export default function PlaygroundPage() {
           href: "https://langfuse.com/docs/playground",
         },
         actionButtonsRight: (
-          <>
+          <div className="flex flex-nowrap items-center gap-2">
             {/* Window Count Display */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>
+              <span className="whitespace-nowrap">
                 {windowIds.length} window
                 {windowIds.length === 1 ? "" : "s"}
               </span>
               {executionStatus && (
                 <>
-                  <span>•</span>
+                  <span className="hidden sm:inline">•</span>
                   <div className="flex items-center gap-1">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    {executionStatus}
+                    <span className="hidden whitespace-nowrap sm:inline">
+                      {executionStatus}
+                    </span>
                   </div>
                 </>
               )}
@@ -157,10 +159,11 @@ export default function PlaygroundPage() {
               variant="outline"
               onClick={() => addWindow()}
               disabled={isAddWindowDisabled}
-              className="gap-1"
+              className="flex-shrink-0 gap-1"
+              title="Add a new playground window"
             >
               <Plus className="h-3 w-3" />
-              Add Window
+              <span className="hidden lg:inline">Add Window</span>
             </Button>
 
             {/* Multi-Window Controls */}
@@ -168,29 +171,31 @@ export default function PlaygroundPage() {
               variant="outline"
               onClick={handleExecuteAll}
               disabled={isRunAllDisabled}
-              className="gap-1"
+              className="flex-shrink-0 gap-1"
+              title="Execute all playground windows simultaneously"
             >
               {isRunAllDisabled ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
                 <Play className="h-3 w-3" />
               )}
-              Run All
+              <span className="hidden lg:inline">Run All</span>
             </Button>
 
             <Button
               variant="outline"
               onClick={handleStopAll}
               disabled={!globalIsExecutingAll}
-              className="gap-1"
+              className="flex-shrink-0 gap-1"
+              title="Stop all running playground executions"
             >
               <Square className="h-3 w-3" />
-              Stop All
+              <span className="hidden lg:inline">Stop All</span>
             </Button>
 
             {/* Reset Playground Button */}
             <ResetPlaygroundButton />
-          </>
+          </div>
         ),
       }}
     >
