@@ -201,7 +201,7 @@ describe("Webhook Integration Tests", () => {
         payload: {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
-          type: "prompt",
+          type: "prompt-version",
         },
       };
 
@@ -327,7 +327,7 @@ describe("Webhook Integration Tests", () => {
         payload: {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
-          type: "prompt",
+          type: "prompt-version",
         },
       };
 
@@ -392,7 +392,7 @@ describe("Webhook Integration Tests", () => {
         payload: {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
-          type: "prompt",
+          type: "prompt-version",
         },
       };
 
@@ -466,7 +466,7 @@ describe("Webhook Integration Tests", () => {
           payload: {
             prompt: PromptDomainSchema.parse(fullPrompt),
             action: "created",
-            type: "prompt",
+            type: "prompt-version",
           },
         };
 
