@@ -28,7 +28,6 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     await promptService.lockCache({ projectId, promptName: promptName });
 
-    let updatedPrompts: Prompt[] = [];
     const result = await prisma.$transaction(async (tx) => {
       const prompt = (
         await tx.$queryRaw<
@@ -151,7 +150,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
     // This updatePrompt function only handles label updates, so the main content doesn't change
     // We'll pass undefined for now since label changes don't need before state for webhooks
 
-    updatedPrompts = await prisma.prompt.findMany({
+    const updatedPrompts = await prisma.prompt.findMany({
       where: {
         id: { in: touchedPromptIds },
         projectId,
