@@ -41,8 +41,8 @@ export const promptChangeEventSourcing = async (
       event,
     );
 
-    logger.debug(
-      `Queued prompt version change event for prompt ${promptData.id} in project ${promptData.projectId} with action ${action} event ${JSON.stringify(event, null, 2)}`,
+    logger.info(
+      `Queued prompt version change event for prompt ${promptData.id} in project ${promptData.projectId} with action ${action}`,
     );
   } catch (error) {
     logger.error(

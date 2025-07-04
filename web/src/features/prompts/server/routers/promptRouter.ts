@@ -773,7 +773,6 @@ export const promptRouter = createTRPCRouter({
 
         // Remove label from previous labeled prompts
         previousLabeledPrompts.forEach((prevPrompt) => {
-          touchedPromptIds.push(prevPrompt.id);
           toBeExecuted.push(
             ctx.prisma.prompt.update({
               where: {
@@ -799,9 +798,6 @@ export const promptRouter = createTRPCRouter({
         await promptService.unlockCache({ projectId, promptName });
 
         // Trigger webhooks for prompt label update
-
-        const updatedPrompt = { ...toBeLabeledPrompt, labels: newLabels };
-
         const updatedPrompts = await ctx.prisma.prompt.findMany({
           where: {
             id: { in: touchedPromptIds },
@@ -818,7 +814,6 @@ export const promptRouter = createTRPCRouter({
             ),
           ),
         );
-        return updatedPrompt;
       } catch (e) {
         logger.error(`Failed to set prompt labels: ${e}`, e);
         throw e;
