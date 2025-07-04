@@ -5,7 +5,7 @@ import {
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const observationsRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure
@@ -48,5 +48,35 @@ export const observationsRouter = createTRPCRouter({
         }
         throw e;
       }
+    }),
+  byIdV2: protectedGetTraceProcedure
+    .input(
+      z.object({
+        observationId: z.string(),
+        traceId: z.string(), // required for protectedGetTraceProcedure
+        projectId: z.string(), // required for protectedGetTraceProcedure
+      }),
+    )
+    .query(async ({ input }) => {
+      const obs = await getObservationById({
+        id: input.observationId,
+        projectId: input.projectId,
+        fetchWithInputOutput: true,
+        traceId: input.traceId,
+      });
+      if (!obs) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Observation not found within authorized project",
+        });
+      }
+      return {
+        ...obs,
+        input: obs.input ? JSON.stringify(obs.input) : null,
+        output: obs.output ? JSON.stringify(obs.output) : null,
+        metadata: obs.metadata ? JSON.stringify(obs.metadata) : null,
+        internalModel: obs?.internalModelId,
+        version: "v2", // Confirmation tag
+      };
     }),
 });

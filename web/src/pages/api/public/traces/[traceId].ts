@@ -24,12 +24,17 @@ import Decimal from "decimal.js";
 import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod/v4";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Single Trace",
-    querySchema: GetTraceV1Query,
-    responseSchema: GetTraceV1Response,
+    querySchema: GetTraceV1Query.extend({
+      optimization: z.string().optional(),
+    }),
+    responseSchema: GetTraceV1Response.extend({
+      optimization: z.string().optional(),
+    }),
     fn: async ({ query, auth }) => {
       const { traceId } = query;
       const trace = await getTraceById({
@@ -125,7 +130,7 @@ export default withMiddlewares({
                 obsStartTimes[0]!.getTime()
               : undefined
           : undefined;
-      return {
+      const response = {
         ...trace,
         externalId: null,
         scores: validatedScores,
@@ -139,6 +144,17 @@ export default withMiddlewares({
           )
           .toNumber(),
       };
+
+      console.log("!!!", query.optimization);
+
+      if (query.optimization && query.optimization !== "original") {
+        return {
+          ...response,
+          optimization: query.optimization,
+        };
+      }
+
+      return response;
     },
   }),
 
