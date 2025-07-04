@@ -15,8 +15,7 @@ export class EntityChangeQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.EntityChangeQueue]
   > | null {
-    if (EntityChangeQueue.instance)
-      return EntityChangeQueue.instance;
+    if (EntityChangeQueue.instance) return EntityChangeQueue.instance;
 
     const newRedis = createNewRedisInstance({
       enableOfflineQueue: false,
@@ -30,7 +29,7 @@ export class EntityChangeQueue {
             connection: newRedis,
             prefix: getQueuePrefix(QueueName.EntityChangeQueue),
             defaultJobOptions: {
-              removeOnComplete: 100,
+              removeOnComplete: true,
               removeOnFail: 100_000,
               attempts: 5,
               backoff: {

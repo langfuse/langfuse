@@ -23,7 +23,7 @@ import { v4 } from "uuid";
 /**
  * Process prompt change events with in-memory filtering
  */
-export const promptVersionChangeWorker = async (
+export const promptVersionProcessor = async (
   event: EntityChangeEventType,
 ): Promise<void> => {
   try {
@@ -59,24 +59,8 @@ export const promptVersionChangeWorker = async (
           switch (column) {
             case "action":
               return data.action;
-            case "name":
+            case "Name":
               return data.name;
-            case "version":
-              return data.version;
-            case "tags":
-              return data.tags;
-            case "labels":
-              return data.labels;
-            case "type":
-              return data.type;
-            case "createdBy":
-              return data.createdBy;
-            case "createdAt":
-              return data.createdAt;
-            case "updatedAt":
-              return data.updatedAt;
-            case "isActive":
-              return data.isActive;
             default:
               return undefined;
           }

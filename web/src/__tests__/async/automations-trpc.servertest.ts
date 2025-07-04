@@ -559,6 +559,7 @@ describe("automations trpc", () => {
       await prisma.automationExecution.create({
         data: {
           id: v4(),
+          automationId: automation.id,
           projectId: project.id,
           triggerId: trigger.id,
           actionId: action.id,
@@ -571,6 +572,7 @@ describe("automations trpc", () => {
       await prisma.automationExecution.create({
         data: {
           id: v4(),
+          automationId: automation.id,
           projectId: project.id,
           triggerId: trigger.id,
           actionId: action.id,
@@ -675,6 +677,7 @@ describe("automations trpc", () => {
         const execution = await prisma.automationExecution.create({
           data: {
             id: v4(),
+            automationId: automation.id,
             projectId: project.id,
             triggerId: trigger.id,
             actionId: action.id,
@@ -751,6 +754,7 @@ describe("automations trpc", () => {
         await prisma.automationExecution.create({
           data: {
             id: v4(),
+            automationId: automation.id,
             projectId: project.id,
             triggerId: trigger.id,
             actionId: action.id,
@@ -837,6 +841,7 @@ describe("automations trpc", () => {
         await prisma.automationExecution.create({
           data: {
             id: v4(),
+            automationId: automation.id,
             projectId: project.id,
             triggerId: trigger.id,
             actionId: action.id,

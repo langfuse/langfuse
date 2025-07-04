@@ -3,7 +3,7 @@ import {
   logger,
   type EntityChangeEventType,
 } from "@langfuse/shared/src/server";
-import { promptVersionChangeWorker } from "../promptVersionChange/promptVersionChangeWorker";
+import { promptVersionProcessor } from "./promptVersionProcessor";
 
 /**
  * Generic entity change worker that delegates to specific entity handlers
@@ -28,7 +28,7 @@ export const entityChangeWorker = async (
 
     switch (event.entityType) {
       case "prompt-version":
-        return await promptVersionChangeWorker(event);
+        return await promptVersionProcessor(event);
       default:
         throw new Error(
           `Unsupported entity type: ${(event as any).entityType}`,
