@@ -209,6 +209,24 @@ On the main branch, we adhere to the best practices of [conventional commits](ht
 All tests run in the CI and must pass before merging.
 All tests run against a running langfuse instance and **write/delete real data from the database**.
 
+### Test Database Setup
+
+Per default, the tests use the local development database. Therefore, wiping your data in the process.
+For proper test isolation, create a `.env.test` file in the root directory:
+
+```bash
+cp .env.test.example .env.test
+```
+
+Then, a different PostgreSQL and Redis are used for the tests.
+The `.env.test` file only overrides the set values and falls back on `.env` for all undefined values.
+
+- **PostgreSQL**: Uses separate `langfuse_test` database for isolation
+- **ClickHouse**: Uses shared `default` database for now
+- **Redis**: Uses database 1 instead of 0 for isolation (Redis data is not cleaned between tests)
+
+Tests automatically create the PostgreSQL test database if it doesn't exist and clean up data between runs.
+
 ### Tests in the `web` package (public API)
 We're using Jest with in the `web` package. Therefore, if you want to provide an argument to the test runner, do it directly without an intermittent ` -- `.
 
