@@ -4,6 +4,7 @@ import { env } from "../../env";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
 import { logger } from "../logger";
+import { DorisParameterProcessor } from "./parameterProcessor";
 
 export interface DorisStreamLoadOptions {
   format?: "json" | "csv";
@@ -123,6 +124,9 @@ export class DorisClient {
         queueLimit: 0,
         enableKeepAlive: true,
         keepAliveInitialDelay: 0,
+        acquireTimeout: this.config.timeout,
+        timeout: this.config.timeout,
+        connectTimeout: this.config.timeout,
       };
 
       // Only add database to config if it's not empty
@@ -193,7 +197,7 @@ export class DorisClient {
       return Array.isArray(rows) ? rows : [];
     } catch (error) {
       logger.error("Doris query failed", {
-        query: queryString.substring(0, 200) + (queryString.length > 200 ? "..." : ""),
+        query: queryString,
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
@@ -209,15 +213,39 @@ export class DorisClient {
     if (value === null || value === undefined) {
       return 'NULL';
     }
+    
+    // Handle arrays (for IN clauses)
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return 'NULL'; // Empty array becomes NULL
+      }
+      // Recursively escape each array element and join with commas
+      return value.map(item => this.escapeValue(item)).join(', ');
+    }
+    
     if (typeof value === 'string') {
       return `'${value.replace(/'/g, "''")}'`;
     }
-    if (typeof value === 'number' || typeof value === 'boolean') {
+    
+    if (typeof value === 'boolean') {
       return String(value);
     }
+    
+    if (typeof value === 'number') {
+      // Check if this looks like a millisecond timestamp (> year 2001)
+      if (value > 978307200000) { // 2001-01-01 in milliseconds
+        // Convert timestamp to Doris DateTime format
+        const date = new Date(value);
+        return `'${date.toISOString().replace('T', ' ').replace('Z', '')}'`;
+      }
+      // Regular number
+      return String(value);
+    }
+    
     if (value instanceof Date) {
       return `'${value.toISOString().replace('T', ' ').replace('Z', '')}'`;
     }
+    
     // For other types, convert to string and escape
     return `'${String(value).replace(/'/g, "''")}'`;
   }
@@ -234,20 +262,11 @@ export class DorisClient {
   }): Promise<{ json(): Promise<any[]> }> {
     const { query, query_params = {} } = options;
     
-    // Convert named parameters to positional parameters
-    let processedQuery = query;
-    const paramValues: any[] = [];
+    // Use unified parameter processor for consistency
+    const processedQuery = DorisParameterProcessor.processQuery(query, query_params);
     
-    // Replace {paramName: Type} with ? for MySQL
-    Object.entries(query_params).forEach(([key, value]) => {
-      const regex = new RegExp(`\\{${key}:\\s*\\w+\\}`, 'g');
-      if (processedQuery.match(regex)) {
-        processedQuery = processedQuery.replace(regex, '?');
-        paramValues.push(value);
-      }
-    });
-
-    const result = await this.query(processedQuery, paramValues);
+    // Execute the processed query
+    const result = await this.query(processedQuery, []);
     
     // Return object with json() method for compatibility with ClickHouse client
     return {
@@ -338,7 +357,27 @@ export class DorisClient {
       // Check load result
       const result = response.data;
       if (result.Status !== "Success") {
-        throw new Error(`Stream load failed: ${result.Message || 'Unknown error'}`);
+        // Extract error message from different response formats
+        let errorMessage = 'Unknown error';
+        
+        if (result.Message) {
+          // Standard Stream Load error format
+          errorMessage = result.Message;
+        } else if (result.msg && result.data) {
+          // Authentication or API error format
+          errorMessage = `${result.msg}: ${result.data}`;
+        } else if (result.msg) {
+          // Simple message format
+          errorMessage = result.msg;
+        } else if (result.data) {
+          // Data field contains error details
+          errorMessage = result.data;
+        } else if (typeof result === 'string') {
+          // Plain text response
+          errorMessage = result;
+        }
+        
+        throw new Error(`Stream load failed: ${errorMessage}`);
       }
 
       logger.debug("Stream load completed successfully", {
@@ -350,13 +389,42 @@ export class DorisClient {
       });
 
     } catch (error) {
+      // Enhanced error handling for different error types
+      let errorMessage = 'Unknown error';
+      
+      if (error && typeof error === 'object' && 'response' in error) {
+        // Axios HTTP error with response
+        const axiosError = error as any;
+        if (axiosError.response?.data) {
+          const responseData = axiosError.response.data;
+          if (responseData.msg && responseData.data) {
+            errorMessage = `${responseData.msg}: ${responseData.data}`;
+          } else if (responseData.msg) {
+            errorMessage = responseData.msg;
+          } else if (responseData.Message) {
+            errorMessage = responseData.Message;
+          } else if (typeof responseData === 'string') {
+            errorMessage = responseData;
+          } else {
+            errorMessage = `HTTP ${axiosError.response.status}: ${axiosError.response.statusText}`;
+          }
+        } else {
+          errorMessage = axiosError.message || 'Network error';
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = String(error);
+      }
+      
       logger.error("Stream load failed", {
         table,
         recordCount: data.length,
         loadLabel,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
-      throw error;
+      
+      throw new Error(errorMessage);
     }
   }
 
@@ -520,31 +588,182 @@ export const dorisClient = (config?: DorisClientConfig): DorisClientType => {
  * Ensures proper data types and null handling
  */
 export const formatDataForDoris = <T extends Record<string, any>>(
-  data: T[]
+  data: T[],
+  tableName?: string
 ): T[] => {
   return data.map(record => {
     const formatted = { ...record } as T;
-    
+
     // Handle null values and data type conversions
     Object.keys(formatted).forEach(key => {
       const value = (formatted as any)[key];
-      
+
       // Convert undefined to null
       if (value === undefined) {
         (formatted as any)[key] = null;
       }
-      
+
       // Ensure arrays are properly formatted
       if (Array.isArray(value)) {
         (formatted as any)[key] = value.length > 0 ? value : null;
       }
-      
-      // Handle Date objects
+
+      // Handle Date objects - keep ISO format for Doris to handle timezone correctly
       if (value instanceof Date) {
-        (formatted as any)[key] = value.toISOString().replace('T', ' ').replace('Z', '');
+        (formatted as any)[key] = value.toISOString();
+      }
+
+      // Convert timestamp fields to Doris DateTime(3) format
+      if (
+        (key === "timestamp" ||
+          key === "created_at" ||
+          key === "updated_at" ||
+          key === "event_ts" ||
+          key === "start_time" ||
+          key === "end_time" ||
+          key === "completion_start_time") &&
+        value != null
+      ) {
+        try {
+          let timestamp: number;
+          if (typeof value === "string") {
+            timestamp = parseInt(value);
+          } else if (typeof value === "number") {
+            timestamp = value;
+          } else if (value instanceof Date) {
+            timestamp = value.getTime();
+          } else {
+            // Skip conversion for invalid values
+            return;
+          }
+
+          if (timestamp > 0) {
+            // Convert millisecond timestamp to ISO format for Doris to handle timezone correctly
+            const date = new Date(timestamp);
+            (formatted as any)[key] = date.toISOString();
+          }
+        } catch (error) {
+          logger.warn(`Failed to convert ${key} to DateTime(3) format`, {
+            key,
+            value,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
       }
     });
-    
+
+    // Generate date fields based on table type
+    if (tableName === "traces" || tableName === "scores") {
+      // For traces and scores tables: generate timestamp_date from timestamp
+      if ("timestamp" in formatted && formatted.timestamp && !formatted.timestamp_date) {
+        try {
+          let timestamp: number;
+          if (typeof formatted.timestamp === "string") {
+            // If it's already a DateTime string (ISO format or space-separated), parse it
+            if (formatted.timestamp.includes("T") || formatted.timestamp.includes(" ")) {
+              timestamp = new Date(formatted.timestamp).getTime();
+            } else {
+              timestamp = parseInt(formatted.timestamp);
+            }
+          } else if (typeof formatted.timestamp === "number") {
+            timestamp = formatted.timestamp;
+          } else {
+            timestamp = new Date(formatted.timestamp).getTime();
+          }
+
+          const date = new Date(timestamp);
+          (formatted as any).timestamp_date = date.toISOString().split("T")[0];
+        } catch (error) {
+          logger.warn("Failed to generate timestamp_date from timestamp", {
+            table: tableName,
+            timestamp: formatted.timestamp,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    } else if (tableName === "observations") {
+      // For observations table: generate start_time_date from start_time
+      if ("start_time" in formatted && formatted.start_time && !formatted.start_time_date) {
+        try {
+          let startTime: number;
+          if (typeof formatted.start_time === "string") {
+            // If it's already a DateTime string (ISO format or space-separated), parse it
+            if (formatted.start_time.includes("T") || formatted.start_time.includes(" ")) {
+              startTime = new Date(formatted.start_time).getTime();
+            } else {
+              startTime = parseInt(formatted.start_time);
+            }
+          } else if (typeof formatted.start_time === "number") {
+            startTime = formatted.start_time;
+          } else {
+            startTime = new Date(formatted.start_time).getTime();
+          }
+
+          const date = new Date(startTime);
+          (formatted as any).start_time_date = date.toISOString().split("T")[0];
+        } catch (error) {
+          logger.warn("Failed to generate start_time_date from start_time", {
+            table: tableName,
+            start_time: formatted.start_time,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    } else {
+      // Fallback: try to detect and generate date fields automatically if no table name provided
+      // Generate timestamp_date from timestamp if it doesn't exist
+      if ("timestamp" in formatted && formatted.timestamp && !formatted.timestamp_date) {
+        try {
+          let timestamp: number;
+          if (typeof formatted.timestamp === "string") {
+            if (formatted.timestamp.includes("T") || formatted.timestamp.includes(" ")) {
+              timestamp = new Date(formatted.timestamp).getTime();
+            } else {
+              timestamp = parseInt(formatted.timestamp);
+            }
+          } else if (typeof formatted.timestamp === "number") {
+            timestamp = formatted.timestamp;
+          } else {
+            timestamp = new Date(formatted.timestamp).getTime();
+          }
+
+          const date = new Date(timestamp);
+          (formatted as any).timestamp_date = date.toISOString().split("T")[0];
+        } catch (error) {
+          logger.warn("Failed to generate timestamp_date from timestamp", {
+            timestamp: formatted.timestamp,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+
+      // Generate start_time_date from start_time for observations if it doesn't exist
+      if ("start_time" in formatted && formatted.start_time && !formatted.start_time_date) {
+        try {
+          let startTime: number;
+          if (typeof formatted.start_time === "string") {
+            if (formatted.start_time.includes("T") || formatted.start_time.includes(" ")) {
+              startTime = new Date(formatted.start_time).getTime();
+            } else {
+              startTime = parseInt(formatted.start_time);
+            }
+          } else if (typeof formatted.start_time === "number") {
+            startTime = formatted.start_time;
+          } else {
+            startTime = new Date(formatted.start_time).getTime();
+          }
+
+          const date = new Date(startTime);
+          (formatted as any).start_time_date = date.toISOString().split("T")[0];
+        } catch (error) {
+          logger.warn("Failed to generate start_time_date from start_time", {
+            start_time: formatted.start_time,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    }
+
     return formatted;
   });
 };
