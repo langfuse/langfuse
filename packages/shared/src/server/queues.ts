@@ -6,8 +6,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
-import { EventActionSchema, ObservationTypeDomain } from "../domain";
-import { PromptSchema } from "../features/prompts/types";
+import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 
 export const IngestionEvent = z.object({
