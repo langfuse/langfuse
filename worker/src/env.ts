@@ -237,6 +237,11 @@ const EnvSchema = z.object({
   LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
     .default("false"),
+
+  LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
 });
 
 export const env: z.infer<typeof EnvSchema> =

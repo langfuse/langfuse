@@ -67,21 +67,6 @@ export const executeWebhook = async (input: WebhookInput) => {
     // TypeScript now knows actionConfig.config is WebhookActionConfig
     const webhookConfig = actionConfig.config;
 
-    // Validate that the webhook URL uses HTTPS protocol for security
-    try {
-      const webhookUrl = new URL(webhookConfig.url);
-      if (webhookUrl.protocol !== "https:") {
-        throw new Error(
-          `Webhook URL must use HTTPS protocol for security. Received: ${webhookUrl.protocol}`,
-        );
-      }
-    } catch (error) {
-      if (error instanceof TypeError) {
-        throw new Error(`Invalid webhook URL: ${webhookConfig.url}`);
-      }
-      throw error;
-    }
-
     const validatedPayload = PromptWebhookOutboundSchema.safeParse({
       id: input.executionId,
       timestamp: new Date(),
@@ -126,7 +111,7 @@ export const executeWebhook = async (input: WebhookInput) => {
           webhookPayload,
           decryptedSecret,
         );
-        requestHeaders["Langfuse-Signature"] = signature;
+        requestHeaders["x-langfuse-signature"] = signature;
       } catch (error) {
         logger.error(
           "Failed to decrypt webhook secret or generate signature",
@@ -153,16 +138,16 @@ export const executeWebhook = async (input: WebhookInput) => {
         responseBody = await res.text();
 
         if (res.status !== 200) {
-          logger.error(
-            `Webhook for project ${projectId} failed with status ${res.status} and response ${responseBody}`,
+          logger.warn(
+            `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}`,
           );
           throw new Error(
-            `Webhook for project ${projectId} failed with status ${res.status}`,
+            `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}`,
           );
         }
       },
       {
-        numOfAttempts: 4,
+        numOfAttempts: 4, // no retries for webhook calls via BullMQ
       },
     );
 
@@ -245,8 +230,8 @@ export const executeWebhook = async (input: WebhookInput) => {
         `Consecutive failures: ${consecutiveFailures} for trigger ${automation.trigger.id} in project ${projectId}`,
       );
 
-      // Check if trigger should be disabled (>= 5 consecutive failures)
-      if (consecutiveFailures >= 4) {
+      // Check if trigger should be disabled
+      if (consecutiveFailures >= 5) {
         await tx.trigger.update({
           where: { id: automation.trigger.id, projectId },
           data: { status: JobConfigState.INACTIVE },
