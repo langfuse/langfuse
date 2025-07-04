@@ -10,6 +10,4 @@ export default async function teardown() {
   }
   redis?.disconnect();
   logger.debug("Teardown complete");
-
-  logger.debug("Checking for leaked handles");
 }
