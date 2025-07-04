@@ -122,8 +122,8 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
           -- Aggregations (ignored)
           [] as observation_ids,
           [] as score_ids,
-          {} as cost_details,
-          {} as usage_details,
+          map() as cost_details,
+          map() as usage_details,
           
           -- Input/Output
           input,
