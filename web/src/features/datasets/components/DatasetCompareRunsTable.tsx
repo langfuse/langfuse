@@ -30,6 +30,10 @@ import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-datas
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useDatasetComparePeekNavigation } from "@/src/components/table/peek/hooks/useDatasetComparePeekNavigation";
+import {
+  DatasetCompareMetricsProvider,
+  useDatasetCompareMetrics,
+} from "@/src/features/datasets/contexts/DatasetCompareMetricsContext";
 
 export type RunMetrics = {
   id: string;
@@ -98,20 +102,15 @@ const getRefetchInterval = (
   return false;
 };
 
-const DATASET_RUN_METRICS = ["scores", "resourceMetrics"] as const;
-export type DatasetRunMetric = (typeof DATASET_RUN_METRICS)[number];
-
-export function DatasetCompareRunsTable(props: {
+function DatasetCompareRunsTableInternal(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
   runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   localExperiments: { key: string; value: string }[];
 }) {
-  const [selectedMetrics, setSelectedMetrics] = useState<DatasetRunMetric[]>([
-    "scores",
-    "resourceMetrics",
-  ]);
+  const { selectedMetrics, toggleMetric, isMetricSelected } =
+    useDatasetCompareMetrics();
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
   const [unchangedCounts, setUnchangedCounts] = useState<
     Record<string, number>
@@ -295,7 +294,6 @@ export function DatasetCompareRunsTable(props: {
       runsData: props.runsData ?? [],
       scoreKeyToDisplayName,
       cellsLoading: !scoreKeysAndProps.data,
-      selectedMetrics,
     });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
@@ -406,26 +404,14 @@ export function DatasetCompareRunsTable(props: {
               onPointerDownOutside={() => setIsMetricsDropdownOpen(false)}
             >
               <DropdownMenuCheckboxItem
-                checked={selectedMetrics.includes("scores")}
-                onCheckedChange={() => {
-                  setSelectedMetrics((prev) =>
-                    prev.includes("scores")
-                      ? prev.filter((m) => m !== "scores")
-                      : [...prev, "scores"],
-                  );
-                }}
+                checked={isMetricSelected("scores")}
+                onCheckedChange={() => toggleMetric("scores")}
               >
                 Scores
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={selectedMetrics.includes("resourceMetrics")}
-                onCheckedChange={() =>
-                  setSelectedMetrics((prev) =>
-                    prev.includes("resourceMetrics")
-                      ? prev.filter((m) => m !== "resourceMetrics")
-                      : [...prev, "resourceMetrics"],
-                  )
-                }
+                checked={isMetricSelected("resourceMetrics")}
+                onCheckedChange={() => toggleMetric("resourceMetrics")}
               >
                 Latency and cost
               </DropdownMenuCheckboxItem>
@@ -485,5 +471,19 @@ export function DatasetCompareRunsTable(props: {
         }}
       />
     </>
+  );
+}
+
+export function DatasetCompareRunsTable(props: {
+  projectId: string;
+  datasetId: string;
+  runIds: string[];
+  runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
+  localExperiments: { key: string; value: string }[];
+}) {
+  return (
+    <DatasetCompareMetricsProvider>
+      <DatasetCompareRunsTableInternal {...props} />
+    </DatasetCompareMetricsProvider>
   );
 }
