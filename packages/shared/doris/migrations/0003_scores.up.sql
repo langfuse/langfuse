@@ -1,4 +1,4 @@
-CREATE TABLE scores (
+CREATE TABLE if not exists scores (
     `project_id` varchar(65533) not null,
     `timestamp_date` Date not null,
     `name` varchar(65533),
@@ -31,4 +31,4 @@ AUTO PARTITION BY RANGE (date_trunc(`timestamp_date`, 'month')) ()
 DISTRIBUTED BY HASH(project_id) BUCKETS 8
 PROPERTIES (
 "replication_allocation" = "tag.location.default: 1"
-)
+);

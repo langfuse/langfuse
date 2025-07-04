@@ -1,4 +1,4 @@
-CREATE TABLE traces (
+CREATE TABLE if not exists traces (
     `project_id` varchar(65533) not null,
     `timestamp_date` Date not null,
     `id` varchar(65533) not null,
