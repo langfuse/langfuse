@@ -42,10 +42,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
-  const showAutomationsSettings = useHasProjectAccess({
-    projectId: project?.id ?? "",
-    scope: "automations:read",
-  });
 
   if (!project || !organization || !router.query.projectId) {
     return [];
@@ -58,7 +54,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     showRetentionSettings,
     showLLMConnectionsSettings: true,
     showProtectedLabelsSettings,
-    showAutomationsSettings,
   });
 }
 
@@ -76,7 +71,6 @@ export const getProjectSettingsPages = ({
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
   showProtectedLabelsSettings: boolean;
-  showAutomationsSettings: boolean;
 }): ProjectSettingsPage[] => [
   {
     title: "General",
