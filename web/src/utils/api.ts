@@ -57,7 +57,6 @@ let buildId: string | null = null;
 const CLIENT_STALE_CACHE_CODES = [404, 400];
 
 const handleTrpcError = (error: unknown) => {
-  captureException(error);
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
@@ -72,6 +71,13 @@ const handleTrpcError = (error: unknown) => {
         return;
       }
     }
+    // Only send server errors (5xx) to Sentry, not client errors (4xx)
+    if (httpStatus >= 500 && httpStatus < 600) {
+      captureException(error);
+    }
+  } else {
+    // For non-TRPC errors, still send to Sentry
+    captureException(error);
   }
 
   trpcErrorToast(error);
