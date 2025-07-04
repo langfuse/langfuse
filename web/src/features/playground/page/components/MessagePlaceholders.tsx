@@ -12,7 +12,10 @@ export const MessagePlaceholders = () => {
       {messagePlaceholders.length === 0 ? (
         <div className="mt-4 text-xs">
           <p className="mb-2">No message placeholders defined.</p>
-          <p>Placeholders can be used to e.g. inject message histories into prompts.</p>
+          <p>
+            Placeholders can be used to e.g. inject message histories into
+            prompts.
+          </p>
         </div>
       ) : (
         <div className="h-full overflow-auto">

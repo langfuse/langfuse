@@ -25,14 +25,18 @@ const NewPromptBaseSchema = z.object({
 
 const NewChatPromptSchema = NewPromptBaseSchema.extend({
   type: z.literal(PromptType.Chat),
-  chatPrompt: z.array(z.any())
+  chatPrompt: z
+    .array(z.any())
     .refine(
       (messages: Array<{ type?: ChatMessageType; content?: string }>) =>
         messages.every((message) => {
           const isPlaceholder = message?.type === ChatMessageType.Placeholder;
-          return !isPlaceholder || PlaceholderMessageSchema.safeParse(message).success;
+          return (
+            !isPlaceholder ||
+            PlaceholderMessageSchema.safeParse(message).success
+          );
         }),
-      "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"
+      "Placeholder name must start with a letter and contain only alphanumeric characters and underscores",
     )
     .refine(
       (messages: Array<{ type?: ChatMessageType; content?: string }>) =>
@@ -40,7 +44,7 @@ const NewChatPromptSchema = NewPromptBaseSchema.extend({
           const isPlaceholder = message?.type === ChatMessageType.Placeholder;
           return isPlaceholder || Boolean(message?.content?.trim()?.length);
         }),
-      "Enter a chat message or remove the empty message"
+      "Enter a chat message or remove the empty message",
     ),
   textPrompt: z.string(),
 });

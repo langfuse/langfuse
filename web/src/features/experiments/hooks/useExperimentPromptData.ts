@@ -1,7 +1,12 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { type UseFormReturn } from "react-hook-form";
-import { extractVariables, PromptType, extractPlaceholderNames, type PromptMessage } from "@langfuse/shared";
+import {
+  extractVariables,
+  PromptType,
+  extractPlaceholderNames,
+  type PromptMessage,
+} from "@langfuse/shared";
 
 type ExperimentPromptDataProps = {
   projectId: string;
@@ -28,10 +33,13 @@ export function useExperimentPromptData({
         : JSON.stringify(prompt?.prompt),
     );
 
-    const promptMessages = prompt?.type === PromptType.Chat && Array.isArray(prompt.prompt)
-      ? prompt.prompt
-      : [];
-    const placeholderNames = extractPlaceholderNames(promptMessages as PromptMessage[]);
+    const promptMessages =
+      prompt?.type === PromptType.Chat && Array.isArray(prompt.prompt)
+        ? prompt.prompt
+        : [];
+    const placeholderNames = extractPlaceholderNames(
+      promptMessages as PromptMessage[],
+    );
 
     return [...extractedVariables, ...placeholderNames];
   }, [promptId, promptMeta.data]);
