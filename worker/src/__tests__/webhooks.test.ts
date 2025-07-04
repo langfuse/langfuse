@@ -136,7 +136,7 @@ describe("Webhook Integration Tests", () => {
       data: {
         id: triggerId,
         projectId,
-        eventSource: "prompt",
+        eventSource: "prompt-version",
         eventActions: ["created"],
         filter: [],
         status: JobConfigState.ACTIVE,
@@ -257,7 +257,7 @@ describe("Webhook Integration Tests", () => {
       expect(signature).toBe(expectedSignature);
 
       expect(payload.id).toBe(webhookInput.executionId);
-      expect(payload.type).toBe("prompt");
+      expect(payload.type).toBe("prompt-version");
       expect(payload.action).toBe("created");
       expect(payload.prompt.name).toBe("test-prompt");
       expect(payload.prompt.version).toBe(1);
@@ -267,7 +267,7 @@ describe("Webhook Integration Tests", () => {
 
       // Verify prompt is the last field in the payload
       const payloadKeys = Object.keys(payload);
-      expect(payloadKeys[payloadKeys.length - 1]).toBe("prompt");
+      expect(payloadKeys[payloadKeys.length - 1]).toBe("prompt-version");
 
       // Verify database execution record was updated
       const execution = await prisma.automationExecution.findUnique({
@@ -315,7 +315,7 @@ describe("Webhook Integration Tests", () => {
             promptName: "test-prompt",
             promptVersion: 1,
             action: "created",
-            type: "prompt",
+            type: "prompt-version",
           },
         },
       });
@@ -380,7 +380,7 @@ describe("Webhook Integration Tests", () => {
             promptName: "test-prompt",
             promptVersion: 1,
             action: "created",
-            type: "prompt",
+            type: "prompt-version",
           },
         },
       });
@@ -454,7 +454,7 @@ describe("Webhook Integration Tests", () => {
               promptName: "test-prompt",
               promptVersion: 1,
               action: "created",
-              type: "prompt",
+              type: "prompt-version",
             },
           },
         });
