@@ -196,12 +196,13 @@ export const checkTraceExists = async ({
         ${observations_cte}
         SELECT 
           t.id as id, 
-          t.project_id as project_id
+          t.project_id as project_id,
+          -- Add a timestamp alias to ensure we can filter on it
+          t.start_time as timestamp
         FROM ${traceAmt} t
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
         WHERE ${tracesFilterRes.query}
         AND t.project_id = {projectId: String}
-        GROUP BY t.id, t.project_id
       `;
 
       const rows = await queryClickhouse<{ id: string; project_id: string }>({
