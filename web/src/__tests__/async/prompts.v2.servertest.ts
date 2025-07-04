@@ -524,17 +524,19 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.config).toEqual({});
       expect(validatedPrompt.commitMessage).toBe("chore: setup initial prompt");
 
-      // check that the action execution is created
-      const actionExecution = await prisma.actionExecution.findFirst({
-        where: {
-          projectId,
-          triggerId,
-          actionId,
-        },
+      await waitForExpect(async () => {
+        // check that the action execution is created
+        const actionExecution = await prisma.actionExecution.findFirst({
+          where: {
+            projectId,
+            triggerId,
+            actionId,
+          },
+        });
+        expect(actionExecution).not.toBeNull();
+        expect(actionExecution?.status).toBe("PENDING");
+        expect(actionExecution?.sourceId).toBe(validatedPrompt.id);
       });
-      expect(actionExecution).not.toBeNull();
-      expect(actionExecution?.status).toBe("PENDING");
-      expect(actionExecution?.sourceId).toBe(validatedPrompt.id);
     });
 
     it("should create and fetch a chat prompt with message placeholders", async () => {
@@ -1646,16 +1648,18 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     expect(updatedPrompt?.labels).toHaveLength(2);
 
     // check that the action execution is created
-    const actionExecution = await prisma.actionExecution.findFirst({
-      where: {
-        projectId: newProjectId,
-        triggerId: newTriggerId,
-        actionId: newActionId,
-      },
+    await waitForExpect(async () => {
+      const actionExecution = await prisma.actionExecution.findFirst({
+        where: {
+          projectId: newProjectId,
+          triggerId: newTriggerId,
+          actionId: newActionId,
+        },
+      });
+      expect(actionExecution).not.toBeNull();
+      expect(actionExecution?.status).toBe("PENDING");
+      expect(actionExecution?.sourceId).toBe(originalPrompt.id);
     });
-    expect(actionExecution).not.toBeNull();
-    expect(actionExecution?.status).toBe("PENDING");
-    expect(actionExecution?.sourceId).toBe(originalPrompt.id);
   });
 
   it("should remove label from previous version when adding to new version", async () => {
@@ -1725,29 +1729,31 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     });
     expect(promptV1?.labels).toEqual([]);
 
-    const actionExecution = await prisma.actionExecution.findFirst({
-      where: {
-        projectId: newProjectId,
-        triggerId,
-        actionId,
-        sourceId: promptV2?.id,
-      },
-    });
-    expect(actionExecution).not.toBeNull();
-    expect(actionExecution?.status).toBe("PENDING");
-    expect(actionExecution?.sourceId).toBe(promptV2?.id);
+    await waitForExpect(async () => {
+      const actionExecution = await prisma.actionExecution.findFirst({
+        where: {
+          projectId: newProjectId,
+          triggerId,
+          actionId,
+          sourceId: promptV2?.id,
+        },
+      });
+      expect(actionExecution).not.toBeNull();
+      expect(actionExecution?.status).toBe("PENDING");
+      expect(actionExecution?.sourceId).toBe(promptV2?.id);
 
-    const actionExecution2 = await prisma.actionExecution.findFirst({
-      where: {
-        projectId: newProjectId,
-        triggerId,
-        actionId,
-        sourceId: promptV1?.id,
-      },
+      const actionExecution2 = await prisma.actionExecution.findFirst({
+        where: {
+          projectId: newProjectId,
+          triggerId,
+          actionId,
+          sourceId: promptV1?.id,
+        },
+      });
+      expect(actionExecution2).not.toBeNull();
+      expect(actionExecution2?.status).toBe("PENDING");
+      expect(actionExecution2?.sourceId).toBe(promptV1?.id);
     });
-    expect(actionExecution2).not.toBeNull();
-    expect(actionExecution2?.status).toBe("PENDING");
-    expect(actionExecution2?.sourceId).toBe(promptV1?.id);
   });
 
   it("trying to set 'latest' label results in 400 error", async () => {

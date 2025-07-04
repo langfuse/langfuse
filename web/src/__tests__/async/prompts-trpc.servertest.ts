@@ -1,10 +1,11 @@
+import { disconnectQueues } from "@/src/__tests__/test-utils";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
-import { disconnectQueues } from "../test-utils";
+import waitForExpect from "wait-for-expect";
 
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -54,10 +55,10 @@ async function prepare() {
 }
 
 describe("prompts trpc", () => {
+  afterAll(async () => {
+    await disconnectQueues();
+  });
   describe("prompts.setLabels", () => {
-    afterAll(async () => {
-      await disconnectQueues();
-    });
     it("should set labels on a prompt and remove them from other versions", async () => {
       const { project, caller } = await prepare();
 
@@ -150,27 +151,29 @@ describe("prompts trpc", () => {
         expect.arrayContaining(["production", "latest"]),
       );
 
-      const executions = await prisma.actionExecution.findMany({
-        where: {
-          projectId: project.id,
-          triggerId: trigger.id,
-          actionId: action.id,
-        },
-      });
+      await waitForExpect(async () => {
+        const executions = await prisma.actionExecution.findMany({
+          where: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+          },
+        });
 
-      expect(executions).toHaveLength(2);
-      expect(executions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            sourceId: prompt1.id,
-            status: "PENDING",
-          }),
-          expect.objectContaining({
-            sourceId: prompt2.id,
-            status: "PENDING",
-          }),
-        ]),
-      );
+        expect(executions).toHaveLength(2);
+        expect(executions).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              sourceId: prompt1.id,
+              status: "PENDING",
+            }),
+            expect.objectContaining({
+              sourceId: prompt2.id,
+              status: "PENDING",
+            }),
+          ]),
+        );
+      });
     });
   });
 
@@ -279,30 +282,32 @@ describe("prompts trpc", () => {
         expect(prompt.tags).not.toContain("old-tag");
       });
 
-      const executions = await prisma.actionExecution.findMany({
-        where: {
-          projectId: project.id,
-          triggerId: trigger.id,
-          actionId: action.id,
-        },
+      await waitForExpect(async () => {
+        const executions = await prisma.actionExecution.findMany({
+          where: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+          },
+        });
+        expect(executions).toHaveLength(3);
+        expect(executions).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              sourceId: updatedPrompts[0].id,
+              status: "PENDING",
+            }),
+            expect.objectContaining({
+              sourceId: updatedPrompts[1].id,
+              status: "PENDING",
+            }),
+            expect.objectContaining({
+              sourceId: updatedPrompts[2].id,
+              status: "PENDING",
+            }),
+          ]),
+        );
       });
-      expect(executions).toHaveLength(3);
-      expect(executions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            sourceId: updatedPrompts[0].id,
-            status: "PENDING",
-          }),
-          expect.objectContaining({
-            sourceId: updatedPrompts[1].id,
-            status: "PENDING",
-          }),
-          expect.objectContaining({
-            sourceId: updatedPrompts[2].id,
-            status: "PENDING",
-          }),
-        ]),
-      );
     });
   });
 
@@ -386,29 +391,30 @@ describe("prompts trpc", () => {
         },
       });
       expect(remainingPrompts).toHaveLength(0);
+      await waitForExpect(async () => {
+        // Verify automation executions were created for both deleted prompts
+        const executions = await prisma.actionExecution.findMany({
+          where: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+          },
+        });
 
-      // Verify automation executions were created for both deleted prompts
-      const executions = await prisma.actionExecution.findMany({
-        where: {
-          projectId: project.id,
-          triggerId: trigger.id,
-          actionId: action.id,
-        },
+        expect(executions).toHaveLength(2);
+        expect(executions).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              sourceId: prompt1.id,
+              status: "PENDING",
+            }),
+            expect.objectContaining({
+              sourceId: prompt2.id,
+              status: "PENDING",
+            }),
+          ]),
+        );
       });
-
-      expect(executions).toHaveLength(2);
-      expect(executions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            sourceId: prompt1.id,
-            status: "PENDING",
-          }),
-          expect.objectContaining({
-            sourceId: prompt2.id,
-            status: "PENDING",
-          }),
-        ]),
-      );
     });
   });
 
@@ -494,22 +500,24 @@ describe("prompts trpc", () => {
       expect(remainingPrompts).toHaveLength(1);
       expect(remainingPrompts[0].id).toBe(prompt2.id);
 
-      // Verify automation execution was created for the deleted prompt
-      const executions = await prisma.actionExecution.findMany({
-        where: {
-          projectId: project.id,
-          triggerId: trigger.id,
-          actionId: action.id,
-        },
-      });
+      await waitForExpect(async () => {
+        // Verify automation execution was created for the deleted prompt
+        const executions = await prisma.actionExecution.findMany({
+          where: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+          },
+        });
 
-      expect(executions).toHaveLength(1);
-      expect(executions[0]).toEqual(
-        expect.objectContaining({
-          sourceId: prompt1.id,
-          status: "PENDING",
-        }),
-      );
+        expect(executions).toHaveLength(1);
+        expect(executions[0]).toEqual(
+          expect.objectContaining({
+            sourceId: prompt1.id,
+            status: "PENDING",
+          }),
+        );
+      });
     });
   });
 
@@ -593,22 +601,24 @@ describe("prompts trpc", () => {
       expect(dbPrompt).not.toBeNull();
       expect(dbPrompt?.name).toBe("duplicated-prompt");
 
-      // Verify automation execution was created for the duplicated prompt
-      const executions = await prisma.actionExecution.findMany({
-        where: {
-          projectId: project.id,
-          triggerId: trigger.id,
-          actionId: action.id,
-        },
-      });
+      await waitForExpect(async () => {
+        // Verify automation execution was created for the duplicated prompt
+        const executions = await prisma.actionExecution.findMany({
+          where: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+          },
+        });
 
-      expect(executions).toHaveLength(1);
-      expect(executions[0]).toEqual(
-        expect.objectContaining({
-          sourceId: duplicatedPrompt.id,
-          status: "PENDING",
-        }),
-      );
+        expect(executions).toHaveLength(1);
+        expect(executions[0]).toEqual(
+          expect.objectContaining({
+            sourceId: duplicatedPrompt.id,
+            status: "PENDING",
+          }),
+        );
+      });
     });
   });
 });
