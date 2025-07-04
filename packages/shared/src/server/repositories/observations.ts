@@ -27,6 +27,7 @@ import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertObservation } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
+import type { JSONOptimizationStrategy } from "../../performance";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
@@ -288,7 +289,7 @@ export const getObservationForTraceIdByName = async (
     },
   });
 
-  return records.map(convertObservation);
+  return records.map((record) => convertObservation(record));
 };
 
 export const getObservationById = async ({
@@ -298,6 +299,7 @@ export const getObservationById = async ({
   startTime,
   type,
   traceId,
+  optimization,
 }: {
   id: string;
   projectId: string;
@@ -305,6 +307,7 @@ export const getObservationById = async ({
   startTime?: Date;
   type?: ObservationType;
   traceId?: string;
+  optimization?: JSONOptimizationStrategy;
 }) => {
   const records = await getObservationByIdInternal({
     id,
@@ -314,7 +317,7 @@ export const getObservationById = async ({
     type,
     traceId,
   });
-  const mapped = records.map(convertObservation);
+  const mapped = records.map((record) => convertObservation(record, optimization));
 
   mapped.forEach((observation) => {
     recordDistribution(
@@ -384,7 +387,7 @@ export const getObservationsById = async (
     query,
     params: { ids, projectId },
   });
-  return records.map(convertObservation);
+  return records.map((record) => convertObservation(record));
 };
 
 const getObservationByIdInternal = async ({

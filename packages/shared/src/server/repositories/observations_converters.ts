@@ -7,9 +7,11 @@ import {
   ObservationType,
 } from "../../domain";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import type { JSONOptimizationStrategy } from "../../performance";
 
 export const convertObservation = (
   record: ObservationRecordReadType,
+  optimization?: JSONOptimizationStrategy,
 ): Observation => {
   const reducedCostDetails = reduceUsageOrCostDetails(record.cost_details);
   const reducedUsageDetails = reduceUsageOrCostDetails(record.usage_details);
@@ -26,13 +28,22 @@ export const convertObservation = (
       ? parseClickhouseUTCDateTimeFormat(record.end_time)
       : null,
     name: record.name ?? null,
-    metadata: parseMetadataCHRecordToDomain(record.metadata),
+    metadata:
+      optimization === "raw"
+        ? record.metadata
+        : parseMetadataCHRecordToDomain(record.metadata),
     level: record.level as ObservationLevelType,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,
-    input: record.input ? (parseJsonPrioritised(record.input) ?? null) : null,
+    input: record.input
+      ? optimization === "raw"
+        ? record.input
+        : (parseJsonPrioritised(record.input) ?? null)
+      : null,
     output: record.output
-      ? (parseJsonPrioritised(record.output) ?? null)
+      ? optimization === "raw"
+        ? record.output
+        : (parseJsonPrioritised(record.output) ?? null)
       : null,
     modelParameters: record.model_parameters
       ? (JSON.parse(record.model_parameters) ?? null)

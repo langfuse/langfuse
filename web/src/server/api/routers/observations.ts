@@ -29,6 +29,7 @@ export const observationsRouter = createTRPCRouter({
           fetchWithInputOutput: true,
           traceId: input.traceId,
           startTime: input.startTime ?? undefined,
+          optimization: input.optimization,
         });
         if (!obs) {
           throw new TRPCError({
@@ -39,9 +40,24 @@ export const observationsRouter = createTRPCRouter({
 
         return {
           ...obs,
-          input: obs.input ? JSON.stringify(obs.input) : null,
-          output: obs.output ? JSON.stringify(obs.output) : null,
-          metadata: obs.metadata ? JSON.stringify(obs.metadata) : null,
+          input:
+            input.optimization === "raw"
+              ? obs.input
+              : obs.input
+                ? JSON.stringify(obs.input)
+                : null,
+          output:
+            input.optimization === "raw"
+              ? obs.output
+              : obs.output
+                ? JSON.stringify(obs.output)
+                : null,
+          metadata:
+            input.optimization === "raw"
+              ? obs.metadata
+              : obs.metadata
+                ? JSON.stringify(obs.metadata)
+                : null,
           internalModel: obs?.internalModelId,
           optimization:
             input?.optimization !== "original" ? input.optimization : undefined,
