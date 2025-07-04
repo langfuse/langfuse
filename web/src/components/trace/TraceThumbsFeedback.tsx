@@ -142,7 +142,7 @@ export const TraceThumbsFeedback = ({
         className,
       )}
     >
-      <span className="text-sm text-muted-foreground">Feedback</span>
+      <span className="text-sm text-muted-foreground">Feedback panel</span>
       <div className="flex items-center justify-between gap-2 pt-2">
         <div className="text-sm text-muted-foreground">Jud review:</div>
         <div className="flex items-end gap-2">
