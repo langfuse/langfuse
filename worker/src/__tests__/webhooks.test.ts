@@ -18,6 +18,7 @@ import {
   WebhookInput,
   createOrgProjectAndApiKey,
   executeWebhook,
+  logger,
   redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -229,12 +230,13 @@ describe("Webhook Integration Tests", () => {
       expect(request.method).toBe("POST");
       expect(request.headers["content-type"]).toBe("application/json");
       expect(request.headers["x-custom-header"]).toBe("test-value");
-      expect(request.headers["langfuse-signature"]).toMatch(
+
+      expect(request.headers["x-langfuse-signature"]).toMatch(
         /^t=\d+,v1=[a-f0-9]+$/,
       );
 
       // check signature
-      const signature = request.headers["langfuse-signature"];
+      const signature = request.headers["x-langfuse-signature"];
       const payload = JSON.parse(request.body);
 
       const action = await prisma.action.findUnique({
@@ -267,7 +269,7 @@ describe("Webhook Integration Tests", () => {
 
       // Verify prompt is the last field in the payload
       const payloadKeys = Object.keys(payload);
-      expect(payloadKeys[payloadKeys.length - 1]).toBe("prompt-version");
+      expect(payloadKeys[payloadKeys.length - 1]).toBe("prompt");
 
       // Verify database execution record was updated
       const execution = await prisma.automationExecution.findUnique({
@@ -476,6 +478,7 @@ describe("Webhook Integration Tests", () => {
         const execution = await prisma.automationExecution.findUnique({
           where: { id: executionId },
         });
+
         expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
         expect(execution?.error).toContain(
           `Webhook does not return 200: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,

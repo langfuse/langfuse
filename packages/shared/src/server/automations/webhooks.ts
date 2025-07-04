@@ -231,8 +231,8 @@ export const executeWebhook = async (input: WebhookInput) => {
         `Consecutive failures: ${consecutiveFailures} for trigger ${automation.trigger.id} in project ${projectId}`,
       );
 
-      // Check if trigger should be disabled
-      if (consecutiveFailures >= 5) {
+      // Check if trigger should be disabled (this is the 5th failure, looking for 4 in the past.)
+      if (consecutiveFailures >= 4) {
         await tx.trigger.update({
           where: { id: automation.trigger.id, projectId },
           data: { status: JobConfigState.INACTIVE },
