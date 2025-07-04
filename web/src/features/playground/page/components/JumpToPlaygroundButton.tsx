@@ -2,10 +2,11 @@ import { Terminal } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import { z } from "zod/v4";
+import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { Button } from "@/src/components/ui/button";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
   type PlaygroundSchema,
@@ -34,6 +35,7 @@ import {
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -61,9 +63,20 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { setPlaygroundCache } = usePlaygroundCache();
+  const { addWindowWithId } = usePersistedWindowIds();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
+
+  // Generate a stable window ID based on the source data
+  const stableWindowId = useMemo(() => {
+    if (props.source === "prompt") {
+      return `playground-prompt-${props.prompt.id}`;
+    } else if (props.source === "generation") {
+      return `playground-generation-${props.generation.id}`;
+    }
+    return `playground-${uuidv4()}`;
+  }, [props]);
+  const { setPlaygroundCache } = usePlaygroundCache(stableWindowId);
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
@@ -110,9 +123,35 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
   const handleClick = () => {
     capture(props.analyticsEventName);
-    setPlaygroundCache(capturedState);
 
-    router.push(`/project/${projectId}/playground`);
+    // First, ensure we have state to save
+    if (!capturedState) {
+      console.warn("No captured state available for playground");
+      return;
+    }
+
+    // Add the window to the list first
+    const addedWindowId = addWindowWithId(stableWindowId);
+
+    if (!addedWindowId) {
+      console.warn("Failed to add window to list, maximum windows reached");
+      return;
+    }
+
+    // Use requestAnimationFrame to ensure the state update has been processed
+    requestAnimationFrame(() => {
+      try {
+        setPlaygroundCache(capturedState);
+        console.log(`Cache saved for window ${stableWindowId}`);
+
+        // Navigate after cache is successfully saved
+        router.push(`/project/${projectId}/playground`);
+      } catch (error) {
+        console.error("Failed to save playground cache:", error);
+        // Navigate anyway, but user might not see their data
+        router.push(`/project/${projectId}/playground`);
+      }
+    });
   };
 
   return (

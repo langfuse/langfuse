@@ -9,8 +9,16 @@ import {
   type UIModelParams,
 } from "@langfuse/shared";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
+import { MULTI_WINDOW_CONFIG } from "../types";
 
-export const useModelParams = () => {
+/**
+ * Hook for managing model parameters with window isolation support
+ * Supports both single-window and multi-window scenarios through window-specific localStorage keys
+ *
+ * @param windowId - Optional window identifier for state isolation. Defaults to "default" for backward compatibility
+ * @returns Object with model parameters state and management functions
+ */
+export const useModelParams = (windowId?: string) => {
   const [modelParams, setModelParams] = useState<UIModelParams>({
     ...getDefaultAdapterParams(LLMAdapter.OpenAI),
     provider: { value: "", enabled: true },
@@ -26,13 +34,25 @@ export const useModelParams = () => {
     { enabled: Boolean(projectId) },
   );
 
+  // Generate window-specific localStorage keys
+  // For backward compatibility, use the original keys for the default window
+  const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
+  const modelNameKey =
+    effectiveWindowId === MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID
+      ? "llmModelName"
+      : `llmModelName_${effectiveWindowId}`;
+  const modelProviderKey =
+    effectiveWindowId === MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID
+      ? "llmModelProvider"
+      : `llmModelProvider_${effectiveWindowId}`;
+
   const [persistedModelName, setPersistedModelName] = useLocalStorage<
     string | null
-  >("llmModelName", null);
+  >(modelNameKey, null);
 
   const [persistedModelProvider, setPersistedModelProvider] = useLocalStorage<
     string | null
-  >("llmModelProvider", null);
+  >(modelProviderKey, null);
 
   const availableProviders = useMemo(() => {
     const adapter = availableLLMApiKeys.data?.data ?? [];
@@ -163,6 +183,27 @@ export const useModelParams = () => {
     }
   }, [selectedProviderApiKey?.adapter]);
 
+  /**
+   * Clear model preferences from localStorage
+   * Removes all persisted model names and providers for all windows
+   */
+  const clearModelPreferences = useCallback(() => {
+    const localKeysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith("llmModelName") || key.startsWith("llmModelProvider"))
+      ) {
+        localKeysToRemove.push(key);
+      }
+    }
+
+    localKeysToRemove.forEach((key) => {
+      localStorage.removeItem(key);
+    });
+  }, []);
+
   return {
     modelParams,
     setModelParams,
@@ -170,6 +211,7 @@ export const useModelParams = () => {
     availableModels,
     updateModelParamValue,
     setModelParamEnabled,
+    clearModelPreferences,
   };
 };
 
