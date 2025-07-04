@@ -35,7 +35,6 @@ describe("/api/public/observations API Endpoint", () => {
         "GET",
         "/api/public/observations/" + observationId,
       );
-      console.log(`Result: ${JSON.stringify(getEventRes)}`);
       expect(getEventRes.body).toMatchObject({
         id: observationId,
         traceId: traceId,
