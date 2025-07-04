@@ -45,14 +45,14 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           variant="ghost"
           size="sm"
           onClick={toggleExpanded}
-          className="h-6 gap-1.5 px-1 hover:bg-transparent"
+          className="h-8 gap-2 px-1 hover:bg-transparent"
         >
           {isExpanded ? (
             <ChevronDown className="h-3 w-3" />
           ) : (
             <ChevronRight className="h-3 w-3" />
           )}
-          <span className="text-sm font-medium">{title}</span>
+          <span className="text-sm font-semibold">{title}</span>
           {badge && (
             <Badge variant="secondary" className="h-4 text-xs">
               {badge}

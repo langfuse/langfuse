@@ -58,8 +58,8 @@ export default function Playground() {
       {/* Configuration Panel - Stacked at top */}
       <div className="flex-shrink-0 border-b bg-muted/20 p-4">
         <div className="space-y-3">
-          {/* Model Parameters - Keep unchanged */}
-          <ModelParameters {...playgroundContext} />
+          {/* Model Parameters - Compact layout for space efficiency */}
+          <ModelParameters {...playgroundContext} layout="compact" />
 
           {/* Tools Section - Collapsible */}
           <CollapsibleSection

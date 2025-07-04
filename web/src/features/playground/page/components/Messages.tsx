@@ -30,7 +30,7 @@ export const Messages: React.FC<MessagesContext> = (props) => {
         </ResizablePanel>
         <ResizableHandle withHandle className="bg-transparent" />
         <ResizablePanel
-          minSize={10}
+          minSize={20}
           defaultSize={20}
           className="flex flex-col space-y-4"
         >
