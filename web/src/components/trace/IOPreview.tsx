@@ -235,13 +235,16 @@ export const OpenAiMessageView: React.FC<{
   };
 
   const isPlaceholderMessage = (message: ChatMlMessageSchema) => {
-    return message.type === 'placeholder';
+    return message.type === "placeholder";
   };
 
   const messagesToRender = useMemo(
     () =>
       messages.filter(
-        (message) => shouldRenderContent(message) || shouldRenderJson(message) || isPlaceholderMessage(message),
+        (message) =>
+          shouldRenderContent(message) ||
+          shouldRenderJson(message) ||
+          isPlaceholderMessage(message),
       ),
     [messages],
   );
@@ -265,13 +268,13 @@ export const OpenAiMessageView: React.FC<{
                   shouldRenderMarkdown ? (
                     <MarkdownJsonView
                       title="Placeholder"
-                      content={message.name || 'Unnamed placeholder'}
+                      content={message.name || "Unnamed placeholder"}
                       customCodeHeaderClassName={cn("bg-primary-foreground")}
                     />
                   ) : (
                     <JSONView
                       title="Placeholder"
-                      json={message.name || 'Unnamed placeholder'}
+                      json={message.name || "Unnamed placeholder"}
                       projectIdForPromptButtons={projectIdForPromptButtons}
                     />
                   )
@@ -282,10 +285,15 @@ export const OpenAiMessageView: React.FC<{
                         <MarkdownJsonView
                           title={message.name ?? message.role}
                           content={message.content || '""'}
-                          className={cn(!!message.json && !isPlaceholderMessage(message) && "rounded-b-none")}
+                          className={cn(
+                            !!message.json &&
+                              !isPlaceholderMessage(message) &&
+                              "rounded-b-none",
+                          )}
                           customCodeHeaderClassName={cn(
                             message.role === "assistant" && "bg-secondary",
-                            message.role === "system" && "bg-primary-foreground",
+                            message.role === "system" &&
+                              "bg-primary-foreground",
                           )}
                           audio={message.audio}
                         />
@@ -294,23 +302,28 @@ export const OpenAiMessageView: React.FC<{
                           title={message.name ?? message.role}
                           json={message.content}
                           projectIdForPromptButtons={projectIdForPromptButtons}
-                          className={cn(!!message.json && !isPlaceholderMessage(message) && "rounded-b-none")}
+                          className={cn(
+                            !!message.json &&
+                              !isPlaceholderMessage(message) &&
+                              "rounded-b-none",
+                          )}
                         />
                       ))}
-                    {shouldRenderJson(message) && !isPlaceholderMessage(message) && (
-                      <JSONView
-                        title={
-                          message.content
-                            ? undefined
-                            : (message.name ?? message.role)
-                        }
-                        json={message.json}
-                        projectIdForPromptButtons={projectIdForPromptButtons}
-                        className={cn(
-                          !!message.content && "rounded-t-none border-t-0",
-                        )}
-                      />
-                    )}
+                    {shouldRenderJson(message) &&
+                      !isPlaceholderMessage(message) && (
+                        <JSONView
+                          title={
+                            message.content
+                              ? undefined
+                              : (message.name ?? message.role)
+                          }
+                          json={message.json}
+                          projectIdForPromptButtons={projectIdForPromptButtons}
+                          className={cn(
+                            !!message.content && "rounded-t-none border-t-0",
+                          )}
+                        />
+                      )}
                   </>
                 )}
                 {isCollapsed !== null && index === 0 ? (

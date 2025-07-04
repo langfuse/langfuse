@@ -96,7 +96,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 
   const toggleRole = () => {
     // Only allow role toggling for messages that have a role property (not placeholder messages)
-    if (!('role' in message)) return;
+    if (!("role" in message)) return;
 
     // if user has set custom roles, available roles will be non-empty and we toggle through custom and default roles (assistant, user)
     if (!!availableRoles && Boolean(availableRoles.length)) {
@@ -119,7 +119,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             (toolCallIds && toolCallIds.length > 0),
         );
         const currentIndex = eligibleRoles.indexOf(
-          ('role' in message ? message.role : ChatMessageRole.User) as ChatMessageRole,
+          ("role" in message
+            ? message.role
+            : ChatMessageRole.User) as ChatMessageRole,
         );
         const nextRole =
           eligibleRoles[(currentIndex + 1) % eligibleRoles.length];
@@ -221,7 +223,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     [message.id, message.type, updateMessage],
   );
 
-  const showDragHandle = !('role' in message && SYSTEM_ROLES.includes(message.role));
+  const showDragHandle = !(
+    "role" in message && SYSTEM_ROLES.includes(message.role)
+  );
   const showToolCallSelect = message.type === ChatMessageType.ToolResult;
   const isPlaceholder = message.type === ChatMessageType.Placeholder;
 
@@ -255,7 +259,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         >
           <div className="flex w-[4rem] flex-shrink-0 flex-col gap-1">
             {isPlaceholder ? (
-              <span className="inline-flex items-center justify-center font-mono h-6 w-full text-[9px] rounded-md bg-accent px-4 text-muted-foreground">
+              <span className="inline-flex h-6 w-full items-center justify-center rounded-md bg-accent px-4 font-mono text-[9px] text-muted-foreground">
                 placeholder
               </span>
             ) : (

@@ -1250,7 +1250,12 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.meta.totalItems).toBe(1);
 
       // Test with a different name
-      const response2 = await makeAPICall("GET", `${baseURI}?name=prompt-2`, undefined, auth);
+      const response2 = await makeAPICall(
+        "GET",
+        `${baseURI}?name=prompt-2`,
+        undefined,
+        auth,
+      );
       expect(response2.status).toBe(200);
       const body2 = response2.body as unknown as PromptsMetaResponse;
 

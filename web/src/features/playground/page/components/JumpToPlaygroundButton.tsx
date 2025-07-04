@@ -172,7 +172,7 @@ const ParsedChatMessageListSchema = z.array(
         .optional(),
     }),
     PlaceholderMessageSchema,
-  ])
+  ]),
 );
 
 // Langchain integration has the tool definition in a tool message
@@ -207,7 +207,9 @@ const transformToPlaygroundMessage = (
     (regularMessage.tool_calls || regularMessage.additional_kwargs?.tool_calls)
   ) {
     const toolCalls =
-      regularMessage.tool_calls ?? regularMessage.additional_kwargs?.tool_calls ?? [];
+      regularMessage.tool_calls ??
+      regularMessage.additional_kwargs?.tool_calls ??
+      [];
 
     const playgroundMessage: ChatMessage = {
       role: ChatMessageRole.Assistant,
