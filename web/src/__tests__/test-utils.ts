@@ -79,7 +79,6 @@ export const ensureTestDatabaseExists = async () => {
   // ClickHouse uses default database (no setup needed)
 };
 
-
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {
     throw new Error("You cannot prune database unless running on localhost.");
