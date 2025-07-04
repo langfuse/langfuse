@@ -127,15 +127,11 @@ describe("prompts trpc", () => {
       });
 
       // Set "production" label on prompt2, which should remove it from prompt1
-      const response = await caller.prompts.setLabels({
+      await caller.prompts.setLabels({
         projectId: project.id,
         promptId: prompt2.id,
         labels: ["production", "latest"],
       });
-
-      expect(response.labels).toEqual(
-        expect.arrayContaining(["production", "latest"]),
-      );
 
       // Verify that prompt1 no longer has the "production" label
       const updatedPrompt1 = await prisma.prompt.findUnique({

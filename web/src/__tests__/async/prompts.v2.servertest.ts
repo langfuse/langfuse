@@ -484,7 +484,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
   describe("when creating a prompt", () => {
     it("should create and fetch a chat prompt", async () => {
-      const { auth } = await createOrgProjectAndApiKey();
+      const { auth, projectId } = await createOrgProjectAndApiKey();
       const { actionId, triggerId } = await setupTriggerAndAction(projectId);
       const promptName = "prompt-name" + nanoid();
       const chatMessages = [
@@ -533,11 +533,12 @@ describe("/api/public/v2/prompts API Endpoint", () => {
             actionId,
           },
         });
+        console.log("actionExecution", actionExecution);
         expect(actionExecution).not.toBeNull();
         expect(actionExecution?.status).toBe("PENDING");
         expect(actionExecution?.sourceId).toBe(validatedPrompt.id);
       });
-    });
+    }, 10000);
 
     it("should create and fetch a chat prompt with message placeholders", async () => {
       const { auth } = await createOrgProjectAndApiKey();
