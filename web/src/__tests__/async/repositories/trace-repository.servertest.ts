@@ -1,5 +1,4 @@
 import { checkTraceExists, createTracesCh } from "@langfuse/shared/src/server";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getTraceById,
   getTracesBySessionId,
@@ -11,10 +10,6 @@ import { createObservationsCh } from "@langfuse/shared/src/server";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Clickhouse Traces Repository Test", () => {
-  beforeEach(async () => {
-    await pruneDatabase();
-  });
-
   it("should throw if no traces are found", async () => {
     expect(
       await getTraceById({ traceId: v4(), projectId: v4() }),
