@@ -533,7 +533,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
             actionId,
           },
         });
-        console.log("actionExecution", actionExecution);
         expect(actionExecution).not.toBeNull();
         expect(actionExecution?.status).toBe("PENDING");
         expect(actionExecution?.sourceId).toBe(validatedPrompt.id);
