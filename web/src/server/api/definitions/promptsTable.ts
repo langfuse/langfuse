@@ -51,6 +51,12 @@ export const promptsTableCols: ColumnDefinition[] = [
     internal: 'p."tags"',
     options: [], // to be added at runtime
   },
+  {
+    name: "Config",
+    id: "config",
+    type: "stringObject",
+    internal: 'p."config"',
+  },
 ];
 
 export type PromptOptions = {
