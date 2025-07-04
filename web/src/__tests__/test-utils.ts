@@ -18,6 +18,18 @@ export const ensureTestDatabaseExists = async () => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     console.log("Test database already exists and is accessible");
+
+    // Always run migrations to ensure schema is up-to-date
+    const { execSync } = await import("child_process");
+    const path = await import("path");
+    const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+
+    execSync("pnpm run db:migrate", {
+      cwd: sharedDir,
+      env: { ...process.env, DATABASE_URL: env.DATABASE_URL },
+      stdio: "inherit",
+    });
+    console.log("Test database schema verified/updated");
   } catch (error) {
     console.log("Test database not accessible, creating...");
 
