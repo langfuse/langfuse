@@ -199,7 +199,7 @@ async function executeWebhookAction({
       executionId: executionId,
       payload: {
         action: action as TriggerEventAction,
-        type: "prompt",
+        type: "prompt-version",
         prompt: {
           ...promptData,
           prompt: jsonSchemaNullable.parse(promptData.prompt),
