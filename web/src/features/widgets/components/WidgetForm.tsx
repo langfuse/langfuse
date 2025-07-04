@@ -1027,6 +1027,19 @@ export function WidgetForm({
                         );
                         setPivotDimensions(validDimensions);
                       }
+
+                      // Remove invalid filters based on the new view
+                      if (newView !== "scores-categorical") {
+                        setUserFilterState((prev) => prev.filter(
+                          (filter) =>
+                            filter.column !== "stringValue",
+                        ));
+                      }
+                      if (newView === "scores-numeric") {
+                        setUserFilterState((prev) => 
+                          prev.filter((filter) => filter.column !== "value"),
+                        );
+                      }
                     }
                     setSelectedView(value as z.infer<typeof views>);
                   }}
