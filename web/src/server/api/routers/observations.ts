@@ -2,7 +2,10 @@ import {
   createTRPCRouter,
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  JSON_OPTIMIZATION_STRATEGIES,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -15,7 +18,7 @@ export const observationsRouter = createTRPCRouter({
         traceId: z.string(), // required for protectedGetTraceProcedure
         projectId: z.string(), // required for protectedGetTraceProcedure
         startTime: z.date().nullish(),
-        optimization: z.enum(["original", "jsonsimd", "worker"]).optional(),
+        optimization: z.enum(JSON_OPTIMIZATION_STRATEGIES).optional(),
       }),
     )
     .query(async ({ input }) => {

@@ -12,12 +12,12 @@ import {
   createObservation,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
+import {
+  JSON_OPTIMIZATION_STRATEGIES,
+  type JSONOptimizationStrategy,
+} from "@langfuse/shared";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-
-// cSpell:disable-next-line
-const optimizationStrategies = ["original", "jsonsimd", "worker"] as const;
-type OptimizationStrategy = (typeof optimizationStrategies)[number];
 
 interface PerformanceTestConfig {
   entityType: "Trace" | "Observation";
@@ -35,12 +35,12 @@ interface PerformanceTestConfig {
   }>;
   retrieveGet: (
     id: string,
-    optimization: OptimizationStrategy,
+    optimization: JSONOptimizationStrategy,
   ) => Promise<{ time: number }>;
   retrieveTrpc: (
     id: string,
     traceId: string | undefined,
-    optimization: OptimizationStrategy,
+    optimization: JSONOptimizationStrategy,
   ) => Promise<{ time: number }>;
 }
 
@@ -231,7 +231,7 @@ async function insertObservationDirect(length: number) {
 // Helper functions for retrieval
 async function retrieveTraceGET(
   traceId: string,
-  optimization: OptimizationStrategy,
+  optimization: JSONOptimizationStrategy,
 ) {
   const startTime = performance.now();
   const result = await makeAPICall(
@@ -248,7 +248,7 @@ async function retrieveTraceGET(
 
 async function retrieveObservationGET(
   observationId: string,
-  optimization: OptimizationStrategy,
+  optimization: JSONOptimizationStrategy,
 ) {
   const startTime = performance.now();
   const result = await makeAPICall(
@@ -265,7 +265,7 @@ async function retrieveObservationGET(
 
 async function retrieveTraceTRPC(
   traceId: string,
-  optimization: OptimizationStrategy,
+  optimization: JSONOptimizationStrategy,
 ) {
   const caller = makeTrpcCaller();
   const startTime = performance.now();
@@ -280,7 +280,7 @@ async function retrieveTraceTRPC(
 async function retrieveObservationTRPC(
   observationId: string,
   traceId: string,
-  optimization: OptimizationStrategy,
+  optimization: JSONOptimizationStrategy,
 ) {
   const caller = makeTrpcCaller();
   const startTime = performance.now();
@@ -326,13 +326,13 @@ async function runPerformanceTest(
   await config.retrieveTrpc(ids.id, ids.traceId, "original");
 
   // Timed Retrieval
-  const getTimes: Partial<Record<OptimizationStrategy, number>> = {};
-  for (const opt of optimizationStrategies) {
+  const getTimes: Partial<Record<JSONOptimizationStrategy, number>> = {};
+  for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
     getTimes[opt] = (await config.retrieveGet(ids.id, opt)).time;
   }
 
-  const trpcTimes: Partial<Record<OptimizationStrategy, number>> = {};
-  for (const opt of optimizationStrategies) {
+  const trpcTimes: Partial<Record<JSONOptimizationStrategy, number>> = {};
+  for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
     trpcTimes[opt] = (await config.retrieveTrpc(ids.id, ids.traceId, opt)).time;
   }
 
@@ -340,17 +340,13 @@ async function runPerformanceTest(
     ? `API insertion: ${apiTime.toFixed(2)}ms`
     : "API insertion: skipped (payload too large)";
 
-  const getLogs = optimizationStrategies
-    .map(
-      (opt) => `  GET ${opt.padEnd(8)}: ${(getTimes[opt] ?? 0).toFixed(2)}ms`,
-    )
-    .join("\n");
+  const getLogs = JSON_OPTIMIZATION_STRATEGIES.map(
+    (opt) => `  GET ${opt.padEnd(8)}: ${(getTimes[opt] ?? 0).toFixed(2)}ms`,
+  ).join("\n");
 
-  const trpcLogs = optimizationStrategies
-    .map(
-      (opt) => `  TRPC ${opt.padEnd(8)}: ${(trpcTimes[opt] ?? 0).toFixed(2)}ms`,
-    )
-    .join("\n");
+  const trpcLogs = JSON_OPTIMIZATION_STRATEGIES.map(
+    (opt) => `  TRPC ${opt.padEnd(8)}: ${(trpcTimes[opt] ?? 0).toFixed(2)}ms`,
+  ).join("\n");
 
   console.log(
     `--- ${config.entityType} (${name}, size: ${size}, ~${payloadSizeInMB.toFixed(

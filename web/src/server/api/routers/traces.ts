@@ -19,6 +19,7 @@ import {
   tracesTableUiColumnDefinitions,
   type Observation,
   TracingSearchType,
+  JSON_OPTIMIZATION_STRATEGIES,
 } from "@langfuse/shared";
 import {
   traceException,
@@ -203,7 +204,7 @@ export const traceRouter = createTRPCRouter({
         projectId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
-        optimization: z.enum(["original", "jsonsimd", "worker"]).optional(),
+        optimization: z.enum(JSON_OPTIMIZATION_STRATEGIES).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {

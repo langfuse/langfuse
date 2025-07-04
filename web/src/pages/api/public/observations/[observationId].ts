@@ -6,7 +6,10 @@ import {
 } from "@/src/features/public-api/types/observations";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  JSON_OPTIMIZATION_STRATEGIES,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
@@ -14,7 +17,7 @@ export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observation",
     querySchema: GetObservationV1Query.extend({
-      optimization: z.enum(["original", "jsonsimd", "worker"]).optional(),
+      optimization: z.enum(JSON_OPTIMIZATION_STRATEGIES).optional(),
     }),
     responseSchema: GetObservationV1Response,
     fn: async ({ query, auth }) => {
