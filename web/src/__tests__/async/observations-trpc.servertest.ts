@@ -31,6 +31,7 @@ describe("traces trpc", () => {
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
           projects: [
             {
               id: projectId,
@@ -38,6 +39,7 @@ describe("traces trpc", () => {
               retentionDays: 30,
               deletedAt: null,
               name: "Test Project",
+              metadata: {},
             },
           ],
         },
