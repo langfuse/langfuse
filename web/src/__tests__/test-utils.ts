@@ -5,6 +5,7 @@ import {
   createBasicAuthHeader,
   getQueue,
   IngestionQueue,
+  logger,
   QueueName,
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
@@ -121,17 +122,17 @@ export const getQueues = () => {
 };
 
 export const disconnectQueues = async () => {
-  // await Promise.all(
-  //   getQueues().map(async (queue) => {
-  //     if (queue) {
-  //       try {
-  //         await queue.drain();
-  //         await queue.close();
-  //         queue.disconnect();
-  //       } catch (error) {}
-  //     }
-  //   }),
-  // );
+  await Promise.all(
+    getQueues().map(async (queue) => {
+      if (queue) {
+        try {
+          queue.disconnect();
+        } catch (error) {
+          logger.error(`Error disconnecting queue ${queue.name}: ${error}`);
+        }
+      }
+    }),
+  );
 };
 
 export const truncateClickhouseTables = async () => {
