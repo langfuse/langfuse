@@ -21,6 +21,8 @@ import { BatchActionQueue } from "./batchActionQueue";
 import { CreateEvalQueue } from "./createEvalQueue";
 import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlqRetryQueue";
+import { WebhookQueue } from "./webhookQueue";
+import { EntityChangeQueue } from "./entityChangeQueue";
 
 // IngestionQueue is sharded and requires a sharding key
 // Use IngestionQueue.getInstance({ shardName: queueName }) directly instead
@@ -70,8 +72,13 @@ export function getQueue(
       return ScoreDeleteQueue.getInstance();
     case QueueName.DeadLetterRetryQueue:
       return DeadLetterRetryQueue.getInstance();
+    case QueueName.WebhookQueue:
+      return WebhookQueue.getInstance();
+    case QueueName.EntityChangeQueue:
+      return EntityChangeQueue.getInstance();
     default: {
-      const exhaustiveCheckDefault: never = queueName; // eslint-disable-line no-case-declarations, no-unused-vars
+      // eslint-disable-next-line no-case-declarations, no-unused-vars
+      const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);
     }
   }
