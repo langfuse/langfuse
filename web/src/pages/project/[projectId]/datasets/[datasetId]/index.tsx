@@ -17,6 +17,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
@@ -301,10 +302,12 @@ export default function Dataset() {
           }}
         >
           <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
-            <DialogTitle>
-              {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
-              Evaluator
-            </DialogTitle>
+            <DialogHeader className="mt-2">
+              <DialogTitle>
+                {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
+                Evaluator
+              </DialogTitle>
+            </DialogHeader>
             <EvaluatorForm
               useDialog={true}
               projectId={projectId}
