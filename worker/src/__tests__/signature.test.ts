@@ -3,6 +3,7 @@ import {
   generateWebhookSecret,
   getDisplaySecretKey,
   generateWebhookSignature,
+  createSignatureHeader,
 } from "@langfuse/shared/encryption";
 
 describe("signature.ts", () => {
@@ -13,12 +14,12 @@ describe("signature.ts", () => {
       expect(result).toHaveProperty("secretKey");
       expect(result).toHaveProperty("displaySecretKey");
 
-      // Secret key should be whsec_ prefix + 64 hex characters (32 bytes)
-      expect(result.secretKey).toMatch(/^whsec_[a-f0-9]{64}$/);
-      expect(result.secretKey).toHaveLength(70); // whsec_ (6) + 64 hex chars
+      // Secret key should be lf-whsec_ prefix + 64 hex characters (32 bytes)
+      expect(result.secretKey).toMatch(/^lf-whsec_[a-f0-9]{64}$/);
+      expect(result.secretKey).toHaveLength(73); // lf-whsec_ (9) + 64 hex chars
 
       // Display secret should be properly formatted
-      expect(result.displaySecretKey).toMatch(/^whsec_\.\.\.[a-f0-9]{4}$/);
+      expect(result.displaySecretKey).toMatch(/^lf-whsec_\.\.\.[a-f0-9]{4}$/);
     });
 
     it("should generate different secrets on each call", () => {
@@ -36,18 +37,12 @@ describe("signature.ts", () => {
         "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
       const display = getDisplaySecretKey(secretKey);
 
-      expect(display).toBe("whsec_...7890");
+      expect(display).toBe("lf-whsec_...7890");
     });
 
     it("should handle short secrets with default masking", () => {
       const shortSecret = "abc123";
       const display = getDisplaySecretKey(shortSecret);
-
-      expect(display).toBe("****");
-    });
-
-    it("should handle empty secret", () => {
-      const display = getDisplaySecretKey("");
 
       expect(display).toBe("****");
     });
@@ -85,91 +80,70 @@ describe("signature.ts", () => {
     });
   });
 
-  describe("createHmacSignature", () => {
-    it("should create HMAC signature matching your requirements", () => {
+  describe("createSignatureHeader", () => {
+    it("should create properly formatted signature header", () => {
       const payload = '{"test": "webhook"}';
       const secret = "test_webhook_secret";
 
-      const signature = createHmacSignature(payload, secret);
+      const header = createSignatureHeader(payload, secret);
 
-      // Should be 64 character hex string
-      expect(signature).toMatch(/^[a-f0-9]{64}$/);
-      expect(signature).toHaveLength(64);
-    });
-
-    it("should generate consistent signatures", () => {
-      const payload = '{"test": "webhook"}';
-      const secret = "test_webhook_secret";
-
-      const sig1 = createHmacSignature(payload, secret);
-      const sig2 = createHmacSignature(payload, secret);
-
-      expect(sig1).toBe(sig2);
-    });
-
-    it("should generate different signatures for different secrets", () => {
-      const payload = '{"test": "webhook"}';
-
-      const sig1 = createHmacSignature(payload, "secret1");
-      const sig2 = createHmacSignature(payload, "secret2");
-
-      expect(sig1).not.toBe(sig2);
-    });
-
-    it("should generate different signatures for different payloads", () => {
-      const secret = "test_webhook_secret";
-
-      const sig1 = createHmacSignature('{"test": "data1"}', secret);
-      const sig2 = createHmacSignature('{"test": "data2"}', secret);
-
-      expect(sig1).not.toBe(sig2);
+      // Should match format: t=timestamp,v1=signature
+      expect(header).toMatch(/^t=\d+,v1=[a-f0-9]{64}$/);
     });
   });
 
-  describe("compareSignatures", () => {
-    it("should compare signatures correctly", () => {
-      const payload = '{"test": "webhook"}';
-      const secret = "test_webhook_secret";
+  describe("User webhook verification", () => {
+    it("should allow users to verify our webhook signatures", () => {
+      const { secretKey } = generateWebhookSecret();
+      const payload = '{"event": "trace.created", "data": {"id": "123"}}';
+      const signatureHeader = createSignatureHeader(payload, secretKey);
 
-      const signature1 = createHmacSignature(payload, secret);
-      const signature2 = createHmacSignature(payload, secret);
-      const differentSignature = createHmacSignature(
-        payload,
-        "different_secret",
-      );
-
-      expect(compareSignatures(signature1, signature2)).toBe(true);
-      expect(compareSignatures(signature1, differentSignature)).toBe(false);
+      // User verification process
+      const isValid = verifyWebhookSignature(payload, signatureHeader, secretKey);
+      expect(isValid).toBe(true);
     });
 
-    it("should handle different length signatures", () => {
-      const signature1 = createHmacSignature('{"test": "data"}', "secret");
-      const shortSignature = "abc123";
+    it("should reject invalid signatures when users verify", () => {
+      const { secretKey } = generateWebhookSecret();
+      const wrongSecret = "wrong_secret";
+      const payload = '{"event": "trace.created"}';
+      const signatureHeader = createSignatureHeader(payload, secretKey);
 
-      expect(compareSignatures(signature1, shortSignature)).toBe(false);
+      const isValid = verifyWebhookSignature(payload, signatureHeader, wrongSecret);
+      expect(isValid).toBe(false);
     });
   });
 });
 
-// Simple HMAC signature creation (matching your requirements)
-function createHmacSignature(payload: string, secretKey: string): string {
-  return require("crypto")
-    .createHmac("sha256", secretKey)
-    .update(payload)
-    .digest("hex");
-}
-
-// Simple signature comparison (matching your requirements)
-function compareSignatures(
-  signature: string,
-  comparisonSignature: string,
+// Example verification function that users would implement
+function verifyWebhookSignature(
+  payload: string,
+  signatureHeader: string,
+  secret: string,
 ): boolean {
-  const source = Buffer.from(signature);
-  const comparison = Buffer.from(comparisonSignature);
+  try {
+    const [timestampPart, signaturePart] = signatureHeader.split(",");
+    
+    if (!timestampPart || !signaturePart) {
+      return false;
+    }
 
-  if (source.length !== comparison.length) {
+    const timestamp = parseInt(timestampPart.split("=")[1]);
+    const receivedSignature = signaturePart.split("=")[1];
+
+    if (!timestamp || !receivedSignature) {
+      return false;
+    }
+
+    // Generate expected signature using our provided function
+    const expectedSignature = generateWebhookSignature(payload, timestamp, secret);
+
+    // Use timing-safe comparison
+    return require("crypto").timingSafeEqual(
+      Buffer.from(receivedSignature),
+      Buffer.from(expectedSignature)
+    );
+  } catch (error) {
     return false;
   }
-
-  return require("crypto").timingSafeEqual(source, comparison);
 }

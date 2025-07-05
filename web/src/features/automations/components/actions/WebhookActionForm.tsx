@@ -166,7 +166,10 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           <FormDescription className="mb-2">
             Default headers (automatically added by Langfuse):
           </FormDescription>
-          {Object.entries(WebhookDefaultHeaders).map(([key, value]) => (
+          {Object.entries({
+            ...WebhookDefaultHeaders,
+            "x-langfuse-signature": `t=<timestamp>,v1=<signature>`,
+          }).map(([key, value]) => (
             <div key={key} className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2">
               <FormItem>
                 <FormControl>
