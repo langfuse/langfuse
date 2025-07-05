@@ -16,6 +16,7 @@ import {
   JSON_OPTIMIZATION_STRATEGIES,
   type JSONOptimizationStrategy,
 } from "@langfuse/shared";
+import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -386,6 +387,7 @@ async function runObservationPerformanceTest(size: number, name: string) {
 describe("JSON Performance Tests", () => {
   // Warm-up phase to mitigate cold start issues
   beforeAll(async () => {
+    jsonParserPool.start();
     console.log("Running warm-up phase...");
     const { traceId } = await insertTrace(1);
     await retrieveTraceGET(traceId, "original");
@@ -394,6 +396,10 @@ describe("JSON Performance Tests", () => {
     await retrieveObservationTRPC(observationId, obsTraceId, "original");
     console.log("Warm-up complete.");
   }, 20000); // 20s timeout for warm-up
+
+  afterAll(async () => {
+    await jsonParserPool.shutdown();
+  });
 
   it("should measure performance for a s trace", async () => {
     await runTracePerformanceTest(100, "s");

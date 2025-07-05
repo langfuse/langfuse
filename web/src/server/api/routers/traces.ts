@@ -50,6 +50,7 @@ import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
+import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -208,6 +209,34 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      if (input.optimization === "worker") {
+        const startTime = performance.now();
+
+        const [metadata, inputData, output] = await Promise.all([
+          ctx.trace.metadata
+            ? jsonParserPool.run(JSON.stringify(ctx.trace.metadata))
+            : Promise.resolve(undefined),
+          ctx.trace.input
+            ? jsonParserPool.run(JSON.stringify(ctx.trace.input))
+            : Promise.resolve(undefined),
+          ctx.trace.output
+            ? jsonParserPool.run(JSON.stringify(ctx.trace.output))
+            : Promise.resolve(undefined),
+        ]);
+
+        const mainThreadTime = performance.now() - startTime;
+
+        return {
+          ...ctx.trace,
+          metadata,
+          input: inputData,
+          output,
+          optimization: "worker",
+          metrics: {
+            mainThreadTime: mainThreadTime.toFixed(2) + "ms",
+          },
+        };
+      }
       return {
         ...ctx.trace,
         metadata:
