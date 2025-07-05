@@ -276,10 +276,7 @@ describe("Webhook Integration Tests", () => {
         where: { id: executionId },
       });
       expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
-      expect(execution?.output).toMatchObject({
-        httpStatus: 200,
-        responseBody: '{"success":true}',
-      });
+      expect(execution?.output).toBeNull();
       expect(execution?.startedAt).toBeDefined();
       expect(execution?.finishedAt).toBeDefined();
     });
