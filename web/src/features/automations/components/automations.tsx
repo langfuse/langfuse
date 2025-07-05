@@ -193,45 +193,32 @@ export default function AutomationsPage() {
     }
   };
 
+  const renderAutomationNotFoundError = (message: string) => (
+    <ErrorPage
+      title="Webhook not found"
+      message={message}
+      additionalButton={{
+        label: "Back to Webhooks",
+        onClick: () => {
+          setUrlParams({
+            view: "list",
+            automationId: undefined,
+            tab: urlParams.tab,
+          });
+        },
+      }}
+    />
+  );
+
   const renderMainContent = () => {
     // Handle 404 errors for edit view
     if (view === "edit" && editingAutomationError?.data?.code === "NOT_FOUND") {
-      return (
-        <ErrorPage
-          title="Webhook not found"
-          message="The webhook you're trying to edit doesn't exist or has been deleted."
-          additionalButton={{
-            label: "Back to Webhooks",
-            onClick: () => {
-              setUrlParams({
-                view: "list",
-                automationId: undefined,
-                tab: urlParams.tab,
-              });
-            },
-          }}
-        />
-      );
+      return renderAutomationNotFoundError("The webhook you're trying to edit doesn't exist or has been deleted.");
     }
 
     // Handle 404 errors for detail view
     if (view === "list" && selectedAutomation && automationDetailError?.data?.code === "NOT_FOUND") {
-      return (
-        <ErrorPage
-          title="Webhook not found"
-          message="The webhook you're looking for doesn't exist or has been deleted."
-          additionalButton={{
-            label: "Back to Webhooks",
-            onClick: () => {
-              setUrlParams({
-                view: "list",
-                automationId: undefined,
-                tab: urlParams.tab,
-              });
-            },
-          }}
-        />
-      );
+      return renderAutomationNotFoundError("The webhook you're looking for doesn't exist or has been deleted.");
     }
 
     if (view === "create") {
