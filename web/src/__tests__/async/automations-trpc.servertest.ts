@@ -897,7 +897,7 @@ describe("automations trpc", () => {
       expect(response.displaySecretKey).toBeDefined();
       expect(response.webhookSecret).not.toBe(originalSecretKey);
       expect(response.displaySecretKey).not.toBe(originalDisplaySecretKey);
-      expect(response.displaySecretKey).toMatch(/^whsec_\.\.\.[a-f0-9]{4}$/);
+      expect(response.displaySecretKey).toMatch(/^lf-whsec_\.\.\.[a-f0-9]{4}$/);
 
       // Verify the action was updated in the database
       const updatedAction = await prisma.action.findUnique({
