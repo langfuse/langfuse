@@ -124,7 +124,14 @@ Requirements
    cd langfuse
    ```
 
-3. Create an env file
+3. Install dependencies and set up pre-commit hooks
+
+   ```bash
+   pnpm install
+   pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
+   ```
+
+4. Create an env file
 
    ```bash
     cp .env.dev.example .env
@@ -133,7 +140,7 @@ Requirements
 4. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it.
 
    ```bash
-   pnpm run dx # first run only (resets db, node_modules, ...)
+   pnpm run dx # first run only (resets db, docker containers, etc...)
    pnpm run dev # any subsequent runs
    ```
 
