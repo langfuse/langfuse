@@ -1,5 +1,4 @@
 import { checkTraceExists, createTracesCh } from "@langfuse/shared/src/server";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getTraceById,
   getTracesBySessionId,
@@ -11,10 +10,6 @@ import { createObservationsCh } from "@langfuse/shared/src/server";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Clickhouse Traces Repository Test", () => {
-  beforeEach(async () => {
-    await pruneDatabase();
-  });
-
   it("should throw if no traces are found", async () => {
     expect(
       await getTraceById({ traceId: v4(), projectId: v4() }),
@@ -380,6 +375,37 @@ describe("Clickhouse Traces Repository Test", () => {
           column: "errorCount",
           operator: ">",
           value: 0,
+        },
+      ],
+      maxTimeStamp: undefined,
+    });
+    expect(exists).toBe(true);
+  });
+
+  it("should handle timestamp filter in checkTraceExists", async () => {
+    const traceId = v4();
+    const trace = createTrace({
+      id: traceId,
+      user_id: "user-1",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+      timestamp: Date.now(),
+    });
+
+    await createTracesCh([trace]);
+
+    const exists = await checkTraceExists({
+      projectId,
+      traceId,
+      timestamp: new Date(),
+      filter: [
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: ">=",
+          value: new Date(Date.now() - 3600000),
         },
       ],
       maxTimeStamp: undefined,

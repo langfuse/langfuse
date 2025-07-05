@@ -33,6 +33,8 @@ export type AuditableResource =
   | "batchExport"
   | "stripeCheckoutSession"
   | "batchAction"
+  | "automation"
+  | "action"
   // legacy resources
   | "membership";
 

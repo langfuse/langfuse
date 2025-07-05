@@ -22,6 +22,7 @@ import { Separator } from "@/src/components/ui/separator";
 import { type FilterOption } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import { useRef, useState } from "react";
+import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
 const getFreeTextInput = (
   isCustomSelectEnabled: boolean,
@@ -41,6 +42,7 @@ export function MultiSelect({
   className,
   disabled,
   isCustomSelectEnabled = false,
+  labelTruncateCutOff = 2,
 }: {
   title?: string;
   label?: string;
@@ -50,6 +52,7 @@ export function MultiSelect({
   className?: string;
   disabled?: boolean;
   isCustomSelectEnabled?: boolean;
+  labelTruncateCutOff?: number;
 }) {
   const selectedValues = new Set(values);
   const optionValues = new Set(options.map((option) => option.value));
@@ -115,7 +118,7 @@ export function MultiSelect({
                 {selectedValues.size}
               </Badge>
               <div className="hidden space-x-1 lg:flex">
-                {selectedValues.size > 2 ? (
+                {selectedValues.size > labelTruncateCutOff ? (
                   <Badge
                     variant="secondary"
                     className="rounded-sm px-1 font-normal"
@@ -150,7 +153,7 @@ export function MultiSelect({
               {options.map((option) => {
                 if (option.value.length === 0) return;
                 const isSelected = selectedValues.has(option.value);
-                return (
+                const commandItem = (
                   <InputCommandItem
                     key={option.value}
                     onSelect={() => {
@@ -185,6 +188,18 @@ export function MultiSelect({
                       </span>
                     ) : null}
                   </InputCommandItem>
+                );
+
+                return option.description ? (
+                  <PropertyHoverCard
+                    key={option.value}
+                    label={option.displayValue ?? option.value}
+                    description={option.description}
+                  >
+                    {commandItem}
+                  </PropertyHoverCard>
+                ) : (
+                  commandItem
                 );
               })}
             </InputCommandGroup>

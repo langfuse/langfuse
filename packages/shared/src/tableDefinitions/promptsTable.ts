@@ -1,9 +1,6 @@
-import {
-  type ColumnDefinition,
-  PromptType,
-  type SingleValueOption,
-  formatColumnOptions,
-} from "@langfuse/shared";
+import { PromptType } from "../features/prompts/types";
+import { formatColumnOptions } from "./typeHelpers";
+import { ColumnDefinition, SingleValueOption } from "./types";
 
 export const promptsTableCols: ColumnDefinition[] = [
   {
@@ -51,6 +48,12 @@ export const promptsTableCols: ColumnDefinition[] = [
     internal: 'p."tags"',
     options: [], // to be added at runtime
   },
+  {
+    name: "Config",
+    id: "config",
+    type: "stringObject",
+    internal: 'p."config"',
+  },
 ];
 
 export type PromptOptions = {
@@ -70,4 +73,8 @@ export function promptsTableColsWithOptions(
     }
     return col;
   });
+}
+
+export function webhookActionFilterOptions(): ColumnDefinition[] {
+  return promptsTableCols.filter((col) => col.id === "name");
 }
