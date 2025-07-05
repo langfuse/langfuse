@@ -55,14 +55,6 @@ export default function AutomationsPage() {
       },
       {
         enabled: view === "edit" && !!automationId,
-        retry(failureCount, error) {
-          if (
-            error.data?.code === "UNAUTHORIZED" ||
-            error.data?.code === "NOT_FOUND"
-          )
-            return false;
-          return failureCount < 3;
-        },
       },
     );
 
@@ -74,14 +66,6 @@ export default function AutomationsPage() {
     },
     {
       enabled: view === "list" && !!selectedAutomation,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
     },
   );
 
