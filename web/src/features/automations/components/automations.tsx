@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
+import { ErrorPage } from "@/src/components/error-page";
 
 export default function AutomationsPage() {
   const router = useRouter();
@@ -46,30 +47,48 @@ export default function AutomationsPage() {
   });
 
   // Fetch editing automation when in edit mode
-  const { data: editingAutomation } = api.automations.getAutomation.useQuery(
+  const { data: editingAutomation, error: editingAutomationError } = 
+    api.automations.getAutomation.useQuery(
+      {
+        projectId,
+        automationId: automationId!,
+      },
+      {
+        enabled: view === "edit" && !!automationId,
+      },
+    );
+
+  // Fetch automation for detail view to check if it exists
+  const { error: automationDetailError } = api.automations.getAutomation.useQuery(
     {
       projectId,
       automationId: automationId!,
     },
     {
-      enabled: view === "edit" && !!automationId,
+      enabled: view === "list" && !!selectedAutomation,
     },
   );
 
-  // Clear selected automation if no automations exist
+  // Auto-select the topmost automation or clear selection if none exist
   useEffect(() => {
-    if (
-      automations !== undefined &&
-      automations.length === 0 &&
-      selectedAutomation
-    ) {
-      setUrlParams({
-        view: "list",
-        automationId: undefined,
-        tab: urlParams.tab,
-      });
+    if (automations !== undefined) {
+      if (automations.length === 0 && selectedAutomation) {
+        // Clear selected automation if no automations exist
+        setUrlParams({
+          view: "list",
+          automationId: undefined,
+          tab: urlParams.tab,
+        });
+      } else if (automations.length > 0 && !selectedAutomation && view === "list") {
+        // Auto-select the topmost automation if none is currently selected
+        setUrlParams({
+          view: "list",
+          automationId: automations[0].id,
+          tab: urlParams.tab,
+        });
+      }
     }
-  }, [automations, selectedAutomation, projectId, setUrlParams, urlParams.tab]);
+  }, [automations, selectedAutomation, view, setUrlParams, urlParams.tab]);
 
   const handleCreateAutomation = () => {
     setUrlParams({
@@ -174,7 +193,34 @@ export default function AutomationsPage() {
     }
   };
 
+  const renderAutomationNotFoundError = (message: string) => (
+    <ErrorPage
+      title="Webhook not found"
+      message={message}
+      additionalButton={{
+        label: "Back to Webhooks",
+        onClick: () => {
+          setUrlParams({
+            view: "list",
+            automationId: undefined,
+            tab: urlParams.tab,
+          });
+        },
+      }}
+    />
+  );
+
   const renderMainContent = () => {
+    // Handle 404 errors for edit view
+    if (view === "edit" && editingAutomationError?.data?.code === "NOT_FOUND") {
+      return renderAutomationNotFoundError("The webhook you're trying to edit doesn't exist or has been deleted.");
+    }
+
+    // Handle 404 errors for detail view
+    if (view === "list" && selectedAutomation && automationDetailError?.data?.code === "NOT_FOUND") {
+      return renderAutomationNotFoundError("The webhook you're looking for doesn't exist or has been deleted.");
+    }
+
     if (view === "create") {
       return (
         <div className="p-6">
