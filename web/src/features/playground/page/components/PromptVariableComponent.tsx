@@ -3,7 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { type PromptVariable } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
 
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "./PlaygroundColumnProvider";
 import { useNamingConflicts } from "../hooks/useNamingConflicts";
 
 export const PromptVariableComponent: React.FC<{

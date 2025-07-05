@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "./PlaygroundColumnProvider";
 import { CheckIcon, CopyIcon, PlusIcon } from "@radix-ui/react-icons";
-import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
+import {
+  ChatMessageRole,
+  ChatMessageType,
+  type LLMToolCall,
+} from "@langfuse/shared";
 import { BracesIcon } from "lucide-react";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -98,7 +102,7 @@ export const GenerationOutput = () => {
           {isJson ? outputJson : output}
         </pre>
         {outputToolCalls.length > 0
-          ? outputToolCalls.map((toolCall) => (
+          ? outputToolCalls.map((toolCall: LLMToolCall) => (
               <div className="mt-4" key={toolCall.id}>
                 <ToolCallCard toolCall={toolCall} />
               </div>

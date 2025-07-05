@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { usePlaygroundContext } from "./PlaygroundColumnProvider";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { PlusIcon, PencilIcon, MinusCircle, BoxIcon } from "lucide-react";

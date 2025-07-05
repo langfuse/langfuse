@@ -7,7 +7,7 @@ import {
   PromptChatMessageListSchema,
 } from "@langfuse/shared";
 
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "./PlaygroundColumnProvider";
 import { type PlaceholderMessageFillIn } from "../types";
 import { useNamingConflicts } from "../hooks/useNamingConflicts";
 

@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { usePlaygroundContext } from "./PlaygroundColumnProvider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,7 +61,9 @@ const SubmitButton = () => {
       <Button
         className="flex-1"
         onClick={() => {
-          handleSubmit(streamingEnabled).catch((err) => console.error(err));
+          handleSubmit(streamingEnabled).catch((err: unknown) =>
+            console.error(err),
+          );
         }}
         loading={isStreaming}
       >

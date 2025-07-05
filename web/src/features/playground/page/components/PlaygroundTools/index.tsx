@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { usePlaygroundContext } from "../PlaygroundColumnProvider";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { PlusIcon, PencilIcon, MinusCircle, WrenchIcon } from "lucide-react";
@@ -54,7 +54,7 @@ export const PlaygroundTools = () => {
   );
 
   useEffect(() => {
-    tools.forEach((tool, index) => {
+    tools.forEach((tool: PlaygroundTool, index: number) => {
       if (!tool.existingLlmTool) {
         const matchingSavedTool = savedTools.find(
           (savedTool) => savedTool.name === tool.name,
@@ -210,7 +210,7 @@ export const PlaygroundTools = () => {
           </div>
         ) : (
           <div className="space-y-1">
-            {tools.map((tool) => (
+            {tools.map((tool: PlaygroundTool) => (
               <CreateOrEditLLMToolDialog
                 key={tool.id}
                 projectId={projectId as string}
