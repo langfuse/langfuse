@@ -36,6 +36,7 @@ export const convertClickhouseToDomain = (
   record: TraceRecordReadType,
   optimization?: JSONOptimizationStrategy,
 ): TraceDomain => {
+  const useRaw = optimization && ["raw", "worker"].includes(optimization);
   return {
     id: record.id,
     projectId: record.project_id,
@@ -50,19 +51,18 @@ export const convertClickhouseToDomain = (
     sessionId: record.session_id ?? null,
     public: record.public,
     input: record.input
-      ? optimization === "raw"
+      ? useRaw
         ? record.input
         : (parseJsonPrioritised(record.input) ?? null)
       : null,
     output: record.output
-      ? optimization === "raw"
+      ? useRaw
         ? record.output
         : (parseJsonPrioritised(record.output) ?? null)
       : null,
-    metadata:
-      optimization === "raw"
-        ? record.metadata
-        : parseMetadataCHRecordToDomain(record.metadata),
+    metadata: useRaw
+      ? record.metadata
+      : parseMetadataCHRecordToDomain(record.metadata),
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
   };

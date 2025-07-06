@@ -51,6 +51,7 @@ import {
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
 import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
+import { performance } from "perf_hooks";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -212,19 +213,30 @@ export const traceRouter = createTRPCRouter({
       if (input.optimization === "worker") {
         const startTime = performance.now();
 
-        const [metadata, inputData, output] = await Promise.all([
+        const results = await Promise.all([
           ctx.trace.metadata
-            ? jsonParserPool.run(JSON.stringify(ctx.trace.metadata))
+            ? jsonParserPool.run(ctx.trace.metadata as unknown as string)
             : Promise.resolve(undefined),
           ctx.trace.input
-            ? jsonParserPool.run(JSON.stringify(ctx.trace.input))
+            ? jsonParserPool.run(ctx.trace.input as unknown as string)
             : Promise.resolve(undefined),
           ctx.trace.output
-            ? jsonParserPool.run(JSON.stringify(ctx.trace.output))
+            ? jsonParserPool.run(ctx.trace.output as unknown as string)
             : Promise.resolve(undefined),
         ]);
 
         const mainThreadTime = performance.now() - startTime;
+
+        const metadata = results[0]?.data;
+        const inputData = results[1]?.data;
+        const output = results[2]?.data;
+
+        const totalWorkerCpuTime = results.reduce(
+          (acc, r) => acc + (r?.workerCpuTime ?? 0),
+          0,
+        );
+
+        const mainThreadIdleTime = mainThreadTime - totalWorkerCpuTime;
 
         return {
           ...ctx.trace,
@@ -234,6 +246,8 @@ export const traceRouter = createTRPCRouter({
           optimization: "worker",
           metrics: {
             mainThreadTime: mainThreadTime.toFixed(2) + "ms",
+            totalWorkerCpuTime: totalWorkerCpuTime.toFixed(2) + "ms",
+            mainThreadIdleTime: mainThreadIdleTime.toFixed(2) + "ms",
           },
         };
       }

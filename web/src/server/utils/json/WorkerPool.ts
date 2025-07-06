@@ -5,7 +5,7 @@ const workerScript = path.join(__dirname, "jsonParserWorker.mjs");
 
 interface WorkerJob {
   jsonString: string;
-  resolve: (value: string) => void;
+  resolve: (value: { data: string; workerCpuTime: number }) => void;
   reject: (reason?: any) => void;
 }
 
@@ -39,7 +39,9 @@ class WorkerPool {
 
   public async shutdown(): Promise<void> {
     this.isShuttingDown = true;
-    const terminationPromises = this.workers.map((worker) => worker.terminate());
+    const terminationPromises = this.workers.map((worker) =>
+      worker.terminate(),
+    );
     await Promise.all(terminationPromises);
     this.workers = [];
     this.activeWorkers.clear();
@@ -70,7 +72,9 @@ class WorkerPool {
     return worker;
   }
 
-  public run(jsonString: string): Promise<string> {
+  public run(
+    jsonString: string,
+  ): Promise<{ data: string; workerCpuTime: number }> {
     if (!this.isStarted) {
       return Promise.reject(
         new Error("WorkerPool not started. Please call start() first."),
@@ -108,9 +112,13 @@ class WorkerPool {
       success: boolean;
       data?: string;
       error?: string;
+      workerCpuTime?: number;
     }) => {
       if (message.success) {
-        job.resolve(message.data!);
+        job.resolve({
+          data: message.data!,
+          workerCpuTime: message.workerCpuTime!,
+        });
       } else {
         job.reject(new Error(message.error));
       }

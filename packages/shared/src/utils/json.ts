@@ -38,6 +38,8 @@ export function deepParseJson(json: unknown): unknown {
   return json;
 }
 
+import { parse, isSafeNumber, isNumber } from "lossless-json";
+
 export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
