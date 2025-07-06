@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
+import { deletePrompt } from "@/src/features/prompts/server/actions/deletePrompt";
 import { GetPromptByNameSchema } from "@/src/features/prompts/server/utils/validation";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
@@ -47,6 +48,34 @@ const getPromptNameHandler = async (
   return res.status(200).json(prompt);
 };
 
+const deletePromptNameHandler = async (
+  req: NextApiRequest,
+  res: NextApiResponse,
+) => {
+  const authCheck = await authorizePromptRequestOrThrow(req);
+
+  const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
+    authCheck.scope,
+    "prompts",
+  );
+
+  if (rateLimitCheck?.isRateLimited()) {
+    return rateLimitCheck.sendRestResponseIfLimited(res);
+  }
+
+  const { promptName, version, label } = GetPromptByNameSchema.parse(req.query);
+
+  await deletePrompt({
+    promptName,
+    projectId: authCheck.scope.projectId,
+    version,
+    label,
+  });
+
+  return res.status(204).end();
+};
+
 export const promptNameHandler = withMiddlewares({
   GET: getPromptNameHandler,
+  DELETE: deletePromptNameHandler,
 });
