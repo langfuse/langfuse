@@ -2763,6 +2763,58 @@ paths:
           content:
             application/json:
               schema: {}
+    delete:
+      description: Delete a prompt or specific versions
+      operationId: prompts_delete
+      tags:
+        - Prompts
+      parameters:
+        - name: promptName
+          in: path
+          description: The name of the prompt
+          required: true
+          schema:
+            type: string
+        - name: label
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
       security:
         - BasicAuth: []
   /api/public/v2/prompts:
