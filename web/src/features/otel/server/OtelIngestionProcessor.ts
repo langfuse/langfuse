@@ -568,11 +568,9 @@ export class OtelIngestionProcessor {
         null,
       usageDetails: this.extractUsageDetails(
         attributes,
-        isLangfuseSDKSpans,
       ) as any,
       costDetails: this.extractCostDetails(
         attributes,
-        isLangfuseSDKSpans,
       ) as any,
       ...this.extractInputAndOutput(span?.events ?? [], attributes),
     };
@@ -1143,9 +1141,9 @@ export class OtelIngestionProcessor {
 
   private extractUsageDetails(
     attributes: Record<string, unknown>,
-    isLangfuseSDKSpan: boolean,
   ): Record<string, unknown> {
-    if (isLangfuseSDKSpan) {
+    const hasLangfuseUsageDetails = attributes[LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS];
+    if (hasLangfuseUsageDetails) {
       try {
         return JSON.parse(
           attributes[
@@ -1187,9 +1185,9 @@ export class OtelIngestionProcessor {
 
   private extractCostDetails(
     attributes: Record<string, unknown>,
-    isLangfuseSDKSpan: boolean,
   ): Record<string, unknown> {
-    if (isLangfuseSDKSpan) {
+    const hasLangfuseCostDetails = attributes[LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS];
+    if (hasLangfuseCostDetails) {
       try {
         return JSON.parse(
           attributes[
