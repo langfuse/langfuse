@@ -91,7 +91,7 @@ const transformListItemChildren = (children: ReactNode) =>
   Children.map(children, (child) =>
     isTextElement(child) ? (
       <div className="mb-1 inline-flex">
-        {createElement(child.type, { ...child.props })}
+        {createElement(child.type, { ...(child.props || {}) })}
       </div>
     ) : (
       child
@@ -202,18 +202,18 @@ function MarkdownRenderer({
 
             return language || isMultiLine ? (
               // code block
-              (<CodeBlock
+              <CodeBlock
                 key={Math.random()}
                 language={language}
                 value={codeContent}
                 theme={theme}
                 className={customCodeHeaderClassName}
-              />)
+              />
             ) : (
               // inline code
-              (<code className="rounded border bg-secondary px-0.5">
+              <code className="rounded border bg-secondary px-0.5">
                 {codeContent}
-              </code>)
+              </code>
             );
           },
           blockquote({ children }) {
@@ -224,7 +224,9 @@ function MarkdownRenderer({
             );
           },
           img({ src, alt }) {
-            return src ? <ResizableImage src={src} alt={alt} /> : null;
+            return src && typeof src === "string" ? (
+              <ResizableImage src={src} alt={alt} />
+            ) : null;
           },
           hr() {
             return <hr className="my-4" />;
@@ -344,14 +346,14 @@ export function MarkdownView({
       >
         {typeof markdown === "string" ? (
           // plain string
-          (<MarkdownRenderer
+          <MarkdownRenderer
             markdown={markdown}
             theme={theme}
             customCodeHeaderClassName={customCodeHeaderClassName}
-          />)
+          />
         ) : (
           // content parts (multi-modal)
-          ((markdown ?? []).map((content, index) =>
+          (markdown ?? []).map((content, index) =>
             isOpenAITextContentPart(content) ? (
               <MarkdownRenderer
                 key={index}
@@ -383,7 +385,8 @@ export function MarkdownView({
               <LangfuseMediaView
                 mediaReferenceString={content.input_audio.data}
               />
-            ) : null))
+            ) : null,
+          )
         )}
         {audio ? (
           <>
