@@ -39,7 +39,7 @@ export default withMiddlewares({
       if (req.headers["content-encoding"]?.includes("gzip")) {
         try {
           body = await new Promise((resolve, reject) => {
-            gunzip(body, (err, result) =>
+            gunzip(new Uint8Array(body), (err, result) =>
               err ? reject(err) : resolve(result),
             );
           });

@@ -19,7 +19,7 @@ export function Timeline({ children, className }: TimelineProps) {
 
 interface TimelineItemProps {
   children: React.ReactNode;
-  ref?: React.RefObject<HTMLDivElement>;
+  ref?: React.RefObject<HTMLDivElement | null>;
   className?: string;
   isActive?: boolean;
   onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;

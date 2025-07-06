@@ -78,7 +78,7 @@ const getSafeUrl = (href: string | undefined | null): string | null => {
   }
 };
 
-const isTextElement = (child: ReactNode): child is ReactElement =>
+const isTextElement = (child: ReactNode): child is ReactElement<any> =>
   isValidElement(child) &&
   typeof child.type !== "string" &&
   ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type.name);
@@ -91,7 +91,7 @@ const transformListItemChildren = (children: ReactNode) =>
   Children.map(children, (child) =>
     isTextElement(child) ? (
       <div className="mb-1 inline-flex">
-        {createElement(child.type, { ...child.props })}
+        {createElement(child.type, { ...(child.props || {}) })}
       </div>
     ) : (
       child
@@ -224,7 +224,9 @@ function MarkdownRenderer({
             );
           },
           img({ src, alt }) {
-            return src ? <ResizableImage src={src} alt={alt} /> : null;
+            return src && typeof src === "string" ? (
+              <ResizableImage src={src} alt={alt} />
+            ) : null;
           },
           hr() {
             return <hr className="my-4" />;
