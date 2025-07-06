@@ -74,16 +74,6 @@ export const generateTracesForPublicApi = async ({
       ),
   );
 
-  // If user provides an order we prefer it or fallback to timestamp as the default.
-  // In both cases we append a t.event_ts desc order to pick the latest event in case of duplicates
-  // if we want to use a skip index.
-  // This may still return stale information if the orderBy key was updated between traces or if a filter
-  // applies only to a stale value.
-  const chOrderBy =
-    (orderByToClickhouseSql(orderBy || [], orderByColumns) ||
-      "ORDER BY t.timestamp desc") +
-    (shouldUseSkipIndexes ? ", t.event_ts desc" : "");
-
   // Build CTEs conditionally based on requested fields
   const ctes = [];
 
@@ -150,6 +140,16 @@ export const generateTracesForPublicApi = async ({
       fromTimestamp: timeFilter?.value ?? undefined,
     },
     existingExecution: (input) => {
+      // If user provides an order we prefer it or fallback to timestamp as the default.
+      // In both cases we append a t.event_ts desc order to pick the latest event in case of duplicates
+      // if we want to use a skip index.
+      // This may still return stale information if the orderBy key was updated between traces or if a filter
+      // applies only to a stale value.
+      const chOrderBy =
+        (orderByToClickhouseSql(orderBy || [], orderByColumns) ||
+          "ORDER BY t.timestamp desc") +
+        (shouldUseSkipIndexes ? ", t.event_ts desc" : "");
+
       const query = `
         ${withClause}
     
@@ -204,6 +204,11 @@ export const generateTracesForPublicApi = async ({
     },
     newExecution: (input) => {
       const tracesAmt = getTimeframesTracesAMT(input.fromTimestamp);
+
+      // If user provides an order we prefer it or fallback to timestamp as the default.
+      const chOrderBy =
+        orderByToClickhouseSql(orderBy || [], orderByColumns) ||
+        "ORDER BY t.start_time desc";
 
       const query = `
         ${withClause}
