@@ -5,7 +5,7 @@
 
 import { type RefObject, useEffect, useMemo, useState } from "react";
 
-export function useElementIsVisible<T extends HTMLElement>(ref: RefObject<T>) {
+export function useElementIsVisible<T extends HTMLElement>(ref: RefObject<T | null>) {
   const [isVisible, setIsVisible] = useState(false);
 
   const observer = useMemo(
@@ -32,7 +32,7 @@ export function useElementIsVisible<T extends HTMLElement>(ref: RefObject<T>) {
   return isVisible;
 }
 
-export function useElementWasVisible<T extends HTMLElement>(ref: RefObject<T>) {
+export function useElementWasVisible<T extends HTMLElement>(ref: RefObject<T | null>) {
   const [hasBeenVisible, setHasBeenVisible] = useState(false);
 
   const observer = useMemo(

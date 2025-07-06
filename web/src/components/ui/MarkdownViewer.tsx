@@ -78,7 +78,7 @@ const getSafeUrl = (href: string | undefined | null): string | null => {
   }
 };
 
-const isTextElement = (child: ReactNode): child is ReactElement =>
+const isTextElement = (child: ReactNode): child is ReactElement<any> =>
   isValidElement(child) &&
   typeof child.type !== "string" &&
   ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type.name);
@@ -202,18 +202,18 @@ function MarkdownRenderer({
 
             return language || isMultiLine ? (
               // code block
-              <CodeBlock
+              (<CodeBlock
                 key={Math.random()}
                 language={language}
                 value={codeContent}
                 theme={theme}
                 className={customCodeHeaderClassName}
-              />
+              />)
             ) : (
               // inline code
-              <code className="rounded border bg-secondary px-0.5">
+              (<code className="rounded border bg-secondary px-0.5">
                 {codeContent}
-              </code>
+              </code>)
             );
           },
           blockquote({ children }) {
@@ -344,14 +344,14 @@ export function MarkdownView({
       >
         {typeof markdown === "string" ? (
           // plain string
-          <MarkdownRenderer
+          (<MarkdownRenderer
             markdown={markdown}
             theme={theme}
             customCodeHeaderClassName={customCodeHeaderClassName}
-          />
+          />)
         ) : (
           // content parts (multi-modal)
-          (markdown ?? []).map((content, index) =>
+          ((markdown ?? []).map((content, index) =>
             isOpenAITextContentPart(content) ? (
               <MarkdownRenderer
                 key={index}
@@ -383,8 +383,7 @@ export function MarkdownView({
               <LangfuseMediaView
                 mediaReferenceString={content.input_audio.data}
               />
-            ) : null,
-          )
+            ) : null))
         )}
         {audio ? (
           <>
