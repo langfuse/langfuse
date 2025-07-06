@@ -106,17 +106,21 @@ const isImageNode = (node?: ReactMarkdownNode): boolean =>
       "tagName" in child && child.tagName === "img",
   );
 
+interface MarkdownRendererProps {
+  markdown: string;
+  theme?: string;
+  className?: string;
+  customCodeHeaderClassName?: string;
+  isDefaultImageVisible?: boolean;
+}
+
 function MarkdownRenderer({
   markdown,
   theme,
   className,
   customCodeHeaderClassName,
-}: {
-  markdown: string;
-  theme?: string;
-  className?: string;
-  customCodeHeaderClassName?: string;
-}) {
+  isDefaultImageVisible,
+}: MarkdownRendererProps) {
   // Try to parse markdown content
 
   try {
@@ -224,7 +228,13 @@ function MarkdownRenderer({
             );
           },
           img({ src, alt }) {
-            return src ? <ResizableImage src={src} alt={alt} /> : null;
+            return src ? (
+              <ResizableImage
+                src={src}
+                alt={alt}
+                isDefaultVisible={isDefaultImageVisible}
+              />
+            ) : null;
           },
           hr() {
             return <hr className="my-4" />;
@@ -290,19 +300,23 @@ const parseOpenAIContentParts = (
     .join("\n");
 };
 
+interface MarkdownViewerProps {
+  markdown: string | z.infer<typeof OpenAIContentSchema>;
+  title?: string;
+  customCodeHeaderClassName?: string;
+  audio?: OpenAIOutputAudioType;
+  media?: MediaReturnType[];
+  isDefaultImageVisible?: boolean;
+}
+
 export function MarkdownView({
   markdown,
   title,
   customCodeHeaderClassName,
   audio,
   media,
-}: {
-  markdown: string | z.infer<typeof OpenAIContentSchema>;
-  title?: string;
-  customCodeHeaderClassName?: string;
-  audio?: OpenAIOutputAudioType;
-  media?: MediaReturnType[];
-}) {
+  isDefaultImageVisible,
+}: MarkdownViewerProps) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
@@ -348,6 +362,7 @@ export function MarkdownView({
             markdown={markdown}
             theme={theme}
             customCodeHeaderClassName={customCodeHeaderClassName}
+            isDefaultImageVisible={isDefaultImageVisible}
           />
         ) : (
           // content parts (multi-modal)
@@ -358,6 +373,7 @@ export function MarkdownView({
                 markdown={content.text}
                 theme={theme}
                 customCodeHeaderClassName={customCodeHeaderClassName}
+                isDefaultImageVisible={isDefaultImageVisible}
               />
             ) : isOpenAIImageContentPart(content) ? (
               OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
@@ -392,6 +408,7 @@ export function MarkdownView({
               markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
               theme={theme}
               customCodeHeaderClassName={customCodeHeaderClassName}
+              isDefaultImageVisible={isDefaultImageVisible}
             />
             <LangfuseMediaView
               mediaReferenceString={audio.data.referenceString}

@@ -82,6 +82,16 @@ const isSupportedMarkdownFormat = (
 
 // MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
 // otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
+interface MarkdownJsonViewProps {
+  content?: unknown;
+  title?: string;
+  className?: string;
+  customCodeHeaderClassName?: string;
+  audio?: OpenAIOutputAudioType;
+  media?: MediaReturnType[];
+  isDefaultImageVisible?: boolean;
+}
+
 export function MarkdownJsonView({
   content,
   title,
@@ -89,14 +99,8 @@ export function MarkdownJsonView({
   customCodeHeaderClassName,
   audio,
   media,
-}: {
-  content?: unknown;
-  title?: string;
-  className?: string;
-  customCodeHeaderClassName?: string;
-  audio?: OpenAIOutputAudioType;
-  media?: MediaReturnType[];
-}) {
+  isDefaultImageVisible,
+}: MarkdownJsonViewProps) {
   const stringOrValidatedMarkdown = useMemo(
     () => StringOrMarkdownSchema.safeParse(content),
     [content],
@@ -121,6 +125,7 @@ export function MarkdownJsonView({
           customCodeHeaderClassName={customCodeHeaderClassName}
           audio={audio}
           media={media}
+          isDefaultImageVisible={isDefaultImageVisible}
         />
       ) : (
         <JSONView
