@@ -1,12 +1,58 @@
 import { Worker } from "worker_threads";
 import path from "path";
+import { performance } from "perf_hooks";
+import fs from "fs";
 
-const workerScript = path.join(__dirname, "jsonParserWorker.mjs");
+// Find the worker script with multiple fallback paths
+function findWorkerScript(): string {
+  const possiblePaths = [
+    // Development path (source files)
+    path.join(__dirname, "jsonParserWorker.mjs"),
+    // Production path (compiled files might be in different locations)
+    path.resolve(__dirname, "jsonParserWorker.mjs"),
+    // Fallback to project root
+    path.join(process.cwd(), "web/src/server/utils/json/jsonParserWorker.mjs"),
+    path.join(process.cwd(), "src/server/utils/json/jsonParserWorker.mjs"),
+    // Next.js specific paths
+    path.join(process.cwd(), ".next/server/chunks/jsonParserWorker.mjs"),
+    path.join(process.cwd(), "dist/server/utils/json/jsonParserWorker.mjs"),
+  ];
+
+  for (const possiblePath of possiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      console.log("WorkerPool: Found worker script at:", possiblePath);
+      return possiblePath;
+    }
+  }
+
+  console.error("WorkerPool: Could not find jsonParserWorker.mjs");
+  console.error("WorkerPool: Searched paths:", possiblePaths);
+  console.error("WorkerPool: Current __dirname:", __dirname);
+  console.error("WorkerPool: Current process.cwd():", process.cwd());
+  throw new Error(
+    "Could not find jsonParserWorker.mjs in any of the expected locations",
+  );
+}
+
+const workerScript = findWorkerScript();
 
 interface WorkerJob {
-  jsonString: string;
-  resolve: (value: { data: string; workerCpuTime: number }) => void;
+  message: any;
+  resolve: (value: { data: any; workerCpuTime: number }) => void;
   reject: (reason?: any) => void;
+}
+interface ParallelResult {
+  results: (string | undefined)[];
+  metrics: {
+    mainThreadTime: number;
+    totalWorkerCpuTime: number;
+    avgWorkerCpuTime: number;
+    maxWorkerCpuTime: number;
+    coordinationOverhead: number;
+    activeWorkerCount: number;
+    dispatchTime: number;
+    actualIdleTime: number;
+  };
 }
 
 class WorkerPool {
@@ -31,10 +77,22 @@ class WorkerPool {
       console.warn("WorkerPool is already started.");
       return;
     }
+    console.log("WorkerPool: Starting with pool size:", poolSize);
+    const startTime = performance.now();
     for (let i = 0; i < poolSize; i++) {
       this.workers.push(this.createWorker());
     }
     this.isStarted = true;
+    const endTime = performance.now();
+    console.log(
+      "WorkerPool: Started successfully in:",
+      endTime - startTime,
+      "ms",
+    );
+  }
+
+  public isActive(): boolean {
+    return this.isStarted;
   }
 
   public async shutdown(): Promise<void> {
@@ -81,10 +139,172 @@ class WorkerPool {
       );
     }
     return new Promise((resolve, reject) => {
-      const job = { jsonString, resolve, reject };
+      const job = {
+        message: { data: jsonString, stringify: true },
+        resolve,
+        reject,
+      };
       this.jobQueue.push(job);
       this.dispatch();
     });
+  }
+
+  public runParse(
+    jsonString: string,
+  ): Promise<{ data: any; workerCpuTime: number }> {
+    if (!this.isStarted) {
+      return Promise.reject(
+        new Error("WorkerPool not started. Please call start() first."),
+      );
+    }
+    return new Promise((resolve, reject) => {
+      const job = {
+        message: { data: jsonString, stringify: false },
+        resolve,
+        reject,
+      };
+      this.jobQueue.push(job);
+      this.dispatch();
+    });
+  }
+
+  public async runParallel(
+    inputs: (string | null | undefined)[],
+  ): Promise<ParallelResult> {
+    if (!this.isStarted) {
+      throw new Error("WorkerPool not started. Please call start() first.");
+    }
+
+    const startTime = performance.now();
+
+    // Filter out null/undefined inputs and track their original positions
+    const validInputs: { input: string; originalIndex: number }[] = [];
+    inputs.forEach((input, index) => {
+      if (input !== null && input !== undefined) {
+        validInputs.push({ input, originalIndex: index });
+      }
+    });
+
+    // Kick off all workers and measure dispatch time
+    const dispatchStartTime = performance.now();
+    const workerPromises = validInputs.map(({ input }) => this.run(input));
+    const dispatchEndTime = performance.now();
+    const dispatchTime = dispatchEndTime - dispatchStartTime;
+
+    // Now we're in the "idle" period - main thread could do other work here
+    const idleStartTime = performance.now();
+
+    // Wait for all workers to complete
+    const workerResults = await Promise.all(workerPromises);
+
+    const idleEndTime = performance.now();
+    const actualIdleTime = idleEndTime - idleStartTime;
+
+    const mainThreadTime = performance.now() - startTime;
+
+    // Reconstruct results array with original positions
+    const results: (string | undefined)[] = new Array(inputs.length);
+    validInputs.forEach(({ originalIndex }, resultIndex) => {
+      results[originalIndex] = workerResults[resultIndex].data;
+    });
+
+    // Calculate metrics
+    const workerTimes = workerResults.map((r) => r.workerCpuTime);
+    const totalWorkerCpuTime = workerTimes.reduce((acc, time) => acc + time, 0);
+    const activeWorkerCount = workerTimes.length;
+    const avgWorkerCpuTime =
+      activeWorkerCount > 0 ? totalWorkerCpuTime / activeWorkerCount : 0;
+    const maxWorkerCpuTime =
+      workerTimes.length > 0 ? Math.max(...workerTimes) : 0;
+    const coordinationOverhead = Math.max(
+      0,
+      mainThreadTime - actualIdleTime - dispatchTime,
+    );
+
+    return {
+      results,
+      metrics: {
+        mainThreadTime,
+        totalWorkerCpuTime,
+        avgWorkerCpuTime,
+        maxWorkerCpuTime,
+        coordinationOverhead,
+        activeWorkerCount,
+        dispatchTime,
+        actualIdleTime,
+      },
+    };
+  }
+
+  public async runParallelParse(
+    inputs: (string | null | undefined)[],
+  ): Promise<{
+    results: (any | undefined)[];
+    metrics: ParallelResult["metrics"];
+  }> {
+    if (!this.isStarted) {
+      throw new Error("WorkerPool not started. Please call start() first.");
+    }
+
+    const startTime = performance.now();
+
+    // Filter out null/undefined inputs and track their original positions
+    const validInputs: { input: string; originalIndex: number }[] = [];
+    inputs.forEach((input, index) => {
+      if (input !== null && input !== undefined) {
+        validInputs.push({ input, originalIndex: index });
+      }
+    });
+
+    // Kick off all workers and measure dispatch time
+    const dispatchStartTime = performance.now();
+    const workerPromises = validInputs.map(({ input }) => this.runParse(input));
+    const dispatchEndTime = performance.now();
+    const dispatchTime = dispatchEndTime - dispatchStartTime;
+
+    // Now we're in the "idle" period - main thread could do other work here
+    const idleStartTime = performance.now();
+
+    // Wait for all workers to complete
+    const workerResults = await Promise.all(workerPromises);
+
+    const idleEndTime = performance.now();
+    const actualIdleTime = idleEndTime - idleStartTime;
+
+    const mainThreadTime = performance.now() - startTime;
+
+    // Reconstruct results array with original positions
+    const results: (any | undefined)[] = new Array(inputs.length);
+    validInputs.forEach(({ originalIndex }, resultIndex) => {
+      results[originalIndex] = workerResults[resultIndex].data;
+    });
+
+    // Calculate metrics
+    const workerTimes = workerResults.map((r) => r.workerCpuTime);
+    const totalWorkerCpuTime = workerTimes.reduce((acc, time) => acc + time, 0);
+    const activeWorkerCount = workerTimes.length;
+    const avgWorkerCpuTime =
+      activeWorkerCount > 0 ? totalWorkerCpuTime / activeWorkerCount : 0;
+    const maxWorkerCpuTime =
+      workerTimes.length > 0 ? Math.max(...workerTimes) : 0;
+    const coordinationOverhead = Math.max(
+      0,
+      mainThreadTime - actualIdleTime - dispatchTime,
+    );
+
+    return {
+      results,
+      metrics: {
+        mainThreadTime,
+        totalWorkerCpuTime,
+        avgWorkerCpuTime,
+        maxWorkerCpuTime,
+        coordinationOverhead,
+        activeWorkerCount,
+        dispatchTime,
+        actualIdleTime,
+      },
+    };
   }
 
   private dispatch() {
@@ -110,7 +330,7 @@ class WorkerPool {
 
     const onMessage = (message: {
       success: boolean;
-      data?: string;
+      data?: any;
       error?: string;
       workerCpuTime?: number;
     }) => {
@@ -131,7 +351,7 @@ class WorkerPool {
 
     availableWorker.on("message", onMessage);
 
-    availableWorker.postMessage(job.jsonString);
+    availableWorker.postMessage(job.message);
   }
 }
 

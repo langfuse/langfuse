@@ -42,19 +42,28 @@ if (!parentPort) {
   throw new Error("This file is meant to be run as a worker thread.");
 }
 
-parentPort.on("message", (jsonStringOrObject) => {
+parentPort.on("message", (message) => {
   try {
     const startTime = performance.now();
+
+    // Handle both old format (direct string/object) and new format (with config)
+    const jsonStringOrObject = message?.data ?? message;
+    const shouldStringify = message?.stringify !== false; // Default to true for backwards compatibility
+
     const parsed =
       typeof jsonStringOrObject == "string"
         ? parseJsonPrioritised(jsonStringOrObject)
         : parseRecord(jsonStringOrObject);
-    const result = JSON.stringify(parsed);
+
+    const result = shouldStringify ? JSON.stringify(parsed) : parsed;
     const endTime = performance.now();
     const workerCpuTime = endTime - startTime;
 
     parentPort.postMessage({ success: true, data: result, workerCpuTime });
   } catch (e) {
-    parentPort.postMessage({ success: false, error: e.message });
+    parentPort.postMessage({
+      success: false,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 });

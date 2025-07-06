@@ -20,6 +20,34 @@ import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
+interface GetResult {
+  time: number;
+  metrics?: {
+    mainThreadTime: number;
+    totalWorkerCpuTime: number;
+    avgWorkerCpuTime: number;
+    maxWorkerCpuTime: number;
+    coordinationOverhead: number;
+    activeWorkerCount: number;
+    dispatchTime: number;
+    actualIdleTime: number;
+  };
+}
+
+interface TrpcResult {
+  time: number;
+  metrics?: {
+    mainThreadTime: number;
+    totalWorkerCpuTime: number;
+    avgWorkerCpuTime: number;
+    maxWorkerCpuTime: number;
+    coordinationOverhead: number;
+    activeWorkerCount: number;
+    dispatchTime: number;
+    actualIdleTime: number;
+  };
+}
+
 interface PerformanceTestConfig {
   entityType: "Trace" | "Observation";
   insertApi: (size: number) => Promise<{
@@ -37,12 +65,12 @@ interface PerformanceTestConfig {
   retrieveGet: (
     id: string,
     optimization: JSONOptimizationStrategy,
-  ) => Promise<{ time: number }>;
+  ) => Promise<GetResult>;
   retrieveTrpc: (
     id: string,
     traceId: string | undefined,
     optimization: JSONOptimizationStrategy,
-  ) => Promise<{ time: number }>;
+  ) => Promise<TrpcResult>;
 }
 
 function makeTrpcCaller() {
@@ -233,7 +261,7 @@ async function insertObservationDirect(length: number) {
 async function retrieveTraceGET(
   traceId: string,
   optimization: JSONOptimizationStrategy,
-) {
+): Promise<GetResult> {
   const startTime = performance.now();
   const result = await makeAPICall(
     "GET",
@@ -244,13 +272,14 @@ async function retrieveTraceGET(
   if (optimization !== "original") {
     expect(body.optimization).toBe(optimization);
   }
-  return { time: endTime - startTime };
+  const metrics = body.metrics;
+  return { time: endTime - startTime, metrics };
 }
 
 async function retrieveObservationGET(
   observationId: string,
   optimization: JSONOptimizationStrategy,
-) {
+): Promise<GetResult> {
   const startTime = performance.now();
   const result = await makeAPICall(
     "GET",
@@ -261,7 +290,8 @@ async function retrieveObservationGET(
   if (optimization !== "original") {
     expect(body.optimization).toBe(optimization);
   }
-  return { time: endTime - startTime };
+  const metrics = body.metrics;
+  return { time: endTime - startTime, metrics };
 }
 
 async function retrieveTraceTRPC(
@@ -270,12 +300,17 @@ async function retrieveTraceTRPC(
 ) {
   const caller = makeTrpcCaller();
   const startTime = performance.now();
-  const result = await caller.traces.byId({ traceId, projectId, optimization });
+  const result = await caller.traces.byId({
+    traceId,
+    projectId,
+    optimization,
+  });
   const endTime = performance.now();
   if (optimization !== "original") {
     expect(result.optimization).toBe(optimization);
   }
-  return { time: endTime - startTime };
+  const metrics = (result as any).metrics;
+  return { time: endTime - startTime, metrics };
 }
 
 async function retrieveObservationTRPC(
@@ -291,11 +326,12 @@ async function retrieveObservationTRPC(
     projectId,
     optimization,
   });
+  const endTime = performance.now();
   if (optimization !== "original") {
     expect(result.optimization).toBe(optimization);
   }
-  const endTime = performance.now();
-  return { time: endTime - startTime };
+  const metrics = (result as any).metrics;
+  return { time: endTime - startTime, metrics };
 }
 
 async function runPerformanceTest(
@@ -327,27 +363,84 @@ async function runPerformanceTest(
   await config.retrieveTrpc(ids.id, ids.traceId, "original");
 
   // Timed Retrieval
-  const getTimes: Partial<Record<JSONOptimizationStrategy, number>> = {};
+  const getResults: Partial<Record<JSONOptimizationStrategy, GetResult>> = {};
+  // for (const opt of ["raw" as const]) {
   for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
-    getTimes[opt] = (await config.retrieveGet(ids.id, opt)).time;
+    getResults[opt] = await config.retrieveGet(ids.id, opt);
   }
 
-  const trpcTimes: Partial<Record<JSONOptimizationStrategy, number>> = {};
+  const trpcResults: Partial<Record<JSONOptimizationStrategy, TrpcResult>> = {};
   for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
-    trpcTimes[opt] = (await config.retrieveTrpc(ids.id, ids.traceId, opt)).time;
+    trpcResults[opt] = await config.retrieveTrpc(ids.id, ids.traceId, opt);
   }
 
   const apiTimeLog = apiTime
     ? `API insertion: ${apiTime.toFixed(2)}ms`
     : "API insertion: skipped (payload too large)";
 
-  const getLogs = JSON_OPTIMIZATION_STRATEGIES.map(
-    (opt) => `  GET ${opt.padEnd(8)}: ${(getTimes[opt] ?? 0).toFixed(2)}ms`,
-  ).join("\n");
+  const getLogs = JSON_OPTIMIZATION_STRATEGIES.map((opt) => {
+    const result = getResults[opt];
+    const baseLog = `  GET ${opt.padEnd(8)}: ${(result?.time ?? 0).toFixed(2)}ms`;
+    if (opt === "worker" && result?.metrics) {
+      const {
+        mainThreadTime,
+        totalWorkerCpuTime,
+        avgWorkerCpuTime,
+        maxWorkerCpuTime,
+        coordinationOverhead,
+        activeWorkerCount,
+        dispatchTime,
+        actualIdleTime,
+      } = result.metrics;
+      return `${baseLog} (main: ${mainThreadTime.toFixed(
+        2,
+      )}ms, total: ${totalWorkerCpuTime.toFixed(
+        2,
+      )}ms, avg: ${avgWorkerCpuTime.toFixed(
+        2,
+      )}ms, max: ${maxWorkerCpuTime.toFixed(
+        2,
+      )}ms, dispatch: ${dispatchTime.toFixed(
+        2,
+      )}ms, idle: ${actualIdleTime.toFixed(
+        2,
+      )}ms, overhead: ${coordinationOverhead.toFixed(2)}ms, workers: ${activeWorkerCount})`;
+    }
+    return baseLog;
+  }).join("\n");
 
-  const trpcLogs = JSON_OPTIMIZATION_STRATEGIES.map(
-    (opt) => `  TRPC ${opt.padEnd(8)}: ${(trpcTimes[opt] ?? 0).toFixed(2)}ms`,
-  ).join("\n");
+  const trpcLogs = JSON_OPTIMIZATION_STRATEGIES.map((opt) => {
+    const result = trpcResults[opt];
+    const baseLog = `  TRPC ${opt.padEnd(8)}: ${(result?.time ?? 0).toFixed(
+      2,
+    )}ms`;
+    if (opt === "worker" && result?.metrics) {
+      const {
+        mainThreadTime,
+        totalWorkerCpuTime,
+        avgWorkerCpuTime,
+        maxWorkerCpuTime,
+        coordinationOverhead,
+        activeWorkerCount,
+        dispatchTime,
+        actualIdleTime,
+      } = result.metrics;
+      return `${baseLog} (main: ${mainThreadTime.toFixed(
+        2,
+      )}ms, total: ${totalWorkerCpuTime.toFixed(
+        2,
+      )}ms, avg: ${avgWorkerCpuTime.toFixed(
+        2,
+      )}ms, max: ${maxWorkerCpuTime.toFixed(
+        2,
+      )}ms, dispatch: ${dispatchTime.toFixed(
+        2,
+      )}ms, idle: ${actualIdleTime.toFixed(
+        2,
+      )}ms, overhead: ${coordinationOverhead.toFixed(2)}ms, workers: ${activeWorkerCount})`;
+    }
+    return baseLog;
+  }).join("\n");
 
   console.log(
     `--- ${config.entityType} (${name}, size: ${size}, ~${payloadSizeInMB.toFixed(

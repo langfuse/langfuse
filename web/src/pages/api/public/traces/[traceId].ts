@@ -26,6 +26,9 @@ import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
+import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
+
+jsonParserPool.start();
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -149,6 +152,25 @@ export default withMiddlewares({
       };
 
       if (query.optimization && query.optimization !== "original") {
+        if (query.optimization == "worker") {
+          const { results, metrics } = await jsonParserPool.runParallelParse([
+            response.metadata as unknown as string,
+            response.input as unknown as string,
+            response.output as unknown as string,
+          ]);
+
+          const [metadata, input, output] = results;
+
+          return {
+            ...response,
+            metadata,
+            input,
+            output,
+            optimization: "worker",
+            metrics,
+          } as any;
+        }
+
         return {
           ...response,
           optimization: query.optimization,

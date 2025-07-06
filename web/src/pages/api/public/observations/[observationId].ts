@@ -12,6 +12,9 @@ import {
 } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
+import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
+
+jsonParserPool.start();
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -84,6 +87,24 @@ export default withMiddlewares({
       const transformed = transformDbToApiObservation(observation);
 
       if (query.optimization && query.optimization !== "original") {
+        if (query.optimization == "worker") {
+          const { results, metrics } = await jsonParserPool.runParallelParse([
+            transformed.metadata as unknown as string,
+            transformed.input as unknown as string,
+            transformed.output as unknown as string,
+          ]);
+
+          const [metadata, input, output] = results;
+
+          return {
+            ...transformed,
+            metadata,
+            input,
+            output,
+            optimization: "worker",
+            metrics,
+          };
+        }
         return {
           ...transformed,
           optimization: query.optimization,
