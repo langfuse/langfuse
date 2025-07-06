@@ -9,6 +9,8 @@ import {
 import { getObservationById } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
+import { performance } from "perf_hooks";
 
 export const observationsRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure
@@ -36,6 +38,45 @@ export const observationsRouter = createTRPCRouter({
             code: "NOT_FOUND",
             message: "Observation not found within authorized project",
           });
+        }
+
+        if (input.optimization === "worker") {
+          const startTime = performance.now();
+
+          const results = await Promise.all([
+            obs.metadata
+              ? jsonParserPool.run(obs.metadata as unknown as string)
+              : Promise.resolve(undefined),
+            obs.input
+              ? jsonParserPool.run(obs.input as unknown as string)
+              : Promise.resolve(undefined),
+            obs.output
+              ? jsonParserPool.run(obs.output as unknown as string)
+              : Promise.resolve(undefined),
+          ]);
+
+          const mainThreadTime = performance.now() - startTime;
+
+          const metadata = results[0]?.data;
+          const inputData = results[1]?.data;
+          const output = results[2]?.data;
+
+          const totalWorkerCpuTime = results.reduce(
+            (acc, r) => acc + (r?.workerCpuTime ?? 0),
+            0,
+          );
+
+          return {
+            ...obs,
+            metadata,
+            input: inputData,
+            output,
+            optimization: "worker",
+            metrics: {
+              mainThreadTime: mainThreadTime.toFixed(2) + "ms",
+              totalWorkerCpuTime: totalWorkerCpuTime.toFixed(2) + "ms",
+            },
+          };
         }
 
         return {

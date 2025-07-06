@@ -16,6 +16,8 @@ export const convertObservation = (
   const reducedCostDetails = reduceUsageOrCostDetails(record.cost_details);
   const reducedUsageDetails = reduceUsageOrCostDetails(record.usage_details);
 
+  const useRaw = optimization && ["raw", "worker"].includes(optimization);
+
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -28,20 +30,19 @@ export const convertObservation = (
       ? parseClickhouseUTCDateTimeFormat(record.end_time)
       : null,
     name: record.name ?? null,
-    metadata:
-      optimization === "raw"
-        ? record.metadata
-        : parseMetadataCHRecordToDomain(record.metadata),
+    metadata: useRaw
+      ? record.metadata
+      : parseMetadataCHRecordToDomain(record.metadata),
     level: record.level as ObservationLevelType,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,
     input: record.input
-      ? optimization === "raw"
+      ? useRaw
         ? record.input
         : (parseJsonPrioritised(record.input) ?? null)
       : null,
     output: record.output
-      ? optimization === "raw"
+      ? useRaw
         ? record.output
         : (parseJsonPrioritised(record.output) ?? null)
       : null,

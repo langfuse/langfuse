@@ -1,9 +1,11 @@
-// @ts-nocheck
+// To not blow up testing complexity and dig further into setup troubles, this is a plain mjs file
+// Prod version should be TypeScript an re-use utilities
 
 import { parentPort } from "worker_threads";
 import { performance } from "perf_hooks";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
 
+// Taken from packages/shared/src/utils/json.ts
 function parseJsonPrioritised(json) {
   try {
     return parse(json, null, (value) => {
@@ -23,15 +25,30 @@ function parseJsonPrioritised(json) {
   }
 }
 
+// Taken from packages/shared/src/server/utils/metadata_conversion.ts
+export function parseRecord(metadata) {
+  return metadata
+    ? Object.fromEntries(
+        Object.entries(metadata ?? {}).map(([key, val]) => [
+          key,
+          val === null ? null : parseJsonPrioritised(val),
+        ]),
+      )
+    : {};
+}
+
 if (!parentPort) {
   // This check is mainly for type safety, as this file is only intended to be run as a worker.
   throw new Error("This file is meant to be run as a worker thread.");
 }
 
-parentPort.on("message", (jsonString) => {
+parentPort.on("message", (jsonStringOrObject) => {
   try {
     const startTime = performance.now();
-    const parsed = parseJsonPrioritised(jsonString);
+    const parsed =
+      typeof jsonStringOrObject == "string"
+        ? parseJsonPrioritised(jsonStringOrObject)
+        : parseRecord(jsonStringOrObject);
     const result = JSON.stringify(parsed);
     const endTime = performance.now();
     const workerCpuTime = endTime - startTime;
