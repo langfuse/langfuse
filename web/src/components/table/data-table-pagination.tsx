@@ -47,6 +47,29 @@ export function DataTablePagination<TData>({
     }
   }, [currentPage, pageCount, setPageIndex]);
 
+  const handlePageNavigation = (newValue: string) => {
+    if (newValue === "") {
+      table.setPageIndex(0);
+      setInputState(1);
+      return;
+    }
+
+    // if nan, reset to current page
+    if (isNaN(Number(newValue))) {
+      setInputState(currentPage);
+      return;
+    }
+
+    const newPageIndex = Number(newValue) - 1;
+    if (newPageIndex < 0 || newPageIndex >= pageCount) {
+      setInputState(currentPage);
+      return;
+    }
+
+    table.setPageIndex(newPageIndex);
+    setInputState(newPageIndex + 1);
+  };
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex-1 text-sm text-muted-foreground">
@@ -94,28 +117,14 @@ export function DataTablePagination<TData>({
                 onChange={(e) => {
                   setInputState(e.target.value);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handlePageNavigation(e.currentTarget.value);
+                  }
+                }}
                 onBlur={(e) => {
-                  const newValue = e.target.value;
-                  if (newValue === "") {
-                    table.setPageIndex(0);
-                    setInputState(1);
-                    return;
-                  }
-
-                  // if nan, reset to current page
-                  if (isNaN(Number(newValue))) {
-                    setInputState(currentPage);
-                    return;
-                  }
-
-                  const newPageIndex = Number(newValue) - 1;
-                  if (newPageIndex < 0 || newPageIndex >= pageCount) {
-                    setInputState(currentPage);
-                    return;
-                  }
-
-                  table.setPageIndex(newPageIndex);
-                  setInputState(newPageIndex + 1);
+                  handlePageNavigation(e.target.value);
                 }}
                 className="h-8 appearance-none"
                 style={{

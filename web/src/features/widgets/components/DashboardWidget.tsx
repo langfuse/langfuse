@@ -17,10 +17,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { startCase } from "lodash";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
+import { formatMetricName } from "@/src/features/widgets/utils";
 
 export interface WidgetPlacement {
   id: string;
@@ -113,10 +113,23 @@ export function DashboardWidget({
       return [];
     }
     return queryResult.data.map((item: any) => {
-      // Get the dimension field (first dimension in the query)
-      const dimensionField =
-        widget.data.dimensions.slice().shift()?.field ?? "none";
-      // Get the metric field (first metric in the query with its aggregation)
+      if (widget.data.chartType === "PIVOT_TABLE") {
+        // For pivot tables, preserve all raw data fields without any transformation
+        // The PivotTable component will extract the appropriate metric fields
+        // using the metric field names passed via chartConfig
+        return {
+          dimension:
+            widget.data.dimensions.length > 0
+              ? (widget.data.dimensions[0]?.field ?? "dimension")
+              : "dimension", // Fallback for compatibility
+          metric: 0, // Placeholder - not used for pivot tables
+          time_dimension: item["time_dimension"],
+          // Include all original query fields for pivot table processing
+          ...item,
+        };
+      }
+
+      // Regular chart processing for non-pivot tables
       const metric = widget.data.metrics.slice().shift() ?? {
         measure: "count",
         agg: "count",
@@ -124,6 +137,8 @@ export function DashboardWidget({
       const metricField = `${metric.agg}_${metric.measure}`;
       const metricValue = item[metricField];
 
+      const dimensionField =
+        widget.data.dimensions.slice().shift()?.field ?? "none";
       return {
         dimension:
           item[dimensionField] !== undefined
@@ -136,7 +151,7 @@ export function DashboardWidget({
                 // Objects / numbers / booleans are stringified to avoid React key issues
                 return String(val);
               })()
-            : startCase(metricField === "count_count" ? "Count" : metricField),
+            : formatMetricName(metricField),
         metric: Array.isArray(metricValue)
           ? metricValue
           : Number(metricValue || 0),
@@ -276,6 +291,16 @@ export function DashboardWidget({
               ? 100
               : (widget.data.chartConfig.row_limit ?? 100)
           }
+          chartConfig={{
+            ...widget.data.chartConfig,
+            // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
+            ...(widget.data.chartType === "PIVOT_TABLE" && {
+              dimensions: widget.data.dimensions.map((dim) => dim.field),
+              metrics: widget.data.metrics.map(
+                (metric) => `${metric.agg}_${metric.measure}`,
+              ),
+            }),
+          }}
         />
       </div>
     </div>

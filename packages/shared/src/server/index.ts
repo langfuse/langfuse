@@ -3,13 +3,16 @@ export * from "./services/email/organizationInvitation/sendMembershipInvitationE
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
 export * from "./services/PromptService";
+export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
+export * from "./services/InMemoryFilterService";
 export * from "./auth/apiKeys";
 export * from "./auth/customSsoProvider";
 export * from "./auth/gitHubEnterpriseProvider";
 export * from "./llm/fetchLLMCompletion";
 export * from "./llm/utils";
 export * from "./llm/types";
+export * from "./llm/compileChatMessages";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./clickhouse/client";
@@ -25,6 +28,7 @@ export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";
 export * from "./redis/cloudUsageMeteringQueue";
 export * from "./redis/getQueue";
+export * from "./redis/webhookQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
@@ -42,6 +46,7 @@ export * from "./redis/coreDataS3ExportQueue";
 export * from "./redis/meteringDataPostgresExportQueue";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
+export * from "./redis/entityChangeQueue";
 export * from "./auth/types";
 export * from "./queues";
 export * from "./orderByToPrisma";
@@ -57,9 +62,12 @@ export * from "./services/datasets-ui-table-service";
 export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
+export * from "./clickhouse/measureAndReturn";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
+
+export * from "./automations/webhooks";
 
 // test utils
 export * from "./test-utils";

@@ -125,7 +125,7 @@ export default api.withTRPC(MyApp);
 function UserTracking() {
   const session = useSession();
   const sessionUser = session.data?.user;
-  const { organization, project } = useQueryProjectOrOrganization();
+  const { organization } = useQueryProjectOrOrganization();
 
   // Track user identity and properties
   const lastIdentifiedUser = useRef<string | null>(null);
@@ -152,12 +152,6 @@ function UserTracking() {
             ) ?? undefined,
           LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
-      const emailDomain = sessionUser.email?.split("@")[1];
-      if (emailDomain)
-        posthog.group("emailDomain", emailDomain, {
-          domain: emailDomain,
-          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-        });
 
       // Sentry
       setUser({
@@ -177,56 +171,11 @@ function UserTracking() {
       // PostHog
       if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
         posthog.reset();
-        posthog.resetGroups();
       }
       // Sentry
       setUser(null);
     }
   }, [sessionUser, session.status]);
-
-  // Track organization group
-  const lastIdentifiedOrganization = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      organization?.id &&
-      lastIdentifiedOrganization.current !== JSON.stringify(organization.id)
-    ) {
-      lastIdentifiedOrganization.current = JSON.stringify(organization.id);
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
-        posthog.group("organization", organization.id, {
-          id: organization.id,
-          name: organization.name,
-          plan: organization.plan,
-          countProjects: organization.projects.length,
-          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-        });
-      }
-    }
-  }, [organization]);
-
-  // Track project group
-  const lastIdentifiedProjectAndOrg = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      project?.id &&
-      lastIdentifiedProjectAndOrg.current !==
-        JSON.stringify({ project, organization })
-    ) {
-      lastIdentifiedProjectAndOrg.current = JSON.stringify({
-        project,
-        organization,
-      });
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
-        posthog.group("project", project.id, {
-          id: project.id,
-          name: project.name,
-          organizationId: organization?.id,
-          plan: organization?.plan,
-          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-        });
-      }
-    }
-  }, [project, organization]);
 
   // update chat thread details
   const plan = organization?.plan;

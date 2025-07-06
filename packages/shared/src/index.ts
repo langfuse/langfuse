@@ -13,9 +13,11 @@ export * from "./utils/json";
 export * from "./utils/stringChecks";
 export * from "./utils/objects";
 export * from "./utils/typeChecks";
+export * from "./utils/prompts";
 export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
+export * from "./domain/webhooks";
 
 // llm api
 export * from "./server/llm/types";
@@ -43,6 +45,15 @@ export * from "./features/experiments/utils";
 // prompts
 export * from "./features/prompts/parsePromptDependencyTags";
 export * from "./features/prompts/validation";
+export * from "./features/prompts/types";
+export * from "./features/prompts/constants";
+export {
+  compileChatMessages,
+  compileChatMessagesWithIds,
+  isPlaceholder,
+  type MessagePlaceholderValues,
+  type PromptMessage as ServerPromptMessage,
+} from "./server/llm/compileChatMessages";
 
 // export db types only
 export * from "@prisma/client";

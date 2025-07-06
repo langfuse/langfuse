@@ -875,14 +875,13 @@ paths:
           schema:
             type: integer
             nullable: true
-        - name: response
-          in: query
-          required: true
-          schema:
-            $ref: '#/components/schemas/PaginatedDatasetRunItems'
       responses:
-        '204':
+        '200':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDatasetRunItems'
         '400':
           description: ''
           content:
@@ -6792,7 +6791,7 @@ components:
         prompt:
           type: array
           items:
-            $ref: '#/components/schemas/ChatMessage'
+            $ref: '#/components/schemas/ChatMessageWithPlaceholders'
         config:
           nullable: true
         labels:
@@ -6906,6 +6905,31 @@ components:
         - config
         - labels
         - tags
+    ChatMessageWithPlaceholders:
+      title: ChatMessageWithPlaceholders
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - chatmessage
+            - $ref: '#/components/schemas/ChatMessage'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - placeholder
+            - $ref: '#/components/schemas/PlaceholderMessage'
+          required:
+            - type
     ChatMessage:
       title: ChatMessage
       type: object
@@ -6917,6 +6941,14 @@ components:
       required:
         - role
         - content
+    PlaceholderMessage:
+      title: PlaceholderMessage
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
     TextPrompt:
       title: TextPrompt
       type: object
@@ -6934,7 +6966,7 @@ components:
         prompt:
           type: array
           items:
-            $ref: '#/components/schemas/ChatMessage'
+            $ref: '#/components/schemas/ChatMessageWithPlaceholders'
       required:
         - prompt
       allOf:

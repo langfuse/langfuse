@@ -513,22 +513,22 @@ export const InnerEvalTemplateForm = (props: {
   );
 
   const formFooter = (
-    <>
+    <div className="flex w-full flex-col items-end gap-4">
       {props.isEditing && (
         <Button
           type="submit"
           loading={createEvalTemplateMutation.isLoading}
-          className="w-full"
+          className="max-w-fit"
         >
           Save
         </Button>
       )}
       {formError ? (
-        <p className="text-red text-center">
+        <p className="text-red w-full text-center">
           <span className="font-bold">Error:</span> {formError}
         </p>
       ) : null}
-    </>
+    </div>
   );
 
   return (

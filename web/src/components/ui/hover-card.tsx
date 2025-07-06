@@ -26,4 +26,19 @@ const HoverCardContent = React.forwardRef<
 ));
 HoverCardContent.displayName = HoverCardPrimitive.Content.displayName;
 
-export { HoverCard, HoverCardTrigger, HoverCardContent };
+const HoverCardTitle = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn(
+      "p-2 text-sm font-semibold leading-none tracking-tight",
+      className,
+    )}
+    {...props}
+  />
+));
+HoverCardTitle.displayName = "HoverCardTitle";
+
+export { HoverCard, HoverCardTrigger, HoverCardContent, HoverCardTitle };

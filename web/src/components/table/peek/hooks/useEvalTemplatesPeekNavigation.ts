@@ -1,6 +1,7 @@
 import { type EvalsTemplateRow } from "@/src/features/evals/components/eval-templates-table";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export const useEvalTemplatesPeekNavigation = () => {
   const router = useRouter();
@@ -8,7 +9,7 @@ export const useEvalTemplatesPeekNavigation = () => {
 
   const getNavigationPath = (entry: ListEntry) => {
     const url = new URL(window.location.href);
-    const pathname = window.location.pathname;
+    const pathname = getPathnameWithoutBasePath();
 
     // Update the path part
     url.pathname = pathname;
@@ -28,7 +29,8 @@ export const useEvalTemplatesPeekNavigation = () => {
     const pathname = `/project/${projectId}/evals/templates/${encodeURIComponent(peek as string)}`;
 
     if (openInNewTab) {
-      window.open(pathname, "_blank");
+      const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
+      window.open(pathnameWithBasePath, "_blank");
     } else {
       router.push(pathname);
     }

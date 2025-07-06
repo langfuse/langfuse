@@ -30,6 +30,21 @@ export const contextWithLangfuseProps = (
         value: strValue,
       });
     });
+
+    // get x-langfuse-xxx headers and add them to the span
+    Object.keys(props.headers).forEach((name) => {
+      if (
+        name.toLowerCase().startsWith("x-langfuse") ||
+        name.toLowerCase().startsWith("x_langfuse")
+      ) {
+        const value = props.headers![name];
+        if (!value) return;
+        const strValue = Array.isArray(value) ? JSON.stringify(value) : value;
+        baggage = baggage.setEntry(`langfuse.header.${name}`, {
+          value: strValue,
+        });
+      }
+    });
   }
   if (props.userId) {
     baggage = baggage.setEntry("langfuse.user.id", { value: props.userId });

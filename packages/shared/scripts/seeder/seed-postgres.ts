@@ -1,18 +1,18 @@
-import {
-  PrismaClient,
-  type Project,
-  ScoreDataType,
-  JobConfiguration,
-  JobExecutionStatus,
-} from "../../src/index";
-import { hash } from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
+import { hash } from "bcryptjs";
 import { v4 } from "uuid";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { encrypt } from "../../src/encryption";
-import { redis } from "../../src/server/redis/redis";
-import { randomUUID } from "crypto";
 import {
+	type JobConfiguration,
+	JobExecutionStatus,
+	PrismaClient,
+	type Project,
+	ScoreDataType,
+} from "../../src/index";
+import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import { redis } from "../../src/server/redis/redis";
+import {EVAL_TRACE_COUNT,
   FAILED_EVAL_TRACE_INTERVAL,
   SEED_CHAT_ML_PROMPTS,
   SEED_DATASETS,
@@ -27,7 +27,6 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
-import { EVAL_TRACE_COUNT } from "./utils/postgres-seed-constants";
 
 type ConfigCategory = {
   label: string;
@@ -179,7 +178,7 @@ async function main() {
 
   const seedApiKey = {
     id: "seed-api-key",
-    secret: process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890",
+    secret: process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890", // eslint-disable-line turbo/no-undeclared-env-vars
     public: "pk-lf-1234567890",
     note: "seeded key",
   };
@@ -242,7 +241,7 @@ async function main() {
 
     const secondKey = {
       id: "seed-api-key-2",
-      secret: process.env.SEED_SECRET_KEY ?? "sk-lf-asdfghjkl",
+      secret: process.env.SEED_SECRET_KEY ?? "sk-lf-asdfghjkl", // eslint-disable-line turbo/no-undeclared-env-vars
       public: "pk-lf-asdfghjkl",
       note: "seeded key 2",
     };
@@ -272,11 +271,10 @@ async function main() {
     await generateQueuesForProject([project1, project2], configIdsAndNames);
     await generatePromptsForProject([project1, project2]);
     await createDatasets(project1, project2);
-
-    // await uploadObjects(sessions, comments, queueItems);
+    await createTraceSessions(project1, project2);
 
     // If openai key is in environment, add it to the projects LLM API keys
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // eslint-disable-line turbo/no-undeclared-env-vars
 
     if (OPENAI_API_KEY) {
       await prisma.llmApiKeys.create({
@@ -774,6 +772,20 @@ async function generateConfigsForProject(projects: Project[]) {
     }),
   );
   return projectIdsToConfigs;
+}
+
+async function createTraceSessions(project1: Project, project2: Project) {
+  for (const project of [project1, project2]) {
+    for (let i = 0; i < 100; i++) {
+      await prisma.traceSession.create({
+        data: {
+          projectId: project.id,
+          id: `session_${i}`,
+          createdAt: new Date(),
+        },
+      });
+    }
+  }
 }
 
 async function generateConfigs(project: Project) {

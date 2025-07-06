@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { z as zodV3 } from "zod/v3";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -832,9 +833,9 @@ export const evalRouter = createTRPCRouter({
               adapter: matchingLLMKey.adapter,
               ...input.modelParams,
             },
-            structuredOutputSchema: z.object({
-              score: z.string(),
-              reasoning: z.string(),
+            structuredOutputSchema: zodV3.object({
+              score: zodV3.string(),
+              reasoning: zodV3.string(),
             }),
             config: matchingLLMKey.config,
           })

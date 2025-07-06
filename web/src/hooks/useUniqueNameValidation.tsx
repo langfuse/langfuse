@@ -6,6 +6,7 @@ interface UseUniqueNameValidationProps {
   allNames: { value: string }[];
   form: UseFormReturn<any>;
   errorMessage: string;
+  whitelistedName?: string;
 }
 
 export const useUniqueNameValidation = ({
@@ -13,6 +14,7 @@ export const useUniqueNameValidation = ({
   allNames,
   form,
   errorMessage,
+  whitelistedName,
 }: UseUniqueNameValidationProps) => {
   useEffect(() => {
     if (!currentName) {
@@ -21,13 +23,14 @@ export const useUniqueNameValidation = ({
     }
 
     const isNewName = !allNames.map((name) => name.value).includes(currentName);
+    const isWhitelistedName = whitelistedName === currentName;
 
-    if (!isNewName) {
+    if (!isNewName && !isWhitelistedName) {
       form.setError("name", {
         message: errorMessage,
       });
     } else {
       form.clearErrors("name");
     }
-  }, [currentName, allNames, form, errorMessage]);
+  }, [currentName, allNames, form, errorMessage, whitelistedName]);
 };

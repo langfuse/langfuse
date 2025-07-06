@@ -8,6 +8,7 @@ import {
   SYSTEM_ROLES,
   type ChatMessageWithId,
   type LLMToolCall,
+  type PlaceholderMessage,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
@@ -45,15 +46,17 @@ const ROLES: ChatMessageRole[] = [
 const getRoleNamePlaceholder = (role: string) => {
   switch (role) {
     case ChatMessageRole.System:
-      return "a system";
+      return "a system message";
     case ChatMessageRole.Developer:
-      return "a developer";
+      return "a developer message";
     case ChatMessageRole.Assistant:
-      return "an assistant";
+      return "an assistant message";
     case ChatMessageRole.User:
-      return "a user";
+      return "a user message";
     case ChatMessageRole.Tool:
-      return "a tool response";
+      return "a tool response message";
+    case "placeholder":
+      return "placeholder name (e.g. msg_history)";
     default:
       return `a ${role}`;
   }
@@ -92,6 +95,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   } = useSortable({ id: message.id });
 
   const toggleRole = () => {
+    // Only allow role toggling for messages that have a role property (not placeholder messages)
+    if (!("role" in message)) return;
+
     // if user has set custom roles, available roles will be non-empty and we toggle through custom and default roles (assistant, user)
     if (!!availableRoles && Boolean(availableRoles.length)) {
       let randomRole = availableRoles[roleIndex % availableRoles.length];
@@ -113,7 +119,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             (toolCallIds && toolCallIds.length > 0),
         );
         const currentIndex = eligibleRoles.indexOf(
-          message.role as ChatMessageRole,
+          ("role" in message
+            ? message.role
+            : ChatMessageRole.User) as ChatMessageRole,
         );
         const nextRole =
           eligibleRoles[(currentIndex + 1) % eligibleRoles.length];
@@ -196,13 +204,30 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   };
 
   const onValueChange = useCallback(
-    (value: string) =>
-      updateMessage(message.type, message.id, "content", value),
+    (value: string) => {
+      if (message.type === ChatMessageType.Placeholder) {
+        updateMessage(message.type, message.id, "name", value);
+      } else {
+        updateMessage(message.type, message.id, "content", value);
+      }
+    },
     [message.id, message.type, updateMessage],
   );
 
-  const showDragHandle = !SYSTEM_ROLES.includes(message.role);
+  const onPlaceholderNameChange = useCallback(
+    (value: string) => {
+      if (message.type === ChatMessageType.Placeholder) {
+        updateMessage(message.type, message.id, "name", value);
+      }
+    },
+    [message.id, message.type, updateMessage],
+  );
+
+  const showDragHandle = !(
+    "role" in message && SYSTEM_ROLES.includes(message.role)
+  );
   const showToolCallSelect = message.type === ChatMessageType.ToolResult;
+  const isPlaceholder = message.type === ChatMessageType.Placeholder;
 
   return (
     <Card
@@ -233,14 +258,20 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           )}
         >
           <div className="flex w-[4rem] flex-shrink-0 flex-col gap-1">
-            <Button
-              onClick={toggleRole}
-              type="button"
-              variant="ghost"
-              className="h-6 w-full px-1 py-0 text-[10px] font-semibold text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            >
-              {capitalize(message.role)}
-            </Button>
+            {isPlaceholder ? (
+              <span className="inline-flex h-6 w-full items-center justify-center rounded-md bg-accent px-4 font-mono text-[9px] text-muted-foreground">
+                placeholder
+              </span>
+            ) : (
+              <Button
+                onClick={toggleRole}
+                type="button"
+                variant="ghost"
+                className="h-6 w-full px-1 py-0 text-[10px] font-semibold text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                {capitalize(message.role)}
+              </Button>
+            )}
           </div>
           <div className="flex flex-1 flex-col gap-1">
             <div className="flex gap-2">
@@ -271,11 +302,19 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   </SelectContent>
                 </Select>
               )}
-              <MemoizedEditor
-                value={message.content}
-                onChange={onValueChange}
-                role={message.role}
-              />
+              {isPlaceholder ? (
+                <MemoizedEditor
+                  value={(message as PlaceholderMessage).name || ""}
+                  onChange={onPlaceholderNameChange}
+                  role={message.type}
+                />
+              ) : (
+                <MemoizedEditor
+                  value={message.content}
+                  onChange={onValueChange}
+                  role={message.role}
+                />
+              )}
             </div>
             {message.type === ChatMessageType.AssistantToolCall && (
               <ToolCalls toolCalls={message.toolCalls as LLMToolCall[]} />
@@ -303,7 +342,7 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
   onChange: (value: string) => void;
 }) {
   const { value, role, onChange } = props;
-  const placeholder = `Enter ${getRoleNamePlaceholder(role)} message here.`;
+  const placeholder = `Enter ${getRoleNamePlaceholder(role)} here.`;
 
   return (
     <CodeMirrorEditor

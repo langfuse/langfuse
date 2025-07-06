@@ -71,7 +71,7 @@ export const ScoresTableCell = ({
               <MessageCircleMore size={12} />
             </HoverCardTrigger>
             <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
-              <p>{aggregate.comment}</p>
+              <p className="whitespace-pre-wrap">{aggregate.comment}</p>
             </HoverCardContent>
           </HoverCard>
         )}

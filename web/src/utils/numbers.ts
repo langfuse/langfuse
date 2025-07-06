@@ -11,6 +11,29 @@ export const compactNumberFormatter = (
   }).format(number ?? 0);
 };
 
+/**
+ * Specialized formatter for very small numbers (10^-3 to 10^-15 range)
+ * Uses scientific notation for compact representation with ~3 significant digits
+ */
+export const compactSmallNumberFormatter = (
+  number?: number | bigint,
+  significantDigits: number = 3,
+) => {
+  const num = Number(number ?? 0);
+
+  if (num === 0) return "0";
+
+  const absNum = Math.abs(num);
+
+  // For numbers >= 1e-3, use standard compact formatting
+  if (absNum >= 1e-3) {
+    return compactNumberFormatter(num, significantDigits);
+  }
+
+  // For very small numbers, use scientific notation
+  return num.toExponential(significantDigits - 1);
+};
+
 export const numberFormatter = (
   number?: number | bigint,
   fractionDigits?: number,

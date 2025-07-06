@@ -7,7 +7,7 @@ export function transformStreamToJsonl(): Transform {
 
     transform(
       row: Record<string, any>,
-      encoding: BufferEncoding,
+      encoding: BufferEncoding, // eslint-disable-line no-undef, no-unused-vars
       callback: TransformCallback,
     ): void {
       this.push(stringify(row) + "\n");

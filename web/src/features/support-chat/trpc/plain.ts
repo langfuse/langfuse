@@ -79,7 +79,8 @@ export const plainRouter = createTRPCRouter({
             externalId: tenantIdentifier(org.id),
           },
           tierIdentifier: {
-            externalId: org.plan,
+            externalId:
+              org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "cloud:demo" : org.plan,
           },
         });
       });

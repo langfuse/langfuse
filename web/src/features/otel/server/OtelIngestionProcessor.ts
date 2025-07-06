@@ -310,7 +310,11 @@ export class OtelIngestionProcessor {
         scopeSpan.scope?.name.startsWith("langfuse-sdk") ?? false;
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
-      this.validatePublicKey(isLangfuseSDKSpans, scopeAttributes);
+      this.validatePublicKey(
+        isLangfuseSDKSpans,
+        scopeAttributes,
+        resourceAttributes,
+      );
 
       if (isLangfuseSDKSpans) {
         recordIncrement("langfuse.otel.ingestion.langfuse_sdk_batch", 1);
@@ -598,11 +602,15 @@ export class OtelIngestionProcessor {
   private validatePublicKey(
     isLangfuseSDKSpans: boolean,
     scopeAttributes: Record<string, unknown>,
+    resourceAttributes: Record<string, unknown>,
   ): void {
     if (
       isLangfuseSDKSpans &&
       (!this.publicKey ||
-        (scopeAttributes["public_key"] as unknown as string) !== this.publicKey)
+        (scopeAttributes["public_key"] as unknown as string) !==
+          this.publicKey) &&
+      (resourceAttributes["telemetry.sdk.language"] as unknown as string) ===
+        "python" // Only Python has multi project setups. Node OTEL does not allow setting scope.attributes, thus skipping the check for node
     ) {
       throw new ForbiddenError(
         `Langfuse OTEL SDK span has different public key '${scopeAttributes["public_key"]}' than used for authentication '${this.publicKey}'. Discarding span.`,
@@ -611,7 +619,7 @@ export class OtelIngestionProcessor {
   }
 
   private hasTraceUpdates(attributes: Record<string, unknown>): boolean {
-    return [
+    const hasExactMatchingAttributeName = [
       LangfuseOtelSpanAttributes.TRACE_NAME,
       LangfuseOtelSpanAttributes.TRACE_INPUT,
       LangfuseOtelSpanAttributes.TRACE_OUTPUT,
@@ -620,6 +628,8 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.TRACE_SESSION_ID,
       LangfuseOtelSpanAttributes.TRACE_PUBLIC,
       LangfuseOtelSpanAttributes.TRACE_TAGS,
+      LangfuseOtelSpanAttributes.TRACE_COMPAT_USER_ID,
+      LangfuseOtelSpanAttributes.TRACE_COMPAT_SESSION_ID,
       `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_user_id`,
       `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
       `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_tags`,
@@ -627,6 +637,13 @@ export class OtelIngestionProcessor {
       `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_user_id`,
       `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_tags`,
     ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
+
+    const attributeKeys = Object.keys(attributes);
+    const hasTraceMetadataKey = attributeKeys.some((key) =>
+      key.startsWith(LangfuseOtelSpanAttributes.TRACE_METADATA),
+    );
+
+    return hasExactMatchingAttributeName || hasTraceMetadataKey;
   }
 
   private extractResourceAttributes(

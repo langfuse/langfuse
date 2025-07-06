@@ -329,7 +329,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
   const scoresFilterRes = scoresFilter.apply();
   const observationFilterRes = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType);
+  const search = clickhouseSearchCondition(searchQuery, searchType, "t");
 
   const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
   const orderByCols = [

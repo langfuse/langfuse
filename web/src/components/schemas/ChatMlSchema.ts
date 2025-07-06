@@ -125,12 +125,13 @@ export const ChatMlMessageSchema = z
     ...other,
     ...additional_kwargs,
   }))
-  .transform(({ role, name, content, audio, ...other }) => ({
+  .transform(({ role, name, content, audio, type, ...other }) => ({
     role,
     name,
     content,
     audio,
-    json: Object.keys(other).length === 0 ? undefined : other,
+    type,
+    ...(Object.keys(other).length === 0 ? {} : { json: other }),
   }));
 export type ChatMlMessageSchema = z.infer<typeof ChatMlMessageSchema>;
 

@@ -1,6 +1,9 @@
 import { LlmApiKeys } from "@prisma/client";
 import z from "zod/v4";
-import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
+import {
+  BedrockConfigSchema,
+  VertexAIConfigSchema,
+} from "../../interfaces/customLLMProviderConfigSchemas";
 import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
 
@@ -112,6 +115,8 @@ export enum ChatMessageRole {
   Tool = "tool",
 }
 
+// Thought: should placeholder not semantically be part of this, because it can be
+// PublicAPICreated of type? Works for now though.
 export enum ChatMessageType {
   System = "system",
   Developer = "developer",
@@ -120,6 +125,7 @@ export enum ChatMessageType {
   AssistantToolCall = "assistant-tool-call",
   ToolResult = "tool-result",
   PublicAPICreated = "public-api-created",
+  Placeholder = "placeholder",
 }
 
 export const SystemMessageSchema = z.object({
@@ -168,6 +174,17 @@ export const ToolResultMessageSchema = z.object({
 });
 export type ToolResultMessage = z.infer<typeof ToolResultMessageSchema>;
 
+export const PlaceholderMessageSchema = z.object({
+  type: z.literal(ChatMessageType.Placeholder),
+  name: z
+    .string()
+    .regex(
+      /^[a-zA-Z][a-zA-Z0-9_]*$/,
+      "Placeholder name must start with a letter and contain only alphanumeric characters and underscores",
+    ),
+});
+export type PlaceholderMessage = z.infer<typeof PlaceholderMessageSchema>;
+
 export const ChatMessageDefaultRoleSchema = z.enum(ChatMessageRole);
 export const ChatMessageSchema = z.union([
   SystemMessageSchema,
@@ -190,12 +207,18 @@ export const ChatMessageSchema = z.union([
 ]);
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-export type ChatMessageWithId = ChatMessage & { id: string };
+export type ChatMessageWithId =
+  | (ChatMessage & { id: string })
+  | (PlaceholderMessage & { id: string });
+export type ChatMessageWithIdNoPlaceholders = ChatMessage & { id: string };
 
-export const PromptChatMessageSchema = z.object({
-  role: z.string(),
-  content: z.string(),
-});
+export const PromptChatMessageSchema = z.union([
+  z.object({
+    role: z.string(),
+    content: z.string(),
+  }),
+  PlaceholderMessageSchema,
+]);
 export const PromptChatMessageListSchema = z.array(PromptChatMessageSchema);
 
 export type PromptVariable = { name: string; value: string; isUsed: boolean };
@@ -215,11 +238,11 @@ export const SYSTEM_ROLES: string[] = [
   ChatMessageRole.Developer,
 ];
 
-export const TextPromptSchema = z.string().min(1, "Enter a prompt");
+export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 
 export const PromptContentSchema = z.union([
   PromptChatMessageListSchema,
-  TextPromptSchema,
+  TextPromptContentSchema,
 ]);
 export type PromptContent = z.infer<typeof PromptContentSchema>;
 
@@ -319,10 +342,13 @@ export const anthropicModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite-preview-06-17",
   "gemini-2.5-pro-preview-05-06",
   "gemini-2.5-flash-preview-05-20",
-  "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash",
+  "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash-001",
   "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-exp",
@@ -333,6 +359,9 @@ export const vertexAIModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
 export const googleAIStudioModels = [
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash-lite-preview-06-17",
   "gemini-2.5-pro-preview-05-06",
   "gemini-2.5-flash-preview-05-20",
   "gemini-2.0-flash",
@@ -379,7 +408,7 @@ export const LLMApiKeySchema = z
     baseURL: z.string().nullable(),
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
-    config: BedrockConfigSchema.nullish(), // currently only Bedrock has additional config
+    config: z.union([BedrockConfigSchema, VertexAIConfigSchema]).nullish(), // Bedrock and VertexAI have additional config
   })
   // strict mode to prevent extra keys. Thorws error otherwise
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict

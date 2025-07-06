@@ -1,5 +1,10 @@
 import { Job } from "bullmq";
-import { ApiError, BaseError } from "@langfuse/shared";
+import {
+  ApiError,
+  BaseError,
+  LangfuseNotFoundError,
+  QUEUE_ERROR_MESSAGES,
+} from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -83,7 +88,10 @@ export const evalJobExecutorQueueProcessor = async (
     return true;
   } catch (e) {
     // If the job fails with a 429, we want to retry it unless it's older than 24h.
-    if (e instanceof ApiError && e.httpCode === 429) {
+    if (
+      (e instanceof ApiError && e.httpCode === 429) || // retry all rate limits
+      (e instanceof ApiError && e.httpCode >= 500) // retry all 5xx errors
+    ) {
       try {
         // Check if the job execution is older than 24h
         const jobExecution = await kyselyPrisma.$kysely
@@ -97,7 +105,7 @@ export const evalJobExecutorQueueProcessor = async (
           jobExecution.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)
         ) {
           logger.info(
-            `Job ${job.data.payload.jobExecutionId} is rate limited for more than 24h. Stop retrying.`,
+            `Job ${job.data.payload.jobExecutionId} is retrying for more than 24h. Stop retrying.`,
           );
         } else {
           // Add the job into the queue with a random delay between 1 and 10min and return
@@ -128,6 +136,8 @@ export const evalJobExecutorQueueProcessor = async (
       }
     }
 
+    // we are left with 4xx and application errors here.
+
     const displayError =
       e instanceof BaseError ? e.message : "An internal error occurred";
 
@@ -142,24 +152,23 @@ export const evalJobExecutorQueueProcessor = async (
 
     // do not log expected errors (api failures + missing api keys not provided by the user)
     if (
+      e instanceof LangfuseNotFoundError ||
       (e instanceof BaseError &&
         e.message.includes(
-          "Could not parse response content as the length limit was reached",
+          QUEUE_ERROR_MESSAGES.OUTPUT_TOKENS_TOO_LONG_ERROR,
         )) || // output tokens too long
-      (e instanceof BaseError && e.message.includes("API key for provider")) || // api key not provided
       (e instanceof BaseError &&
-        e.message.includes(
-          "`No default model or custom model found for project",
-        )) || // api key not provided
+        e.message.includes(QUEUE_ERROR_MESSAGES.API_KEY_ERROR)) || // api key not provided
+      (e instanceof BaseError &&
+        e.message.includes(QUEUE_ERROR_MESSAGES.NO_DEFAULT_MODEL_ERROR)) || // api key not provided
       (e instanceof ApiError && e.httpCode >= 400 && e.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
       (e instanceof ApiError && e.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
       (e instanceof ApiError &&
-        e.message.includes("Error: Unterminated string in JSON at position")) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
-      (e instanceof ApiError && e.message.includes("is not valid JSON")) || // When evaluator model is not consistently returning valid JSON on structured output calls
+        e.message.includes(QUEUE_ERROR_MESSAGES.TOO_LOW_MAX_TOKENS_ERROR)) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
+      (e instanceof ApiError &&
+        e.message.includes(QUEUE_ERROR_MESSAGES.INVALID_JSON_ERROR)) || // When evaluator model is not consistently returning valid JSON on structured output calls
       (e instanceof BaseError &&
-        e.message.includes(
-          "Please ensure the mapped data exists and consider extending the job delay.",
-        )) // Trace not found.
+        e.message.includes(QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR)) // Trace not found.
     ) {
       return;
     }

@@ -7,7 +7,7 @@ import {
   validateQueryAndExtractId,
   handleGetApiKeys,
   handleCreateApiKey,
-} from "@/src/features/admin-api/projects/projectById/apiKeys";
+} from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 export default async function handler(

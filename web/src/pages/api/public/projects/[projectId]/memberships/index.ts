@@ -6,7 +6,7 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/ha
 import {
   handleGetMemberships,
   handleUpdateMembership,
-} from "@/src/features/admin-api/projects/projectById/memberships";
+} from "@/src/ee/features/admin-api/server/projects/projectById/memberships";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 

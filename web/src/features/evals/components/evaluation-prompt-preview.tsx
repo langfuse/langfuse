@@ -6,7 +6,7 @@ import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
 import { type EvalTemplate } from "@langfuse/shared";
 import Link from "next/link";
-import { Fragment } from "react";
+import { Fragment, useMemo } from "react";
 
 const VARIABLE_COLORS = [
   "text-primary-accent",
@@ -128,9 +128,14 @@ export const EvaluationPromptPreview = ({
   className?: string;
   controlButtons?: React.ReactNode;
 }) => {
+  const memoizedVariables = useMemo(
+    () => variableMapping.map(({ templateVariable }) => templateVariable),
+    [variableMapping],
+  );
+
   const { extractedVariables, isExtracting } = useExtractVariables({
-    variables: variableMapping.map(({ templateVariable }) => templateVariable),
-    variableMapping: variableMapping,
+    variables: memoizedVariables,
+    variableMapping,
     trace: trace,
     isLoading,
   });

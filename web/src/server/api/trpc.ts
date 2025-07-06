@@ -17,7 +17,6 @@
 import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
-import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import * as z from "zod/v4";
@@ -63,6 +62,11 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
   // Get the headers from the request
   const headers = req.headers;
 
+  addUserToSpan({
+    userId: session?.user?.id,
+    email: session?.user?.email ?? undefined,
+  });
+
   return createInnerTRPCContext({ session, headers });
 };
 
@@ -78,7 +82,12 @@ import superjson from "superjson";
 import { ZodError } from "zod/v4";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
-import { getTraceById, logger } from "@langfuse/shared/src/server";
+import {
+  getTraceById,
+  logger,
+  addUserToSpan,
+  contextWithLangfuseProps,
+} from "@langfuse/shared/src/server";
 
 setUpSuperjson();
 

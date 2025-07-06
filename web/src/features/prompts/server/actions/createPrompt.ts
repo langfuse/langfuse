@@ -1,24 +1,25 @@
 import { v4 as uuidv4 } from "uuid";
 import {
-  type CreatePromptTRPCType,
-  PromptType,
-} from "@/src/features/prompts/server/utils/validation";
-import {
   InvalidRequestError,
   parsePromptDependencyTags,
   jsonSchema,
   type PromptDependency,
   type Prompt,
+  type CreatePromptTRPCType,
+  LATEST_PROMPT_LABEL,
+  PromptType,
+  extractVariables,
 } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
-import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
 import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
 import {
   PromptContentSchema,
   PromptService,
   redis,
+  extractPlaceholderNames,
 } from "@langfuse/shared/src/server";
+import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;
@@ -32,6 +33,28 @@ type DuplicatePromptParams = {
   isSingleVersion: boolean;
   createdBy: string;
   prisma: PrismaClient;
+};
+
+const extractChatVariableAndPlaceholderNames = (
+  chatPrompt: Array<any>,
+): { variables: string[]; placeholders: string[] } => {
+  const placeholders = extractPlaceholderNames(chatPrompt);
+
+  const variables: string[] = [];
+  for (const message of chatPrompt) {
+    if (
+      message &&
+      "content" in message &&
+      typeof message.content === "string"
+    ) {
+      variables.push(...extractVariables(message.content));
+    }
+  }
+
+  return {
+    variables: [...new Set(variables)],
+    placeholders: [...new Set(placeholders)],
+  };
 };
 
 export const createPrompt = async ({
@@ -57,6 +80,18 @@ export const createPrompt = async ({
     );
   }
 
+  // Prevent naming collisions between variables and placeholders
+  if (type === PromptType.Chat && Array.isArray(prompt)) {
+    const { variables, placeholders } =
+      extractChatVariableAndPlaceholderNames(prompt);
+    const conflictingNames = variables.filter((v) => placeholders.includes(v));
+    if (conflictingNames.length > 0) {
+      throw new InvalidRequestError(
+        `Cannot create prompt, variables and placeholders must be unique, the following are not: ${conflictingNames.join(", ")}`,
+      );
+    }
+  }
+
   const finalLabels = [...labels, LATEST_PROMPT_LABEL]; // Newly created prompts are always labeled as 'latest'
 
   // If tags are undefined, use the tags from the latest prompt version
@@ -65,6 +100,8 @@ export const createPrompt = async ({
 
   const promptService = new PromptService(prisma, redis);
   const promptDependencies = parsePromptDependencyTags(prompt);
+
+  const touchedPromptIds: string[] = [];
 
   try {
     await promptService.buildAndResolvePromptGraph({
@@ -116,30 +153,36 @@ export const createPrompt = async ({
     ),
   ];
 
-  if (finalLabels.length > 0)
+  if (finalLabels.length > 0) {
     // If we're creating a new labeled prompt, we must remove those labels on previous prompts since labels are unique
-    create.push(
-      ...(await removeLabelsFromPreviousPromptVersions({
-        prisma,
-        projectId,
-        promptName: name,
-        labelsToRemove: finalLabels,
-      })),
-    );
+    const {
+      touchedPromptIds: touchedPromptIdsPrevPrompts,
+      updates: updatesPrevPrompts,
+    } = await removeLabelsFromPreviousPromptVersions({
+      prisma,
+      projectId,
+      promptName: name,
+      labelsToRemove: finalLabels,
+    });
+    touchedPromptIds.push(...touchedPromptIdsPrevPrompts);
+    create.push(...updatesPrevPrompts);
+  }
 
   const haveTagsChanged =
     JSON.stringify([...new Set(finalTags)].sort()) !==
     JSON.stringify([...new Set(latestPrompt?.tags)].sort());
-  if (haveTagsChanged)
+  if (haveTagsChanged) {
     // If we're creating a new prompt with tags, we must update those tags on previous prompts since tags are consistent across versions
-    create.push(
-      ...(await updatePromptTagsOnAllVersions({
+    const { touchedPromptIds: touchedPromptIdsTags, updates: updatesTags } =
+      await updatePromptTagsOnAllVersions({
         prisma,
         projectId,
         promptName: name,
         tags: finalTags,
-      })),
-    );
+      });
+    touchedPromptIds.push(...touchedPromptIdsTags);
+    create.push(...updatesTags);
+  }
 
   // Lock and invalidate cache for _all_ versions and labels of the prompt name
   await promptService.lockCache({ projectId, promptName: name });
@@ -153,6 +196,26 @@ export const createPrompt = async ({
 
   // Unlock cache
   await promptService.unlockCache({ projectId, promptName: name });
+
+  const updatedPrompts = await prisma.prompt.findMany({
+    where: {
+      id: { in: touchedPromptIds },
+      projectId,
+    },
+  });
+
+  await Promise.all([
+    ...updatedPrompts.map(async (prompt) =>
+      promptChangeEventSourcing(
+        await promptService.resolvePrompt(prompt),
+        "updated",
+      ),
+    ),
+    promptChangeEventSourcing(
+      await promptService.resolvePrompt(createdPrompt),
+      "created",
+    ),
+  ]);
 
   return createdPrompt;
 };
@@ -187,7 +250,7 @@ export const duplicatePrompt = async ({
   });
 
   if (!existingPrompt) {
-    throw new Error(`Existing prompt not found: ${promptId}`);
+    throw new InvalidRequestError(`Existing prompt not found: ${promptId}`);
   }
 
   // if defined as single version, duplicate current prompt as new prompt v1
@@ -231,6 +294,9 @@ export const duplicatePrompt = async ({
       projectId,
       createdBy,
       commitMessage: prompt.commitMessage,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isActive: true,
     };
   });
 
@@ -255,7 +321,7 @@ export const duplicatePrompt = async ({
     return promptResult;
   });
 
-  // If you need the created prompt, fetch it separately since createMany doesn't return created records
+  // Fetch the created prompt to return
   const createdPrompt = await prisma.prompt.findFirst({
     where: {
       name,
@@ -263,6 +329,17 @@ export const duplicatePrompt = async ({
       version: isSingleVersion ? 1 : result.count,
     },
   });
+
+  const promptService = new PromptService(prisma, redis);
+
+  await Promise.all(
+    promptsToCreate.map(async (prompt) =>
+      promptChangeEventSourcing(
+        await promptService.resolvePrompt(prompt),
+        "created",
+      ),
+    ),
+  );
 
   return createdPrompt;
 };

@@ -25,6 +25,7 @@ async function prepare() {
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
           projects: [
             {
               id: project.id,
@@ -32,6 +33,7 @@ async function prepare() {
               retentionDays: 30,
               deletedAt: null,
               name: project.name,
+              metadata: {},
             },
           ],
         },

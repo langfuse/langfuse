@@ -30,6 +30,15 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "python-sdk-v3",
+    title: "New Python SDK v3",
+    description:
+      "Python SDK V3 offers significant improvements in developer experience, performance, and integrations.",
+    link: "https://langfuse.com/docs/sdk/python/sdk-v3#upgrade-from-v2",
+    linkTitle: "Upgrade to v3",
+    createdAt: "2025-06-27",
+  },
+  {
     id: "lw3-5",
     title: "Launch Week #3: Day 5",
     description: "New OpenTelemetry based Python SDK.",
@@ -102,7 +111,7 @@ const notifications: SidebarNotification[] = [
     linkContent: (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        alt="Langfuse Github stars"
+        alt="Langfuse GitHub stars"
         src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
       />
     ),

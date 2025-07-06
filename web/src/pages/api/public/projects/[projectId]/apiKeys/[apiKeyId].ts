@@ -6,7 +6,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import {
   validateQueryParams,
   handleDeleteApiKey,
-} from "@/src/features/admin-api/projects/projectById/apiKeys/apiKeyById";
+} from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys/apiKeyById";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 export default async function handler(

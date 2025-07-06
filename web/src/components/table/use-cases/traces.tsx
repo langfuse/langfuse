@@ -1136,7 +1136,13 @@ export default function TracesTable({
               />
             ) : null,
             <BatchExportTableButton
-              {...{ projectId, filterState, orderByState }}
+              {...{
+                projectId,
+                filterState,
+                orderByState,
+                searchQuery,
+                searchType,
+              }}
               tableName={BatchExportTableName.Traces}
               key="batchExport"
             />,

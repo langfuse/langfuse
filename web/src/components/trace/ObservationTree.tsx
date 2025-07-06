@@ -390,17 +390,20 @@ const ObservationTreeNodeCard = ({
           )}
           ref={currentObservationRef}
         >
-          {/* Type badge */}
-          <ItemBadge
-            type={observation.type}
-            isSmall
-            className="flex-shrink-0 scale-75"
-          />
+          {/* Type badge and name */}
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <ItemBadge
+              type={observation.type}
+              isSmall
+              className="flex-shrink-0 scale-75"
+            />
+            <span className="whitespace-nowrap text-sm font-medium">
+              {observation.name}
+            </span>
+          </div>
 
-          {/* Name and duration */}
+          {/* Duration and Comments */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{observation.name}</span>
-
             {comments && showComments ? (
               <CommentCountIcon count={comments.get(observation.id)} />
             ) : null}

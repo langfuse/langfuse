@@ -2,7 +2,7 @@ import React from "react";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import { compactSmallNumberFormatter } from "@/src/utils/numbers";
 
 interface HistogramDataPoint {
   binLabel: string;
@@ -22,7 +22,7 @@ const HistogramChart = ({ data }: { data: DataPoint[] }) => {
       // ClickHouse histogram format: [(lower, upper, height), ...]
       return (firstDataPoint.metric as [number, number, number][]).map(
         ([lower, upper, height]) => ({
-          binLabel: `[${compactNumberFormatter(lower)}, ${compactNumberFormatter(upper)}]`,
+          binLabel: `[${compactSmallNumberFormatter(lower)}, ${compactSmallNumberFormatter(upper)}]`,
           count: height,
           lower,
           upper,

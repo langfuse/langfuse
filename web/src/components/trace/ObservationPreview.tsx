@@ -325,7 +325,7 @@ export const ObservationPreview = ({
                     {preloadedObservation.modelParameters &&
                     typeof preloadedObservation.modelParameters === "object"
                       ? Object.entries(preloadedObservation.modelParameters)
-                          .filter(Boolean)
+                          .filter(([_, value]) => value !== null)
                           .map(([key, value]) => {
                             const valueString =
                               Object.prototype.toString.call(value) ===

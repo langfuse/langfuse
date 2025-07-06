@@ -37,6 +37,9 @@ import {
   TraceUpsertQueue,
   UsageCostType,
   validateAndInflateScore,
+  convertObservationToTraceMt,
+  convertTraceToTraceMt,
+  convertScoreToTraceMt,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -92,8 +95,8 @@ export class IngestionService {
   constructor(
     private redis: Redis | Cluster,
     private prisma: PrismaClient,
-    private clickHouseWriter: ClickhouseWriter,
-    private clickhouseClient: ClickhouseClientType,
+    private clickHouseWriter: ClickhouseWriter, // eslint-disable-line no-unused-vars
+    private clickhouseClient: ClickhouseClientType, // eslint-disable-line no-unused-vars
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -219,6 +222,14 @@ export class IngestionService {
       clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
+      finalScoreRecord.trace_id
+    ) {
+      const traceMtRecord = convertScoreToTraceMt(finalScoreRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+    }
   }
 
   private async processTraceEventList(params: {
@@ -317,6 +328,14 @@ export class IngestionService {
     }
 
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+
+    // Experimental: Also write to traces_mt table if experiment flag is enabled
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
+    ) {
+      const traceMtRecord = convertTraceToTraceMt(finalTraceRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+    }
 
     // Add trace into trace upsert queue for eval processing
     const traceUpsertQueue = TraceUpsertQueue.getInstance();
@@ -444,6 +463,14 @@ export class IngestionService {
       TableName.Observations,
       finalObservationRecord,
     );
+
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
+      finalObservationRecord.trace_id
+    ) {
+      const traceMtRecord = convertObservationToTraceMt(finalObservationRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+    }
   }
 
   private async mergeScoreRecords(params: {
@@ -499,8 +526,7 @@ export class IngestionService {
     observationRecords: ObservationRecordInsertType[];
     clickhouseObservationRecord?: ObservationRecordInsertType | null;
   }): Promise<ObservationRecordInsertType> {
-    const { projectId, observationRecords, clickhouseObservationRecord } =
-      params;
+    const { observationRecords, clickhouseObservationRecord } = params;
 
     // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
@@ -665,7 +691,7 @@ export class IngestionService {
   > {
     const providedUsageDetails = Object.fromEntries(
       Object.entries(observationRecord.provided_usage_details).filter(
-        ([k, v]) => v != null && v >= 0,
+        ([k, v]) => v != null && v >= 0, // eslint-disable-line no-unused-vars
       ),
     );
 
@@ -723,7 +749,7 @@ export class IngestionService {
     const { provided_cost_details } = observationRecord;
 
     const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null)
+      .filter(([_, value]) => value != null) // eslint-disable-line no-unused-vars
       .map(([key]) => key);
 
     // If user has provided any cost point, do not calculate any other cost points
@@ -770,7 +796,7 @@ export class IngestionService {
       finalTotalCost = finalCostDetails.total;
     } else if (finalCostEntries.length > 0) {
       finalTotalCost = finalCostEntries.reduce(
-        (acc, [_, cost]) => acc + cost,
+        (acc, [_, cost]) => acc + cost, // eslint-disable-line no-unused-vars
         0,
       );
 
@@ -834,6 +860,7 @@ export class IngestionService {
     return result;
   }
 
+  // eslint-disable-next-line no-unused-vars
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -843,6 +870,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<TraceRecordInsertType | null>;
+  // eslint-disable-next-line no-unused-vars, no-dupe-class-members
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -852,6 +880,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ScoreRecordInsertType | null>;
+  // eslint-disable-next-line no-unused-vars, no-dupe-class-members
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -861,6 +890,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ObservationRecordInsertType | null>;
+  // eslint-disable-next-line no-dupe-class-members
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1059,7 +1089,7 @@ export class IngestionService {
         ...("usageDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.usageDetails ?? {}).filter(
-                ([_, val]) => val != null,
+                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
               ),
             ) as Record<string, number>)
           : {}),
@@ -1080,7 +1110,7 @@ export class IngestionService {
         ...("costDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.costDetails ?? {}).filter(
-                ([_, val]) => val != null,
+                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
               ),
             ) as Record<string, number>)
           : {}),

@@ -2,23 +2,25 @@ import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
+  ExperimentCreateQueue,
   QueueJobs,
   QueueName,
   redis,
   ZodModelConfig,
-  ExperimentCreateQueue,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   type DatasetItem,
   DatasetStatus,
   extractVariables,
   datasetItemMatchesVariable,
   UnauthorizedError,
+  PromptType,
+  extractPlaceholderNames,
+  type PromptMessage,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -97,10 +99,20 @@ export const experimentsRouter = createTRPCRouter({
           : JSON.stringify(prompt.prompt),
       );
 
-      if (!Boolean(extractedVariables.length)) {
+      const promptMessages =
+        prompt?.type === PromptType.Chat && Array.isArray(prompt.prompt)
+          ? prompt.prompt
+          : [];
+      const placeholderNames = extractPlaceholderNames(
+        promptMessages as PromptMessage[],
+      );
+
+      const allVariables = [...extractedVariables, ...placeholderNames];
+
+      if (!Boolean(allVariables.length)) {
         return {
           isValid: false,
-          message: "Selected prompt has no variables.",
+          message: "Selected prompt has no variables or placeholders.",
         };
       }
 
@@ -119,10 +131,7 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const variablesMap = validateDatasetItems(
-        datasetItems,
-        extractedVariables,
-      );
+      const variablesMap = validateDatasetItems(datasetItems, allVariables);
 
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {

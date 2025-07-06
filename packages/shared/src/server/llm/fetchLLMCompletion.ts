@@ -1,4 +1,6 @@
-import { type ZodSchema } from "zod/v4";
+// We need to use Zod3 for structured outputs due to a bug in
+// ChatVertexAI. See issue: https://github.com/langfuse/langfuse/issues/7429
+import { type ZodSchema } from "zod/v3";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -20,6 +22,7 @@ import { ChatOpenAI, AzureChatOpenAI } from "@langchain/openai";
 import GCPServiceAccountKeySchema, {
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
@@ -60,7 +63,7 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 };
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & {
+  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
     streaming: true;
   },
 ): Promise<{
@@ -69,7 +72,7 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & {
+  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
     streaming: false;
   },
 ): Promise<{
@@ -78,7 +81,7 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & {
+  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
     streaming: false;
     structuredOutputSchema: ZodSchema;
   },
@@ -88,7 +91,7 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & {
+  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
     tools: LLMToolDefinition[];
     streaming: false;
   },
@@ -251,6 +254,9 @@ export async function fetchLLMCompletion(
     });
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
     const credentials = GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
+    const { location } = config
+      ? VertexAIConfigSchema.parse(config)
+      : { location: undefined };
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
@@ -261,6 +267,7 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
+      location,
       authOptions: {
         projectId: credentials.project_id,
         credentials,

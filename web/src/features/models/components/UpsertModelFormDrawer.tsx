@@ -149,7 +149,10 @@ export const UpsertModelFormDrawer = ({
       .mutateAsync({
         modelId: props.action === "edit" ? props.modelData.id : null,
         projectId: props.projectId,
-        modelName: values.modelName,
+        modelName:
+          props.action === "edit"
+            ? props.modelData.modelName
+            : values.modelName,
         matchPattern: values.matchPattern,
         prices: values.prices,
         tokenizerId: values.tokenizerId,

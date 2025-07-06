@@ -33,6 +33,10 @@ export const HistogramChartConfig = BaseTotalValueChartConfig.extend({
   bins: z.number().int().min(1).max(100).optional().default(10),
 });
 
+export const PivotTableChartConfig = BaseTotalValueChartConfig.extend({
+  type: z.literal("PIVOT_TABLE"),
+});
+
 // Define dimension schema
 export const DimensionSchema = z.object({
   field: z.string(),
@@ -53,6 +57,7 @@ export const ChartConfigSchema = z.discriminatedUnion("type", [
   PieChartConfig,
   BigNumberChartConfig,
   HistogramChartConfig,
+  PivotTableChartConfig,
 ]);
 
 export const DashboardDefinitionWidgetWidgetSchema = z.object({
