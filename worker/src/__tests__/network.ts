@@ -40,14 +40,14 @@ const DEFAULT_RESPONSE = {
   system_fingerprint: null,
 };
 
-function CompletionHandler(response: HttpResponse) {
+function CompletionHandler(response: HttpResponse<typeof DEFAULT_RESPONSE>) {
   return http.post("https://api.openai.com/v1/chat/completions", async () => {
     logger.info("openai handler");
     return response;
   });
 }
 
-function JsonCompletionHandler(data: object) {
+function JsonCompletionHandler(data: typeof DEFAULT_RESPONSE) {
   return CompletionHandler(HttpResponse.json(data));
 }
 
@@ -123,7 +123,7 @@ export class OpenAIServer {
     });
   }
 
-  respondWithData(data: object) {
+  respondWithData(data: typeof DEFAULT_RESPONSE) {
     this.internalServer.use(
       JsonCompletionHandler(data),
       MinioCompletionHandler(),
