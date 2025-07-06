@@ -236,7 +236,7 @@ function unicodeToBytesInString(input: string): string {
   let result = "";
   for (let i = 0; i < input.length; i++) {
     const char = input[i];
-    if (char && /[\u{10000}-\u{10FFFF}]/u.test(char)) {
+    if (char && /[\uD800-\uDBFF][\uDC00-\uDFFF]/.test(char)) {
       const bytes = unicodeToBytes(char);
       result += Array.from(bytes)
         .map((b) => b.toString(16))
