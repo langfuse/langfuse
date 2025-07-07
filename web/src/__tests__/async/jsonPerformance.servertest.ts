@@ -20,21 +20,7 @@ import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-interface GetResult {
-  time: number;
-  metrics?: {
-    mainThreadTime: number;
-    totalWorkerCpuTime: number;
-    avgWorkerCpuTime: number;
-    maxWorkerCpuTime: number;
-    coordinationOverhead: number;
-    activeWorkerCount: number;
-    dispatchTime: number;
-    actualIdleTime: number;
-  };
-}
-
-interface TrpcResult {
+interface PerformanceResult {
   time: number;
   metrics?: {
     mainThreadTime: number;
@@ -65,12 +51,12 @@ interface PerformanceTestConfig {
   retrieveGet: (
     id: string,
     optimization: JSONOptimizationStrategy,
-  ) => Promise<GetResult>;
+  ) => Promise<PerformanceResult>;
   retrieveTrpc: (
     id: string,
     traceId: string | undefined,
     optimization: JSONOptimizationStrategy,
-  ) => Promise<TrpcResult>;
+  ) => Promise<PerformanceResult>;
 }
 
 function makeTrpcCaller() {
@@ -91,6 +77,18 @@ function generateLargeJsonPayload(size: number): any {
       largeString: "z".repeat(1000),
     },
   };
+}
+
+async function waitForEntityInDatabase<T>(
+  getEntity: () => Promise<T | null>,
+  expectedId: string,
+): Promise<void> {
+  await waitForExpect(async () => {
+    const entity = await getEntity();
+    expect(entity).toBeDefined();
+    expect((entity as any)!.id).toBe(expectedId);
+    expect((entity as any)!.projectId).toBe(projectId);
+  });
 }
 async function insertTrace(length: number, traceId = randomUUID()) {
   const largeJsonData = generateLargeJsonPayload(length);
@@ -119,15 +117,10 @@ async function insertTrace(length: number, traceId = randomUUID()) {
 
   expect(response.status).toBe(207);
 
-  await waitForExpect(async () => {
-    const trace = await getTraceById({
-      traceId,
-      projectId,
-    });
-    expect(trace).toBeDefined();
-    expect(trace!.id).toBe(traceId);
-    expect(trace!.projectId).toBe(projectId);
-  });
+  await waitForEntityInDatabase(
+    () => getTraceById({ traceId, projectId }),
+    traceId,
+  );
 
   return { id: traceId, traceId, time: endTime - startTime, payloadSizeInMB };
 }
@@ -162,16 +155,14 @@ async function insertObservation(length: number) {
   });
   const endTime = performance.now();
 
-  await waitForExpect(async () => {
-    const observation = await getObservationById({
+  await waitForEntityInDatabase(
+    () => getObservationById({
       id: observationId,
       projectId,
       fetchWithInputOutput: true,
-    });
-    expect(observation).toBeDefined();
-    expect(observation!.id).toBe(observationId);
-    expect(observation!.projectId).toBe(projectId);
-  });
+    }),
+    observationId,
+  );
 
   return {
     id: observationId,
@@ -199,15 +190,10 @@ async function insertTraceDirect(length: number, traceId = randomUUID()) {
   await createTracesCh([trace]);
   const endTime = performance.now();
 
-  await waitForExpect(async () => {
-    const trace = await getTraceById({
-      traceId,
-      projectId,
-    });
-    expect(trace).toBeDefined();
-    expect(trace!.id).toBe(traceId);
-    expect(trace!.projectId).toBe(projectId);
-  });
+  await waitForEntityInDatabase(
+    () => getTraceById({ traceId, projectId }),
+    traceId,
+  );
 
   return { id: traceId, traceId, time: endTime - startTime, payloadSizeInMB };
 }
@@ -238,16 +224,14 @@ async function insertObservationDirect(length: number) {
   await createObservationsCh([observation]);
   const endTime = performance.now();
 
-  await waitForExpect(async () => {
-    const observation = await getObservationById({
+  await waitForEntityInDatabase(
+    () => getObservationById({
       id: observationId,
       projectId,
       fetchWithInputOutput: true,
-    });
-    expect(observation).toBeDefined();
-    expect(observation!.id).toBe(observationId);
-    expect(observation!.projectId).toBe(projectId);
-  });
+    }),
+    observationId,
+  );
 
   return {
     id: observationId,
@@ -261,7 +245,7 @@ async function insertObservationDirect(length: number) {
 async function retrieveTraceGET(
   traceId: string,
   optimization: JSONOptimizationStrategy,
-): Promise<GetResult> {
+): Promise<PerformanceResult> {
   const startTime = performance.now();
   const result = await makeAPICall(
     "GET",
@@ -279,7 +263,7 @@ async function retrieveTraceGET(
 async function retrieveObservationGET(
   observationId: string,
   optimization: JSONOptimizationStrategy,
-): Promise<GetResult> {
+): Promise<PerformanceResult> {
   const startTime = performance.now();
   const result = await makeAPICall(
     "GET",
@@ -334,6 +318,39 @@ async function retrieveObservationTRPC(
   return { time: endTime - startTime, metrics };
 }
 
+function formatMetricsLog(
+  baseLog: string,
+  optimization: JSONOptimizationStrategy,
+  result: PerformanceResult | undefined,
+): string {
+  if (optimization === "worker" && result?.metrics) {
+    const {
+      mainThreadTime,
+      totalWorkerCpuTime,
+      avgWorkerCpuTime,
+      maxWorkerCpuTime,
+      coordinationOverhead,
+      activeWorkerCount,
+      dispatchTime,
+      actualIdleTime,
+    } = result.metrics;
+    return `${baseLog} (main: ${mainThreadTime.toFixed(
+      2,
+    )}ms, total: ${totalWorkerCpuTime.toFixed(
+      2,
+    )}ms, avg: ${avgWorkerCpuTime.toFixed(
+      2,
+    )}ms, max: ${maxWorkerCpuTime.toFixed(
+      2,
+    )}ms, dispatch: ${dispatchTime.toFixed(
+      2,
+    )}ms, idle: ${actualIdleTime.toFixed(
+      2,
+    )}ms, overhead: ${coordinationOverhead.toFixed(2)}ms, workers: ${activeWorkerCount})`;
+  }
+  return baseLog;
+}
+
 async function runPerformanceTest(
   size: number,
   name: string,
@@ -363,13 +380,13 @@ async function runPerformanceTest(
   await config.retrieveTrpc(ids.id, ids.traceId, "original");
 
   // Timed Retrieval
-  const getResults: Partial<Record<JSONOptimizationStrategy, GetResult>> = {};
+  const getResults: Partial<Record<JSONOptimizationStrategy, PerformanceResult>> = {};
   // for (const opt of ["raw" as const]) {
   for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
     getResults[opt] = await config.retrieveGet(ids.id, opt);
   }
 
-  const trpcResults: Partial<Record<JSONOptimizationStrategy, TrpcResult>> = {};
+  const trpcResults: Partial<Record<JSONOptimizationStrategy, PerformanceResult>> = {};
   for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
     trpcResults[opt] = await config.retrieveTrpc(ids.id, ids.traceId, opt);
   }
@@ -381,65 +398,13 @@ async function runPerformanceTest(
   const getLogs = JSON_OPTIMIZATION_STRATEGIES.map((opt) => {
     const result = getResults[opt];
     const baseLog = `  GET ${opt.padEnd(8)}: ${(result?.time ?? 0).toFixed(2)}ms`;
-    if (opt === "worker" && result?.metrics) {
-      const {
-        mainThreadTime,
-        totalWorkerCpuTime,
-        avgWorkerCpuTime,
-        maxWorkerCpuTime,
-        coordinationOverhead,
-        activeWorkerCount,
-        dispatchTime,
-        actualIdleTime,
-      } = result.metrics;
-      return `${baseLog} (main: ${mainThreadTime.toFixed(
-        2,
-      )}ms, total: ${totalWorkerCpuTime.toFixed(
-        2,
-      )}ms, avg: ${avgWorkerCpuTime.toFixed(
-        2,
-      )}ms, max: ${maxWorkerCpuTime.toFixed(
-        2,
-      )}ms, dispatch: ${dispatchTime.toFixed(
-        2,
-      )}ms, idle: ${actualIdleTime.toFixed(
-        2,
-      )}ms, overhead: ${coordinationOverhead.toFixed(2)}ms, workers: ${activeWorkerCount})`;
-    }
-    return baseLog;
+    return formatMetricsLog(baseLog, opt, result);
   }).join("\n");
 
   const trpcLogs = JSON_OPTIMIZATION_STRATEGIES.map((opt) => {
     const result = trpcResults[opt];
-    const baseLog = `  TRPC ${opt.padEnd(8)}: ${(result?.time ?? 0).toFixed(
-      2,
-    )}ms`;
-    if (opt === "worker" && result?.metrics) {
-      const {
-        mainThreadTime,
-        totalWorkerCpuTime,
-        avgWorkerCpuTime,
-        maxWorkerCpuTime,
-        coordinationOverhead,
-        activeWorkerCount,
-        dispatchTime,
-        actualIdleTime,
-      } = result.metrics;
-      return `${baseLog} (main: ${mainThreadTime.toFixed(
-        2,
-      )}ms, total: ${totalWorkerCpuTime.toFixed(
-        2,
-      )}ms, avg: ${avgWorkerCpuTime.toFixed(
-        2,
-      )}ms, max: ${maxWorkerCpuTime.toFixed(
-        2,
-      )}ms, dispatch: ${dispatchTime.toFixed(
-        2,
-      )}ms, idle: ${actualIdleTime.toFixed(
-        2,
-      )}ms, overhead: ${coordinationOverhead.toFixed(2)}ms, workers: ${activeWorkerCount})`;
-    }
-    return baseLog;
+    const baseLog = `  TRPC ${opt.padEnd(8)}: ${(result?.time ?? 0).toFixed(2)}ms`;
+    return formatMetricsLog(baseLog, opt, result);
   }).join("\n");
 
   console.log(
