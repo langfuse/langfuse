@@ -277,8 +277,8 @@ async function main() {
   // Convert string args to numbers
   const migrationArgs = {
     ...args.values,
-    cpuCores: parseInt(args.values.cpuCores!),
-    memoryGiB: parseInt(args.values.memoryGiB!),
+    cpuCores: parseInt(args.values.cpu!),
+    memoryGiB: parseInt(args.values.memory!),
   };
 
   const migration = new MigrateTracesToTracesAMTs();
