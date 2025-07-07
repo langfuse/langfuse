@@ -31,6 +31,7 @@ interface PerformanceResult {
     activeWorkerCount: number;
     dispatchTime: number;
     actualIdleTime: number;
+    resultProcessingTime: number;
   };
 }
 
@@ -156,7 +157,8 @@ async function insertObservation(length: number) {
   const endTime = performance.now();
 
   await waitForEntityInDatabase(
-    () => getObservationById({
+    () =>
+      getObservationById({
       id: observationId,
       projectId,
       fetchWithInputOutput: true,
@@ -225,7 +227,8 @@ async function insertObservationDirect(length: number) {
   const endTime = performance.now();
 
   await waitForEntityInDatabase(
-    () => getObservationById({
+    () =>
+      getObservationById({
       id: observationId,
       projectId,
       fetchWithInputOutput: true,
@@ -333,6 +336,7 @@ function formatMetricsLog(
       activeWorkerCount,
       dispatchTime,
       actualIdleTime,
+      resultProcessingTime,
     } = result.metrics;
     return `${baseLog} (main: ${mainThreadTime.toFixed(
       2,
@@ -345,6 +349,8 @@ function formatMetricsLog(
     )}ms, dispatch: ${dispatchTime.toFixed(
       2,
     )}ms, idle: ${actualIdleTime.toFixed(
+      2,
+    )}ms, processing: ${resultProcessingTime.toFixed(
       2,
     )}ms, overhead: ${coordinationOverhead.toFixed(2)}ms, workers: ${activeWorkerCount})`;
   }
@@ -380,13 +386,17 @@ async function runPerformanceTest(
   await config.retrieveTrpc(ids.id, ids.traceId, "original");
 
   // Timed Retrieval
-  const getResults: Partial<Record<JSONOptimizationStrategy, PerformanceResult>> = {};
+  const getResults: Partial<
+    Record<JSONOptimizationStrategy, PerformanceResult>
+  > = {};
   // for (const opt of ["raw" as const]) {
   for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
     getResults[opt] = await config.retrieveGet(ids.id, opt);
   }
 
-  const trpcResults: Partial<Record<JSONOptimizationStrategy, PerformanceResult>> = {};
+  const trpcResults: Partial<
+    Record<JSONOptimizationStrategy, PerformanceResult>
+  > = {};
   for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
     trpcResults[opt] = await config.retrieveTrpc(ids.id, ids.traceId, opt);
   }
