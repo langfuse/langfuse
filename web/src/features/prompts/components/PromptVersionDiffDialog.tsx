@@ -22,28 +22,37 @@ type PromptVersionDiffDialogProps = {
 };
 
 // Create a word-based diff that preserves JSON structure
-const createSmartDiff = (oldPrompt: Prompt, newPrompt: Prompt): { oldString: string; newString: string } => {
+const createSmartDiff = (
+  oldPrompt: Prompt,
+  newPrompt: Prompt,
+): { oldString: string; newString: string } => {
   if (oldPrompt.type === "text" || newPrompt.type === "text") {
     return {
-      oldString: oldPrompt.type === "text" ? (oldPrompt.prompt as string) : JSON.stringify(oldPrompt.prompt, null, 2),
-      newString: newPrompt.type === "text" ? (newPrompt.prompt as string) : JSON.stringify(newPrompt.prompt, null, 2)
+      oldString:
+        oldPrompt.type === "text"
+          ? (oldPrompt.prompt as string)
+          : JSON.stringify(oldPrompt.prompt, null, 2),
+      newString:
+        newPrompt.type === "text"
+          ? (newPrompt.prompt as string)
+          : JSON.stringify(newPrompt.prompt, null, 2),
     };
   }
 
-  const formatMessages = (messages: any[]) => 
+  const formatMessages = (messages: any[]) =>
     JSON.stringify(
-      messages.map(m => 
+      messages.map((m) =>
         Object.fromEntries(
-          Object.entries(m).sort(([a], [b]) => a.localeCompare(b))
-        )
+          Object.entries(m).sort(([a], [b]) => a.localeCompare(b)),
+        ),
       ),
       null,
-      2
+      2,
     );
 
   return {
     oldString: formatMessages(oldPrompt.prompt as any[]),
-    newString: formatMessages(newPrompt.prompt as any[])
+    newString: formatMessages(newPrompt.prompt as any[]),
   };
 };
 
