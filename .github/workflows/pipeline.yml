@@ -100,16 +100,16 @@ jobs:
         node-version: [20]
         postgres-version: [12, 15]
     steps:
-      - name: Check current disk space
-        run: |
-          sudo df -h /mnt/*
-      - name: Remove android library to free disk space
-        run: |
-          sudo rm -rf /usr/local/lib/android || true
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
+#      - name: Check current disk space
+#        run: |
+#          sudo df -h /mnt/*
+#      - name: Remove android library to free disk space
+#        run: |
+#          sudo rm -rf /usr/local/lib/android || true
+#      - name: Set Swap Space
+#        uses: pierotofy/set-swap-space@master
+#        with:
+#          swap-size-gb: 10
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
@@ -184,13 +184,13 @@ jobs:
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
-      - name: Remove android library to free disk space
-        run: |
-          sudo rm -rf /usr/local/lib/android || true
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
+#      - name: Remove android library to free disk space
+#        run: |
+#          sudo rm -rf /usr/local/lib/android || true
+#      - name: Set Swap Space
+#        uses: pierotofy/set-swap-space@master
+#        with:
+#          swap-size-gb: 10
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
@@ -266,13 +266,13 @@ jobs:
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
-      - name: Remove android library to free disk space
-        run: |
-          sudo rm -rf /usr/local/lib/android || true
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
+#      - name: Remove android library to free disk space
+#        run: |
+#          sudo rm -rf /usr/local/lib/android || true
+#      - name: Set Swap Space
+#        uses: pierotofy/set-swap-space@master
+#        with:
+#          swap-size-gb: 10
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
