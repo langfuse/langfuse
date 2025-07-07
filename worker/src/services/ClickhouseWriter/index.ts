@@ -26,7 +26,7 @@ export class ClickhouseWriter {
   queue: ClickhouseQueue;
 
   isIntervalFlushInProgress: boolean;
-  intervalId: NodeJS.Timeout | null = null; // eslint-disable-line no-undef
+  intervalId: NodeJS.Timeout | null = null;
 
   private constructor() {
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;

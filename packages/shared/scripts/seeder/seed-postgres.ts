@@ -4,15 +4,16 @@ import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
 import {
-	type JobConfiguration,
-	JobExecutionStatus,
-	PrismaClient,
-	type Project,
-	ScoreDataType,
+  type JobConfiguration,
+  JobExecutionStatus,
+  PrismaClient,
+  type Project,
+  ScoreDataType,
 } from "../../src/index";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { redis } from "../../src/server/redis/redis";
-import {EVAL_TRACE_COUNT,
+import {
+  EVAL_TRACE_COUNT,
   FAILED_EVAL_TRACE_INTERVAL,
   SEED_CHAT_ML_PROMPTS,
   SEED_DATASETS,
