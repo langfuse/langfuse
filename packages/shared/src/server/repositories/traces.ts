@@ -236,7 +236,7 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
   // Experimental: Also write to traces_mt table if experiment flag is enabled
   if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true") {
     try {
-      const res = await clickhouseClient().insert({
+      await clickhouseClient().insert({
         table: "traces_mt",
         values: convertTraceToTraceMt({
           ...trace,
