@@ -52,6 +52,41 @@ jobs:
       - name: lint web
         run: pnpm run lint
 
+  prettier-check:
+    runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm i
+      - name: Check formatting on changed files
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA=${{ github.event.pull_request.base.sha }}
+          else
+            BASE_SHA=$(git merge-base origin/main HEAD)
+          fi
+          FILES=$(git diff --name-only $BASE_SHA HEAD | grep -E '\.(js|jsx|ts|tsx|css)$' | xargs)
+          if [ -n "$FILES" ]; then
+            echo "Checking formatting for: $FILES"
+            pnpm prettier --check --experimental-cli $FILES
+          else
+            echo "No relevant files to check"
+          fi
+
   test-docker-build:
     timeout-minutes: 20
     runs-on: ubuntu-latest
@@ -430,6 +465,7 @@ jobs:
     needs:
       [
         lint,
+        prettier-check,
         tests-web-sync,
         tests-worker,
         e2e-tests,
