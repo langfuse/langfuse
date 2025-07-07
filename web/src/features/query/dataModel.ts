@@ -63,10 +63,10 @@ export const traceView: ViewDeclarationType = {
       description: "Deployment environment (e.g., production, staging).",
     },
     timestampMonth: {
-      sql: "toYYYYMM(traces.timestamp)",
+      sql: "formatDateTime(traces.timestamp, '%Y-%m')",
       alias: "timestampMonth",
       type: "string",
-      description: "Month of the trace timestamp in YYYYMM format.",
+      description: "Month of the trace timestamp in YYYY-MM format.",
     },
   },
   measures: {
@@ -254,10 +254,10 @@ export const observationsView: ViewDeclarationType = {
       description: "Version of the parent trace.",
     },
     startTimeMonth: {
-      sql: "toYYYYMM(observations.start_time)",
+      sql: "formatDateTime(observations.start_time, '%Y-%m')",
       alias: "startTimeMonth",
       type: "string",
-      description: "Month of the observation start_time in YYYYMM format.",
+      description: "Month of the observation start_time in YYYY-MM format.",
     },
   },
   measures: {
@@ -503,10 +503,10 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
     description: "Identifier of the config associated with the score.",
   },
   timestampMonth: {
-    sql: "toYYYYMM(scores.timestamp)",
+    sql: "formatDateTime(scores.timestamp, '%Y-%m')",
     alias: "timestampMonth",
     type: "string",
-    description: "Month of the score timestamp in YYYYMM format.",
+    description: "Month of the score timestamp in YYYY-MM format.",
   },
 };
 
