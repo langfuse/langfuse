@@ -400,20 +400,28 @@ WITH amt_data AS (
 -- Main query to compare AMT with original traces table
 SELECT t.project_id,
        t.id,
-       -- Identify differences between tables
-       t.timestamp != a.start_time                AS timestamp_diff,
-       t.name != a.name                           AS name_diff,
-       t.user_id != a.user_id                     AS user_id_diff,
-       t.session_id != a.session_id               AS session_id_diff,
-       t.release != a.release                     AS release_diff,
-       t.version != a.version                     AS version_diff,
-       t.public != a.public_value                 AS public_diff,
-       t.bookmarked != a.bookmarked_value         AS bookmarked_diff,
-       arraySort(t.tags) != arraySort(a.tags)     AS tags_diff,
-       t.input != a.input_value                   AS input_diff,
-       t.output != a.output_value                 AS output_diff,
-       t.metadata != a.metadata                   AS metadata_diff,
-       t.environment != a.environment             AS environment_diff,
+       -- Null-safe difference detection
+       NOT (t.timestamp = a.start_time OR (t.timestamp IS NULL AND a.start_time IS NULL)) AS timestamp_diff,
+       NOT (t.name = a.name OR (t.name IS NULL AND a.name IS NULL)) AS name_diff,
+       NOT (t.user_id = a.user_id OR (t.user_id IS NULL AND a.user_id IS NULL)) AS user_id_diff,
+       NOT (t.session_id = a.session_id OR (t.session_id IS NULL AND a.session_id IS NULL)) AS session_id_diff,
+       NOT (t.release = a.release OR (t.release IS NULL AND a.release IS NULL)) AS release_diff,
+       NOT (t.version = a.version OR (t.version IS NULL AND a.version IS NULL)) AS version_diff,
+       NOT (t.public = a.public_value OR (t.public IS NULL AND a.public_value IS NULL)) AS public_diff,
+       NOT (t.bookmarked = a.bookmarked_value OR (t.bookmarked IS NULL AND a.bookmarked_value IS NULL)) AS bookmarked_diff,
+       NOT (arraySort(t.tags) = arraySort(a.tags) OR (t.tags IS NULL AND a.tags IS NULL)) AS tags_diff,
+       NOT (t.input = a.input_value OR (t.input IS NULL AND a.input_value IS NULL)) AS input_diff,
+       NOT (t.output = a.output_value OR (t.output IS NULL AND a.output_value IS NULL)) AS output_diff,
+       -- Order-independent metadata comparison
+       NOT (
+         -- Check if both are null
+         (t.metadata IS NULL AND a.metadata IS NULL) OR
+         -- Check if both have same keys and values
+         (t.metadata IS NOT NULL AND a.metadata IS NOT NULL AND
+          arraySort(mapKeys(t.metadata)) = arraySort(mapKeys(a.metadata)) AND
+          arrayAll(k -> t.metadata[k] = a.metadata[k], mapKeys(t.metadata)))
+       ) AS metadata_diff,
+       NOT (t.environment = a.environment OR (t.environment IS NULL AND a.environment IS NULL)) AS environment_diff,
 
        -- Include original values for comparison
        t.timestamp                                AS traces_timestamp,
