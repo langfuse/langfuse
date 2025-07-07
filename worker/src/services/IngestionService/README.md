@@ -65,6 +65,7 @@ CREATE TABLE traces_all_amt
     -- Identifiers
     `project_id`         String,
     `id`                 String,
+    `timestamp`          SimpleAggregateFunction(min, DateTime64(3)),  -- Backward compatibility: redundant with start_time
     `start_time`         SimpleAggregateFunction(min, DateTime64(3)),
     `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3))),
     `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
@@ -112,6 +113,7 @@ SELECT
     -- Identifiers
     t0.project_id                                                                              as project_id,
     t0.id                                                                                      as id,
+    min(t0.start_time)                                                                         as timestamp,  -- Backward compatibility: redundant with start_time
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
     anyLast(t0.name)                                                                           as name,
@@ -150,6 +152,7 @@ CREATE TABLE traces_7d_amt
     -- Identifiers
     `project_id`         String,
     `id`                 String,
+    `timestamp`          SimpleAggregateFunction(min, DateTime64(3)),  -- Backward compatibility: redundant with start_time
     `start_time`         SimpleAggregateFunction(min, DateTime64(3)),
     `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3))),
     `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
@@ -197,6 +200,7 @@ SELECT
     -- Identifiers
     t0.project_id                                                                              as project_id,
     t0.id                                                                                      as id,
+    min(t0.start_time)                                                                         as timestamp,  -- Backward compatibility: redundant with start_time
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
     anyLast(t0.name)                                                                           as name,
@@ -235,6 +239,7 @@ CREATE TABLE traces_30d_amt
     -- Identifiers
     `project_id`         String,
     `id`                 String,
+    `timestamp`          SimpleAggregateFunction(min, DateTime64(3)),  -- Backward compatibility: redundant with start_time
     `start_time`         SimpleAggregateFunction(min, DateTime64(3)),
     `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3))),
     `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
@@ -282,6 +287,7 @@ SELECT
     -- Identifiers
     t0.project_id                                                                              as project_id,
     t0.id                                                                                      as id,
+    min(t0.start_time)                                                                         as timestamp,  -- Backward compatibility: redundant with start_time
     min(t0.start_time)                                                                         as start_time,
     max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
     anyLast(t0.name)                                                                           as name,
