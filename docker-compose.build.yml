@@ -78,7 +78,7 @@ services:
       retries: 3
 
   clickhouse:
-    image: clickhouse/clickhouse-server
+    image: docker.io/clickhouse/clickhouse-server
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
@@ -98,7 +98,7 @@ services:
       start_period: 1s
 
   minio:
-    image: minio/minio
+    image: docker.io/minio/minio
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -118,7 +118,7 @@ services:
       start_period: 1s
 
   redis:
-    image: redis:7
+    image: docker.io/redis:7
     restart: always
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
@@ -131,7 +131,7 @@ services:
       retries: 10
 
   postgres:
-    image: postgres:${POSTGRES_VERSION:-latest}
+    image: docker.io/postgres:${POSTGRES_VERSION:-latest}
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]

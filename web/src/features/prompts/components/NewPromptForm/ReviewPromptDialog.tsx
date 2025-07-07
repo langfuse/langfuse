@@ -22,6 +22,20 @@ type ReviewPromptDialogProps = {
   getNewPromptValues: () => NewPromptFormSchemaType;
 };
 
+const formatMessages = (messages: any[], excludeKeys: string[] = []) => {
+  return JSON.stringify(
+    messages.map(m => 
+      Object.fromEntries(
+        Object.entries(m)
+          .filter(([k]) => !excludeKeys.includes(k) && (k !== "type" || m.type === "placeholder"))
+          .sort(([a], [b]) => a.localeCompare(b))
+      )
+    ),
+    null,
+    2
+  );
+};
+
 export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
   props,
 ) => {
@@ -37,23 +51,13 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
     }
   }, [open, setNewPromptValues, getNewPromptValues]);
 
-  const initialPromptContent: string =
-    initialPrompt.type === "text"
-      ? (initialPrompt.prompt as string)
-      : JSON.stringify(initialPrompt.prompt, null, 2);
-
-  const newPromptContent: string =
-    initialPrompt.type === "text"
-      ? (newPromptValue?.textPrompt ?? "")
-      : JSON.stringify(
-          newPromptValue?.chatPrompt.map((m) =>
-            Object.fromEntries(
-              Object.entries(m).filter(([k, _]) => k !== "id" && k !== "type"),
-            ),
-          ) ?? "{}",
-          null,
-          2,
-        );
+  const initialPromptContent = initialPrompt.type === "text"
+    ? (initialPrompt.prompt as string)
+    : formatMessages(initialPrompt.prompt as any[]);
+    
+  const newPromptContent = initialPrompt.type === "text"
+    ? (newPromptValue?.textPrompt ?? "")
+    : formatMessages(newPromptValue?.chatPrompt ?? [], ["id"]);
 
   const newConfig = JSON.stringify(
     JSON.parse(newPromptValue?.config ?? "{}"),

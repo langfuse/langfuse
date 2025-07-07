@@ -294,7 +294,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       testPromptEquality(createPromptParams, fetchedPrompt.body);
     });
 
-    it("should fetch the latest prompt if label is latest", async () => {
+    (it("should fetch the latest prompt if label is latest", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const promptName = "latestPrompt_" + nanoid();
 
@@ -396,7 +396,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         }
 
         testPromptEquality(productionPromptParams, fetchedPrompt.body);
-      });
+      }));
 
     it("should return a 404 if prompt does not exist", async () => {
       const fetchedPrompt = await makeAPICall<Prompt>(
