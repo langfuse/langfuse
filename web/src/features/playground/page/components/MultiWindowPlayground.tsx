@@ -3,7 +3,7 @@ import { PlaygroundProvider } from "../context";
 import Playground from "../playground";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { Button } from "@/src/components/ui/button";
-import { Copy } from "lucide-react";
+import { Copy, X } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 
 /**
@@ -127,12 +127,8 @@ function PlaygroundWindow({
    * Prevents accidental removal of windows with unsaved work
    */
   const handleRemove = useCallback(() => {
-    if (!canRemove) {
-      console.warn("Cannot remove the last remaining window");
-      return;
-    }
     onRemove(windowId);
-  }, [windowId, onRemove, canRemove]);
+  }, [windowId, onRemove]);
 
   /**
    * Handle copying this window's state to a new window
@@ -173,7 +169,8 @@ function PlaygroundWindow({
                   className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
                   title="Remove window"
                 >
-                  <span className="sr-only">Remove window</span>×
+                  <X className="h-3 w-3" />
+                  <span className="sr-only">Remove window</span>
                 </Button>
               )}
             </div>

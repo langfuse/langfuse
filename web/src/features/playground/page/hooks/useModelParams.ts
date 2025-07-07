@@ -9,7 +9,7 @@ import {
   type UIModelParams,
 } from "@langfuse/shared";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
-import { MULTI_WINDOW_CONFIG } from "../types";
+import { getModelNameKey, getModelProviderKey } from "../storage/keys";
 
 /**
  * Hook for managing model parameters with window isolation support
@@ -35,16 +35,8 @@ export const useModelParams = (windowId?: string) => {
   );
 
   // Generate window-specific localStorage keys
-  // For backward compatibility, use the original keys for the default window
-  const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
-  const modelNameKey =
-    effectiveWindowId === MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID
-      ? "llmModelName"
-      : `llmModelName_${effectiveWindowId}`;
-  const modelProviderKey =
-    effectiveWindowId === MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID
-      ? "llmModelProvider"
-      : `llmModelProvider_${effectiveWindowId}`;
+  const modelNameKey = getModelNameKey(windowId ?? "");
+  const modelProviderKey = getModelProviderKey(windowId ?? "");
 
   const [persistedModelName, setPersistedModelName] = useLocalStorage<
     string | null
@@ -183,27 +175,6 @@ export const useModelParams = (windowId?: string) => {
     }
   }, [selectedProviderApiKey?.adapter]);
 
-  /**
-   * Clear model preferences from localStorage
-   * Removes all persisted model names and providers for all windows
-   */
-  const clearModelPreferences = useCallback(() => {
-    const localKeysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (
-        key &&
-        (key.startsWith("llmModelName") || key.startsWith("llmModelProvider"))
-      ) {
-        localKeysToRemove.push(key);
-      }
-    }
-
-    localKeysToRemove.forEach((key) => {
-      localStorage.removeItem(key);
-    });
-  }, []);
-
   return {
     modelParams,
     setModelParams,
@@ -211,7 +182,6 @@ export const useModelParams = (windowId?: string) => {
     availableModels,
     updateModelParamValue,
     setModelParamEnabled,
-    clearModelPreferences,
   };
 };
 
