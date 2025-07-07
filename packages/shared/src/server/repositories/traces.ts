@@ -38,7 +38,8 @@ import { recordDistribution } from "../instrumentation";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { logger } from "../logger";
 
-enum TracesAMTs { // eslint-disable-line no-unused-vars
+// eslint-disable-next-line no-unused-vars
+enum TracesAMTs {
   Traces7dAMT = "traces_7d_amt", // eslint-disable-line no-unused-vars
   Traces30dAMT = "traces_30d_amt", // eslint-disable-line no-unused-vars
   TracesAllAMT = "traces_all_amt", // eslint-disable-line no-unused-vars
@@ -176,8 +177,8 @@ export const checkTraceExists = async ({
     existingExecution: async (input) => {
       const query = `
         ${observations_cte}
-        SELECT 
-          t.id as id, 
+        SELECT
+          t.id as id,
           t.project_id as project_id
         FROM traces t FINAL
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
@@ -202,8 +203,8 @@ export const checkTraceExists = async ({
       const traceAmt = getTimeframesTracesAMT(input.timestamp);
       const query = `
         ${observations_cte}
-        SELECT 
-          t.id as id, 
+        SELECT
+          t.id as id,
           t.project_id as project_id,
           -- Add a timestamp alias to ensure we can filter on it
           t.start_time as timestamp
@@ -308,11 +309,11 @@ export const getTracesByIds = async (
     },
     existingExecution: (input) => {
       const query = `
-        SELECT * 
+        SELECT *
         FROM traces
         WHERE id IN ({traceIds: Array(String)})
         AND project_id = {projectId: String}
-        ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""} 
+        ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""}
         ORDER BY event_ts DESC
         LIMIT 1 by id, project_id;
       `;
@@ -325,7 +326,7 @@ export const getTracesByIds = async (
     },
     newExecution: (input) => {
       const query = `
-        SELECT 
+        SELECT
           id,
           name as name,
           user_id as user_id,
@@ -369,11 +370,11 @@ export const getTracesBySessionId = async (
   timestamp?: Date,
 ) => {
   const query = `
-      SELECT * 
+      SELECT *
       FROM traces
       WHERE session_id IN ({sessionIds: Array(String)})
       AND project_id = {projectId: String}
-      ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""} 
+      ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""}
       ORDER BY event_ts DESC
       LIMIT 1 by id, project_id;`;
   const records = await queryClickhouse<TraceRecordReadType>({
@@ -463,7 +464,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
   end: Date;
 }) => {
   const query = `
-    SELECT 
+    SELECT
       project_id,
       count(*) as count
     FROM traces
@@ -499,7 +500,7 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
   start: Date;
 }) => {
   const query = `
-    SELECT 
+    SELECT
       count(*) as count
     FROM traces
     WHERE project_id IN ({projectIds: Array(String)})
@@ -563,13 +564,13 @@ export const getTraceById = async ({
     },
     existingExecution: (input) => {
       const query = `
-        SELECT * 
+        SELECT *
         FROM traces
-        WHERE id = {traceId: String} 
+        WHERE id = {traceId: String}
         AND project_id = {projectId: String}
-        ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
-        ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""} 
-        ORDER BY event_ts DESC 
+        ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""}
+        ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
+        ORDER BY event_ts DESC
         LIMIT 1
       `;
 
@@ -581,7 +582,7 @@ export const getTraceById = async ({
     },
     newExecution: (input) => {
       const query = `
-        SELECT 
+        SELECT
           id,
           name as name,
           user_id as user_id,
@@ -646,7 +647,7 @@ export const getTracesGroupedByName = async (
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
-      select 
+      select
         name as name,
         count(*) as count
       from traces t FINAL
@@ -703,7 +704,7 @@ export const getTracesGroupedByUsers = async (
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
-      select 
+      select
         user_id as user,
         count(*) as count
       from traces t
@@ -1417,7 +1418,7 @@ export const getTracesForPostHog = async function* (
       GROUP BY o.project_id, o.trace_id
     )
 
-    SELECT 
+    SELECT
       t.id as id,
       t.timestamp as timestamp,
       t.name as name,
