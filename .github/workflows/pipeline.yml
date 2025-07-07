@@ -72,6 +72,9 @@ jobs:
       - name: install dependencies
         run: |
           pnpm i
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
       - name: Check formatting on changed files
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -80,13 +83,16 @@ jobs:
             BASE_SHA=$(git merge-base origin/main HEAD)
           fi
           FILES=$(git diff --name-only $BASE_SHA HEAD | grep -E '\.(js|jsx|ts|tsx|css)$')
+          echo "FILES variable content: '${FILES}'"
+          echo "FILES variable length: ${#FILES}"
           if [ -n "$FILES" ]; then
             echo "Files to check:"
             echo "$FILES"
             echo "Running prettier check..."
-            pnpm prettier --check --experimental-cli $FILES
+            pnpm prettier --check --experimental-cli $FILES 2>&1
           else
-            echo "No relevant files to check"
+            echo "No relevant files to check - running prettier anyway to see error:"
+            pnpm prettier --check --experimental-cli $FILES 2>&1
           fi
 
   test-docker-build:
