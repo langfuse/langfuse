@@ -82,16 +82,17 @@ jobs:
           else
             BASE_SHA=$(git merge-base origin/main HEAD)
           fi
-          FILES=$(git diff --name-only $BASE_SHA HEAD | grep -E '\.(js|jsx|ts|tsx|css)$')
-          echo "FILES variable content: '${FILES}'"
-          echo "FILES variable length: ${#FILES}"
-          if [ -n "$FILES" ]; then
-            echo "Files to check:"
-            echo "$FILES"
-            echo "Running prettier check..."
-            pnpm prettier --check --experimental-cli $FILES 2>&1
+          
+          echo "Checking files changed from $BASE_SHA to HEAD"
+          
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | tr '\n' ' ')
+          
+          if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != " " ]; then
+            echo "Files to check: $CHANGED_FILES"
+            pnpm prettier --check --experimental-cli $CHANGED_FILES
           else
-            echo "No relevant files to check - prettier check skipped"
+            echo "No JS/TS/CSS files changed - skipping prettier check"
           fi
 
   test-docker-build:
