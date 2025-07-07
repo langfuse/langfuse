@@ -142,6 +142,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
 
       // Get current month in YYYYMM format
       const currentMonth = maxDate.toISOString().slice(0, 7).replace("-", "");
+      logger.info(`Migrating traces for ${currentMonth}`);
       await clickhouseClient({
         request_timeout: 600_000, // 10 minutes
         clickhouse_settings: {
