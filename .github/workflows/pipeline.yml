@@ -82,7 +82,7 @@ jobs:
           FILES=$(git diff --name-only $BASE_SHA HEAD | grep -E '\.(js|jsx|ts|tsx|css)$' | xargs)
           if [ -n "$FILES" ]; then
             echo "Checking formatting for: $FILES"
-            pnpm prettier --check --experimental-cli $FILES
+            pnpm prettier --check --experimental-cli "$FILES"
           else
             echo "No relevant files to check"
           fi
