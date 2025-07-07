@@ -102,7 +102,7 @@ jobs:
     steps:
       - name: Check current disk space
         run: |
-          sudo df -h
+          sudo df -h /mnt/*
       - name: Remove android library to free disk space
         run: |
           sudo rm -rf /usr/local/lib/android || true
