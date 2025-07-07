@@ -383,43 +383,6 @@ export const observationsView: ViewDeclarationType = {
 };
 
 const scoreBaseDimensions: DimensionsDeclarationType = {
-  id: {
-    sql: "scores.id",
-    alias: "id",
-    type: "string",
-    description: "Unique identifier of the score entry.",
-  },
-  environment: {
-    sql: "scores.environment",
-    alias: "environment",
-    type: "string",
-    description: "Deployment environment (e.g., production, staging).",
-  },
-  name: {
-    sql: "scores.name",
-    alias: "name",
-    type: "string",
-    description: "Name of the score (e.g., accuracy, toxicity).",
-  },
-  source: {
-    sql: "scores.source",
-    alias: "source",
-    type: "string",
-    description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
-  },
-  dataType: {
-    sql: "scores.data_type",
-    alias: "dataType",
-    type: "string",
-    description:
-      "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
-  },
-  traceId: {
-    sql: "scores.trace_id",
-    alias: "traceId",
-    type: "string",
-    description: "Identifier of the parent trace.",
-  },
   traceName: {
     sql: "traces.name",
     alias: "traceName",
@@ -462,12 +425,6 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
     relationTable: "traces",
     description: "Version of the parent trace.",
   },
-  observationId: {
-    sql: "scores.observation_id",
-    alias: "observationId",
-    type: "string",
-    description: "Identifier of the observation associated with the score.",
-  },
   observationName: {
     sql: "observations.name",
     alias: "observationName",
@@ -496,18 +453,6 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
     relationTable: "observations",
     description: "Version of the prompt used for the observation.",
   },
-  configId: {
-    sql: "scores.config_id",
-    alias: "configId",
-    type: "string",
-    description: "Identifier of the config associated with the score.",
-  },
-  timestampMonth: {
-    sql: "formatDateTime(scores.timestamp, '%Y-%m')",
-    alias: "timestampMonth",
-    type: "string",
-    description: "Month of the score timestamp in YYYY-MM format.",
-  },
 };
 
 export const scoresNumericView: ViewDeclarationType = {
@@ -516,6 +461,61 @@ export const scoresNumericView: ViewDeclarationType = {
     "Scores are flexible objects that are used for evaluations. This view contains numeric scores.",
   dimensions: {
     ...scoreBaseDimensions,
+    id: {
+      sql: "scores_numeric.id",
+      alias: "id",
+      type: "string",
+      description: "Unique identifier of the score entry.",
+    },
+    environment: {
+      sql: "scores_numeric.environment",
+      alias: "environment",
+      type: "string",
+      description: "Deployment environment (e.g., production, staging).",
+    },
+    name: {
+      sql: "scores_numeric.name",
+      alias: "name",
+      type: "string",
+      description: "Name of the score (e.g., accuracy, toxicity).",
+    },
+    source: {
+      sql: "scores_numeric.source",
+      alias: "source",
+      type: "string",
+      description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
+    },
+    dataType: {
+      sql: "scores_numeric.data_type",
+      alias: "dataType",
+      type: "string",
+      description:
+        "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
+    },
+    traceId: {
+      sql: "scores_numeric.trace_id",
+      alias: "traceId",
+      type: "string",
+      description: "Identifier of the parent trace.",
+    },
+    configId: {
+      sql: "scores_numeric.config_id",
+      alias: "configId",
+      type: "string",
+      description: "Identifier of the config associated with the score.",
+    },
+    timestampMonth: {
+      sql: "formatDateTime(scores_numeric.timestamp, '%Y-%m')",
+      alias: "timestampMonth",
+      type: "string",
+      description: "Month of the score timestamp in YYYY-MM format.",
+    },
+    observationId: {
+      sql: "scores_numeric.observation_id",
+      alias: "observationId",
+      type: "string",
+      description: "Identifier of the observation associated with the score.",
+    },
     value: {
       sql: "value",
       alias: "value",
@@ -571,6 +571,61 @@ export const scoresCategoricalView: ViewDeclarationType = {
     "Scores are flexible objects that are used for evaluations. This view contains categorical scores.",
   dimensions: {
     ...scoreBaseDimensions,
+    id: {
+      sql: "scores_categorical.id",
+      alias: "id",
+      type: "string",
+      description: "Unique identifier of the score entry.",
+    },
+    environment: {
+      sql: "scores_categorical.environment",
+      alias: "environment",
+      type: "string",
+      description: "Deployment environment (e.g., production, staging).",
+    },
+    name: {
+      sql: "scores_categorical.name",
+      alias: "name",
+      type: "string",
+      description: "Name of the score (e.g., accuracy, toxicity).",
+    },
+    source: {
+      sql: "scores_categorical.source",
+      alias: "source",
+      type: "string",
+      description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
+    },
+    dataType: {
+      sql: "scores_categorical.data_type",
+      alias: "dataType",
+      type: "string",
+      description:
+        "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
+    },
+    traceId: {
+      sql: "scores_categorical.trace_id",
+      alias: "traceId",
+      type: "string",
+      description: "Identifier of the parent trace.",
+    },
+    configId: {
+      sql: "scores_categorical.config_id",
+      alias: "configId",
+      type: "string",
+      description: "Identifier of the config associated with the score.",
+    },
+    timestampMonth: {
+      sql: "formatDateTime(scores_categorical.timestamp, '%Y-%m')",
+      alias: "timestampMonth",
+      type: "string",
+      description: "Month of the score timestamp in YYYY-MM format.",
+    },
+    observationId: {
+      sql: "scores_categorical.observation_id",
+      alias: "observationId",
+      type: "string",
+      description: "Identifier of the observation associated with the score.",
+    },
     stringValue: {
       sql: "string_value",
       alias: "stringValue",
