@@ -11,7 +11,6 @@ import {
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
@@ -127,7 +126,7 @@ function MarkdownRenderer({
           "space-y-2 overflow-x-auto break-words text-sm",
           className,
         )}
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[remarkGfm]}
         components={{
           p({ children, node }) {
             if (isImageNode(node)) {
