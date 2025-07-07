@@ -31,7 +31,7 @@ export default function Generations() {
         help: {
           description:
             "An observation captures a single function call in an application. See docs to learn more.",
-          href: "https://langfuse.com/docs/tracing",
+          href: "https://langfuse.com/docs/tracing-data-model",
         },
       }}
       scrollable={showOnboarding}
