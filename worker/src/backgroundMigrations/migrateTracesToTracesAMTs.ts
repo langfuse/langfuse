@@ -174,6 +174,20 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
   }
 }
 
+async function createBackgroundMigrationRecord(): Promise<void> {
+  logger.info("Creating background migration record...");
+
+  await prisma.backgroundMigration.create({
+    data: {
+      id: backgroundMigrationId,
+      name: "20250704_1356_migrate_traces_to_traces_amt",
+      script: "migrateTracesToTracesAMTs",
+      args: {},
+    },
+  });
+  logger.info("Background migration record created successfully");
+}
+
 async function main() {
   const args = parseArgs({
     options: {
@@ -187,8 +201,17 @@ async function main() {
         short: "m",
         default: new Date("2023-05-18T00:00:00.000Z").toISOString(),
       },
+      createRecord: {
+        type: "boolean",
+        short: "c",
+        default: false,
+      },
     },
   });
+
+  if (args.values.createRecord) {
+    await createBackgroundMigrationRecord();
+  }
 
   const migration = new MigrateTracesToTracesAMTs();
   await migration.validate(args.values);
