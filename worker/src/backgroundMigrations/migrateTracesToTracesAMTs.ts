@@ -73,7 +73,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       : new Date((args.maxDate as string) ?? new Date());
     const minDate = initialMigrationState.state?.minDate
       ? new Date(initialMigrationState.state.minDate)
-      : new Date((args.minDate as string) ?? new Date("2020-01-01"));
+      : new Date((args.minDate as string) ?? new Date("2023-05-18"));
 
     await prisma.backgroundMigration.update({
       where: { id: backgroundMigrationId },
@@ -143,6 +143,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
         data: {
           state: {
             maxDate,
+            minDate,
           },
         },
       });
@@ -184,7 +185,7 @@ async function main() {
       minDate: {
         type: "string",
         short: "m",
-        default: new Date("2020-01-01T00:00:00.000Z").toISOString(),
+        default: new Date("2023-05-18T00:00:00.000Z").toISOString(),
       },
     },
   });
