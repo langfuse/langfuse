@@ -50,7 +50,7 @@ async function prepare() {
     },
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   __orgIds.push(org.id);
@@ -294,6 +294,7 @@ describe("evals trpc", () => {
         evalConfigId: evalJobConfig.id,
         config: {
           status: "INACTIVE",
+          timeScope: undefined,
         },
       });
 
@@ -430,7 +431,10 @@ describe("evals trpc", () => {
         expires: session.expires,
         environment: session.environment,
       };
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       // Create a job

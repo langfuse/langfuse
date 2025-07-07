@@ -1057,6 +1057,11 @@ export const evalRouter = createTRPCRouter({
         projectId: projectId,
         scope: "evalJob:CUD",
       });
+      logger.info(
+        `Updating job ${evalConfigId} for project ${projectId} with config ${JSON.stringify(
+          config,
+        )}`,
+      );
 
       const existingJob = await ctx.prisma.jobConfiguration.findUnique({
         where: {
