@@ -100,10 +100,6 @@ jobs:
         node-version: [20]
         postgres-version: [12, 15]
     steps:
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
@@ -178,10 +174,6 @@ jobs:
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
@@ -257,10 +249,6 @@ jobs:
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
