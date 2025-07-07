@@ -5,9 +5,9 @@ import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
-import { callLLM } from "../features/utilities";
+import { callLLM } from "../features/utils/utilities";
 
-vi.mock("../features/utilities", () => ({
+vi.mock("../features/utils/utilities", () => ({
   callLLM: vi.fn().mockResolvedValue({ id: "test-id" }),
   compileHandlebarString: vi.fn().mockImplementation((str, context) => {
     // Simple mock that replaces handlebars variables with their values
@@ -314,7 +314,10 @@ describe("create experiment jobs", () => {
 });
 
 describe("create experiment jobs with placeholders", () => {
-  const setupPlaceholderTest = async (promptConfig: any, datasetItemInput: any) => {
+  const setupPlaceholderTest = async (
+    promptConfig: any,
+    datasetItemInput: any,
+  ) => {
     await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
@@ -393,20 +396,18 @@ describe("create experiment jobs with placeholders", () => {
           { role: "system", content: "You are a helpful assistant." },
           { type: "placeholder", name: "conversation_history" },
           { type: "placeholder", name: "user_context" },
-          { role: "user", content: "Please help me." }
-        ]
+          { role: "user", content: "Please help me." },
+        ],
       },
       {
         conversation_history: [
           { role: "user", content: "Hello {{name}}!" },
-          { role: "assistant", content: "Hi there!" }
+          { role: "assistant", content: "Hi there!" },
         ],
-        user_context: [
-          { role: "system", content: "User is a {{role}}" }
-        ],
+        user_context: [{ role: "system", content: "User is a {{role}}" }],
         name: "John",
-        role: "developer"
-      }
+        role: "developer",
+      },
     );
 
     const payload = {
@@ -436,10 +437,10 @@ describe("create experiment jobs with placeholders", () => {
         prompt: [
           { role: "system", content: "You are a helpful assistant." },
           { type: "placeholder", name: "empty_history" },
-          { role: "user", content: "Start conversation." }
-        ]
+          { role: "user", content: "Start conversation." },
+        ],
       },
-      { empty_history: [] }
+      { empty_history: [] },
     );
 
     const payload = {
@@ -469,10 +470,10 @@ describe("create experiment jobs with placeholders", () => {
         prompt: [
           { role: "system", content: "You are a helpful assistant." },
           { type: "placeholder", name: "invalid_messages" },
-          { role: "user", content: "Help me." }
-        ]
+          { role: "user", content: "Help me." },
+        ],
       },
-      { invalid_messages: "this should be an array or object" }
+      { invalid_messages: "this should be an array or object" },
     );
 
     const payload = {

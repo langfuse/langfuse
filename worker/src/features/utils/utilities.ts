@@ -10,20 +10,20 @@ import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
 import { ZodSchema as ZodV3Schema } from "zod/v3";
 import { decrypt } from "@langfuse/shared/encryption";
-import { tokenCount } from "./tokenisation/usage";
+import { tokenCount } from "../tokenisation/usage";
 import Handlebars from "handlebars";
 
 /**
  * Standard error handling for LLM operations
  * Handles common LLM errors like quota limits and throttling with appropriate status codes
- * 
+ *
  * @param operation - The async LLM operation to execute
  * @param operationName - Name for error context (e.g., "call LLM", "call structured LLM")
  * @returns The result of the operation or throws an ApiError
  */
 async function withLLMErrorHandling<T>(
   operation: () => Promise<T>,
-  operationName: string = "LLM operation"
+  operationName: string = "LLM operation",
 ): Promise<T> {
   try {
     return await operation();

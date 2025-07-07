@@ -6,18 +6,13 @@ import {
   QueueName,
   TQueueJobTypes,
   logger,
-  recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 import { createExperimentJob } from "../features/experiments/experimentService";
-import {
-  ApiError,
-  InvalidRequestError,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
+import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
-import { randomUUID } from "crypto";
-import { delayInMs, ONE_DAY_IN_MS } from "./utils/delays";
+import { handleRetryableError } from "../features/utils";
+import { delayInMs } from "./utils/delays";
 
 export const experimentCreateQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.ExperimentCreate]>,
@@ -34,55 +29,18 @@ export const experimentCreateQueueProcessor = async (
     return true;
   } catch (e) {
     // If creating any of the dataset run items associated with this experiment create job fails with a 429, we want to retry the experiment creation job unless it's older than 24h.
-    if (
-      (e instanceof ApiError && e.httpCode === 429) || // retry all rate limits
-      (e instanceof ApiError && e.httpCode >= 500) // retry all 5xx errors
-    ) {
-      try {
-        // Check if the dataset run is older than 24h
-        const datasetRun = await kyselyPrisma.$kysely
-          .selectFrom("dataset_runs")
-          .select("created_at")
-          .where("id", "=", job.data.payload.runId)
-          .where("project_id", "=", job.data.payload.projectId)
-          .executeTakeFirst();
+    const wasRetried = await handleRetryableError(e, job, {
+      table: "dataset_runs",
+      idField: "runId",
+      queue: ExperimentCreateQueue.getInstance(),
+      queueName: QueueName.ExperimentCreate,
+      jobName: QueueJobs.ExperimentCreateJob,
+      metricName: "langfuse.experiment-create.rate-limited",
+      delayFn: delayInMs,
+    });
 
-        if (
-          // Do nothing if dataset run is older than 24h. The dataset run is created upon triggering an experiment (API/UI).
-          datasetRun &&
-          datasetRun.created_at < new Date(Date.now() - ONE_DAY_IN_MS)
-        ) {
-          logger.info(
-            `Creating dataset run items for run ${job.data.payload.runId} is rate limited for more than 24h. Stop retrying.`,
-          );
-        } else {
-          // Add the experiment creation job into the queue with a random delay between 1 and 10min and return
-          // It is safe to retry the experiment creation job as any dataset item for which a dataset run item has been created already will be skipped.
-          const delay = delayInMs(); // 1-10min in milliseconds
-          logger.info(
-            `Creating dataset run items for run ${job.data.payload.runId} is rate limited. Retrying in ${delay}ms.`,
-          );
-          recordIncrement("langfuse.experiment-creation.rate-limited");
-          await ExperimentCreateQueue.getInstance()?.add(
-            QueueName.ExperimentCreate,
-            {
-              name: QueueJobs.ExperimentCreateJob,
-              id: randomUUID(),
-              timestamp: new Date(),
-              payload: job.data.payload,
-            },
-            {
-              delay,
-            },
-          );
-          return;
-        }
-      } catch (innerErr) {
-        logger.error(
-          `Failed to handle 429 retry for ${job.data.payload.runId}. Continuing regular processing.`,
-          innerErr,
-        );
-      }
+    if (wasRetried) {
+      return;
     }
 
     // we are left with 4xx and application errors here.
