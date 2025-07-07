@@ -79,10 +79,10 @@ jobs:
           else
             BASE_SHA=$(git merge-base origin/main HEAD)
           fi
-          FILES=$(git diff --name-only $BASE_SHA HEAD | grep -E '\.(js|jsx|ts|tsx|css)$' | xargs)
+          FILES=$(git diff --name-only $BASE_SHA HEAD | grep -E '\.(js|jsx|ts|tsx|css)$')
           if [ -n "$FILES" ]; then
             echo "Checking formatting for: $FILES"
-            pnpm prettier --check --experimental-cli "${FILES[@]}"
+            pnpm prettier --check --experimental-cli $FILES
           else
             echo "No relevant files to check"
           fi
