@@ -5,13 +5,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/src/components/ui/sheet";
-import { Expand, ExternalLink } from "lucide-react";
+import { Expand, ExternalLink, GripVertical } from "lucide-react";
 import { Separator } from "@/src/components/ui/separator";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
-import { memo } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 
 type PeekViewItemType = Extract<
@@ -81,6 +81,141 @@ export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
   };
 };
 
+// Custom hook for resize functionality
+const useResizable = () => {
+  const [width, setWidth] = useState(60); // Default 60vw
+  const [isResizing, setIsResizing] = useState(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(60);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    setIsResizing(true);
+    startXRef.current = e.clientX;
+    startWidthRef.current = width;
+    
+    // Prevent text selection during resize
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+  }, [width]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing) return;
+    
+    const deltaX = startXRef.current - e.clientX; // Inverted because we're resizing from the left
+    const viewportWidth = window.innerWidth;
+    const deltaPercent = (deltaX / viewportWidth) * 100;
+    const newWidth = Math.max(30, Math.min(90, startWidthRef.current + deltaPercent));
+    
+    setWidth(newWidth);
+  }, [isResizing]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+  }, []);
+
+  const handleDoubleClick = useCallback(() => {
+    setWidth(60); // Reset to default
+  }, []);
+
+  // Touch events for mobile support
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    
+    setIsResizing(true);
+    startXRef.current = touch.clientX;
+    startWidthRef.current = width;
+  }, [width]);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!isResizing) return;
+    
+    const touch = e.touches[0];
+    if (!touch) return;
+    
+    const deltaX = startXRef.current - touch.clientX;
+    const viewportWidth = window.innerWidth;
+    const deltaPercent = (deltaX / viewportWidth) * 100;
+    const newWidth = Math.max(30, Math.min(90, startWidthRef.current + deltaPercent));
+    
+    setWidth(newWidth);
+  }, [isResizing]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  // Global event listeners
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("touchmove", handleTouchMove);
+      document.addEventListener("touchend", handleTouchEnd);
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+
+  return {
+    width,
+    isResizing,
+    handleMouseDown,
+    handleTouchStart,
+    handleDoubleClick,
+  };
+};
+
+// Resize handle component
+const ResizeHandle = ({ 
+  onMouseDown, 
+  onTouchStart, 
+  onDoubleClick, 
+  isResizing 
+}: {
+  onMouseDown: (e: React.MouseEvent) => void;
+  onTouchStart: (e: React.TouchEvent) => void;
+  onDoubleClick: () => void;
+  isResizing: boolean;
+}) => {
+  return (
+    <div
+      className={cn(
+        "absolute left-0 top-0 z-10 flex h-full w-2 cursor-col-resize items-center justify-center bg-transparent hover:bg-border/50 transition-colors",
+        isResizing && "bg-primary/20"
+      )}
+      onMouseDown={onMouseDown}
+      onTouchStart={onTouchStart}
+      onDoubleClick={onDoubleClick}
+      role="separator"
+      aria-label="Resize peek view"
+      aria-orientation="vertical"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        // Keyboard accessibility
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onDoubleClick();
+        }
+      }}
+    >
+      <div 
+        className={cn(
+          "h-8 w-1 rounded-sm bg-border opacity-0 transition-opacity group-hover:opacity-100",
+          isResizing && "opacity-100 bg-primary"
+        )}
+      />
+    </div>
+  );
+};
+
 type TablePeekViewProps<T> = {
   peekView: PeekViewProps<T>;
   row?: T;
@@ -90,6 +225,7 @@ type TablePeekViewProps<T> = {
 function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
   const { peekView, row, selectedRowId } = props;
   const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
+  const { width, isResizing, handleMouseDown, handleTouchStart, handleDoubleClick } = useResizable();
 
   if (!selectedRowId) return null;
 
@@ -118,8 +254,18 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
           e.preventDefault();
         }}
         side="right"
-        className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden rounded-l-xl p-0"
+        className="group flex max-h-full min-h-0 flex-col gap-0 overflow-hidden rounded-l-xl p-0 relative"
+        style={{
+          minWidth: `${width}vw`,
+          width: `${width}vw`,
+        }}
       >
+        <ResizeHandle
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          onDoubleClick={handleDoubleClick}
+          isResizing={isResizing}
+        />
         <SheetHeader className="flex min-h-12 flex-row flex-nowrap items-center justify-between rounded-t-xl bg-header px-2">
           <SheetTitle className="!mt-0 ml-2 flex min-w-0 flex-row items-center gap-2">
             <ItemBadge type={peekView.itemType} showLabel />
