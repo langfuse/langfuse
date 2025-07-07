@@ -63,6 +63,7 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 };
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: true;
   },
@@ -72,6 +73,7 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
   },
@@ -81,6 +83,7 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
     structuredOutputSchema: ZodSchema;
@@ -91,6 +94,7 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     tools: LLMToolDefinition[];
     streaming: false;
@@ -325,7 +329,7 @@ export async function fetchLLMCompletion(
 
     /*
   Workaround OpenAI reasoning models:
-  
+
   This is a temporary workaround to avoid sending unsupported parameters to OpenAI's O1 models.
   O1 models do not support:
   - system messages

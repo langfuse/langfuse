@@ -8,16 +8,16 @@ import { BatchTableNames } from "../../interfaces/tableNames";
 import { TracingSearchType } from "../../interfaces/search";
 
 export enum BatchExportStatus {
-  QUEUED = "QUEUED",
-  PROCESSING = "PROCESSING",
-  COMPLETED = "COMPLETED",
-  FAILED = "FAILED",
+  QUEUED = "QUEUED", // eslint-disable-line no-unused-vars
+  PROCESSING = "PROCESSING", // eslint-disable-line no-unused-vars
+  COMPLETED = "COMPLETED", // eslint-disable-line no-unused-vars
+  FAILED = "FAILED", // eslint-disable-line no-unused-vars
 }
 
 export enum BatchExportFileFormat {
-  JSON = "JSON",
-  CSV = "CSV",
-  JSONL = "JSONL",
+  JSON = "JSON", // eslint-disable-line no-unused-vars
+  CSV = "CSV", // eslint-disable-line no-unused-vars
+  JSONL = "JSONL", // eslint-disable-line no-unused-vars
 }
 
 // Use shared BatchTableNames enum for consistency across batch operations

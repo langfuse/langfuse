@@ -3,8 +3,82 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
   createBasicAuthHeader,
+  getQueue,
+  IngestionQueue,
+  logger,
+  QueueName,
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
+
+export const ensureTestDatabaseExists = async () => {
+  // Only create test database if we're in test environment with test database URL
+  if (
+    !env.DATABASE_URL.includes("langfuse_test") ||
+    process.env.NODE_ENV !== "test"
+  ) {
+    return; // Not using test database or not in test environment, skip
+  }
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    console.log("Test database already exists and is accessible");
+
+    // Always run migrations to ensure schema is up-to-date
+    const { execSync } = await import("child_process");
+    const path = await import("path");
+    const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+
+    execSync("pnpm run db:migrate", {
+      cwd: sharedDir,
+      env: { ...process.env, DATABASE_URL: env.DATABASE_URL },
+      stdio: "inherit",
+    });
+    console.log("Test database schema verified/updated");
+  } catch (error) {
+    console.log("Test database not accessible, creating...");
+
+    const url = new URL(env.DATABASE_URL);
+    const dbName = url.pathname.slice(1); // Remove leading slash
+    const adminUrl = new URL(env.DATABASE_URL);
+    adminUrl.pathname = "/postgres";
+
+    const { PrismaClient } = await import("@prisma/client");
+    const adminPrisma = new PrismaClient({
+      datasources: {
+        db: {
+          url: adminUrl.toString(),
+        },
+      },
+    });
+
+    try {
+      await adminPrisma.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
+      console.log(`Created test database: ${dbName}`);
+
+      // Migrations
+      const { execSync } = await import("child_process");
+      const path = await import("path");
+      const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+
+      execSync("pnpm run db:migrate", {
+        cwd: sharedDir,
+        env: { ...process.env, DATABASE_URL: env.DATABASE_URL },
+        stdio: "inherit",
+      });
+      console.log("Applied migrations to test database");
+    } catch (createError: any) {
+      if (createError.message?.includes("already exists")) {
+        console.log("Test database already exists");
+      } else {
+        console.error("Failed to create test database:", createError);
+      }
+    } finally {
+      await adminPrisma.$disconnect();
+    }
+  }
+
+  // ClickHouse uses default database (no setup needed)
+};
 
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {
@@ -25,10 +99,58 @@ export const pruneDatabase = async () => {
 
   await truncateClickhouseTables();
 };
+export const getQueues = () => {
+  const queues: string[] = Object.values(QueueName);
+  queues.push(...IngestionQueue.getShardNames());
+
+  const listOfQueuesToIgnore = [
+    QueueName.DataRetentionQueue,
+    QueueName.BlobStorageIntegrationQueue,
+    QueueName.DeadLetterRetryQueue,
+    QueueName.PostHogIntegrationQueue,
+  ];
+
+  return queues
+    .filter(
+      (queueName) => !listOfQueuesToIgnore.includes(queueName as QueueName),
+    )
+    .map((queueName) =>
+      queueName.startsWith(QueueName.IngestionQueue)
+        ? IngestionQueue.getInstance({ shardName: queueName })
+        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
+    );
+};
+
+export const disconnectQueues = async () => {
+  await Promise.all(
+    getQueues().map(async (queue) => {
+      if (queue) {
+        try {
+          queue.disconnect();
+        } catch (error) {
+          logger.error(`Error disconnecting queue ${queue.name}: ${error}`);
+        }
+      }
+    }),
+  );
+};
 
 export const truncateClickhouseTables = async () => {
   if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
     throw new Error("You cannot prune clickhouse unless running on localhost.");
+  }
+
+  // Additional safety check for test database
+  if (env.CLICKHOUSE_DB === "test") {
+    console.log(
+      "Running tests against test ClickHouse database:",
+      env.CLICKHOUSE_DB,
+    );
+  } else if (env.CLICKHOUSE_DB !== "default") {
+    console.log(
+      "Running tests against ClickHouse database:",
+      env.CLICKHOUSE_DB,
+    );
   }
 
   await clickhouseClient().command({

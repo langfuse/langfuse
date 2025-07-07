@@ -649,7 +649,7 @@
           "request": {
             "description": "List dataset run items",
             "url": {
-              "raw": "{{baseUrl}}/api/public/dataset-run-items?datasetId=&runName=&page=&limit=&response=",
+              "raw": "{{baseUrl}}/api/public/dataset-run-items?datasetId=&runName=&page=&limit=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -678,11 +678,6 @@
                   "key": "limit",
                   "value": "",
                   "description": "limit of items per page"
-                },
-                {
-                  "key": "response",
-                  "value": "",
-                  "description": null
                 }
               ],
               "variable": []

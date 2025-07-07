@@ -619,7 +619,7 @@ export class OtelIngestionProcessor {
   }
 
   private hasTraceUpdates(attributes: Record<string, unknown>): boolean {
-    return [
+    const hasExactMatchingAttributeName = [
       LangfuseOtelSpanAttributes.TRACE_NAME,
       LangfuseOtelSpanAttributes.TRACE_INPUT,
       LangfuseOtelSpanAttributes.TRACE_OUTPUT,
@@ -637,6 +637,13 @@ export class OtelIngestionProcessor {
       `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_user_id`,
       `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_tags`,
     ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
+
+    const attributeKeys = Object.keys(attributes);
+    const hasTraceMetadataKey = attributeKeys.some((key) =>
+      key.startsWith(LangfuseOtelSpanAttributes.TRACE_METADATA),
+    );
+
+    return hasExactMatchingAttributeName || hasTraceMetadataKey;
   }
 
   private extractResourceAttributes(

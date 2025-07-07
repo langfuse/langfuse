@@ -298,6 +298,9 @@ export async function queryClickhouse<T>(opts: {
             }
             return shouldRetry;
           },
+          startingDelay: 100,
+          timeMultiple: 1,
+          maxDelay: 100,
         },
       );
     },

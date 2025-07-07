@@ -2,7 +2,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import type { Session } from "next-auth";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -16,8 +15,6 @@ import { randomUUID } from "crypto";
 
 describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-
-  beforeEach(async () => await pruneDatabase());
 
   const session: Session = {
     expires: "1",

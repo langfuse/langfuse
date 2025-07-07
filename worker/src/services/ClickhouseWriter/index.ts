@@ -239,11 +239,11 @@ export class ClickhouseWriter {
 }
 
 export enum TableName {
-  Traces = "traces",
-  TracesMt = "traces_mt",
-  Scores = "scores",
-  Observations = "observations",
-  BlobStorageFileLog = "blob_storage_file_log",
+  Traces = "traces", // eslint-disable-line no-unused-vars
+  TracesMt = "traces_mt", // eslint-disable-line no-unused-vars
+  Scores = "scores", // eslint-disable-line no-unused-vars
+  Observations = "observations", // eslint-disable-line no-unused-vars
+  BlobStorageFileLog = "blob_storage_file_log", // eslint-disable-line no-unused-vars
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores

@@ -24,6 +24,7 @@ import {
   LangfuseNotFoundError,
   type Prisma,
   PromptType,
+  QUEUE_ERROR_MESSAGES,
   stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
@@ -233,13 +234,13 @@ export const createExperimentJob = async ({
   });
   if (!apiKey) {
     throw new LangfuseNotFoundError(
-      `API key for provider ${provider} not found`,
+      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found`,
     );
   }
   const validatedApiKey = LLMApiKeySchema.safeParse(apiKey);
   if (!validatedApiKey.success) {
     throw new InvalidRequestError(
-      `API key for provider ${provider} not found.`,
+      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found.`,
     );
   }
 
