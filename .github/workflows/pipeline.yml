@@ -91,8 +91,7 @@ jobs:
             echo "Running prettier check..."
             pnpm prettier --check --experimental-cli $FILES 2>&1
           else
-            echo "No relevant files to check - running prettier anyway to see error:"
-            pnpm prettier --check --experimental-cli $FILES 2>&1
+            echo "No relevant files to check - prettier check skipped"
           fi
 
   test-docker-build:
