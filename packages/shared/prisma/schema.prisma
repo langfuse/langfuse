@@ -162,6 +162,7 @@ model Project {
   automationExecutions   AutomationExecution[]
   Automation             Automation[]
   DefaultLlmModel        DefaultLlmModel[]
+  retentionConfiguration RetentionConfiguration?
 
   @@index([orgId])
   @@map("projects")
@@ -209,6 +210,19 @@ model BackgroundMigration {
   lockedAt     DateTime? @map("locked_at")
 
   @@map("background_migrations")
+}
+
+model RetentionConfiguration {
+  id           String   @id @default(cuid())
+  projectId    String   @unique @map("project_id")
+  retentionDays Int     @map("retention_days")
+  environments String[] @default(["default"])
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("retention_configurations")
 }
 
 model LlmApiKeys {

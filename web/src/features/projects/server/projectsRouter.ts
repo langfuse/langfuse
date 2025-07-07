@@ -107,6 +107,7 @@ export const projectsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         retention: z.number().int().gte(3).nullable(),
+        environments: z.array(z.string()).optional().default(["default"]),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -116,15 +117,74 @@ export const projectsRouter = createTRPCRouter({
         scope: "project:update",
       });
 
-      const project = await ctx.prisma.project.update({
+      // If environments are specified and not just default, use retention configuration
+      if (input.environments && input.environments.length > 0 &&
+          !(input.environments.length === 1 && input.environments[0] === "default")) {
+
+        if (input.retention === null || input.retention === 0) {
+          // Delete retention configuration if retention is disabled
+          await ctx.prisma.retentionConfiguration.deleteMany({
+            where: {
+              projectId: input.projectId,
+            },
+          });
+        } else {
+          // Create or update retention configuration
+          await ctx.prisma.retentionConfiguration.upsert({
+            where: {
+              projectId: input.projectId,
+            },
+            create: {
+              projectId: input.projectId,
+              retentionDays: input.retention,
+              environments: input.environments,
+            },
+            update: {
+              retentionDays: input.retention,
+              environments: input.environments,
+            },
+          });
+        }
+
+        // Clear project-level retention when using environment-specific config
+        await ctx.prisma.project.update({
+          where: {
+            id: input.projectId,
+            orgId: ctx.session.orgId,
+          },
+          data: {
+            retentionDays: null,
+          },
+        });
+      } else {
+        // Use project-level retention (backward compatibility)
+        await ctx.prisma.project.update({
+          where: {
+            id: input.projectId,
+            orgId: ctx.session.orgId,
+          },
+          data: {
+            retentionDays: input.retention,
+          },
+        });
+
+        // Remove any existing retention configuration
+        await ctx.prisma.retentionConfiguration.deleteMany({
+          where: {
+            projectId: input.projectId,
+          },
+        });
+      }
+
+      const project = await ctx.prisma.project.findUnique({
         where: {
           id: input.projectId,
-          orgId: ctx.session.orgId,
         },
-        data: {
-          retentionDays: input.retention,
+        include: {
+          retentionConfiguration: true,
         },
       });
+
       await auditLog({
         session: ctx.session,
         resourceType: "project",
@@ -133,6 +193,52 @@ export const projectsRouter = createTRPCRouter({
         after: project,
       });
       return true;
+    }),
+
+  getRetentionConfiguration: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:read",
+      });
+
+      const project = await ctx.prisma.project.findUnique({
+        where: {
+          id: input.projectId,
+          orgId: ctx.session.orgId,
+        },
+        include: {
+          retentionConfiguration: true,
+        },
+      });
+
+      if (!project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
+
+      // Return retention configuration or fall back to project-level retention
+      if (project.retentionConfiguration) {
+        return {
+          retention: project.retentionConfiguration.retentionDays,
+          environments: project.retentionConfiguration.environments,
+          isEnvironmentSpecific: true,
+        };
+      } else {
+        return {
+          retention: project.retentionDays ?? 0,
+          environments: ["default"],
+          isEnvironmentSpecific: false,
+        };
+      }
     }),
 
   delete: protectedProjectProcedure

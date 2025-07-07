@@ -9,6 +9,7 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
@@ -20,6 +21,8 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { useState, useEffect } from "react";
 
 export default function ConfigureRetention() {
   const { update: updateSession } = useSession();
@@ -31,15 +34,45 @@ export default function ConfigureRetention() {
   });
   const hasEntitlement = useHasEntitlement("data-retention");
 
+  // Get current retention configuration
+  const retentionConfig = api.projects.getRetentionConfiguration.useQuery(
+    { projectId: project?.id ?? "" },
+    { enabled: !!project?.id },
+  );
+
+  // Get available environments
+  const environmentsQuery = api.projects.environmentFilterOptions.useQuery(
+    { projectId: project?.id ?? "" },
+    { enabled: !!project?.id },
+  );
+
+  const [selectedEnvironments, setSelectedEnvironments] = useState<string[]>([
+    "default",
+  ]);
+
   const form = useForm({
     resolver: zodResolver(projectRetentionSchema),
     defaultValues: {
-      retention: project?.retentionDays ?? 0,
+      retention: 0,
+      environments: ["default"],
     },
   });
+
+  // Update form when retention config is loaded
+  useEffect(() => {
+    if (retentionConfig.data) {
+      form.reset({
+        retention: retentionConfig.data.retention,
+        environments: retentionConfig.data.environments,
+      });
+      setSelectedEnvironments(retentionConfig.data.environments);
+    }
+  }, [retentionConfig.data, form]);
+
   const setRetention = api.projects.setRetention.useMutation({
     onSuccess: (_) => {
       void updateSession();
+      void retentionConfig.refetch();
     },
     onError: (error) => form.setError("retention", { message: error.message }),
   });
@@ -51,6 +84,7 @@ export default function ConfigureRetention() {
       .mutateAsync({
         projectId: project.id,
         retention: values.retention || null, // Fallback to null for indefinite retention
+        environments: selectedEnvironments,
       })
       .then(() => {
         form.reset();
@@ -59,6 +93,14 @@ export default function ConfigureRetention() {
         console.error(error);
       });
   }
+
+  const availableEnvironments = environmentsQuery.data?.map(
+    (env) => env.environment,
+  ) ?? ["default"];
+  const isEnvironmentSpecific =
+    selectedEnvironments.length > 1 ||
+    (selectedEnvironments.length === 1 &&
+      selectedEnvironments[0] !== "default");
 
   return (
     <div>
@@ -70,26 +112,23 @@ export default function ConfigureRetention() {
           retain data indefinitely. The deletion happens asynchronously, i.e.
           event may be available for a while after they expired.
         </p>
-        {Boolean(form.getValues().retention) &&
-        form.getValues().retention !== project?.retentionDays ? (
+
+        {retentionConfig.data && (
           <p className="mb-4 text-sm text-primary">
-            Your Project&#39;s retention will be set from &quot;
-            {project?.retentionDays ?? "Indefinite"}
-            &quot; to &quot;
-            {Number(form.watch("retention")) === 0
+            Current retention:{" "}
+            {retentionConfig.data.retention === 0
               ? "Indefinite"
-              : Number(form.watch("retention"))}
-            &quot; days.
+              : `${retentionConfig.data.retention} days`}
+            {retentionConfig.data.isEnvironmentSpecific
+              ? ` for environments: ${retentionConfig.data.environments.join(", ")}`
+              : " (all environments)"}
           </p>
-        ) : !Boolean(project?.retentionDays) ? (
-          <p className="mb-4 text-sm text-primary">
-            Your Project retains data indefinitely.
-          </p>
-        ) : (
-          <p className="mb-4 text-sm text-primary">
-            Your Project&#39;s current retention is &quot;
-            {project?.retentionDays ?? ""}
-            &quot; days.
+        )}
+
+        {isEnvironmentSpecific && (
+          <p className="mb-4 text-sm text-orange-600">
+            Environment-specific retention is configured. Data will only be
+            deleted from the selected environments.
           </p>
         )}
         <Form {...form}>
@@ -104,12 +143,13 @@ export default function ConfigureRetention() {
               name="retention"
               render={({ field }) => (
                 <FormItem>
+                  <FormLabel>Retention Days</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Input
                         type="number"
                         step="1"
-                        placeholder={project?.retentionDays?.toString() ?? ""}
+                        placeholder="0 for indefinite retention"
                         {...field}
                         value={(field.value as number) ?? ""}
                         className="flex-1"
@@ -126,12 +166,38 @@ export default function ConfigureRetention() {
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="environments"
+              render={() => (
+                <FormItem className="mt-4">
+                  <FormLabel>Target Environments</FormLabel>
+                  <FormControl>
+                    <MultiSelect
+                      title="Select environments"
+                      options={availableEnvironments.map((env) => ({
+                        value: env,
+                      }))}
+                      values={selectedEnvironments}
+                      onValueChange={setSelectedEnvironments}
+                      disabled={!hasAccess || !hasEntitlement}
+                    />
+                  </FormControl>
+                  <p className="text-sm text-muted-foreground">
+                    Select specific environments to apply retention to. Leave
+                    empty or select &quot;default&quot; for all environments.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <ActionButton
               variant="secondary"
               hasAccess={hasAccess}
               hasEntitlement={hasEntitlement}
               loading={setRetention.isLoading}
-              disabled={form.getValues().retention === null}
+              disabled={selectedEnvironments.length === 0}
               className="mt-4"
               type="submit"
             >

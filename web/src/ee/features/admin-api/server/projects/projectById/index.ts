@@ -20,7 +20,7 @@ export async function handleUpdateProject(
   scope: ApiAccessScope,
 ) {
   try {
-    const { name, retention, metadata } = req.body;
+    const { name, retention, environments, metadata } = req.body;
 
     // Validate project name
     try {
@@ -44,7 +44,10 @@ export async function handleUpdateProject(
     // Validate retention days if provided
     if (retention !== undefined) {
       try {
-        projectRetentionSchema.parse({ retention });
+        projectRetentionSchema.parse({
+          retention,
+          environments: environments || ["default"]
+        });
       } catch (error) {
         return res.status(400).json({
           message: "Invalid retention value. Must be 0 or at least 3 days.",
@@ -67,7 +70,61 @@ export async function handleUpdateProject(
       }
     }
 
-    // Update the project with the new retention setting
+    // Handle retention configuration
+    if (retention !== undefined) {
+      const targetEnvironments = environments || ["default"];
+      const isEnvironmentSpecific = targetEnvironments.length > 1 ||
+        (targetEnvironments.length === 1 && targetEnvironments[0] !== "default");
+
+      if (isEnvironmentSpecific && retention > 0) {
+        // Create or update retention configuration
+        await prisma.retentionConfiguration.upsert({
+          where: {
+            projectId,
+          },
+          create: {
+            projectId,
+            retentionDays: retention,
+            environments: targetEnvironments,
+          },
+          update: {
+            retentionDays: retention,
+            environments: targetEnvironments,
+          },
+        });
+
+        // Clear project-level retention
+        await prisma.project.update({
+          where: {
+            id: projectId,
+            orgId: scope.orgId,
+          },
+          data: {
+            retentionDays: null,
+          },
+        });
+      } else {
+        // Use project-level retention
+        await prisma.project.update({
+          where: {
+            id: projectId,
+            orgId: scope.orgId,
+          },
+          data: {
+            retentionDays: retention || null,
+          },
+        });
+
+        // Remove any existing retention configuration
+        await prisma.retentionConfiguration.deleteMany({
+          where: {
+            projectId,
+          },
+        });
+      }
+    }
+
+    // Update the project with other settings
     const updatedProject = await prisma.project.update({
       where: {
         id: projectId,
@@ -75,7 +132,6 @@ export async function handleUpdateProject(
       },
       data: {
         name,
-        ...(retention !== undefined ? { retentionDays: retention } : {}),
         metadata,
       },
       select: {
@@ -83,17 +139,25 @@ export async function handleUpdateProject(
         name: true,
         retentionDays: true,
         metadata: true,
+        retentionConfiguration: true,
       },
     });
 
-    return res.status(200).json({
+    const responseData: any = {
       id: updatedProject.id,
       name: updatedProject.name,
       metadata: updatedProject.metadata ?? {},
-      ...(updatedProject.retentionDays // Do not add if null or 0
-        ? { retentionDays: updatedProject.retentionDays }
-        : {}),
-    });
+    };
+
+    // Add retention information to response
+    if (updatedProject.retentionConfiguration) {
+      responseData.retentionDays = updatedProject.retentionConfiguration.retentionDays;
+      responseData.retentionEnvironments = updatedProject.retentionConfiguration.environments;
+    } else if (updatedProject.retentionDays) {
+      responseData.retentionDays = updatedProject.retentionDays;
+    }
+
+    return res.status(200).json(responseData);
   } catch (error) {
     logger.error("Failed to update project", error);
     return res.status(500).json({ message: "Internal server error" });

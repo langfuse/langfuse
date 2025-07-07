@@ -667,6 +667,14 @@ export type PromptProtectedLabels = {
     project_id: string;
     label: string;
 };
+export type RetentionConfiguration = {
+    id: string;
+    project_id: string;
+    retention_days: number;
+    environments: Generated<string[]>;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type ScoreConfig = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -795,6 +803,7 @@ export type DB = {
     prompt_dependencies: PromptDependency;
     prompt_protected_labels: PromptProtectedLabels;
     prompts: Prompt;
+    retention_configurations: RetentionConfiguration;
     score_configs: ScoreConfig;
     scores: LegacyPrismaScore;
     Session: Session;
