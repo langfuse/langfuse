@@ -88,14 +88,18 @@ export default function Playground() {
       {/* Configuration Panel - Now Collapsible */}
       <div className="flex-shrink-0 border-b">
         <CollapsibleSection
-          title="Configuration"
+          title="Model Configuration"
           defaultExpanded={true}
           summaryContent={configSummary()}
           className="bg-muted/20 p-4"
         >
           <div className="space-y-3">
             {/* Model Parameters - Compact layout for space efficiency */}
-            <ModelParameters {...playgroundContext} layout="compact" />
+            <ModelParameters
+              {...playgroundContext}
+              customHeader={<div />}
+              layout="compact"
+            />
 
             {/* Tools Section - Collapsible */}
             <CollapsibleSection
