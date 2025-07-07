@@ -100,6 +100,9 @@ jobs:
         node-version: [20]
         postgres-version: [12, 15]
     steps:
+      - name: Check current disk space
+        run: |
+          sudo df -h
       - name: Remove android library to free disk space
         run: |
           sudo rm -rf /usr/local/lib/android || true
