@@ -259,14 +259,12 @@ async function main() {
         short: "c",
         default: false,
       },
-      cpuCores: {
+      cpu: {
         type: "string",
-        short: "cpu",
         default: "16",
       },
-      memoryGiB: {
+      memory: {
         type: "string",
-        short: "mem",
         default: "64",
       },
     },
