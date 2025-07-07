@@ -15,10 +15,17 @@ import {
   FilterList,
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
-import { TraceRecordReadType } from "./definitions";
+import {
+  TraceRecordReadType,
+  convertTraceToTraceMt,
+  TraceRecordInsertType,
+} from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
 import { UiColumnMappings } from "../../tableDefinitions";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  clickhouseClient,
+  convertDateToClickhouseDateTime,
+} from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
@@ -29,6 +36,7 @@ import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
+import { logger } from "../logger";
 
 enum TracesAMTs { // eslint-disable-line no-unused-vars
   Traces7dAMT = "traces_7d_amt", // eslint-disable-line no-unused-vars
@@ -224,6 +232,42 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
   if (!["id", "project_id", "timestamp"].every((key) => key in trace)) {
     throw new Error("Identifier fields must be provided to upsert Trace.");
   }
+
+  // Experimental: Also write to traces_mt table if experiment flag is enabled
+  if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true") {
+    try {
+      const res = await clickhouseClient().insert({
+        table: "traces_mt",
+        values: convertTraceToTraceMt({
+          ...trace,
+          // Convert datetime fields to timestamps for TraceRecordInsertType
+          timestamp: new Date(trace.timestamp!).getTime(),
+          created_at: trace.created_at
+            ? new Date(trace.created_at).getTime()
+            : Date.now(),
+          updated_at: trace.updated_at
+            ? new Date(trace.updated_at).getTime()
+            : Date.now(),
+          event_ts: trace.event_ts
+            ? new Date(trace.event_ts).getTime()
+            : Date.now(),
+        } as TraceRecordInsertType),
+        format: "JSONEachRow",
+        clickhouse_settings: {
+          log_comment: JSON.stringify({
+            feature: "tracing",
+            type: "trace",
+            kind: "upsert",
+            projectId: trace.project_id,
+          }),
+        },
+      });
+    } catch (e) {
+      logger.warn("Failed to upsert trace into traces_mt", e);
+      // Fall through
+    }
+  }
+
   await upsertClickhouse({
     table: "traces",
     records: [trace as TraceRecordReadType],

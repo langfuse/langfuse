@@ -69,7 +69,7 @@ describe("traces trpc", () => {
       expect(traceRes?.projectId).toEqual(projectId);
       expect(traceRes?.name).toEqual(trace.name);
       expect(traceRes?.timestamp).toEqual(new Date(trace.timestamp));
-      expect(traceRes?.tags?.sort()).toContainEqual(trace.tags?.sort());
+      expect(traceRes?.tags?.sort()).toEqual(trace.tags?.sort());
       expect(traceRes?.input).toEqual(trace.input);
       expect(traceRes?.output).toEqual(trace.output);
       expect(traceRes?.userId).toEqual(trace.user_id);
