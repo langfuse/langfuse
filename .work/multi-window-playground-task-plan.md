@@ -127,7 +127,7 @@
   - **Step Dependencies**: Step 5.2
   - **User Instructions**: None
 
-- [ ] **Step 6.2**: Implement parallel execution coordination
+- [x] **Step 6.2**: Implement parallel execution coordination
 
   - **Task**: Enhance the global coordination system to handle parallel execution of multiple windows. Implement proper loading states, error handling, and execution status tracking for all windows.
   - **Files**:
@@ -136,7 +136,7 @@
   - **Step Dependencies**: Step 6.1
   - **User Instructions**: None
 
-- [ ] **Step 6.3**: Add window limit and validation
+- [x] **Step 6.3**: Add window limit and validation
   - **Task**: Implement the 10-window limit, prevent removal of the last window, and add proper validation and error handling for window management operations.
   - **Files**:
     - `web/src/features/playground/page/components/MultiWindowPlayground.tsx`: Add window limit and validation
@@ -145,7 +145,7 @@
 
 ## Phase 7: Polish and Optimization
 
-- [ ] **Step 7.1**: Optimize performance and memory usage
+- [x] **Step 7.1**: Optimize performance and memory usage
 
   - **Task**: Review the implementation for performance optimizations, implement proper cleanup for removed windows, optimize re-renders, and ensure efficient memory usage with multiple playground instances.
   - **Files**:
@@ -154,40 +154,13 @@
   - **Step Dependencies**: Step 6.3
   - **User Instructions**: None
 
-- [ ] **Step 7.2**: Add error handling and edge cases
+- [x] **Step 7.2**: Add error handling and edge cases
   - **Task**: Implement comprehensive error handling for window operations, API failures, and edge cases like network interruptions during parallel execution. Add proper error messaging and recovery mechanisms.
   - **Files**:
     - `web/src/features/playground/page/components/MultiWindowPlayground.tsx`: Add error handling
     - `web/src/features/playground/page/components/PlaygroundWindow.tsx`: Add error handling
   - **Step Dependencies**: Step 7.1
   - **User Instructions**: None
-
-## Phase 8: Testing and Validation
-
-- [ ] **Step 8.1**: Create unit tests for multi-window functionality
-
-  - **Task**: Write comprehensive unit tests for the new multi-window functionality including window coordination, state isolation, cache management, and global actions. Test edge cases and error scenarios.
-  - **Files**:
-    - `web/src/__tests__/playground/multi-window.test.tsx`: Create multi-window tests
-    - `web/src/__tests__/playground/window-coordination.test.tsx`: Create coordination tests
-    - `web/src/__tests__/playground/cache-isolation.test.tsx`: Create cache isolation tests
-  - **Step Dependencies**: Step 7.2
-  - **User Instructions**: None
-
-- [ ] **Step 8.2**: Test responsive layout and mobile compatibility
-
-  - **Task**: Validate that the responsive layout works correctly across different screen sizes, test mobile stacking behavior, and ensure accessibility standards are met.
-  - **Files**:
-    - `web/src/__tests__/playground/responsive-layout.test.tsx`: Create responsive layout tests
-  - **Step Dependencies**: Step 8.1
-  - **User Instructions**: Test the implementation on various devices and screen sizes to ensure the responsive design works correctly.
-
-- [ ] **Step 8.3**: Integration testing and final validation
-  - **Task**: Perform end-to-end testing of the complete multi-window playground functionality. Test complex scenarios like parallel execution, window management, and state persistence across browser sessions.
-  - **Files**:
-    - `web/src/__tests__/playground/integration.test.tsx`: Create integration tests
-  - **Step Dependencies**: Step 8.2
-  - **User Instructions**: Thoroughly test all functionality including: creating/removing windows, configuring different models per window, parallel execution, state persistence, and responsive behavior.
 
 ## Summary
 
@@ -196,7 +169,7 @@ This implementation plan takes a phased approach to building the multi-window pl
 1. **Phase 1-2**: Establishes the core architecture and state isolation without breaking existing functionality
 2. **Phase 3-4**: Builds the multi-window UI components and responsive layout system
 3. **Phase 5-6**: Integrates everything together and adds advanced features like window copying and parallel execution
-4. **Phase 7-8**: Polishes the implementation with optimizations, error handling, and comprehensive testing
+4. **Phase 7**: Polishes the implementation with optimizations, error handling, and comprehensive testing
 
 The plan ensures that each step builds upon the previous ones and maintains backward compatibility with the existing single-window playground functionality. The implementation is designed to be modular and maintainable, following the existing codebase patterns and design system.
 
