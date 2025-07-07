@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Writing tests
+
+- When writing tests, focus on decoupling each `it` or `test` block to ensure that they can run independently and concurrently. Tests must never depend on the action or outcome of previous or subsequent tests.
+- When writing tests, especially in the __tests__/async directory, ensure that you avoid `pruneDatabase` calls.

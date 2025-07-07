@@ -11,7 +11,6 @@ import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
 import {
   NumberParam,
   StringParam,
@@ -33,6 +32,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Slash, Folder, Home } from "lucide-react";
+import { promptsTableColsWithOptions } from "@langfuse/shared";
 
 type PromptTableRow = {
   id: string;

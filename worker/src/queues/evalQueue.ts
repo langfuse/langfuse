@@ -105,7 +105,7 @@ export const evalJobExecutorQueueProcessor = async (
           jobExecution.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)
         ) {
           logger.info(
-            `Job ${job.data.payload.jobExecutionId} is rate limited for more than 24h. Stop retrying.`,
+            `Job ${job.data.payload.jobExecutionId} is retrying for more than 24h. Stop retrying.`,
           );
         } else {
           // Add the job into the queue with a random delay between 1 and 10min and return

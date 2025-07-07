@@ -53,7 +53,7 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
       parsedMessages.data.map((message) => {
         const id = uuidv4();
         // TODO: clean up - Placeholder messages could also be API created..
-        if ('type' in message && message.type === ChatMessageType.Placeholder) {
+        if ("type" in message && message.type === ChatMessageType.Placeholder) {
           return {
             ...message,
             id,
@@ -70,7 +70,7 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
     );
 
     const customRoles = parsedMessages.data.reduce((acc, message) => {
-      if ('role' in message) {
+      if ("role" in message) {
         const { role } = message;
         if (ChatMessageDefaultRoleSchema.safeParse(role).error) {
           acc.add(role);

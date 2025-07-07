@@ -99,10 +99,13 @@ export const experimentsRouter = createTRPCRouter({
           : JSON.stringify(prompt.prompt),
       );
 
-      const promptMessages = prompt?.type === PromptType.Chat && Array.isArray(prompt.prompt)
-        ? prompt.prompt
-        : [];
-      const placeholderNames = extractPlaceholderNames(promptMessages as PromptMessage[]);
+      const promptMessages =
+        prompt?.type === PromptType.Chat && Array.isArray(prompt.prompt)
+          ? prompt.prompt
+          : [];
+      const placeholderNames = extractPlaceholderNames(
+        promptMessages as PromptMessage[],
+      );
 
       const allVariables = [...extractedVariables, ...placeholderNames];
 
@@ -128,10 +131,7 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const variablesMap = validateDatasetItems(
-        datasetItems,
-        allVariables,
-      );
+      const variablesMap = validateDatasetItems(datasetItems, allVariables);
 
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {
