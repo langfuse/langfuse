@@ -22,6 +22,7 @@ const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 interface PerformanceResult {
   time: number;
+  ttfb?: number; // Time to first byte
   metrics?: {
     mainThreadTime: number;
     totalWorkerCpuTime: number;
@@ -244,41 +245,87 @@ async function insertObservationDirect(length: number) {
   };
 }
 
+// Helper function to measure TTFB (Time To First Byte) more accurately
+async function makeAPICallWithTTFB<T = any>(
+  method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
+  url: string,
+  body?: unknown,
+  auth?: string,
+): Promise<{ body: T; status: number; ttfb: number; totalTime: number }> {
+  const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
+  const authorization =
+    auth || "Basic " + Buffer.from("pk-lf-1234567890:sk-lf-1234567890").toString("base64");
+    
+  const options = {
+    method: method,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json;charset=UTF-8",
+      Authorization: authorization,
+    },
+    ...(method !== "GET" &&
+      body !== undefined && { body: JSON.stringify(body) }),
+  };
+  
+  const startTime = performance.now();
+  
+  const response = await fetch(finalUrl, options);
+  const ttfb = performance.now() - startTime; // TTFB is when response headers arrive
+  
+  const responseBody = (await response.json()) as T;
+  const totalTime = performance.now() - startTime;
+  
+  return { 
+    body: responseBody, 
+    status: response.status, 
+    ttfb,
+    totalTime 
+  };
+}
+
 // Helper functions for retrieval
 async function retrieveTraceGET(
   traceId: string,
   optimization: JSONOptimizationStrategy,
 ): Promise<PerformanceResult> {
-  const startTime = performance.now();
-  const result = await makeAPICall(
+  const result = await makeAPICallWithTTFB(
     "GET",
     `/api/public/traces/${traceId}?optimization=${optimization}`,
   );
-  const endTime = performance.now();
   const body = result.body as any;
+  
   if (optimization !== "original") {
     expect(body.optimization).toBe(optimization);
   }
+  
   const metrics = body.metrics;
-  return { time: endTime - startTime, metrics };
+  return { 
+    time: result.totalTime, 
+    ttfb: result.ttfb,
+    metrics 
+  };
 }
 
 async function retrieveObservationGET(
   observationId: string,
   optimization: JSONOptimizationStrategy,
 ): Promise<PerformanceResult> {
-  const startTime = performance.now();
-  const result = await makeAPICall(
+  const result = await makeAPICallWithTTFB(
     "GET",
     `/api/public/observations/${observationId}?optimization=${optimization}`,
   );
-  const endTime = performance.now();
   const body = result.body as any;
+  
   if (optimization !== "original") {
     expect(body.optimization).toBe(optimization);
   }
+  
   const metrics = body.metrics;
-  return { time: endTime - startTime, metrics };
+  return { 
+    time: result.totalTime, 
+    ttfb: result.ttfb,
+    metrics 
+  };
 }
 
 async function retrieveTraceTRPC(
@@ -326,6 +373,11 @@ function formatMetricsLog(
   optimization: JSONOptimizationStrategy,
   result: PerformanceResult | undefined,
 ): string {
+  let logWithTTFB = baseLog;
+  if (result?.ttfb !== undefined) {
+    logWithTTFB = `${baseLog} (TTFB: ${result.ttfb.toFixed(2)}ms)`;
+  }
+  
   if (optimization === "worker" && result?.metrics) {
     const {
       mainThreadTime,
@@ -338,7 +390,7 @@ function formatMetricsLog(
       actualIdleTime,
       resultProcessingTime,
     } = result.metrics;
-    return `${baseLog} (main: ${mainThreadTime.toFixed(
+    return `${logWithTTFB} (main: ${mainThreadTime.toFixed(
       2,
     )}ms, total: ${totalWorkerCpuTime.toFixed(
       2,
@@ -354,7 +406,7 @@ function formatMetricsLog(
       2,
     )}ms, overhead: ${coordinationOverhead.toFixed(2)}ms, workers: ${activeWorkerCount})`;
   }
-  return baseLog;
+  return logWithTTFB;
 }
 
 async function runPerformanceTest(
