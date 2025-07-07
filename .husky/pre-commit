@@ -12,7 +12,7 @@ if [ "$current_branch" = "$protected_branch" ]; then
     read -r answer < /dev/tty
     if [ "$answer" != "${answer#[Yy]}" ]; then
         # Commit approved, run formatting
-        pnpm run format
+        pnpm run format-fast
         exit 0 # Commit will proceed
     else
         echo "Commit to $protected_branch branch has been canceled."
@@ -21,5 +21,5 @@ if [ "$current_branch" = "$protected_branch" ]; then
 fi
 
 # If not the protected branch, run formatting and proceed with the commit
-pnpm run format
+pnpm run format-fast
 exit 0
