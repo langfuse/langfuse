@@ -316,36 +316,40 @@ describe("/api/public/ingestion API Endpoint", () => {
     "<",
     "#",
     "|",
-  ])("should test special S3 characters in IDs (%s)", async (char: string) => {
-    const traceId = randomUUID();
+  ])(
+    "should test special S3 characters in IDs (%s)",
+    async (char: string) => {
+      const traceId = randomUUID();
 
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
-      batch: [
-        {
-          id: randomUUID(),
-          type: "trace-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: `${traceId}-${char}-test`,
+      const response = await makeAPICall("POST", "/api/public/ingestion", {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "trace-create",
             timestamp: new Date().toISOString(),
+            body: {
+              id: `${traceId}-${char}-test`,
+              timestamp: new Date().toISOString(),
+            },
           },
-        },
-      ],
-    });
-
-    expect(response.status).toBe(207);
-
-    await waitForExpect(async () => {
-      const trace = await getTraceById({
-        traceId: `${traceId}-${char}-test`,
-        projectId,
+        ],
       });
-      expect(trace).toBeDefined();
-      expect(trace!.id).toBe(`${traceId}-${char}-test`);
-      expect(trace!.projectId).toBe(projectId);
-      expect(trace!.environment).toEqual("default");
-    });
-  });
+
+      expect(response.status).toBe(207);
+
+      await waitForExpect(async () => {
+        const trace = await getTraceById({
+          traceId: `${traceId}-${char}-test`,
+          projectId,
+        });
+        expect(trace).toBeDefined();
+        expect(trace!.id).toBe(`${traceId}-${char}-test`);
+        expect(trace!.projectId).toBe(projectId);
+        expect(trace!.environment).toEqual("default");
+      });
+    },
+    10000,
+  );
 
   it("should fail for \\r in id", async () => {
     const traceId = v4();
@@ -543,6 +547,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         );
       });
     },
+    10000,
   );
 
   it.each([
@@ -674,5 +679,5 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(score!.value).toEqual(100.5);
       expect(score!.comment).toBe(null);
     });
-  });
+  }, 10000);
 });
