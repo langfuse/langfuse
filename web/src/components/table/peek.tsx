@@ -5,14 +5,19 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/src/components/ui/sheet";
-import { Expand, ExternalLink, GripVertical } from "lucide-react";
+import { Expand, ExternalLink } from "lucide-react";
 import { Separator } from "@/src/components/ui/separator";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useState } from "react";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
+import { 
+  ResizablePanelGroup, 
+  ResizablePanel, 
+  ResizableHandle 
+} from "@/src/components/ui/resizable";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
@@ -81,165 +86,6 @@ export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
   };
 };
 
-// Custom hook for resize functionality
-const useResizable = () => {
-  const [width, setWidth] = useState(60); // Default 60vw
-  const [isResizing, setIsResizing] = useState(false);
-  const startXRef = useRef(0);
-  const startWidthRef = useRef(60);
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      setIsResizing(true);
-      startXRef.current = e.clientX;
-      startWidthRef.current = width;
-
-      // Prevent text selection during resize
-      document.body.style.userSelect = "none";
-      document.body.style.cursor = "col-resize";
-    },
-    [width],
-  );
-
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      const deltaX = startXRef.current - e.clientX; // Inverted because we're resizing from the left
-      const viewportWidth = window.innerWidth;
-      const deltaPercent = (deltaX / viewportWidth) * 100;
-      const newWidth = Math.max(
-        30,
-        Math.min(90, startWidthRef.current + deltaPercent),
-      );
-
-      setWidth(newWidth);
-    },
-    [isResizing],
-  );
-
-  const handleMouseUp = useCallback(() => {
-    setIsResizing(false);
-    document.body.style.userSelect = "";
-    document.body.style.cursor = "";
-  }, []);
-
-  const handleDoubleClick = useCallback(() => {
-    setWidth(60); // Reset to default
-  }, []);
-
-  // Touch events for mobile support
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      const touch = e.touches[0];
-      if (!touch) return;
-
-      setIsResizing(true);
-      startXRef.current = touch.clientX;
-      startWidthRef.current = width;
-    },
-    [width],
-  );
-
-  const handleTouchMove = useCallback(
-    (e: TouchEvent) => {
-      if (!isResizing) return;
-
-      const touch = e.touches[0];
-      if (!touch) return;
-
-      const deltaX = startXRef.current - touch.clientX;
-      const viewportWidth = window.innerWidth;
-      const deltaPercent = (deltaX / viewportWidth) * 100;
-      const newWidth = Math.max(
-        30,
-        Math.min(90, startWidthRef.current + deltaPercent),
-      );
-
-      setWidth(newWidth);
-    },
-    [isResizing],
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    setIsResizing(false);
-  }, []);
-
-  // Global event listeners
-  useEffect(() => {
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-      document.addEventListener("touchmove", handleTouchMove);
-      document.addEventListener("touchend", handleTouchEnd);
-    }
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [
-    isResizing,
-    handleMouseMove,
-    handleMouseUp,
-    handleTouchMove,
-    handleTouchEnd,
-  ]);
-
-  return {
-    width,
-    isResizing,
-    handleMouseDown,
-    handleTouchStart,
-    handleDoubleClick,
-  };
-};
-
-// Resize handle component
-const ResizeHandle = ({
-  onMouseDown,
-  onTouchStart,
-  onDoubleClick,
-  isResizing,
-}: {
-  onMouseDown: (e: React.MouseEvent) => void;
-  onTouchStart: (e: React.TouchEvent) => void;
-  onDoubleClick: () => void;
-  isResizing: boolean;
-}) => {
-  return (
-    <div
-      className={cn(
-        "absolute left-0 top-0 z-10 flex h-full w-2 cursor-col-resize items-center justify-center bg-transparent transition-colors hover:bg-border/50",
-        isResizing && "bg-primary/20",
-      )}
-      onMouseDown={onMouseDown}
-      onTouchStart={onTouchStart}
-      onDoubleClick={onDoubleClick}
-      role="separator"
-      aria-label="Resize peek view"
-      aria-orientation="vertical"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        // Keyboard accessibility
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onDoubleClick();
-        }
-      }}
-    >
-      <div
-        className={cn(
-          "h-8 w-1 rounded-sm bg-border opacity-0 transition-opacity group-hover:opacity-100",
-          isResizing && "bg-primary opacity-100",
-        )}
-      />
-    </div>
-  );
-};
-
 type TablePeekViewProps<T> = {
   peekView: PeekViewProps<T>;
   row?: T;
@@ -249,13 +95,7 @@ type TablePeekViewProps<T> = {
 function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
   const { peekView, row, selectedRowId } = props;
   const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
-  const {
-    width,
-    isResizing,
-    handleMouseDown,
-    handleTouchStart,
-    handleDoubleClick,
-  } = useResizable();
+  const [peekViewSize, setPeekViewSize] = useState(60); // Default 60%
 
   if (!selectedRowId) return null;
 
@@ -284,76 +124,81 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
           e.preventDefault();
         }}
         side="right"
-        className="group relative flex max-h-full min-h-0 flex-col gap-0 overflow-hidden rounded-l-xl p-0"
-        style={{
-          minWidth: `${width}vw`,
-          width: `${width}vw`,
-        }}
+        className="flex max-h-full min-h-0 min-w-[30vw] max-w-[90vw] flex-col gap-0 overflow-hidden rounded-l-xl p-0"
       >
-        <ResizeHandle
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
-          onDoubleClick={handleDoubleClick}
-          isResizing={isResizing}
-        />
-        <SheetHeader className="flex min-h-12 flex-row flex-nowrap items-center justify-between rounded-t-xl bg-header px-2">
-          <SheetTitle className="!mt-0 ml-2 flex min-w-0 flex-row items-center gap-2">
-            <ItemBadge type={peekView.itemType} showLabel />
-            <span
-              className="truncate text-sm font-medium focus:outline-none"
-              tabIndex={0}
-            >
-              {peekView.customTitlePrefix
-                ? `${peekView.customTitlePrefix} ${selectedRowId}`
-                : selectedRowId}
-            </span>
-          </SheetTitle>
-          <div
-            className={cn(
-              "!mt-0 flex flex-shrink-0 flex-row items-center gap-2",
-              !canExpand && "mr-8",
-            )}
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          <ResizablePanel defaultSize={100 - peekViewSize} minSize={10} />
+          <ResizableHandle 
+            withHandle 
+            className="w-2 hover:w-2 hover:bg-border/80 transition-all duration-200" 
+          />
+          <ResizablePanel 
+            defaultSize={peekViewSize} 
+            minSize={30} 
+            maxSize={90}
+            className="flex flex-col"
+            onResize={(size) => setPeekViewSize(size)}
           >
-            {selectedRowId &&
-              peekView.listKey &&
-              peekView.getNavigationPath && (
-                <DetailPageNav
-                  currentId={selectedRowId}
-                  path={peekView.getNavigationPath}
-                  listKey={peekView.listKey}
-                />
-              )}
-            {canExpand && (
-              <div className="!mt-0 mr-8 flex h-full flex-row items-center gap-1 border-l">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  title="Open in current tab"
-                  className="ml-2"
-                  onClick={() => peekView.onExpand?.(false, row)}
+            <SheetHeader className="flex min-h-12 flex-row flex-nowrap items-center justify-between rounded-t-xl bg-header px-2">
+              <SheetTitle className="!mt-0 ml-2 flex min-w-0 flex-row items-center gap-2">
+                <ItemBadge type={peekView.itemType} showLabel />
+                <span
+                  className="truncate text-sm font-medium focus:outline-none"
+                  tabIndex={0}
                 >
-                  <Expand className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  title="Open in new tab"
-                  onClick={() => peekView.onExpand?.(true, row)}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
+                  {peekView.customTitlePrefix
+                    ? `${peekView.customTitlePrefix} ${selectedRowId}`
+                    : selectedRowId}
+                </span>
+              </SheetTitle>
+              <div
+                className={cn(
+                  "!mt-0 flex flex-shrink-0 flex-row items-center gap-2",
+                  !canExpand && "mr-8",
+                )}
+              >
+                {selectedRowId &&
+                  peekView.listKey &&
+                  peekView.getNavigationPath && (
+                    <DetailPageNav
+                      currentId={selectedRowId}
+                      path={peekView.getNavigationPath}
+                      listKey={peekView.listKey}
+                    />
+                  )}
+                {canExpand && (
+                  <div className="!mt-0 mr-8 flex h-full flex-row items-center gap-1 border-l">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      title="Open in current tab"
+                      className="ml-2"
+                      onClick={() => peekView.onExpand?.(false, row)}
+                    >
+                      <Expand className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      title="Open in new tab"
+                      onClick={() => peekView.onExpand?.(true, row)}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </SheetHeader>
-        <Separator />
-        <div className="flex max-h-full min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-auto" key={selectedRowId}>
-            {typeof peekView.children === "function"
-              ? peekView.children(row)
-              : peekView.children}
-          </div>
-        </div>
+            </SheetHeader>
+            <Separator />
+            <div className="flex max-h-full min-h-0 flex-1 flex-col">
+              <div className="flex-1 overflow-auto" key={selectedRowId}>
+                {typeof peekView.children === "function"
+                  ? peekView.children(row)
+                  : peekView.children}
+              </div>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </SheetContent>
     </Sheet>
   );
