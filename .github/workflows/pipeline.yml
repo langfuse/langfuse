@@ -81,7 +81,9 @@ jobs:
           fi
           FILES=$(git diff --name-only $BASE_SHA HEAD | grep -E '\.(js|jsx|ts|tsx|css)$')
           if [ -n "$FILES" ]; then
-            echo "Checking formatting for: $FILES"
+            echo "Files to check:"
+            echo "$FILES"
+            echo "Running prettier check..."
             pnpm prettier --check --experimental-cli $FILES
           else
             echo "No relevant files to check"
