@@ -140,7 +140,7 @@ export const executeWebhook = async (input: WebhookInput) => {
 
         if (res.status !== 200) {
           logger.warn(
-            `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}`,
+            `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}. Body: ${responseBody}`,
           );
           throw new Error(
             `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}`,
