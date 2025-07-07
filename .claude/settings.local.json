@@ -3,7 +3,8 @@
     "allow": [
       "Bash(find:*)",
       "Bash(rg:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(pnpm run test:*)"
     ],
     "deny": []
   }
