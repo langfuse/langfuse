@@ -100,6 +100,9 @@ jobs:
         node-version: [20]
         postgres-version: [12, 15]
     steps:
+      - name: Remove android library to free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
         with:
@@ -178,6 +181,9 @@ jobs:
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
+      - name: Remove android library to free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
         with:
@@ -257,6 +263,9 @@ jobs:
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
+      - name: Remove android library to free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
         with:
