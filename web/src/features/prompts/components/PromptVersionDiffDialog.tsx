@@ -21,6 +21,28 @@ type PromptVersionDiffDialogProps = {
   rightPrompt: Prompt;
 };
 
+// Utility function to format prompt content for better diff display
+const formatPromptContentForDiff = (prompt: Prompt): string => {
+  if (prompt.type === "text") {
+    return prompt.prompt as string;
+  }
+  
+  // For chat prompts, format each message with better placeholder representation
+  const messages = prompt.prompt as any[];
+  const formattedMessages = messages.map((message) => {
+    if (message.type === "placeholder") {
+      return {
+        type: "placeholder",
+        name: message.name,
+        _formatted: `[PLACEHOLDER: ${message.name}]`,
+      };
+    }
+    return message;
+  });
+  
+  return JSON.stringify(formattedMessages, null, 2);
+};
+
 export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
   props,
 ) => {
@@ -72,16 +94,8 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
               <div>
                 <h3 className="mb-2 text-base font-medium">Content</h3>
                 <DiffViewer
-                  oldString={
-                    leftPrompt.type === "chat"
-                      ? JSON.stringify(leftPrompt.prompt, null, 2)
-                      : (leftPrompt.prompt as string)
-                  }
-                  newString={
-                    rightPrompt.type === "chat"
-                      ? JSON.stringify(rightPrompt.prompt, null, 2)
-                      : (rightPrompt.prompt as string)
-                  }
+                  oldString={formatPromptContentForDiff(leftPrompt)}
+                  newString={formatPromptContentForDiff(rightPrompt)}
                   oldLabel={`v${leftPrompt.version}`}
                   newLabel={`v${rightPrompt.version}`}
                   oldSubLabel={leftPrompt.commitMessage ?? undefined}
