@@ -20,7 +20,7 @@ import { AddLabelForm } from "./AddLabelForm";
 import { LabelCommandItem } from "./LabelCommandItem";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 import { cn } from "@/src/utils/tailwind";
 
 export function SetPromptVersionLabels({
@@ -30,6 +30,7 @@ export function SetPromptVersionLabels({
   setIsOpen,
   title,
   showOnlyOnHover = false,
+  maxVisibleLabels = 5,
 }: {
   promptLabels: string[];
   prompt: Prompt;
@@ -37,6 +38,7 @@ export function SetPromptVersionLabels({
   setIsOpen: (isOpen: boolean) => void;
   title?: ReactNode;
   showOnlyOnHover?: boolean;
+  maxVisibleLabels?: number;
 }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
@@ -82,6 +84,7 @@ export function SetPromptVersionLabels({
     },
   });
 
+  // Keep the original sorting logic for backward compatibility
   const sortedLabels = [...promptLabels].sort((a, b) => {
     if (a === PRODUCTION_LABEL) return -1;
     if (b === PRODUCTION_LABEL) return 1;
@@ -113,6 +116,8 @@ export function SetPromptVersionLabels({
     else setIsOpen(open);
   };
 
+  // No need for renderLabels function anymore, using TruncatedLabels directly
+
   return (
     <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
       <PopoverTrigger asChild data-version-trigger="true">
@@ -123,14 +128,10 @@ export function SetPromptVersionLabels({
           )}
         >
           {title && title}
-          {sortedLabels.map((label) => (
-            <StatusBadge
-              type={label}
-              key={label}
-              className="break-all sm:break-normal"
-              isLive={label === PRODUCTION_LABEL}
-            />
-          ))}
+          <TruncatedLabels 
+            labels={promptLabels} 
+            maxVisibleLabels={maxVisibleLabels}
+          />
           <Button
             variant="outline"
             title="Add prompt version label"
