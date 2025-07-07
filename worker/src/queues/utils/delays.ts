@@ -1,5 +1,3 @@
-export const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000; // 24h in milliseconds
-
 export const delayInMs = (
   range: { minMinutes: number; maxMinutes: number } = {
     minMinutes: 1,
