@@ -26,7 +26,7 @@ const formatPromptContentForDiff = (prompt: Prompt): string => {
   if (prompt.type === "text") {
     return prompt.prompt as string;
   }
-  
+
   // For chat prompts, format each message with better placeholder representation
   const messages = prompt.prompt as any[];
   const formattedMessages = messages.map((message) => {
@@ -39,7 +39,7 @@ const formatPromptContentForDiff = (prompt: Prompt): string => {
     }
     return message;
   });
-  
+
   return JSON.stringify(formattedMessages, null, 2);
 };
 
