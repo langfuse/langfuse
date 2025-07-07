@@ -177,8 +177,8 @@ export default function PromptVersionTable({
         const values: string[] = row.getValue("labels");
         return (
           values && (
-            <TruncatedLabels 
-              labels={values} 
+            <TruncatedLabels
+              labels={values}
               maxVisibleLabels={3}
               className="-mr-8 flex max-h-full flex-wrap gap-1"
               showSimpleBadges={true}

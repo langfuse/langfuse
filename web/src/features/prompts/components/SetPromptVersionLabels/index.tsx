@@ -128,8 +128,8 @@ export function SetPromptVersionLabels({
           )}
         >
           {title && title}
-          <TruncatedLabels 
-            labels={promptLabels} 
+          <TruncatedLabels
+            labels={promptLabels}
             maxVisibleLabels={maxVisibleLabels}
           />
           <Button

@@ -29,11 +29,11 @@ export function TruncatedLabels({
     // Production label comes first
     if (a === PRODUCTION_LABEL) return -1;
     if (b === PRODUCTION_LABEL) return 1;
-    
+
     // Latest label comes second
     if (a === LATEST_PROMPT_LABEL) return -1;
     if (b === LATEST_PROMPT_LABEL) return 1;
-    
+
     // Then alphabetically
     return a.localeCompare(b);
   });
@@ -55,7 +55,7 @@ export function TruncatedLabels({
             key={label}
             className={cn(
               "max-h-fit min-h-6 w-fit content-center rounded-sm bg-secondary px-1 text-left text-xs font-semibold text-secondary-foreground",
-              badgeClassName
+              badgeClassName,
             )}
           >
             {label}
@@ -67,7 +67,7 @@ export function TruncatedLabels({
             className={cn("break-all sm:break-normal", badgeClassName)}
             isLive={label === PRODUCTION_LABEL}
           />
-        )
+        ),
       )}
       {hasHiddenLabels && (
         <HoverCard>
@@ -90,7 +90,7 @@ export function TruncatedLabels({
                       key={label}
                       className={cn(
                         "max-h-fit min-h-6 w-fit content-center rounded-sm bg-secondary px-1 text-left text-xs font-semibold text-secondary-foreground",
-                        badgeClassName
+                        badgeClassName,
                       )}
                     >
                       {label}
@@ -99,10 +99,13 @@ export function TruncatedLabels({
                     <StatusBadge
                       type={label}
                       key={label}
-                      className={cn("break-all sm:break-normal", badgeClassName)}
+                      className={cn(
+                        "break-all sm:break-normal",
+                        badgeClassName,
+                      )}
                       isLive={label === PRODUCTION_LABEL}
                     />
-                  )
+                  ),
                 )}
               </div>
             </div>
