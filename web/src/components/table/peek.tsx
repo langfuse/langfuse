@@ -13,10 +13,10 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useState } from "react";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
-import { 
-  ResizablePanelGroup, 
-  ResizablePanel, 
-  ResizableHandle 
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
 } from "@/src/components/ui/resizable";
 
 type PeekViewItemType = Extract<
@@ -128,13 +128,13 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
       >
         <ResizablePanelGroup direction="horizontal" className="h-full">
           <ResizablePanel defaultSize={100 - peekViewSize} minSize={10} />
-          <ResizableHandle 
-            withHandle 
-            className="w-2 hover:w-2 hover:bg-border/80 transition-all duration-200" 
+          <ResizableHandle
+            withHandle
+            className="w-2 transition-all duration-200 hover:w-2 hover:bg-border/80"
           />
-          <ResizablePanel 
-            defaultSize={peekViewSize} 
-            minSize={30} 
+          <ResizablePanel
+            defaultSize={peekViewSize}
+            minSize={30}
             maxSize={90}
             className="flex flex-col"
             onResize={(size) => setPeekViewSize(size)}
