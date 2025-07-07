@@ -510,3 +510,8 @@ This checklist documents all references and invocations to the `traces` table gr
 
 ### 7. Cross-Project Queries
 - [ ] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
+
+### 8. Delete Operations
+- [x] **deleteTraces()** - `packages/shared/src/server/repositories/traces.ts:790++`
+- [x] **deleteTracesOlderThanDays()** - `packages/shared/src/server/repositories/traces.ts:814++`
+- [x] **deleteTracesByProjectId()** - `packages/shared/src/server/repositories/traces.ts:841++`

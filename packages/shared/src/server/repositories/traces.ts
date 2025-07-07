@@ -788,25 +788,104 @@ export const getTracesIdentifierForSession = async (
 };
 
 export const deleteTraces = async (projectId: string, traceIds: string[]) => {
-  const query = `
-    DELETE FROM traces
-    WHERE project_id = {projectId: String}
-    AND id IN ({traceIds: Array(String)});
-  `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-      traceIds,
+  await measureAndReturn({
+    operationName: "deleteTraces",
+    projectId,
+    input: {
+      params: {
+        projectId,
+        traceIds,
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "delete",
+        projectId,
+      },
     },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    existingExecution: async (input) => {
+      const query = `
+        DELETE FROM traces
+        WHERE project_id = {projectId: String}
+        AND id IN ({traceIds: Array(String)});
+      `;
+      await commandClickhouse({
+        query: query,
+        params: input.params,
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags: input.tags,
+      });
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "delete",
-      projectId,
+    newExecution: async (input) => {
+      await Promise.all([
+        // Delete from traces
+        await commandClickhouse({
+          query: `
+            DELETE FROM traces
+            WHERE project_id = {projectId: String}
+            AND id IN ({traceIds: Array(String)});
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_mt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_mt
+            WHERE project_id = {projectId: String}
+            AND id IN ({traceIds: Array(String)});
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_all_amt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_all_amt
+            WHERE project_id = {projectId: String}
+            AND id IN ({traceIds: Array(String)});
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_7d_amt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_7d_amt
+            WHERE project_id = {projectId: String}
+            AND id IN ({traceIds: Array(String)});
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_30d_amt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_30d_amt
+            WHERE project_id = {projectId: String}
+            AND id IN ({traceIds: Array(String)});
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+      ]);
     },
   });
 };
@@ -815,47 +894,200 @@ export const deleteTracesOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
 ) => {
-  const query = `
-    DELETE FROM traces
-    WHERE project_id = {projectId: String}
-    AND timestamp < {cutoffDate: DateTime64(3)};
-  `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+  await measureAndReturn({
+    operationName: "deleteTracesOlderThanDays",
+    projectId,
+    input: {
+      params: {
+        projectId,
+        cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "delete",
+        projectId,
+      },
     },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    existingExecution: async (input) => {
+      const query = `
+        DELETE FROM traces
+        WHERE project_id = {projectId: String}
+        AND timestamp < {cutoffDate: DateTime64(3)};
+      `;
+      await commandClickhouse({
+        query: query,
+        params: input.params,
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags: input.tags,
+      });
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "delete",
-      projectId,
+    newExecution: async (input) => {
+      await Promise.all([
+        // Delete from traces
+        await commandClickhouse({
+          query: `
+            DELETE FROM traces
+            WHERE project_id = {projectId: String}
+            AND timestamp < {cutoffDate: DateTime64(3)};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_mt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_mt
+            WHERE project_id = {projectId: String}
+            AND start_time < {cutoffDate: DateTime64(3)};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_all_amt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_all_amt
+            WHERE project_id = {projectId: String}
+            AND start_time < {cutoffDate: DateTime64(3)};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_7d_amt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_7d_amt
+            WHERE project_id = {projectId: String}
+            AND start_time < {cutoffDate: DateTime64(3)};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_30d_amt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_30d_amt
+            WHERE project_id = {projectId: String}
+            AND start_time < {cutoffDate: DateTime64(3)};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+      ]);
     },
   });
 };
 
 export const deleteTracesByProjectId = async (projectId: string) => {
-  const query = `
-    DELETE FROM traces
-    WHERE project_id = {projectId: String};
-  `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
+  await measureAndReturn({
+    operationName: "deleteTracesByProjectId",
+    projectId,
+    input: {
+      params: {
+        projectId,
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "delete",
+        projectId,
+      },
     },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    existingExecution: async (input) => {
+      const query = `
+        DELETE FROM traces
+        WHERE project_id = {projectId: String};
+      `;
+      await commandClickhouse({
+        query: query,
+        params: input.params,
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags: input.tags,
+      });
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "delete",
-      projectId,
+    newExecution: async (input) => {
+      await Promise.all([
+        // Delete from traces
+        await commandClickhouse({
+          query: `
+            DELETE FROM traces
+            WHERE project_id = {projectId: String};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_mt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_mt
+            WHERE project_id = {projectId: String};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_all_amt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_all_amt
+            WHERE project_id = {projectId: String};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_7d_amt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_7d_amt
+            WHERE project_id = {projectId: String};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+        // Delete from traces_30d_amt
+        commandClickhouse({
+          query: `
+            DELETE FROM traces_30d_amt
+            WHERE project_id = {projectId: String};
+          `,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        }),
+      ]);
     },
   });
 };
