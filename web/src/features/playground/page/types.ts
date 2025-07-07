@@ -50,8 +50,8 @@ export interface PlaygroundHandle {
   handleSubmit: (streaming?: boolean) => Promise<void>;
   /** Stop the current execution */
   stopExecution: () => void;
-  /** Current streaming state */
-  isStreaming: boolean;
+  /** Getter for current streaming state */
+  getIsStreaming: () => boolean;
 }
 
 /**
@@ -103,6 +103,7 @@ export const PLAYGROUND_EVENTS = {
   STOP_ALL: "playground:stop-all",
   WINDOW_REGISTERED: "playground:window-registered",
   WINDOW_UNREGISTERED: "playground:window-unregistered",
+  WINDOW_EXECUTION_STATE_CHANGE: "playground:window-execution-state-change",
 } as const;
 
 /**

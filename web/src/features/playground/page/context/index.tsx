@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useState,
+  useRef,
 } from "react";
 
 import { v4 as uuidv4 } from "uuid";
@@ -101,6 +102,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const isStreamingRef = useRef(isStreaming);
   const [tools, setTools] = useState<PlaygroundTool[]>([]);
   const [structuredOutputSchema, setStructuredOutputSchema] =
     useState<PlaygroundSchema | null>(null);
@@ -537,8 +539,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       handleSubmit,
       stopExecution: () => {
         setIsStreaming(false);
+        isStreamingRef.current = false;
       },
-      isStreaming,
+      getIsStreaming: () => isStreamingRef.current,
     };
 
     // Register this window with the global coordination system
@@ -554,7 +557,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     // Event handler for global "execute all" command
     const handleGlobalExecute = () => {
       // Only execute if not already streaming to avoid conflicts
-      if (!isStreaming) {
+      if (!isStreamingRef.current) {
         handleSubmit(true); // Execute with streaming enabled
       }
     };
@@ -562,8 +565,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     // Event handler for global "stop all" command
     const handleGlobalStop = () => {
       // Only stop if currently streaming
-      if (isStreaming) {
+      if (isStreamingRef.current) {
         setIsStreaming(false);
+        isStreamingRef.current = false;
       }
     };
 
@@ -599,7 +603,23 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         handleGlobalStop,
       );
     };
-  }, [windowId, handleSubmit, isStreaming]);
+  }, [windowId, handleSubmit]);
+
+  // Keep ref in sync with state for external consumers
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+
+    // Dispatch execution state change event so global coordinator can update counts
+    const playgroundEventBus = getPlaygroundEventBus();
+    playgroundEventBus.dispatchEvent(
+      new CustomEvent(PLAYGROUND_EVENTS.WINDOW_EXECUTION_STATE_CHANGE, {
+        detail: {
+          windowId: windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID,
+          isStreaming,
+        },
+      }),
+    );
+  }, [windowId, isStreaming]);
 
   return (
     <PlaygroundContext.Provider

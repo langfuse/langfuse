@@ -33,6 +33,7 @@ const playgroundEventBus = new EventTarget();
  */
 export const useWindowCoordination = (): WindowCoordinationReturn => {
   const [isExecutingAll, setIsExecutingAll] = useState(false);
+  const [executionVersion, setExecutionVersion] = useState(0);
   const executionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
@@ -88,8 +89,8 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
     }
 
     // Check if any windows are already executing
-    const alreadyExecuting = registeredWindows.some(
-      (handle) => handle.isStreaming,
+    const alreadyExecuting = registeredWindows.some((handle) =>
+      handle.getIsStreaming(),
     );
     if (alreadyExecuting) {
       return;
@@ -116,7 +117,7 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
     // Monitor execution completion
     const checkExecutionCompletion = () => {
       const stillExecuting = Array.from(playgroundWindowRegistry.values()).some(
-        (handle) => handle.isStreaming,
+        (handle) => handle.getIsStreaming(),
       );
 
       if (!stillExecuting) {
@@ -167,8 +168,8 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
       return null;
     }
 
-    const executingCount = registeredWindows.filter(
-      (handle) => handle.isStreaming,
+    const executingCount = registeredWindows.filter((handle) =>
+      handle.getIsStreaming(),
     ).length;
     const totalCount = registeredWindows.length;
 
@@ -188,12 +189,28 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
    * Prevents memory leaks from lingering timeouts
    */
   useEffect(() => {
+    const handleExecutionChange = () => {
+      setExecutionVersion((v) => v + 1);
+    };
+
+    playgroundEventBus.addEventListener(
+      PLAYGROUND_EVENTS.WINDOW_EXECUTION_STATE_CHANGE,
+      handleExecutionChange,
+    );
+
     return () => {
+      playgroundEventBus.removeEventListener(
+        PLAYGROUND_EVENTS.WINDOW_EXECUTION_STATE_CHANGE,
+        handleExecutionChange,
+      );
+
       if (executionTimeoutRef.current) {
         clearTimeout(executionTimeoutRef.current);
       }
     };
   }, []);
+
+  executionVersion;
 
   return {
     registerWindow,

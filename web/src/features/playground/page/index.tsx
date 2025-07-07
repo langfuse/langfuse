@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Plus, Play, Square, Loader2 } from "lucide-react";
+import { Plus, Play, Loader2 } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
@@ -35,12 +35,10 @@ import MultiWindowPlayground from "@/src/features/playground/page/components/Mul
 export default function PlaygroundPage() {
   const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
-  const [isExecutingAll, setIsExecutingAll] = useState(false);
 
   // Global coordination hook for managing window actions
   const {
     executeAllWindows,
-    stopAllWindows,
     getExecutionStatus,
     isExecutingAll: globalIsExecutingAll,
   } = useWindowCoordination();
@@ -75,21 +73,8 @@ export default function PlaygroundPage() {
    * Handle global execution of all windows
    */
   const handleExecuteAll = useCallback(() => {
-    setIsExecutingAll(true);
     executeAllWindows();
-
-    setTimeout(() => {
-      setIsExecutingAll(false);
-    }, 1000);
   }, [executeAllWindows]);
-
-  /**
-   * Handle global stop of all windows
-   */
-  const handleStopAll = useCallback(() => {
-    setIsExecutingAll(false);
-    stopAllWindows();
-  }, [stopAllWindows]);
 
   // Don't render until window IDs are loaded
   if (!isLoaded) {
@@ -113,10 +98,13 @@ export default function PlaygroundPage() {
   }
 
   // Execution status and control states
-  const executionStatus = getExecutionStatus();
+  const executionStatus = globalIsExecutingAll
+    ? getExecutionStatus() ||
+      `Executing ${windowIds.length} window${windowIds.length === 1 ? "" : "s"}`
+    : getExecutionStatus();
   const isAddWindowDisabled =
     windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS;
-  const isRunAllDisabled = globalIsExecutingAll || isExecutingAll;
+  const isRunAllDisabled = globalIsExecutingAll;
 
   const windowState: MultiWindowState = {
     windowIds,
@@ -180,17 +168,6 @@ export default function PlaygroundPage() {
                 <Play className="h-3 w-3" />
               )}
               <span className="hidden lg:inline">Run All</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={handleStopAll}
-              disabled={!globalIsExecutingAll}
-              className="flex-shrink-0 gap-1"
-              title="Stop all running playground executions"
-            >
-              <Square className="h-3 w-3" />
-              <span className="hidden lg:inline">Stop All</span>
             </Button>
 
             {/* Reset Playground Button */}
