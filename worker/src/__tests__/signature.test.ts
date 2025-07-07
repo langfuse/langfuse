@@ -99,7 +99,11 @@ describe("signature.ts", () => {
       const signatureHeader = createSignatureHeader(payload, secretKey);
 
       // User verification process
-      const isValid = verifyWebhookSignature(payload, signatureHeader, secretKey);
+      const isValid = verifyWebhookSignature(
+        payload,
+        signatureHeader,
+        secretKey,
+      );
       expect(isValid).toBe(true);
     });
 
@@ -109,7 +113,11 @@ describe("signature.ts", () => {
       const payload = '{"event": "trace.created"}';
       const signatureHeader = createSignatureHeader(payload, secretKey);
 
-      const isValid = verifyWebhookSignature(payload, signatureHeader, wrongSecret);
+      const isValid = verifyWebhookSignature(
+        payload,
+        signatureHeader,
+        wrongSecret,
+      );
       expect(isValid).toBe(false);
     });
   });
@@ -123,7 +131,7 @@ function verifyWebhookSignature(
 ): boolean {
   try {
     const [timestampPart, signaturePart] = signatureHeader.split(",");
-    
+
     if (!timestampPart || !signaturePart) {
       return false;
     }
@@ -136,12 +144,16 @@ function verifyWebhookSignature(
     }
 
     // Generate expected signature using our provided function
-    const expectedSignature = generateWebhookSignature(payload, timestamp, secret);
+    const expectedSignature = generateWebhookSignature(
+      payload,
+      timestamp,
+      secret,
+    );
 
     // Use timing-safe comparison
     return require("crypto").timingSafeEqual(
       Buffer.from(receivedSignature),
-      Buffer.from(expectedSignature)
+      Buffer.from(expectedSignature),
     );
   } catch (error) {
     return false;

@@ -47,7 +47,7 @@ export default function AutomationsPage() {
   });
 
   // Fetch editing automation when in edit mode
-  const { data: editingAutomation, error: editingAutomationError } = 
+  const { data: editingAutomation, error: editingAutomationError } =
     api.automations.getAutomation.useQuery(
       {
         projectId,
@@ -59,15 +59,16 @@ export default function AutomationsPage() {
     );
 
   // Fetch automation for detail view to check if it exists
-  const { error: automationDetailError } = api.automations.getAutomation.useQuery(
-    {
-      projectId,
-      automationId: automationId!,
-    },
-    {
-      enabled: view === "list" && !!selectedAutomation,
-    },
-  );
+  const { error: automationDetailError } =
+    api.automations.getAutomation.useQuery(
+      {
+        projectId,
+        automationId: automationId!,
+      },
+      {
+        enabled: view === "list" && !!selectedAutomation,
+      },
+    );
 
   // Auto-select the topmost automation or clear selection if none exist
   useEffect(() => {
@@ -79,7 +80,11 @@ export default function AutomationsPage() {
           automationId: undefined,
           tab: urlParams.tab,
         });
-      } else if (automations.length > 0 && !selectedAutomation && view === "list") {
+      } else if (
+        automations.length > 0 &&
+        !selectedAutomation &&
+        view === "list"
+      ) {
         // Auto-select the topmost automation if none is currently selected
         setUrlParams({
           view: "list",
@@ -213,12 +218,20 @@ export default function AutomationsPage() {
   const renderMainContent = () => {
     // Handle 404 errors for edit view
     if (view === "edit" && editingAutomationError?.data?.code === "NOT_FOUND") {
-      return renderAutomationNotFoundError("The webhook you're trying to edit doesn't exist or has been deleted.");
+      return renderAutomationNotFoundError(
+        "The webhook you're trying to edit doesn't exist or has been deleted.",
+      );
     }
 
     // Handle 404 errors for detail view
-    if (view === "list" && selectedAutomation && automationDetailError?.data?.code === "NOT_FOUND") {
-      return renderAutomationNotFoundError("The webhook you're looking for doesn't exist or has been deleted.");
+    if (
+      view === "list" &&
+      selectedAutomation &&
+      automationDetailError?.data?.code === "NOT_FOUND"
+    ) {
+      return renderAutomationNotFoundError(
+        "The webhook you're looking for doesn't exist or has been deleted.",
+      );
     }
 
     if (view === "create") {
