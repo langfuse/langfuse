@@ -25,11 +25,11 @@ import { Cluster } from "ioredis";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const environment = "default";
-const IngestionEventBatchSchema = z.array(createIngestionEventSchema());
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
   let clickhouseWriter: ClickhouseWriter;
+  let IngestionEventBatchSchema: z.ZodType<any>;
 
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
@@ -49,6 +49,8 @@ describe("Ingestion end-to-end tests", () => {
       clickhouseWriter,
       clickhouseClient(),
     );
+
+    IngestionEventBatchSchema = z.array(createIngestionEventSchema());
   });
 
   afterEach(async () => {

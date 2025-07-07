@@ -229,6 +229,115 @@ export const eventTypes = {
   OBSERVATION_UPDATE: "observation-update",
 } as const;
 
+// LEGACY, only required for backwards compatibility
+export const LegacySpanPostSchema = z.object({
+  id: idSchema.nullish(),
+  traceId: idSchema.nullish(),
+  name: z.string().nullish(),
+  startTime: stringDateTime,
+  endTime: stringDateTime,
+  metadata: jsonSchema.nullish(),
+  input: jsonSchema.nullish(),
+  output: jsonSchema.nullish(),
+  parentObservationId: z.string().nullish(),
+  level: ObservationLevel.nullish(),
+  statusMessage: z.string().nullish(),
+  version: z.string().nullish(),
+});
+
+export const LegacySpanPatchSchema = z.object({
+  spanId: idSchema,
+  traceId: idSchema.nullish(),
+  name: z.string().nullish(),
+  startTime: stringDateTime,
+  endTime: stringDateTime,
+  metadata: jsonSchema.nullish(),
+  input: jsonSchema.nullish(),
+  output: jsonSchema.nullish(),
+  level: ObservationLevel.nullish(),
+  statusMessage: z.string().nullish(),
+  version: z.string().nullish(),
+});
+
+export const LegacyGenerationsCreateSchema = z.object({
+  id: idSchema.nullish(),
+  traceId: idSchema.nullish(),
+  name: z.string().nullish(),
+  startTime: stringDateTime,
+  endTime: stringDateTime,
+  completionStartTime: stringDateTime,
+  model: z.string().nullish(),
+  modelParameters: z
+    .record(
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean()]).nullish(),
+    )
+    .nullish(),
+  prompt: jsonSchema.nullish(),
+  completion: jsonSchema.nullish(),
+  usage: usage,
+  metadata: jsonSchema.nullish(),
+  parentObservationId: z.string().nullish(),
+  level: ObservationLevel.nullish(),
+  statusMessage: z.string().nullish(),
+  version: z.string().nullish(),
+});
+
+export const LegacyGenerationPatchSchema = z.object({
+  generationId: idSchema,
+  traceId: idSchema.nullish(),
+  name: z.string().nullish(),
+  startTime: stringDateTime,
+  endTime: stringDateTime,
+  completionStartTime: stringDateTime,
+  model: z.string().nullish(),
+  modelParameters: z
+    .record(
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean()]).nullish(),
+    )
+    .nullish(),
+  prompt: jsonSchema.nullish(),
+  completion: jsonSchema.nullish(),
+  usage: usage,
+  metadata: jsonSchema.nullish(),
+  level: ObservationLevel.nullish(),
+  statusMessage: z.string().nullish(),
+  version: z.string().nullish(),
+});
+
+export const LegacyObservationBody = z.object({
+  id: idSchema.nullish(),
+  traceId: idSchema.nullish(),
+  type: z.enum(["GENERATION", "SPAN", "EVENT"]),
+  name: z.string().nullish(),
+  startTime: stringDateTime,
+  endTime: stringDateTime,
+  completionStartTime: stringDateTime,
+  model: z.string().nullish(),
+  modelParameters: z
+    .record(
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean()]).nullish(),
+    )
+    .nullish(),
+  input: jsonSchema.nullish(),
+  output: jsonSchema.nullish(),
+  usage: usage,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
+  metadata: jsonSchema.nullish(),
+  parentObservationId: z.string().nullish(),
+  level: ObservationLevel.nullish(),
+  statusMessage: z.string().nullish(),
+  version: z.string().nullish(),
+});
+
+export const SdkLogEvent = z.object({
+  log: jsonSchema,
+  id: z.string().nullish(), // Not used, but makes downstream processing easier.
+});
+
 // Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
 // With this setup parsing should be more lightweight and doesn't block other requests.
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
@@ -513,115 +622,6 @@ export const BaseScoreBody = publicSchemas.BaseScoreBody;
  * ScoreBody exactly mirrors `PostScoresBody` in the public API. Please refer there for source of truth.
  */
 export const ScoreBody = publicSchemas.ScoreBody;
-
-// LEGACY, only required for backwards compatibility
-export const LegacySpanPostSchema = z.object({
-  id: idSchema.nullish(),
-  traceId: idSchema.nullish(),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  metadata: jsonSchema.nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
-  parentObservationId: z.string().nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
-
-export const LegacySpanPatchSchema = z.object({
-  spanId: idSchema,
-  traceId: idSchema.nullish(),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  metadata: jsonSchema.nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
-
-export const LegacyGenerationsCreateSchema = z.object({
-  id: idSchema.nullish(),
-  traceId: idSchema.nullish(),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  completionStartTime: stringDateTime,
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
-    )
-    .nullish(),
-  prompt: jsonSchema.nullish(),
-  completion: jsonSchema.nullish(),
-  usage: usage,
-  metadata: jsonSchema.nullish(),
-  parentObservationId: z.string().nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
-
-export const LegacyGenerationPatchSchema = z.object({
-  generationId: idSchema,
-  traceId: idSchema.nullish(),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  completionStartTime: stringDateTime,
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
-    )
-    .nullish(),
-  prompt: jsonSchema.nullish(),
-  completion: jsonSchema.nullish(),
-  usage: usage,
-  metadata: jsonSchema.nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
-
-export const LegacyObservationBody = z.object({
-  id: idSchema.nullish(),
-  traceId: idSchema.nullish(),
-  type: z.enum(["GENERATION", "SPAN", "EVENT"]),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  completionStartTime: stringDateTime,
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
-    )
-    .nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
-  usage: usage,
-  usageDetails: UsageDetails,
-  costDetails: CostDetails,
-  metadata: jsonSchema.nullish(),
-  parentObservationId: z.string().nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
-
-export const SdkLogEvent = z.object({
-  log: jsonSchema,
-  id: z.string().nullish(), // Not used, but makes downstream processing easier.
-});
 
 // Export individual event schemas for backwards compatibility
 export const traceEvent = publicSchemas.traceEvent;
