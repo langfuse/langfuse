@@ -109,8 +109,7 @@ function DatasetCompareRunsTableInternal(props: {
   runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   localExperiments: { key: string; value: string }[];
 }) {
-  const { selectedMetrics, toggleMetric, isMetricSelected } =
-    useDatasetCompareMetrics();
+  const { toggleMetric, isMetricSelected } = useDatasetCompareMetrics();
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
   const [unchangedCounts, setUnchangedCounts] = useState<
     Record<string, number>
@@ -464,7 +463,6 @@ function DatasetCompareRunsTableInternal(props: {
               projectId={props.projectId}
               scoreKeyToDisplayName={scoreKeyToDisplayName}
               runsData={props.runsData ?? []}
-              selectedMetrics={selectedMetrics}
               row={row}
             />
           ),
