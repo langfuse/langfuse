@@ -18,14 +18,12 @@ import {
   WebhookInput,
   createOrgProjectAndApiKey,
   executeWebhook,
-  logger,
-  redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createSignatureHeader,
   decrypt,
   encrypt,
+  generateWebhookSignature,
 } from "@langfuse/shared/encryption";
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
@@ -251,10 +249,21 @@ describe("Webhook Integration Tests", () => {
       }
 
       const decryptedSecret = decrypt(secretKey);
-      const expectedSignature = createSignatureHeader(
+
+      // Extract timestamp from the actual signature to avoid timing issues
+      const timestampMatch = signature.match(/^t=(\d+),v1=/);
+      if (!timestampMatch) {
+        throw new Error("Invalid signature format");
+      }
+      const timestamp = parseInt(timestampMatch[1]);
+
+      // Generate expected signature using the same timestamp
+      const expectedSignatureHash = generateWebhookSignature(
         JSON.stringify(payload),
+        timestamp,
         decryptedSecret,
       );
+      const expectedSignature = `t=${timestamp},v1=${expectedSignatureHash}`;
 
       expect(signature).toBe(expectedSignature);
 

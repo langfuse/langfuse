@@ -1,7 +1,11 @@
 import { Queue } from "bullmq";
 import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions, getQueuePrefix } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 import { logger } from "../logger";
 
 export class CloudUsageMeteringQueue {
