@@ -88,26 +88,35 @@ const useResizable = () => {
   const startXRef = useRef(0);
   const startWidthRef = useRef(60);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setIsResizing(true);
-    startXRef.current = e.clientX;
-    startWidthRef.current = width;
-    
-    // Prevent text selection during resize
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "col-resize";
-  }, [width]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      setIsResizing(true);
+      startXRef.current = e.clientX;
+      startWidthRef.current = width;
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isResizing) return;
-    
-    const deltaX = startXRef.current - e.clientX; // Inverted because we're resizing from the left
-    const viewportWidth = window.innerWidth;
-    const deltaPercent = (deltaX / viewportWidth) * 100;
-    const newWidth = Math.max(30, Math.min(90, startWidthRef.current + deltaPercent));
-    
-    setWidth(newWidth);
-  }, [isResizing]);
+      // Prevent text selection during resize
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
+    },
+    [width],
+  );
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isResizing) return;
+
+      const deltaX = startXRef.current - e.clientX; // Inverted because we're resizing from the left
+      const viewportWidth = window.innerWidth;
+      const deltaPercent = (deltaX / viewportWidth) * 100;
+      const newWidth = Math.max(
+        30,
+        Math.min(90, startWidthRef.current + deltaPercent),
+      );
+
+      setWidth(newWidth);
+    },
+    [isResizing],
+  );
 
   const handleMouseUp = useCallback(() => {
     setIsResizing(false);
@@ -120,28 +129,37 @@ const useResizable = () => {
   }, []);
 
   // Touch events for mobile support
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    if (!touch) return;
-    
-    setIsResizing(true);
-    startXRef.current = touch.clientX;
-    startWidthRef.current = width;
-  }, [width]);
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      const touch = e.touches[0];
+      if (!touch) return;
 
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!isResizing) return;
-    
-    const touch = e.touches[0];
-    if (!touch) return;
-    
-    const deltaX = startXRef.current - touch.clientX;
-    const viewportWidth = window.innerWidth;
-    const deltaPercent = (deltaX / viewportWidth) * 100;
-    const newWidth = Math.max(30, Math.min(90, startWidthRef.current + deltaPercent));
-    
-    setWidth(newWidth);
-  }, [isResizing]);
+      setIsResizing(true);
+      startXRef.current = touch.clientX;
+      startWidthRef.current = width;
+    },
+    [width],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (!isResizing) return;
+
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      const deltaX = startXRef.current - touch.clientX;
+      const viewportWidth = window.innerWidth;
+      const deltaPercent = (deltaX / viewportWidth) * 100;
+      const newWidth = Math.max(
+        30,
+        Math.min(90, startWidthRef.current + deltaPercent),
+      );
+
+      setWidth(newWidth);
+    },
+    [isResizing],
+  );
 
   const handleTouchEnd = useCallback(() => {
     setIsResizing(false);
@@ -162,7 +180,13 @@ const useResizable = () => {
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [isResizing, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+  }, [
+    isResizing,
+    handleMouseMove,
+    handleMouseUp,
+    handleTouchMove,
+    handleTouchEnd,
+  ]);
 
   return {
     width,
@@ -174,11 +198,11 @@ const useResizable = () => {
 };
 
 // Resize handle component
-const ResizeHandle = ({ 
-  onMouseDown, 
-  onTouchStart, 
-  onDoubleClick, 
-  isResizing 
+const ResizeHandle = ({
+  onMouseDown,
+  onTouchStart,
+  onDoubleClick,
+  isResizing,
 }: {
   onMouseDown: (e: React.MouseEvent) => void;
   onTouchStart: (e: React.TouchEvent) => void;
@@ -188,8 +212,8 @@ const ResizeHandle = ({
   return (
     <div
       className={cn(
-        "absolute left-0 top-0 z-10 flex h-full w-2 cursor-col-resize items-center justify-center bg-transparent hover:bg-border/50 transition-colors",
-        isResizing && "bg-primary/20"
+        "absolute left-0 top-0 z-10 flex h-full w-2 cursor-col-resize items-center justify-center bg-transparent transition-colors hover:bg-border/50",
+        isResizing && "bg-primary/20",
       )}
       onMouseDown={onMouseDown}
       onTouchStart={onTouchStart}
@@ -206,10 +230,10 @@ const ResizeHandle = ({
         }
       }}
     >
-      <div 
+      <div
         className={cn(
           "h-8 w-1 rounded-sm bg-border opacity-0 transition-opacity group-hover:opacity-100",
-          isResizing && "opacity-100 bg-primary"
+          isResizing && "bg-primary opacity-100",
         )}
       />
     </div>
@@ -225,7 +249,13 @@ type TablePeekViewProps<T> = {
 function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
   const { peekView, row, selectedRowId } = props;
   const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
-  const { width, isResizing, handleMouseDown, handleTouchStart, handleDoubleClick } = useResizable();
+  const {
+    width,
+    isResizing,
+    handleMouseDown,
+    handleTouchStart,
+    handleDoubleClick,
+  } = useResizable();
 
   if (!selectedRowId) return null;
 
@@ -254,7 +284,7 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
           e.preventDefault();
         }}
         side="right"
-        className="group flex max-h-full min-h-0 flex-col gap-0 overflow-hidden rounded-l-xl p-0 relative"
+        className="group relative flex max-h-full min-h-0 flex-col gap-0 overflow-hidden rounded-l-xl p-0"
         style={{
           minWidth: `${width}vw`,
           width: `${width}vw`,
