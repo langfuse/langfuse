@@ -15,17 +15,20 @@ export const traceView: ViewDeclarationType = {
   dimensions: {
     id: {
       sql: "traces.id",
+      alias: "id",
       type: "string",
       description: "Unique identifier of the trace.",
     },
     name: {
       sql: "traces.name",
+      alias: "name",
       type: "string",
       description:
         "Name assigned to the trace (often the endpoint or operation).",
     },
     tags: {
       sql: "traces.tags",
+      alias: "tags",
       type: "string[]",
       description: "User-defined tags associated with the trace.",
     },
@@ -43,16 +46,19 @@ export const traceView: ViewDeclarationType = {
     },
     release: {
       sql: "traces.release",
+      alias: "release",
       type: "string",
       description: "Release version of the trace.",
     },
     version: {
       sql: "traces.version",
+      alias: "version",
       type: "string",
       description: "Version of the trace.",
     },
     environment: {
       sql: "traces.environment",
+      alias: "environment",
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
     },
@@ -139,6 +145,7 @@ export const observationsView: ViewDeclarationType = {
   dimensions: {
     id: {
       sql: "observations.id",
+      alias: "id",
       type: "string",
       description: "Unique identifier for the observation.",
     },
@@ -157,6 +164,7 @@ export const observationsView: ViewDeclarationType = {
     },
     environment: {
       sql: "observations.environment",
+      alias: "environment",
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
     },
@@ -169,27 +177,32 @@ export const observationsView: ViewDeclarationType = {
     },
     type: {
       sql: "observations.type",
+      alias: "type",
       type: "string",
       description:
         "Type of the observation. Can be a SPAN, GENERATION, or EVENT.",
     },
     name: {
       sql: "observations.name",
+      alias: "name",
       type: "string",
       description: "Name of the observation.",
     },
     level: {
       sql: "observations.level",
+      alias: "level",
       type: "string",
       description: "Logging level of the observation.",
     },
     version: {
       sql: "observations.version",
+      alias: "version",
       type: "string",
       description: "Version of the observation.",
     },
     tags: {
       sql: "traces.tags",
+      alias: "tags",
       type: "string[]",
       relationTable: "traces",
       description: "User-defined tags associated with the trace.",
@@ -372,21 +385,25 @@ export const observationsView: ViewDeclarationType = {
 const scoreBaseDimensions: DimensionsDeclarationType = {
   id: {
     sql: "scores.id",
+    alias: "id",
     type: "string",
     description: "Unique identifier of the score entry.",
   },
   environment: {
     sql: "scores.environment",
+    alias: "environment",
     type: "string",
     description: "Deployment environment (e.g., production, staging).",
   },
   name: {
     sql: "scores.name",
+    alias: "name",
     type: "string",
     description: "Name of the score (e.g., accuracy, toxicity).",
   },
   source: {
     sql: "scores.source",
+    alias: "source",
     type: "string",
     description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
   },
@@ -412,6 +429,7 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   },
   tags: {
     sql: "traces.tags",
+    alias: "tags",
     type: "string[]",
     relationTable: "traces",
     description: "User-defined tags associated with the trace.",
@@ -500,6 +518,7 @@ export const scoresNumericView: ViewDeclarationType = {
     ...scoreBaseDimensions,
     value: {
       sql: "value",
+      alias: "value",
       type: "number",
       description: "Value of the score.",
     },
