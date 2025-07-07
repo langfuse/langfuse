@@ -23,6 +23,7 @@ const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 interface PerformanceResult {
   time: number;
   ttfb?: number; // Time to first byte
+  responseData?: any; // Store response data for comparison
   metrics?: {
     mainThreadTime: number;
     totalWorkerCpuTime: number;
@@ -254,8 +255,10 @@ async function makeAPICallWithTTFB<T = any>(
 ): Promise<{ body: T; status: number; ttfb: number; totalTime: number }> {
   const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
   const authorization =
-    auth || "Basic " + Buffer.from("pk-lf-1234567890:sk-lf-1234567890").toString("base64");
-    
+    auth ||
+    "Basic " +
+      Buffer.from("pk-lf-1234567890:sk-lf-1234567890").toString("base64");
+
   const options = {
     method: method,
     headers: {
@@ -266,20 +269,20 @@ async function makeAPICallWithTTFB<T = any>(
     ...(method !== "GET" &&
       body !== undefined && { body: JSON.stringify(body) }),
   };
-  
+
   const startTime = performance.now();
-  
+
   const response = await fetch(finalUrl, options);
   const ttfb = performance.now() - startTime; // TTFB is when response headers arrive
-  
+
   const responseBody = (await response.json()) as T;
   const totalTime = performance.now() - startTime;
-  
-  return { 
-    body: responseBody, 
-    status: response.status, 
+
+  return {
+    body: responseBody,
+    status: response.status,
     ttfb,
-    totalTime 
+    totalTime,
   };
 }
 
@@ -293,16 +296,20 @@ async function retrieveTraceGET(
     `/api/public/traces/${traceId}?optimization=${optimization}`,
   );
   const body = result.body as any;
-  
+
   if (optimization !== "original") {
     expect(body.optimization).toBe(optimization);
   }
-  
-  const metrics = body.metrics;
-  return { 
-    time: result.totalTime, 
+
+  // Create a clean copy without the optimization field for comparison
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { optimization: _opt, metrics, ...cleanData } = body;
+
+  return {
+    time: result.totalTime,
     ttfb: result.ttfb,
-    metrics 
+    responseData: cleanData,
+    metrics,
   };
 }
 
@@ -315,23 +322,27 @@ async function retrieveObservationGET(
     `/api/public/observations/${observationId}?optimization=${optimization}`,
   );
   const body = result.body as any;
-  
+
   if (optimization !== "original") {
     expect(body.optimization).toBe(optimization);
   }
-  
-  const metrics = body.metrics;
-  return { 
-    time: result.totalTime, 
+
+  // Create a clean copy without the optimization field for comparison
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { optimization: _opt, metrics, ...cleanData } = body;
+
+  return {
+    time: result.totalTime,
     ttfb: result.ttfb,
-    metrics 
+    responseData: cleanData,
+    metrics,
   };
 }
 
 async function retrieveTraceTRPC(
   traceId: string,
   optimization: JSONOptimizationStrategy,
-) {
+): Promise<PerformanceResult> {
   const caller = makeTrpcCaller();
   const startTime = performance.now();
   const result = await caller.traces.byId({
@@ -343,15 +354,24 @@ async function retrieveTraceTRPC(
   if (optimization !== "original") {
     expect(result.optimization).toBe(optimization);
   }
+  
+  // Create a clean copy without the optimization and metrics fields for comparison
   const metrics = (result as any).metrics;
-  return { time: endTime - startTime, metrics };
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { optimization: _opt, metrics: _metrics, ...cleanData } = result as any;
+  
+  return {
+    time: endTime - startTime,
+    responseData: cleanData,
+    metrics,
+  };
 }
 
 async function retrieveObservationTRPC(
   observationId: string,
   traceId: string,
   optimization: JSONOptimizationStrategy,
-) {
+): Promise<PerformanceResult> {
   const caller = makeTrpcCaller();
   const startTime = performance.now();
   const result = await caller.observations.byId({
@@ -364,8 +384,17 @@ async function retrieveObservationTRPC(
   if (optimization !== "original") {
     expect(result.optimization).toBe(optimization);
   }
+  
+  // Create a clean copy without the optimization and metrics fields for comparison
   const metrics = (result as any).metrics;
-  return { time: endTime - startTime, metrics };
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { optimization: _opt, metrics: _metrics, ...cleanData } = result as any;
+  
+  return {
+    time: endTime - startTime,
+    responseData: cleanData,
+    metrics,
+  };
 }
 
 function formatMetricsLog(
@@ -377,7 +406,7 @@ function formatMetricsLog(
   if (result?.ttfb !== undefined) {
     logWithTTFB = `${baseLog} (TTFB: ${result.ttfb.toFixed(2)}ms)`;
   }
-  
+
   if (optimization === "worker" && result?.metrics) {
     const {
       mainThreadTime,
@@ -407,6 +436,77 @@ function formatMetricsLog(
     )}ms, overhead: ${coordinationOverhead.toFixed(2)}ms, workers: ${activeWorkerCount})`;
   }
   return logWithTTFB;
+}
+
+// Helper function to validate that all optimizations return the same data
+function validateResponseEquality(
+  results: Partial<Record<JSONOptimizationStrategy, PerformanceResult>>,
+  entityType: string,
+): string[] {
+  const validationMessages: string[] = [];
+  const strategies = Object.keys(results) as JSONOptimizationStrategy[];
+  if (strategies.length < 2) return validationMessages;
+
+  // Use the first strategy as baseline (usually "original")
+  const baseline = strategies[0];
+  const baselineData = results[baseline]?.responseData;
+
+  if (!baselineData) return validationMessages;
+
+  // Compare all other strategies against baseline
+  for (let i = 1; i < strategies.length; i++) {
+    const strategy = strategies[i];
+    const strategyData = results[strategy]?.responseData;
+
+    if (!strategyData) continue;
+
+    if (strategy === "raw") {
+      // raw is raw dumping so just flag the comparison without expecting it to match
+      const isEqual =
+        JSON.stringify(strategyData) === JSON.stringify(baselineData);
+      validationMessages.push(
+        `${isEqual ? "✓" : "✗"} ${entityType} ${strategy} response ${isEqual ? "matches" : "differs from"} ${baseline} (raw format, expected to differ)`,
+      );
+      continue;
+    }
+
+    try {
+      expect(strategyData).toEqual(baselineData);
+      validationMessages.push(
+        `✓ ${entityType} ${strategy} response matches ${baseline}`,
+      );
+    } catch (error) {
+      validationMessages.push(
+        `✗ ${entityType} ${strategy} response differs from ${baseline}`,
+      );
+      console.error(`${entityType} ${strategy} validation failed:`);
+      console.error("Baseline keys:", Object.keys(baselineData).sort());
+      console.error("Strategy keys:", Object.keys(strategyData).sort());
+
+      // Find specific differences
+      const baselineKeys = new Set(Object.keys(baselineData));
+      const strategyKeys = new Set(Object.keys(strategyData));
+
+      const missingKeys = [...baselineKeys].filter((k) => !strategyKeys.has(k));
+      const extraKeys = [...strategyKeys].filter((k) => !baselineKeys.has(k));
+
+      if (missingKeys.length > 0) {
+        console.error("Missing keys in strategy:", missingKeys);
+      }
+      if (extraKeys.length > 0) {
+        console.error("Extra keys in strategy:", extraKeys);
+      }
+
+      // For TRPC validation failures, don't throw the error, just log it
+      if (entityType.includes('TRPC')) {
+        console.error('TRPC validation error (continuing):', (error as Error).message);
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  return validationMessages;
 }
 
 async function runPerformanceTest(
@@ -469,12 +569,27 @@ async function runPerformanceTest(
     return formatMetricsLog(baseLog, opt, result);
   }).join("\n");
 
+  // Validate that all GET and TRPC responses are identical (except optimization field)
+  const getValidationMessages = validateResponseEquality(
+    getResults,
+    `${config.entityType} GET`,
+  );
+  const trpcValidationMessages = validateResponseEquality(
+    trpcResults,
+    `${config.entityType} TRPC`,
+  );
+  const validationLog =
+    [...getValidationMessages, ...trpcValidationMessages].length > 0
+      ? `Response Validation:\n${[...getValidationMessages, ...trpcValidationMessages].map((msg) => `  ${msg}`).join("\n")}\n`
+      : "";
+
   console.log(
     `--- ${config.entityType} (${name}, size: ${size}, ~${payloadSizeInMB.toFixed(
       2,
     )} MB) ---\n` +
       `${apiTimeLog}\n` +
       `Direct insertion: ${directTime.toFixed(2)}ms\n` +
+      `${validationLog}` +
       `Retrievals (GET):\n` +
       `${getLogs}\n` +
       `Retrievals (TRPC):\n` +
