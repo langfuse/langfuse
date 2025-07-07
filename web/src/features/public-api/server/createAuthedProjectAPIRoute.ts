@@ -114,9 +114,12 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
-      res
-        .status(routeConfig.successStatusCode || 200)
-        .json(response || { message: "OK" });
+      // Check if response was already sent (e.g., by streaming)
+      if (!res.headersSent) {
+        res
+          .status(routeConfig.successStatusCode || 200)
+          .json(response || { message: "OK" });
+      }
     });
   };
 };

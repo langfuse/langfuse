@@ -159,10 +159,10 @@ async function insertObservation(length: number) {
   await waitForEntityInDatabase(
     () =>
       getObservationById({
-      id: observationId,
-      projectId,
-      fetchWithInputOutput: true,
-    }),
+        id: observationId,
+        projectId,
+        fetchWithInputOutput: true,
+      }),
     observationId,
   );
 
@@ -229,10 +229,10 @@ async function insertObservationDirect(length: number) {
   await waitForEntityInDatabase(
     () =>
       getObservationById({
-      id: observationId,
-      projectId,
-      fetchWithInputOutput: true,
-    }),
+        id: observationId,
+        projectId,
+        fetchWithInputOutput: true,
+      }),
     observationId,
   );
 

@@ -1,7 +1,7 @@
 export const JSON_OPTIMIZATION_STRATEGIES = [
   "original",
   "raw",
-  "jsonsimd",
+  "streaming",
   "worker",
 ] as const;
 

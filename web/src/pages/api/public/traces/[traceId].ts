@@ -27,6 +27,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
+import { streamResponse } from "@/src/server/utils/streaming";
 
 jsonParserPool.start();
 
@@ -39,7 +40,7 @@ export default withMiddlewares({
     responseSchema: GetTraceV1Response.extend({
       optimization: z.enum(JSON_OPTIMIZATION_STRATEGIES).optional(),
     }),
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, req: _req, res }) => {
       const { traceId } = query;
       const trace = await getTraceById({
         traceId,
@@ -169,6 +170,14 @@ export default withMiddlewares({
             optimization: "worker",
             metrics,
           } as any;
+        }
+
+        if (query.optimization === "streaming") {
+          streamResponse(res, {
+            ...response,
+            optimization: "streaming",
+          });
+          return {} as any; // Middleware will skip as we did send headers already
         }
 
         return {

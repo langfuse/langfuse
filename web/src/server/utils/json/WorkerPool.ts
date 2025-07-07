@@ -38,7 +38,11 @@ const workerScript = findWorkerScript();
 
 interface WorkerJob {
   message: any;
-  resolve: (value: { data: any; workerCpuTime: number; transferTime?: number }) => void;
+  resolve: (value: {
+    data: any;
+    workerCpuTime: number;
+    transferTime?: number;
+  }) => void;
   reject: (reason?: any) => void;
   sendTime?: number; // Track when message was sent
 }
@@ -287,7 +291,8 @@ class WorkerPool {
     });
 
     const resultProcessingEndTime = performance.now();
-    const resultProcessingTime = resultProcessingEndTime - resultProcessingStartTime;
+    const resultProcessingTime =
+      resultProcessingEndTime - resultProcessingStartTime;
 
     const mainThreadTime = performance.now() - startTime;
 
@@ -348,8 +353,10 @@ class WorkerPool {
       workerCpuTime?: number;
     }) => {
       const receiveTime = performance.now();
-      const transferTime = job.sendTime ? receiveTime - job.sendTime : undefined;
-      
+      const transferTime = job.sendTime
+        ? receiveTime - job.sendTime
+        : undefined;
+
       if (message.success) {
         job.resolve({
           data: message.data!,
@@ -373,12 +380,14 @@ class WorkerPool {
     availableWorker.postMessage(job.message);
     const sendEndTime = performance.now();
     job.sendTime = sendEndTime; // Record when we finished sending
-    
+
     const sendTime = sendEndTime - sendStartTime;
-    
+
     // Log significant serialization overhead (>1ms)
     if (sendTime > 1) {
-      console.log(`WorkerPool: Message structured clone (send) took ${sendTime.toFixed(2)}ms`);
+      console.log(
+        `WorkerPool: Message structured clone (send) took ${sendTime.toFixed(2)}ms`,
+      );
     }
   }
 }

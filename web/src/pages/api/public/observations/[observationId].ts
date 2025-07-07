@@ -13,6 +13,7 @@ import {
 import { getObservationById } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
+import { streamResponse } from "@/src/server/utils/streaming";
 
 jsonParserPool.start();
 
@@ -23,7 +24,7 @@ export default withMiddlewares({
       optimization: z.enum(JSON_OPTIMIZATION_STRATEGIES).optional(),
     }),
     responseSchema: GetObservationV1Response,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, req: _req, res }) => {
       const clickhouseObservation = await getObservationById({
         id: query.observationId,
         projectId: auth.scope.projectId,
@@ -105,6 +106,15 @@ export default withMiddlewares({
             metrics,
           };
         }
+
+        if (query.optimization === "streaming") {
+          streamResponse(res, {
+            ...transformed,
+            optimization: "streaming",
+          });
+          return {} as any; // Middleware will skip as we did send headers already
+        }
+
         return {
           ...transformed,
           optimization: query.optimization,
