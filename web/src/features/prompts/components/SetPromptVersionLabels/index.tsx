@@ -84,13 +84,6 @@ export function SetPromptVersionLabels({
     },
   });
 
-  // Keep the original sorting logic for backward compatibility
-  const sortedLabels = [...promptLabels].sort((a, b) => {
-    if (a === PRODUCTION_LABEL) return -1;
-    if (b === PRODUCTION_LABEL) return 1;
-    return a.localeCompare(b);
-  });
-
   const handleSubmitLabels = async () => {
     try {
       if (!projectId) {
@@ -115,8 +108,6 @@ export function SetPromptVersionLabels({
     if (!hasAccess) setIsOpen(false);
     else setIsOpen(open);
   };
-
-  // No need for renderLabels function anymore, using TruncatedLabels directly
 
   return (
     <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
