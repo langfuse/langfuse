@@ -30,7 +30,7 @@ RUN corepack enable && \
 
 # ---------- golang-migrate ----------------------------------------------------
 # CLI used for database migrations during development.
-ENV MIGRATE_VERSION=4.18.2
+ENV MIGRATE_VERSION=4.18.3
 RUN wget -qO- "https://github.com/golang-migrate/migrate/releases/download/v${MIGRATE_VERSION}/migrate.linux-amd64.tar.gz" \
     | tar -xz -C /usr/local/bin && \
     chmod +x /usr/local/bin/migrate
