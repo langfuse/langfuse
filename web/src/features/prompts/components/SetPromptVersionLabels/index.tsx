@@ -30,7 +30,7 @@ export function SetPromptVersionLabels({
   setIsOpen,
   title,
   showOnlyOnHover = false,
-  maxVisibleLabels = 5,
+  maxVisibleLabels = 8,
 }: {
   promptLabels: string[];
   prompt: Prompt;
