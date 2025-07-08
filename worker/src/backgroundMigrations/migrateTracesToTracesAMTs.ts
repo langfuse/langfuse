@@ -22,7 +22,7 @@ type MigrationState = {
 
 // Calculate ClickHouse settings based on instance sizing.
 // Recommendations taken from https://clickhouse.com/blog/supercharge-your-clickhouse-data-loads-part2#formula-one.
-// Reduced insert threads and peak memory usage to 1/3 instead of 1/2 to keep more resources for actual processing.
+// Reduced insert threads and peak memory usage instead of 1/2 to keep more resources for actual processing.
 function calculateClickHouseSettings(cpuCores?: number, memoryGiB?: number) {
   // Default to 16 CPU, 64 GiB for production instance
   const cores = cpuCores ?? 16;
@@ -31,8 +31,8 @@ function calculateClickHouseSettings(cpuCores?: number, memoryGiB?: number) {
   // max_insert_threads: choose ~ 1/3 of available CPU cores
   const maxInsertThreads = Math.max(1, Math.floor(cores / 3));
 
-  // peak_memory_usage_in_bytes: third of RAM
-  const peakMemoryUsageBytes = (memory / 3) * 1024 * 1024 * 1024;
+  // peak_memory_usage_in_bytes: fourth of RAM
+  const peakMemoryUsageBytes = (memory / 4) * 1024 * 1024 * 1024;
 
   // min_insert_block_size_bytes = peak_memory_usage_in_bytes / (~3 * max_insert_threads)
   const minInsertBlockSizeBytes = Math.floor(
