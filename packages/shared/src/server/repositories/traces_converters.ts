@@ -36,7 +36,8 @@ export const convertClickhouseToDomain = (
   record: TraceRecordReadType,
   optimization?: JSONOptimizationStrategy,
 ): TraceDomain => {
-  const useRaw = optimization && ["raw", "worker", "streamingWorker"].includes(optimization);
+  const useRaw =
+    optimization && ["raw", "worker", "streamingWorker"].includes(optimization);
   return {
     id: record.id,
     projectId: record.project_id,

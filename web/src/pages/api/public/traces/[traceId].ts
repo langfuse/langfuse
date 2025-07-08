@@ -152,7 +152,11 @@ export default withMiddlewares({
           .toNumber(),
       };
 
-      return (await handleOptimization(response, query.optimization, res)) as any;
+      return (await handleOptimization(
+        response,
+        query.optimization,
+        res,
+      )) as any;
     },
   }),
 

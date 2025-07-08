@@ -16,7 +16,8 @@ export const convertObservation = (
   const reducedCostDetails = reduceUsageOrCostDetails(record.cost_details);
   const reducedUsageDetails = reduceUsageOrCostDetails(record.usage_details);
 
-  const useRaw = optimization && ["raw", "worker", "streamingWorker"].includes(optimization);
+  const useRaw =
+    optimization && ["raw", "worker", "streamingWorker"].includes(optimization);
 
   return {
     id: record.id,

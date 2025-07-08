@@ -87,7 +87,11 @@ export default withMiddlewares({
 
       const transformed = transformDbToApiObservation(observation);
 
-      return (await handleOptimization(transformed, query.optimization, res)) as any;
+      return (await handleOptimization(
+        transformed,
+        query.optimization,
+        res,
+      )) as any;
     },
   }),
 });

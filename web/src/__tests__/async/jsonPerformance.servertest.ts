@@ -21,21 +21,139 @@ import { reconstructFromChunks } from "@/src/server/utils/trpcStreaming";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
+/** Number of times to run each test */
+const PERFORMANCE_ITERATIONS = 5;
+/** Whether to randomize the order of tests */
+const ENABLE_RANDOM_ORDER = true;
+
+/**
+ * Shuffle an array using Fisher-Yates algorithm
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+/**
+ * Calculate average and standard deviation for a set of numbers
+ */
+function calculateStats(values: number[]): { average: number; stdDev: number } {
+  if (values.length === 0) return { average: 0, stdDev: 0 };
+  if (values.length === 1) return { average: values[0], stdDev: 0 };
+
+  const average = values.reduce((sum, val) => sum + val, 0) / values.length;
+  const variance =
+    values.reduce((sum, val) => sum + Math.pow(val - average, 2), 0) /
+    values.length;
+  const stdDev = Math.sqrt(variance);
+
+  return { average, stdDev };
+}
+
+/**
+ * Average worker metrics and calculate standard deviations
+ */
+function averageWorkerMetrics(metricsArray: WorkerMetrics[]): {
+  averaged: WorkerMetrics;
+  stdDev?: WorkerMetrics;
+} {
+  if (metricsArray.length === 0) {
+    throw new Error("Cannot average empty metrics array");
+  }
+
+  const metricKeys = Object.keys(metricsArray[0]) as (keyof WorkerMetrics)[];
+  const averaged = {} as WorkerMetrics;
+  const stdDev = {} as WorkerMetrics;
+
+  for (const key of metricKeys) {
+    const values = metricsArray.map((m) => m[key]);
+    const stats = calculateStats(values);
+    averaged[key] =
+      key === "activeWorkerCount" ? Math.round(stats.average) : stats.average;
+    stdDev[key] = stats.stdDev;
+  }
+
+  return {
+    averaged,
+    stdDev: metricsArray.length > 1 ? stdDev : undefined,
+  };
+}
+
+/**
+ * Average multiple performance results and calculate standard deviation
+ */
+function averagePerformanceResults(
+  results: PerformanceResult[],
+): PerformanceResult {
+  if (results.length === 0) {
+    throw new Error("Cannot average empty results array");
+  }
+
+  if (results.length === 1) {
+    return {
+      ...results[0],
+      timeStdDev: 0,
+      ttfbStdDev: 0,
+      metricsStdDev: undefined,
+    };
+  }
+
+  // Calculate stats for time and TTFB
+  const timeStats = calculateStats(results.map((r) => r.time));
+  const ttfbValues = results
+    .filter((r) => r.ttfb !== undefined)
+    .map((r) => r.ttfb!);
+  const ttfbStats = calculateStats(ttfbValues);
+
+  // Average worker metrics if they exist
+  let averagedMetrics: WorkerMetrics | undefined;
+  let metricsStdDev: WorkerMetrics | undefined;
+  const metricsResults = results.filter((r) => r.metrics);
+
+  if (metricsResults.length > 0) {
+    const { averaged, stdDev } = averageWorkerMetrics(
+      metricsResults.map((r) => r.metrics!),
+    );
+    averagedMetrics = averaged;
+    metricsStdDev = stdDev;
+  }
+
+  return {
+    time: timeStats.average,
+    ttfb: ttfbStats.average,
+    timeStdDev: timeStats.stdDev,
+    ttfbStdDev: ttfbStats.stdDev,
+    responseData: results[0].responseData,
+    metrics: averagedMetrics,
+    metricsStdDev,
+  };
+}
+
+interface WorkerMetrics {
+  mainThreadTime: number;
+  totalWorkerCpuTime: number;
+  avgWorkerCpuTime: number;
+  maxWorkerCpuTime: number;
+  coordinationOverhead: number;
+  activeWorkerCount: number;
+  dispatchTime: number;
+  actualIdleTime: number;
+  resultProcessingTime: number;
+}
+
 interface PerformanceResult {
   time: number;
-  ttfb?: number; // Time to first byte
-  responseData?: any; // Store response data for comparison
-  metrics?: {
-    mainThreadTime: number;
-    totalWorkerCpuTime: number;
-    avgWorkerCpuTime: number;
-    maxWorkerCpuTime: number;
-    coordinationOverhead: number;
-    activeWorkerCount: number;
-    dispatchTime: number;
-    actualIdleTime: number;
-    resultProcessingTime: number;
-  };
+  ttfb?: number;
+  responseData?: any;
+  metrics?: WorkerMetrics;
+  // Standard deviation fields for multiple iterations
+  timeStdDev?: number;
+  ttfbStdDev?: number;
+  metricsStdDev?: WorkerMetrics;
 }
 
 interface PerformanceTestConfig {
@@ -445,48 +563,132 @@ async function retrieveObservationTRPC(
   };
 }
 
+/**
+ * Format a metric value with optional standard deviation
+ */
+function formatMetric(
+  value: number,
+  stdDev?: number,
+  precision = 2,
+  unit = "ms",
+): string {
+  const formattedValue = value.toFixed(precision);
+  if (stdDev && stdDev > 0) {
+    return `${formattedValue}${unit} (±${stdDev.toFixed(precision)}${unit})`;
+  }
+  return `${formattedValue}${unit}`;
+}
+
+/**
+ * Format worker metrics for logging
+ */
+function formatWorkerMetrics(
+  metrics: WorkerMetrics,
+  stdDev?: WorkerMetrics,
+): string {
+  const parts = [
+    `main: ${formatMetric(metrics.mainThreadTime, stdDev?.mainThreadTime)}`,
+    `total: ${formatMetric(metrics.totalWorkerCpuTime, stdDev?.totalWorkerCpuTime)}`,
+    `avg: ${formatMetric(metrics.avgWorkerCpuTime, stdDev?.avgWorkerCpuTime)}`,
+    `max: ${formatMetric(metrics.maxWorkerCpuTime, stdDev?.maxWorkerCpuTime)}`,
+    `dispatch: ${formatMetric(metrics.dispatchTime, stdDev?.dispatchTime)}`,
+    `idle: ${formatMetric(metrics.actualIdleTime, stdDev?.actualIdleTime)}`,
+    `processing: ${formatMetric(metrics.resultProcessingTime, stdDev?.resultProcessingTime)}`,
+    `overhead: ${formatMetric(metrics.coordinationOverhead, stdDev?.coordinationOverhead)}`,
+    `workers: ${formatMetric(metrics.activeWorkerCount, stdDev?.activeWorkerCount, 1, "")}`,
+  ];
+
+  return `(${parts.join(", ")})`;
+}
+
 function formatMetricsLog(
   baseLog: string,
   optimization: JSONOptimizationStrategy,
   result: PerformanceResult | undefined,
 ): string {
   let logWithTTFB = baseLog;
-  if (result?.ttfb !== undefined) {
-    logWithTTFB = `${baseLog} (TTFB: ${result.ttfb.toFixed(2)}ms)`;
+
+  // Add standard deviation to the base log if available
+  if (result?.timeStdDev !== undefined && result.timeStdDev > 0) {
+    const baseTime = baseLog.match(/(\d+\.\d+)ms/)?.[1];
+    if (baseTime) {
+      logWithTTFB = baseLog.replace(
+        `${baseTime}ms`,
+        formatMetric(parseFloat(baseTime), result.timeStdDev),
+      );
+    }
   }
 
-  if ((optimization === "worker" || optimization === "streamingWorker") && result?.metrics) {
-    const {
-      mainThreadTime,
-      totalWorkerCpuTime,
-      avgWorkerCpuTime,
-      maxWorkerCpuTime,
-      coordinationOverhead,
-      activeWorkerCount,
-      dispatchTime,
-      actualIdleTime,
-      resultProcessingTime,
-    } = result.metrics;
-    return `${logWithTTFB} (main: ${mainThreadTime.toFixed(
-      2,
-    )}ms, total: ${totalWorkerCpuTime.toFixed(
-      2,
-    )}ms, avg: ${avgWorkerCpuTime.toFixed(
-      2,
-    )}ms, max: ${maxWorkerCpuTime.toFixed(
-      2,
-    )}ms, dispatch: ${dispatchTime.toFixed(
-      2,
-    )}ms, idle: ${actualIdleTime.toFixed(
-      2,
-    )}ms, processing: ${resultProcessingTime.toFixed(
-      2,
-    )}ms, overhead: ${coordinationOverhead.toFixed(2)}ms, workers: ${activeWorkerCount})`;
+  // Add TTFB information
+  if (result?.ttfb !== undefined) {
+    const ttfbPart = `TTFB: ${formatMetric(result.ttfb, result.ttfbStdDev)}`;
+    logWithTTFB = `${logWithTTFB} (${ttfbPart})`;
   }
+
+  // Add worker metrics for worker-based optimizations
+  if (
+    (optimization === "worker" || optimization === "streamingWorker") &&
+    result?.metrics
+  ) {
+    const workerMetrics = formatWorkerMetrics(
+      result.metrics,
+      result.metricsStdDev,
+    );
+    return `${logWithTTFB} ${workerMetrics}`;
+  }
+
   return logWithTTFB;
 }
 
-// Helper function to validate that all optimizations return the same data
+/**
+ * Execute performance tests with randomization and averaging
+ */
+async function executePerformanceTests(
+  testFunction: (
+    strategy: JSONOptimizationStrategy,
+  ) => Promise<PerformanceResult>,
+  strategies: readonly JSONOptimizationStrategy[],
+  iterations: number,
+  randomize: boolean = true,
+): Promise<Partial<Record<JSONOptimizationStrategy, PerformanceResult>>> {
+  // Create test plan
+  const testPlan: Array<{
+    strategy: JSONOptimizationStrategy;
+    iteration: number;
+  }> = [];
+  for (let iteration = 0; iteration < iterations; iteration++) {
+    for (const strategy of strategies) {
+      testPlan.push({ strategy, iteration });
+    }
+  }
+
+  // Shuffle if randomization is enabled
+  const shuffledPlan = randomize ? shuffleArray(testPlan) : testPlan;
+
+  // Execute tests and collect results by strategy
+  const rawResults: Partial<
+    Record<JSONOptimizationStrategy, PerformanceResult[]>
+  > = {};
+  for (const { strategy } of shuffledPlan) {
+    if (!rawResults[strategy]) {
+      rawResults[strategy] = [];
+    }
+    const result = await testFunction(strategy);
+    rawResults[strategy]!.push(result);
+  }
+
+  // Average the results for each strategy
+  const finalResults: Partial<
+    Record<JSONOptimizationStrategy, PerformanceResult>
+  > = {};
+  for (const strategy of strategies) {
+    if (rawResults[strategy] && rawResults[strategy]!.length > 0) {
+      finalResults[strategy] = averagePerformanceResults(rawResults[strategy]!);
+    }
+  }
+
+  return finalResults;
+}
 function validateResponseEquality(
   results: Partial<Record<JSONOptimizationStrategy, PerformanceResult>>,
   entityType: string,
@@ -509,7 +711,7 @@ function validateResponseEquality(
     if (!strategyData) continue;
 
     if (strategy === "raw") {
-      // raw is raw dumping so just flag the comparison without expecting it to match
+      // raw is raw dumping so it actually should be different
       const isEqual =
         JSON.stringify(strategyData) === JSON.stringify(baselineData);
       validationMessages.push(
@@ -527,33 +729,8 @@ function validateResponseEquality(
       validationMessages.push(
         `✗ ${entityType} ${strategy} response differs from ${baseline}`,
       );
-      console.error(`${entityType} ${strategy} validation failed:`);
-      console.error("Baseline keys:", Object.keys(baselineData).sort());
-      console.error("Strategy keys:", Object.keys(strategyData).sort());
 
-      // Find specific differences
-      const baselineKeys = new Set(Object.keys(baselineData));
-      const strategyKeys = new Set(Object.keys(strategyData));
-
-      const missingKeys = [...baselineKeys].filter((k) => !strategyKeys.has(k));
-      const extraKeys = [...strategyKeys].filter((k) => !baselineKeys.has(k));
-
-      if (missingKeys.length > 0) {
-        console.error("Missing keys in strategy:", missingKeys);
-      }
-      if (extraKeys.length > 0) {
-        console.error("Extra keys in strategy:", extraKeys);
-      }
-
-      // For TRPC validation failures, don't throw the error, just log it
-      if (entityType.includes("TRPC")) {
-        console.error(
-          "TRPC validation error (continuing):",
-          (error as Error).message,
-        );
-      } else {
-        throw error;
-      }
+      throw error;
     }
   }
 
@@ -570,6 +747,7 @@ async function runPerformanceTest(
   let apiTime: number | null = null;
   let directTime: number;
 
+  // roughly equates 4.5mb, which is the max on api insert
   if (size <= 6700) {
     const apiRes = await config.insertApi(size);
     ids = { id: apiRes.id, traceId: apiRes.traceId };
@@ -588,40 +766,45 @@ async function runPerformanceTest(
   await config.retrieveGet(ids.id, "original");
   await config.retrieveTrpc(ids.id, ids.traceId, "original");
 
-  // Timed Retrieval
-  const getResults: Partial<
-    Record<JSONOptimizationStrategy, PerformanceResult>
-  > = {};
-  // for (const opt of ["raw" as const]) {
-  for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
-    getResults[opt] = await config.retrieveGet(ids.id, opt);
-  }
+  // Timed Retrieval with multiple iterations
+  const getResults = await executePerformanceTests(
+    (strategy) => config.retrieveGet(ids.id, strategy),
+    JSON_OPTIMIZATION_STRATEGIES,
+    PERFORMANCE_ITERATIONS,
+    ENABLE_RANDOM_ORDER,
+  );
 
-  const trpcResults: Partial<
-    Record<JSONOptimizationStrategy, PerformanceResult>
-  > = {};
-  // Include streaming for TRPC using the streaming subscription endpoint
-  for (const opt of JSON_OPTIMIZATION_STRATEGIES.filter(
-    (s) => s != "streamingWorker",
-  )) {
-    trpcResults[opt] = await config.retrieveTrpc(ids.id, ids.traceId, opt);
-  }
+  // TRPC tests (excluding streamingWorker)
+  const trpcStrategies = JSON_OPTIMIZATION_STRATEGIES.filter(
+    (s) => s !== "streamingWorker",
+  );
+  const trpcResults = await executePerformanceTests(
+    (strategy) => config.retrieveTrpc(ids.id, ids.traceId, strategy),
+    trpcStrategies,
+    PERFORMANCE_ITERATIONS,
+    ENABLE_RANDOM_ORDER,
+  );
 
   const apiTimeLog = apiTime
     ? `API insertion: ${apiTime.toFixed(2)}ms`
     : "API insertion: skipped (payload too large)";
 
+  // Generate logs
   const getLogs = JSON_OPTIMIZATION_STRATEGIES.map((opt) => {
     const result = getResults[opt];
-    const baseLog = `  GET ${opt.padEnd(8)}: ${(result?.time ?? 0).toFixed(2)}ms`;
+    const baseLog = `  GET ${opt.padEnd(15)}: ${(result?.time ?? 0).toFixed(2)}ms`;
     return formatMetricsLog(baseLog, opt, result);
   }).join("\n");
 
-  const trpcLogs = JSON_OPTIMIZATION_STRATEGIES.map((opt) => {
-    const result = trpcResults[opt];
-    const baseLog = `  TRPC ${opt.padEnd(8)}: ${(result?.time ?? 0).toFixed(2)}ms`;
-    return formatMetricsLog(baseLog, opt, result);
-  }).join("\n");
+  const trpcLogs = JSON_OPTIMIZATION_STRATEGIES.filter(
+    (opt) => opt !== "streamingWorker",
+  )
+    .map((opt) => {
+      const result = trpcResults[opt];
+      const baseLog = `  TRPC ${opt.padEnd(15)}: ${(result?.time ?? 0).toFixed(2)}ms`;
+      return formatMetricsLog(baseLog, opt, result);
+    })
+    .join("\n");
 
   // Validate that all GET and TRPC responses are identical (except optimization field)
   const getValidationMessages = validateResponseEquality(
@@ -640,7 +823,7 @@ async function runPerformanceTest(
   console.log(
     `--- ${config.entityType} (${name}, size: ${size}, ~${payloadSizeInMB.toFixed(
       2,
-    )} MB) ---\n` +
+    )} MB, averaged over ${PERFORMANCE_ITERATIONS} iterations${ENABLE_RANDOM_ORDER ? " in random order" : ""}) ---\n` +
       `${apiTimeLog}\n` +
       `Direct insertion: ${directTime.toFixed(2)}ms\n` +
       `${validationLog}` +
@@ -692,41 +875,41 @@ describe("JSON Performance Tests", () => {
 
   it("should measure performance for a s trace", async () => {
     await runTracePerformanceTest(100, "s");
-  });
+  }, 10000); // 10s timeout for small tests
 
   it("should measure performance for a m trace", async () => {
     await runTracePerformanceTest(1000, "m");
-  });
+  }, 120000); // 2min timeout
 
   it("should measure performance for a l trace", async () => {
     await runTracePerformanceTest(6700, "l");
-  });
+  }, 120000); // 2min timeout
 
   it("should measure performance for a xl trace", async () => {
     await runTracePerformanceTest(10000, "xl");
-  });
+  }, 120000); // 2min timeout
 
   it("should measure performance for a xxl trace", async () => {
     await runTracePerformanceTest(40000, "xxl");
-  }, 20000);
+  }, 120000); // 2min timeout
 
   it("should measure performance for a s observation", async () => {
     await runObservationPerformanceTest(100, "s");
-  });
+  }, 10000); // 10s timeout for small tests
 
   it("should measure performance for a m observation", async () => {
     await runObservationPerformanceTest(1000, "m");
-  });
+  }, 120000); // 2min timeout
 
   it("should measure performance for a l observation", async () => {
     await runObservationPerformanceTest(6700, "l");
-  });
+  }, 120000); // 2min timeout
 
   it("should measure performance for a xl observation", async () => {
     await runObservationPerformanceTest(10000, "xl");
-  });
+  }, 120000); // 2min timeout
 
   it("should measure performance for a xxl observation", async () => {
     await runObservationPerformanceTest(40000, "xxl");
-  }, 20000);
+  }, 120000); // 2min timeout
 });
