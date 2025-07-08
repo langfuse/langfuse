@@ -53,10 +53,15 @@ async function checkQueryExists(
   client: ClickhouseClientType,
   queryId: string,
 ): Promise<boolean> {
+  const queryLogTable =
+    env.CLICKHOUSE_CLUSTER_ENABLED === "true"
+      ? `clusterAllReplicas(${env.CLICKHOUSE_CLUSTER_NAME}, system.query_log)`
+      : "system.query_log";
+
   const resultSet = await client.query({
     query: `
       SELECT COUNT(*) > 0 AS exists
-      FROM system.query_log
+      FROM ${queryLogTable}
       WHERE query_id = '${queryId}'
     `,
     format: "JSONEachRow",
@@ -72,10 +77,15 @@ async function checkCompletedQuery(
   client: ClickhouseClientType,
   queryId: string,
 ): Promise<boolean> {
+  const queryLogTable =
+    env.CLICKHOUSE_CLUSTER_ENABLED === "true"
+      ? `clusterAllReplicas(${env.CLICKHOUSE_CLUSTER_NAME}, system.query_log)`
+      : "system.query_log";
+
   const resultSet = await client.query({
     query: `
       SELECT type
-      FROM system.query_log
+      FROM ${queryLogTable}
       WHERE query_id = '${queryId}' AND type != 'QueryStart'
       LIMIT 1
     `,
@@ -124,13 +134,19 @@ async function executeLongRunningQuery(
         clearInterval(checkInterval);
         resolve();
       }
-      if (checkExistTries++ > 3) {
+      // We rather use lots of tries, but a low interval to ensure that this completes quickly.
+      // Since the query should be cheap, we're not worried too much about the load.
+      if (checkExistTries++ > 10) {
         clearInterval(checkInterval);
         reject(
-          new Error(`Query ${queryId} does not exist in system.query_log`),
+          new Error(
+            `Query ${queryId} does not exist in system.query_log after ${
+              checkExistTries * 2
+            }s`,
+          ),
         );
       }
-    }, 1000);
+    }, 2000);
   });
 
   // Cancel the HTTP request and keep it running server-side only.
