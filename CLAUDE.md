@@ -94,6 +94,7 @@ pnpm run test --filter=worker -- $TEST_FILE_NAME -t "$TEST_NAME"
 
 ### Utilities
 ```bash
+pnpm run format            # Format code across entire project
 pnpm run nuke              # Remove all node_modules, build files, wipe database, docker containers. **USE WITH CAUTION**
 ```
 
