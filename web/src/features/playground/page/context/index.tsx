@@ -45,7 +45,7 @@ import {
 } from "@/src/features/playground/page/types";
 import {
   getPlaygroundEventBus,
-  getPlaygroundWindowRegistry,
+  useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 
@@ -127,6 +127,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     updateModelParamValue,
     setModelParamEnabled,
   } = useModelParams(windowId);
+  const { registerWindow, unregisterWindow } = useWindowCoordination();
 
   const toolCallIds = messages.reduce((acc, m) => {
     if (m.type === ChatMessageType.AssistantToolCall) {
@@ -531,10 +532,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   // and sets up event listeners for global actions like "Run All" and "Stop All"
   useEffect(() => {
     const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
-    const playgroundRegistry = getPlaygroundWindowRegistry();
     const playgroundEventBus = getPlaygroundEventBus();
 
-    // Create the handle for this window that other windows can use to coordinate actions
     const playgroundHandle: PlaygroundHandle = {
       handleSubmit,
       stopExecution: () => {
@@ -544,34 +543,21 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       getIsStreaming: () => isStreamingRef.current,
     };
 
-    // Register this window with the global coordination system
-    playgroundRegistry.set(effectiveWindowId, playgroundHandle);
+    registerWindow(effectiveWindowId, playgroundHandle);
 
-    // Dispatch registration event for potential listeners
-    playgroundEventBus.dispatchEvent(
-      new CustomEvent(PLAYGROUND_EVENTS.WINDOW_REGISTERED, {
-        detail: { windowId: effectiveWindowId },
-      }),
-    );
-
-    // Event handler for global "execute all" command
     const handleGlobalExecute = () => {
-      // Only execute if not already streaming to avoid conflicts
       if (!isStreamingRef.current) {
-        handleSubmit(true); // Execute with streaming enabled
+        handleSubmit(true);
       }
     };
 
-    // Event handler for global "stop all" command
     const handleGlobalStop = () => {
-      // Only stop if currently streaming
       if (isStreamingRef.current) {
         setIsStreaming(false);
         isStreamingRef.current = false;
       }
     };
 
-    // Set up event listeners for global coordination
     playgroundEventBus.addEventListener(
       PLAYGROUND_EVENTS.EXECUTE_ALL,
       handleGlobalExecute,
@@ -581,19 +567,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       handleGlobalStop,
     );
 
-    // Cleanup function: unregister window and remove event listeners
     return () => {
-      // Remove from global registry
-      playgroundRegistry.delete(effectiveWindowId);
+      unregisterWindow(effectiveWindowId);
 
-      // Dispatch unregistration event
-      playgroundEventBus.dispatchEvent(
-        new CustomEvent(PLAYGROUND_EVENTS.WINDOW_UNREGISTERED, {
-          detail: { windowId: effectiveWindowId },
-        }),
-      );
-
-      // Remove event listeners
       playgroundEventBus.removeEventListener(
         PLAYGROUND_EVENTS.EXECUTE_ALL,
         handleGlobalExecute,
@@ -603,7 +579,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         handleGlobalStop,
       );
     };
-  }, [windowId, handleSubmit]);
+  }, [windowId, handleSubmit, registerWindow, unregisterWindow]);
 
   // Keep ref in sync with state for external consumers
   useEffect(() => {
