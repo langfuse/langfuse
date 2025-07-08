@@ -136,7 +136,7 @@ async function executeLongRunningQuery(
       }
       // We rather use lots of tries, but a low interval to ensure that this completes quickly.
       // Since the query should be cheap, we're not worried too much about the load.
-      if (checkExistTries++ > 10) {
+      if (checkExistTries++ > 60) {
         clearInterval(checkInterval);
         reject(
           new Error(
