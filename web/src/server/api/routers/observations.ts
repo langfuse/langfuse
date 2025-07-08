@@ -54,6 +54,7 @@ export const observationsRouter = createTRPCRouter({
             metadata,
             input: inputData,
             output,
+            internalModel: obs?.internalModelId,
             optimization: "worker",
             metrics,
           };
