@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions, getQueuePrefix } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 import { logger } from "../logger";
 import { env } from "../../env";
 
@@ -23,8 +27,8 @@ export class MeteringDataPostgresExportQueue {
 
     MeteringDataPostgresExportQueue.instance = newRedis
       ? new Queue(QueueName.MeteringDataPostgresExportQueue, {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.MeteringDataPostgresExportQueue),
+          connection: newRedis,
+          prefix: getQueuePrefix(QueueName.MeteringDataPostgresExportQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

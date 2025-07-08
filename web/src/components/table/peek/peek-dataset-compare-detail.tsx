@@ -14,10 +14,7 @@ import { PanelLeftOpen, PanelLeftClose, ListTree } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Command } from "@/src/components/ui/command";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import type {
-  DatasetCompareRunRowData,
-  DatasetRunMetric,
-} from "@/src/features/datasets/components/DatasetCompareRunsTable";
+import type { DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 
@@ -25,7 +22,6 @@ export type PeekDatasetCompareDetailProps = {
   projectId: string;
   runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   scoreKeyToDisplayName: Map<string, string>;
-  selectedMetrics?: DatasetRunMetric[];
   row?: DatasetCompareRunRowData;
 };
 
@@ -33,7 +29,6 @@ export const PeekDatasetCompareDetail = ({
   projectId,
   runsData,
   scoreKeyToDisplayName,
-  selectedMetrics = ["scores", "resourceMetrics"],
   row,
 }: PeekDatasetCompareDetailProps) => {
   const router = useRouter();
@@ -173,7 +168,6 @@ export const PeekDatasetCompareDetail = ({
                         value={run}
                         projectId={projectId}
                         scoreKeyToDisplayName={scoreKeyToDisplayName}
-                        selectedMetrics={selectedMetrics}
                         output={row.expectedOutput}
                         isHighlighted={id === runId}
                         actionButtons={

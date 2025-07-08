@@ -157,6 +157,10 @@ model Project {
   Dashboard              Dashboard[]
   DashboardWidget        DashboardWidget[]
   TableViewPreset        TableViewPreset[]
+  actions                Action[]
+  triggers               Trigger[]
+  automationExecutions   AutomationExecution[]
+  Automation             Automation[]
   DefaultLlmModel        DefaultLlmModel[]
 
   @@index([orgId])
@@ -1213,4 +1217,110 @@ model TableViewPreset {
 
   @@unique([projectId, tableName, name])
   @@map("table_view_presets")
+}
+
+model Action {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  type ActionType
+
+  // Configuration specific to each action type
+  config Json // Structured JSON for different action types
+  // For WEBHOOK: { version: "1.0", url: "...", method: "POST", headers: {...}, secretId: "..." }
+  // For ANNOTATION_QUEUE: { version: "1.0", queueId: "..." }
+
+  automations          Automation[]
+  automationExecutions AutomationExecution[]
+
+  @@index([projectId])
+  @@map("actions")
+}
+
+model Trigger {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // When should this trigger fire
+  eventSource  String // trace, prompt, etc.
+  eventActions String[] // created, updated, deleted
+  filter       Json? // Filter conditions (format: { field: "name", operator: "equals", value: "my_trace" })
+
+  // Additional attributes
+  status JobConfigState @default(ACTIVE) @map("status")
+
+  // Link to executions
+  automationExecutions AutomationExecution[]
+  automations          Automation[]
+
+  @@index([projectId])
+  @@map("triggers")
+}
+
+model Automation {
+  id                  String                @id @default(cuid())
+  name                String                @map("name")
+  trigger             Trigger               @relation(fields: [triggerId], references: [id], onDelete: Cascade)
+  triggerId           String                @map("trigger_id")
+  action              Action                @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  actionId            String                @map("action_id")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  projectId           String                @map("project_id")
+  project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  AutomationExecution AutomationExecution[]
+
+  @@index([projectId, actionId, triggerId])
+  @@index([projectId, name])
+  @@map("automations")
+}
+
+enum ActionType {
+  WEBHOOK
+  // More action types can be added as needed
+}
+
+enum ActionExecutionStatus {
+  COMPLETED
+  ERROR
+  PENDING
+  CANCELLED
+}
+
+model AutomationExecution {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  sourceId  String   @map("source_id")
+
+  automationId String     @map("automation_id")
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  triggerId String  @map("trigger_id")
+  trigger   Trigger @relation(fields: [triggerId], references: [id], onDelete: Cascade)
+
+  actionId String @map("action_id")
+  action   Action @relation(fields: [actionId], references: [id], onDelete: Cascade)
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  status     ActionExecutionStatus @default(PENDING) @map("status")
+  input      Json                  @map("input")
+  output     Json?                 @map("output")
+  startedAt  DateTime?             @map("started_at")
+  finishedAt DateTime?             @map("finished_at")
+  error      String?               @map("error")
+
+  @@index([triggerId])
+  @@index([actionId])
+  @@index([projectId])
+  @@map("automation_executions")
 }

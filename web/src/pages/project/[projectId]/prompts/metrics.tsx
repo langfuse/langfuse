@@ -24,6 +24,7 @@ import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndivi
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import Page from "@/src/components/layouts/page";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -176,16 +177,12 @@ export default function PromptVersionTable({
         const values: string[] = row.getValue("labels");
         return (
           values && (
-            <div className="-mr-8 flex max-h-full flex-wrap gap-1">
-              {values.map((value) => (
-                <div
-                  key={value}
-                  className="max-h-fit min-h-6 w-fit content-center rounded-sm bg-secondary px-1 text-left text-xs font-semibold text-secondary-foreground"
-                >
-                  {value}
-                </div>
-              ))}
-            </div>
+            <TruncatedLabels
+              labels={values}
+              maxVisibleLabels={3}
+              className="-mr-8 flex max-h-full flex-wrap gap-1"
+              showSimpleBadges={true}
+            />
           )
         );
       },

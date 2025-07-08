@@ -42,7 +42,8 @@ export interface StorageService {
     asAttachment?: boolean, // eslint-disable-line no-unused-vars
   ): Promise<string>;
 
-  getSignedUploadUrl(params: { // eslint-disable-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars
+  getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
     sha256Hash: string;
@@ -213,7 +214,7 @@ class AzureBlobStorageService implements StorageService {
   }
 
   private async streamToString(
-    readableStream: NodeJS.ReadableStream, // eslint-disable-line no-undef
+    readableStream: NodeJS.ReadableStream,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: string[] = [];

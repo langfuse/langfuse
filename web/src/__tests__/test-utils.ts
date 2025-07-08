@@ -3,6 +3,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
   createBasicAuthHeader,
+  getQueue,
+  IngestionQueue,
+  logger,
+  QueueName,
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
@@ -76,7 +80,6 @@ export const ensureTestDatabaseExists = async () => {
   // ClickHouse uses default database (no setup needed)
 };
 
-
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {
     throw new Error("You cannot prune database unless running on localhost.");
@@ -95,6 +98,41 @@ export const pruneDatabase = async () => {
   await prisma.media.deleteMany();
 
   await truncateClickhouseTables();
+};
+export const getQueues = () => {
+  const queues: string[] = Object.values(QueueName);
+  queues.push(...IngestionQueue.getShardNames());
+
+  const listOfQueuesToIgnore = [
+    QueueName.DataRetentionQueue,
+    QueueName.BlobStorageIntegrationQueue,
+    QueueName.DeadLetterRetryQueue,
+    QueueName.PostHogIntegrationQueue,
+  ];
+
+  return queues
+    .filter(
+      (queueName) => !listOfQueuesToIgnore.includes(queueName as QueueName),
+    )
+    .map((queueName) =>
+      queueName.startsWith(QueueName.IngestionQueue)
+        ? IngestionQueue.getInstance({ shardName: queueName })
+        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
+    );
+};
+
+export const disconnectQueues = async () => {
+  await Promise.all(
+    getQueues().map(async (queue) => {
+      if (queue) {
+        try {
+          queue.disconnect();
+        } catch (error) {
+          logger.error(`Error disconnecting queue ${queue.name}: ${error}`);
+        }
+      }
+    }),
+  );
 };
 
 export const truncateClickhouseTables = async () => {
