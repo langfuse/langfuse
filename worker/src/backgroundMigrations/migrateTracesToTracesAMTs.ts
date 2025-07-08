@@ -114,11 +114,7 @@ async function executeLongRunningQuery(
 ): Promise<void> {
   const queryId = randomUUID();
   const client = clickhouseClient({
-    clickhouse_settings: {
-      ...clickhouseSettings,
-      send_progress_in_http_headers: 1,
-      http_headers_progress_interval_ms: "20000",
-    },
+    clickhouse_settings: clickhouseSettings,
   });
 
   const abortController = new AbortController();
