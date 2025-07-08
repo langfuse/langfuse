@@ -226,7 +226,6 @@ export class IngestionService {
     finalScoreRecord.created_at =
       clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
-<<<<<<< HEAD
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord, jobId);
 
     if (
@@ -236,9 +235,6 @@ export class IngestionService {
       const traceMtRecord = convertScoreToTraceMt(finalScoreRecord);
       this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord, jobId);
     }
-=======
-    this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord, jobId);
->>>>>>> ee3e54358 (fix: clickhouse worker failed when over maxattempt)
   }
 
   private async processTraceEventList(params: {
