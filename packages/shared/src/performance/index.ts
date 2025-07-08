@@ -3,6 +3,7 @@ export const JSON_OPTIMIZATION_STRATEGIES = [
   "raw",
   "streaming",
   "worker",
+  "streamingWorker",
 ] as const;
 
 export type JSONOptimizationStrategy =

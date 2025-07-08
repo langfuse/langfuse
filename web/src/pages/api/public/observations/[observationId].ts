@@ -13,7 +13,7 @@ import {
 import { getObservationById } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
-import { streamResponse } from "@/src/server/utils/streaming";
+import { handleOptimization } from "@/src/server/utils/optimizationHandler";
 
 jsonParserPool.start();
 
@@ -87,41 +87,7 @@ export default withMiddlewares({
 
       const transformed = transformDbToApiObservation(observation);
 
-      if (query.optimization && query.optimization !== "original") {
-        if (query.optimization == "worker") {
-          const { results, metrics } = await jsonParserPool.runParallelParse([
-            transformed.metadata as unknown as string,
-            transformed.input as unknown as string,
-            transformed.output as unknown as string,
-          ]);
-
-          const [metadata, input, output] = results;
-
-          return {
-            ...transformed,
-            metadata,
-            input,
-            output,
-            optimization: "worker",
-            metrics,
-          };
-        }
-
-        if (query.optimization === "streaming") {
-          streamResponse(res, {
-            ...transformed,
-            optimization: "streaming",
-          });
-          return {} as any; // Middleware will skip as we did send headers already
-        }
-
-        return {
-          ...transformed,
-          optimization: query.optimization,
-        };
-      }
-
-      return transformed;
+      return (await handleOptimization(transformed, query.optimization, res)) as any;
     },
   }),
 });

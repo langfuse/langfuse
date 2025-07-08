@@ -345,11 +345,11 @@ async function performTRPCCall(
   if (optimization === "streaming") {
     const chunks: string[] = [];
     const iterable = await streamingCall();
-    
+
     let ttfb: number | undefined;
     let isFirstChunk = true;
     const streamStartTime = performance.now();
-    
+
     for await (const chunk of iterable) {
       if (isFirstChunk) {
         ttfb = performance.now() - streamStartTime;
@@ -357,7 +357,7 @@ async function performTRPCCall(
       }
       chunks.push(chunk);
     }
-    
+
     const result = reconstructFromChunks(chunks);
     return { result, ttfb };
   } else {
@@ -455,7 +455,7 @@ function formatMetricsLog(
     logWithTTFB = `${baseLog} (TTFB: ${result.ttfb.toFixed(2)}ms)`;
   }
 
-  if (optimization === "worker" && result?.metrics) {
+  if ((optimization === "worker" || optimization === "streamingWorker") && result?.metrics) {
     const {
       mainThreadTime,
       totalWorkerCpuTime,
@@ -601,7 +601,9 @@ async function runPerformanceTest(
     Record<JSONOptimizationStrategy, PerformanceResult>
   > = {};
   // Include streaming for TRPC using the streaming subscription endpoint
-  for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
+  for (const opt of JSON_OPTIMIZATION_STRATEGIES.filter(
+    (s) => s != "streamingWorker",
+  )) {
     trpcResults[opt] = await config.retrieveTrpc(ids.id, ids.traceId, opt);
   }
 

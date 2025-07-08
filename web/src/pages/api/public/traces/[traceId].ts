@@ -27,7 +27,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
-import { streamResponse } from "@/src/server/utils/streaming";
+import { handleOptimization } from "@/src/server/utils/optimizationHandler";
 
 jsonParserPool.start();
 
@@ -152,41 +152,7 @@ export default withMiddlewares({
           .toNumber(),
       };
 
-      if (query.optimization && query.optimization !== "original") {
-        if (query.optimization == "worker") {
-          const { results, metrics } = await jsonParserPool.runParallelParse([
-            response.metadata as unknown as string,
-            response.input as unknown as string,
-            response.output as unknown as string,
-          ]);
-
-          const [metadata, input, output] = results;
-
-          return {
-            ...response,
-            metadata,
-            input,
-            output,
-            optimization: "worker",
-            metrics,
-          } as any;
-        }
-
-        if (query.optimization === "streaming") {
-          streamResponse(res, {
-            ...response,
-            optimization: "streaming",
-          });
-          return {} as any; // Middleware will skip as we did send headers already
-        }
-
-        return {
-          ...response,
-          optimization: query.optimization,
-        };
-      }
-
-      return response;
+      return (await handleOptimization(response, query.optimization, res)) as any;
     },
   }),
 
