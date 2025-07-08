@@ -51,6 +51,7 @@ import {
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
 import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
+import { streamTRPCResponse } from "@/src/server/utils/trpcStreaming";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -570,5 +571,67 @@ export const traceRouter = createTRPCRouter({
         .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
 
       return result;
+    }),
+
+  // Streaming query for trace by ID (similar to byId but with progressive response)
+  streamById: protectedGetTraceProcedure
+    .input(
+      z.object({
+        traceId: z.string(), // used for security check
+        projectId: z.string(), // used for security check
+        timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
+        fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
+        optimization: z.enum(JSON_OPTIMIZATION_STRATEGIES).optional(),
+      }),
+    )
+    .query(async function* ({ ctx, input }) {
+      // Prepare the data similar to byId endpoint
+      let responseData;
+
+      if (input.optimization === "worker") {
+        const { results, metrics } = await jsonParserPool.runParallel([
+          ctx.trace.metadata as unknown as string,
+          ctx.trace.input as unknown as string,
+          ctx.trace.output as unknown as string,
+        ]);
+
+        const [metadata, inputData, output] = results;
+
+        responseData = {
+          ...ctx.trace,
+          metadata,
+          input: inputData,
+          output,
+          optimization: "worker",
+          metrics,
+        };
+      } else {
+        responseData = {
+          ...ctx.trace,
+          metadata:
+            input.optimization === "raw"
+              ? ctx.trace.metadata
+              : ctx.trace.metadata
+                ? JSON.stringify(ctx.trace.metadata)
+                : undefined,
+          input:
+            input.optimization === "raw"
+              ? ctx.trace.input
+              : ctx.trace.input
+                ? JSON.stringify(ctx.trace.input)
+                : undefined,
+          output:
+            input.optimization === "raw"
+              ? ctx.trace.output
+              : ctx.trace.output
+                ? JSON.stringify(ctx.trace.output)
+                : undefined,
+          optimization:
+            input?.optimization !== "original" ? input.optimization : undefined,
+        };
+      }
+
+      // Yield the streaming chunks using async generator
+      yield* streamTRPCResponse(responseData);
     }),
 });

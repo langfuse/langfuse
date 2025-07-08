@@ -17,6 +17,7 @@ import {
   type JSONOptimizationStrategy,
 } from "@langfuse/shared";
 import { jsonParserPool } from "@/src/server/utils/json/WorkerPool";
+import { reconstructFromChunks } from "@/src/server/utils/trpcStreaming";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -301,9 +302,7 @@ async function retrieveTraceGET(
     expect(body.optimization).toBe(optimization);
   }
 
-  // Create a clean copy without the optimization field for comparison
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { optimization: _opt, metrics, ...cleanData } = body;
+  const { cleanData, metrics } = cleanResponseData(body);
 
   return {
     time: result.totalTime,
@@ -327,9 +326,7 @@ async function retrieveObservationGET(
     expect(body.optimization).toBe(optimization);
   }
 
-  // Create a clean copy without the optimization field for comparison
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { optimization: _opt, metrics, ...cleanData } = body;
+  const { cleanData, metrics } = cleanResponseData(body);
 
   return {
     time: result.totalTime,
@@ -339,29 +336,68 @@ async function retrieveObservationGET(
   };
 }
 
+// Generic helper for TRPC calls with optional streaming
+async function performTRPCCall(
+  regularCall: () => Promise<any>,
+  streamingCall: () => Promise<AsyncIterable<string>>,
+  optimization: JSONOptimizationStrategy,
+): Promise<{ result: any; ttfb?: number }> {
+  if (optimization === "streaming") {
+    const chunks: string[] = [];
+    const iterable = await streamingCall();
+    
+    let ttfb: number | undefined;
+    let isFirstChunk = true;
+    const streamStartTime = performance.now();
+    
+    for await (const chunk of iterable) {
+      if (isFirstChunk) {
+        ttfb = performance.now() - streamStartTime;
+        isFirstChunk = false;
+      }
+      chunks.push(chunk);
+    }
+    
+    const result = reconstructFromChunks(chunks);
+    return { result, ttfb };
+  } else {
+    const result = await regularCall();
+    return { result };
+  }
+}
+
+// Helper function to clean response data for comparison
+function cleanResponseData(result: any): { cleanData: any; metrics?: any } {
+  const metrics = result.metrics;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { optimization: _opt, metrics: _metrics, ...cleanData } = result;
+  return { cleanData, metrics };
+}
+
 async function retrieveTraceTRPC(
   traceId: string,
   optimization: JSONOptimizationStrategy,
 ): Promise<PerformanceResult> {
   const caller = makeTrpcCaller();
   const startTime = performance.now();
-  const result = await caller.traces.byId({
-    traceId,
-    projectId,
+
+  const { result, ttfb } = await performTRPCCall(
+    () => caller.traces.byId({ traceId, projectId, optimization }),
+    () => caller.traces.streamById({ traceId, projectId, optimization }),
     optimization,
-  });
+  );
+
   const endTime = performance.now();
+
   if (optimization !== "original") {
     expect(result.optimization).toBe(optimization);
   }
 
-  // Create a clean copy without the optimization and metrics fields for comparison
-  const metrics = (result as any).metrics;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { optimization: _opt, metrics: _metrics, ...cleanData } = result as any;
+  const { cleanData, metrics } = cleanResponseData(result);
 
   return {
     time: endTime - startTime,
+    ttfb,
     responseData: cleanData,
     metrics,
   };
@@ -374,24 +410,36 @@ async function retrieveObservationTRPC(
 ): Promise<PerformanceResult> {
   const caller = makeTrpcCaller();
   const startTime = performance.now();
-  const result = await caller.observations.byId({
-    observationId,
-    traceId,
-    projectId,
+
+  const { result, ttfb } = await performTRPCCall(
+    () =>
+      caller.observations.byId({
+        observationId,
+        traceId,
+        projectId,
+        optimization,
+      }),
+    () =>
+      caller.observations.streamById({
+        observationId,
+        traceId,
+        projectId,
+        optimization,
+      }),
     optimization,
-  });
+  );
+
   const endTime = performance.now();
+
   if (optimization !== "original") {
     expect(result.optimization).toBe(optimization);
   }
 
-  // Create a clean copy without the optimization and metrics fields for comparison
-  const metrics = (result as any).metrics;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { optimization: _opt, metrics: _metrics, ...cleanData } = result as any;
+  const { cleanData, metrics } = cleanResponseData(result);
 
   return {
     time: endTime - startTime,
+    ttfb,
     responseData: cleanData,
     metrics,
   };
@@ -552,6 +600,7 @@ async function runPerformanceTest(
   const trpcResults: Partial<
     Record<JSONOptimizationStrategy, PerformanceResult>
   > = {};
+  // Include streaming for TRPC using the streaming subscription endpoint
   for (const opt of JSON_OPTIMIZATION_STRATEGIES) {
     trpcResults[opt] = await config.retrieveTrpc(ids.id, ids.traceId, opt);
   }
