@@ -3,6 +3,7 @@ import { clickhouseClient, logger } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import { randomUUID } from "node:crypto";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "f4b51797-e5ae-4d74-9625-05321493486e";
@@ -12,20 +13,22 @@ type MigrationState = {
   minDate: string | undefined;
   cpuCores: number | undefined;
   memoryGiB: number | undefined;
+  queryTimeoutMinutes: number | undefined;
 };
 
 // Calculate ClickHouse settings based on instance sizing.
-// Recommendations taken from https://clickhouse.com/blog/supercharge-your-clickhouse-data-loads-part2#formula-one
+// Recommendations taken from https://clickhouse.com/blog/supercharge-your-clickhouse-data-loads-part2#formula-one.
+// Reduced insert threads and peak memory usage to 1/3 instead of 1/2 to keep more resources for actual processing.
 function calculateClickHouseSettings(cpuCores?: number, memoryGiB?: number) {
   // Default to 16 CPU, 64 GiB for production instance
   const cores = cpuCores ?? 16;
   const memory = memoryGiB ?? 64;
 
-  // max_insert_threads: choose ~ half of available CPU cores
-  const maxInsertThreads = Math.max(1, Math.floor(cores / 2));
+  // max_insert_threads: choose ~ 1/3 of available CPU cores
+  const maxInsertThreads = Math.max(1, Math.floor(cores / 3));
 
-  // peak_memory_usage_in_bytes: half of RAM
-  const peakMemoryUsageBytes = (memory / 2) * 1024 * 1024 * 1024;
+  // peak_memory_usage_in_bytes: third of RAM
+  const peakMemoryUsageBytes = (memory / 3) * 1024 * 1024 * 1024;
 
   // min_insert_block_size_bytes = peak_memory_usage_in_bytes / (~3 * max_insert_threads)
   const minInsertBlockSizeBytes = Math.floor(
@@ -37,6 +40,86 @@ function calculateClickHouseSettings(cpuCores?: number, memoryGiB?: number) {
     minInsertBlockSizeBytes,
     minInsertBlockSizeRows: 0, // Disabled as per formula
   };
+}
+
+/**
+ * Executes a long-running ClickHouse query with timeout and progress monitoring
+ * Based on: https://github.com/ClickHouse/clickhouse-js/blob/main/examples/long_running_queries_timeouts.ts#L85
+ */
+async function executeLongRunningQuery(
+  query: string,
+  clickhouseSettings: Record<string, string>,
+  timeoutMinutes: number,
+): Promise<void> {
+  const queryId = randomUUID();
+  const client = clickhouseClient({
+    clickhouse_settings: {
+      ...clickhouseSettings,
+      send_progress_in_http_headers: 1,
+      http_headers_progress_interval_ms: "20000",
+    },
+  });
+
+  const abortController = new AbortController();
+  const timeoutMs = timeoutMinutes * 60 * 1000;
+
+  // Start the query execution
+  const queryPromise = client.command({
+    query,
+    query_id: queryId,
+    abort_signal: abortController.signal,
+  });
+
+  // Set up timeout and progress monitoring
+  const startTime = Date.now();
+  const progressInterval = setInterval(async () => {
+    const elapsed = Date.now() - startTime;
+    logger.info(
+      `Query ${queryId} still running after ${Math.floor(elapsed / 60000)} minutes`,
+    );
+
+    // TODO: Future improvement - could fetch current state from system.processes table to provide more detailed progress information
+  }, 60000); // Log every minute
+
+  // Set up global timeout
+  const timeoutHandle = setTimeout(async () => {
+    logger.warn(
+      `Query ${queryId} timed out after ${timeoutMinutes} minutes, cancelling on server`,
+    );
+
+    // Cancel the query on the ClickHouse server
+    try {
+      await client.command({
+        query: `KILL QUERY WHERE query_id = '${queryId}'`,
+      });
+      logger.info(`Successfully cancelled query ${queryId} on server`);
+    } catch (error) {
+      logger.error(`Failed to cancel query ${queryId} on server:`, error);
+    }
+
+    // Abort the HTTP request
+    abortController.abort();
+  }, timeoutMs);
+
+  try {
+    // Wait for query completion
+    await queryPromise;
+    logger.info(`Query ${queryId} completed successfully`);
+  } catch (error) {
+    // Check if this was a timeout-induced cancellation
+    if (abortController.signal.aborted) {
+      throw new Error(
+        `Query ${queryId} timed out after ${timeoutMinutes} minutes`,
+      );
+    }
+
+    // Re-throw other errors (SQL errors, constraint violations, etc.)
+    throw error;
+  } finally {
+    // Clean up
+    clearInterval(progressInterval);
+    clearTimeout(timeoutHandle);
+  }
 }
 
 export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
@@ -97,9 +180,14 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
 
     // Use values from database state if available, otherwise fall back to args, then defaults
     const cpuCores =
-      initialMigrationState.state?.cpuCores ?? (args.cpuCores as number);
+      initialMigrationState.state?.cpuCores ??
+      (args.cpuCores as number | undefined);
     const memoryGiB =
-      initialMigrationState.state?.memoryGiB ?? (args.memoryGiB as number);
+      initialMigrationState.state?.memoryGiB ??
+      (args.memoryGiB as number | undefined);
+    const queryTimeoutMinutes =
+      initialMigrationState.state?.queryTimeoutMinutes ??
+      (args.queryTimeoutMinutes as number | undefined);
 
     // Calculate ClickHouse settings based on stored or provided instance sizing
     const clickhouseConfig = calculateClickHouseSettings(cpuCores, memoryGiB);
@@ -123,6 +211,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
           minDate,
           cpuCores,
           memoryGiB,
+          queryTimeoutMinutes,
         },
       },
     });
@@ -143,15 +232,8 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       // Get current month in YYYYMM format
       const currentMonth = maxDate.toISOString().slice(0, 7).replace("-", "");
       logger.info(`Migrating traces for ${currentMonth}`);
-      await clickhouseClient({
-        request_timeout: 600_000, // 10 minutes
-        clickhouse_settings: {
-          max_insert_threads: `${clickhouseConfig.maxInsertThreads}`,
-          min_insert_block_size_bytes: `${clickhouseConfig.minInsertBlockSizeBytes}`,
-          min_insert_block_size_rows: `${clickhouseConfig.minInsertBlockSizeRows}`,
-        },
-      }).exec({
-        query: `
+
+      const query = `
         INSERT INTO traces_mt
         SELECT 
           -- Identifiers
@@ -189,8 +271,19 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
           event_ts
         FROM traces
         WHERE toYYYYMM(timestamp) = ${currentMonth}
-      `,
-      });
+      `;
+
+      const clickhouseSettings = {
+        max_insert_threads: `${clickhouseConfig.maxInsertThreads}`,
+        min_insert_block_size_bytes: `${clickhouseConfig.minInsertBlockSizeBytes}`,
+        min_insert_block_size_rows: `${clickhouseConfig.minInsertBlockSizeRows}`,
+      };
+
+      await executeLongRunningQuery(
+        query,
+        clickhouseSettings,
+        queryTimeoutMinutes ?? 90,
+      );
 
       maxDate.setMonth(maxDate.getMonth() - 1);
       await prisma.backgroundMigration.update({
@@ -243,6 +336,7 @@ async function createBackgroundMigrationRecord(): Promise<void> {
   logger.info("Background migration record created successfully");
 }
 
+// TODO: Confirm defaults for maxDate and minDate to ensure coverage for self-hosters
 async function main() {
   const args = parseArgs({
     options: {
@@ -269,6 +363,11 @@ async function main() {
         type: "string",
         default: "64",
       },
+      timeoutMinutes: {
+        type: "string",
+        short: "t",
+        default: "90",
+      },
     },
   });
 
@@ -281,6 +380,7 @@ async function main() {
     ...args.values,
     cpuCores: parseInt(args.values.cpu!),
     memoryGiB: parseInt(args.values.memory!),
+    queryTimeoutMinutes: parseInt(args.values.timeoutMinutes!),
   };
 
   const migration = new MigrateTracesToTracesAMTs();
