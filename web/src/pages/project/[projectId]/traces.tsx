@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
-import { api } from "@/src/utils/api";
+import { api, createNetworkAwareRetry } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
 
 export default function Traces() {
