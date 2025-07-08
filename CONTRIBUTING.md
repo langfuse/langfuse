@@ -124,7 +124,14 @@ Requirements
    cd langfuse
    ```
 
-3. Create an env file
+3. Install dependencies and set up pre-commit hooks
+
+   ```bash
+   pnpm install
+   pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
+   ```
+
+4. Create an env file
 
    ```bash
     cp .env.dev.example .env
@@ -133,7 +140,7 @@ Requirements
 4. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it.
 
    ```bash
-   pnpm run dx # first run only (resets db, node_modules, ...)
+   pnpm run dx # first run only (resets db, docker containers, etc...)
    pnpm run dev # any subsequent runs
    ```
 
@@ -149,8 +156,8 @@ Requirements
    - Username: `demo@langfuse.com`
    - Password: `password`
 
-
 To get comprehensive example data, you can use the `seed` command:
+
 ```sh
 pnpm run db:seed:examples
 ```
@@ -228,30 +235,36 @@ The `.env.test` file only overrides the set values and falls back on `.env` for 
 Tests automatically create the PostgreSQL test database if it doesn't exist and clean up data between runs.
 
 ### Tests in the `web` package (public API)
-We're using Jest with in the `web` package. Therefore, if you want to provide an argument to the test runner, do it directly without an intermittent ` -- `.
+
+We're using Jest with in the `web` package. Therefore, if you want to provide an argument to the test runner, do it directly without an intermittent `--`.
 
 There are three types of unit tests:
+
 - `test-sync`
 - `test-async`
 - `test-client`
 
 To run a specific test, for example the test: `"should handle special characters in prompt names"` in `prompts.v2.servertest.ts`, run:
+
 ```sh
 cd web  # or with --filter=web
 pnpm test-sync --testPathPattern="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
 ```
 
 To run all tests:
+
 ```sh
 pnpm run test
 ```
 
 Run interactively in watch mode (not recommended!)
+
 ```sh
 pnpm run test:watch
 ```
 
 ### Tests in the `worker` package
+
 For the `worker` package, we're using `vitest` to run unit tests.
 
 ```sh

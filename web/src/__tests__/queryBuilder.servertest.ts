@@ -3477,6 +3477,57 @@ describe("queryBuilder", () => {
         );
         expect(totalCount).toBe(30); // Should match our 30 observations
       });
+
+      it("should format startTimeMonth dimension correctly", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const trace = createTrace({
+          project_id: projectId,
+          name: "test-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+
+        const observation = createObservation({
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          name: "test-observation",
+          environment: "default",
+          start_time: new Date("2024-03-15T10:00:00Z").getTime(),
+        });
+
+        await createTracesCh([trace]);
+        await createObservationsCh([observation]);
+
+        // Query with startTimeMonth dimension
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "startTimeMonth" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: "2024-03-01T00:00:00.000Z",
+          toTimestamp: "2024-03-31T23:59:59.999Z",
+          orderBy: null,
+        };
+
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Verify the month is formatted as YYYY-MM
+        expect(result.data).toHaveLength(1);
+        expect(result.data[0].startTimeMonth).toBe("2024-03");
+      });
     });
   });
 });

@@ -12,6 +12,7 @@ import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
 import PromptMetrics from "./metrics";
 import { useQueryParams, StringParam } from "use-query-params";
 import React from "react";
+import { WebhookButton } from "@/src/features/automations/components/WebhookButton";
 
 export default function PromptsWithFolder() {
   const router = useRouter();
@@ -88,19 +89,24 @@ export default function PromptsWithFolder() {
           href: "https://langfuse.com/docs/prompts",
         },
         actionButtonsRight: (
-          <ActionButton
-            icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
-            hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
-            variant="default"
-            limit={promptLimit}
-            limitValue={Number(count?.totalCount ?? 0)}
-            onClick={() => {
-              capture("prompts:new_form_open");
-            }}
-          >
-            New prompt
-          </ActionButton>
+          <>
+            {projectId && (
+              <WebhookButton projectId={projectId} variant="secondary" />
+            )}
+            <ActionButton
+              icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+              hasAccess={hasCUDAccess}
+              href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
+              variant="default"
+              limit={promptLimit}
+              limitValue={Number(count?.totalCount ?? 0)}
+              onClick={() => {
+                capture("prompts:new_form_open");
+              }}
+            >
+              New prompt
+            </ActionButton>
+          </>
         ),
       }}
       scrollable={showOnboarding}
