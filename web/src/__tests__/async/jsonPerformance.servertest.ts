@@ -354,12 +354,12 @@ async function retrieveTraceTRPC(
   if (optimization !== "original") {
     expect(result.optimization).toBe(optimization);
   }
-  
+
   // Create a clean copy without the optimization and metrics fields for comparison
   const metrics = (result as any).metrics;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { optimization: _opt, metrics: _metrics, ...cleanData } = result as any;
-  
+
   return {
     time: endTime - startTime,
     responseData: cleanData,
@@ -384,12 +384,12 @@ async function retrieveObservationTRPC(
   if (optimization !== "original") {
     expect(result.optimization).toBe(optimization);
   }
-  
+
   // Create a clean copy without the optimization and metrics fields for comparison
   const metrics = (result as any).metrics;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { optimization: _opt, metrics: _metrics, ...cleanData } = result as any;
-  
+
   return {
     time: endTime - startTime,
     responseData: cleanData,
@@ -498,8 +498,11 @@ function validateResponseEquality(
       }
 
       // For TRPC validation failures, don't throw the error, just log it
-      if (entityType.includes('TRPC')) {
-        console.error('TRPC validation error (continuing):', (error as Error).message);
+      if (entityType.includes("TRPC")) {
+        console.error(
+          "TRPC validation error (continuing):",
+          (error as Error).message,
+        );
       } else {
         throw error;
       }
