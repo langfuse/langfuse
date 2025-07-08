@@ -116,6 +116,10 @@ async function executeLongRunningQuery(
   const abortController = new AbortController();
   const timeoutMs = timeoutMinutes * 60 * 1000;
 
+  logger.info(
+    `[Background Migration] Executing traces_mt backfill query ${queryId}`,
+  );
+
   // Start the query execution
   const queryPromise = client.command({
     query,
@@ -161,6 +165,16 @@ async function executeLongRunningQuery(
         clearInterval(checkInterval);
         resolve();
       }
+
+      // If Date.now() - startTime rounded down to a second is a multiple of 60, print a log message, i.e. ~ every minute
+      if (Math.floor((Date.now() - startTime) / 1000) % 60 === 0) {
+        logger.info(
+          `[Background Migration] Query ${queryId} still running after ${Math.floor(
+            (Date.now() - startTime) / 60000,
+          )} minutes`,
+        );
+      }
+
       if (Date.now() - startTime > timeoutMs) {
         logger.warn(
           `[Background Migration] Query ${queryId} still running after ${timeoutMinutes} minutes. Aborting...`,
