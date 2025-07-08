@@ -155,7 +155,19 @@ async function executeLongRunningQuery(
 
   // Cancel the HTTP request and keep it running server-side only.
   abortController.abort();
-  await queryPromise;
+
+  // Handle the expected abort error when canceling the HTTP request
+  try {
+    await queryPromise;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("abort")) {
+      logger.info(
+        `[Background Migration] Query ${queryId} HTTP request aborted as expected, query continues server-side`,
+      );
+    } else {
+      throw err;
+    }
+  }
 
   // Check whether the query completed or aborted after timeoutMin minutes
   await new Promise<void>((resolve, reject) => {
