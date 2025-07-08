@@ -18,7 +18,7 @@ import Handlebars from "handlebars";
  * Handles common LLM errors like quota limits and throttling with appropriate status codes
  *
  * @param operation - The async LLM operation to execute
- * @param operationName - Name for error context (e.g., "call LLM", "call structured LLM")
+ * @param operationName - Name for error context (e.g., "call LLM")
  * @returns The result of the operation or throws an ApiError
  */
 async function withLLMErrorHandling<T>(
@@ -72,7 +72,7 @@ export async function callStructuredLLM<T extends ZodV3Schema>(
     });
 
     return structuredOutputSchema.parse(completion);
-  }, "call structured LLM");
+  }, "call LLM");
 }
 
 export async function callLLM(
