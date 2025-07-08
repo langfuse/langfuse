@@ -1,5 +1,9 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
-import { clickhouseClient, logger } from "@langfuse/shared/src/server";
+import {
+  clickhouseClient,
+  ClickhouseClientType,
+  logger,
+} from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
@@ -43,6 +47,45 @@ function calculateClickHouseSettings(cpuCores?: number, memoryGiB?: number) {
 }
 
 /**
+ * Checks if a query exists in the system.query_log table
+ */
+async function checkQueryExists(
+  client: ClickhouseClientType,
+  queryId: string,
+): Promise<boolean> {
+  const resultSet = await client.query({
+    query: `
+      SELECT COUNT(*) > 0 AS exists
+      FROM system.query_log
+      WHERE query_id = '${queryId}'
+    `,
+    format: "JSONEachRow",
+  });
+  const result = (await resultSet.json()) as { exists: 0 | 1 }[];
+  return result.length > 0 && result[0].exists !== 0;
+}
+
+/**
+ * Checks if a query has completed successfully
+ */
+async function checkCompletedQuery(
+  client: ClickhouseClientType,
+  queryId: string,
+): Promise<boolean> {
+  const resultSet = await client.query({
+    query: `
+      SELECT type
+      FROM system.query_log
+      WHERE query_id = '${queryId}' AND type != 'QueryStart'
+      LIMIT 1
+    `,
+    format: "JSONEachRow",
+  });
+  const result = (await resultSet.json()) as { type: string }[];
+  return result.length > 0 && result[0].type === "QueryFinish";
+}
+
+/**
  * Executes a long-running ClickHouse query with timeout and progress monitoring
  * Based on: https://github.com/ClickHouse/clickhouse-js/blob/main/examples/long_running_queries_timeouts.ts#L85
  */
@@ -70,56 +113,56 @@ async function executeLongRunningQuery(
     abort_signal: abortController.signal,
   });
 
-  // Set up timeout and progress monitoring
   const startTime = Date.now();
-  const progressInterval = setInterval(async () => {
-    const elapsed = Date.now() - startTime;
-    logger.info(
-      `Query ${queryId} still running after ${Math.floor(elapsed / 60000)} minutes`,
-    );
 
-    // TODO: Future improvement - could fetch current state from system.processes table to provide more detailed progress information
-  }, 60000); // Log every minute
+  // Check whether the query was created
+  let checkExistTries = 0;
+  await new Promise<void>((resolve, reject) => {
+    const checkInterval = setInterval(async () => {
+      const queryExists = await checkQueryExists(client, queryId);
+      if (queryExists) {
+        clearInterval(checkInterval);
+        resolve();
+      }
+      if (checkExistTries++ > 3) {
+        clearInterval(checkInterval);
+        reject(
+          new Error(`Query ${queryId} does not exist in system.query_log`),
+        );
+      }
+    }, 1000);
+  });
 
-  // Set up global timeout
-  const timeoutHandle = setTimeout(async () => {
-    logger.warn(
-      `Query ${queryId} timed out after ${timeoutMinutes} minutes, cancelling on server`,
-    );
+  // Cancel the HTTP request and keep it running server-side only.
+  abortController.abort();
+  await queryPromise;
 
-    // Cancel the query on the ClickHouse server
-    try {
-      await client.command({
-        query: `KILL QUERY WHERE query_id = '${queryId}'`,
-      });
-      logger.info(`Successfully cancelled query ${queryId} on server`);
-    } catch (error) {
-      logger.error(`Failed to cancel query ${queryId} on server:`, error);
-    }
+  // Check whether the query completed or aborted after timeoutMin minutes
+  await new Promise<void>((resolve, reject) => {
+    const checkInterval = setInterval(async () => {
+      const isCompleted = await checkCompletedQuery(client, queryId);
+      if (isCompleted) {
+        clearInterval(checkInterval);
+        resolve();
+      }
+      if (Date.now() - startTime > timeoutMs) {
+        logger.warn(
+          `[Background Migration] Query ${queryId} still running after ${timeoutMinutes} minutes. Aborting...`,
+        );
+        await client.command({
+          query: `KILL QUERY WHERE query_id = '${queryId}'`,
+        });
+        clearInterval(checkInterval);
+        reject(
+          new Error(
+            `Query ${queryId} cancelled after ${timeoutMinutes} minutes`,
+          ),
+        );
+      }
+    }, 1000);
+  });
 
-    // Abort the HTTP request
-    abortController.abort();
-  }, timeoutMs);
-
-  try {
-    // Wait for query completion
-    await queryPromise;
-    logger.info(`Query ${queryId} completed successfully`);
-  } catch (error) {
-    // Check if this was a timeout-induced cancellation
-    if (abortController.signal.aborted) {
-      throw new Error(
-        `Query ${queryId} timed out after ${timeoutMinutes} minutes`,
-      );
-    }
-
-    // Re-throw other errors (SQL errors, constraint violations, etc.)
-    throw error;
-  } finally {
-    // Clean up
-    clearInterval(progressInterval);
-    clearTimeout(timeoutHandle);
-  }
+  logger.info(`[Background Migration] Query ${queryId} completed successfully`);
 }
 
 export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
@@ -156,7 +199,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
         logger.info(
-          `ClickHouse tables do not exist. Expected to find traces_mt, traces_all_amt, traces_7d_amt, traces_30_amt. Retrying in 10s...`,
+          `[Background Migration] ClickHouse tables do not exist. Expected to find traces_mt, traces_all_amt, traces_7d_amt, traces_30_amt. Retrying in 10s...`,
         );
         return new Promise((resolve) => {
           setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
@@ -169,7 +212,9 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
 
   async run(args: Record<string, unknown>): Promise<void> {
     const start = Date.now();
-    logger.info(`Migrating traces to traces AMTs with ${JSON.stringify(args)}`);
+    logger.info(
+      `[Background Migration] Migrating traces to traces AMTs with ${JSON.stringify(args)}`,
+    );
 
     // @ts-ignore
     const initialMigrationState: { state: MigrationState } =
@@ -193,7 +238,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
     const clickhouseConfig = calculateClickHouseSettings(cpuCores, memoryGiB);
 
     logger.info(
-      `Using ClickHouse settings: ${JSON.stringify(clickhouseConfig)}`,
+      `[Background Migration] Using ClickHouse settings: ${JSON.stringify(clickhouseConfig)}`,
     );
 
     const maxDate = initialMigrationState.state?.maxDate
@@ -231,7 +276,9 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
 
       // Get current month in YYYYMM format
       const currentMonth = maxDate.toISOString().slice(0, 7).replace("-", "");
-      logger.info(`Migrating traces for ${currentMonth}`);
+      logger.info(
+        `[Background Migration] Migrating traces for ${currentMonth}`,
+      );
 
       const query = `
         INSERT INTO traces_mt
@@ -297,33 +344,39 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       });
 
       logger.info(
-        `Inserted traces into traces_mt for ${currentMonth} in ${Date.now() - queryStart}ms`,
+        `[Background Migration] Inserted traces into traces_mt for ${currentMonth} in ${Date.now() - queryStart}ms`,
       );
 
       if (maxDate < minDate) {
-        logger.info("No more traces to migrate. Exiting...");
+        logger.info(
+          "[Background Migration] No more traces to migrate. Exiting...",
+        );
         this.isFinished = true;
       }
     }
 
     if (this.isAborted) {
-      logger.info(`Migration of traces to traces AMTs aborted.`);
+      logger.info(
+        `[Background Migration] Migration of traces to traces AMTs aborted.`,
+      );
       return;
     }
 
     logger.info(
-      `Finished migration of traces to traces AMTs in ${Date.now() - start}ms`,
+      `[Background Migration] Finished migration of traces to traces AMTs in ${Date.now() - start}ms`,
     );
   }
 
   async abort(): Promise<void> {
-    logger.info(`Aborting migration of traces to traces AMTs`);
+    logger.info(
+      `[Background Migration] Aborting migration of traces to traces AMTs`,
+    );
     this.isAborted = true;
   }
 }
 
 async function createBackgroundMigrationRecord(): Promise<void> {
-  logger.info("Creating background migration record...");
+  logger.info("[Background Migration] Creating background migration record...");
 
   await prisma.backgroundMigration.create({
     data: {
@@ -333,7 +386,9 @@ async function createBackgroundMigrationRecord(): Promise<void> {
       args: {},
     },
   });
-  logger.info("Background migration record created successfully");
+  logger.info(
+    "[Background Migration] Background migration record created successfully",
+  );
 }
 
 // TODO: Confirm defaults for maxDate and minDate to ensure coverage for self-hosters
@@ -395,7 +450,10 @@ if (require.main === module) {
       process.exit(0);
     })
     .catch((error) => {
-      logger.error(`Migration execution failed: ${error}`, error);
+      logger.error(
+        `[Background Migration] Migration execution failed: ${error}`,
+        error,
+      );
       process.exit(1); // Exit with an error code
     });
 }
