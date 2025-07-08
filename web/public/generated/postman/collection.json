@@ -330,6 +330,133 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Blob Storage Integration",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get the blob storage integration for a project",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a new blob storage integration for a project",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"type\": \"S3\",\n    \"bucketName\": \"example\",\n    \"endpoint\": \"example\",\n    \"region\": \"example\",\n    \"accessKeyId\": \"example\",\n    \"secretAccessKey\": \"example\",\n    \"prefix\": \"example\",\n    \"exportFrequency\": \"hourly\",\n    \"enabled\": true,\n    \"forcePathStyle\": true,\n    \"fileType\": \"JSON\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update an existing blob storage integration",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"type\": \"S3\",\n    \"bucketName\": \"example\",\n    \"endpoint\": \"example\",\n    \"region\": \"example\",\n    \"accessKeyId\": \"example\",\n    \"secretAccessKey\": \"example\",\n    \"prefix\": \"example\",\n    \"exportFrequency\": \"hourly\",\n    \"enabled\": true,\n    \"forcePathStyle\": true,\n    \"fileType\": \"JSON\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a blob storage integration",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Comments",
       "item": [
         {
