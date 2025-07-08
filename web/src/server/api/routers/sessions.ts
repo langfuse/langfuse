@@ -15,6 +15,7 @@ import {
   singleFilter,
   timeFilter,
   tracesTableUiColumnDefinitions,
+  type SessionOptions,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -33,6 +34,8 @@ import {
   getSessionsWithMetrics,
   hasAnySession,
   getScoresForSessions,
+  getNumericScoresGroupedByName,
+  getCategoricalScoresGroupedByName,
 } from "@langfuse/shared/src/server";
 import { chunk } from "lodash";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -174,25 +177,27 @@ export const sessionRouter = createTRPCRouter({
           },
         });
         return {
-          sessions: sessions.map((s) => ({
-            id: s.session_id,
-            userIds: s.user_ids,
-            countTraces: s.trace_count,
-            traceTags: s.trace_tags,
-            scores: aggregateScores(
-              validatedScores.filter(
-                (score) => score.sessionId === s.session_id,
+          sessions: sessions.map((s) => {
+            return {
+              id: s.session_id,
+              userIds: s.user_ids,
+              countTraces: s.trace_count,
+              traceTags: s.trace_tags,
+              scores: aggregateScores(
+                validatedScores.filter(
+                  (score) => score.sessionId === s.session_id,
+                ),
               ),
-            ),
-            createdAt: new Date(s.min_timestamp),
-            bookmarked:
-              prismaSessionInfo.find((p) => p.id === s.session_id)
-                ?.bookmarked ?? false,
-            public:
-              prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
-              false,
-            environment: s.trace_environment,
-          })),
+              createdAt: new Date(s.min_timestamp),
+              bookmarked:
+                prismaSessionInfo.find((p) => p.id === s.session_id)
+                  ?.bookmarked ?? false,
+              public:
+                prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
+                false,
+              environment: s.trace_environment,
+            };
+          }),
         };
       } catch (e) {
         logger.error("Unable to call sessions.all", e);
@@ -304,7 +309,7 @@ export const sessionRouter = createTRPCRouter({
         timestampFilter: timeFilter.optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input }): Promise<SessionOptions> => {
       try {
         const { timestampFilter } = input;
         const columns = [
@@ -327,21 +332,38 @@ export const sessionRouter = createTRPCRouter({
         if (timestampFilter) {
           filter.push(timestampFilter);
         }
-        const [userIds, tags] = await Promise.all([
-          getTracesGroupedByUsers(
-            input.projectId,
-            filter,
-            undefined,
-            1000,
-            0,
-            columns,
-          ),
-          getTracesGroupedByTags({
-            projectId: input.projectId,
-            filter,
-            columns,
-          }),
-        ]);
+        // Create a proper trace timestamp filter for score functions
+        const scoreTimestampFilter = timestampFilter
+          ? {
+              ...timestampFilter,
+              column: "Timestamp", // Use exact trace column name for score functions
+            }
+          : null;
+
+        const [userIds, tags, numericScoreNames, categoricalScoreNames] =
+          await Promise.all([
+            getTracesGroupedByUsers(
+              input.projectId,
+              filter,
+              undefined,
+              1000,
+              0,
+              columns,
+            ),
+            getTracesGroupedByTags({
+              projectId: input.projectId,
+              filter,
+              columns,
+            }),
+            getNumericScoresGroupedByName(
+              input.projectId,
+              scoreTimestampFilter ? [scoreTimestampFilter] : [],
+            ),
+            getCategoricalScoresGroupedByName(
+              input.projectId,
+              scoreTimestampFilter ? [scoreTimestampFilter] : [],
+            ),
+          ]);
 
         return {
           userIds: userIds.map((row) => ({
@@ -350,6 +372,8 @@ export const sessionRouter = createTRPCRouter({
           tags: tags.map((row) => ({
             value: row.value,
           })),
+          scores_avg: numericScoreNames.map((s) => s.name),
+          score_categories: categoricalScoreNames,
         };
       } catch (e) {
         logger.error("Unable to get sessions.filterOptions", e);

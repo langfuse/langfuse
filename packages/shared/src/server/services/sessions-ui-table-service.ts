@@ -3,7 +3,12 @@ import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
+import {
+  DateTimeFilter,
+  FilterList,
+  orderByToClickhouseSql,
+  StringFilter,
+} from "../queries";
 import {
   getProjectIdDefaultFilter,
   createFilterFromFilterState,
@@ -22,6 +27,8 @@ export type SessionDataReturnType = {
   trace_count: number;
   trace_tags: string[];
   trace_environment?: string;
+  scores_avg?: Array<Array<[string, number]>>;
+  score_categories?: Array<Array<string>>;
 };
 
 export type SessionWithMetricsReturnType = SessionDataReturnType & {
@@ -122,6 +129,9 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
     props;
 
+  // Always include scores data, not just when filtering by scores
+  const includeScores = true;
+
   let sqlSelect: string;
   switch (select) {
     case "count":
@@ -136,7 +146,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
           user_ids, 
           trace_count, 
           trace_tags,
-          trace_environment`;
+          trace_environment${includeScores ? ",\n          s.scores_avg as scores_avg,\n          s.score_categories as score_categories" : ""}`;
       break;
     case "metrics":
       sqlSelect = `
@@ -207,6 +217,33 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const singleTraceFilter =
     filters.length > 0 ? new FilterList(filters).apply() : undefined;
 
+  const scoresFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
+
+  const timeFilter = filter.find(
+    (f) =>
+      f.column === "Created At" && (f.operator === ">=" || f.operator === ">"),
+  );
+
+  timeFilter
+    ? scoresFilter.push(
+        new DateTimeFilter({
+          clickhouseTable: "scores",
+          field: "timestamp",
+          operator: ">=",
+          value: timeFilter.value as Date,
+        }),
+      )
+    : undefined;
+
+  const appliedScoresFilter = scoresFilter.apply();
+
   const hasMetricsFilter =
     tracesFilter.find((f) =>
       [
@@ -233,9 +270,47 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   const selectMetrics = select === "metrics" || hasMetricsFilter;
 
+  const scoresCte = `scores_avg AS (
+    SELECT
+      session_id AS score_session_id,
+      -- For numeric scores, use tuples of (name, avg_value)
+      groupArrayIf(
+        tuple(name, avg_value),
+        data_type IN ('NUMERIC', 'BOOLEAN')
+      ) AS scores_avg,
+      -- For categorical scores, use name:value format for improved query performance
+      groupArrayIf(
+        concat(name, ':', string_value),
+        data_type = 'CATEGORICAL' AND notEmpty(string_value)
+      ) AS score_categories
+    FROM (
+      SELECT
+        session_id,
+        name,
+        avg(value) avg_value,
+        string_value,
+        data_type,
+        comment
+      FROM
+        scores final
+      WHERE ${appliedScoresFilter.query}
+      GROUP BY
+        session_id,
+        name,
+        string_value,
+        data_type,
+        comment
+      ORDER BY
+        session_id
+      ) tmp
+    GROUP BY
+      session_id
+  )`;
+
   // We use deduplicated traces and observations CTEs instead of final to be able to use Skip indices in Clickhouse.
   const query = `
-    WITH deduplicated_traces AS (
+    WITH ${includeScores ? `${scoresCte},` : ""}
+    deduplicated_traces AS (
       SELECT * EXCEPT input, output, metadata
       FROM traces t
       WHERE t.session_id IS NOT NULL 
@@ -279,7 +354,14 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             groupUniqArray(t.user_id) AS user_ids,
             count(*) as trace_count,
             groupUniqArrayArray(t.tags) as trace_tags,
-            anyLast(t.environment) as trace_environment
+            anyLast(t.environment) as trace_environment${
+              includeScores
+                ? `,
+            -- Aggregate scores data at session level
+            anyLast(s.scores_avg) as scores_avg,
+            anyLast(s.score_categories) as score_categories`
+                : ""
+            }
             -- Aggregate observations data at session level
             ${
               selectMetrics
@@ -306,6 +388,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         ON t.id = o.trace_id AND t.project_id = o.project_id`
             : ""
         }
+        ${includeScores ? `LEFT JOIN scores_avg s ON t.session_id = s.score_session_id` : ""}
         WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
             ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
@@ -330,6 +413,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       offset: limit && page ? limit * page : 0,
       ...tracesFilterRes.params,
       ...singleTraceFilter?.params,
+      ...appliedScoresFilter.params,
       ...(obsStartTimeValue
         ? { observationsStartTime: obsStartTimeValue }
         : {}),
