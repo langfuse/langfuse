@@ -166,9 +166,9 @@ const isLangGraphTrace = (generation: { metadata: string | null }): boolean => {
 
 // Normalize LangGraph tool messages by converting tool-name roles to "tool"
 const normalizeLangGraphMessage = (
-  message: any,
+  message: unknown,
   isLangGraph: boolean = false,
-): any => {
+): unknown => {
   if (!message || typeof message !== "object" || !("role" in message)) {
     return message;
   }
