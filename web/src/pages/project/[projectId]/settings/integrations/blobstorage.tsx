@@ -21,6 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { Label } from "@/src/components/ui/label";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -40,6 +42,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BlobStorageExportMode,
   type BlobStorageIntegration,
 } from "@langfuse/shared";
 
@@ -117,12 +120,44 @@ export default function BlobStorageIntegrationSettings() {
       {state.data?.enabled && (
         <>
           <Header title="Status" className="mt-8" />
-          <p className="text-sm text-primary">
-            Data last exported:{" "}
-            {state.data?.lastSyncAt
-              ? new Date(state.data.lastSyncAt).toLocaleString()
-              : "Never (pending)"}
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-primary">
+              Data last exported:{" "}
+              {state.data?.lastSyncAt
+                ? new Date(state.data.lastSyncAt).toLocaleString()
+                : "Never (pending)"}
+            </p>
+            <p className="text-sm text-primary">
+              Export mode:{" "}
+              {state.data?.exportMode === BlobStorageExportMode.FULL_HISTORY
+                ? "Full history"
+                : state.data?.exportMode === BlobStorageExportMode.FROM_TODAY
+                  ? "From today"
+                  : state.data?.exportMode ===
+                      BlobStorageExportMode.FROM_CUSTOM_DATE
+                    ? "From custom date"
+                    : "Unknown"}
+            </p>
+            {state.data?.exportMode ===
+              BlobStorageExportMode.FROM_CUSTOM_DATE &&
+              state.data?.exportStartDate && (
+                <p className="text-sm text-primary">
+                  Export start date:{" "}
+                  {new Date(state.data.exportStartDate).toLocaleDateString()}
+                </p>
+              )}
+            {state.data?.exportMode !== BlobStorageExportMode.FULL_HISTORY && (
+              <p className="text-sm text-amber-600">
+                ⚠️ Historical data before{" "}
+                {state.data?.exportMode === BlobStorageExportMode.FROM_TODAY
+                  ? "today"
+                  : state.data?.exportStartDate
+                    ? new Date(state.data.exportStartDate).toLocaleDateString()
+                    : "the start date"}{" "}
+                is not included in exports
+              </p>
+            )}
+          </div>
         </>
       )}
     </ContainerPage>
@@ -162,6 +197,8 @@ const BlobStorageIntegrationSettingsForm = ({
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
+      exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
+      exportStartDate: state?.exportStartDate || null,
     },
     disabled: isLoading,
   });
@@ -183,6 +220,8 @@ const BlobStorageIntegrationSettingsForm = ({
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
+      exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
+      exportStartDate: state?.exportStartDate || null,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -502,6 +541,110 @@ const BlobStorageIntegrationSettingsForm = ({
             </FormItem>
           )}
         />
+
+        <FormField
+          control={blobStorageForm.control}
+          name="exportMode"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Export Mode</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  className="flex flex-col space-y-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem
+                      value={BlobStorageExportMode.FULL_HISTORY}
+                      id="full-history"
+                    />
+                    <Label htmlFor="full-history" className="cursor-pointer">
+                      <div className="flex flex-col">
+                        <span className="font-medium">Full history</span>
+                        <span className="text-sm text-muted-foreground">
+                          Export all historical data from your project
+                        </span>
+                      </div>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem
+                      value={BlobStorageExportMode.FROM_TODAY}
+                      id="from-today"
+                    />
+                    <Label htmlFor="from-today" className="cursor-pointer">
+                      <div className="flex flex-col">
+                        <span className="font-medium">Today</span>
+                        <span className="text-sm text-muted-foreground">
+                          Start exporting from today (historical data will not
+                          be included)
+                        </span>
+                      </div>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem
+                      value={BlobStorageExportMode.FROM_CUSTOM_DATE}
+                      id="from-custom-date"
+                    />
+                    <Label
+                      htmlFor="from-custom-date"
+                      className="cursor-pointer"
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium">Custom date</span>
+                        <span className="text-sm text-muted-foreground">
+                          Start exporting from a specific date
+                        </span>
+                      </div>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </FormControl>
+              <FormDescription>
+                Choose when to start exporting data. &quot;Today&quot; and
+                &quot;Custom date&quot; modes will not include historical data
+                before the specified date.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {blobStorageForm.watch("exportMode") ===
+          BlobStorageExportMode.FROM_CUSTOM_DATE && (
+          <FormField
+            control={blobStorageForm.control}
+            name="exportStartDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Export Start Date</FormLabel>
+                <FormControl>
+                  <Input
+                    type="date"
+                    value={
+                      field.value instanceof Date
+                        ? field.value.toISOString().split("T")[0]
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const date = e.target.value
+                        ? new Date(e.target.value)
+                        : null;
+                      field.onChange(date);
+                    }}
+                    placeholder="Select start date"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Data before this date will not be included in exports
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={blobStorageForm.control}
