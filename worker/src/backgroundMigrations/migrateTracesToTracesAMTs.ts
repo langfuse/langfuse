@@ -84,15 +84,23 @@ async function checkCompletedQuery(
 
   const resultSet = await client.query({
     query: `
-      SELECT type
+      SELECT type, exception
       FROM ${queryLogTable}
       WHERE query_id = '${queryId}' AND type != 'QueryStart'
       LIMIT 1
     `,
     format: "JSONEachRow",
   });
-  const result = (await resultSet.json()) as { type: string }[];
-  return result.length > 0 && result[0].type === "QueryFinish";
+  const result = (await resultSet.json()) as {
+    type: string;
+    exception: string | undefined;
+  }[];
+  if (result.length > 0 && result[0].type !== "QueryFinish") {
+    throw new Error(
+      `Query ${queryId} failed with ${result[0].type}: ${result[0].exception}`,
+    );
+  }
+  return result.length > 0;
 }
 
 /**
@@ -172,10 +180,15 @@ async function executeLongRunningQuery(
   // Check whether the query completed or aborted after timeoutMin minutes
   await new Promise<void>((resolve, reject) => {
     const checkInterval = setInterval(async () => {
-      const isCompleted = await checkCompletedQuery(client, queryId);
-      if (isCompleted) {
+      try {
+        const isCompleted = await checkCompletedQuery(client, queryId);
+        if (isCompleted) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      } catch (err) {
         clearInterval(checkInterval);
-        resolve();
+        reject(err);
       }
 
       // If Date.now() - startTime rounded down to a second is a multiple of 60, print a log message, i.e. ~ every minute
