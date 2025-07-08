@@ -18,6 +18,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import {
@@ -380,9 +385,19 @@ export const PromptDetail = ({
                         >
                           # {prompt.version}
                         </Badge>
-                        <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
-                          {prompt.commitMessage ?? prompt.name}
-                        </span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="mb-0 line-clamp-2 min-w-0 cursor-help break-all text-lg font-medium md:break-normal md:break-words">
+                              {prompt.commitMessage ?? prompt.name}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              Prompts can't be renamed, duplicate the prompt
+                              with a new name instead
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     }
                     promptLabels={prompt.labels}
