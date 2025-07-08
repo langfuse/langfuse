@@ -1044,6 +1044,7 @@ export class OtelIngestionProcessor {
     const userIdKeys = [
       "langfuse.session.id",
       "session.id",
+      "gen_ai.conversation.id",
       `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
       `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_session_id`,
     ];
