@@ -57,7 +57,6 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 
-
 const getPythonCode = (
   name: string,
   version: number,
