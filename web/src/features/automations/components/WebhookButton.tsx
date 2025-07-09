@@ -5,6 +5,7 @@ import { type ButtonProps } from "@/src/components/ui/button";
 
 export const WebhookButton = ({
   projectId,
+  variant = "outline",
   ...buttonProps
 }: {
   projectId: string;
@@ -20,6 +21,7 @@ export const WebhookButton = ({
       icon={<Zap className="h-4 w-4" aria-hidden="true" />}
       hasAccess={hasAccess}
       title="Webhooks"
+      variant={variant}
       {...buttonProps}
     >
       <span className="hidden md:ml-1 md:inline">Webhooks</span>
