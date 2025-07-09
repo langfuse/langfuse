@@ -68,12 +68,6 @@ function isFolder(
   return row.type === "folder";
 }
 
-function getDisplayName(fullPath: string, currentFolderPath: string): string {
-  return currentFolderPath === ""
-    ? fullPath
-    : fullPath.substring(currentFolderPath.length + 1);
-}
-
 function createBreadcrumbItems(currentFolderPath: string) {
   if (!currentFolderPath) return [];
 
@@ -180,74 +174,52 @@ export function PromptTable() {
     })),
   );
 
-  // Filter and group prompts based on current folder path
+  // Backend now returns folder representatives, so we just need to detect and convert them
   const processedRowData = useMemo(() => {
     if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
 
-    const uniqueFolders = new Set<string>();
-    const matchingPrompts: typeof promptsRowData.rows = [];
+    const combinedRows: PromptTableRow[] = [];
 
-    // Identify immediate subfolders from backend-filtered prompts
     for (const prompt of promptsRowData.rows) {
       const promptName = prompt.id;
 
-      if (currentFolderPath) {
-        const prefix = `${currentFolderPath}/`;
-        if (promptName.startsWith(prefix)) {
-          const remainingPath = promptName.substring(prefix.length);
-          const slashIndex = remainingPath.indexOf("/");
+      // Check if this prompt represents a folder
+      const isfolderRepresentative = currentFolderPath
+        ? promptName.includes("/") &&
+          promptName.startsWith(`${currentFolderPath}/`) &&
+          promptName.substring(currentFolderPath.length + 1).includes("/")
+        : promptName.includes("/");
 
-          if (slashIndex > 0) {
-            // Subfolder
-            const subFolderName = remainingPath.substring(0, slashIndex);
-            const fullSubFolderPath = `${currentFolderPath}/${subFolderName}`;
-            uniqueFolders.add(fullSubFolderPath);
-          } else {
-            // Direct prompt in current folder
-            matchingPrompts.push(prompt);
-          }
-        }
+      if (isfolderRepresentative) {
+        // Convert folder representative to folder item
+        const folderPath = currentFolderPath
+          ? `${currentFolderPath}/${promptName.substring(currentFolderPath.length + 1).split("/")[0]}`
+          : promptName.split("/")[0];
+
+        const folderName = getDisplayName(folderPath, currentFolderPath);
+
+        combinedRows.push(
+          createRow({
+            id: folderPath,
+            name: folderName,
+            type: "folder",
+          }),
+        );
       } else {
-        // Root level
-        const slashIndex = promptName.indexOf("/");
-        if (slashIndex > 0) {
-          const folderName = promptName.substring(0, slashIndex);
-          uniqueFolders.add(folderName);
-        } else {
-          matchingPrompts.push(prompt);
-        }
+        // Regular prompt
+        combinedRows.push(
+          createRow({
+            id: prompt.id,
+            name: getDisplayName(prompt.id, currentFolderPath),
+            type: prompt.type as "text" | "chat",
+            version: prompt.version,
+            createdAt: prompt.createdAt,
+            labels: prompt.labels,
+            tags: prompt.tags,
+            numberOfObservations: Number(prompt.observationCount ?? 0),
+          }),
+        );
       }
-    }
-
-    // Create combined rows: folders first, then prompts
-    const combinedRows: PromptTableRow[] = [];
-
-    // Add folder rows
-    for (const folderPath of uniqueFolders) {
-      const folderName = getDisplayName(folderPath, currentFolderPath);
-      combinedRows.push(
-        createRow({
-          id: folderPath,
-          name: folderName,
-          type: "folder",
-        }),
-      );
-    }
-
-    // Add matching prompts
-    for (const prompt of matchingPrompts) {
-      combinedRows.push(
-        createRow({
-          id: prompt.id,
-          name: getDisplayName(prompt.id, currentFolderPath),
-          type: prompt.type as "text" | "chat",
-          version: prompt.version,
-          createdAt: prompt.createdAt,
-          labels: prompt.labels,
-          tags: prompt.tags,
-          numberOfObservations: Number(prompt.observationCount ?? 0),
-        }),
-      );
     }
 
     return {

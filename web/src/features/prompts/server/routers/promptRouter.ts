@@ -77,6 +77,9 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
+      const limit: number = input.limit ?? 50;
+      const page: number = input.page ?? 0;
+
       const orderByCondition = orderByToPrismaSql(
         input.orderBy,
         promptsTableCols,
@@ -88,13 +91,23 @@ export const promptRouter = createTRPCRouter({
         "prompts",
       );
 
-      const pathFilter = input.pathPrefix
-        ? Prisma.sql` AND (p.name LIKE ${input.pathPrefix + "/%"} OR p.name = ${input.pathPrefix})`
-        : Prisma.empty;
+      const pathFilter =
+        input.pathPrefix !== undefined
+          ? (() => {
+              const prefix = input.pathPrefix as string;
+              return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
+            })()
+          : Prisma.empty;
 
-      const searchFilter = input.searchQuery
-        ? Prisma.sql` AND (p.name ILIKE ${`%${input.searchQuery}%`} OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`}))`
-        : Prisma.empty;
+      const searchFilter =
+        input.searchQuery !== undefined &&
+        input.searchQuery !== null &&
+        input.searchQuery !== ""
+          ? (() => {
+              const q = input.searchQuery as string;
+              return Prisma.sql` AND (p.name ILIKE ${`%${q}%`} OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`}))`;
+            })()
+          : Prisma.empty;
 
       const [prompts, promptCount] = await Promise.all([
         // prompts
@@ -111,26 +124,28 @@ export const promptRouter = createTRPCRouter({
           p.created_at as "createdAt",
           p.labels,
           p.tags`,
-            input.projectId,
+            input.projectId as string,
             filterCondition,
             orderByCondition,
-            input.limit,
-            input.page,
+            limit,
+            page,
             pathFilter,
             searchFilter,
+            input.pathPrefix,
           ),
         ),
         // promptCount
         ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
           generatePromptQuery(
             Prisma.sql` count(*) AS "totalCount"`,
-            input.projectId,
+            input.projectId as string,
             filterCondition,
             Prisma.empty,
             1, // limit
             0, // page,
             pathFilter,
             searchFilter,
+            input.pathPrefix,
           ),
         ),
       ]);
@@ -153,7 +168,7 @@ export const promptRouter = createTRPCRouter({
       const count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
         generatePromptQuery(
           Prisma.sql` count(*) AS "totalCount"`,
-          input.projectId,
+          input.projectId as string,
           Prisma.empty,
           Prisma.empty,
           1, // limit
@@ -1296,101 +1311,42 @@ const generatePromptQuery = (
   page: number,
   pathFilter: Prisma.Sql = Prisma.empty,
   searchFilter: Prisma.Sql = Prisma.empty,
-  pathPrefix: string = "",
+  pathPrefixStr?: string,
 ) => {
-  return Prisma.sql`
-  SELECT
-   ${select}
-   FROM prompts p
-   WHERE (name, version) IN (
-    SELECT name, MAX(version)
-     FROM prompts p
-     WHERE "project_id" = ${projectId}
-     ${filterCondition}
-     ${pathFilter}
-     ${searchFilter}
-          GROUP BY name
-        )
-    AND "project_id" = ${projectId}
-  ${filterCondition}
-  ${pathFilter}
-  ${searchFilter}
-  ${orderCondition}
-  LIMIT ${limit} OFFSET ${page * limit};
-`;
-};
-
-const generatePromptQueryWithFolders = (
-  select: Prisma.Sql,
-  projectId: string,
-  filterCondition: Prisma.Sql,
-  orderCondition: Prisma.Sql,
-  limit: number,
-  page: number,
-  pathFilter: Prisma.Sql = Prisma.empty,
-  searchFilter: Prisma.Sql = Prisma.empty,
-  pathPrefix: string = "",
-) => {
-  const startPos = pathPrefix ? pathPrefix.length + 2 : 1;
+  const prefix = pathPrefixStr ?? "";
+  const segmentExpr = prefix
+    ? Prisma.sql`SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1)`
+    : Prisma.sql`SPLIT_PART(p.name, '/', 1)`;
 
   return Prisma.sql`
-  WITH latest_prompts AS (
-    SELECT name, MAX(version) as max_version
+  WITH latest AS (
+    /* Get latest version for each prompt name within the (optional) filters */
+    SELECT p.*
     FROM prompts p
-    WHERE "project_id" = ${projectId}
-    ${filterCondition}
-    ${pathFilter}
-    ${searchFilter}
-    GROUP BY name
+    WHERE (p.name, p.version) IN (
+      SELECT name, MAX(version)
+      FROM prompts p
+      WHERE p.project_id = ${projectId}
+        ${filterCondition}
+        ${pathFilter}
+        ${searchFilter}
+      GROUP BY name
+    )
+      AND p.project_id = ${projectId}
+      ${filterCondition}
+      ${pathFilter}
+      ${searchFilter}
   ),
-  all_data AS (
-    SELECT 
-      p.*,
-      split_part(substr(p.name, ${startPos}::int), '/', 1) as child_name,
-      (position('/' in substr(p.name, ${startPos}::int)) > 0) as is_folder
-    FROM prompts p
-    INNER JOIN latest_prompts lp ON p.name = lp.name AND p.version = lp.max_version
-    WHERE p."project_id" = ${projectId}
-    ${filterCondition}
-    ${pathFilter}
-    ${searchFilter}
-  ),
-  -- Folders: distinct folder paths
-  folders AS (
-    SELECT DISTINCT
-      COALESCE(NULLIF(${pathPrefix}, '') || '/', '') || child_name as id,
-      COALESCE(NULLIF(${pathPrefix}, '') || '/', '') || child_name as name,
-      null::integer as version,
-      project_id as "projectId", 
-      null::jsonb as prompt,
-      'folder' as type,
-      null::timestamp as "updatedAt",
-      null::timestamp as "createdAt",
-      null::text[] as labels,
-      null::text[] as tags
-    FROM all_data
-    WHERE is_folder = true
-  ),
-  -- Direct prompts: actual prompt data
-  direct_prompts AS (
-    SELECT DISTINCT ON (child_name)
-      id,
-      ,
-      version,
-      project_id as "projectId",
-      prompt,
-      type,
-      updated_at as "updatedAt", 
-      created_at as "createdAt",
-      labels,
-      tags
-    FROM all_data
-    WHERE is_folder = false
-    ORDER BY child_name, version DESC
+  grouped AS (
+    SELECT
+      p.*,  /* keep all columns */
+      ROW_NUMBER() OVER (PARTITION BY ${segmentExpr} ORDER BY p.version DESC) AS rn
+    FROM latest p
   )
-  SELECT * FROM folders
-  UNION ALL
-  SELECT * FROM direct_prompts
+  SELECT
+    ${select}
+  FROM grouped p
+  WHERE rn = 1
   ${orderCondition}
   LIMIT ${limit} OFFSET ${page * limit};
   `;
