@@ -425,7 +425,7 @@ describe("ClickhouseWriter", () => {
       .spyOn(clickhouseClientMock, "insert")
       .mockRejectedValue(new Error("DB Error"));
 
-    const mockGetJob = vi.fn(() => null); // Job not found
+    const mockGetJob = vi.fn(() => null);
     const mockGetInstance = vi.fn(() => ({
       getJob: mockGetJob,
     }));
@@ -452,9 +452,8 @@ describe("ClickhouseWriter", () => {
       .mockRejectedValue(new Error("DB Error"));
 
     const mockMoveToFailed = vi.fn();
-    const mockGetJobFirstShard = vi.fn(() => null); // Job not found in first shard
+    const mockGetJobFirstShard = vi.fn(() => null);
     const mockGetJobSecondShard = vi.fn(() => ({
-      // Job found in second shard
       moveToFailed: mockMoveToFailed,
     }));
 
