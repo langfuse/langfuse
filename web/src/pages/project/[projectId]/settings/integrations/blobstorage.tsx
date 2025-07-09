@@ -139,7 +139,8 @@ export default function BlobStorageIntegrationSettings() {
                     : "Unknown"}
             </p>
             {(state.data?.exportMode ===
-              BlobStorageExportMode.FROM_CUSTOM_DATE || state.data?.exportMode === BlobStorageExportMode.FROM_TODAY) &&
+              BlobStorageExportMode.FROM_CUSTOM_DATE ||
+              state.data?.exportMode === BlobStorageExportMode.FROM_TODAY) &&
               state.data?.exportStartDate && (
                 <p className="text-sm text-primary">
                   Export start date:{" "}
