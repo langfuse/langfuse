@@ -15,36 +15,8 @@ const backgroundMigrationId = "f4b51797-e5ae-4d74-9625-05321493486e";
 type MigrationState = {
   maxDate: string | undefined;
   minDate: string | undefined;
-  cpuCores: number | undefined;
-  memoryGiB: number | undefined;
   queryTimeoutMinutes: number | undefined;
 };
-
-// Calculate ClickHouse settings based on instance sizing.
-// Recommendations taken from https://clickhouse.com/blog/supercharge-your-clickhouse-data-loads-part2#formula-one.
-// Reduced insert threads and peak memory usage instead of 1/2 to keep more resources for actual processing.
-function calculateClickHouseSettings(cpuCores?: number, memoryGiB?: number) {
-  // Default to 16 CPU, 64 GiB for production instance
-  const cores = cpuCores ?? 16;
-  const memory = memoryGiB ?? 64;
-
-  // max_insert_threads: choose ~ 1/3 of available CPU cores
-  const maxInsertThreads = Math.max(1, Math.floor(cores / 3));
-
-  // peak_memory_usage_in_bytes: fourth of RAM
-  const peakMemoryUsageBytes = (memory / 4) * 1024 * 1024 * 1024;
-
-  // min_insert_block_size_bytes = peak_memory_usage_in_bytes / (~3 * max_insert_threads)
-  const minInsertBlockSizeBytes = Math.floor(
-    peakMemoryUsageBytes / (3 * maxInsertThreads),
-  );
-
-  return {
-    maxInsertThreads,
-    minInsertBlockSizeBytes,
-    minInsertBlockSizeRows: 0, // Disabled as per formula
-  };
-}
 
 /**
  * Checks if a query exists in the system.query_log table
@@ -109,13 +81,10 @@ async function checkCompletedQuery(
  */
 async function executeLongRunningQuery(
   query: string,
-  clickhouseSettings: Record<string, string>,
   timeoutMinutes: number,
 ): Promise<void> {
   const queryId = randomUUID();
-  const client = clickhouseClient({
-    clickhouse_settings: clickhouseSettings,
-  });
+  const client = clickhouseClient();
 
   const abortController = new AbortController();
   const timeoutMs = timeoutMinutes * 60 * 1000;
@@ -274,23 +243,10 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
         select: { state: true },
       });
 
-    // Use values from database state if available, otherwise fall back to args, then defaults
-    const cpuCores =
-      initialMigrationState.state?.cpuCores ??
-      (args.cpuCores as number | undefined);
-    const memoryGiB =
-      initialMigrationState.state?.memoryGiB ??
-      (args.memoryGiB as number | undefined);
+    // Use values from database state if available, otherwise fall back to args
     const queryTimeoutMinutes =
       initialMigrationState.state?.queryTimeoutMinutes ??
       (args.queryTimeoutMinutes as number | undefined);
-
-    // Calculate ClickHouse settings based on stored or provided instance sizing
-    const clickhouseConfig = calculateClickHouseSettings(cpuCores, memoryGiB);
-
-    logger.info(
-      `[Background Migration] Using ClickHouse settings: ${JSON.stringify(clickhouseConfig)}`,
-    );
 
     const maxDate = initialMigrationState.state?.maxDate
       ? new Date(initialMigrationState.state.maxDate)
@@ -305,8 +261,6 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
         state: {
           maxDate,
           minDate,
-          cpuCores,
-          memoryGiB,
           queryTimeoutMinutes,
         },
       },
@@ -371,17 +325,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
         WHERE toYYYYMM(timestamp) = ${currentMonth}
       `;
 
-      const clickhouseSettings = {
-        max_insert_threads: `${clickhouseConfig.maxInsertThreads}`,
-        min_insert_block_size_bytes: `${clickhouseConfig.minInsertBlockSizeBytes}`,
-        min_insert_block_size_rows: `${clickhouseConfig.minInsertBlockSizeRows}`,
-      };
-
-      await executeLongRunningQuery(
-        query,
-        clickhouseSettings,
-        queryTimeoutMinutes ?? 90,
-      );
+      await executeLongRunningQuery(query, queryTimeoutMinutes ?? 90);
 
       maxDate.setMonth(maxDate.getMonth() - 1);
       await prisma.backgroundMigration.update({
@@ -461,14 +405,6 @@ async function main() {
         short: "c",
         default: false,
       },
-      cpu: {
-        type: "string",
-        default: "16",
-      },
-      memory: {
-        type: "string",
-        default: "64",
-      },
       timeoutMinutes: {
         type: "string",
         short: "t",
@@ -484,8 +420,6 @@ async function main() {
   // Convert string args to numbers
   const migrationArgs = {
     ...args.values,
-    cpuCores: parseInt(args.values.cpu!),
-    memoryGiB: parseInt(args.values.memory!),
     queryTimeoutMinutes: parseInt(args.values.timeoutMinutes!),
   };
 
