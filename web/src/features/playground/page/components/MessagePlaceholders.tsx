@@ -1,7 +1,8 @@
 import { Divider } from "@tremor/react";
 
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "./PlaygroundColumnProvider";
 import { MessagePlaceholderComponent } from "./MessagePlaceholderComponent";
+import { type PlaceholderMessageFillIn } from "../types";
 
 export const MessagePlaceholders = () => {
   const { messagePlaceholders } = usePlaygroundContext();
@@ -21,12 +22,14 @@ export const MessagePlaceholders = () => {
         <div className="h-full overflow-auto">
           {messagePlaceholders
             .slice()
-            .sort((a, b) => {
-              if (a.isUsed && !b.isUsed) return -1;
-              if (!a.isUsed && b.isUsed) return 1;
-              return a.name.localeCompare(b.name);
-            })
-            .map((placeholder, index) => (
+            .sort(
+              (a: PlaceholderMessageFillIn, b: PlaceholderMessageFillIn) => {
+                if (a.isUsed && !b.isUsed) return -1;
+                if (!a.isUsed && b.isUsed) return 1;
+                return a.name.localeCompare(b.name);
+              },
+            )
+            .map((placeholder: PlaceholderMessageFillIn, index: number) => (
               <div key={placeholder.name}>
                 <MessagePlaceholderComponent messagePlaceholder={placeholder} />
                 {index !== messagePlaceholders.length - 1 && (

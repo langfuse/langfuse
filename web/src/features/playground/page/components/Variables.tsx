@@ -1,6 +1,7 @@
 import { Divider } from "@tremor/react";
+import { type PromptVariable } from "@langfuse/shared";
 
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "./PlaygroundColumnProvider";
 import { PromptVariableComponent } from "./PromptVariableComponent";
 
 export const Variables = () => {
