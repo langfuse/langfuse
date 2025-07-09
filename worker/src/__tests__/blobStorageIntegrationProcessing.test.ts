@@ -544,7 +544,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
       if (traceFile) {
         const content = await storageService.download(traceFile.file);
-        // With FROM_TODAY mode and null exportStartDate, the minTimestamp is set to current time
+        // With FROM_TODAY mode and a current exportStartDate, the minTimestamp is set to the provided date (current time)
         // which means only traces within the last 30 minutes would be exported
         // Our test traces are older, so content should be empty or not contain old traces
         expect(content).not.toContain(oldTrace.id);
