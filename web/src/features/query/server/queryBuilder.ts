@@ -837,6 +837,8 @@ export class QueryBuilder {
       withFillClause,
     );
 
+    console.log("Built SQL Query:", sql);
+
     return {
       query: sql,
       parameters,
