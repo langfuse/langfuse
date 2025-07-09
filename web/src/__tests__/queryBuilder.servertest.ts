@@ -200,6 +200,39 @@ describe("queryBuilder", () => {
           orderBy: null,
         } as QueryType,
       ],
+      [
+        "scores-numeric query with filters and time dimension",
+        {
+          view: "scores-numeric",
+          dimensions: [],
+          metrics: [
+            {
+              measure: "value",
+              aggregation: "sum",
+            },
+          ],
+          filters: [
+            {
+              column: "name",
+              operator: "=",
+              value: "Money-saved-eval-test",
+              type: "string",
+            },
+            {
+              column: "value",
+              operator: ">",
+              value: 0,
+              type: "number",
+            },
+          ],
+          timeDimension: {
+            granularity: "auto",
+          },
+          fromTimestamp: "2025-07-02T12:39:49.089Z",
+          toTimestamp: "2025-07-09T12:39:49.089Z",
+          orderBy: null,
+        } as QueryType,
+      ],
     ])(
       "should compile query to valid SQL: (%s)",
       async (_name, query: QueryType) => {
