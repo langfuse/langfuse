@@ -19,5 +19,5 @@ if [ "$current_branch" = "$protected_branch" ]; then
     fi
 fi
 
-# If not the protected branch, check formatting (on changed files, block)
-pnpm run format:check
+# If not the protected branch, fix formatting (on changed files, block)
+pnpm run format
