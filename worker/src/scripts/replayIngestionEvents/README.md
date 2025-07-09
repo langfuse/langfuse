@@ -45,7 +45,7 @@ CLICKHOUSE_PASSWORD=clickhouse
 
 ## 3. Execute the migration
 
-Run `pmpm run --filter=worker refill-ingestion-events` from the repository root.
+Run `pnpm run --filter=worker refill-ingestion-events` from the repository root.
 
 In case the migration fails due to an invalid string length, you can split the events file into multiple parts using `split -l $(($(wc -l < events.csv) / 4)) events.csv part_`.
 Rename the created parts and process them one by one.
