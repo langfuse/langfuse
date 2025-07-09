@@ -118,6 +118,7 @@ export const promptRouter = createTRPCRouter({
             input.page,
             pathFilter,
             searchFilter,
+            input.pathPrefix,
           ),
         ),
         // promptCount
@@ -131,6 +132,7 @@ export const promptRouter = createTRPCRouter({
             0, // page,
             pathFilter,
             searchFilter,
+            input.pathPrefix,
           ),
         ),
       ]);
@@ -1296,25 +1298,43 @@ const generatePromptQuery = (
   page: number,
   pathFilter: Prisma.Sql = Prisma.empty,
   searchFilter: Prisma.Sql = Prisma.empty,
+  pathPrefixStr?: string,
 ) => {
+  const prefix = pathPrefixStr ?? "";
+  const segmentExpr = prefix
+    ? Prisma.sql`SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1)`
+    : Prisma.sql`SPLIT_PART(p.name, '/', 1)`;
+
   return Prisma.sql`
+  WITH latest AS (
+    /* Get latest version for each prompt name within the (optional) filters */
+    SELECT p.*
+    FROM prompts p
+    WHERE (p.name, p.version) IN (
+      SELECT name, MAX(version)
+      FROM prompts p
+      WHERE p.project_id = ${projectId}
+        ${filterCondition}
+        ${pathFilter}
+        ${searchFilter}
+      GROUP BY name
+    )
+      AND p.project_id = ${projectId}
+      ${filterCondition}
+      ${pathFilter}
+      ${searchFilter}
+  ),
+  grouped AS (
+    SELECT
+      p.*,  /* keep all columns */
+      ROW_NUMBER() OVER (PARTITION BY ${segmentExpr} ORDER BY p.version DESC) AS rn
+    FROM latest p
+  )
   SELECT
-   ${select}
-   FROM prompts p
-   WHERE (name, version) IN (
-    SELECT name, MAX(version)
-     FROM prompts p
-     WHERE "project_id" = ${projectId}
-     ${filterCondition}
-     ${pathFilter}
-     ${searchFilter}
-          GROUP BY name
-        )
-    AND "project_id" = ${projectId}
-  ${filterCondition}
-  ${pathFilter}
-  ${searchFilter}
+    ${select}
+  FROM grouped p
+  WHERE rn = 1
   ${orderCondition}
   LIMIT ${limit} OFFSET ${page * limit};
-`;
+  `;
 };
