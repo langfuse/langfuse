@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.78.2",
+  "version": "3.79.1",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -17,9 +17,9 @@
     "db:seed": "turbo run db:seed",
     "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
-    "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
-    "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
-    "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
     "start": "turbo run start",
     "dev": "turbo run dev",
@@ -27,6 +27,8 @@
     "dev:web": "turbo run dev --filter=web",
     "dev:web-turbo": "turbo run dev --filter=web -- --turbo",
     "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
     "prepare": "husky"
@@ -36,7 +38,7 @@
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.2",
     "husky": "^9.0.11",
-    "prettier": "^3.3.3",
+    "prettier": "^3.6.2",
     "release-it": "^19.0.3",
     "turbo": "^2.5.4"
   },

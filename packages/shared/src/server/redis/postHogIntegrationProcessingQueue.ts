@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions, getQueuePrefix } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 import { logger } from "../logger";
 
 export class PostHogIntegrationProcessingQueue {
@@ -18,8 +22,8 @@ export class PostHogIntegrationProcessingQueue {
 
     PostHogIntegrationProcessingQueue.instance = newRedis
       ? new Queue(QueueName.PostHogIntegrationProcessingQueue, {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.PostHogIntegrationProcessingQueue),
+          connection: newRedis,
+          prefix: getQueuePrefix(QueueName.PostHogIntegrationProcessingQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,
