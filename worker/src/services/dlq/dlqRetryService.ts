@@ -2,8 +2,9 @@ import {
   logger,
   QueueName,
   recordHistogram,
+  getQueue,
+  IngestionQueue,
 } from "@langfuse/shared/src/server";
-import { getQueue } from "@langfuse/shared/src/server";
 
 export class DlqRetryService {
   private static retryQueues = [
@@ -25,7 +26,9 @@ export class DlqRetryService {
     );
     const retryQueues = DlqRetryService.retryQueues;
     for (const queueName of retryQueues) {
-      const queue = getQueue(queueName);
+      const queue = queueName.startsWith(QueueName.IngestionQueue)
+        ? IngestionQueue.getInstance({ shardName: queueName })
+        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
 
       if (!queue) {
         logger.error(`Queue ${queueName} not found`);

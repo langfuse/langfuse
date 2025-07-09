@@ -10,15 +10,13 @@ import {
   ScoreRecordInsertType,
   TraceRecordInsertType,
   TraceMtRecordInsertType,
-  getQueue,
-  QueueName,
+  IngestionQueue,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
-import { Queue, Job } from "bullmq";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -174,19 +172,32 @@ export class ClickhouseWriter {
       logger.error(`ClickhouseWriter.flush ${tableName}`, err);
 
       // Re-add the records to the queue with incremented attempts
-      queueItems.forEach((item) => {
+      for (const item of queueItems) {
         if (item.attempts < this.maxAttempts) {
           entityQueue.push({
             ...item,
             attempts: item.attempts + 1,
           });
         } else {
-          const queue = getQueue(QueueName.IngestionQueue);
-          const job = queue.getJob(item.jobId);
+          const shardNames = IngestionQueue.getShardNames();
+          let job = null;
+
+          for (const shardName of shardNames) {
+            const queue = IngestionQueue.getInstance({ shardName });
+            if (queue) {
+              job = await queue.getJob(item.jobId);
+              if (job) {
+                break;
+              }
+            }
+          }
           if (job) {
-            job.moveToFailed({
-              message: `Max attempts reached for ${tableName} record. Dropping record.`,
-            });
+            await job.moveToFailed(
+              new Error(
+                `Max attempts reached for ${tableName} record. Dropping record.`,
+              ),
+              "token",
+            );
           }
           recordIncrement("langfuse.queue.clickhouse_writer.error");
           logger.error(
@@ -194,7 +205,7 @@ export class ClickhouseWriter {
             { item: item.data },
           );
         }
-      });
+      }
     }
   }
 

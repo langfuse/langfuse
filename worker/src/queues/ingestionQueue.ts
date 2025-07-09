@@ -70,7 +70,7 @@ export const ingestionQueueProcessorBuilder = (
           event_ts: new Date().getTime(),
           is_deleted: 0,
         },
-        job.id,
+        job.id ?? "",
       );
       }
 
@@ -230,7 +230,7 @@ export const ingestionQueueProcessorBuilder = (
         job.data.payload.data.eventBodyId,
         firstS3WriteTime,
         events,
-        job.id,
+        job.id ?? "",
       );
     } catch (e) {
       logger.error(
