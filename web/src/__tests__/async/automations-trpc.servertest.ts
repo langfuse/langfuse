@@ -155,6 +155,96 @@ describe("automations trpc", () => {
       expect(response[0].action.config).not.toHaveProperty("secretKey");
     });
 
+    it("should not expose secret headers in response", async () => {
+      const { project, caller } = await prepare();
+
+      // Create test prompt
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "test-prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world" },
+          createdBy: "test-user",
+        },
+      });
+
+      // Create test trigger
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      // Create test action with secret headers
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            headers: {
+              "content-type": "application/json",
+              "x-api-key": encrypt("secret-api-key-123"),
+              authorization: encrypt("Bearer secret-token-456"),
+            },
+            secretHeaderKeys: ["x-api-key", "authorization"],
+            displayHeaderValues: {
+              "content-type": "application/json",
+              "x-api-key": "secr***123",
+              authorization: "Bear***456",
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+
+      // Link trigger to action
+      await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Secret Headers Automation",
+        },
+      });
+
+      const response = await caller.automations.getAutomations({
+        projectId: project.id,
+      });
+
+      expect(response).toHaveLength(1);
+      const automationConfig = response[0].action.config;
+
+      // Should have display values, not encrypted values
+      expect(automationConfig.displayHeaderValues).toEqual({
+        "content-type": "application/json",
+        "x-api-key": "secr***123",
+        authorization: "Bear***456",
+      });
+
+      // Should have secret header keys list
+      expect(automationConfig.secretHeaderKeys).toEqual([
+        "x-api-key",
+        "authorization",
+      ]);
+
+      // Should NOT have the raw headers with encrypted values
+      expect(automationConfig).not.toHaveProperty("headers");
+    });
+
     it("should return empty array when no automations exist", async () => {
       const { project, caller } = await prepare();
 
@@ -264,12 +354,84 @@ describe("automations trpc", () => {
       expect(response.action.config).not.toHaveProperty("secretKey");
       expect(response.action.config).toHaveProperty("displaySecretKey");
       expect(response.action.config.url).toBe("https://example.com/webhook");
-      expect(response.action.config.headers).toEqual({
+      expect(response.action.config.displayHeaderValues).toEqual({
         "Content-Type": "application/json",
       });
       expect(response.action.config.apiVersion).toEqual({ prompt: "v1" });
       expect(response.action.config.type).toBe("WEBHOOK");
       expect(response.action.config.displaySecretKey).toBe(displaySecretKey);
+    });
+
+    it("should not expose secret headers in single automation response", async () => {
+      const { project, caller } = await prepare();
+
+      // Create test trigger and action with secret headers
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            headers: {
+              "content-type": "application/json",
+              "x-custom": "public-value",
+              "x-secret": encrypt("secret-value-789"),
+            },
+            secretHeaderKeys: ["x-secret"],
+            displayHeaderValues: {
+              "content-type": "application/json",
+              "x-custom": "public-value",
+              "x-secret": "secr***789",
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Mixed Headers Automation",
+        },
+      });
+
+      const response = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+      });
+
+      const config = response.action.config;
+
+      // Should have display values
+      expect(config.displayHeaderValues).toEqual({
+        "content-type": "application/json",
+        "x-custom": "public-value",
+        "x-secret": "secr***789",
+      });
+
+      // Should have secret header keys
+      expect(config.secretHeaderKeys).toEqual(["x-secret"]);
+
+      // Should NOT have raw encrypted headers
+      expect(config).not.toHaveProperty("headers");
     });
 
     it("should throw error when automation not found", async () => {
@@ -315,6 +477,7 @@ describe("automations trpc", () => {
           type: "WEBHOOK",
           url: "https://example.com/new-webhook",
           headers: { "Content-Type": "application/json" },
+          secretHeaderKeys: [],
           apiVersion: { prompt: "v1" },
         },
       });
@@ -349,6 +512,73 @@ describe("automations trpc", () => {
       expect(automation).toMatchObject({
         name: "New Webhook Automation",
       });
+    });
+
+    it("should create automation with both plain and secret headers", async () => {
+      const { project, caller } = await prepare();
+
+      // Create test prompt
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "test-prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world" },
+          createdBy: "test-user",
+        },
+      });
+
+      const response = await caller.automations.createAutomation({
+        projectId: project.id,
+        name: "Mixed Headers Automation",
+        eventSource: "prompt",
+        eventAction: ["created"],
+        filter: [],
+        status: JobConfigState.ACTIVE,
+        actionType: "WEBHOOK",
+        actionConfig: {
+          type: "WEBHOOK",
+          url: "https://example.com/mixed-headers",
+          headers: {
+            "content-type": "application/json",
+            "x-public": "public-value",
+            "x-api-key": "secret-key-123",
+            authorization: "Bearer secret-token-456",
+          },
+          secretHeaderKeys: ["x-api-key", "authorization"],
+          apiVersion: { prompt: "v1" },
+        },
+      });
+
+      // Verify the action was created correctly in the database
+      const createdAction = await prisma.action.findUnique({
+        where: { id: response.action.id },
+      });
+
+      expect(createdAction?.config).toMatchObject({
+        type: "WEBHOOK",
+        url: "https://example.com/mixed-headers",
+        secretHeaderKeys: ["x-api-key", "authorization"],
+      });
+
+      // Headers should be encrypted for secret ones, plain for others
+      const config = createdAction?.config as any;
+      expect(config.headers["content-type"]).toBe("application/json");
+      expect(config.headers["x-public"]).toBe("public-value");
+      expect(config.headers["x-api-key"]).not.toBe("secret-key-123"); // Should be encrypted
+      expect(config.headers["authorization"]).not.toBe(
+        "Bearer secret-token-456",
+      ); // Should be encrypted
+
+      // Display values should be present
+      expect(config.displayHeaderValues).toMatchObject({
+        "content-type": "application/json",
+        "x-public": "public-value",
+      });
+      expect(config.displayHeaderValues["x-api-key"]).toMatch(/\*\*\*/);
+      expect(config.displayHeaderValues["authorization"]).toMatch(/\*\*\*/);
     });
 
     it("should throw error when user lacks automations:CUD access", async () => {
@@ -394,6 +624,7 @@ describe("automations trpc", () => {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
             headers: {},
+            secretHeaderKeys: [],
             apiVersion: { prompt: "v1" },
           },
         }),
@@ -416,6 +647,7 @@ describe("automations trpc", () => {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
             headers: {},
+            secretHeaderKeys: [],
             apiVersion: { prompt: "v1" },
           },
         }),
@@ -478,6 +710,7 @@ describe("automations trpc", () => {
           type: "WEBHOOK",
           url: "https://example.com/updated-webhook",
           headers: { "Content-Type": "application/json", "X-Custom": "value" },
+          secretHeaderKeys: [],
           apiVersion: { prompt: "v1" },
         },
       });
@@ -510,6 +743,225 @@ describe("automations trpc", () => {
       });
 
       expect(updatedAutomation?.name).toBe("Updated Name");
+    });
+
+    it("should update automation with both plain and secret headers", async () => {
+      const { project, caller } = await prepare();
+
+      // Create initial automation
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            headers: {
+              "content-type": "application/json",
+              "x-old-header": "old-value",
+            },
+            secretHeaderKeys: [],
+            displayHeaderValues: {
+              "content-type": "application/json",
+              "x-old-header": "old-value",
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Headers Update Test",
+        },
+      });
+
+      const response = await caller.automations.updateAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+        name: "Updated Headers Automation",
+        eventSource: "prompt",
+        eventAction: ["created"],
+        filter: [],
+        status: JobConfigState.ACTIVE,
+        actionType: "WEBHOOK",
+        actionConfig: {
+          type: "WEBHOOK",
+          url: "https://example.com/updated-webhook",
+          headers: {
+            "content-type": "application/json",
+            "x-public": "new-public-value",
+            "x-secret-key": "new-secret-123",
+            authorization: "Bearer new-token-456",
+          },
+          secretHeaderKeys: ["x-secret-key", "authorization"],
+          apiVersion: { prompt: "v1" },
+        },
+      });
+
+      // Verify the API response contains safe display values
+      const responseConfig = response.action.config as any;
+      expect(responseConfig.displayHeaderValues).toMatchObject({
+        "content-type": "application/json",
+        "x-public": "new-public-value",
+      });
+      expect(responseConfig.displayHeaderValues["x-secret-key"]).toMatch(
+        /\*\*\*/,
+      );
+      expect(responseConfig.displayHeaderValues["authorization"]).toMatch(
+        /\*\*\*/,
+      );
+
+      // Verify the action was updated correctly in the database
+      const updatedAction = await prisma.action.findUnique({
+        where: { id: action.id },
+      });
+
+      const config = updatedAction?.config as any;
+      expect(config.secretHeaderKeys).toEqual([
+        "x-secret-key",
+        "authorization",
+      ]);
+
+      // Public headers should remain plain
+      expect(config.headers["content-type"]).toBe("application/json");
+      expect(config.headers["x-public"]).toBe("new-public-value");
+
+      // Secret headers should be encrypted
+      expect(config.headers["x-secret-key"]).not.toBe("new-secret-123");
+      expect(config.headers["authorization"]).not.toBe("Bearer new-token-456");
+
+      // Display values should be present with masked secrets
+      expect(config.displayHeaderValues).toMatchObject({
+        "content-type": "application/json",
+        "x-public": "new-public-value",
+      });
+      expect(config.displayHeaderValues["x-secret-key"]).toMatch(/\*\*\*/);
+      expect(config.displayHeaderValues["authorization"]).toMatch(/\*\*\*/);
+    });
+
+    it("should handle switching header types from secret to plain and vice versa", async () => {
+      const { project, caller } = await prepare();
+
+      // Create initial automation with mixed headers
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            headers: {
+              "content-type": "application/json",
+              "x-currently-public": "public-value",
+              "x-currently-secret": encrypt("secret-value"),
+            },
+            secretHeaderKeys: ["x-currently-secret"],
+            displayHeaderValues: {
+              "content-type": "application/json",
+              "x-currently-public": "public-value",
+              "x-currently-secret": "secr***alue",
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Header Type Switch Test",
+        },
+      });
+
+      // Update: switch the header types
+      const response = await caller.automations.updateAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+        name: "Switched Headers Automation",
+        eventSource: "prompt",
+        eventAction: ["created"],
+        filter: [],
+        status: JobConfigState.ACTIVE,
+        actionType: "WEBHOOK",
+        actionConfig: {
+          type: "WEBHOOK",
+          url: "https://example.com/updated-webhook",
+          headers: {
+            "content-type": "application/json",
+            "x-currently-public": "now-secret-value", // Was public, now secret
+            "x-currently-secret": "now-public-value", // Was secret, now public
+          },
+          secretHeaderKeys: ["x-currently-public"], // Switch: was [], now includes previously public header
+          apiVersion: { prompt: "v1" },
+        },
+      });
+
+      // Verify the API response contains safe display values reflecting the switch
+      const responseConfig = response.action.config as any;
+      expect(responseConfig.displayHeaderValues["x-currently-public"]).toMatch(
+        /\*\*\*/,
+      );
+      expect(responseConfig.displayHeaderValues["x-currently-secret"]).toBe(
+        "now-public-value",
+      );
+
+      // Verify the switch worked correctly
+      const updatedAction = await prisma.action.findUnique({
+        where: { id: action.id },
+      });
+
+      const config = updatedAction?.config as any;
+      expect(config.secretHeaderKeys).toEqual(["x-currently-public"]);
+
+      // x-currently-public should now be encrypted (was plain, now secret)
+      expect(config.headers["x-currently-public"]).not.toBe("now-secret-value");
+
+      // x-currently-secret should now be plain (was secret, now public)
+      expect(config.headers["x-currently-secret"]).toBe("now-public-value");
+
+      // Display values should reflect the changes
+      expect(config.displayHeaderValues["x-currently-public"]).toMatch(
+        /\*\*\*/,
+      );
+      expect(config.displayHeaderValues["x-currently-secret"]).toBe(
+        "now-public-value",
+      );
     });
   });
 

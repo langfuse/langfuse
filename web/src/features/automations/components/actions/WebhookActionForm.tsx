@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { X, Plus, RefreshCw } from "lucide-react";
+import { X, Plus, RefreshCw, Lock, LockOpen } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod/v4";
 import {
@@ -59,6 +59,7 @@ export const webhookSchema = z.object({
         },
       ),
       value: z.string(),
+      isSecret: z.boolean(),
     }),
   ),
   apiVersion: AvailableWebhookApiSchema,
@@ -99,7 +100,13 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
 
   // Function to add a new header pair
   const addHeader = () => {
-    appendHeader({ name: "", value: "" });
+    appendHeader({ name: "", value: "", isSecret: false });
+  };
+
+  // Function to toggle secret status of a header
+  const toggleHeaderSecret = (index: number) => {
+    const currentValue = form.watch(`webhook.headers.${index}.isSecret`);
+    form.setValue(`webhook.headers.${index}.isSecret`, !currentValue);
   };
 
   return (
@@ -170,7 +177,10 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             ...WebhookDefaultHeaders,
             "x-langfuse-signature": `t=<timestamp>,v1=<signature>`,
           }).map(([key, value]) => (
-            <div key={key} className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2">
+            <div
+              key={key}
+              className="mb-2 grid grid-cols-[1fr,1fr,auto,auto] gap-2"
+            >
               <FormItem>
                 <FormControl>
                   <Input value={key} disabled={true} className="bg-muted/50" />
@@ -185,6 +195,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                   />
                 </FormControl>
               </FormItem>
+              <div className="flex w-8 items-center justify-center">
+                <Lock className="h-4 w-4 text-muted-foreground" />
+              </div>
               <div className="w-10" />{" "}
               {/* Spacer to align with editable headers */}
             </div>
@@ -201,10 +214,13 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           const originalIndex = headerFields.findIndex(
             (f) => f.id === field.id,
           );
+          const isSecret = form.watch(
+            `webhook.headers.${originalIndex}.isSecret`,
+          );
           return (
             <div
               key={field.id}
-              className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2"
+              className="mb-2 grid grid-cols-[1fr,1fr,auto,auto] gap-2"
             >
               <FormField
                 control={form.control}
@@ -232,12 +248,27 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                         placeholder="Value"
                         {...field}
                         disabled={disabled}
+                        type={isSecret ? "password" : "text"}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => toggleHeaderSecret(originalIndex)}
+                disabled={disabled}
+                title={isSecret ? "Make header public" : "Make header secret"}
+              >
+                {isSecret ? (
+                  <Lock className="h-4 w-4 text-orange-500" />
+                ) : (
+                  <LockOpen className="h-4 w-4 text-muted-foreground" />
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -420,9 +451,13 @@ export const RegenerateWebhookSecretButton = ({
 
 // Function to convert the array of header objects to a Record for API
 export const formatWebhookHeaders = (
-  headers: { name: string; value: string }[],
-): Record<string, string> => {
+  headers: { name: string; value: string; isSecret?: boolean }[],
+): {
+  headers: Record<string, string>;
+  secretHeaderKeys: string[];
+} => {
   const headersObject: Record<string, string> = {};
+  const secretHeaderKeys: string[] = [];
   const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
 
   headers.forEach((header) => {
@@ -430,9 +465,12 @@ export const formatWebhookHeaders = (
       // Exclude default headers - they will be added automatically by the API
       if (!defaultHeaderKeys.includes(header.name.trim().toLowerCase())) {
         headersObject[header.name.trim()] = header.value.trim();
+        if (header.isSecret) {
+          secretHeaderKeys.push(header.name.trim());
+        }
       }
     }
   });
 
-  return headersObject;
+  return { headers: headersObject, secretHeaderKeys };
 };

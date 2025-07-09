@@ -35,6 +35,8 @@ import {
   type AutomationDomain,
   type ActionTypes,
   type JobConfigState,
+  type ActionCreate,
+  type SafeWebhookActionConfig,
   webhookActionFilterOptions,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -48,6 +50,23 @@ import { MultiSelect } from "@/src/features/filters/components/multi-select";
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
   Prompt = "prompt",
+}
+
+// Helper function to convert SafeWebhookActionConfig to ActionCreate for API submission
+function convertSafeConfigToActionCreate(
+  safeConfig: Omit<SafeWebhookActionConfig, "displaySecretKey">,
+): ActionCreate {
+  if (safeConfig.type !== "WEBHOOK") {
+    throw new Error("Invalid action type");
+  }
+
+  return {
+    type: "WEBHOOK",
+    url: safeConfig.url,
+    headers: safeConfig.displayHeaderValues,
+    secretHeaderKeys: safeConfig.secretHeaderKeys,
+    apiVersion: safeConfig.apiVersion,
+  };
 }
 
 // Define schemas for form validation
@@ -196,6 +215,7 @@ export const AutomationForm = ({
     }
 
     const actionConfig = handler.buildActionConfig(data);
+    const actionCreateConfig = convertSafeConfigToActionCreate(actionConfig);
 
     if (isEditing && automation) {
       // Update existing automation
@@ -208,7 +228,7 @@ export const AutomationForm = ({
         filter: data.filter && data.filter.length > 0 ? data.filter : null,
         status: data.status as JobConfigState,
         actionType: data.actionType,
-        actionConfig: actionConfig,
+        actionConfig: actionCreateConfig,
       });
 
       onSuccess?.(automation.id);
@@ -222,7 +242,7 @@ export const AutomationForm = ({
         filter: data.filter && data.filter.length > 0 ? data.filter : null,
         status: data.status as JobConfigState,
         actionType: data.actionType,
-        actionConfig: actionConfig,
+        actionConfig: actionCreateConfig,
       });
       onSuccess?.(result.automation.id, result.webhookSecret);
     }
