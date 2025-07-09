@@ -158,6 +158,15 @@ export async function fetchLLMCompletion(
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
 
+  // Helper function to safely stringify content
+  const safeStringify = (content: any): string => {
+    try {
+      return JSON.stringify(content);
+    } catch {
+      return "[Unserializable content]";
+    }
+  };
+
   let finalMessages: BaseMessage[];
   // VertexAI requires at least 1 user message
   if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
@@ -172,7 +181,7 @@ export async function fetchLLMCompletion(
       const safeContent =
         typeof message.content === "string"
           ? message.content
-          : JSON.stringify(message.content);
+          : safeStringify(message.content);
 
       if (message.role === ChatMessageRole.User)
         return new HumanMessage(safeContent);
