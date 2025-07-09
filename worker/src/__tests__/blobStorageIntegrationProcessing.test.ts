@@ -443,7 +443,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   describe("BlobStorageExportMode minTimestamp behavior", () => {
     it("should use epoch date for FULL_HISTORY mode on first export", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
-      const now = new Date();
 
       // Create trace with old timestamp
       const epochTrace = createTrace({
@@ -459,7 +458,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           projectId,
           type: BlobStorageIntegrationType.S3,
           bucketName,
-          prefix: "test-full-history/",
+          prefix: `${projectId}/test-full-history/`,
           accessKeyId,
           secretAccessKey: encrypt(secretAccessKey),
           region: region ? region : "auto",
@@ -479,7 +478,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       } as Job);
 
       // Check that the trace file exists (indicating it found data from epoch)
-      const files = await storageService.listFiles("test-full-history/");
+      const files = await storageService.listFiles(
+        `${projectId}/test-full-history/`,
+      );
       const projectFiles = files.filter((f) => f.file.includes(projectId));
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
 
@@ -517,7 +518,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           projectId,
           type: BlobStorageIntegrationType.S3,
           bucketName,
-          prefix: "test-from-today/",
+          prefix: `${projectId}/test-today/`,
           accessKeyId,
           secretAccessKey: encrypt(secretAccessKey),
           region: region ? region : "auto",
@@ -536,7 +537,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         data: { payload: { projectId } },
       } as Job);
 
-      const files = await storageService.listFiles("test-from-today/");
+      const files = await storageService.listFiles(`${projectId}/test-today/`);
       const projectFiles = files.filter((f) => f.file.includes(projectId));
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
 
@@ -580,7 +581,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           projectId,
           type: BlobStorageIntegrationType.S3,
           bucketName,
-          prefix: "test-custom-date/",
+          prefix: `${projectId}/test-custom/`,
           accessKeyId,
           secretAccessKey: encrypt(secretAccessKey),
           region: region ? region : "auto",
@@ -599,7 +600,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         data: { payload: { projectId } },
       } as Job);
 
-      const files = await storageService.listFiles("test-custom-date/");
+      const files = await storageService.listFiles(`${projectId}/test-custom/`);
       const projectFiles = files.filter((f) => f.file.includes(projectId));
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
 
