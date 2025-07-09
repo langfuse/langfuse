@@ -90,7 +90,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     name: initialPrompt?.name ?? (folderPath ? `${folderPath}/` : ""),
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
     isActive: !Boolean(initialPrompt),
-    commitMessage: initialPrompt?.commitMessage ?? undefined,
+    commitMessage: undefined,
   };
 
   const form = useForm({
