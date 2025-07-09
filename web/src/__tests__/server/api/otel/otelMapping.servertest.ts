@@ -772,9 +772,7 @@ describe("OTel Resource Span Mapping", () => {
       // Then
       // Will throw an error if the parsing fails
       const schema = createIngestionEventSchema();
-      const parsedEvents = langfuseEvents.map((event) =>
-        schema.parse(event),
-      );
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
     });
 
@@ -892,9 +890,7 @@ describe("OTel Resource Span Mapping", () => {
       // Then
       // Will throw an error if the parsing fails
       const schema = createIngestionEventSchema();
-      const parsedEvents = langfuseEvents.map((event) =>
-        schema.parse(event),
-      );
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
     });
 
@@ -1014,9 +1010,7 @@ describe("OTel Resource Span Mapping", () => {
       // Then
       // Will throw an error if the parsing fails
       const schema = createIngestionEventSchema();
-      const parsedEvents = langfuseEvents.map((event) =>
-        schema.parse(event),
-      );
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
 
       // Check that input contains both system and user messages
