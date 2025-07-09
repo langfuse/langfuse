@@ -42,6 +42,7 @@ const PromptFilterOptions = z.object({
   ...paginationZod,
   pathPrefix: z.string().optional(),
   searchQuery: z.string().optional(),
+  folderDepth: z.number().optional(),
 });
 
 export const promptRouter = createTRPCRouter({
@@ -96,6 +97,11 @@ export const promptRouter = createTRPCRouter({
         ? Prisma.sql` AND (p.name ILIKE ${`%${input.searchQuery}%`} OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`}))`
         : Prisma.empty;
 
+      const depthFilter =
+        typeof input.folderDepth === "number"
+          ? Prisma.sql` AND array_length(string_to_array(p.name, '/'), 1) = ${input.folderDepth}`
+          : Prisma.empty;
+
       const [prompts, promptCount] = await Promise.all([
         // prompts
         ctx.prisma.$queryRaw<Array<Prompt>>(
@@ -118,6 +124,7 @@ export const promptRouter = createTRPCRouter({
             input.page,
             pathFilter,
             searchFilter,
+            depthFilter,
           ),
         ),
         // promptCount
@@ -131,6 +138,7 @@ export const promptRouter = createTRPCRouter({
             0, // page,
             pathFilter,
             searchFilter,
+            depthFilter,
           ),
         ),
       ]);
@@ -157,7 +165,9 @@ export const promptRouter = createTRPCRouter({
           Prisma.empty,
           Prisma.empty,
           1, // limit
-          0, // page
+          0, // page,
+          Prisma.empty,
+          Prisma.empty,
         ),
       );
 
@@ -1296,6 +1306,7 @@ const generatePromptQuery = (
   page: number,
   pathFilter: Prisma.Sql = Prisma.empty,
   searchFilter: Prisma.Sql = Prisma.empty,
+  depthFilter: Prisma.Sql = Prisma.empty,
 ) => {
   return Prisma.sql`
   SELECT
@@ -1308,12 +1319,14 @@ const generatePromptQuery = (
      ${filterCondition}
      ${pathFilter}
      ${searchFilter}
+     ${depthFilter}
           GROUP BY name
         )
     AND "project_id" = ${projectId}
   ${filterCondition}
   ${pathFilter}
   ${searchFilter}
+  ${depthFilter}
   ${orderCondition}
   LIMIT ${limit} OFFSET ${page * limit};
 `;
