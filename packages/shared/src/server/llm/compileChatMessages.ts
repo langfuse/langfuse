@@ -7,7 +7,6 @@ import {
   type PromptChatMessageSchema,
   type ChatMessageWithId,
   type ChatMessageWithIdNoPlaceholders,
-  ChatMessageSchema,
 } from "./types";
 
 export type MessagePlaceholderValues = Record<string, unknown[]>;
@@ -17,10 +16,6 @@ export function isPlaceholder(
   message: PromptMessage,
 ): message is PlaceholderMessage {
   return "type" in message && message.type === ChatMessageType.Placeholder;
-}
-
-function validateMessage(message: unknown): message is ChatMessage {
-  return ChatMessageSchema.safeParse(message).success;
 }
 
 function replaceTextVariables(
