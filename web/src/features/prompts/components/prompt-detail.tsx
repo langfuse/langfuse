@@ -56,7 +56,6 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { WebhookButton } from "@/src/features/automations/components/WebhookButton";
 
 const getPythonCode = (
   name: string,
@@ -306,7 +305,6 @@ export const PromptDetail = ({
         ),
         actionButtonsRight: (
           <>
-            {projectId && <WebhookButton projectId={projectId} />}
             {projectId && (
               <DuplicatePromptButton
                 promptId={prompt.id}

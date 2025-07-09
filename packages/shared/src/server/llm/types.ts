@@ -196,7 +196,7 @@ export const ChatMessageSchema = z.union([
   z
     .object({
       role: z.union([ChatMessageDefaultRoleSchema, z.string()]), // Users may ingest any string as role via API/SDK
-      content: z.string(),
+      content: z.union([z.string(), z.array(z.any()), z.any()]), // Support arbitrary content types for message placeholders
     })
     .transform((msg) => {
       return {
