@@ -1296,6 +1296,7 @@ const generatePromptQuery = (
   page: number,
   pathFilter: Prisma.Sql = Prisma.empty,
   searchFilter: Prisma.Sql = Prisma.empty,
+  pathPrefix: string = "",
 ) => {
   return Prisma.sql`
   SELECT
@@ -1317,4 +1318,80 @@ const generatePromptQuery = (
   ${orderCondition}
   LIMIT ${limit} OFFSET ${page * limit};
 `;
+};
+
+const generatePromptQueryWithFolders = (
+  select: Prisma.Sql,
+  projectId: string,
+  filterCondition: Prisma.Sql,
+  orderCondition: Prisma.Sql,
+  limit: number,
+  page: number,
+  pathFilter: Prisma.Sql = Prisma.empty,
+  searchFilter: Prisma.Sql = Prisma.empty,
+  pathPrefix: string = "",
+) => {
+  const startPos = pathPrefix ? pathPrefix.length + 2 : 1;
+
+  return Prisma.sql`
+  WITH latest_prompts AS (
+    SELECT name, MAX(version) as max_version
+    FROM prompts p
+    WHERE "project_id" = ${projectId}
+    ${filterCondition}
+    ${pathFilter}
+    ${searchFilter}
+    GROUP BY name
+  ),
+  all_data AS (
+    SELECT 
+      p.*,
+      split_part(substr(p.name, ${startPos}::int), '/', 1) as child_name,
+      (position('/' in substr(p.name, ${startPos}::int)) > 0) as is_folder
+    FROM prompts p
+    INNER JOIN latest_prompts lp ON p.name = lp.name AND p.version = lp.max_version
+    WHERE p."project_id" = ${projectId}
+    ${filterCondition}
+    ${pathFilter}
+    ${searchFilter}
+  ),
+  -- Folders: distinct folder paths
+  folders AS (
+    SELECT DISTINCT
+      COALESCE(NULLIF(${pathPrefix}, '') || '/', '') || child_name as id,
+      COALESCE(NULLIF(${pathPrefix}, '') || '/', '') || child_name as name,
+      null::integer as version,
+      project_id as "projectId", 
+      null::jsonb as prompt,
+      'folder' as type,
+      null::timestamp as "updatedAt",
+      null::timestamp as "createdAt",
+      null::text[] as labels,
+      null::text[] as tags
+    FROM all_data
+    WHERE is_folder = true
+  ),
+  -- Direct prompts: actual prompt data
+  direct_prompts AS (
+    SELECT DISTINCT ON (child_name)
+      id,
+      ,
+      version,
+      project_id as "projectId",
+      prompt,
+      type,
+      updated_at as "updatedAt", 
+      created_at as "createdAt",
+      labels,
+      tags
+    FROM all_data
+    WHERE is_folder = false
+    ORDER BY child_name, version DESC
+  )
+  SELECT * FROM folders
+  UNION ALL
+  SELECT * FROM direct_prompts
+  ${orderCondition}
+  LIMIT ${limit} OFFSET ${page * limit};
+  `;
 };

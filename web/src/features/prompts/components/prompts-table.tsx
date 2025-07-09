@@ -180,32 +180,81 @@ export function PromptTable() {
     })),
   );
 
+  // Filter and group prompts based on current folder path
   const processedRowData = useMemo(() => {
     if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
 
-    const combinedRows: PromptTableRow[] = promptsRowData.rows.map((prompt) => {
-      // Check if this is a folder item (backend should indicate this)
-      const isFolder = prompt.type === "folder";
+    const uniqueFolders = new Set<string>();
+    const matchingPrompts: typeof promptsRowData.rows = [];
 
-      return createRow({
-        id: prompt.id, // For folders, this is the full path; for prompts, this is the prompt name
-        name: prompt.name || prompt.id,
-        type: isFolder ? "folder" : (prompt.type as "text" | "chat"),
-        version: isFolder ? undefined : prompt.version,
-        createdAt: isFolder ? undefined : prompt.createdAt,
-        labels: isFolder ? [] : prompt.labels,
-        tags: isFolder ? [] : prompt.tags,
-        numberOfObservations: isFolder
-          ? undefined
-          : Number(prompt.observationCount ?? 0),
-      });
-    });
+    // Identify immediate subfolders from backend-filtered prompts
+    for (const prompt of promptsRowData.rows) {
+      const promptName = prompt.id;
+
+      if (currentFolderPath) {
+        const prefix = `${currentFolderPath}/`;
+        if (promptName.startsWith(prefix)) {
+          const remainingPath = promptName.substring(prefix.length);
+          const slashIndex = remainingPath.indexOf("/");
+
+          if (slashIndex > 0) {
+            // Subfolder
+            const subFolderName = remainingPath.substring(0, slashIndex);
+            const fullSubFolderPath = `${currentFolderPath}/${subFolderName}`;
+            uniqueFolders.add(fullSubFolderPath);
+          } else {
+            // Direct prompt in current folder
+            matchingPrompts.push(prompt);
+          }
+        }
+      } else {
+        // Root level
+        const slashIndex = promptName.indexOf("/");
+        if (slashIndex > 0) {
+          const folderName = promptName.substring(0, slashIndex);
+          uniqueFolders.add(folderName);
+        } else {
+          matchingPrompts.push(prompt);
+        }
+      }
+    }
+
+    // Create combined rows: folders first, then prompts
+    const combinedRows: PromptTableRow[] = [];
+
+    // Add folder rows
+    for (const folderPath of uniqueFolders) {
+      const folderName = getDisplayName(folderPath, currentFolderPath);
+      combinedRows.push(
+        createRow({
+          id: folderPath,
+          name: folderName,
+          type: "folder",
+        }),
+      );
+    }
+
+    // Add matching prompts
+    for (const prompt of matchingPrompts) {
+      combinedRows.push(
+        createRow({
+          id: prompt.id,
+          name: getDisplayName(prompt.id, currentFolderPath),
+          type: prompt.type as "text" | "chat",
+          version: prompt.version,
+          createdAt: prompt.createdAt,
+          labels: prompt.labels,
+          tags: prompt.tags,
+          numberOfObservations: Number(prompt.observationCount ?? 0),
+        }),
+      );
+    }
 
     return {
       ...promptsRowData,
       rows: combinedRows,
     };
-  }, [promptsRowData]);
+  }, [promptsRowData, currentFolderPath]);
 
   const promptFilterOptions = api.prompts.filterOptions.useQuery(
     {
