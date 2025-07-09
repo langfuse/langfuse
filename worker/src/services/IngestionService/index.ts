@@ -149,7 +149,8 @@ export class IngestionService {
     scoreEventList: ScoreEventType[];
     jobId: string;
   }) {
-    const { projectId, entityId, createdAtTimestamp, scoreEventList, jobId } = params;
+    const { projectId, entityId, createdAtTimestamp, scoreEventList, jobId } =
+      params;
     if (scoreEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -233,7 +234,11 @@ export class IngestionService {
       finalScoreRecord.trace_id
     ) {
       const traceMtRecord = convertScoreToTraceMt(finalScoreRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord, jobId);
+      this.clickHouseWriter.addToQueue(
+        TableName.TracesMt,
+        traceMtRecord,
+        jobId,
+      );
     }
   }
 
@@ -244,7 +249,8 @@ export class IngestionService {
     traceEventList: TraceEventType[];
     jobId: string;
   }) {
-    const { projectId, entityId, createdAtTimestamp, traceEventList, jobId } = params;
+    const { projectId, entityId, createdAtTimestamp, traceEventList, jobId } =
+      params;
     if (traceEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -340,7 +346,11 @@ export class IngestionService {
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
     ) {
       const traceMtRecord = convertTraceToTraceMt(finalTraceRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord, jobId);
+      this.clickHouseWriter.addToQueue(
+        TableName.TracesMt,
+        traceMtRecord,
+        jobId,
+      );
     }
 
     // Add trace into trace upsert queue for eval processing
@@ -367,8 +377,13 @@ export class IngestionService {
     observationEventList: ObservationEvent[];
     jobId: string;
   }) {
-    const { projectId, entityId, createdAtTimestamp, observationEventList, jobId } =
-      params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      observationEventList,
+      jobId,
+    } = params;
     if (observationEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -462,7 +477,11 @@ export class IngestionService {
         is_deleted: 0,
       };
 
-      this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord, jobId);
+      this.clickHouseWriter.addToQueue(
+        TableName.Traces,
+        wrapperTraceRecord,
+        jobId,
+      );
       finalObservationRecord.trace_id = finalObservationRecord.id;
     }
 
@@ -477,7 +496,11 @@ export class IngestionService {
       finalObservationRecord.trace_id
     ) {
       const traceMtRecord = convertObservationToTraceMt(finalObservationRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord, jobId);
+      this.clickHouseWriter.addToQueue(
+        TableName.TracesMt,
+        traceMtRecord,
+        jobId,
+      );
     }
   }
 

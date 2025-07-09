@@ -57,21 +57,23 @@ export const ingestionQueueProcessorBuilder = (
 
       if (job.data.payload.data.fileKey && job.data.payload.data.fileKey) {
         const fileName = `${job.data.payload.data.fileKey}.json`;
-        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
-          id: randomUUID(),
-          project_id: job.data.payload.authCheck.scope.projectId,
-          entity_type: getClickhouseEntityType(job.data.payload.data.type),
-          entity_id: job.data.payload.data.eventBodyId,
-          event_id: job.data.payload.data.fileKey,
-          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-          bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime(),
-          event_ts: new Date().getTime(),
-          is_deleted: 0,
-        },
-        job.id ?? "",
-      );
+        clickhouseWriter.addToQueue(
+          TableName.BlobStorageFileLog,
+          {
+            id: randomUUID(),
+            project_id: job.data.payload.authCheck.scope.projectId,
+            entity_type: getClickhouseEntityType(job.data.payload.data.type),
+            entity_id: job.data.payload.data.eventBodyId,
+            event_id: job.data.payload.data.fileKey,
+            bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+            bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
+            created_at: new Date().getTime(),
+            updated_at: new Date().getTime(),
+            event_ts: new Date().getTime(),
+            is_deleted: 0,
+          },
+          job.id ?? "",
+        );
       }
 
       // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
