@@ -37,7 +37,7 @@ const getMinTimestampForExport = (
     case BlobStorageExportMode.FROM_CUSTOM_DATE:
       return exportStartDate || new Date(); // Use export start date or current time as fallback
     default:
-      // eslint-disable-next-line no-unused-vars
+      // eslint-disable-next-line no-case-declarations, no-unused-vars
       const _exhaustiveCheck: never = exportMode;
       throw new Error(`Invalid export mode: ${exportMode}`);
   }

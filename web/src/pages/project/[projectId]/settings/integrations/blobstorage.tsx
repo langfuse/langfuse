@@ -132,31 +132,20 @@ export default function BlobStorageIntegrationSettings() {
               {state.data?.exportMode === BlobStorageExportMode.FULL_HISTORY
                 ? "Full history"
                 : state.data?.exportMode === BlobStorageExportMode.FROM_TODAY
-                  ? "From today"
+                  ? "From setup date"
                   : state.data?.exportMode ===
                       BlobStorageExportMode.FROM_CUSTOM_DATE
                     ? "From custom date"
                     : "Unknown"}
             </p>
-            {state.data?.exportMode ===
-              BlobStorageExportMode.FROM_CUSTOM_DATE &&
+            {(state.data?.exportMode ===
+              BlobStorageExportMode.FROM_CUSTOM_DATE || state.data?.exportMode === BlobStorageExportMode.FROM_TODAY) &&
               state.data?.exportStartDate && (
                 <p className="text-sm text-primary">
                   Export start date:{" "}
                   {new Date(state.data.exportStartDate).toLocaleDateString()}
                 </p>
               )}
-            {state.data?.exportMode !== BlobStorageExportMode.FULL_HISTORY && (
-              <p className="text-sm text-amber-600">
-                ⚠️ Historical data before{" "}
-                {state.data?.exportMode === BlobStorageExportMode.FROM_TODAY
-                  ? "today"
-                  : state.data?.exportStartDate
-                    ? new Date(state.data.exportStartDate).toLocaleDateString()
-                    : "the start date"}{" "}
-                is not included in exports
-              </p>
-            )}
           </div>
         </>
       )}
