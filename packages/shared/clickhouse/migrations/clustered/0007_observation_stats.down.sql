@@ -1,0 +1,1 @@
+DROP TABLE observation_stats ON CLUSTER default;
