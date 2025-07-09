@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BlobStorageExportMode,
 } from "@langfuse/shared";
 
 // Base schema for blob storage integration without sensitive data
@@ -18,6 +19,8 @@ export const BlobStorageIntegrationV1Response = z
     forcePathStyle: z.boolean(),
     fileType: z.enum(BlobStorageIntegrationFileType),
     accessKeyId: z.string().nullable(),
+    exportMode: z.enum(BlobStorageExportMode),
+    exportStartDate: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -30,8 +33,8 @@ export const GetBlobStorageIntegrationsV1Response = z
   })
   .strict();
 
-// Request body for creating a new integration
-export const PostBlobStorageIntegrationV1Body = z
+// Unified request body for creating or updating integration (upsert)
+export const UpsertBlobStorageIntegrationV1Body = z
   .object({
     type: z.enum(BlobStorageIntegrationType),
     bucketName: z.string().min(1, { message: "Bucket name is required" }),
@@ -52,34 +55,18 @@ export const PostBlobStorageIntegrationV1Body = z
     fileType: z
       .enum(BlobStorageIntegrationFileType)
       .default(BlobStorageIntegrationFileType.JSONL),
+    exportMode: z
+      .enum(BlobStorageExportMode)
+      .default(BlobStorageExportMode.FULL_HISTORY),
+    exportStartDate: z.coerce.date().optional().nullable(),
   })
   .strict();
 
-// Request body for updating an integration
-export const PutBlobStorageIntegrationV1Body = z
-  .object({
-    type: z.enum(BlobStorageIntegrationType).optional(),
-    bucketName: z
-      .string()
-      .min(1, { message: "Bucket name is required" })
-      .optional(),
-    endpoint: z.string().url().optional().nullable(),
-    region: z.string().optional(),
-    accessKeyId: z.string().optional(),
-    secretAccessKey: z.string().optional(),
-    prefix: z
-      .string()
-      .refine((value) => !value || value === "" || value.endsWith("/"), {
-        message: "Prefix must end with a forward slash (/)",
-      })
-      .optional()
-      .or(z.literal("")),
-    exportFrequency: z.enum(["hourly", "daily", "weekly"]).optional(),
-    enabled: z.boolean().optional(),
-    forcePathStyle: z.boolean().optional(),
-    fileType: z.enum(BlobStorageIntegrationFileType).optional(),
-  })
-  .strict();
+// Legacy schema aliases for backward compatibility - now both point to the same upsert schema
+export const PostBlobStorageIntegrationV1Body =
+  UpsertBlobStorageIntegrationV1Body;
+export const PutBlobStorageIntegrationV1Body =
+  UpsertBlobStorageIntegrationV1Body;
 
 // Since BlobStorageIntegration uses projectId as primary key, we don't need a separate query schema
 // The integration is identified by the authenticated project
@@ -97,6 +84,8 @@ export const transformBlobStorageIntegrationToAPIResponse = (integration: {
   forcePathStyle: boolean;
   fileType: string;
   accessKeyId: string | null;
+  exportMode: string;
+  exportStartDate: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): z.infer<typeof BlobStorageIntegrationV1Response> => {
@@ -116,6 +105,11 @@ export const transformBlobStorageIntegrationToAPIResponse = (integration: {
     fileType:
       integration.fileType as (typeof BlobStorageIntegrationFileType)[keyof typeof BlobStorageIntegrationFileType],
     accessKeyId: integration.accessKeyId,
+    exportMode:
+      integration.exportMode as (typeof BlobStorageExportMode)[keyof typeof BlobStorageExportMode],
+    exportStartDate: integration.exportStartDate
+      ? integration.exportStartDate.toISOString()
+      : null,
     createdAt: integration.createdAt.toISOString(),
     updatedAt: integration.updatedAt.toISOString(),
   };
@@ -127,9 +121,11 @@ export type BlobStorageIntegrationV1Response = z.infer<
 export type GetBlobStorageIntegrationsV1Response = z.infer<
   typeof GetBlobStorageIntegrationsV1Response
 >;
-export type PostBlobStorageIntegrationV1Body = z.infer<
-  typeof PostBlobStorageIntegrationV1Body
+export type UpsertBlobStorageIntegrationV1Body = z.infer<
+  typeof UpsertBlobStorageIntegrationV1Body
 >;
-export type PutBlobStorageIntegrationV1Body = z.infer<
-  typeof PutBlobStorageIntegrationV1Body
->;
+// Legacy type aliases for backward compatibility
+export type PostBlobStorageIntegrationV1Body =
+  UpsertBlobStorageIntegrationV1Body;
+export type PutBlobStorageIntegrationV1Body =
+  UpsertBlobStorageIntegrationV1Body;

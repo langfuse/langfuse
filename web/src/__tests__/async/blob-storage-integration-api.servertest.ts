@@ -51,7 +51,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
@@ -86,7 +86,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
     });
   });
 
-  describe("POST /api/public/integrations/blob-storage", () => {
+  describe("PUT /api/public/integrations/blob-storage (Create)", () => {
     it("should create a new blob storage integration", async () => {
       const createBody: PostBlobStorageIntegrationV1Body = {
         type: BlobStorageIntegrationType.S3,
@@ -103,13 +103,13 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
       );
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(200);
       expect(response.body).toMatchObject({
         projectId,
         type: BlobStorageIntegrationType.S3,
@@ -138,7 +138,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
@@ -159,7 +159,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
       });
     });
 
-    it("should fail when integration already exists", async () => {
+    it("should update when integration already exists (upsert behavior)", async () => {
       const createBody: PostBlobStorageIntegrationV1Body = {
         type: BlobStorageIntegrationType.S3,
         bucketName: "test-bucket",
@@ -171,22 +171,27 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
       // Create first integration
       await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
       );
 
-      // Try to create second integration should fail
+      // Update with new bucket name should succeed (upsert)
+      const updateBody = {
+        ...createBody,
+        bucketName: "updated-bucket",
+      };
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
-        createBody,
+        updateBody,
         auth,
       );
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(200);
+      expect(response.body.bucketName).toBe("updated-bucket");
     });
 
     it("should fail with invalid prefix", async () => {
@@ -200,7 +205,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
@@ -219,7 +224,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
@@ -229,7 +234,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
     });
   });
 
-  describe("PUT /api/public/integrations/blob-storage", () => {
+  describe("PUT /api/public/integrations/blob-storage (Update)", () => {
     beforeEach(async () => {
       // Create an integration before each test
       const createBody: PostBlobStorageIntegrationV1Body = {
@@ -247,7 +252,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
@@ -313,7 +318,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
       });
     });
 
-    it("should fail when integration doesn't exist", async () => {
+    it("should create integration when it doesn't exist (upsert behavior)", async () => {
       // Delete the integration first
       await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
@@ -323,7 +328,11 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
         auth,
       );
 
-      const updateBody: PutBlobStorageIntegrationV1Body = {
+      const createBody: PutBlobStorageIntegrationV1Body = {
+        type: BlobStorageIntegrationType.S3,
+        bucketName: "new-bucket",
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         enabled: false,
       };
 
@@ -331,11 +340,13 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
         BlobStorageIntegrationV1Response,
         "PUT",
         "/api/public/integrations/blob-storage",
-        updateBody,
+        createBody,
         auth,
       );
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(200);
+      expect(response.body.bucketName).toBe("new-bucket");
+      expect(response.body.enabled).toBe(false);
     });
   });
 
@@ -357,7 +368,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
@@ -436,7 +447,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
@@ -462,7 +473,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
@@ -489,7 +500,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
@@ -510,7 +521,7 @@ describe("/api/public/integrations/blob-storage API Endpoints", () => {
 
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationV1Response,
-        "POST",
+        "PUT",
         "/api/public/integrations/blob-storage",
         createBody,
         auth,
