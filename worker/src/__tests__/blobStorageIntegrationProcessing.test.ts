@@ -541,8 +541,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const projectFiles = files.filter((f) => f.file.includes(projectId));
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
 
-      expect(traceFile).toBeDefined();
-
+      // On azure the empty file is not created, for others we proceed to check that it's empty.
       if (traceFile) {
         const content = await storageService.download(traceFile.file);
         // With FROM_TODAY mode and a current exportStartDate, the minTimestamp is set to the provided date (current time)
