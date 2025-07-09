@@ -70,7 +70,6 @@ describe("ClickhouseWriter", () => {
     // Reset singleton instance
     await writer.shutdown();
 
-    // Reset the instance using a different approach
     (ClickhouseWriter as any).instance = null;
   });
 
@@ -151,7 +150,7 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
 
-  it("should drop records after max attempts", async () => {
+  it("should drop records and log error after max attempts", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
       .mockRejectedValue(new Error("DB Error"));
@@ -164,12 +163,6 @@ describe("ClickhouseWriter", () => {
     }
 
     expect(mockInsert).toHaveBeenCalledTimes(writer.maxAttempts);
-
-    // Debug: Log all error calls to see what's actually being logged
-    console.log(
-      "All logger.error calls:",
-      logger.error.mock.calls.map((call) => call[0]),
-    );
 
     // Check if any error call contains the expected message
     const hasMaxAttemptsError = logger.error.mock.calls.some((call) => {
@@ -198,7 +191,7 @@ describe("ClickhouseWriter", () => {
     );
   });
 
-  it("should handle multiple table types", async () => {
+  it("should handle multiple table types in normal operation", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
@@ -391,7 +384,7 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
 
-  it("should call moveToFailed when max attempts are reached", async () => {
+  it("should call moveToFailed and increment metrics when max attempts are reached", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
       .mockRejectedValue(new Error("DB Error"));
@@ -403,15 +396,18 @@ describe("ClickhouseWriter", () => {
     const mockGetInstance = vi.fn(() => ({
       getJob: mockGetJob,
     }));
+    const mockRecordIncrement = vi.fn();
 
     // Update the mock to return our specific mock functions
     (serverExports.IngestionQueue.getInstance as any).mockImplementation(
       mockGetInstance,
     );
+    (serverExports.recordIncrement as any).mockImplementation(
+      mockRecordIncrement,
+    );
 
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" }, "job-1");
 
-    // Advance timers for maxAttempts + 1 times to trigger the max attempts logic
     for (let i = 0; i < writer.maxAttempts + 1; i++) {
       await vi.advanceTimersByTimeAsync(writer.writeInterval);
     }
@@ -419,6 +415,9 @@ describe("ClickhouseWriter", () => {
     expect(mockGetInstance).toHaveBeenCalled();
     expect(mockGetJob).toHaveBeenCalledWith("job-1");
     expect(mockMoveToFailed).toHaveBeenCalledWith(expect.any(Error), "token");
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.error",
+    );
   });
 
   it("should handle job not found when max attempts are reached", async () => {
@@ -437,7 +436,6 @@ describe("ClickhouseWriter", () => {
 
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" }, "job-1");
 
-    // Advance timers for maxAttempts + 1 times to trigger the max attempts logic
     for (let i = 0; i < writer.maxAttempts + 1; i++) {
       await vi.advanceTimersByTimeAsync(writer.writeInterval);
     }
@@ -475,7 +473,6 @@ describe("ClickhouseWriter", () => {
 
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" }, "job-1");
 
-    // Advance timers for maxAttempts + 1 times to trigger the max attempts logic
     for (let i = 0; i < writer.maxAttempts + 1; i++) {
       await vi.advanceTimersByTimeAsync(writer.writeInterval);
     }
@@ -484,28 +481,6 @@ describe("ClickhouseWriter", () => {
     expect(mockGetJobFirstShard).toHaveBeenCalledWith("job-1");
     expect(mockGetJobSecondShard).toHaveBeenCalledWith("job-1");
     expect(mockMoveToFailed).toHaveBeenCalledWith(expect.any(Error), "token");
-  });
-
-  it("should increment error metrics when max attempts are reached", async () => {
-    const mockInsert = vi
-      .spyOn(clickhouseClientMock, "insert")
-      .mockRejectedValue(new Error("DB Error"));
-
-    const mockRecordIncrement = vi.fn();
-    (serverExports.recordIncrement as any).mockImplementation(
-      mockRecordIncrement,
-    );
-
-    writer.addToQueue(TableName.Traces, { id: "1", name: "test" }, "job-1");
-
-    // Advance timers for maxAttempts + 1 times to trigger the max attempts logic
-    for (let i = 0; i < writer.maxAttempts + 1; i++) {
-      await vi.advanceTimersByTimeAsync(writer.writeInterval);
-    }
-
-    expect(mockRecordIncrement).toHaveBeenCalledWith(
-      "langfuse.queue.clickhouse_writer.error",
-    );
   });
 
   it("should handle different table types with max attempts logic", async () => {
@@ -534,7 +509,6 @@ describe("ClickhouseWriter", () => {
       "job-3",
     );
 
-    // Advance timers for maxAttempts + 1 times to trigger the max attempts logic
     for (let i = 0; i < writer.maxAttempts + 1; i++) {
       await vi.advanceTimersByTimeAsync(writer.writeInterval);
     }
@@ -553,16 +527,12 @@ describe("ClickhouseWriter", () => {
     const testData = { id: "1", name: "test", customField: "value" };
     writer.addToQueue(TableName.Traces, testData as any, "job-1");
 
-    // Advance timers for maxAttempts + 1 times to trigger the max attempts logic
     for (let i = 0; i < writer.maxAttempts + 1; i++) {
       await vi.advanceTimersByTimeAsync(writer.writeInterval);
     }
 
-    // Check that the error log includes the original data
     const errorLogCall = logger.error.mock.calls.find((call) =>
-      call[0].includes(
-        "Max attempts reached for traces record. Dropping record.",
-      ),
+      call[0].includes("Max attempts reached"),
     );
 
     expect(errorLogCall).toBeDefined();

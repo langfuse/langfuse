@@ -13,7 +13,6 @@ export class DlqRetryService {
     QueueName.ScoreDelete,
     QueueName.BatchActionQueue,
     QueueName.DataRetentionProcessingQueue,
-    QueueName.TraceUpsert,
     QueueName.IngestionQueue,
   ] as const;
 
