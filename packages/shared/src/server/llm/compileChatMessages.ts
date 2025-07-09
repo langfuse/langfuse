@@ -10,7 +10,7 @@ import {
   ChatMessageSchema,
 } from "./types";
 
-export type MessagePlaceholderValues = Record<string, ChatMessage[]>;
+export type MessagePlaceholderValues = Record<string, unknown[]>;
 export type PromptMessage = z.infer<typeof PromptChatMessageSchema>;
 
 export function isPlaceholder(
@@ -54,14 +54,17 @@ function expandPlaceholder(
     );
   }
 
-  for (const replacementMsg of replacementMessages) {
-    if (!validateMessage(replacementMsg)) {
-      throw new Error(
-        `Invalid message format in placeholder '${placeholder.name}': messages must have 'role' and 'content' properties`,
-      );
+  // Allow arbitrary objects - just pass them through as ChatMessage
+  // Users might want to use ChatML with placeholders for any message structure
+  return replacementMessages.map((replacementMsg) => {
+    if (typeof replacementMsg === "object" && replacementMsg !== null) {
+      return replacementMsg as ChatMessage;
     }
-  }
-  return replacementMessages;
+
+    throw new Error(
+      `Invalid message in placeholder '${placeholder.name}': expected object but got ${typeof replacementMsg}`,
+    );
+  });
 }
 
 export function compileChatMessages(
@@ -81,7 +84,7 @@ export function compileChatMessages(
   }
 
   return expandedMessages.map((message) => {
-    if (!message.content) {
+    if (!message.content || typeof message.content !== "string") {
       return message;
     }
 
@@ -94,7 +97,7 @@ export function compileChatMessages(
 
 export function compileChatMessagesWithIds(
   messages: ChatMessageWithId[],
-  placeholderValues: Record<string, ChatMessage[]>,
+  placeholderValues: MessagePlaceholderValues,
   textVariables?: Record<string, string>,
 ): ChatMessageWithIdNoPlaceholders[] {
   // TODO: check, is it even important to retain the IDs?
@@ -114,7 +117,7 @@ export function compileChatMessagesWithIds(
   }
 
   return expandedMessages.map((message) => {
-    if (!message.content) {
+    if (!message.content || typeof message.content !== "string") {
       return message;
     }
 

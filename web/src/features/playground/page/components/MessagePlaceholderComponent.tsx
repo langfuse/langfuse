@@ -32,17 +32,27 @@ export const MessagePlaceholderComponent: React.FC<{
     (jsonString: string) => {
       try {
         const parsed = jsonString.trim() === "" ? [] : JSON.parse(jsonString);
-        const result = PromptChatMessageListSchema.safeParse(parsed);
 
-        if (result.success) {
-          updateMessagePlaceholderValue(name, result.data as ChatMessage[]);
-          setError(null);
-        } else {
-          setError(
-            result.error.issues[0]?.message ||
-              "Invalid chat message format, ensure it has role and content keys.",
-          );
+        // Basic validation: must be an array of objects
+        if (!Array.isArray(parsed)) {
+          setError("Input must be an array of objects");
+          return;
         }
+
+        // Check that all items are objects
+        const allObjects = parsed.every(
+          (item) =>
+            typeof item === "object" && item !== null && !Array.isArray(item),
+        );
+
+        if (!allObjects) {
+          setError("All items must be objects");
+          return;
+        }
+
+        // Allow arbitrary objects - no strict role/content validation
+        updateMessagePlaceholderValue(name, parsed as ChatMessage[]);
+        setError(null);
       } catch {
         setError("Invalid JSON format");
       }
