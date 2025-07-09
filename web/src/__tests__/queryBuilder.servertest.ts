@@ -2084,7 +2084,7 @@ describe("queryBuilder", () => {
         // Verify SQL includes segment filter for NUMERIC types
         // Verify SQL includes segment filter for non-NUMERIC types
         expect(compiledQuery).toContain("position(scores_numeric.data_type, {");
-        expect(compiledQuery).toContain("): String}) = 0");
+        expect(compiledQuery).toContain(": String}) = 0");
         expect(Object.values(parameters)).toContain("CATEGORICAL");
 
         const result = await (
