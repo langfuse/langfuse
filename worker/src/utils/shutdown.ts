@@ -9,7 +9,7 @@ import { WorkerManager } from "../queues/workerManager";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 
-export const onShutdown: NodeJS.SignalsListener = async (signal) => { // eslint-disable-line no-undef
+export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
   setSigtermReceived();
 
@@ -23,9 +23,6 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => { // eslint-
   // Shutdown background migrations
   await BackgroundMigrationManager.close();
 
-  // Shutdown clickhouse connections
-  await ClickHouseClientManager.getInstance().closeAllConnections();
-
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
   await ClickhouseWriter.getInstance().shutdown();
   logger.info("Clickhouse writer has been shut down.");
@@ -35,6 +32,9 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => { // eslint-
 
   await prisma.$disconnect();
   logger.info("Prisma connection has been closed.");
+
+  // Shutdown clickhouse connections
+  await ClickHouseClientManager.getInstance().closeAllConnections();
 
   freeAllTokenizers();
   logger.info("All tokenizers are cleaned up from memory.");

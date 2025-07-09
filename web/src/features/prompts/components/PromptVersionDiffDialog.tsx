@@ -21,6 +21,41 @@ type PromptVersionDiffDialogProps = {
   rightPrompt: Prompt;
 };
 
+// Create a word-based diff that preserves JSON structure
+const createSmartDiff = (
+  oldPrompt: Prompt,
+  newPrompt: Prompt,
+): { oldString: string; newString: string } => {
+  if (oldPrompt.type === "text" || newPrompt.type === "text") {
+    return {
+      oldString:
+        oldPrompt.type === "text"
+          ? (oldPrompt.prompt as string)
+          : JSON.stringify(oldPrompt.prompt, null, 2),
+      newString:
+        newPrompt.type === "text"
+          ? (newPrompt.prompt as string)
+          : JSON.stringify(newPrompt.prompt, null, 2),
+    };
+  }
+
+  const formatMessages = (messages: any[]) =>
+    JSON.stringify(
+      messages.map((m) =>
+        Object.fromEntries(
+          Object.entries(m).sort(([a], [b]) => a.localeCompare(b)),
+        ),
+      ),
+      null,
+      2,
+    );
+
+  return {
+    oldString: formatMessages(oldPrompt.prompt as any[]),
+    newString: formatMessages(newPrompt.prompt as any[]),
+  };
+};
+
 export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
   props,
 ) => {
@@ -72,16 +107,7 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
               <div>
                 <h3 className="mb-2 text-base font-medium">Content</h3>
                 <DiffViewer
-                  oldString={
-                    leftPrompt.type === "chat"
-                      ? JSON.stringify(leftPrompt.prompt, null, 2)
-                      : (leftPrompt.prompt as string)
-                  }
-                  newString={
-                    rightPrompt.type === "chat"
-                      ? JSON.stringify(rightPrompt.prompt, null, 2)
-                      : (rightPrompt.prompt as string)
-                  }
+                  {...createSmartDiff(leftPrompt, rightPrompt)}
                   oldLabel={`v${leftPrompt.version}`}
                   newLabel={`v${rightPrompt.version}`}
                   oldSubLabel={leftPrompt.commitMessage ?? undefined}

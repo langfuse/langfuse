@@ -63,7 +63,8 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 };
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars
+  params: LLMCompletionParams & {
     streaming: true;
   },
 ): Promise<{
@@ -72,7 +73,8 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars
+  params: LLMCompletionParams & {
     streaming: false;
   },
 ): Promise<{
@@ -81,7 +83,8 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars
+  params: LLMCompletionParams & {
     streaming: false;
     structuredOutputSchema: ZodSchema;
   },
@@ -91,7 +94,8 @@ export async function fetchLLMCompletion(
 }>;
 
 export async function fetchLLMCompletion(
-  params: LLMCompletionParams & { // eslint-disable-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars
+  params: LLMCompletionParams & {
     tools: LLMToolDefinition[];
     streaming: false;
   },
@@ -154,28 +158,47 @@ export async function fetchLLMCompletion(
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
 
+  // Helper function to safely stringify content
+  const safeStringify = (content: any): string => {
+    try {
+      return JSON.stringify(content);
+    } catch {
+      return "[Unserializable content]";
+    }
+  };
+
   let finalMessages: BaseMessage[];
   // VertexAI requires at least 1 user message
   if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
-    finalMessages = [new HumanMessage(messages[0].content)];
+    const safeContent =
+      typeof messages[0].content === "string"
+        ? messages[0].content
+        : JSON.stringify(messages[0].content);
+    finalMessages = [new HumanMessage(safeContent)];
   } else {
     finalMessages = messages.map((message) => {
+      // For arbitrary content types, convert to string safely
+      const safeContent =
+        typeof message.content === "string"
+          ? message.content
+          : safeStringify(message.content);
+
       if (message.role === ChatMessageRole.User)
-        return new HumanMessage(message.content);
+        return new HumanMessage(safeContent);
       if (
         message.role === ChatMessageRole.System ||
         message.role === ChatMessageRole.Developer
       )
-        return new SystemMessage(message.content);
+        return new SystemMessage(safeContent);
 
       if (message.type === ChatMessageType.ToolResult)
         return new ToolMessage({
-          content: message.content,
+          content: safeContent,
           tool_call_id: message.toolCallId,
         });
 
       return new AIMessage({
-        content: message.content,
+        content: safeContent,
         tool_calls:
           message.type === ChatMessageType.AssistantToolCall
             ? (message.toolCalls as any)
@@ -325,7 +348,7 @@ export async function fetchLLMCompletion(
 
     /*
   Workaround OpenAI reasoning models:
-  
+
   This is a temporary workaround to avoid sending unsupported parameters to OpenAI's O1 models.
   O1 models do not support:
   - system messages
