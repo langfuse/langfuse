@@ -73,7 +73,7 @@ const processBlobStorageExport = async (config: {
   maxTimestamp: Date;
   bucketName: string;
   endpoint: string | null;
-  region?: string;
+  region: string;
   accessKeyId: string | undefined;
   secretAccessKey: string | undefined;
   prefix?: string;
@@ -214,7 +214,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       maxTimestamp,
       bucketName: blobStorageIntegration.bucketName,
       endpoint: blobStorageIntegration.endpoint,
-      region: blobStorageIntegration.region || undefined,
+      region: blobStorageIntegration.region ?? "auto",
       accessKeyId: blobStorageIntegration.accessKeyId || undefined,
       secretAccessKey: blobStorageIntegration.secretAccessKey
         ? decrypt(blobStorageIntegration.secretAccessKey)

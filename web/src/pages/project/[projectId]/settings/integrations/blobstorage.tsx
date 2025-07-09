@@ -21,8 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
-import { Label } from "@/src/components/ui/label";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -539,58 +537,22 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Export Mode</FormLabel>
               <FormControl>
-                <RadioGroup
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  className="flex flex-col space-y-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value={BlobStorageExportMode.FULL_HISTORY}
-                      id="full-history"
-                    />
-                    <Label htmlFor="full-history" className="cursor-pointer">
-                      <div className="flex flex-col">
-                        <span className="font-medium">Full history</span>
-                        <span className="text-sm text-muted-foreground">
-                          Export all historical data from your project
-                        </span>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value={BlobStorageExportMode.FROM_TODAY}
-                      id="from-today"
-                    />
-                    <Label htmlFor="from-today" className="cursor-pointer">
-                      <div className="flex flex-col">
-                        <span className="font-medium">Today</span>
-                        <span className="text-sm text-muted-foreground">
-                          Start exporting from today (historical data will not
-                          be included)
-                        </span>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value={BlobStorageExportMode.FROM_CUSTOM_DATE}
-                      id="from-custom-date"
-                    />
-                    <Label
-                      htmlFor="from-custom-date"
-                      className="cursor-pointer"
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-medium">Custom date</span>
-                        <span className="text-sm text-muted-foreground">
-                          Start exporting from a specific date
-                        </span>
-                      </div>
-                    </Label>
-                  </div>
-                </RadioGroup>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select export mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={BlobStorageExportMode.FULL_HISTORY}>
+                      Full history
+                    </SelectItem>
+                    <SelectItem value={BlobStorageExportMode.FROM_TODAY}>
+                      Today
+                    </SelectItem>
+                    <SelectItem value={BlobStorageExportMode.FROM_CUSTOM_DATE}>
+                      Custom date
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </FormControl>
               <FormDescription>
                 Choose when to start exporting data. &quot;Today&quot; and
