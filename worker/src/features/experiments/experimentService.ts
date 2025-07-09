@@ -282,6 +282,10 @@ export const createExperimentJob = async ({
       ),
     }));
 
+  logger.info(
+    `Found ${validatedDatasetItems.length} validated dataset items for dataset run ${runId}`,
+  );
+
   if (!validatedDatasetItems.length) {
     throw new InvalidRequestError(
       `No Dataset ${datasetId} item input matches expected prompt variables or placeholders format`,
