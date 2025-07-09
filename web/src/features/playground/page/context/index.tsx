@@ -23,7 +23,6 @@ import {
   ToolCallResponseSchema,
   type UIModelParams,
   type ToolCallResponse,
-  type LLMToolDefinition,
   type LLMToolCall,
   ChatMessageType,
   type ChatMessage,
@@ -138,7 +137,12 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       structuredOutputSchema: cachedStructuredOutputSchema,
     } = playgroundCache;
 
-    setMessages(cachedMessages.map((m) => ({ ...m, id: uuidv4() })));
+    setMessages(
+      cachedMessages.map((m) => ({
+        ...m,
+        id: "id" in m ? m.id || uuidv4() : uuidv4(),
+      })),
+    );
 
     if (cachedOutput) {
       // Try parsing a previous output with tool calls
@@ -291,7 +295,9 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           messagePlaceholders,
         );
         const leftOverVariables = extractVariables(
-          finalMessages.map((m) => m.content).join("\n"),
+          finalMessages
+            .map((m) => (typeof m.content === "string" ? m.content : ""))
+            .join("\n"),
         );
 
         if (!modelParams.provider.value || !modelParams.model.value) {
@@ -517,175 +523,6 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   );
 };
 
-async function getChatCompletionWithTools(
-  projectId: string | undefined,
-  messages: ChatMessageWithIdNoPlaceholders[],
-  modelParams: UIModelParams,
-  tools: unknown[],
-  streaming: boolean = false,
-): Promise<ToolCallResponse> {
-  if (!projectId) throw Error("Project ID is not set");
-
-  const body = JSON.stringify({
-    projectId,
-    messages,
-    modelParams: getFinalModelParams(modelParams),
-    tools,
-    streaming,
-  });
-  const result = await fetch(
-    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-    },
-  );
-
-  const responseData = await result.json();
-
-  if (!result.ok) {
-    throw new Error(`Completion failed: ${responseData.message}`);
-  }
-
-  const parsed = ToolCallResponseSchema.safeParse(responseData);
-  if (!parsed.success)
-    throw Error(
-      "Failed to parse tool call response client-side:\n" +
-        JSON.stringify(responseData, null, 2),
-    );
-
-  return parsed.data;
-}
-
-async function getChatCompletionWithStructuredOutput(
-  projectId: string | undefined,
-  messages: ChatMessageWithId[],
-  modelParams: UIModelParams,
-  structuredOutputSchema: PlaygroundSchema | null,
-  streaming: boolean = false,
-): Promise<string> {
-  if (!projectId) throw Error("Project ID is not set");
-
-  const body = JSON.stringify({
-    projectId,
-    messages,
-    modelParams: getFinalModelParams(modelParams),
-    structuredOutputSchema: structuredOutputSchema?.schema,
-    streaming,
-  });
-
-  const result = await fetch(
-    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-    },
-  );
-
-  if (!result.ok) {
-    const responseData = await result.json();
-    throw new Error(`Completion failed: ${responseData.message}`);
-  }
-
-  const responseData = await result.text();
-
-  try {
-    const parsed = JSON.parse(responseData);
-    return JSON.stringify(parsed, null, 2);
-  } catch {
-    return responseData;
-  }
-}
-
-async function* getChatCompletionStream(
-  projectId: string | undefined,
-  messages: ChatMessageWithId[],
-  modelParams: UIModelParams,
-) {
-  if (!projectId) {
-    console.error("Project ID is not set");
-    return;
-  }
-
-  const body = JSON.stringify({
-    projectId,
-    messages,
-    modelParams: getFinalModelParams(modelParams),
-    streaming: true,
-  });
-  const result = await fetch(
-    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-    },
-  );
-
-  if (!result.ok) {
-    const errorData = await result.json();
-
-    throw new Error(`Completion failed: ${errorData.message}`);
-  }
-
-  const reader = result.body?.getReader();
-  if (!reader) {
-    throw new Error("Failed to read response body");
-  }
-
-  const decoder = new TextDecoder("utf-8");
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const token = decoder.decode(value);
-
-      yield token;
-    }
-  } catch (error) {
-    throw error;
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-async function getChatCompletionNonStreaming(
-  projectId: string | undefined,
-  messages: ChatMessageWithId[],
-  modelParams: UIModelParams,
-): Promise<string> {
-  if (!projectId) {
-    throw new Error("Project ID is not set");
-  }
-
-  const body = JSON.stringify({
-    projectId,
-    messages,
-    modelParams: getFinalModelParams(modelParams),
-    streaming: false,
-  });
-
-  const result = await fetch(
-    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-    },
-  );
-
-  if (!result.ok) {
-    const errorData = await result.json();
-    throw new Error(`Completion failed: ${errorData.message}`);
-  }
-
-  const responseData = await result.json();
-  return responseData.content || "";
-}
-
 function getFinalMessages(
   promptVariables: PromptVariable[],
   messages: ChatMessageWithId[],
@@ -732,33 +569,245 @@ function getFinalMessages(
   );
 
   // Filter empty messages (except tool calls), e.g. if placeholder value was empty
-  return compiledMessages.filter(
-    (m) =>
-      m.content.length > 0 ||
-      ("toolCalls" in m && m.toolCalls && m.toolCalls.length > 0),
-  );
+  return compiledMessages.filter((m) => {
+    // Standard ChatMessage filtering
+    if (typeof m.content === "string") {
+      return (
+        m.content.length > 0 ||
+        ("toolCalls" in m &&
+          m.toolCalls &&
+          Array.isArray(m.toolCalls) &&
+          m.toolCalls.length > 0)
+      );
+    }
+
+    // For arbitrary objects, keep them (assume they have meaningful content)
+    return true;
+  });
 }
 
-function getOutputJson(
-  output: string,
-  messages: ChatMessageWithId[],
+const getChatCompletionStream = async function* (
+  projectId: string,
+  messages: ChatMessage[],
   modelParams: UIModelParams,
-  tools: LLMToolDefinition[],
-  structuredOutputSchema: PlaygroundSchema | null,
 ) {
-  return JSON.stringify(
+  const resp = await fetch(
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
     {
-      input: messages.map((obj) => filterKeyFromObject(obj, "id")),
-      output,
-      model: getFinalModelParams(modelParams),
-      tools,
-      structuredOutputSchema,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        messages,
+        modelParams: getFinalModelParams(modelParams),
+        streaming: true,
+      }),
     },
-    null,
-    2,
   );
-}
 
-function filterKeyFromObject<T extends object>(obj: T, key: keyof T) {
-  return Object.fromEntries(Object.entries(obj).filter(([k, _]) => k !== key));
-}
+  if (!resp.ok) {
+    throw new Error(await resp.text());
+  }
+
+  if (!resp.body) throw new Error("No response body");
+
+  const reader = resp.body.getReader();
+
+  try {
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += new TextDecoder().decode(value);
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.trim() === "" || !line.startsWith("data: ")) continue;
+
+        const data = line.slice(6);
+        if (data === "[DONE]") return;
+
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.choices?.[0]?.delta?.content) {
+            yield parsed.choices[0].delta.content;
+          }
+        } catch {
+          // Ignore parsing errors for malformed chunks
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+};
+
+const getChatCompletionNonStreaming = async (
+  projectId: string,
+  messages: ChatMessage[],
+  modelParams: UIModelParams,
+): Promise<string> => {
+  const resp = await fetch(
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        messages,
+        modelParams: getFinalModelParams(modelParams),
+        streaming: false,
+      }),
+    },
+  );
+
+  if (!resp.ok) {
+    throw new Error(await resp.text());
+  }
+
+  const data = await resp.json();
+  return data.choices[0]?.message?.content || "";
+};
+
+const getChatCompletionWithTools = async (
+  projectId: string,
+  messages: ChatMessage[],
+  modelParams: UIModelParams,
+  tools: PlaygroundTool[],
+  streaming: boolean,
+): Promise<ToolCallResponse> => {
+  const resp = await fetch(
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        messages,
+        modelParams: getFinalModelParams(modelParams),
+        tools: tools.map((t) => ({
+          type: "function",
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+          },
+        })),
+        streaming,
+      }),
+    },
+  );
+
+  if (!resp.ok) {
+    throw new Error(await resp.text());
+  }
+
+  const data = await resp.json();
+  const message = data.choices[0]?.message;
+
+  if (!message) {
+    throw new Error("No message in response");
+  }
+
+  return ToolCallResponseSchema.parse({
+    content: message.content || "",
+    tool_calls:
+      message.tool_calls?.map((tc: any) => ({
+        name: tc.function.name,
+        id: tc.id,
+        args:
+          typeof tc.function.arguments === "string"
+            ? JSON.parse(tc.function.arguments)
+            : tc.function.arguments,
+      })) || [],
+  });
+};
+
+const getChatCompletionWithStructuredOutput = async (
+  projectId: string,
+  messages: ChatMessage[],
+  modelParams: UIModelParams,
+  schema: PlaygroundSchema,
+  streaming: boolean,
+): Promise<string> => {
+  const resp = await fetch(
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        messages,
+        modelParams: getFinalModelParams(modelParams),
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: schema.name,
+            schema: schema.schema,
+          },
+        },
+        streaming,
+      }),
+    },
+  );
+
+  if (!resp.ok) {
+    throw new Error(await resp.text());
+  }
+
+  const data = await resp.json();
+  return data.choices[0]?.message?.content || "";
+};
+
+const getOutputJson = (
+  response: string,
+  messages: ChatMessage[],
+  modelParams: UIModelParams,
+  tools: PlaygroundTool[],
+  structuredOutputSchema: PlaygroundSchema | null,
+): string => {
+  const baseOutput = {
+    model: modelParams.model.value,
+    messages,
+    ...getFinalModelParams(modelParams),
+  };
+
+  if (tools.length > 0) {
+    return JSON.stringify(
+      {
+        ...baseOutput,
+        tools: tools.map((t) => ({
+          type: "function",
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+          },
+        })),
+      },
+      null,
+      2,
+    );
+  }
+
+  if (structuredOutputSchema) {
+    return JSON.stringify(
+      {
+        ...baseOutput,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: structuredOutputSchema.name,
+            schema: structuredOutputSchema.schema,
+          },
+        },
+      },
+      null,
+      2,
+    );
+  }
+
+  return JSON.stringify(baseOutput, null, 2);
+};

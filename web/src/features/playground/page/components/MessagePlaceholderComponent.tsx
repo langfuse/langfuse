@@ -2,10 +2,7 @@ import { CheckCircle2, Circle, TrashIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { useState, useCallback } from "react";
-import {
-  type ChatMessage,
-  PromptChatMessageListSchema,
-} from "@langfuse/shared";
+import { type ChatMessage } from "@langfuse/shared";
 
 import { usePlaygroundContext } from "../context";
 import { type PlaceholderMessageFillIn } from "../types";

@@ -103,7 +103,7 @@ const replaceVariablesInPrompt = (
     }
 
     // Allow arbitrary objects - e.g. for users who want to pass ChatML messages.
-    // Used to validate for role and content key existance here.
+    // Used to validate for role and content key existence here.
     const validMessages = actualValue.every(
       (msg) => typeof msg === "object" && msg !== null,
     );
