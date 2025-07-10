@@ -174,7 +174,7 @@ export function PromptTable() {
     })),
   );
 
-  // Backend now returns folder representatives, so we just need to detect and convert them
+  // Backend returns folder representatives, so we just need to detect them
   const processedRowData = useMemo(() => {
     if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
 
@@ -301,6 +301,7 @@ export function PromptTable() {
           <TableLink
             path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.id)}`}
             value={name}
+            title={rowData.id} // Show full prompt path on hover
           />
         ) : undefined;
       },

@@ -94,7 +94,7 @@ export const promptRouter = createTRPCRouter({
       const pathFilter =
         input.pathPrefix !== undefined && input.pathPrefix !== ""
           ? (() => {
-              const prefix = input.pathPrefix as string;
+              const prefix = input.pathPrefix ;
               return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
             })()
           : Prisma.empty;
@@ -104,7 +104,7 @@ export const promptRouter = createTRPCRouter({
         input.searchQuery !== null &&
         input.searchQuery !== ""
           ? (() => {
-              const q = input.searchQuery as string;
+              const q = input.searchQuery ;
               return Prisma.sql` AND (p.name ILIKE ${`%${q}%`} OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`}))`;
             })()
           : Prisma.empty;
@@ -124,7 +124,7 @@ export const promptRouter = createTRPCRouter({
           p.created_at as "createdAt",
           p.labels,
           p.tags`,
-            input.projectId as string,
+            input.projectId,
             filterCondition,
             orderByCondition,
             limit,
@@ -138,7 +138,7 @@ export const promptRouter = createTRPCRouter({
         ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
           generatePromptQuery(
             Prisma.sql` count(*) AS "totalCount"`,
-            input.projectId as string,
+            input.projectId,
             filterCondition,
             Prisma.empty,
             1, // limit
@@ -168,7 +168,7 @@ export const promptRouter = createTRPCRouter({
       const count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
         generatePromptQuery(
           Prisma.sql` count(*) AS "totalCount"`,
-          input.projectId as string,
+          input.projectId,
           Prisma.empty,
           Prisma.empty,
           1, // limit
@@ -1342,14 +1342,18 @@ const generatePromptQuery = (
     grouped AS (
       SELECT
         p.*,  /* keep all columns */
-        ROW_NUMBER() OVER (PARTITION BY ${segmentExpr} ORDER BY p.version DESC) AS rn
+        ROW_NUMBER() OVER (PARTITION BY ${segmentExpr} ORDER BY p.version DESC) AS rn,
+        CASE 
+          WHEN SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2) LIKE '%/%' THEN 1
+          ELSE 2
+        END as sort_priority  -- Folders first (1), individual prompts second (2)
       FROM latest p
     )
     SELECT
       ${select}
     FROM grouped p
     WHERE rn = 1
-    ${orderCondition}
+    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace("ORDER BY ", ""))}` : Prisma.empty}
     LIMIT ${limit} OFFSET ${page * limit};
     `;
   } else {
@@ -1388,16 +1392,18 @@ const generatePromptQuery = (
       WHERE p.name LIKE '%/%'
     ),
     combined AS (
-      SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by
-      FROM individual_prompts
-      UNION ALL
-      SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by
+      SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by,
+        1 as sort_priority  -- Folders first
       FROM folder_representatives WHERE rn = 1
+      UNION ALL
+      SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by,
+        2 as sort_priority  -- Individual prompts second
+      FROM individual_prompts
     )
     SELECT
       ${select}
     FROM combined p
-    ${orderCondition}
+    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace("ORDER BY ", ""))}` : Prisma.empty}
     LIMIT ${limit} OFFSET ${page * limit};
     `;
   }
