@@ -23,9 +23,6 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   // Shutdown background migrations
   await BackgroundMigrationManager.close();
 
-  // Shutdown clickhouse connections
-  await ClickHouseClientManager.getInstance().closeAllConnections();
-
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
   await ClickhouseWriter.getInstance().shutdown();
   logger.info("Clickhouse writer has been shut down.");
@@ -35,6 +32,9 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
 
   await prisma.$disconnect();
   logger.info("Prisma connection has been closed.");
+
+  // Shutdown clickhouse connections
+  await ClickHouseClientManager.getInstance().closeAllConnections();
 
   freeAllTokenizers();
   logger.info("All tokenizers are cleaned up from memory.");

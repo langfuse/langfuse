@@ -104,16 +104,14 @@ const replaceVariablesInPrompt = (
       );
     }
 
+    // Allow arbitrary objects - e.g. for users who want to pass ChatML messages.
+    // Used to validate for role and content key existence here.
     const validMessages = actualValue.every(
-      (msg) =>
-        typeof msg === "object" &&
-        msg !== null &&
-        "role" in msg &&
-        "content" in msg,
+      (msg) => typeof msg === "object" && msg !== null,
     );
     if (!validMessages) {
       throw new Error(
-        `Invalid placeholder value for '${placeholderName}': messages must have 'role' and 'content' properties`,
+        `Invalid placeholder value for '${placeholderName}': all items must be objects`,
       );
     }
 
@@ -131,7 +129,10 @@ const replaceVariablesInPrompt = (
 
   return compiledMessages.map((message) => ({
     ...message,
-    content: processContent(message.content),
+    // Only process content if it exists as string (for standard ChatMessages)
+    ...(typeof message.content === "string" && {
+      content: processContent(message.content),
+    }),
     type: ChatMessageType.PublicAPICreated as const,
   }));
 };
@@ -283,6 +284,10 @@ export const createExperimentJob = async ({
         allVariables,
       ),
     }));
+
+  logger.info(
+    `Found ${validatedDatasetItems.length} validated dataset items for dataset run ${runId}`,
+  );
 
   if (!validatedDatasetItems.length) {
     throw new InvalidRequestError(
