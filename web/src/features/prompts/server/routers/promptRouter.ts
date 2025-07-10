@@ -89,13 +89,12 @@ export const promptRouter = createTRPCRouter({
       );
 
       // pathFilter: SQL WHERE clause to filter prompts by folder (e.g., "AND p.name LIKE 'folder/%'")
-      const pathFilter =
-        input.pathPrefix !== undefined && input.pathPrefix !== ""
-          ? (() => {
-              const prefix = input.pathPrefix;
-              return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
-            })()
-          : Prisma.empty;
+      const pathFilter = input.pathPrefix
+        ? (() => {
+            const prefix = input.pathPrefix;
+            return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
+          })()
+        : Prisma.empty;
 
       const searchFilter =
         input.searchQuery !== undefined &&
