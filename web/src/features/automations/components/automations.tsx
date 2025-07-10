@@ -20,6 +20,9 @@ import {
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
 import { ErrorPage } from "@/src/components/error-page";
+import { Spinner } from "@/src/components/layouts/spinner";
+import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
+import { SplashScreen } from "@/src/components/ui/splash-screen";
 
 export default function AutomationsPage() {
   const router = useRouter();
@@ -32,6 +35,11 @@ export default function AutomationsPage() {
     view: withDefault(StringParam, "list"),
     automationId: StringParam,
     tab: withDefault(StringParam, "executions"),
+  });
+
+  const count = api.automations.count.useQuery({
+    projectId,
+    type: "WEBHOOK",
   });
 
   const { view, automationId } = urlParams;
@@ -279,13 +287,31 @@ export default function AutomationsPage() {
     return (
       <div className="p-6">
         <div className="flex h-full items-center justify-center text-muted-foreground">
-          <div className="text-center">
-            <h3 className="text-lg font-medium">Select a webhook</h3>
-            <p className="mt-2 text-sm">
-              Choose a webhook from the sidebar to view its details and
-              execution history.
-            </p>
-          </div>
+          {count.isLoading ? (
+            <Spinner message="Loading webhooks" />
+          ) : count.data === 0 ? (
+            <SplashScreen
+              title="Get Started with Webhooks"
+              description="Webhooks allow you to trigger actions when prompts change. For example, you can run your CI whenever a new prompt version is created."
+              valuePropositions={[]}
+              primaryAction={{
+                label: "Create Webhook",
+                onClick: handleCreateAutomation,
+              }}
+              secondaryAction={{
+                label: "View Documentation",
+                href: "https://langfuse.com/docs/automations",
+              }}
+            />
+          ) : (
+            <div className="text-center">
+              <h3 className="text-lg font-medium">Select a webhook</h3>
+              <p className="mt-2 text-sm">
+                Choose a webhook from the sidebar to view its details and
+                execution history.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
