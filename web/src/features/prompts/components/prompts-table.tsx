@@ -184,13 +184,13 @@ export function PromptTable() {
       const promptName = prompt.id;
 
       // Check if this prompt represents a folder
-      const isfolderRepresentative = currentFolderPath
+      const isFolderRepresentative = currentFolderPath
         ? promptName.includes("/") &&
           promptName.startsWith(`${currentFolderPath}/`) &&
           promptName.substring(currentFolderPath.length + 1).includes("/")
         : promptName.includes("/");
 
-      if (isfolderRepresentative) {
+      if (isFolderRepresentative) {
         // Convert folder representative to folder item
         const folderPath = currentFolderPath
           ? `${currentFolderPath}/${promptName.substring(currentFolderPath.length + 1).split("/")[0]}`
