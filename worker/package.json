@@ -16,7 +16,8 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 0",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/replayIngestionEvents/s3-ingestion-event-replay.ts",
-    "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts"
+    "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
+    "refill-queue-event": "dotenv -e ../.env -- tsx src/scripts/refillQueueEvent/index.ts"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
