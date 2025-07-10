@@ -90,7 +90,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
     >
       <div className="flex h-full flex-col">
         <div className="flex-1 overflow-auto scroll-smooth" ref={scrollAreaRef}>
-          <div className="mb-4 flex-1 space-y-2">
+          <div className="flex-1 space-y-2">
             <SortableContext
               items={props.messages.map((message) => message.id)}
               strategy={verticalListSortingStrategy}
@@ -110,10 +110,10 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
                 );
               })}
             </SortableContext>
+            <div className="mb-4 py-3">
+              <AddMessageButton {...props} />
+            </div>
           </div>
-        </div>
-        <div className="py-3">
-          <AddMessageButton {...props} />
         </div>
       </div>
     </DndContext>
