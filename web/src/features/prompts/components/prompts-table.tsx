@@ -128,6 +128,7 @@ export function PromptTable() {
   };
 
   const currentFolderPath = queryParams.folder || "";
+  const folderDepth = (currentFolderPath ? currentFolderPath.split("/").length : 0) + 1;
 
   const prompts = api.prompts.all.useQuery(
     {
@@ -138,6 +139,7 @@ export function PromptTable() {
       orderBy: orderByState,
       pathPrefix: currentFolderPath,
       searchQuery: searchQuery || undefined,
+      folderDepth,
     },
     {
       enabled: Boolean(projectId),
