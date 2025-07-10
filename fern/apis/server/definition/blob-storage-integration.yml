@@ -1,0 +1,139 @@
+imports:
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get the blob storage integration for a project
+      method: GET
+      path: /integrations/blob-storage
+      response: BlobStorageIntegrationResponse
+    upsert:
+      docs: Create or update a blob storage integration for a project
+      method: PUT
+      path: /integrations/blob-storage
+      request: UpsertBlobStorageIntegrationRequest
+      response: BlobStorageIntegrationResponse
+    delete:
+      docs: Delete a blob storage integration
+      method: DELETE
+      path: /integrations/blob-storage
+      response: BlobStorageIntegrationResponse
+types:
+  BlobStorageIntegrationType:
+    enum:
+      - S3
+      - S3_COMPATIBLE
+      - AZURE_BLOB_STORAGE
+    docs: The type of blob storage service
+  
+  BlobStorageIntegrationFileType:
+    enum:
+      - JSON
+      - CSV
+      - JSONL
+    docs: The format of exported files
+  
+  BlobStorageIntegrationExportFrequency:
+    enum:
+      - hourly
+      - daily
+      - weekly
+    docs: The frequency of automatic exports
+  
+  BlobStorageExportMode:
+    enum:
+      - FULL_HISTORY
+      - INCREMENTAL
+    docs: The export mode for blob storage integration
+  
+  BlobStorageIntegrationResponse:
+    properties:
+      projectId:
+        type: string
+        docs: The ID of the project this integration belongs to
+      type:
+        type: BlobStorageIntegrationType
+        docs: The type of blob storage service
+      bucketName:
+        type: string
+        docs: The name of the storage bucket or container
+      endpoint:
+        type: optional<string>
+        docs: Custom endpoint URL for S3-compatible services or Azure Blob Storage
+      region:
+        type: string
+        docs: The region where the storage bucket is located
+      prefix:
+        type: string
+        docs: The prefix for all exported files (must end with a forward slash)
+      exportFrequency:
+        type: BlobStorageIntegrationExportFrequency
+        docs: How often exports should be triggered automatically
+      enabled:
+        type: boolean
+        docs: Whether the integration is currently active
+      forcePathStyle:
+        type: boolean
+        docs: Whether to use path-style requests for S3-compatible services
+      fileType:
+        type: BlobStorageIntegrationFileType
+        docs: The format of exported files
+      accessKeyId:
+        type: optional<string>
+        docs: The access key ID for authentication (if not using host credentials)
+      exportMode:
+        type: BlobStorageExportMode
+        docs: Export mode for blob storage integration
+      exportStartDate:
+        type: optional<string>
+        docs: ISO date string for when to start exporting data from
+      createdAt:
+        type: string
+        docs: ISO timestamp when the integration was created
+      updatedAt:
+        type: string
+        docs: ISO timestamp when the integration was last updated
+  
+  UpsertBlobStorageIntegrationRequest:
+    properties:
+      type:
+        type: BlobStorageIntegrationType
+        docs: The type of blob storage service
+      bucketName:
+        type: string
+        docs: The name of the storage bucket or container
+      endpoint:
+        type: optional<string>
+        docs: Custom endpoint URL for S3-compatible services or Azure Blob Storage
+      region:
+        type: optional<string>
+        docs: The region where the storage bucket is located (defaults to 'auto')
+      accessKeyId:
+        type: optional<string>
+        docs: The access key ID for authentication (required unless using host credentials)
+      secretAccessKey:
+        type: optional<string>
+        docs: The secret access key for authentication (required unless using host credentials)
+      prefix:
+        type: optional<string>
+        docs: The prefix for all exported files (must end with a forward slash if specified)
+      exportFrequency:
+        type: optional<BlobStorageIntegrationExportFrequency>
+        docs: How often exports should be triggered automatically (defaults to 'daily')
+      enabled:
+        type: optional<boolean>
+        docs: Whether the integration should be active immediately (defaults to true)
+      forcePathStyle:
+        type: optional<boolean>
+        docs: Whether to use path-style requests for S3-compatible services (defaults to false)
+      fileType:
+        type: optional<BlobStorageIntegrationFileType>
+        docs: The format of exported files (defaults to 'JSONL')
+      exportMode:
+        type: optional<BlobStorageExportMode>
+        docs: Export mode for blob storage integration (defaults to 'FULL_HISTORY')
+      exportStartDate:
+        type: optional<string>
+        docs: ISO date string for when to start exporting data from

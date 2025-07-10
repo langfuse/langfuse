@@ -4,7 +4,8 @@
       "Bash(find:*)",
       "Bash(rg:*)",
       "Bash(grep:*)",
-      "Bash(pnpm run test:*)"
+      "Bash(pnpm run test:*)",
+      "Bash(npx fern-api generate:*)"
     ],
     "deny": []
   }

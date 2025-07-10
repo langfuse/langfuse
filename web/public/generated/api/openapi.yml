@@ -409,6 +409,179 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/integrations/blob-storage:
+    get:
+      description: Get the blob storage integration for a project
+      operationId: blobStorageIntegration_get
+      tags:
+        - BlobStorageIntegration
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    post:
+      description: Create a new blob storage integration for a project
+      operationId: blobStorageIntegration_create
+      tags:
+        - BlobStorageIntegration
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBlobStorageIntegrationRequest'
+    put:
+      description: Update an existing blob storage integration
+      operationId: blobStorageIntegration_update
+      tags:
+        - BlobStorageIntegration
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBlobStorageIntegrationRequest'
+    delete:
+      description: Delete a blob storage integration
+      operationId: blobStorageIntegration_delete
+      tags:
+        - BlobStorageIntegration
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/comments:
     post:
       description: >-
@@ -4275,6 +4448,198 @@ components:
       required:
         - success
         - message
+    BlobStorageIntegrationType:
+      title: BlobStorageIntegrationType
+      type: string
+      enum:
+        - S3
+        - S3_COMPATIBLE
+        - AZURE_BLOB_STORAGE
+      description: The type of blob storage service
+    BlobStorageIntegrationFileType:
+      title: BlobStorageIntegrationFileType
+      type: string
+      enum:
+        - JSON
+        - CSV
+        - JSONL
+      description: The format of exported files
+    BlobStorageIntegrationExportFrequency:
+      title: BlobStorageIntegrationExportFrequency
+      type: string
+      enum:
+        - hourly
+        - daily
+        - weekly
+      description: The frequency of automatic exports
+    BlobStorageIntegrationResponse:
+      title: BlobStorageIntegrationResponse
+      type: object
+      properties:
+        projectId:
+          type: string
+          description: The ID of the project this integration belongs to
+        type:
+          $ref: '#/components/schemas/BlobStorageIntegrationType'
+          description: The type of blob storage service
+        bucketName:
+          type: string
+          description: The name of the storage bucket or container
+        endpoint:
+          type: string
+          nullable: true
+          description: Custom endpoint URL for S3-compatible services or Azure Blob Storage
+        region:
+          type: string
+          description: The region where the storage bucket is located
+        prefix:
+          type: string
+          description: The prefix for all exported files (must end with a forward slash)
+        exportFrequency:
+          $ref: '#/components/schemas/BlobStorageIntegrationExportFrequency'
+          description: How often exports should be triggered automatically
+        enabled:
+          type: boolean
+          description: Whether the integration is currently active
+        forcePathStyle:
+          type: boolean
+          description: Whether to use path-style requests for S3-compatible services
+        fileType:
+          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+          description: The format of exported files
+        accessKeyId:
+          type: string
+          nullable: true
+          description: The access key ID for authentication (if not using host credentials)
+        createdAt:
+          type: string
+          description: ISO timestamp when the integration was created
+        updatedAt:
+          type: string
+          description: ISO timestamp when the integration was last updated
+      required:
+        - projectId
+        - type
+        - bucketName
+        - region
+        - prefix
+        - exportFrequency
+        - enabled
+        - forcePathStyle
+        - fileType
+        - createdAt
+        - updatedAt
+    CreateBlobStorageIntegrationRequest:
+      title: CreateBlobStorageIntegrationRequest
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/BlobStorageIntegrationType'
+          description: The type of blob storage service
+        bucketName:
+          type: string
+          description: The name of the storage bucket or container
+        endpoint:
+          type: string
+          nullable: true
+          description: Custom endpoint URL for S3-compatible services or Azure Blob Storage
+        region:
+          type: string
+          nullable: true
+          description: The region where the storage bucket is located (defaults to 'auto')
+        accessKeyId:
+          type: string
+          nullable: true
+          description: >-
+            The access key ID for authentication (required unless using host
+            credentials)
+        secretAccessKey:
+          type: string
+          nullable: true
+          description: >-
+            The secret access key for authentication (required unless using host
+            credentials)
+        prefix:
+          type: string
+          nullable: true
+          description: >-
+            The prefix for all exported files (must end with a forward slash if
+            specified)
+        exportFrequency:
+          $ref: '#/components/schemas/BlobStorageIntegrationExportFrequency'
+          nullable: true
+          description: >-
+            How often exports should be triggered automatically (defaults to
+            'daily')
+        enabled:
+          type: boolean
+          nullable: true
+          description: >-
+            Whether the integration should be active immediately (defaults to
+            true)
+        forcePathStyle:
+          type: boolean
+          nullable: true
+          description: >-
+            Whether to use path-style requests for S3-compatible services
+            (defaults to false)
+        fileType:
+          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+          nullable: true
+          description: The format of exported files (defaults to 'JSONL')
+      required:
+        - type
+        - bucketName
+    UpdateBlobStorageIntegrationRequest:
+      title: UpdateBlobStorageIntegrationRequest
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/BlobStorageIntegrationType'
+          nullable: true
+          description: The type of blob storage service
+        bucketName:
+          type: string
+          nullable: true
+          description: The name of the storage bucket or container
+        endpoint:
+          type: string
+          nullable: true
+          description: Custom endpoint URL for S3-compatible services or Azure Blob Storage
+        region:
+          type: string
+          nullable: true
+          description: The region where the storage bucket is located
+        accessKeyId:
+          type: string
+          nullable: true
+          description: The access key ID for authentication
+        secretAccessKey:
+          type: string
+          nullable: true
+          description: The secret access key for authentication
+        prefix:
+          type: string
+          nullable: true
+          description: >-
+            The prefix for all exported files (must end with a forward slash if
+            specified)
+        exportFrequency:
+          $ref: '#/components/schemas/BlobStorageIntegrationExportFrequency'
+          nullable: true
+          description: How often exports should be triggered automatically
+        enabled:
+          type: boolean
+          nullable: true
+          description: Whether the integration should be active
+        forcePathStyle:
+          type: boolean
+          nullable: true
+          description: Whether to use path-style requests for S3-compatible services
+        fileType:
+          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+          nullable: true
+          description: The format of exported files
     CreateCommentRequest:
       title: CreateCommentRequest
       type: object
