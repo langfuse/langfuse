@@ -189,3 +189,6 @@ To get a project, use the `get_project` capability with the full project name as
 
 ## TypeScript Best Practices
 - In TypeScript, if possible, don't use the `any` type
+
+## General Coding Guidelines
+- For easier code reviews, prefer not to move functions etc around within a file unless necessary or instructed to do so

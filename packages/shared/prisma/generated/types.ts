@@ -109,6 +109,13 @@ export const BlobStorageIntegrationType = {
 } as const;
 export type BlobStorageIntegrationType =
   (typeof BlobStorageIntegrationType)[keyof typeof BlobStorageIntegrationType];
+export const BlobStorageExportMode = {
+  FULL_HISTORY: "FULL_HISTORY",
+  FROM_TODAY: "FROM_TODAY",
+  FROM_CUSTOM_DATE: "FROM_CUSTOM_DATE",
+} as const;
+export type BlobStorageExportMode =
+  (typeof BlobStorageExportMode)[keyof typeof BlobStorageExportMode];
 export const DashboardWidgetViews = {
   TRACES: "TRACES",
   OBSERVATIONS: "OBSERVATIONS",
@@ -298,6 +305,8 @@ export type BlobStorageIntegration = {
   enabled: boolean;
   export_frequency: string;
   file_type: Generated<BlobStorageIntegrationFileType>;
+  export_mode: Generated<BlobStorageExportMode>;
+  export_start_date: Timestamp | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };

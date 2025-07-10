@@ -52,6 +52,49 @@ jobs:
       - name: lint web
         run: pnpm run lint
 
+  prettier-check:
+    runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm i
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+      - name: Check formatting on changed files
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA=${{ github.event.pull_request.base.sha }}
+          else
+            BASE_SHA=$(git merge-base origin/main HEAD)
+          fi
+          
+          echo "Checking files changed from $BASE_SHA to HEAD"
+          
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | tr '\n' ' ')
+          
+          if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != " " ]; then
+            echo "Files to check: $CHANGED_FILES"
+            pnpm prettier --check --experimental-cli $CHANGED_FILES
+          else
+            echo "No JS/TS/CSS files changed - skipping prettier check"
+          fi
+
   test-docker-build:
     timeout-minutes: 20
     runs-on: ubuntu-latest
@@ -430,6 +473,7 @@ jobs:
     needs:
       [
         lint,
+        prettier-check,
         tests-web-sync,
         tests-worker,
         e2e-tests,
