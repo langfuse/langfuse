@@ -30,7 +30,7 @@ import {
   test,
   vi,
 } from "vitest";
-import { compileHandlebarString } from "../features/utilities";
+import { compileHandlebarString } from "../features/utils/utilities";
 import { OpenAIServer } from "./network";
 import { pruneDatabase } from "./utils";
 import {
@@ -38,10 +38,7 @@ import {
   evaluate,
   extractVariablesFromTracingData,
 } from "../features/evaluation/evalService";
-import {
-  requiresDatabaseLookup,
-  requiresObservationData,
-} from "../features/evaluation/traceFilterUtils";
+import { requiresDatabaseLookup } from "../features/evaluation/traceFilterUtils";
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
 if (!hasActiveKey) {

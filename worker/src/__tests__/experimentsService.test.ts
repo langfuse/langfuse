@@ -5,9 +5,9 @@ import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
-import { callLLM } from "../features/utilities";
+import { callLLM } from "../features/utils/utilities";
 
-vi.mock("../features/utilities", () => ({
+vi.mock("../features/utils/utilities", () => ({
   callLLM: vi.fn().mockResolvedValue({ id: "test-id" }),
   compileHandlebarString: vi.fn().mockImplementation((str, context) => {
     // Simple mock that replaces handlebars variables with their values
