@@ -1313,13 +1313,9 @@ const generatePromptQuery = (
 ) => {
   const prefix = pathPrefixStr ?? "";
 
-  if (prefix && prefix !== "") {
-    // When we're inside a folder, show individual prompts within that folder
-    // and folder representatives for subfolders
-    const segmentExpr = Prisma.sql`SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1)`;
-
-    return Prisma.sql`
-    WITH latest AS (
+  // CTE to get latest versions (same for root and folder queries)
+  const latestCTE = Prisma.sql`
+    latest AS (
       /* Get latest version for each prompt name within the (optional) filters */
       SELECT p.*
       FROM prompts p
@@ -1336,7 +1332,20 @@ const generatePromptQuery = (
         ${filterCondition}
         ${pathFilter}
         ${searchFilter}
-    ),
+    )`;
+
+  // Common ORDER BY and LIMIT clauses
+  const orderAndLimit = Prisma.sql`
+    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
+    LIMIT ${limit} OFFSET ${page * limit}`;
+
+  if (prefix && prefix !== "") {
+    // When we're inside a folder, show individual prompts within that folder
+    // and folder representatives for subfolders
+    const segmentExpr = Prisma.sql`SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1)`;
+
+    return Prisma.sql`
+    WITH ${latestCTE},
     grouped AS (
       SELECT
         p.*,  /* keep all columns */
@@ -1351,31 +1360,13 @@ const generatePromptQuery = (
       ${select}
     FROM grouped p
     WHERE rn = 1
-    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
-    LIMIT ${limit} OFFSET ${page * limit};
+    ${orderAndLimit};
     `;
   } else {
     // When we're at the root level, show all individual prompts that don't have folders
     // and one representative per folder for prompts that do have folders
     return Prisma.sql`
-    WITH latest AS (
-      /* Get latest version for each prompt name within the (optional) filters */
-      SELECT p.*
-      FROM prompts p
-      WHERE (p.name, p.version) IN (
-        SELECT name, MAX(version)
-        FROM prompts p
-        WHERE p.project_id = ${projectId}
-          ${filterCondition}
-          ${pathFilter}
-          ${searchFilter}
-        GROUP BY name
-      )
-        AND p.project_id = ${projectId}
-        ${filterCondition}
-        ${pathFilter}
-        ${searchFilter}
-    ),
+    WITH ${latestCTE},
     individual_prompts AS (
       /* Individual prompts without folders */
       SELECT p.*
@@ -1401,8 +1392,7 @@ const generatePromptQuery = (
     SELECT
       ${select}
     FROM combined p
-    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
-    LIMIT ${limit} OFFSET ${page * limit};
+    ${orderAndLimit};
     `;
   }
 };
