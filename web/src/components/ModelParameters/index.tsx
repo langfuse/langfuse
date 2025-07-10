@@ -162,38 +162,58 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
 
   // Compact layout - single horizontal row following standard codebase patterns
   if (layout === "compact") {
+    // Create combined options in "Provider: model" format
+    // We create combinations of all available providers with all available models
+    const combinedOptions: string[] = [];
+    availableProviders.forEach((provider) => {
+      availableModels.forEach((model) => {
+        combinedOptions.push(`${provider}: ${model}`);
+      });
+    });
+
+    // Current combined value in "Provider: model" format
+    const currentCombinedValue = `${modelParams.provider.value}: ${modelParams.model.value}`;
+
+    const handleCombinedSelection = (combinedValue: string) => {
+      // Parse the combined value back into provider and model
+      const colonIndex = combinedValue.indexOf(": ");
+      if (colonIndex !== -1) {
+        const provider = combinedValue.substring(0, colonIndex);
+        const model = combinedValue.substring(colonIndex + 2);
+        updateModelParamValue("provider", provider);
+        updateModelParamValue("model", model);
+      }
+    };
+
     return (
       <div className="flex flex-col space-y-2 pb-1 pr-1 pt-2">
         <div className="flex items-center gap-2">
-          <div className="flex-shrink-0">
-            {customHeader ? (
-              customHeader
-            ) : (
-              <span className="text-sm font-semibold">Model</span>
-            )}
-          </div>
           <div className="min-w-0 flex-1">
-            <ModelParamsSelect
-              title="Provider"
-              modelParamsKey="provider"
-              disabled={formDisabled}
-              value={modelParams.provider.value}
-              options={availableProviders}
-              updateModelParam={updateModelParamValue}
-              layout="compact"
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <ModelParamsSelect
-              title="Model"
-              modelParamsKey="model"
-              disabled={formDisabled}
-              value={modelParams.model.value}
-              options={[...new Set(availableModels)]}
-              updateModelParam={updateModelParamValue}
-              modelParamsDescription={modelParamsDescription}
-              layout="compact"
-            />
+            <div className="space-y-1">
+              <Select
+                disabled={formDisabled}
+                onValueChange={handleCombinedSelection}
+                value={currentCombinedValue}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {combinedOptions.map((option) => (
+                    <SelectItem value={option} key={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                  <SelectSeparator />
+                  <CreateLLMApiKeyDialog />
+                </SelectContent>
+              </Select>
+              {modelParamsDescription ? (
+                <FormDescription className="mt-1 text-xs">
+                  {modelParamsDescription}
+                </FormDescription>
+              ) : undefined}
+            </div>
           </div>
           <div className="flex-shrink-0">{SettingsButton}</div>
         </div>

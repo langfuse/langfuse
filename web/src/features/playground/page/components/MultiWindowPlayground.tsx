@@ -1,10 +1,13 @@
 import React, { useMemo, useCallback } from "react";
 import { PlaygroundProvider } from "../context";
-import Playground from "../playground";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { Button } from "@/src/components/ui/button";
 import { Copy, X } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
+import { ModelParameters } from "@/src/components/ModelParameters";
+import { usePlaygroundContext } from "../context";
+import { Messages } from "@/src/features/playground/page/components/Messages";
+import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
 
 /**
  * MultiWindowPlayground Component
@@ -79,15 +82,15 @@ export default function MultiWindowPlayground({
           scrollBehavior: "smooth",
         }}
       >
-        {windowState.windowIds.map((windowId, index) => (
-          <PlaygroundWindow
-            key={windowId}
-            windowId={windowId}
-            windowIndex={index}
-            onRemove={onRemoveWindow}
-            onCopy={handleCopyWindow}
-            canRemove={windowState.windowIds.length > 1}
-          />
+        {windowState.windowIds.map((windowId) => (
+          <PlaygroundProvider key={windowId} windowId={windowId}>
+            <PlaygroundWindowContent
+              windowId={windowId}
+              onRemove={onRemoveWindow}
+              onCopy={handleCopyWindow}
+              canRemove={windowState.windowIds.length > 1}
+            />
+          </PlaygroundProvider>
         ))}
       </div>
     </div>
@@ -95,93 +98,75 @@ export default function MultiWindowPlayground({
 }
 
 /**
- * PlaygroundWindow Component
- *
- * Individual window wrapper that provides window-specific controls and isolation
- * Each window contains its own PlaygroundProvider with unique windowId for state isolation
- *
- * Props:
- * - windowId: Unique identifier for this window
- * - windowIndex: Display index for user reference
- * - onRemove: Callback to remove this window
- * - onCopy: Callback to copy this window's state to a new window
- * - canRemove: Whether this window can be removed (prevents last window removal)
+ * Inner component that has access to the PlaygroundProvider context
  */
-interface PlaygroundWindowProps {
-  windowId: string;
-  windowIndex: number;
-  onRemove: (windowId: string) => void;
-  onCopy: (windowId: string) => void;
-  canRemove: boolean;
-}
-
-function PlaygroundWindow({
+function PlaygroundWindowContent({
   windowId,
-  windowIndex,
   onRemove,
   onCopy,
   canRemove,
-}: PlaygroundWindowProps) {
-  /**
-   * Handle window removal with confirmation for safety
-   * Prevents accidental removal of windows with unsaved work
-   */
+}: {
+  windowId: string;
+  onRemove: (windowId: string) => void;
+  onCopy: (windowId: string) => void;
+  canRemove: boolean;
+}) {
+  const playgroundContext = usePlaygroundContext();
+
   const handleRemove = useCallback(() => {
     onRemove(windowId);
   }, [windowId, onRemove]);
 
-  /**
-   * Handle copying this window's state to a new window
-   * Creates a new window with an exact copy of the current configuration
-   */
   const handleCopy = useCallback(() => {
     onCopy(windowId);
   }, [windowId, onCopy]);
 
   return (
-    <PlaygroundProvider windowId={windowId}>
-      <div className="playground-window flex h-full min-w-0 flex-col rounded-lg border bg-background shadow-sm">
-        {/* Window Header */}
-        <div className="flex-shrink-0 border-b bg-muted/50 p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">
-                Window {windowIndex + 1}
-              </span>
-            </div>
+    <div className="playground-window flex h-full min-w-0 flex-col rounded-lg border bg-background shadow-sm">
+      {/* Window Header */}
+      <div className="flex-shrink-0 border-b bg-muted/50 p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-1 items-center gap-2">
+            <ModelParameters {...playgroundContext} layout="compact" />
+          </div>
 
-            <div className="flex items-center gap-2">
-              <SaveToPromptButton />
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <SaveToPromptButton />
 
+            <Button
+              variant="ghost"
+              onClick={handleCopy}
+              className="h-6 w-6 p-0 hover:bg-muted"
+              title="Copy window configuration"
+            >
+              <Copy className="h-3 w-3" />
+              <span className="sr-only">Copy window</span>
+            </Button>
+            {canRemove && (
               <Button
                 variant="ghost"
-                onClick={handleCopy}
-                className="h-6 w-6 p-0 hover:bg-muted"
-                title="Copy window configuration"
+                onClick={handleRemove}
+                className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                title="Remove window"
               >
-                <Copy className="h-3 w-3" />
-                <span className="sr-only">Copy window</span>
+                <X className="h-3 w-3" />
+                <span className="sr-only">Remove window</span>
               </Button>
-              {canRemove && (
-                <Button
-                  variant="ghost"
-                  onClick={handleRemove}
-                  className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                  title="Remove window"
-                >
-                  <X className="h-3 w-3" />
-                  <span className="sr-only">Remove window</span>
-                </Button>
-              )}
-            </div>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Window Content */}
-        <div className="flex-1 overflow-hidden">
-          <Playground />
+      {/* Window Content */}
+      <div className="flex-1 overflow-hidden">
+        <div className="flex h-full flex-col">
+          <ConfigurationDropdowns />
+
+          <div className="flex-1 overflow-auto p-4">
+            <Messages {...playgroundContext} />
+          </div>
         </div>
       </div>
-    </PlaygroundProvider>
+    </div>
   );
 }
