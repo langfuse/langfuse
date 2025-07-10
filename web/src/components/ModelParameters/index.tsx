@@ -107,7 +107,11 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-4" align="end" sideOffset={5}>
+      <PopoverContent
+        className="p-4"
+        align={layout === "compact" ? "start" : "end"}
+        sideOffset={5}
+      >
         <div className="mb-3">
           <h4 className="mb-1 text-sm font-medium">Model Advanced Settings</h4>
           <p className="text-xs text-muted-foreground">
