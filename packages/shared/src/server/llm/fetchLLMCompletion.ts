@@ -137,7 +137,7 @@ export async function fetchLLMCompletion(
     const handler = new CallbackHandler({
       _projectId: traceParams.projectId,
       _isLocalEventExportEnabled: true,
-      tags: traceParams.tags,
+      environment: traceParams.environment,
     });
     finalCallbacks.push(handler);
 
@@ -149,6 +149,7 @@ export async function fetchLLMCompletion(
         await processEventBatch(
           JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
           traceParams.authCheck,
+          { isLangfuseInternal: true },
         );
       } catch (e) {
         logger.error("Failed to process traced events", { error: e });
