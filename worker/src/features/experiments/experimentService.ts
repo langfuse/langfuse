@@ -10,6 +10,8 @@ import {
   ChatMessageType,
   type ChatMessage,
   PromptService,
+  PROMPT_EXPERIMENT_ENVIRONMENT,
+  TraceParams,
   compileChatMessages,
   extractPlaceholderNames,
   type MessagePlaceholderValues,
@@ -350,8 +352,8 @@ export const createExperimentJob = async ({
      * LLM MODEL CALL *
      ********************/
 
-    const traceParams = {
-      tags: ["langfuse-prompt-experiment"], // LFE-2917: filter out any trace in trace upsert queue that has this tag set
+    const traceParams: Omit<TraceParams, "tokenCountDelegate"> = {
+      environment: PROMPT_EXPERIMENT_ENVIRONMENT,
       traceName: `dataset-run-item-${runItem.id.slice(0, 5)}`,
       traceId: newTraceId,
       projectId: event.projectId,
