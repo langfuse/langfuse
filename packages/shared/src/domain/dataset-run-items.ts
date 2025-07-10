@@ -11,8 +11,10 @@ export const DatasetRunItemSchema = z.object({
   datasetRunId: z.string(),
   datasetItemId: z.string(),
   datasetRunName: z.string(),
+  datasetRunDescription: z.string().nullable(),
+  datasetRunMetadata: jsonSchema.nullable(),
   datasetItemInput: jsonSchema.nullable(),
   datasetItemExpectedOutput: jsonSchema.nullable(),
 });
 
-export type DatasetRunItem = z.infer<typeof DatasetRunItemSchema>;
+export type DatasetRunItemDomain = z.infer<typeof DatasetRunItemSchema>;

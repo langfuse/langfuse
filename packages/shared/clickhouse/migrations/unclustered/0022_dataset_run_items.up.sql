@@ -7,13 +7,16 @@ CREATE TABLE dataset_run_items (
     `trace_id` String,
     `observation_id` Nullable(String),
 
-    -- denormalized dataset run fields
+    -- TODO: do these need an environment? 
+
+    -- denormalized immutable dataset run fields
     `dataset_id` String,
     `dataset_run_name` String,
-    -- TODO: consider dropping metadata 
+    `dataset_run_description` Nullable(String),
     `dataset_run_metadata` Nullable(String) CODEC(ZSTD(3)), -- json  
+    `dataset_run_created_at` DateTime64(3),
 
-    -- denormalized dataset item fields
+    -- denormalized dataset item fields (mutable, but snapshots are relevant)
     `dataset_item_input` Nullable(String) CODEC(ZSTD(3)), -- json
     `dataset_item_expected_output` Nullable(String) CODEC(ZSTD(3)), -- json
     `dataset_item_metadata` Nullable(String) CODEC(ZSTD(3)), -- json
@@ -28,14 +31,13 @@ CREATE TABLE dataset_run_items (
 
     -- performance indexes
     -- TODO: require review 
+    -- TODO: Could consider materialized view to represent mapping of dataset_id -> dataset_run_id 
+    -- TODO: Use skip index to cater to multiple dataset_run_items per dataset_item
+    -- TODO: trial and error for query engine on popular queries with other partitions and order by 
+    -- TODO: add index on dataset_run_id to speed up queries that filter by run_id
     INDEX idx_run_item (dataset_run_id, dataset_item_id) TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_trace trace_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_dataset_item dataset_item_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_latency_cost (trace_latency, trace_cost) TYPE minmax GRANULARITY 1
-
-) ENGINE = ReplicatedReplacingMergeTree(event_ts, is_deleted) 
+    INDEX idx_dataset_item dataset_item_id TYPE bloom_filter(0.001) GRANULARITY 1
+) ENGINE = ReplacingMergeTree(event_ts, is_deleted) 
 Partition BY toYYYYMM(created_at)
-ORDER BY (project_id, dataset_id, dataset_run_id, id);
--- TODO: Could consider materialized view to represent mapping of dataset_id -> dataset_run_id 
--- TODO: Use skip index to cater to multiple dataset_run_items per dataset_item
--- TODO: trial and error for query engine on popular queries with other partitions and order by 
+ORDER BY (project_id, dataset_id, dataset_run_id, id); 

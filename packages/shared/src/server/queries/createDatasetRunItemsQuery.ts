@@ -1,9 +1,9 @@
-import { DatasetRunItem } from "../../domain/dataset-run-items";
+import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 
 type AdditionalDatasetRunItemFields = {};
 
 export type FullDatasetRunItem = AdditionalDatasetRunItemFields &
-  DatasetRunItem;
+  DatasetRunItemDomain;
 
 export type FullDatasetRunItems = Array<FullDatasetRunItem>;
 
