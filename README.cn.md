@@ -163,6 +163,7 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
 | ---------------------------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------- |
 | [Instructor](https://langfuse.com/docs/integrations/instructor)         | 库                  | 用于获取结构化 LLM 输出（JSON、Pydantic）的库。                                                         |
 | [DSPy](https://langfuse.com/docs/integrations/dspy)                     | 库                  | 一个系统性优化语言模型提示和权重的框架。                                                                 |
+| [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock) | 模型                | 在 AWS 上运行基础模型和微调模型。                                                                         |
 | [Mirascope](https://langfuse.com/docs/integrations/mirascope)           | 库                  | 构建 LLM 应用的 Python 工具包。                                                                           |
 | [Ollama](https://langfuse.com/docs/integrations/ollama)                 | 模型（本地）         | 在你的机器上轻松运行开源 LLM。                                                                            |
 | [AutoGen](https://langfuse.com/docs/integrations/autogen)               | 代理框架             | 用于构建分布式代理的开源 LLM 平台。                                                                       |
