@@ -1024,7 +1024,7 @@ export const promptRouter = createTRPCRouter({
             name: input.name,
           },
           ...(input.limit !== undefined && input.page !== undefined
-            ? { take: input.input.limit, skip: input.page * input.limit }
+            ? { take: input.limit, skip: input.page * input.limit }
             : undefined),
           orderBy: [{ version: "desc" }],
         }),
