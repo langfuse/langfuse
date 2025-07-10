@@ -88,6 +88,7 @@ export const promptRouter = createTRPCRouter({
         "prompts",
       );
 
+      // pathFilter: SQL WHERE clause to filter prompts by folder (e.g., "AND p.name LIKE 'folder/%'")
       const pathFilter =
         input.pathPrefix !== undefined && input.pathPrefix !== ""
           ? (() => {
@@ -126,9 +127,9 @@ export const promptRouter = createTRPCRouter({
             orderByCondition,
             input.limit,
             input.page,
-            pathFilter,
+            pathFilter, // SQL WHERE clause: filters DB to only prompts in current folder, derived from prefix.
             searchFilter,
-            input.pathPrefix,
+            input.pathPrefix, // Raw folder path: used for segment splitting & folder detection logic
           ),
         ),
         // promptCount
@@ -1340,7 +1341,7 @@ const generatePromptQuery = (
       SELECT
         p.*,  /* keep all columns */
         ROW_NUMBER() OVER (PARTITION BY ${segmentExpr} ORDER BY p.version DESC) AS rn,
-        CASE 
+        CASE
           WHEN SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2) LIKE '%/%' THEN 1
           ELSE 2
         END as sort_priority  -- Folders first (1), individual prompts second (2)
