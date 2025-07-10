@@ -7,7 +7,12 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
-import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
+import {
+  ActionExecutionStatus,
+  JobConfigState,
+  type SafeWebhookActionConfig,
+  type WebhookActionConfigWithSecrets,
+} from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 
@@ -319,6 +324,7 @@ describe("automations trpc", () => {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
             headers: { "Content-Type": "application/json" },
+            displayHeaderValues: { "Content-Type": "application/json" },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -354,6 +360,7 @@ describe("automations trpc", () => {
       expect(response.action.config).not.toHaveProperty("secretKey");
       expect(response.action.config).toHaveProperty("displaySecretKey");
       expect(response.action.config.url).toBe("https://example.com/webhook");
+      expect(response.action.config).not.toHaveProperty("headers");
       expect(response.action.config.displayHeaderValues).toEqual({
         "Content-Type": "application/json",
       });
@@ -564,7 +571,7 @@ describe("automations trpc", () => {
       });
 
       // Headers should be encrypted for secret ones, plain for others
-      const config = createdAction?.config as any;
+      const config = createdAction?.config as WebhookActionConfigWithSecrets;
       expect(config.headers["content-type"]).toBe("application/json");
       expect(config.headers["x-public"]).toBe("public-value");
       expect(config.headers["x-api-key"]).not.toBe("secret-key-123"); // Should be encrypted
@@ -577,8 +584,75 @@ describe("automations trpc", () => {
         "content-type": "application/json",
         "x-public": "public-value",
       });
-      expect(config.displayHeaderValues["x-api-key"]).toMatch(/\*\*\*/);
-      expect(config.displayHeaderValues["authorization"]).toMatch(/\*\*\*/);
+      expect(config.displayHeaderValues["x-api-key"]).toBe("secr...-123");
+      expect(config.displayHeaderValues["authorization"]).toBe("Bear...-456");
+    });
+
+    it("should create automation with secret headers that do not expose values in response", async () => {
+      const { project, caller } = await prepare();
+
+      const response = await caller.automations.createAutomation({
+        projectId: project.id,
+        name: "Secret Headers Test",
+        eventSource: "prompt",
+        eventAction: ["created"],
+        filter: [],
+        status: JobConfigState.ACTIVE,
+        actionType: "WEBHOOK",
+        actionConfig: {
+          type: "WEBHOOK",
+          url: "https://example.com/webhook",
+          headers: {
+            "content-type": "application/json",
+            "x-public": "public-value",
+            "x-api-key": "secret-value-123",
+            authorization: "Bearer token-456",
+          },
+          secretHeaderKeys: ["x-api-key", "authorization"],
+          apiVersion: { prompt: "v1" },
+        },
+      });
+
+      const responseConfig = response.action.config as SafeWebhookActionConfig;
+      // Response should NOT contain the raw secret values
+      expect(responseConfig.displayHeaderValues).not.toMatchObject({
+        "x-api-key": "secret-value-123",
+        authorization: "Bearer token-456",
+      });
+
+      // Response should contain masked values
+      expect(responseConfig.displayHeaderValues).toMatchObject({
+        "content-type": "application/json",
+        "x-public": "public-value",
+      });
+
+      // Verify secrets fields are not present in response
+      expect(responseConfig).not.toHaveProperty("headers");
+      expect(responseConfig).not.toHaveProperty("secretKey");
+
+      // Check the actual stored data in the database
+      const createdAction = await prisma.action.findUnique({
+        where: { id: response.action.id },
+      });
+
+      const config = createdAction?.config as WebhookActionConfigWithSecrets;
+      expect(config.secretHeaderKeys).toEqual(["x-api-key", "authorization"]);
+
+      // Secret headers should be encrypted in storage
+      expect(config.headers["x-api-key"]).not.toBe("secret-value-123");
+      expect(config.headers["authorization"]).not.toBe("Bearer token-456");
+
+      // Public headers should remain plain
+      expect(config.headers["content-type"]).toBe("application/json");
+      expect(config.headers["x-public"]).toBe("public-value");
+
+      // Display values should be present with masked secrets
+      expect(config.displayHeaderValues).toMatchObject({
+        "content-type": "application/json",
+        "x-public": "public-value",
+      });
+      expect(config.displayHeaderValues["x-api-key"]).toBe("secr...-123");
+      expect(config.displayHeaderValues["authorization"]).toBe("Bear...-456");
     });
 
     it("should throw error when user lacks automations:CUD access", async () => {
@@ -726,14 +800,15 @@ describe("automations trpc", () => {
       expect(response.action.config).toMatchObject({
         type: "WEBHOOK",
         url: "https://example.com/updated-webhook",
-        headers: {
+        displayHeaderValues: {
           "Content-Type": "application/json",
           "X-Custom": "value",
         },
       });
 
-      // Note: secretKey might be present in update response but shouldn't be in read operations
-      // The important test is that it doesn't appear in getAutomations/getAutomation responses
+      // Verify secrets fields are not present in response
+      expect(response.action.config).not.toHaveProperty("headers");
+      expect(response.action.config).not.toHaveProperty("secretKey");
 
       // Verify the automation name was updated
       const updatedAutomation = await prisma.automation.findFirst({
@@ -818,17 +893,18 @@ describe("automations trpc", () => {
       });
 
       // Verify the API response contains safe display values
-      const responseConfig = response.action.config as any;
-      expect(responseConfig.displayHeaderValues).toMatchObject({
+      expect(response.action.config.displayHeaderValues).toMatchObject({
         "content-type": "application/json",
         "x-public": "new-public-value",
       });
-      expect(responseConfig.displayHeaderValues["x-secret-key"]).toMatch(
-        /\*\*\*/,
+      expect(response.action.config.displayHeaderValues["x-secret-key"]).toBe(
+        "new-...-123",
       );
-      expect(responseConfig.displayHeaderValues["authorization"]).toMatch(
-        /\*\*\*/,
+      expect(response.action.config.displayHeaderValues["authorization"]).toBe(
+        "Bear...-456",
       );
+      expect(response.action.config).not.toHaveProperty("headers");
+      expect(response.action.config).not.toHaveProperty("secretKey");
 
       // Verify the action was updated correctly in the database
       const updatedAction = await prisma.action.findUnique({
@@ -854,8 +930,8 @@ describe("automations trpc", () => {
         "content-type": "application/json",
         "x-public": "new-public-value",
       });
-      expect(config.displayHeaderValues["x-secret-key"]).toMatch(/\*\*\*/);
-      expect(config.displayHeaderValues["authorization"]).toMatch(/\*\*\*/);
+      expect(config.displayHeaderValues["x-secret-key"]).toBe("new-...-123");
+      expect(config.displayHeaderValues["authorization"]).toBe("Bear...-456");
     });
 
     it("should handle switching header types from secret to plain and vice versa", async () => {
@@ -933,13 +1009,14 @@ describe("automations trpc", () => {
       });
 
       // Verify the API response contains safe display values reflecting the switch
-      const responseConfig = response.action.config as any;
-      expect(responseConfig.displayHeaderValues["x-currently-public"]).toMatch(
-        /\*\*\*/,
-      );
-      expect(responseConfig.displayHeaderValues["x-currently-secret"]).toBe(
-        "now-public-value",
-      );
+      expect(
+        response.action.config.displayHeaderValues["x-currently-public"],
+      ).toBe("now-...alue");
+      expect(
+        response.action.config.displayHeaderValues["x-currently-secret"],
+      ).toBe("now-public-value");
+      expect(response.action.config).not.toHaveProperty("headers");
+      expect(response.action.config).not.toHaveProperty("secretKey");
 
       // Verify the switch worked correctly
       const updatedAction = await prisma.action.findUnique({
@@ -956,8 +1033,8 @@ describe("automations trpc", () => {
       expect(config.headers["x-currently-secret"]).toBe("now-public-value");
 
       // Display values should reflect the changes
-      expect(config.displayHeaderValues["x-currently-public"]).toMatch(
-        /\*\*\*/,
+      expect(config.displayHeaderValues["x-currently-public"]).toBe(
+        "now-...alue",
       );
       expect(config.displayHeaderValues["x-currently-secret"]).toBe(
         "now-public-value",

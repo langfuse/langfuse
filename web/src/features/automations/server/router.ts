@@ -2,6 +2,7 @@ import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
 import {
+  type WebhookActionConfigWithSecrets,
   ActionCreateSchema,
   ActionType,
   JobConfigState,
@@ -16,7 +17,10 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
-import { processWebhookActionConfig } from "./webhookHelpers";
+import {
+  processWebhookActionConfig,
+  convertToSafeWebhookConfig,
+} from "./webhookHelpers";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
@@ -302,7 +306,12 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action,
+        action: {
+          ...action,
+          config: convertToSafeWebhookConfig(
+            action.config as WebhookActionConfigWithSecrets,
+          ),
+        },
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
@@ -407,7 +416,16 @@ export const automationsRouter = createTRPCRouter({
         },
       });
 
-      return { action, trigger, automation };
+      return {
+        action: {
+          ...action,
+          config: convertToSafeWebhookConfig(
+            action.config as WebhookActionConfigWithSecrets,
+          ),
+        },
+        trigger,
+        automation,
+      };
     }),
 
   // Delete an automation (both trigger and action)

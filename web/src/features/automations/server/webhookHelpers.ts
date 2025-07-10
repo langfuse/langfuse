@@ -3,7 +3,12 @@ import {
   encrypt,
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
-import { type ActionCreate, type ActionConfig } from "@langfuse/shared";
+import {
+  type ActionCreate,
+  type ActionConfig,
+  type SafeWebhookActionConfig,
+  type WebhookActionConfigWithSecrets,
+} from "@langfuse/shared";
 import { getActionByIdWithSecrets } from "@langfuse/shared/src/server";
 
 interface WebhookConfigOptions {
@@ -191,4 +196,20 @@ export function extractWebhookSecret(
     console.error("Failed to decrypt webhook secret for display:", error);
     return undefined;
   }
+}
+
+/**
+ * Converts webhook config with secrets to safe config by only including allowed fields
+ */
+export function convertToSafeWebhookConfig(
+  webhookConfig: WebhookActionConfigWithSecrets,
+): SafeWebhookActionConfig {
+  return {
+    type: webhookConfig.type,
+    url: webhookConfig.url,
+    secretHeaderKeys: webhookConfig.secretHeaderKeys || [],
+    displayHeaderValues: webhookConfig.displayHeaderValues || {},
+    apiVersion: webhookConfig.apiVersion,
+    displaySecretKey: webhookConfig.displaySecretKey,
+  };
 }
