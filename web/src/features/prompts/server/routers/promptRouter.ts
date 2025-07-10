@@ -77,9 +77,6 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      const limit: number = input.limit ?? 50;
-      const page: number = input.page ?? 0;
-
       const orderByCondition = orderByToPrismaSql(
         input.orderBy,
         promptsTableCols,
@@ -94,7 +91,7 @@ export const promptRouter = createTRPCRouter({
       const pathFilter =
         input.pathPrefix !== undefined && input.pathPrefix !== ""
           ? (() => {
-              const prefix = input.pathPrefix ;
+              const prefix = input.pathPrefix;
               return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
             })()
           : Prisma.empty;
@@ -104,7 +101,7 @@ export const promptRouter = createTRPCRouter({
         input.searchQuery !== null &&
         input.searchQuery !== ""
           ? (() => {
-              const q = input.searchQuery ;
+              const q = input.searchQuery;
               return Prisma.sql` AND (p.name ILIKE ${`%${q}%`} OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`}))`;
             })()
           : Prisma.empty;
@@ -127,8 +124,8 @@ export const promptRouter = createTRPCRouter({
             input.projectId,
             filterCondition,
             orderByCondition,
-            limit,
-            page,
+            input.limit,
+            input.page,
             pathFilter,
             searchFilter,
             input.pathPrefix,
@@ -142,7 +139,7 @@ export const promptRouter = createTRPCRouter({
             filterCondition,
             Prisma.empty,
             1, // limit
-            0, // page,
+            0, // input.page,
             pathFilter,
             searchFilter,
             input.pathPrefix,
@@ -1026,7 +1023,7 @@ export const promptRouter = createTRPCRouter({
             name: input.name,
           },
           ...(input.limit !== undefined && input.page !== undefined
-            ? { take: input.limit, skip: input.page * input.limit }
+            ? { take: input.input.limit, skip: input.page * input.limit }
             : undefined),
           orderBy: [{ version: "desc" }],
         }),
