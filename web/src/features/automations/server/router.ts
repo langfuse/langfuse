@@ -16,7 +16,7 @@ import {
   getConsecutiveAutomationFailures,
   logger,
 } from "@langfuse/shared/src/server";
-import { generateWebhookSecret } from "@langfuse/shared/encryption";
+import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import {
   processWebhookActionConfig,
   convertToSafeWebhookConfig,
@@ -113,7 +113,7 @@ export const automationsRouter = createTRPCRouter({
       // Update action config with new secret
       const updatedConfig = {
         ...(existingAction.config as any),
-        secretKey: newSecretKey,
+        secretKey: encrypt(newSecretKey),
         displaySecretKey: newDisplaySecretKey,
       };
 

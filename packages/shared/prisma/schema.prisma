@@ -967,6 +967,8 @@ model BlobStorageIntegration {
   enabled         Boolean
   exportFrequency String                         @map("export_frequency")
   fileType        BlobStorageIntegrationFileType @default(CSV) @map("file_type")
+  exportMode      BlobStorageExportMode          @default(FULL_HISTORY) @map("export_mode")
+  exportStartDate DateTime?                      @map("export_start_date")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
@@ -988,6 +990,14 @@ enum BlobStorageIntegrationType {
   AZURE_BLOB_STORAGE
 
   @@map("BlobStorageIntegrationType")
+}
+
+enum BlobStorageExportMode {
+  FULL_HISTORY
+  FROM_TODAY
+  FROM_CUSTOM_DATE
+
+  @@map("BlobStorageExportMode")
 }
 
 model BatchExport {
