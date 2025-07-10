@@ -1351,7 +1351,7 @@ const generatePromptQuery = (
       ${select}
     FROM grouped p
     WHERE rn = 1
-    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace("ORDER BY ", ""))}` : Prisma.empty}
+    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
     LIMIT ${limit} OFFSET ${page * limit};
     `;
   } else {
@@ -1401,7 +1401,7 @@ const generatePromptQuery = (
     SELECT
       ${select}
     FROM combined p
-    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace("ORDER BY ", ""))}` : Prisma.empty}
+    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
     LIMIT ${limit} OFFSET ${page * limit};
     `;
   }
