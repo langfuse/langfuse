@@ -42,6 +42,7 @@ yarn-error.log*
 !.env.dev-azure.example
 !.env.dev-redis-cluster.example
 !.env.prod.example
+!.env.test.example
 
 # vercel
 .vercel

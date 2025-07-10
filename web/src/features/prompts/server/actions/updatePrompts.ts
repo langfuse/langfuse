@@ -3,6 +3,7 @@ import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/s
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
+import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
 export type UpdatePromptParams = {
   promptName: string;
@@ -19,9 +20,11 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
   );
   const promptService = new PromptService(prisma, redis);
   try {
+    const touchedPromptIds: string[] = [];
+
     await promptService.lockCache({ projectId, promptName: promptName });
 
-    const result = prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const prompt = (
         await tx.$queryRaw<
           Array<{
@@ -46,6 +49,8 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
       if (!prompt) {
         throw new LangfuseNotFoundError(`Prompt not found: ${promptName}`);
       }
+
+      touchedPromptIds.push(prompt.id);
 
       const newLabelsSet = new Set([...newLabels, ...prompt.labels]);
       const removedLabels = [];
@@ -102,14 +107,21 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
         )}`,
       );
 
+      const {
+        touchedPromptIds: labelsTouchedPromptIds,
+        updates: labelUpdates,
+      } = await removeLabelsFromPreviousPromptVersions({
+        prisma: tx,
+        projectId,
+        promptName,
+        labelsToRemove: [...new Set(newLabels)],
+      });
+
+      touchedPromptIds.push(...labelsTouchedPromptIds);
+
       const result = await Promise.all([
         // Remove labels from other prompts
-        ...(await removeLabelsFromPreviousPromptVersions({
-          prisma: tx,
-          projectId,
-          promptName,
-          labelsToRemove: [...new Set(newLabels)],
-        })),
+        ...labelUpdates,
         // Update prompt
         tx.prompt.update({
           where: {
@@ -129,6 +141,30 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     await promptService.invalidateCache({ projectId, promptName: promptName });
     await promptService.unlockCache({ projectId, promptName: promptName });
+
+    // For updates, we need the before state, but we don't have it easily accessible here
+    // This updatePrompt function only handles label updates, so the main content doesn't change
+    // We'll pass undefined for now since label changes don't need before state for webhooks
+
+    const updatedPrompts = await prisma.prompt.findMany({
+      where: {
+        id: { in: touchedPromptIds },
+        projectId,
+      },
+    });
+
+    logger.info(
+      `Triggering webhook for ${updatedPrompts.length} prompts for project ${projectId}, touchedPromptIds: ${JSON.stringify(touchedPromptIds)}`,
+    );
+
+    await Promise.all(
+      updatedPrompts.map(async (prompt) =>
+        promptChangeEventSourcing(
+          await promptService.resolvePrompt(prompt),
+          "updated",
+        ),
+      ),
+    );
 
     return result;
   } catch (e) {

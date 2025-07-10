@@ -35,5 +35,13 @@ module.exports = {
     {
       files: ["*.js?(x)", "*.ts?(x)"],
     },
+    {
+      files: ["*.ts", "*.mts", "*.cts", "*.tsx"],
+      // no-undef doesn't make sense in TS, see:
+      // https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
+      rules: {
+        "no-undef": "off",
+      },
+    },
   ],
 };

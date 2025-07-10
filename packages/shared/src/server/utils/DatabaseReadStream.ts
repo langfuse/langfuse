@@ -24,12 +24,13 @@ export class DatabaseReadStream<EntityType> extends Readable {
 
   constructor(
     // the delegate function takes care of querying the database in a paginated manner
-    private queryDelegate: ( // eslint-disable-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars
+    private queryDelegate: (
       pageSize: number, // eslint-disable-line no-unused-vars
-      offset: number // eslint-disable-line no-unused-vars
+      offset: number, // eslint-disable-line no-unused-vars
     ) => Promise<Array<EntityType>>,
     private pageSize: number, // eslint-disable-line no-unused-vars
-    private maxRecords?: number // eslint-disable-line no-unused-vars
+    private maxRecords?: number, // eslint-disable-line no-unused-vars
   ) {
     super({ objectMode: true }); // Set object mode to true to allow pushing objects to the stream rather than strings or buffers
 

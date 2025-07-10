@@ -94,6 +94,7 @@ pnpm run test --filter=worker -- $TEST_FILE_NAME -t "$TEST_NAME"
 
 ### Utilities
 ```bash
+pnpm run format            # Format code across entire project
 pnpm run nuke              # Remove all node_modules, build files, wipe database, docker containers. **USE WITH CAUTION**
 ```
 
@@ -152,6 +153,8 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 - Jest for API tests, Playwright for E2E tests
 - For backend/API changes, tests must pass before pushes
 - Add tests for new API endpoints and features
+- When writing tests, focus on decoupling each `it` or `test` block to ensure that they can run independently and concurrently. Tests must never depend on the action or outcome of previous or subsequent tests.
+- When writing tests, especially in the __tests__/async directory, ensure that you avoid `pruneDatabase` calls.
 
 ### Code Conventions
 - **Pages Router** (not App Router)
@@ -186,3 +189,6 @@ To get a project, use the `get_project` capability with the full project name as
 
 ## TypeScript Best Practices
 - In TypeScript, if possible, don't use the `any` type
+
+## General Coding Guidelines
+- For easier code reviews, prefer not to move functions etc around within a file unless necessary or instructed to do so

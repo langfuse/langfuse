@@ -124,6 +124,7 @@ export class QueryBuilder {
     // Transform our filters to match the column mapping format expected by createFilterFromFilterState
     const columnMappings = filters.map((filter) => {
       let clickhouseSelect: string;
+      let queryPrefix: string = "";
       let clickhouseTableName: string = view.name;
       let type: string;
 
@@ -144,15 +145,18 @@ export class QueryBuilder {
         //   }
       } else if (filter.column === view.timeDimension) {
         clickhouseSelect = view.timeDimension;
+        queryPrefix = clickhouseTableName;
         type = "datetime";
       } else if (filter.column === "metadata") {
         clickhouseSelect = "metadata";
+        queryPrefix = clickhouseTableName;
         type = "stringObject";
       } else if (filter.column.endsWith("Name")) {
         // Sometimes, the filter does not update correctly and sends us scoreName instead of name for scores, etc.
         // If this happens, none of the conditions above apply, and we use this fallback to avoid raising an error.
         // As this is hard to catch, we include this workaround. (LFE-4838).
         clickhouseSelect = "name";
+        queryPrefix = clickhouseTableName;
         type = "string";
       } else {
         throw new InvalidRequestError(
@@ -165,7 +169,7 @@ export class QueryBuilder {
         uiTableId: filter.column,
         clickhouseTableName,
         clickhouseSelect,
-        queryPrefix: clickhouseTableName,
+        queryPrefix,
         type,
       };
     });
@@ -428,7 +432,7 @@ export class QueryBuilder {
       dimensions += `${appliedDimensions
         .map(
           (dimension) =>
-            `any(${dimension.table}.${dimension.sql}) as ${dimension.alias ?? dimension.sql}`,
+            `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`,
         )
         .join(",\n")},`;
     }

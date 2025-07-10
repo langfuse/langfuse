@@ -14,7 +14,7 @@ import {
   TraceEventType,
   traceRecordReadSchema,
   TraceRecordReadType,
-  ingestionEvent,
+  createIngestionEventSchema,
 } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "../../../__tests__/utils";
 import waitForExpect from "wait-for-expect";
@@ -25,11 +25,11 @@ import { Cluster } from "ioredis";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const environment = "default";
-const IngestionEventBatchSchema = z.array(ingestionEvent);
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
   let clickhouseWriter: ClickhouseWriter;
+  let IngestionEventBatchSchema: z.ZodType<any>;
 
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
@@ -49,6 +49,8 @@ describe("Ingestion end-to-end tests", () => {
       clickhouseWriter,
       clickhouseClient(),
     );
+
+    IngestionEventBatchSchema = z.array(createIngestionEventSchema());
   });
 
   afterEach(async () => {

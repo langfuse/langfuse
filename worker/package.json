@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.78.2",
+  "version": "3.80.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -15,8 +15,9 @@
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 0",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/s3-ingestion-event-relpay.ts",
-    "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts"
+    "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/replayIngestionEvents/s3-ingestion-event-replay.ts",
+    "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
+    "refill-queue-event": "dotenv -e ../.env -- tsx src/scripts/refillQueueEvent/index.ts"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
@@ -76,7 +77,7 @@
     "kysely-codegen": "^0.16.8",
     "msw": "^2.6.5",
     "nodemon": "^3.1.7",
-    "prettier": "^3.3.3",
+    "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "tsx": "^4.19.1",

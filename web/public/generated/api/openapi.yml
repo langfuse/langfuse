@@ -875,14 +875,13 @@ paths:
           schema:
             type: integer
             nullable: true
-        - name: response
-          in: query
-          required: true
-          schema:
-            $ref: '#/components/schemas/PaginatedDatasetRunItems'
       responses:
-        '204':
+        '200':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDatasetRunItems'
         '400':
           description: ''
           content:
