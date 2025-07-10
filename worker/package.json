@@ -23,6 +23,7 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.7.3",
+    "@aws-sdk/client-s3": "^3.675.0",
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.53.0",
