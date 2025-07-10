@@ -97,6 +97,23 @@ async function handleSubscriptionChanged(
 ) {
   const subscriptionId = subscription.id;
 
+  // Attempt to find the org based on the subscription id
+  // const org = await prisma.organization.findFirst({
+  //   where: {
+  //     cloudConfig: {
+
+  //       stripe: {
+  //         activeSubscriptionId: subscriptionId,
+  //       },
+  //     },
+  //   },
+  // });
+  // if (!org) {
+  //   logger.error("[Stripe Webhook] Organization not found");
+  //   traceException("[Stripe Webhook] Organization not found");
+  //   return;
+  // }
+
   // get the checkout session from the subscription to retrieve the client reference for this subscription
   const checkoutSessionsResponse = await stripeClient?.checkout.sessions.list({
     subscription: subscriptionId,
