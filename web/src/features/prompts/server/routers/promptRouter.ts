@@ -1309,9 +1309,9 @@ const generatePromptQuery = (
   page: number,
   pathFilter: Prisma.Sql = Prisma.empty,
   searchFilter: Prisma.Sql = Prisma.empty,
-  pathPrefixStr?: string,
+  pathPrefix?: string,
 ) => {
-  const prefix = pathPrefixStr ?? "";
+  const prefix = pathPrefix ?? "";
 
   // CTE to get latest versions (same for root and folder queries)
   const latestCTE = Prisma.sql`
@@ -1339,7 +1339,7 @@ const generatePromptQuery = (
     ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
     LIMIT ${limit} OFFSET ${page * limit}`;
 
-  if (prefix && prefix !== "") {
+  if (prefix) {
     // When we're inside a folder, show individual prompts within that folder
     // and folder representatives for subfolders
     const segmentExpr = Prisma.sql`SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1)`;
@@ -1363,6 +1363,8 @@ const generatePromptQuery = (
     ${orderAndLimit};
     `;
   } else {
+    const baseColumns = Prisma.sql`id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by`;
+
     // When we're at the root level, show all individual prompts that don't have folders
     // and one representative per folder for prompts that do have folders
     return Prisma.sql`
@@ -1381,12 +1383,10 @@ const generatePromptQuery = (
       WHERE p.name LIKE '%/%'
     ),
     combined AS (
-      SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by,
-        1 as sort_priority  -- Folders first
+      SELECT ${baseColumns}, 1 as sort_priority  -- Folders first
       FROM folder_representatives WHERE rn = 1
       UNION ALL
-      SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by,
-        2 as sort_priority  -- Individual prompts second
+      SELECT ${baseColumns}, 2 as sort_priority  -- Individual prompts second
       FROM individual_prompts
     )
     SELECT
