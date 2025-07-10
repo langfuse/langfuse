@@ -158,7 +158,7 @@ async function handleSubscriptionChanged(
   // More reliable than the checkout session attached to the subscription for subscriptions that were manually set up
   organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
 
-  // Reuquired fallback for new subscriptions
+  // Required fallback for new subscriptions
   if (!organization) {
     organization =
       await getOrgBasedOnCheckoutSessionAttachedToSubscription(subscriptionId);
