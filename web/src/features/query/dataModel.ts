@@ -517,7 +517,7 @@ export const scoresNumericView: ViewDeclarationType = {
       description: "Identifier of the observation associated with the score.",
     },
     value: {
-      sql: "value",
+      sql: "scores_numeric.value",
       alias: "value",
       type: "number",
       description: "Value of the score.",

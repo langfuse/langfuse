@@ -48,7 +48,10 @@ export const executeWebhook = async (input: WebhookInput) => {
     });
 
     if (!automation) {
-      throw new LangfuseNotFoundError(`Automation ${automationId} not found`);
+      logger.warn(
+        `Automation ${automationId} not found for project ${projectId}. We ack the job and will not retry.`,
+      );
+      return;
     }
 
     const actionConfig = await getActionByIdWithSecrets({
@@ -179,7 +182,10 @@ export const executeWebhook = async (input: WebhookInput) => {
     });
 
     if (!automation) {
-      throw new LangfuseNotFoundError(`Automation ${automationId} not found`);
+      logger.warn(
+        `Automation ${automationId} not found for project ${projectId}. We ack the job and will not retry.`,
+      );
+      return;
     }
 
     const shouldRetryJob =

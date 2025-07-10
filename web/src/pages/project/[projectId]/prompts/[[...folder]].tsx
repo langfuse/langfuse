@@ -90,9 +90,7 @@ export default function PromptsWithFolder() {
         },
         actionButtonsRight: (
           <>
-            {projectId && (
-              <WebhookButton projectId={projectId} variant="secondary" />
-            )}
+            {projectId && <WebhookButton projectId={projectId} />}
             <ActionButton
               icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
               hasAccess={hasCUDAccess}

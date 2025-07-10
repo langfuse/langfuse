@@ -8,7 +8,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 
 const __orgIds: string[] = [];
@@ -907,6 +907,16 @@ describe("automations trpc", () => {
       expect(updatedAction?.config).toMatchObject({
         displaySecretKey: response.displaySecretKey,
       });
+
+      // Critical security test: Verify secret is encrypted in database
+      const storedSecretKey = (updatedAction?.config as any)?.secretKey;
+      expect(storedSecretKey).toBeDefined();
+      expect(storedSecretKey).not.toBe(response.webhookSecret); // Should NOT be plain text
+      expect(storedSecretKey).not.toBe(originalSecretKey); // Should be different from original
+
+      // Verify that the stored secret can be decrypted to match the returned secret
+      const decryptedStoredSecret = decrypt(storedSecretKey);
+      expect(decryptedStoredSecret).toBe(response.webhookSecret);
     });
 
     it("should throw error when action not found", async () => {

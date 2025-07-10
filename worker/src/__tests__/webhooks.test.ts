@@ -497,5 +497,34 @@ describe("Webhook Integration Tests", () => {
       });
       expect(trigger?.status).toBe(JobConfigState.INACTIVE);
     });
+
+    it("should handle missing automation gracefully without throwing error", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const executionId = v4();
+      const nonExistentAutomationId = v4(); // Use a random ID that doesn't exist
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId: nonExistentAutomationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      // Should not throw an error, but return gracefully
+      await expect(executeWebhook(webhookInput)).resolves.toBeUndefined();
+
+      // Verify that no execution record was created since automation doesn't exist
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution).toBeNull();
+    });
   });
 });
