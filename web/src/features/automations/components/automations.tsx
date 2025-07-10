@@ -297,8 +297,8 @@ export default function AutomationsPage() {
         title: "Webhooks",
         breadcrumb: [
           {
-            name: "Webhooks",
-            href: `/project/${projectId}/automations`,
+            name: "Prompts",
+            href: `/project/${projectId}/prompts/`,
           },
         ],
         actionButtonsRight: (

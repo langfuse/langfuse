@@ -74,8 +74,8 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
-          This action permanently deletes this automation. This cannot be
-          undone.
+          This action permanently deletes this automation and execution history.
+          This cannot be undone.
         </p>
         <div className="flex justify-end space-x-4">
           <Button
