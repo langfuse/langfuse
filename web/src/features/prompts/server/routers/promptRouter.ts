@@ -1316,7 +1316,6 @@ const generatePromptQuery = (
   // CTE to get latest versions (same for root and folder queries)
   const latestCTE = Prisma.sql`
     latest AS (
-      /* Get latest version for each prompt name within the (optional) filters */
       SELECT p.*
       FROM prompts p
       WHERE (p.name, p.version) IN (
