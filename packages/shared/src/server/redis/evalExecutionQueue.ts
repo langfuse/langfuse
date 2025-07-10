@@ -1,7 +1,11 @@
 import { Queue } from "bullmq";
 import { logger } from "../logger";
 import { TQueueJobTypes, QueueName } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions, getQueuePrefix } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 
 export class EvalExecutionQueue {
   private static instance: Queue<

@@ -27,7 +27,7 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
-          response: PaginatedDatasetRunItems
+      response: PaginatedDatasetRunItems
 
 types:
   CreateDatasetRunItemRequest:
