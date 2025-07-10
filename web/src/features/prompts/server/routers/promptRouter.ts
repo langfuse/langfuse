@@ -92,7 +92,7 @@ export const promptRouter = createTRPCRouter({
       );
 
       const pathFilter =
-        input.pathPrefix !== undefined
+        input.pathPrefix !== undefined && input.pathPrefix !== ""
           ? (() => {
               const prefix = input.pathPrefix as string;
               return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
@@ -1314,40 +1314,91 @@ const generatePromptQuery = (
   pathPrefixStr?: string,
 ) => {
   const prefix = pathPrefixStr ?? "";
-  const segmentExpr = prefix
-    ? Prisma.sql`SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1)`
-    : Prisma.sql`SPLIT_PART(p.name, '/', 1)`;
 
-  return Prisma.sql`
-  WITH latest AS (
-    /* Get latest version for each prompt name within the (optional) filters */
-    SELECT p.*
-    FROM prompts p
-    WHERE (p.name, p.version) IN (
-      SELECT name, MAX(version)
+  if (prefix && prefix !== "") {
+    // When we're inside a folder, show individual prompts within that folder
+    // and folder representatives for subfolders
+    const segmentExpr = Prisma.sql`SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1)`;
+
+    return Prisma.sql`
+    WITH latest AS (
+      /* Get latest version for each prompt name within the (optional) filters */
+      SELECT p.*
       FROM prompts p
-      WHERE p.project_id = ${projectId}
+      WHERE (p.name, p.version) IN (
+        SELECT name, MAX(version)
+        FROM prompts p
+        WHERE p.project_id = ${projectId}
+          ${filterCondition}
+          ${pathFilter}
+          ${searchFilter}
+        GROUP BY name
+      )
+        AND p.project_id = ${projectId}
         ${filterCondition}
         ${pathFilter}
         ${searchFilter}
-      GROUP BY name
+    ),
+    grouped AS (
+      SELECT
+        p.*,  /* keep all columns */
+        ROW_NUMBER() OVER (PARTITION BY ${segmentExpr} ORDER BY p.version DESC) AS rn
+      FROM latest p
     )
-      AND p.project_id = ${projectId}
-      ${filterCondition}
-      ${pathFilter}
-      ${searchFilter}
-  ),
-  grouped AS (
     SELECT
-      p.*,  /* keep all columns */
-      ROW_NUMBER() OVER (PARTITION BY ${segmentExpr} ORDER BY p.version DESC) AS rn
-    FROM latest p
-  )
-  SELECT
-    ${select}
-  FROM grouped p
-  WHERE rn = 1
-  ${orderCondition}
-  LIMIT ${limit} OFFSET ${page * limit};
-  `;
+      ${select}
+    FROM grouped p
+    WHERE rn = 1
+    ${orderCondition}
+    LIMIT ${limit} OFFSET ${page * limit};
+    `;
+  } else {
+    // When we're at the root level, show all individual prompts that don't have folders
+    // and one representative per folder for prompts that do have folders
+    return Prisma.sql`
+    WITH latest AS (
+      /* Get latest version for each prompt name within the (optional) filters */
+      SELECT p.*
+      FROM prompts p
+      WHERE (p.name, p.version) IN (
+        SELECT name, MAX(version)
+        FROM prompts p
+        WHERE p.project_id = ${projectId}
+          ${filterCondition}
+          ${pathFilter}
+          ${searchFilter}
+        GROUP BY name
+      )
+        AND p.project_id = ${projectId}
+        ${filterCondition}
+        ${pathFilter}
+        ${searchFilter}
+    ),
+    individual_prompts AS (
+      /* Individual prompts without folders */
+      SELECT p.*
+      FROM latest p
+      WHERE p.name NOT LIKE '%/%'
+    ),
+    folder_representatives AS (
+      /* One representative per folder */
+      SELECT p.*,
+        ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(p.name, '/', 1) ORDER BY p.version DESC) AS rn
+      FROM latest p
+      WHERE p.name LIKE '%/%'
+    ),
+    combined AS (
+      SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by
+      FROM individual_prompts
+      UNION ALL
+      SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by
+      FROM folder_representatives WHERE rn = 1
+    )
+    SELECT
+      ${select}
+    FROM combined p
+    ${orderCondition}
+    LIMIT ${limit} OFFSET ${page * limit};
+    `;
+  }
 };

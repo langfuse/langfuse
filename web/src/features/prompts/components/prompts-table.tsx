@@ -196,7 +196,9 @@ export function PromptTable() {
           ? `${currentFolderPath}/${promptName.substring(currentFolderPath.length + 1).split("/")[0]}`
           : promptName.split("/")[0];
 
-        const folderName = getDisplayName(folderPath, currentFolderPath);
+        const folderName = currentFolderPath
+          ? folderPath.substring(currentFolderPath.length + 1)
+          : folderPath;
 
         combinedRows.push(
           createRow({
@@ -210,7 +212,9 @@ export function PromptTable() {
         combinedRows.push(
           createRow({
             id: prompt.id,
-            name: getDisplayName(prompt.id, currentFolderPath),
+            name: currentFolderPath
+              ? prompt.id.substring(currentFolderPath.length + 1)
+              : prompt.id,
             type: prompt.type as "text" | "chat",
             version: prompt.version,
             createdAt: prompt.createdAt,
