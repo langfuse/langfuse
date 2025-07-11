@@ -48,6 +48,8 @@ export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
   url: z.url(),
   headers: z.record(z.string(), z.string()),
+  secretHeaderKeys: z.array(z.string()),
+  displayHeaderValues: z.record(z.string(), z.string()),
   apiVersion: AvailableWebhookApiSchema,
   secretKey: z.string(),
   displaySecretKey: z.string(),
@@ -55,6 +57,7 @@ export const WebhookActionConfigSchema = z.object({
 
 export const SafeWebhookActionConfigSchema = WebhookActionConfigSchema.omit({
   secretKey: true,
+  headers: true,
 });
 
 export type SafeWebhookActionConfig = z.infer<
@@ -64,6 +67,7 @@ export type SafeWebhookActionConfig = z.infer<
 export const WebhookActionCreateSchema = WebhookActionConfigSchema.omit({
   secretKey: true,
   displaySecretKey: true,
+  displayHeaderValues: true,
 });
 
 export const ActionConfigSchema = z.discriminatedUnion("type", [

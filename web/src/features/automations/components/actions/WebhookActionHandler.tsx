@@ -20,6 +20,7 @@ const WebhookActionFormSchema = z.object({
         z.object({
           name: z.string(),
           value: z.string(),
+          isSecret: z.boolean(),
         }),
       )
       .default([]),
@@ -33,6 +34,7 @@ type WebhookActionFormData = z.infer<typeof WebhookActionFormSchema>;
 type HeaderPair = {
   name: string;
   value: string;
+  isSecret: boolean;
 };
 
 export class WebhookActionHandler
@@ -45,14 +47,18 @@ export class WebhookActionHandler
     if (
       automation?.action?.type === "WEBHOOK" &&
       automation?.action?.config &&
-      "headers" in automation.action.config &&
-      automation.action.config.headers
+      "displayHeaderValues" in automation.action.config &&
+      automation.action.config.displayHeaderValues
     ) {
       try {
-        const headersObject = automation.action.config.headers;
+        const headersObject = automation.action.config.displayHeaderValues;
+        const secretHeaderKeys =
+          automation.action.config.secretHeaderKeys || [];
+
         return Object.entries(headersObject).map(([name, value]) => ({
           name,
           value: value as string,
+          isSecret: secretHeaderKeys.includes(name),
         }));
       } catch (e) {
         console.error("Failed to parse headers:", e);
@@ -134,18 +140,22 @@ export class WebhookActionHandler
   buildActionConfig(
     formData: WebhookActionFormData,
   ): Omit<SafeWebhookActionConfig, "displaySecretKey"> {
-    // Convert headers array to object
+    // Convert headers array to object and extract secret header keys
     let headersObject: Record<string, string> = {};
+    let secretHeaderKeys: string[] = [];
 
     if (formData.webhook?.headers) {
-      headersObject = formatWebhookHeaders(formData.webhook.headers);
+      const formatted = formatWebhookHeaders(formData.webhook.headers);
+      headersObject = formatted.headers;
+      secretHeaderKeys = formatted.secretHeaderKeys;
     }
 
     return {
       type: "WEBHOOK",
       url: formData.webhook?.url || "",
-      headers: headersObject,
+      secretHeaderKeys,
       apiVersion: formData.webhook?.apiVersion || { prompt: "v1" },
+      displayHeaderValues: headersObject,
     };
   }
 
