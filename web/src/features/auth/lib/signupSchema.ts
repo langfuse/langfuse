@@ -1,4 +1,4 @@
-import { noHtmlCheck, noUrlCheck } from "@langfuse/shared";
+import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import * as z from "zod/v4";
 
 export const passwordSchema = z
@@ -18,15 +18,9 @@ export const passwordSchema = z
   });
 
 export const signupSchema = z.object({
-  name: z
-    .string()
-    .min(1, { message: "Name is required" })
-    .refine((value) => noHtmlCheck(value), {
-      message: "Input should not contain HTML",
-    })
-    .refine((value) => noUrlCheck(value), {
-      message: "Input should not contain a URL",
-    }),
+  name: StringNoHTMLNonEmpty.refine((value) => noUrlCheck(value), {
+    message: "Input should not contain a URL",
+  }),
   email: z.string().email(),
   password: passwordSchema,
   referralSource: z.string().optional(),
