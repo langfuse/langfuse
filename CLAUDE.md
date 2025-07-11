@@ -180,7 +180,7 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 
 ### Customizing Redis Port
 
-By default, development Redis containers are exposed on host port `6380` through the .env file in order to avoid local conflict with the standard redis port at `6379`. To further customize, you can change change `REDIS_PORT` in your `.env` file:
+By default, development Redis containers are exposed on host port `6380` through the .env file in order to avoid local conflict with the standard redis port at `6379`. To further customize, you can change `REDIS_PORT` in your `.env` file:
 
 ```txt
 REDIS_PORT=6381
