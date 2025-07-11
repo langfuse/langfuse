@@ -14,7 +14,18 @@ import * as fs from "fs";
 import * as path from "path";
 import { parse } from "csv-parse";
 import { randomUUID } from "crypto";
-import { getQueue, QueueJobs, QueueName } from "@langfuse/shared/src/server";
+import {
+  getClickhouseEntityType,
+  getQueue,
+  QueueJobs,
+  QueueName,
+} from "@langfuse/shared/src/server";
+import { env } from "../../env";
+import {
+  DeleteObjectCommand,
+  ListObjectVersionsCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 
 const INPUT_FILE = "events.csv";
 const OUTPUT_FILE = "events_filtered.csv";
@@ -30,6 +41,8 @@ interface Stats {
   filteredRows: number;
   processingTimeMs: number;
 }
+
+const client = new S3Client();
 
 interface JsonOutputItem {
   useS3EventStore: true;
@@ -257,7 +270,7 @@ async function convertCsvToJson(
     });
 
     // Process each row
-    parser.on("data", (row: string[]) => {
+    parser.on("data", async (row: string[]) => {
       // Handle header row
       if (!isHeaderProcessed) {
         headers = row;
@@ -388,6 +401,60 @@ async function ingestEventsToQueue(jsonPath: string): Promise<void> {
     }
 
     console.log(`🔗 Connected to Redis and created queue: ${QUEUE_NAME}`);
+
+    // Process events in batches of 500 for S3 restoration
+    const S3_BATCH_SIZE = 1000;
+    let processedCount = 0;
+
+    for (let i = 0; i < events.length; i += S3_BATCH_SIZE) {
+      const batch = events.slice(i, i + S3_BATCH_SIZE);
+      console.log(
+        `🔍 Processing S3 restoration batch ${Math.ceil((i + 1) / S3_BATCH_SIZE)} (${batch.length} events)`,
+      );
+
+      // Process all events in the batch concurrently
+      await Promise.all(
+        batch.map(async (event) => {
+          const keyValue = `${event.authCheck.scope.projectId}/${getClickhouseEntityType(event.data.type)}/${event.data.eventBodyId}/${event.data.fileKey}.json`;
+
+          try {
+            // List versions to find the delete marker
+            const listCommand = new ListObjectVersionsCommand({
+              Bucket: env.LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET,
+              Prefix: keyValue,
+            });
+
+            const response = await client.send(listCommand);
+
+            // Find the delete marker
+            const deleteMarkers = response.DeleteMarkers || [];
+            const deleteMarker = deleteMarkers.find(
+              (marker) => marker.Key === keyValue,
+            );
+
+            if (deleteMarker) {
+              const deleteCommand = new DeleteObjectCommand({
+                Bucket: env.LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET,
+                Key: keyValue,
+                VersionId: deleteMarker.VersionId,
+              });
+
+              await client.send(deleteCommand);
+            }
+          } catch (error) {
+            console.error(
+              `❌ Failed to restore ${keyValue}: ${(error as Error).message}`,
+            );
+          }
+        }),
+      );
+
+      processedCount += batch.length;
+      console.log(
+        `✅ Completed S3 restoration batch (${processedCount}/${events.length} events processed)`,
+      );
+    }
+    console.log(`🔍 All delete markers removed`);
 
     // Ingest events into queue in batches of 1000
     const BATCH_SIZE = 1000;
