@@ -5,7 +5,7 @@ import { AutomationForm } from "@/src/features/automations/components/automation
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
@@ -71,6 +71,39 @@ export default function AutomationsPage() {
       },
     );
 
+  // Helper function to navigate without creating history entry
+  const navigateWithoutHistory = useCallback(
+    (updates: { view?: string; automationId?: string; tab?: string }) => {
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams(url.search);
+      const pathname = getPathnameWithoutBasePath();
+
+      if (updates.view !== undefined) {
+        params.set("view", updates.view);
+      }
+      if (updates.automationId !== undefined) {
+        if (updates.automationId) {
+          params.set("automationId", updates.automationId);
+        } else {
+          params.delete("automationId");
+        }
+      }
+      if (updates.tab !== undefined) {
+        params.set("tab", updates.tab);
+      }
+
+      router.replace(
+        {
+          pathname,
+          query: params.toString(),
+        },
+        undefined,
+        { shallow: true },
+      );
+    },
+    [router],
+  );
+
   // Auto-select the topmost automation or clear selection if none exist
   useEffect(() => {
     if (automations !== undefined) {
@@ -88,20 +121,9 @@ export default function AutomationsPage() {
       ) {
         // Auto-select the topmost automation if none is currently selected
         // Use router.replace to avoid creating new history entry
-        const url = new URL(window.location.href);
-        const params = new URLSearchParams(url.search);
-        const pathname = getPathnameWithoutBasePath();
-
-        params.set("automationId", automations[0].id);
-
-        router.replace(
-          {
-            pathname,
-            query: params.toString(),
-          },
-          undefined,
-          { shallow: true },
-        );
+        navigateWithoutHistory({
+          automationId: automations[0].id,
+        });
       }
     }
   }, [
@@ -110,7 +132,7 @@ export default function AutomationsPage() {
     view,
     setUrlParams,
     urlParams.tab,
-    router,
+    navigateWithoutHistory,
   ]);
 
   const handleCreateAutomation = () => {
@@ -130,8 +152,8 @@ export default function AutomationsPage() {
   };
 
   const handleReturnToList = () => {
-    setUrlParams({
-      ...urlParams,
+    // Use router.replace to avoid creating history entry when canceling
+    navigateWithoutHistory({
       view: "list",
     });
   };
@@ -146,26 +168,24 @@ export default function AutomationsPage() {
       setShowSecretDialog(true);
     }
 
-    // Navigate to the newly created automation detail page
+    // Navigate to the newly created automation detail page without history entry
     if (automationId) {
-      setUrlParams({
+      navigateWithoutHistory({
         view: "list",
         automationId,
         tab: urlParams.tab,
       });
     } else {
-      setUrlParams({
-        ...urlParams,
+      navigateWithoutHistory({
         view: "list",
       });
     }
   };
 
   const handleEditSuccess = () => {
-    // Return to detail view of the edited automation
+    // Return to detail view of the edited automation without history entry
     utils.automations.invalidate();
-    setUrlParams({
-      ...urlParams,
+    navigateWithoutHistory({
       view: "list",
     });
   };
