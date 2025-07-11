@@ -99,7 +99,7 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@types/lodash": "^4.17.10",
+    "@types/lodash": "^4.17.20",
     "@types/node": "^20.11.29",
     "@types/nodemailer": "^6.4.16",
     "@types/pg": "^8.11.10",
