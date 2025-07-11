@@ -17,12 +17,13 @@ import {
   getEnvironmentsForProject,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
     .input(
       z.object({
-        name: z.string(),
+        name: StringNoHTMLNonEmpty,
         orgId: z.string(),
       }),
     )
