@@ -5,7 +5,7 @@ import { AutomationForm } from "@/src/features/automations/components/automation
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
@@ -71,6 +71,39 @@ export default function AutomationsPage() {
       },
     );
 
+  // Helper function to navigate without creating history entry
+  const navigateWithoutHistory = useCallback(
+    (updates: { view?: string; automationId?: string; tab?: string }) => {
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams(url.search);
+      const pathname = getPathnameWithoutBasePath();
+
+      if (updates.view !== undefined) {
+        params.set("view", updates.view);
+      }
+      if (updates.automationId !== undefined) {
+        if (updates.automationId) {
+          params.set("automationId", updates.automationId);
+        } else {
+          params.delete("automationId");
+        }
+      }
+      if (updates.tab !== undefined) {
+        params.set("tab", updates.tab);
+      }
+
+      router.replace(
+        {
+          pathname,
+          query: params.toString(),
+        },
+        undefined,
+        { shallow: true },
+      );
+    },
+    [router],
+  );
+
   // Auto-select the topmost automation or clear selection if none exist
   useEffect(() => {
     if (automations !== undefined) {
@@ -99,42 +132,8 @@ export default function AutomationsPage() {
     view,
     setUrlParams,
     urlParams.tab,
-    router,
+    navigateWithoutHistory,
   ]);
-
-  // Helper function to navigate without creating history entry
-  const navigateWithoutHistory = (updates: {
-    view?: string;
-    automationId?: string;
-    tab?: string;
-  }) => {
-    const url = new URL(window.location.href);
-    const params = new URLSearchParams(url.search);
-    const pathname = getPathnameWithoutBasePath();
-
-    if (updates.view !== undefined) {
-      params.set("view", updates.view);
-    }
-    if (updates.automationId !== undefined) {
-      if (updates.automationId) {
-        params.set("automationId", updates.automationId);
-      } else {
-        params.delete("automationId");
-      }
-    }
-    if (updates.tab !== undefined) {
-      params.set("tab", updates.tab);
-    }
-
-    router.replace(
-      {
-        pathname,
-        query: params.toString(),
-      },
-      undefined,
-      { shallow: true },
-    );
-  };
 
   const handleCreateAutomation = () => {
     setUrlParams({
