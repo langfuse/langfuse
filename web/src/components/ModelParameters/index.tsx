@@ -192,32 +192,30 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     return (
       <div className="flex flex-col space-y-2 pb-1 pr-1 pt-2">
         <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="space-y-1">
-              <Select
-                disabled={formDisabled}
-                onValueChange={handleCombinedSelection}
-                value={currentCombinedValue}
-              >
-                <SelectTrigger className="h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {combinedOptions.map((option) => (
-                    <SelectItem value={option} key={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                  <SelectSeparator />
-                  <CreateLLMApiKeyDialog />
-                </SelectContent>
-              </Select>
-              {modelParamsDescription ? (
-                <FormDescription className="mt-1 text-xs">
-                  {modelParamsDescription}
-                </FormDescription>
-              ) : undefined}
-            </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            <Select
+              disabled={formDisabled}
+              onValueChange={handleCombinedSelection}
+              value={currentCombinedValue}
+            >
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {combinedOptions.map((option) => (
+                  <SelectItem value={option} key={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+                <SelectSeparator />
+                <CreateLLMApiKeyDialog />
+              </SelectContent>
+            </Select>
+            {modelParamsDescription ? (
+              <FormDescription className="mt-1 text-xs">
+                {modelParamsDescription}
+              </FormDescription>
+            ) : undefined}
           </div>
           <div className="flex-shrink-0">{SettingsButton}</div>
         </div>

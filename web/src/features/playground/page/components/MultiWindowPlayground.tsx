@@ -70,29 +70,27 @@ export default function MultiWindowPlayground({
   );
 
   return (
-    <div className="h-full overflow-hidden">
-      <div
-        className="playground-windows-container h-full overflow-x-auto"
-        style={{
-          display: "grid",
-          gridAutoFlow: "column",
-          gridAutoColumns: windowWidth,
-          gap: "1rem",
-          padding: "1rem",
-          scrollBehavior: "smooth",
-        }}
-      >
-        {windowState.windowIds.map((windowId) => (
-          <PlaygroundProvider key={windowId} windowId={windowId}>
-            <PlaygroundWindowContent
-              windowId={windowId}
-              onRemove={onRemoveWindow}
-              onCopy={handleCopyWindow}
-              canRemove={windowState.windowIds.length > 1}
-            />
-          </PlaygroundProvider>
-        ))}
-      </div>
+    <div
+      className="h-full overflow-x-auto"
+      style={{
+        display: "grid",
+        gridAutoFlow: "column",
+        gridAutoColumns: windowWidth,
+        gap: "1rem",
+        padding: "1rem",
+        scrollBehavior: "smooth",
+      }}
+    >
+      {windowState.windowIds.map((windowId) => (
+        <PlaygroundProvider key={windowId} windowId={windowId}>
+          <PlaygroundWindowContent
+            windowId={windowId}
+            onRemove={onRemoveWindow}
+            onCopy={handleCopyWindow}
+            canRemove={windowState.windowIds.length > 1}
+          />
+        </PlaygroundProvider>
+      ))}
     </div>
   );
 }
@@ -124,13 +122,13 @@ function PlaygroundWindowContent({
   return (
     <div className="playground-window flex h-full min-w-0 flex-col rounded-lg border bg-background shadow-sm">
       {/* Window Header */}
-      <div className="flex-shrink-0 border-b bg-muted/50 px-3 py-1">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-1 items-center gap-2">
+      <div className="relative flex-shrink-0 border-b bg-muted/50 px-3 py-1">
+        <div className="flex items-center pr-24">
+          <div className="flex items-center gap-2">
             <ModelParameters {...playgroundContext} layout="compact" />
           </div>
 
-          <div className="flex flex-shrink-0 items-center gap-2">
+          <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
             <SaveToPromptButton />
 
             <Button

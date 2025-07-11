@@ -113,6 +113,7 @@ export default function PlaygroundPage() {
 
   return (
     <Page
+      scrollable={false}
       withPadding={false}
       headerProps={{
         title: "Playground",
