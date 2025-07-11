@@ -20,6 +20,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
 import { ErrorPage } from "@/src/components/error-page";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export default function AutomationsPage() {
   const router = useRouter();
@@ -86,14 +87,31 @@ export default function AutomationsPage() {
         view === "list"
       ) {
         // Auto-select the topmost automation if none is currently selected
-        setUrlParams({
-          view: "list",
-          automationId: automations[0].id,
-          tab: urlParams.tab,
-        });
+        // Use router.replace to avoid creating new history entry
+        const url = new URL(window.location.href);
+        const params = new URLSearchParams(url.search);
+        const pathname = getPathnameWithoutBasePath();
+
+        params.set("automationId", automations[0].id);
+
+        router.replace(
+          {
+            pathname,
+            query: params.toString(),
+          },
+          undefined,
+          { shallow: true },
+        );
       }
     }
-  }, [automations, selectedAutomation, view, setUrlParams, urlParams.tab]);
+  }, [
+    automations,
+    selectedAutomation,
+    view,
+    setUrlParams,
+    urlParams.tab,
+    router,
+  ]);
 
   const handleCreateAutomation = () => {
     setUrlParams({
