@@ -1,6 +1,9 @@
 import { memo, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import oneDark from "react-syntax-highlighter/dist/esm/styles/prism/one-dark";
+import oneLight from "react-syntax-highlighter/dist/esm/styles/prism/one-light";
 import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 import "react18-json-view/src/dark.css";
@@ -162,9 +165,12 @@ export function CodeView(props: {
   defaultCollapsed?: boolean;
   title?: string;
   scrollable?: boolean;
+  language?: string;
+  highlightedLines?: number[];
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
+  const { resolvedTheme } = useTheme();
 
   const handleCopy = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -184,6 +190,8 @@ export function CodeView(props: {
 
   return (
     <div
+      // Note: Added language prop to CodeView, but it's only used for syntax highlighting here.
+      // The base component does not have this prop.
       className={cn(
         "flex max-w-full flex-col",
         props.className,
@@ -229,15 +237,47 @@ export function CodeView(props: {
             )}
           </Button>
         )}
-        <code
+        <div
           className={cn(
-            "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
+            "relative flex-1",
             isCollapsed ? `line-clamp-6` : "block",
-            props.scrollable ? "overflow-y-auto" : "",
+            props.scrollable && "overflow-y-auto",
           )}
         >
-          {props.content}
-        </code>
+          <SyntaxHighlighter
+            language={props.language ?? "bash"}
+            style={resolvedTheme === "dark" ? oneDark : oneLight}
+            showLineNumbers={props.highlightedLines?.length ? true : false}
+            wrapLines={true}
+            lineProps={(lineNumber) => {
+              const style: React.HTMLProps<HTMLElement>["style"] = {
+                display: "block",
+                width: "100%",
+              };
+              if (props.highlightedLines?.includes(lineNumber)) {
+                style.backgroundColor =
+                  resolvedTheme === "dark" ? "#4A4A4A" : "#E0E0E0";
+              }
+              return { style };
+            }}
+            customStyle={{
+              margin: 0,
+              padding: "12px",
+              background: "transparent",
+              borderRadius: "0.375rem",
+              fontSize: "0.75rem",
+            }}
+            codeTagProps={{
+              style: {
+                fontFamily: "var(--font-mono)",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+              },
+            }}
+          >
+            {String(props.content ?? "")}
+          </SyntaxHighlighter>
+        </div>
         {props.defaultCollapsed ? (
           <div className="flex gap-2 py-2 pr-2">
             <Button variant="secondary" size="xs" onClick={handleShowAll}>

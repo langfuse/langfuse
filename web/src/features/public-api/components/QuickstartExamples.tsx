@@ -10,6 +10,93 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Link from "next/link";
+import { ExternalLink, Grid } from "lucide-react";
+import {
+  SiPython,
+  SiJavascript,
+  SiOpenai,
+  SiAnthropic,
+  SiAmazonaws,
+  SiGoogle,
+} from "react-icons/si";
+
+// Brand or fallback colored-circle icons per integration value
+const IntegrationIcon = ({ name }: { name: string }) => {
+  const sizeClass = "h-4 w-4 mr-2 shrink-0";
+
+  switch (name) {
+    case "python":
+      return <SiPython className={sizeClass} color="#3776AB" />;
+    case "js":
+      return <SiJavascript className={sizeClass} color="#F7DF1E" />;
+    case "openai":
+      return <SiOpenai className={sizeClass} color="#412991" />;
+    case "anthropic":
+      return <SiAnthropic className={sizeClass} color="#FF4A4A" />;
+    case "bedrock":
+      return <SiAmazonaws className={sizeClass} color="#FF9900" />;
+    case "gemini":
+      return <SiGoogle className={sizeClass} color="#4285F4" />;
+    case "other":
+      return <Grid className={sizeClass} />;
+    default: {
+      // fallback circle
+      const color = "#6B7280";
+      return (
+        <svg
+          width={12}
+          height={12}
+          viewBox="0 0 12 12"
+          className={sizeClass}
+          aria-hidden="true"
+        >
+          <circle cx="6" cy="6" r="6" fill={color} />
+        </svg>
+      );
+    }
+  }
+};
+
+// Google Colab colored logo (interlocking circles)
+const ColabIcon = () => (
+  <svg
+    width={18}
+    height={18}
+    viewBox="0 0 40 40"
+    className="h-4 w-4"
+    aria-hidden="true"
+  >
+    <defs>
+      <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style={{ stopColor: "#FBBD16" }} />
+        <stop offset="100%" style={{ stopColor: "#F57A00" }} />
+      </linearGradient>
+    </defs>
+    <path
+      d="M18 4C9.716 4 3 10.716 3 19s6.716 15 15 15 15-6.716 15-15h-6.429c0 4.728-3.843 8.571-8.571 8.571S9.429 23.728 9.429 19 13.272 10.429 18 10.429V4Z"
+      fill="url(#grad1)"
+    />
+    <path
+      d="M22 36c8.284 0 15-6.716 15-15S30.284 6 22 6s-15 6.716-15 15h6.429c0-4.728 3.843-8.571 8.571-8.571S30.571 15.272 30.571 20 26.728 28.571 22 28.571V36Z"
+      fill="url(#grad1)"
+    />
+  </svg>
+);
+
+const ColabButton = ({ href }: { href: string }) => (
+  <Link
+    href={href}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="my-2 inline-block"
+  >
+    <Button variant="outline" className="gap-2">
+      <span>Open in Colab</span>
+      <ColabIcon />
+      <ExternalLink className="h-4 w-4" />
+    </Button>
+  </Link>
+);
 
 export const QuickstartExamples = (p: {
   secretKey?: string;
@@ -18,18 +105,13 @@ export const QuickstartExamples = (p: {
   const uiCustomization = useUiCustomization();
   const capture = usePostHogClientCapture();
   const tabs = [
-    { value: "python", label: "Python" },
+    { value: "python", label: "Decorator" },
     { value: "js", label: "JS/TS" },
     { value: "openai", label: "OpenAI" },
     { value: "anthropic", label: "Anthropic" },
     { value: "bedrock", label: "Bedrock" },
     { value: "gemini", label: "Gemini" },
-    { value: "langgraph", label: "LangGraph" },
-    { value: "dspy", label: "DSPy" },
-    { value: "llamaindex", label: "LlamaIndex" },
-    { value: "langchain", label: "Langchain" },
-    { value: "langchain-js", label: "Langchain JS" },
-    { value: "other", label: "Other" },
+    { value: "other", label: "All Integrations" },
   ];
   const host = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 
@@ -58,13 +140,11 @@ export const QuickstartExamples = (p: {
       {/* Use vertical orientation to show frameworks list at the side on ≥md screens */}
       <Tabs
         defaultValue="python"
-        className="flex flex-col md:flex-row gap-6"
+        className="flex flex-col gap-6 md:flex-row"
         orientation="vertical"
       >
         {/* Side nav */}
-        <TabsList
-          className="md:min-w-[180px] md:flex-col md:h-auto overflow-x-auto md:overflow-visible"
-        >
+        <TabsList className="overflow-x-auto md:h-[480px] md:min-w-[220px] md:flex-col md:justify-start md:gap-2 md:overflow-visible md:p-1">
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.value}
@@ -74,97 +154,146 @@ export const QuickstartExamples = (p: {
                   tabLabel: tab.value,
                 })
               }
-              className="md:justify-start"
+              className="md:w-full md:justify-start md:py-2 md:text-base"
             >
+              <IntegrationIcon name={tab.value} />
               {tab.label}
             </TabsTrigger>
           ))}
         </TabsList>
 
         {/* Content area */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <TabsContent value="python">
-            <CodeView content="pip install langfuse" className="mb-2" />
+            <p className="mb-2 mt-2 text-xs text-muted-foreground">
+              The <code>@observe()</code> decorator automatically captures
+              functions and generator executions as traces in Langfuse.
+            </p>
+            <CodeView content="pip install langfuse openai" className="my-2" />
             <CodeView
-              content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${secretKey}",\n  public_key="${publicKey}",\n  host="${host}"\n)`}
+              title=".env"
+              content={`LANGFUSE_SECRET_KEY=${secretKey}\nLANGFUSE_PUBLIC_KEY=${publicKey}\nLANGFUSE_HOST="${host}"\n# Get your OpenAI API key from https://platform.openai.com/keys\nOPENAI_API_KEY="<your-key>"`}
+              className="my-2"
             />
+            <CodeView
+              language="python"
+              highlightedLines={[1, 4, 14]}
+              content={`from langfuse import observe
+from langfuse.openai import openai # OpenAI integration
+
+@observe()
+def story():
+    return openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+          {"role": "system", "content": "You are a great storyteller."},
+          {"role": "user", "content": "Once upon a time in a galaxy far, far away..."}
+        ],
+    ).choices[0].message.content
+
+@observe()
+def main():
+    return story()
+
+main()`}
+              className="my-2"
+            />
+            <ColabButton href="https://colab.research.google.com/github/langfuse/examples/blob/main/decorator_quickstart.ipynb" />
             <p className="mt-3 text-xs text-muted-foreground">
-              See{" "}
+              See the{" "}
               <a
-                href="https://langfuse.com/docs/get-started"
+                href="https://langfuse.com/docs/tracing/decorators"
                 className="underline"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Quickstart
+                Decorator docs
               </a>{" "}
-              and{" "}
-              <a
-                href="https://langfuse.com/docs/sdk/python"
-                className="underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Python docs
-              </a>{" "}
-              for more details and an end-to-end example.
+              for more details.
             </p>
           </TabsContent>
 
           <TabsContent value="js">
-            <CodeView content="npm install langfuse" className="mb-2" />
             <CodeView
-              content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
+              language="bash"
+              content="npm install langfuse"
+              className="my-2"
+            />
+            <CodeView
+              title=".env"
+              content={`LANGFUSE_SECRET_KEY=${secretKey}\nLANGFUSE_PUBLIC_KEY=${publicKey}\nLANGFUSE_BASEURL="${host}"`}
+              className="my-2"
+            />
+            <CodeView
+              language="typescript"
+              highlightedLines={[1, 3]}
+              content={`import { Langfuse } from "langfuse";
+ 
+const langfuse = new Langfuse();
+ 
+async function main() {
+  const trace = langfuse.trace({
+    name: "chat-completion-trace",
+    userId: "user-id",
+  });
+ 
+  trace.generation({
+    name: "user-greeting",
+    input: [{ "role": "user", "content": "Hello, how are you?" }],
+    output: { "role": "assistant", "content": "I'm doing great, thanks for asking!" },
+    model: "gpt-3.5-turbo",
+  });
+ 
+  // ensure all events are sent before the process exits
+  await langfuse.shutdownAsync();
+}
+ 
+main();`}
+              className="my-2"
             />
             <p className="mt-3 text-xs text-muted-foreground">
-              See{" "}
-              <a
-                href="https://langfuse.com/docs/get-started"
-                className="underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Quickstart
-              </a>{" "}
-              and{" "}
+              See the{" "}
               <a
                 href="https://langfuse.com/docs/sdk/typescript"
                 className="underline"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                JS/TS docs
+                JS/TS SDK docs
               </a>{" "}
-              for more details and an end-to-end example.
+              for more details.
             </p>
           </TabsContent>
 
           <TabsContent value="openai">
             <p className="mt-2 text-xs text-muted-foreground">
-              The integration is a drop-in replacement for the OpenAI Python SDK.
-              By changing the import, Langfuse will capture all LLM calls and send
-              them to Langfuse asynchronously.
+              The integration is a drop-in replacement for the OpenAI Python
+              SDK. By changing the import, Langfuse will capture all LLM calls
+              and send them to Langfuse asynchronously.
             </p>
-            <CodeView content="pip install langfuse" className="my-2" />
+            <CodeView
+              language="bash"
+              content="pip install langfuse openai"
+              className="my-2"
+            />
             <CodeView
               title=".env"
-              content={`LANGFUSE_SECRET_KEY=${secretKey}\nLANGFUSE_PUBLIC_KEY=${publicKey}\nLANGFUSE_HOST="${host}"`}
+              content={`LANGFUSE_SECRET_KEY=${secretKey}\nLANGFUSE_PUBLIC_KEY=${publicKey}\nLANGFUSE_HOST="${host}"\n# Get your OpenAI API key from https://platform.openai.com/keys\nOPENAI_API_KEY="<your-key>"`}
               className="my-2"
             />
             <CodeView
-              content={`# remove: import openai\n\nfrom langfuse.openai import openai`}
+              language="python"
+              highlightedLines={[1]}
+              content={`from langfuse.openai import openai
+  
+ completion = openai.chat.completions.create(
+  model="gpt-3.5-turbo",
+  messages=[{"role": "user", "content": "Say this is a test"}]
+)
+print(completion.choices[0].message)`}
               className="my-2"
             />
-            {/* Colab quickstart */}
-            <a
-              href="https://colab.research.google.com/github/langfuse/examples/blob/main/openai_quickstart.ipynb"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" className="my-2">
-                Open in Colab
-              </Button>
-            </a>
+            <ColabButton href="https://colab.research.google.com/github/langfuse/examples/blob/main/openai_quickstart.ipynb" />
             <p className="mt-2 text-xs text-muted-foreground">
               Use the OpenAI SDK as you would normally. See the{" "}
               <a
@@ -181,9 +310,9 @@ export const QuickstartExamples = (p: {
 
           <TabsContent value="anthropic">
             <p className="mt-2 text-xs text-muted-foreground">
-              The integration is a drop-in replacement for the Anthropic Python SDK.
-              By changing the import, Langfuse will capture all LLM calls and send
-              them to Langfuse asynchronously.
+              The integration is a drop-in replacement for the Anthropic Python
+              SDK. By changing the import, Langfuse will capture all LLM calls
+              and send them to Langfuse asynchronously.
             </p>
             <CodeView content="pip install langfuse" className="my-2" />
             <CodeView
@@ -196,15 +325,7 @@ export const QuickstartExamples = (p: {
               className="my-2"
             />
             {/* Colab quickstart */}
-            <a
-              href="https://colab.research.google.com/github/langfuse/examples/blob/main/anthropic_quickstart.ipynb"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" className="my-2">
-                Open in Colab
-              </Button>
-            </a>
+            <ColabButton href="https://colab.research.google.com/github/langfuse/examples/blob/main/anthropic_quickstart.ipynb" />
             <p className="mt-2 text-xs text-muted-foreground">
               Use the Anthropic SDK as you would normally. See the{" "}
               <a
@@ -234,17 +355,9 @@ export const QuickstartExamples = (p: {
               content={`# remove: import boto3\n\nfrom langfuse.bedrock import bedrock`}
               className="my-2"
             />
-            <a
-              href="https://colab.research.google.com/github/langfuse/examples/blob/main/bedrock_quickstart.ipynb"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" className="my-2">
-                Open in Colab
-              </Button>
-            </a>
+            <ColabButton href="https://colab.research.google.com/github/langfuse/examples/blob/main/bedrock_quickstart.ipynb" />
             <p className="mt-2 text-xs text-muted-foreground">
-              See the {" "}
+              See the{" "}
               <a
                 href="https://langfuse.com/docs/integrations/bedrock"
                 className="underline"
@@ -272,17 +385,9 @@ export const QuickstartExamples = (p: {
               content={`# remove: from google.generativeai import generativeai\n\nfrom langfuse.gemini import generativeai`}
               className="my-2"
             />
-            <a
-              href="https://colab.research.google.com/github/langfuse/examples/blob/main/gemini_quickstart.ipynb"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" className="my-2">
-                Open in Colab
-              </Button>
-            </a>
+            <ColabButton href="https://colab.research.google.com/github/langfuse/examples/blob/main/gemini_quickstart.ipynb" />
             <p className="mt-2 text-xs text-muted-foreground">
-              See the {" "}
+              See the{" "}
               <a
                 href="https://langfuse.com/docs/integrations/gemini"
                 className="underline"
@@ -295,166 +400,22 @@ export const QuickstartExamples = (p: {
             </p>
           </TabsContent>
 
-          {/* LangGraph */}
-          <TabsContent value="langgraph">
-            <p className="mt-2 text-xs text-muted-foreground">
-              Automatically trace LangGraph executions using Langfuse callbacks.
-            </p>
-            <CodeView content="pip install langfuse langgraph" className="my-2" />
-            <CodeView
-              content={LANGGRAPH_CODE({ publicKey, secretKey, host })}
-              className="my-2"
-            />
-            <a
-              href="https://colab.research.google.com/github/langfuse/examples/blob/main/langgraph_quickstart.ipynb"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" className="my-2">
-                Open in Colab
-              </Button>
-            </a>
-            <p className="mt-2 text-xs text-muted-foreground">
-              See the {" "}
-              <a
-                href="https://langfuse.com/docs/integrations/langgraph"
-                className="underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                LangGraph Integration docs
-              </a>{" "}
-              for more details and an end-to-end example.
-            </p>
-          </TabsContent>
-
-          {/* DSPy */}
-          <TabsContent value="dspy">
-            <p className="mt-2 text-xs text-muted-foreground">
-              Use Langfuse’s DSPy callback to capture symbolic reasoning traces.
-            </p>
-            <CodeView content="pip install langfuse dspy-ai" className="my-2" />
-            <CodeView
-              content={DSPY_CODE({ publicKey, secretKey, host })}
-              className="my-2"
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              See the {" "}
-              <a
-                href="https://langfuse.com/docs/integrations/dspy"
-                className="underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                DSPy Integration docs
-              </a>{" "}
-              for more details and an end-to-end example.
-            </p>
-          </TabsContent>
-
-          {/* LlamaIndex */}
-          <TabsContent value="llamaindex">
-            <p className="mt-2 text-xs text-muted-foreground">
-              Capture retrieval & synthesis traces from LlamaIndex workflows.
-            </p>
-            <CodeView content="pip install langfuse llama-index" className="my-2" />
-            <CodeView
-              content={LLAMAINDEX_CODE({ publicKey, secretKey, host })}
-              className="my-2"
-            />
-            <a
-              href="https://colab.research.google.com/github/langfuse/examples/blob/main/llamaindex_quickstart.ipynb"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" className="my-2">
-                Open in Colab
-              </Button>
-            </a>
-            <p className="mt-2 text-xs text-muted-foreground">
-              See the {" "}
-              <a
-                href="https://langfuse.com/docs/integrations/llamaindex"
-                className="underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                LlamaIndex Integration docs
-              </a>{" "}
-              for more details and an end-to-end example.
-            </p>
-          </TabsContent>
-
-          <TabsContent value="langchain">
-            <p className="mt-2 text-xs text-muted-foreground">
-              The integration uses the Langchain callback system to automatically
-              capture detailed traces of your Langchain executions.
-            </p>
-            <CodeView content="pip install langfuse" className="my-2" />
-            <CodeView
-              content={LANGCHAIN_PYTHON_CODE({ publicKey, secretKey, host })}
-              className="my-2"
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              See the{" "}
-              <a
-                href="https://langfuse.com/docs/integrations/langchain/python"
-                className="underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Langchain Integration docs
-              </a>{" "}
-              for more details and an end-to-end example.
-            </p>
-          </TabsContent>
-
-          <TabsContent value="langchain-js">
-            <p className="mt-2 text-xs text-muted-foreground">
-              The integration uses the Langchain callback system to automatically
-              capture detailed traces of your Langchain executions.
-            </p>
-            <CodeView content="npm install langfuse-langchain" className="my-2" />
-            <CodeView
-              content={LANGCHAIN_JS_CODE({ publicKey, secretKey, host })}
-              className="my-2"
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              See the{" "}
-              <a
-                href="https://langfuse.com/docs/integrations/langchain/typescript"
-                className="underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Langchain Integration docs
-              </a>{" "}
-              for more details and an end-to-end example.
-            </p>
-          </TabsContent>
-
           <TabsContent value="other">
-            <p className="mt-2 text-xs text-muted-foreground">
-              Use the{" "}
-              <a
-                href="https://api.reference.langfuse.com/"
-                className="underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                API
-              </a>{" "}
-              or one of the{" "}
-              <a
-                href="https://langfuse.com/docs/integrations"
-                className="underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                native integrations
-              </a>{" "}
-              (e.g. LiteLLM, Flowise, and Langflow) to integrate with Langfuse.
+            <p className="mt-2 text-sm text-muted-foreground">
+              Langfuse offers many more integrations. Check out the overview
+              page to learn more.
             </p>
+            <Link
+              href="https://langfuse.com/docs/integrations/overview"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block"
+            >
+              <Button variant="outline" className="mt-4 gap-2">
+                Explore all integrations
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </Link>
           </TabsContent>
         </div>
       </Tabs>
@@ -491,97 +452,3 @@ export const QuickstartExamples = (p: {
     </div>
   );
 };
-const LANGCHAIN_PYTHON_CODE = (p: {
-  publicKey: string;
-  secretKey: string;
-  host: string;
-}) => `from langfuse import Langfuse
-from langfuse.langchain import CallbackHandler
-
-langfuse = Langfuse(
-    public_key="${p.publicKey}",
-    secret_key="${p.secretKey}",
-    host="${p.host}"
-)
-
-langfuse_handler = CallbackHandler()
-
-# <Your Langchain code here>
- 
-# Add handler to run/invoke/call/chat
-chain.invoke({"input": "<user_input>"}, config={"callbacks": [langfuse_handler]})`;
-
-const LANGCHAIN_JS_CODE = (p: {
-  publicKey: string;
-  secretKey: string;
-  host: string;
-}) => `import { CallbackHandler } from "langfuse-langchain";
- 
-// Initialize Langfuse callback handler
-const langfuseHandler = new CallbackHandler({
-  publicKey: "${p.publicKey}",
-  secretKey: "${p.secretKey}",
-  baseUrl: "${p.host}"
-});
- 
-// Your Langchain implementation
-const chain = new LLMChain(...);
- 
-// Add handler as callback when running the Langchain agent
-await chain.invoke(
-  { input: "<user_input>" },
-  { callbacks: [langfuseHandler] }
-);`;
-
-// LangGraph
-const LANGGRAPH_CODE = (p: {
-  publicKey: string;
-  secretKey: string;
-  host: string;
-}) => `from langfuse import Langfuse
-from langfuse.langgraph import CallbackHandler
-
-langfuse = Langfuse(
-    public_key="${p.publicKey}",
-    secret_key="${p.secretKey}",
-    host="${p.host}"
-)
-
-handler = CallbackHandler(langfuse)
-
-# build your LangGraph workflow
-workflow.run({"input": "<user_input>"}, callbacks=[handler])`;
-
-// DSPy
-const DSPY_CODE = (p: {
-  publicKey: string;
-  secretKey: string;
-  host: string;
-}) => `from langfuse.dspy import LangfuseTracer
-
-# Initialise tracer
-tracer = LangfuseTracer(
-    public_key="${p.publicKey}",
-    secret_key="${p.secretKey}",
-    host="${p.host}"
-)
-
-# integrate tracer into DSPy compilation
-compiled_program = program.compile_tracer(tracer)`;
-
-// LlamaIndex
-const LLAMAINDEX_CODE = (p: {
-  publicKey: string;
-  secretKey: string;
-  host: string;
-}) => `from langfuse.llama_index import CallbackHandler
-
-# create callback handler
-handler = CallbackHandler(
-    public_key="${p.publicKey}",
-    secret_key="${p.secretKey}",
-    host="${p.host}"
-)
-
-# pass handler to query engine
-response = index.query("<query>", callbacks=[handler])`;

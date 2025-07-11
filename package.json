@@ -96,5 +96,9 @@
     "patchedDependencies": {
       "next-auth@4.24.11": "patches/next-auth@4.24.11.patch"
     }
+  },
+  "dependencies": {
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "react-syntax-highlighter": "^15.6.1"
   }
 }
