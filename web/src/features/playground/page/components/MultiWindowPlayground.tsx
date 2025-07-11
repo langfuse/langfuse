@@ -124,7 +124,7 @@ function PlaygroundWindowContent({
   return (
     <div className="playground-window flex h-full min-w-0 flex-col rounded-lg border bg-background shadow-sm">
       {/* Window Header */}
-      <div className="flex-shrink-0 border-b bg-muted/50 p-3">
+      <div className="flex-shrink-0 border-b bg-muted/50 px-3 py-1">
         <div className="flex items-center justify-between">
           <div className="flex flex-1 items-center gap-2">
             <ModelParameters {...playgroundContext} layout="compact" />
@@ -139,7 +139,7 @@ function PlaygroundWindowContent({
               className="h-6 w-6 p-0 hover:bg-muted"
               title="Copy window configuration"
             >
-              <Copy className="h-3 w-3" />
+              <Copy size={14} />
               <span className="sr-only">Copy window</span>
             </Button>
             {canRemove && (
@@ -149,7 +149,7 @@ function PlaygroundWindowContent({
                 className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
                 title="Remove window"
               >
-                <X className="h-3 w-3" />
+                <X size={14} />
                 <span className="sr-only">Remove window</span>
               </Button>
             )}

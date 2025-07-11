@@ -29,7 +29,7 @@ export const ConfigurationDropdowns: React.FC = () => {
   const variablesCount = promptVariables.length + messagePlaceholders.length;
 
   return (
-    <div className="flex-shrink-0 border-b bg-muted/25 p-3">
+    <div className="flex-shrink-0 border-b bg-muted/25 px-3 py-2">
       <div className="flex items-center gap-2">
         {/* Tools Dropdown */}
         <Popover>

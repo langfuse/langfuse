@@ -92,7 +92,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
           className={cn("h-6 w-6 p-0 hover:bg-muted", className)}
           title="Save current configuration as a prompt template for reuse across your project"
         >
-          <FileInput className="h-3 w-3" />
+          <FileInput size={14} />
           <span className="sr-only">Save as prompt</span>
         </Button>
       </PopoverTrigger>
