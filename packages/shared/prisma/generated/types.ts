@@ -637,6 +637,7 @@ export type Price = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
   model_id: string;
+  project_id: string | null;
   usage_type: string;
   price: string;
 };

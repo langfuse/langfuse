@@ -292,6 +292,7 @@ export const modelRouter = createTRPCRouter({
             )
             .map(([usageType, price]) => ({
               modelId: upsertedModel.id,
+              projectId: upsertedModel.projectId,
               usageType,
               price,
             })),

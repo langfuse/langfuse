@@ -81,6 +81,7 @@ describe("Token Cost Calculation", () => {
       prisma.price.createMany({
         data: modelPrices.map((price) => ({
           modelId,
+          projectId: null,
           usageType: price.usageType,
           price: price.price,
         })),
