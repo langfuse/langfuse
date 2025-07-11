@@ -4,7 +4,9 @@
       "Bash(find:*)",
       "Bash(rg:*)",
       "Bash(grep:*)",
-      "Bash(pnpm run test:*)"
+      "Bash(pnpm run test:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }
