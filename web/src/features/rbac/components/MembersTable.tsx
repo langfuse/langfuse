@@ -362,6 +362,7 @@ export function MembersTable({
       {showSettingsCard ? (
         <SettingsTableCard>
           <DataTable
+            tableName={"members"}
             columns={columns}
             data={
               members.isLoading
@@ -393,6 +394,7 @@ export function MembersTable({
         </SettingsTableCard>
       ) : (
         <DataTable
+          tableName={"members"}
           columns={columns}
           data={
             members.isLoading

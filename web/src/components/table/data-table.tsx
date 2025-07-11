@@ -38,6 +38,7 @@ import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekVie
 import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
 import { isEqual } from "lodash";
 import { useRouter } from "next/router";
+import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -65,6 +66,7 @@ interface DataTableProps<TData, TValue> {
   peekView?: PeekViewProps<TData>;
   pinFirstColumn?: boolean;
   hidePagination?: boolean;
+  tableName: string;
 }
 
 export interface AsyncTableData<T> {
@@ -120,6 +122,7 @@ export function DataTable<TData extends object, TValue>({
   peekView,
   pinFirstColumn = false,
   hidePagination = false,
+  tableName,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -135,6 +138,8 @@ export function DataTable<TData extends object, TValue>({
     });
     return flatColumnsByGroup;
   }, [columns]);
+
+  const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -169,7 +174,9 @@ export function DataTable<TData extends object, TValue>({
         ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
         : undefined,
       rowSelection,
+      columnSizing,
     },
+    onColumnSizingChange: setColumnSizing,
     manualFiltering: true,
     defaultColumn: {
       minSize: 20,
