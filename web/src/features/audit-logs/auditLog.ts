@@ -30,6 +30,8 @@ export type AuditableResource =
   | "blobStorageIntegration"
   | "posthogIntegration"
   | "llmApiKey"
+  | "llmTool"
+  | "llmSchema"
   | "batchExport"
   | "stripeCheckoutSession"
   | "batchAction"

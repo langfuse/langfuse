@@ -12,6 +12,7 @@ import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetention
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export async function handleUpdateProject(
   req: NextApiRequest,
@@ -119,7 +120,7 @@ export async function handleDeleteProject(
     });
 
     // Mark project as deleted
-    await prisma.project.update({
+    const project = await prisma.project.update({
       where: {
         id: projectId,
         orgId: scope.orgId,
@@ -127,6 +128,17 @@ export async function handleDeleteProject(
       data: {
         deletedAt: new Date(),
       },
+    });
+
+    // Create audit log entry
+    await auditLog({
+      apiKeyId: scope.apiKeyId,
+      orgId: scope.orgId,
+      projectId,
+      resourceType: "project",
+      resourceId: projectId,
+      before: project,
+      action: "delete",
     });
 
     // Queue project deletion job
