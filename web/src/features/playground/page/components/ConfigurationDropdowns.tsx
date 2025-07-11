@@ -1,13 +1,14 @@
 import React from "react";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Wrench, Braces, Variable } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { usePlaygroundContext } from "../context";
+import { usePlaygroundWindowSize } from "../hooks/usePlaygroundWindowSize";
 import { PlaygroundTools, PlaygroundToolsPopover } from "./PlaygroundTools";
 import {
   StructuredOutputSchemaSection,
@@ -17,6 +18,7 @@ import { Variables } from "./Variables";
 import { MessagePlaceholders } from "./MessagePlaceholders";
 
 export const ConfigurationDropdowns: React.FC = () => {
+  const { containerRef, isVeryCompact, isCompact } = usePlaygroundWindowSize();
   const {
     tools,
     structuredOutputSchema,
@@ -28,14 +30,42 @@ export const ConfigurationDropdowns: React.FC = () => {
   const hasSchema = structuredOutputSchema ? 1 : 0;
   const variablesCount = promptVariables.length + messagePlaceholders.length;
 
+  // Helper function to get responsive content (text or icon)
+  const getResponsiveContent = (
+    fullText: string,
+    IconComponent: React.ComponentType<{ className?: string }>,
+    abbreviation?: string,
+  ) => {
+    if (isVeryCompact) {
+      return <IconComponent className="h-3 w-3" />;
+    }
+    if (isCompact) {
+      return (
+        <>
+          <IconComponent className="h-3 w-3" />
+          <span className="text-sm">{abbreviation ?? fullText}</span>
+        </>
+      );
+    }
+    return (
+      <>
+        <IconComponent className="h-3 w-3" />
+        <span className="text-sm">{fullText}</span>
+      </>
+    );
+  };
+
   return (
-    <div className="flex-shrink-0 border-b bg-muted/25 px-3 py-2">
-      <div className="flex items-center gap-2">
+    <div
+      ref={containerRef}
+      className="flex-shrink-0 border-b bg-muted/25 px-3 py-2"
+    >
+      <div className="flex items-center justify-start gap-2">
         {/* Tools Dropdown */}
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-2">
-              <span className="text-sm">Tools</span>
+              {getResponsiveContent("Tools", Wrench)}
               {toolsCount > 0 && (
                 <Badge variant="secondary" className="h-4 text-xs">
                   {toolsCount}
@@ -72,7 +102,7 @@ export const ConfigurationDropdowns: React.FC = () => {
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-2">
-              <span className="text-sm">Schema</span>
+              {getResponsiveContent("Schema", Braces)}
               {hasSchema > 0 && (
                 <Badge variant="secondary" className="h-4 text-xs">
                   {hasSchema}
@@ -109,7 +139,7 @@ export const ConfigurationDropdowns: React.FC = () => {
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-2">
-              <span className="text-sm">Variables</span>
+              {getResponsiveContent("Variables", Variable, "Vars")}
               {variablesCount > 0 && (
                 <Badge variant="secondary" className="h-4 text-xs">
                   {variablesCount}
