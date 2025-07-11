@@ -162,7 +162,7 @@ model Project {
   automationExecutions   AutomationExecution[]
   Automation             Automation[]
   DefaultLlmModel        DefaultLlmModel[]
-  Price Price[]
+  Price                  Price[]
 
   @@index([orgId])
   @@map("projects")
