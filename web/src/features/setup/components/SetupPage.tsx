@@ -290,7 +290,7 @@ const TracingSetup = ({
       <div>
         <Header
           title="Setup Tracing"
-          status={hasAnyTrace ? "active" : "pending"}
+          status={hasAnyTrace ? "Traces received" : "Listening for Traces..."}
         />
         <p className="mb-4 text-sm text-muted-foreground">
           Tracing is used to track and analyze your LLM calls. You can always

@@ -2,8 +2,23 @@ import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
 
 const statusCategories = {
-  active: ["production", "live", "active", "public"],
-  pending: ["pending", "waiting", "queued"],
+  // Active style (green)
+  active: [
+    "production",
+    "live",
+    "active",
+    "public",
+    // custom labels
+    "traces received",
+  ],
+  // Pending style (yellow)
+  pending: [
+    "pending",
+    "waiting",
+    "queued",
+    // custom labels
+    "listening for traces...",
+  ],
   inactive: ["disabled", "inactive"],
   completed: ["completed", "done", "finished"],
   error: ["error", "failed"],
