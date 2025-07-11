@@ -48,7 +48,7 @@ export type ScoreTargetSession = z.infer<typeof ScoreTargetSession>;
 export type ScoreTarget = z.infer<typeof ScoreTarget>;
 
 const CreateAnnotationScoreBase = z.object({
-  name: StringNoHTML,
+  name: StringNoHTMLNonEmpty,
   projectId: z.string(),
   environment: z.string().default("default"),
   scoreTarget: ScoreTarget,

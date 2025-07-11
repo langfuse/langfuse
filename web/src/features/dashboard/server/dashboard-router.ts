@@ -31,7 +31,6 @@ import {
   orderBy,
   InvalidRequestError,
   StringNoHTML,
-  StringNoHTMLNonEmpty,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -59,14 +58,14 @@ const UpdateDashboardDefinitionInput = z.object({
 const UpdateDashboardInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
-  name: StringNoHTMLNonEmpty.min(1, "Dashboard name is required"),
+  name: StringNoHTML.min(1, "Dashboard name is required"),
   description: StringNoHTML,
 });
 
 // Create dashboard input schema
 const CreateDashboardInput = z.object({
   projectId: z.string(),
-  name: StringNoHTMLNonEmpty.min(1, "Dashboard name is required"),
+  name: StringNoHTML.min(1, "Dashboard name is required"),
   description: StringNoHTML,
 });
 

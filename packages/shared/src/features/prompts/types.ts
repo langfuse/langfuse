@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 import type { Prompt } from "../../../prisma/generated/types";
-import { jsonSchema, StringNoHTML } from "../../utils/zod";
+import { jsonSchema } from "../../utils/zod";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "./constants";
 import { PromptChatMessageSchema } from "../../server/llm/types";
 import { PromptNameSchema } from "./validation";
@@ -36,7 +36,7 @@ const BaseCreateTextPromptSchema = z.object({
 const LegacyCreateTextPromptSchema = BaseCreateTextPromptSchema;
 
 export const CreateTextPromptSchema = BaseCreateTextPromptSchema.extend({
-  commitMessage: StringNoHTML.max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
 const BaseCreateChatPromptSchema = z.object({
@@ -51,7 +51,7 @@ const BaseCreateChatPromptSchema = z.object({
 const LegacyCreateChatPromptSchema = BaseCreateChatPromptSchema;
 
 export const CreateChatPromptSchema = BaseCreateChatPromptSchema.extend({
-  commitMessage: StringNoHTML.max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
 export const CreatePromptSchema = z.union([
