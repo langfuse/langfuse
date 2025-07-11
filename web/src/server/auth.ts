@@ -388,6 +388,13 @@ const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
 const extendedPrismaAdapter: Adapter = {
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
+    // Write to file as well to ensure we can track this
+    try {
+      require('fs').appendFileSync('/tmp/debug.txt', `createUser called at ${new Date().toISOString()} for email: ${profile.email}\n`);
+    } catch (e) {
+      // ignore file write errors
+    }
+    
     if (!prismaAdapter.createUser)
       throw new Error("createUser not implemented");
     if (
@@ -401,6 +408,20 @@ const extendedPrismaAdapter: Adapter = {
         "Cannot create db user as login profile does not contain an email: " +
           JSON.stringify(profile),
       );
+    }
+
+    // Check if invitation is required and exists
+    if (env.LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP === "true") {
+      const pendingInvitation = await prisma.membershipInvitation.findFirst({
+        where: {
+          email: profile.email.toLowerCase(),
+        },
+      });
+
+      if (!pendingInvitation) {
+        throw new Error("Sign up requires an invitation. Please contact an administrator for an invitation.");
+      }
+    } else {
     }
 
     const user = await prismaAdapter.createUser(profile);

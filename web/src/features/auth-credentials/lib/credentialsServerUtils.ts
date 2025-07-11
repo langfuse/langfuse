@@ -1,6 +1,7 @@
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { prisma } from "@langfuse/shared/src/db";
 import { compare, hash } from "bcryptjs";
+import { env } from "@/src/env.mjs";
 
 /**
  * This function creates a user with an email and password.
@@ -18,6 +19,19 @@ export async function createUserEmailPassword(
 ) {
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");
+
+  // Check if invitation is required and exists
+  if (env.LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP === "true") {
+    const pendingInvitation = await prisma.membershipInvitation.findFirst({
+      where: {
+        email: email.toLowerCase(),
+      },
+    });
+
+    if (!pendingInvitation) {
+      throw new Error("Sign up requires an invitation. Please contact an administrator for an invitation.");
+    }
+  }
 
   const hashedPassword = await hashPassword(password);
   // check that no user exists with this email
