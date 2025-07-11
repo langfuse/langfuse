@@ -1,5 +1,5 @@
 /**
- * This script is used to patch the LLMTool and LLLMSchemaAuditLogs in the database.
+ * This script is used to patch the LLMTool and LLMSchemaAuditLogs in the database.
  * Initially, the routers were created with a wrong resource type "project" within their audit logs,
  * instead of using llmTool and llmSchema respectively.
  * This caused inconsistent audit logs with false-positive changes on projects.
@@ -15,7 +15,7 @@ import { prisma } from "@langfuse/shared/src/db";
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "3445cac4-d9d5-4750-8b65-351135c1b85e"; // eslint-disable-line no-unused-vars
 
-export default class PatchLLMToolAndLLLMSchemaAuditLogs
+export default class PatchLLMToolAndLLMSchemaAuditLogs
   implements IBackgroundMigration
 {
   private isAborted = false;
@@ -31,7 +31,7 @@ export default class PatchLLMToolAndLLLMSchemaAuditLogs
   async run(): Promise<void> {
     const start = Date.now();
     logger.info(
-      `[Background Migration] Patching audit logs for LLMTool and LLLMSchema`,
+      `[Background Migration] Patching audit logs for LLMTool and LLMSchema`,
     );
 
     const failedInferenceIds = new Set<String>();
@@ -121,14 +121,14 @@ export default class PatchLLMToolAndLLLMSchemaAuditLogs
 
   async abort(): Promise<void> {
     logger.info(
-      `[Background Migration] Aborting patching of LLMTool and LLLMSchema audit logs`,
+      `[Background Migration] Aborting patching of LLMTool and LLMSchema audit logs`,
     );
     this.isAborted = true;
   }
 }
 
 async function main() {
-  const migration = new PatchLLMToolAndLLLMSchemaAuditLogs();
+  const migration = new PatchLLMToolAndLLMSchemaAuditLogs();
   await migration.validate();
   await migration.run();
 }
