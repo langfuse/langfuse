@@ -218,7 +218,6 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "TableViewPresets:CUD",
     "TableViewPresets:read",
     "automations:read",
-    "automations:CUD",
   ],
   VIEWER: [
     "project:read",
