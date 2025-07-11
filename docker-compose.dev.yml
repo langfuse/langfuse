@@ -41,7 +41,7 @@ services:
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
     ports:
-      - 127.0.0.1:6379:6379
+      - 127.0.0.1:${REDIS_PORT:-6379}:6379
 
   postgres:
     image: docker.io/postgres:${POSTGRES_VERSION:-latest}

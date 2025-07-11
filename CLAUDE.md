@@ -49,12 +49,20 @@ This is a **pnpm + Turbo monorepo** with the following key packages:
 ## Development Commands
 
 ### Development
+
+To perform a full initial setup, first:
+
+1. Ensure that `golang-migrate` is installed in the CLI
+2. Create an appropriate .env file, for example: `cp .env.dev.example .env`
+
 ```sh
 pnpm i               # Install dependencies
+pnpm run dx          # Full initial setup: install deps, reset DBs, resets node modules, seed data, start dev. USE SPARINGLY AS IT WIPES THE DATABASE & node_modules
+
+# After Full Initial Setup
 pnpm run dev         # Start all services (web + worker)
 pnpm run dev:web     # Web app only (localhost:3000) - **used in most cases!**
 pnpm run dev:worker  # Worker only
-pnpm run dx          # Full initial setup: install deps, reset DBs, resets node modules, seed data, start dev. USE SPARINGLY AS IT WIPES THE DATABASE & node_modules
 ```
 
 ### Database Management
@@ -169,6 +177,16 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 - **Package Manager**: pnpm v9.5.0
 - **Database Dependencies**: Docker for local PostgreSQL, ClickHouse, Redis, MinIO
 - **Environment**: Copy `.env.dev.example` to `.env`
+
+### Customizing Redis Port
+
+By default, development Redis containers are exposed on host port `6380` through the .env file in order to avoid local conflict with the standard redis port at `6379`. To further customize, you can change change `REDIS_PORT` in your `.env` file:
+
+```txt
+REDIS_PORT=6381
+```
+
+Then, re-create your containers through `pnpm run dx` or docker compose to apply the new port configuration.
 
 ## Login for Development
 
