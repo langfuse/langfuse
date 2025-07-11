@@ -94,7 +94,7 @@ export const StringNoHTML = z.string().refine((val) => !htmlRegex.test(val), {
 
 export const StringNoHTMLNonEmpty = z
   .string()
-  .min(1)
+  .min(1, "Text cannot be empty")
   .refine((val) => !htmlRegex.test(val), {
     message: "Text cannot contain HTML tags",
   });

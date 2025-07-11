@@ -19,7 +19,7 @@ import {
   PromptLabelSchema,
   promptsTableCols,
   PromptType,
-  StringNoHTML,
+  StringNoHTMLNonEmpty,
 } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
 import {
@@ -280,7 +280,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         promptId: z.string(),
-        name: StringNoHTML,
+        name: StringNoHTMLNonEmpty,
         isSingleVersion: z.boolean(),
       }),
     )
