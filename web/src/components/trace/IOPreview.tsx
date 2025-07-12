@@ -163,6 +163,7 @@ export const IOPreview: React.FC<{
                   className="ph-no-capture"
                   content={input}
                   media={media?.filter((m) => m.field === "input") ?? []}
+                  isDefaultImageVisible={true}
                 />
               ) : null}
               {!(hideIfNull && !output) && !hideOutput ? (
