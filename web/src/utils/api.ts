@@ -83,6 +83,19 @@ const handleTrpcError = (error: unknown) => {
   trpcErrorToast(error);
 };
 
+/**
+ * Network-aware retry function for tRPC queries.
+ * Prevents retries on network errors to avoid Sentry spam.
+ */
+export const createNetworkAwareRetry = (maxRetries = 3) => 
+  (failureCount: number, error: Error) => {
+    // Don't retry on network errors to avoid Sentry spam
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      return false;
+    }
+    return failureCount < maxRetries;
+  };
+
 // onError update build id to compare versions
 const buildIdLink = (): TRPCLink<AppRouter> => () => {
   return ({ next, op }) => {

@@ -473,13 +473,31 @@ function TableBodyComponent<TData>({
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
-      {data.isLoading || !data.data ? (
+      {data.isLoading ? (
         <TableRow className="h-svh">
           <TableCell
             colSpan={columns.length}
             className="content-start border-b text-center"
           >
             Loading...
+          </TableCell>
+        </TableRow>
+      ) : data.isError ? (
+        <TableRow className="h-svh">
+          <TableCell
+            colSpan={columns.length}
+            className="content-start border-b text-center text-destructive"
+          >
+            {data.error || "Failed to load data. Please try refreshing the page."}
+          </TableCell>
+        </TableRow>
+      ) : !data.data ? (
+        <TableRow className="h-svh">
+          <TableCell
+            colSpan={columns.length}
+            className="content-start border-b text-center"
+          >
+            No data available
           </TableCell>
         </TableRow>
       ) : table.getRowModel().rows.length ? (
