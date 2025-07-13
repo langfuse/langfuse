@@ -19,7 +19,11 @@ import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
 import { UiColumnMappings } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { convertClickhouseToDomain } from "./traces_converters";
+import {
+  convertClickhouseToDomain,
+  TraceDomainWithoutIO,
+} from "./traces_converters";
+import { TraceDomain } from "../../domain";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -228,7 +232,7 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
   await upsertClickhouse({
     table: "traces",
     records: [trace as TraceRecordReadType],
-    eventBodyMapper: convertClickhouseToDomain,
+    eventBodyMapper: (record) => convertClickhouseToDomain({ record }),
     tags: {
       feature: "tracing",
       type: "trace",
@@ -317,7 +321,7 @@ export const getTracesByIds = async (
     },
   });
 
-  return records.map(convertClickhouseToDomain);
+  return records.map((record) => convertClickhouseToDomain({ record }));
 };
 
 export const getTracesBySessionId = async (
@@ -348,7 +352,7 @@ export const getTracesBySessionId = async (
     },
   });
 
-  const traces = records.map(convertClickhouseToDomain);
+  const traces = records.map((record) => convertClickhouseToDomain({ record }));
 
   traces.forEach((trace) => {
     recordDistribution(
@@ -486,17 +490,23 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
  * 2. One without any timestamp filters (complete but slower)
  * Returns the first non-empty result.
  */
-export const getTraceById = async ({
+export const getTraceById = async <ConvertToAsString extends boolean = false>({
   traceId,
   projectId,
   timestamp,
   fromTimestamp,
+  convertToString = false as ConvertToAsString,
 }: {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   fromTimestamp?: Date;
-}) => {
+  convertToString?: ConvertToAsString;
+}): Promise<
+  ConvertToAsString extends true
+    ? { stringified: string; domain: TraceDomainWithoutIO } | undefined
+    : TraceDomain | undefined
+> => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
     projectId,
@@ -572,19 +582,27 @@ export const getTraceById = async ({
     },
   });
 
-  const res = records.map(convertClickhouseToDomain);
+  const res = records.map((record) =>
+    convertClickhouseToDomain({ record, convertToString }),
+  );
 
   res.forEach((trace) => {
+    const timestamp = convertToString
+      ? (trace as { stringified: string; domain: TraceDomainWithoutIO }).domain
+          .timestamp
+      : (trace as TraceDomain).timestamp;
     recordDistribution(
       "langfuse.query_by_id_age",
-      new Date().getTime() - trace.timestamp.getTime(),
+      new Date().getTime() - timestamp.getTime(),
       {
         table: "traces",
       },
     );
   });
 
-  return res.shift();
+  return res.shift() as ConvertToAsString extends true
+    ? { stringified: string; domain: TraceDomainWithoutIO } | undefined
+    : TraceDomain | undefined;
 };
 
 export const getTracesGroupedByName = async (

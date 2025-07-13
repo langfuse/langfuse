@@ -32,9 +32,10 @@ export default withMiddlewares({
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const { traceId } = query;
-      const trace = await getTraceById({
+      const trace = await getTraceById<true>({
         traceId,
         projectId: auth.scope.projectId,
+        convertToString: true,
       });
 
       if (!trace) {
@@ -47,13 +48,13 @@ export default withMiddlewares({
         getObservationsForTrace({
           traceId,
           projectId: auth.scope.projectId,
-          timestamp: trace?.timestamp,
+          timestamp: trace?.domain.timestamp,
           includeIO: true,
         }),
         getScoresForTraces({
           projectId: auth.scope.projectId,
           traceIds: [traceId],
-          timestamp: trace?.timestamp,
+          timestamp: trace?.domain.timestamp,
         }),
       ]);
 
@@ -125,8 +126,11 @@ export default withMiddlewares({
                 obsStartTimes[0]!.getTime()
               : undefined
           : undefined;
+      // Parse the stringified trace to JSON object for response
+      const traceObj = JSON.parse(trace.stringified);
+
       return {
-        ...trace,
+        ...traceObj,
         externalId: null,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : 0,

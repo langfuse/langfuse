@@ -265,7 +265,10 @@ export const generateTracesForPublicApi = async ({
 
   return result.map((trace) => {
     return {
-      ...convertClickhouseToDomain(trace),
+      ...convertClickhouseToDomain<false>({
+        record: trace,
+        convertToString: false,
+      }),
       // Conditionally include additional fields based on request
       ...(includeObservations && { observations: trace.observations ?? null }),
       ...(includeScores && { scores: trace.scores ?? null }),
