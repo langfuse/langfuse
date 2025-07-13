@@ -147,7 +147,6 @@
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.1",
     "remark-stringify": "^11.0.0",
-    "simdjson": "^0.9.2",
     "sonner": "^1.4.41",
     "stripe": "^17.4.0",
     "superjson": "2.2.1",
