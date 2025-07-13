@@ -31,9 +31,44 @@ export const convertTraceDomainToClickhouse = (
   };
 };
 
-export const convertClickhouseToDomain = (
-  record: TraceRecordReadType,
-): TraceDomain => {
+export type TraceDomainWithStringIO = Omit<TraceDomain, "input" | "output"> & {
+  input: string | null;
+  output: string | null;
+};
+
+export function convertClickhouseToDomain<
+  ConvertToAsString extends boolean = false,
+>({
+  record,
+  convertToString = false as ConvertToAsString,
+}: {
+  record: TraceRecordReadType;
+  convertToString?: ConvertToAsString;
+}): ConvertToAsString extends true ? TraceDomainWithStringIO : TraceDomain {
+  if (convertToString) {
+    // Return TraceDomain with input/output as raw strings (no JSON parsing)
+    return {
+      id: record.id,
+      projectId: record.project_id,
+      name: record.name ?? null,
+      timestamp: parseClickhouseUTCDateTimeFormat(record.timestamp),
+      environment: record.environment,
+      tags: record.tags,
+      bookmarked: record.bookmarked,
+      release: record.release ?? null,
+      version: record.version ?? null,
+      userId: record.user_id ?? null,
+      sessionId: record.session_id ?? null,
+      public: record.public,
+      input: record.input ?? null, // Raw string, no parsing
+      output: record.output ?? null, // Raw string, no parsing
+      metadata: parseMetadataCHRecordToDomain(record.metadata),
+      createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
+      updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
+    } as ConvertToAsString extends true ? TraceDomainWithStringIO : TraceDomain;
+  }
+
+  // Default behavior - parse JSON
   return {
     id: record.id,
     projectId: record.project_id,
@@ -54,5 +89,5 @@ export const convertClickhouseToDomain = (
     metadata: parseMetadataCHRecordToDomain(record.metadata),
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-  };
-};
+  } as ConvertToAsString extends true ? TraceDomainWithStringIO : TraceDomain;
+}

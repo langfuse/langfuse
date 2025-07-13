@@ -24,6 +24,7 @@ import Decimal from "decimal.js";
 import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
+import simdjson from "simdjson";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -32,9 +33,10 @@ export default withMiddlewares({
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const { traceId } = query;
-      const trace = await getTraceById({
+      const trace = await getTraceById<true>({
         traceId,
         projectId: auth.scope.projectId,
+        convertToString: true,
       });
 
       if (!trace) {
@@ -125,8 +127,14 @@ export default withMiddlewares({
                 obsStartTimes[0]!.getTime()
               : undefined
           : undefined;
-      return {
+      // If we need to avoid JSON.parse on large input/output, use string replacement
+      const inputIdentifier = `__INPUT_${Math.random().toString(36).substr(2, 9)}__`;
+      const outputIdentifier = `__OUTPUT_${Math.random().toString(36).substr(2, 9)}__`;
+
+      const returnObject = {
         ...trace,
+        input: inputIdentifier,
+        output: outputIdentifier,
         externalId: null,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : 0,
@@ -139,6 +147,24 @@ export default withMiddlewares({
           )
           .toNumber(),
       };
+
+      let stringified = JSON.stringify(returnObject);
+
+      // Replace identifiers with properly formatted input/output using simdjson
+      if (trace.input) {
+        const inputValue = simdjson.isValid(trace.input)
+          ? trace.input // Valid JSON, use as-is
+          : JSON.stringify(trace.input); // Plain string, add quotes
+        stringified = stringified.replace(`"${inputIdentifier}"`, inputValue);
+      }
+      if (trace.output) {
+        const outputValue = simdjson.isValid(trace.output)
+          ? trace.output // Valid JSON, use as-is
+          : JSON.stringify(trace.output); // Plain string, add quotes
+        stringified = stringified.replace(`"${outputIdentifier}"`, outputValue);
+      }
+
+      return JSON.parse(stringified);
     },
   }),
 
