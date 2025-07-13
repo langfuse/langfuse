@@ -61,25 +61,37 @@ export default withMiddlewares({
           : [];
       const finalCount = count ? count : 0;
 
-      return {
-        data: items
-          .map((i) => {
-            const model = models.find((m) => m.id === i.internalModelId);
-            return {
-              ...i,
-              modelId: model?.id ?? null,
-              inputPrice:
-                model?.Price?.find((m) => m.usageType === "input")?.price ??
-                null,
-              outputPrice:
-                model?.Price?.find((m) => m.usageType === "output")?.price ??
-                null,
-              totalPrice:
-                model?.Price?.find((m) => m.usageType === "total")?.price ??
-                null,
-            };
-          })
-          .map(transformDbToApiObservation),
+      // Process observations with identifiers for string replacement
+      const processedItems = items.map((i, index) => {
+        const model = models.find((m) => m.id === i.internalModelId);
+
+        // Generate unique identifiers for input/output replacement
+        const inputIdentifier = `__OBS_INPUT_${index}_${Math.random().toString(36).substr(2, 9)}__`;
+        const outputIdentifier = `__OBS_OUTPUT_${index}_${Math.random().toString(36).substr(2, 9)}__`;
+
+        return {
+          ...i,
+          input: i.input ? inputIdentifier : null,
+          output: i.output ? outputIdentifier : null,
+          modelId: model?.id ?? null,
+          inputPrice:
+            model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+          outputPrice:
+            model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+          totalPrice:
+            model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+          // Store original values and identifiers for replacement
+          _originalInput: i.input,
+          _originalOutput: i.output,
+          _inputIdentifier: inputIdentifier,
+          _outputIdentifier: outputIdentifier,
+        };
+      });
+
+      const apiObservations = processedItems.map(transformDbToApiObservation);
+
+      const returnObject = {
+        data: apiObservations,
         meta: {
           page: query.page,
           limit: query.limit,
@@ -87,6 +99,26 @@ export default withMiddlewares({
           totalPages: Math.ceil(finalCount / query.limit),
         },
       };
+
+      // Apply string replacement for all observations
+      let stringified = JSON.stringify(returnObject);
+
+      processedItems.forEach((item) => {
+        if (item._originalInput) {
+          stringified = stringified.replace(
+            `"${item._inputIdentifier}"`,
+            item._originalInput,
+          );
+        }
+        if (item._originalOutput) {
+          stringified = stringified.replace(
+            `"${item._outputIdentifier}"`,
+            item._originalOutput,
+          );
+        }
+      });
+
+      return JSON.parse(stringified);
     },
   }),
 });

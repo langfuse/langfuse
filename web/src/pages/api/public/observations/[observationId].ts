@@ -57,8 +57,14 @@ export default withMiddlewares({
           })
         : undefined;
 
+      // Generate unique identifiers for input/output replacement
+      const inputIdentifier = `__OBS_INPUT_${Math.random().toString(36).substr(2, 9)}__`;
+      const outputIdentifier = `__OBS_OUTPUT_${Math.random().toString(36).substr(2, 9)}__`;
+
       const observation = {
         ...clickhouseObservation,
+        input: clickhouseObservation.input ? inputIdentifier : null,
+        output: clickhouseObservation.output ? outputIdentifier : null,
         modelId: model?.id ?? null,
         inputPrice:
           model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
@@ -73,7 +79,26 @@ export default withMiddlewares({
           "Observation not found within authorized project",
         );
       }
-      return transformDbToApiObservation(observation);
+
+      // Transform to API format and stringify
+      const apiObservation = transformDbToApiObservation(observation);
+      let stringified = JSON.stringify(apiObservation);
+
+      // Replace identifiers with raw strings
+      if (clickhouseObservation.input) {
+        stringified = stringified.replace(
+          `"${inputIdentifier}"`,
+          clickhouseObservation.input,
+        );
+      }
+      if (clickhouseObservation.output) {
+        stringified = stringified.replace(
+          `"${outputIdentifier}"`,
+          clickhouseObservation.output,
+        );
+      }
+
+      return JSON.parse(stringified);
     },
   }),
 });
