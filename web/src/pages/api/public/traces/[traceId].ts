@@ -19,6 +19,7 @@ import {
   traceException,
   QueueJobs,
   TraceDeleteQueue,
+  clickhouseCompliantRandomCharacters,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { randomUUID } from "crypto";
@@ -48,13 +49,13 @@ export default withMiddlewares({
         getObservationsForTrace({
           traceId,
           projectId: auth.scope.projectId,
-          timestamp: trace?.domain.timestamp,
+          timestamp: trace?.timestamp,
           includeIO: true,
         }),
         getScoresForTraces({
           projectId: auth.scope.projectId,
           traceIds: [traceId],
-          timestamp: trace?.domain.timestamp,
+          timestamp: trace?.timestamp,
         }),
       ]);
 
@@ -127,10 +128,14 @@ export default withMiddlewares({
               : undefined
           : undefined;
       // Parse the stringified trace to JSON object for response
-      const traceObj = JSON.parse(trace.stringified);
 
-      return {
-        ...traceObj,
+      const inputIdentifier = clickhouseCompliantRandomCharacters();
+      const outputIdentifier = clickhouseCompliantRandomCharacters();
+
+      const returnObject = {
+        ...trace,
+        input: inputIdentifier,
+        output: outputIdentifier,
         externalId: null,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : 0,
@@ -143,6 +148,38 @@ export default withMiddlewares({
           )
           .toNumber(),
       };
+
+      let stringified = JSON.stringify(returnObject);
+
+      // Fast check if string looks like JSON without parsing
+      const looksLikeJSON = (str: string): boolean => {
+        const trimmed = str.trim();
+        return (
+          (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+          (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+          (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+          trimmed === "null" ||
+          trimmed === "true" ||
+          trimmed === "false" ||
+          /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(trimmed)
+        );
+      };
+
+      // Replace identifiers with properly formatted input/output
+      if (trace.input) {
+        const inputValue = looksLikeJSON(trace.input)
+          ? trace.input // Looks like JSON, use as-is
+          : JSON.stringify(trace.input); // Plain string, add quotes
+        stringified = stringified.replace(`"${inputIdentifier}"`, inputValue);
+      }
+      if (trace.output) {
+        const outputValue = looksLikeJSON(trace.output)
+          ? trace.output // Looks like JSON, use as-is
+          : JSON.stringify(trace.output); // Plain string, add quotes
+        stringified = stringified.replace(`"${outputIdentifier}"`, outputValue);
+      }
+
+      return JSON.parse(stringified);
     },
   }),
 

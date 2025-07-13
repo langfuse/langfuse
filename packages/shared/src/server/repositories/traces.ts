@@ -21,7 +21,7 @@ import { UiColumnMappings } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   convertClickhouseToDomain,
-  TraceDomainWithoutIO,
+  TraceDomainWithStringIO,
 } from "./traces_converters";
 import { TraceDomain } from "../../domain";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
@@ -504,7 +504,7 @@ export const getTraceById = async <ConvertToAsString extends boolean = false>({
   convertToString?: ConvertToAsString;
 }): Promise<
   ConvertToAsString extends true
-    ? { stringified: string; domain: TraceDomainWithoutIO } | undefined
+    ? TraceDomainWithStringIO | undefined
     : TraceDomain | undefined
 > => {
   const records = await measureAndReturn({
@@ -588,8 +588,7 @@ export const getTraceById = async <ConvertToAsString extends boolean = false>({
 
   res.forEach((trace) => {
     const timestamp = convertToString
-      ? (trace as { stringified: string; domain: TraceDomainWithoutIO }).domain
-          .timestamp
+      ? (trace as TraceDomainWithStringIO).timestamp
       : (trace as TraceDomain).timestamp;
     recordDistribution(
       "langfuse.query_by_id_age",
@@ -601,7 +600,7 @@ export const getTraceById = async <ConvertToAsString extends boolean = false>({
   });
 
   return res.shift() as ConvertToAsString extends true
-    ? { stringified: string; domain: TraceDomainWithoutIO } | undefined
+    ? TraceDomainWithStringIO | undefined
     : TraceDomain | undefined;
 };
 

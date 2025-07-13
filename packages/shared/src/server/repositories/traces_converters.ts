@@ -8,7 +8,10 @@ import { parseJsonPrioritised } from "../../utils/json";
 import { TraceDomain } from "../../domain";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-export type TraceDomainWithoutIO = Omit<TraceDomain, "input" | "output">;
+export type TraceDomainWithStringIO = Omit<TraceDomain, "input" | "output"> & {
+  input: string | null;
+  output: string | null;
+};
 
 export const convertTraceDomainToClickhouse = (
   trace: TraceDomain,
@@ -44,13 +47,10 @@ export function convertClickhouseToDomain<
 }: {
   record: TraceRecordReadType;
   convertToString?: ConvertToAsString;
-}): ConvertToAsString extends true
-  ? { stringified: string; domain: TraceDomainWithoutIO }
-  : TraceDomain {
-  const inputIdentifier = clickhouseCompliantRandomCharacters();
-  const outputIdentifier = clickhouseCompliantRandomCharacters();
+}): ConvertToAsString extends true ? TraceDomainWithStringIO : TraceDomain {
   if (convertToString) {
-    const stringified = {
+    // Return TraceDomain with input/output as raw strings (no JSON parsing)
+    return {
       id: record.id,
       projectId: record.project_id,
       name: record.name ?? null,
@@ -63,44 +63,12 @@ export function convertClickhouseToDomain<
       userId: record.user_id ?? null,
       sessionId: record.session_id ?? null,
       public: record.public,
-      input: inputIdentifier,
-      output: outputIdentifier,
+      input: record.input ?? null, // Raw string, no parsing
+      output: record.output ?? null, // Raw string, no parsing
       metadata: parseMetadataCHRecordToDomain(record.metadata),
       createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
       updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    };
-    let baseObject = JSON.stringify(stringified);
-
-    // replace input and output with the identifiers
-    if (record.input) {
-      baseObject = baseObject.replace(inputIdentifier, record.input);
-    }
-    if (record.output) {
-      baseObject = baseObject.replace(outputIdentifier, record.output);
-    }
-
-    // Create domain object without expensive input/output parsing
-    const domain: TraceDomainWithoutIO = {
-      id: record.id,
-      projectId: record.project_id,
-      name: record.name ?? null,
-      timestamp: parseClickhouseUTCDateTimeFormat(record.timestamp),
-      environment: record.environment,
-      tags: record.tags,
-      bookmarked: record.bookmarked,
-      release: record.release ?? null,
-      version: record.version ?? null,
-      userId: record.user_id ?? null,
-      sessionId: record.session_id ?? null,
-      public: record.public,
-      metadata: parseMetadataCHRecordToDomain(record.metadata),
-      createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
-      updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    };
-
-    return { stringified: baseObject, domain } as ConvertToAsString extends true
-      ? { stringified: string; domain: TraceDomainWithoutIO }
-      : TraceDomain;
+    } as ConvertToAsString extends true ? TraceDomainWithStringIO : TraceDomain;
   }
 
   return {
@@ -123,7 +91,5 @@ export function convertClickhouseToDomain<
     metadata: parseMetadataCHRecordToDomain(record.metadata),
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-  } as ConvertToAsString extends true
-    ? { stringified: string; domain: TraceDomainWithoutIO }
-    : TraceDomain;
+  } as ConvertToAsString extends true ? TraceDomainWithStringIO : TraceDomain;
 }
