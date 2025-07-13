@@ -25,7 +25,11 @@ import {
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { convertObservation } from "./observations_converters";
+import {
+  convertObservation,
+  ObservationWithStringIO,
+} from "./observations_converters";
+import { Observation } from "../../domain";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -103,7 +107,7 @@ export const upsertObservation = async (
   await upsertClickhouse({
     table: "observations",
     records: [observation as ObservationRecordReadType],
-    eventBodyMapper: convertObservation,
+    eventBodyMapper: (record) => convertObservation({ record }),
     tags: {
       feature: "tracing",
       type: "observation",
@@ -113,17 +117,32 @@ export const upsertObservation = async (
   });
 };
 
-export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
+export type GetObservationsForTraceOpts<
+  IncludeIO extends boolean,
+  ConvertToAsString extends boolean = false,
+> = {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   includeIO?: IncludeIO;
+  convertToString?: ConvertToAsString;
 };
 
-export const getObservationsForTrace = async <IncludeIO extends boolean>(
-  opts: GetObservationsForTraceOpts<IncludeIO>,
-) => {
-  const { traceId, projectId, timestamp, includeIO = false } = opts;
+export const getObservationsForTrace = async <
+  IncludeIO extends boolean,
+  ConvertToAsString extends boolean = false,
+>(
+  opts: GetObservationsForTraceOpts<IncludeIO, ConvertToAsString>,
+): Promise<
+  ConvertToAsString extends true ? ObservationWithStringIO[] : Observation[]
+> => {
+  const {
+    traceId,
+    projectId,
+    timestamp,
+    includeIO = false,
+    convertToString = false as ConvertToAsString,
+  } = opts;
 
   const query = `
   SELECT
@@ -211,8 +230,11 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
 
   return records.map((r) => {
     const observation = convertObservation({
-      ...r,
-      metadata: r.metadata ?? {},
+      record: {
+        ...r,
+        metadata: r.metadata ?? {},
+      },
+      convertToString,
     });
     recordDistribution(
       "langfuse.query_by_id_age",
@@ -222,7 +244,9 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
       },
     );
     return observation;
-  });
+  }) as ConvertToAsString extends true
+    ? ObservationWithStringIO[]
+    : Observation[];
 };
 
 export const getObservationForTraceIdByName = async (
@@ -288,7 +312,7 @@ export const getObservationForTraceIdByName = async (
     },
   });
 
-  return records.map(convertObservation);
+  return records.map((record) => convertObservation({ record }));
 };
 
 export const getObservationById = async ({
@@ -314,7 +338,7 @@ export const getObservationById = async ({
     type,
     traceId,
   });
-  const mapped = records.map(convertObservation);
+  const mapped = records.map((record) => convertObservation({ record }));
 
   mapped.forEach((observation) => {
     recordDistribution(
@@ -384,7 +408,7 @@ export const getObservationsById = async (
     query,
     params: { ids, projectId },
   });
-  return records.map(convertObservation);
+  return records.map((record) => convertObservation({ record }));
 };
 
 const getObservationByIdInternal = async ({
@@ -542,7 +566,7 @@ export const getObservationsTableWithModelData = async (
     const trace = traces.find((t) => t.id === o.trace_id);
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...convertObservation(o),
+      ...convertObservation({ record: o }),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000

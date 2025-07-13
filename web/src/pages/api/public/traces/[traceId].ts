@@ -24,7 +24,6 @@ import Decimal from "decimal.js";
 import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
-import simdjson from "simdjson";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -46,11 +45,12 @@ export default withMiddlewares({
       }
 
       const [observations, scores] = await Promise.all([
-        getObservationsForTrace({
+        getObservationsForTrace<true, true>({
           traceId,
           projectId: auth.scope.projectId,
           timestamp: trace?.timestamp,
           includeIO: true,
+          convertToString: true,
         }),
         getScoresForTraces({
           projectId: auth.scope.projectId,
@@ -82,7 +82,7 @@ export default withMiddlewares({
             })
           : [];
 
-      const observationsView = observations.map((o) => {
+      const observationsView = observations.map((o, index) => {
         const model = models.find((m) => m.id === o.internalModelId);
         const inputPrice =
           model?.Price.find((p) => p.usageType === "input")?.price ??
@@ -93,11 +93,24 @@ export default withMiddlewares({
         const totalPrice =
           model?.Price.find((p) => p.usageType === "total")?.price ??
           new Decimal(0);
+
+        // Generate unique identifiers for observation input/output
+        const inputIdentifier = `__OBS_INPUT_${index}_${Math.random().toString(36).substr(2, 9)}__`;
+        const outputIdentifier = `__OBS_OUTPUT_${index}_${Math.random().toString(36).substr(2, 9)}__`;
+
+        // Observations use string conversion to avoid JSON parsing performance issues
         return {
           ...o,
+          input: o.input ? inputIdentifier : null,
+          output: o.output ? outputIdentifier : null,
           inputPrice,
           outputPrice,
           totalPrice,
+          // Store original values for replacement
+          _originalInput: o.input,
+          _originalOutput: o.output,
+          _inputIdentifier: inputIdentifier,
+          _outputIdentifier: outputIdentifier,
         };
       });
 
@@ -150,19 +163,32 @@ export default withMiddlewares({
 
       let stringified = JSON.stringify(returnObject);
 
-      // Replace identifiers with properly formatted input/output using simdjson
+      // Replace identifiers with the raw input/output strings
       if (trace.input) {
-        const inputValue = simdjson.isValid(trace.input)
-          ? trace.input // Valid JSON, use as-is
-          : JSON.stringify(trace.input); // Plain string, add quotes
-        stringified = stringified.replace(`"${inputIdentifier}"`, inputValue);
+        stringified = stringified.replace(`"${inputIdentifier}"`, trace.input);
       }
       if (trace.output) {
-        const outputValue = simdjson.isValid(trace.output)
-          ? trace.output // Valid JSON, use as-is
-          : JSON.stringify(trace.output); // Plain string, add quotes
-        stringified = stringified.replace(`"${outputIdentifier}"`, outputValue);
+        stringified = stringified.replace(
+          `"${outputIdentifier}"`,
+          trace.output,
+        );
       }
+
+      // Replace observation identifiers with raw strings
+      observationsView.forEach((obsView) => {
+        if (obsView._originalInput) {
+          stringified = stringified.replace(
+            `"${obsView._inputIdentifier}"`,
+            obsView._originalInput,
+          );
+        }
+        if (obsView._originalOutput) {
+          stringified = stringified.replace(
+            `"${obsView._outputIdentifier}"`,
+            obsView._originalOutput,
+          );
+        }
+      });
 
       return JSON.parse(stringified);
     },
