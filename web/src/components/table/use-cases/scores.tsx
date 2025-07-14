@@ -678,6 +678,7 @@ export default function ScoresTable({
         }}
       />
       <DataTable
+        tableName={"scores"}
         columns={columns}
         data={
           scores.isLoading || isViewLoading
