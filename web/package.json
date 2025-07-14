@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
-    "dev": "dotenv -e ../.env -- next dev --turbo",
+    "dev": "dotenv -e ../.env -- next dev",
     "lint": "dotenv -e ../.env -- next lint --max-warnings 0",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
     "clean": "rm -rf node_modules",
