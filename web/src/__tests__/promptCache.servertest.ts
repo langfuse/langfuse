@@ -54,7 +54,6 @@ describe("PromptService", () => {
       mockPrisma,
       mockRedis,
       mockMetricIncrementer,
-      true,
     );
   });
 
@@ -200,7 +199,6 @@ describe("PromptService", () => {
         mockPrisma,
         null,
         mockMetricIncrementer,
-        true,
       );
     });
 
