@@ -89,7 +89,7 @@ export const sessionsViewCols: ColumnDefinition[] = [
     options: [], // to be filled in at runtime
   },
   {
-    name: "Scores (avg)", // change to numeric?
+    name: "Scores (numeric)",
     id: "scores_avg",
     type: "numberObject",
     internal: "scores",
