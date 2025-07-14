@@ -135,7 +135,7 @@ function PlaygroundWindowContent({
               variant="ghost"
               onClick={handleCopy}
               className="h-6 w-6 p-0 hover:bg-muted"
-              title="Copy window configuration"
+              title="Duplicate window configuration"
             >
               <Copy size={14} />
               <span className="sr-only">Copy window</span>
