@@ -5,9 +5,10 @@ import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
-import { callLLM } from "../features/utilities";
+import { callLLM } from "../features/utils/utilities";
+import { PROMPT_EXPERIMENT_ENVIRONMENT } from "@langfuse/shared/src/server";
 
-vi.mock("../features/utilities", () => ({
+vi.mock("../features/utils/utilities", () => ({
   callLLM: vi.fn().mockResolvedValue({ id: "test-id" }),
   compileHandlebarString: vi.fn().mockImplementation((str, context) => {
     // Simple mock that replaces handlebars variables with their values
@@ -592,7 +593,7 @@ describe("create experiment job calls with langfuse server side tracing", async 
       expect.any(String),
       expect.any(String),
       expect.objectContaining({
-        tags: ["langfuse-prompt-experiment"],
+        environment: PROMPT_EXPERIMENT_ENVIRONMENT,
         traceName: expect.stringMatching(/^dataset-run-item-/),
         traceId: expect.any(String),
         projectId: mockEvent.projectId,

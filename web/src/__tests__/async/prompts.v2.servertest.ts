@@ -922,6 +922,9 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         );
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Invalid request data");
+        expect(JSON.stringify(response.body.error)).toContain(
+          `"message":"${expectedError}"`,
+        );
         const hasExpectedMessage = JSON.stringify(response.body.error).includes(
           `"message":"${expectedError}"`,
         );
@@ -969,7 +972,12 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           auth,
         );
         await testInvalidName("new", "Prompt name cannot be 'new'", auth);
-        await testInvalidName("", "Enter a name", auth);
+        await testInvalidName("", "Text cannot be empty", auth);
+        await testInvalidName(
+          "Test <div>",
+          "Text cannot contain HTML tags",
+          auth,
+        );
       });
 
       it("should accept valid prompt names", async () => {

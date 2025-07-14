@@ -16,6 +16,7 @@ import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
+import { backOff } from "exponential-backoff";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -114,6 +115,15 @@ export class ClickhouseWriter {
     );
   }
 
+  private isRetryableError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+
+    const errorMessage = (error as Error).message?.toLowerCase() || "";
+
+    // Check for socket hang up and other network-related errors
+    return errorMessage.includes("socket hang up");
+  }
+
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
     const entityQueue = this.queue[tableName];
     if (entityQueue.length === 0) return;
@@ -141,10 +151,43 @@ export class ClickhouseWriter {
     try {
       const processingStartTime = Date.now();
 
-      await this.writeToClickhouse({
-        table: tableName,
-        records: queueItems.map((item) => item.data),
-      });
+      await backOff(
+        async () =>
+          this.writeToClickhouse({
+            table: tableName,
+            records: queueItems.map((item) => item.data),
+          }),
+        {
+          numOfAttempts: env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
+          retry: (error: Error, attemptNumber: number) => {
+            const shouldRetry = this.isRetryableError(error);
+            if (shouldRetry) {
+              logger.warn(
+                `ClickHouse Writer failed with retryable error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): ${error.message}`,
+                {
+                  error: error.message,
+                  attemptNumber,
+                },
+              );
+              currentSpan?.addEvent("clickhouse-query-retry", {
+                "retry.attempt": attemptNumber,
+                "retry.error": error.message,
+              });
+            } else {
+              logger.error(
+                `ClickHouse query failed with non-retryable error: ${error.message}`,
+                {
+                  error: error.message,
+                },
+              );
+            }
+            return shouldRetry;
+          },
+          startingDelay: 100,
+          timeMultiple: 1,
+          maxDelay: 100,
+        },
+      );
 
       // Log processing time
       recordHistogram(

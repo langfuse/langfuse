@@ -1,6 +1,8 @@
 import { Job } from "bullmq";
 import {
+  ExperimentCreateQueue,
   ExperimentMetadataSchema,
+  QueueJobs,
   QueueName,
   TQueueJobTypes,
   logger,
@@ -9,6 +11,8 @@ import {
 import { createExperimentJob } from "../features/experiments/experimentService";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
+import { handleRetryableError } from "../features/utils";
+import { delayInMs } from "./utils/delays";
 
 export const experimentCreateQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.ExperimentCreate]>,
@@ -24,6 +28,23 @@ export const experimentCreateQueueProcessor = async (
     });
     return true;
   } catch (e) {
+    // If creating any of the dataset run items associated with this experiment create job fails with a 429, we want to retry the experiment creation job unless it's older than 24h.
+    const wasRetried = await handleRetryableError(e, job, {
+      table: "dataset_runs",
+      idField: "runId",
+      queue: ExperimentCreateQueue.getInstance(),
+      queueName: QueueName.ExperimentCreate,
+      jobName: QueueJobs.ExperimentCreateJob,
+      metricName: "langfuse.experiment-create.rate-limited",
+      delayFn: delayInMs,
+    });
+
+    if (wasRetried) {
+      return;
+    }
+
+    // we are left with 4xx and application errors here.
+
     if (
       e instanceof InvalidRequestError ||
       e instanceof LangfuseNotFoundError

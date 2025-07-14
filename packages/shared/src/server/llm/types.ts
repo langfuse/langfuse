@@ -196,7 +196,7 @@ export const ChatMessageSchema = z.union([
   z
     .object({
       role: z.union([ChatMessageDefaultRoleSchema, z.string()]), // Users may ingest any string as role via API/SDK
-      content: z.string(),
+      content: z.union([z.string(), z.array(z.any()), z.any()]), // Support arbitrary content types for message placeholders
     })
     .transform((msg) => {
       return {
@@ -419,11 +419,17 @@ export type LLMApiKey =
     ? z.infer<typeof LLMApiKeySchema>
     : never;
 
+// NOTE: This string is whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
+export const PROMPT_EXPERIMENT_ENVIRONMENT =
+  "langfuse-prompt-experiment" as const;
+
+type PromptExperimentEnvironment = typeof PROMPT_EXPERIMENT_ENVIRONMENT;
+
 export type TraceParams = {
   traceName: string;
   traceId: string;
   projectId: string;
-  tags: string[];
+  environment: PromptExperimentEnvironment;
   tokenCountDelegate: TokenCountDelegate;
   authCheck: AuthHeaderValidVerificationResult;
 };

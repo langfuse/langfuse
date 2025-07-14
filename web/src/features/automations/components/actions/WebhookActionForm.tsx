@@ -42,6 +42,7 @@ import {
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export const webhookSchema = z.object({
   url: z.url(),
@@ -320,6 +321,10 @@ export const RegenerateWebhookSecretButton = ({
   const regenerateSecretMutation =
     api.automations.regenerateWebhookSecret.useMutation({
       onSuccess: (data) => {
+        showSuccessToast({
+          title: "Webhook Secret Regenerated",
+          description: "Your webhook secret has been successfully regenerated.",
+        });
         setRegeneratedSecret(data.webhookSecret);
         setShowRegenerateDialog(true);
         utils.automations.invalidate();
