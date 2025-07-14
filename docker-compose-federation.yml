@@ -28,9 +28,7 @@ services:
       - .env
 
   my-keycloak:
-    build:
-      context: .
-      dockerfile: Dockerfile.keycloak.yml
+    image: quay.io/keycloak/keycloak:latest
     environment:
       KC_HOSTNAME: localhost
       KC_HOSTNAME_PORT: 7080
