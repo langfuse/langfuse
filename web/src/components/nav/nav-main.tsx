@@ -111,8 +111,8 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
               // Desktop: Use HoverCard (hover to show)
               <HoverCard
                 key={item.title}
-                openDelay={100}
-                closeDelay={100}
+                openDelay={0}
+                closeDelay={0}
                 onOpenChange={(isOpen) =>
                   setHoveredItem(isOpen ? item.title : null)
                 }
