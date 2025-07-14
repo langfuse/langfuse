@@ -5,6 +5,7 @@ import {
   type WebhookActionConfigWithSecrets,
   ActionCreateSchema,
   ActionType,
+  ActionTypeSchema,
   JobConfigState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -493,5 +494,24 @@ export const automationsRouter = createTRPCRouter({
           before: existingAutomation,
         });
       });
+    }),
+
+  count: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), type: ActionTypeSchema }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
+      const count = await ctx.prisma.action.count({
+        where: {
+          projectId: input.projectId,
+          ...(input.type === "WEBHOOK" && { type: "WEBHOOK" }),
+        },
+      });
+
+      return count;
     }),
 });
