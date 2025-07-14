@@ -56,9 +56,9 @@ export async function handleRetryableError(
       .select("created_at")
       .where("id", "=", jobId)
       .where("project_id", "=", job.data.payload.projectId)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
 
-    if (record && record.created_at < new Date(Date.now() - ONE_DAY_IN_MS)) {
+    if (record.created_at < new Date(Date.now() - ONE_DAY_IN_MS)) {
       logger.info(
         `Job ${jobId} is rate limited for more than 24h. Stop retrying.`,
       );
