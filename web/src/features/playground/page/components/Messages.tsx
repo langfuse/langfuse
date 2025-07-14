@@ -10,7 +10,6 @@ import { Switch } from "@/src/components/ui/switch";
 import { Settings } from "lucide-react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { env } from "@/src/env.mjs";
-import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnter";
 
 import { GenerationOutput } from "./GenerationOutput";
 import { ChatMessages } from "@/src/components/ChatMessages";
@@ -51,11 +50,6 @@ const SubmitButton = () => {
     defaultStreamingEnabled,
   );
 
-  // Handle command+enter with streaming preference
-  useCommandEnter(!isStreaming, async () => {
-    await handleSubmit(streamingEnabled);
-  });
-
   return (
     <div className="flex items-center gap-2">
       <Button
@@ -65,7 +59,7 @@ const SubmitButton = () => {
         }}
         loading={isStreaming}
       >
-        <p>Submit (Ctrl + Enter)</p>
+        <p>Submit</p>
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

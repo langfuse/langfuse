@@ -4,6 +4,7 @@ import { Plus, Play, Loader2 } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
+import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnter";
 import {
   MULTI_WINDOW_CONFIG,
   type MultiWindowState,
@@ -75,6 +76,11 @@ export default function PlaygroundPage() {
   const handleExecuteAll = useCallback(() => {
     executeAllWindows();
   }, [executeAllWindows]);
+
+  // Handle command+enter for "Run All" button
+  useCommandEnter(!globalIsExecutingAll, async () => {
+    executeAllWindows();
+  });
 
   // Don't render until window IDs are loaded
   if (!isLoaded) {
@@ -168,7 +174,7 @@ export default function PlaygroundPage() {
               ) : (
                 <Play className="h-3 w-3" />
               )}
-              <span className="hidden lg:inline">Run All</span>
+              <span className="hidden lg:inline">Run All (Ctrl + Enter)</span>
             </Button>
 
             {/* Reset Playground Button */}
