@@ -129,9 +129,6 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
     props;
 
-  // Always include scores data, not just when filtering by scores
-  const includeScores = true;
-
   let sqlSelect: string;
   switch (select) {
     case "count":
@@ -146,7 +143,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
           user_ids, 
           trace_count, 
           trace_tags,
-          trace_environment${includeScores ? ",\n          s.scores_avg as scores_avg,\n          s.score_categories as score_categories" : ""}`;
+          trace_environment`;
       break;
     case "metrics":
       sqlSelect = `
@@ -167,7 +164,9 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         session_total_cost,
         session_input_usage,
         session_output_usage,
-        session_total_usage`;
+        session_total_usage,
+        scores_avg,
+        score_categories`;
       break;
     default: {
       const exhaustiveCheckDefault: never = select;
@@ -175,7 +174,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
     }
   }
 
-  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
+  const { tracesFilter, scoresFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "s",
   });
 
@@ -184,6 +183,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const tracesFilterRes = tracesFilter
     .filter((f) => f.field !== "environment")
     .apply();
+  const scoresFilterRes = scoresFilter.apply();
 
   const traceTimestampFilter: DateTimeFilter | undefined = tracesFilter.find(
     (f) =>
@@ -217,32 +217,12 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const singleTraceFilter =
     filters.length > 0 ? new FilterList(filters).apply() : undefined;
 
-  const scoresFilter = new FilterList([
-    new StringFilter({
-      clickhouseTable: "scores",
-      field: "project_id",
-      operator: "=",
-      value: projectId,
-    }),
-  ]);
-
-  const timeFilter = filter.find(
-    (f) =>
-      f.column === "Created At" && (f.operator === ">=" || f.operator === ">"),
-  );
-
-  timeFilter
-    ? scoresFilter.push(
-        new DateTimeFilter({
-          clickhouseTable: "scores",
-          field: "timestamp",
-          operator: ">=",
-          value: timeFilter.value as Date,
-        }),
-      )
-    : undefined;
-
-  const appliedScoresFilter = scoresFilter.apply();
+  const requiresScoresJoin =
+    tracesFilter.find((f) => f.clickhouseTable === "scores") !== undefined ||
+    sessionCols.find(
+      (c) =>
+        c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
+    )?.clickhouseTableName === "scores";
 
   const hasMetricsFilter =
     tracesFilter.find((f) =>
@@ -254,6 +234,8 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         "session_total_usage",
         "session_output_usage",
         "session_input_usage",
+        "scores_avg",
+        "score_categories",
       ].includes(f.field),
     ) ||
     (orderBy &&
@@ -272,6 +254,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   const scoresCte = `scores_avg AS (
     SELECT
+      project_id,
       session_id AS score_session_id,
       -- For numeric scores, use tuples of (name, avg_value)
       groupArrayIf(
@@ -285,31 +268,30 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       ) AS score_categories
     FROM (
       SELECT
+        project_id,
         session_id,
         name,
-        avg(value) avg_value,
-        string_value,
         data_type,
-        comment
-      FROM
-        scores final
-      WHERE ${appliedScoresFilter.query}
+        string_value,
+        avg(value) avg_value
+      FROM scores s FINAL
+      WHERE 
+        project_id = {projectId: String}
+        ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
       GROUP BY
+        project_id,
         session_id,
         name,
-        string_value,
         data_type,
-        comment
-      ORDER BY
-        session_id
+        string_value
       ) tmp
     GROUP BY
-      session_id
+      project_id, session_id
   )`;
 
   // We use deduplicated traces and observations CTEs instead of final to be able to use Skip indices in Clickhouse.
   const query = `
-    WITH ${includeScores ? `${scoresCte},` : ""}
+    WITH ${select === "metrics" || requiresScoresJoin ? `${scoresCte},` : ""}
     deduplicated_traces AS (
       SELECT * EXCEPT input, output, metadata
       FROM traces t
@@ -355,7 +337,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             count(*) as trace_count,
             groupUniqArrayArray(t.tags) as trace_tags,
             anyLast(t.environment) as trace_environment${
-              includeScores
+              select === "metrics" || requiresScoresJoin
                 ? `,
             -- Aggregate scores data at session level
             anyLast(s.scores_avg) as scores_avg,
@@ -388,7 +370,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         ON t.id = o.trace_id AND t.project_id = o.project_id`
             : ""
         }
-        ${includeScores ? `LEFT JOIN scores_avg s ON t.session_id = s.score_session_id` : ""}
+        ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and t.session_id = s.score_session_id` : ""}
         WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
             ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
@@ -413,7 +395,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       offset: limit && page ? limit * page : 0,
       ...tracesFilterRes.params,
       ...singleTraceFilter?.params,
-      ...appliedScoresFilter.params,
+      ...scoresFilterRes.params,
       ...(obsStartTimeValue
         ? { observationsStartTime: obsStartTimeValue }
         : {}),

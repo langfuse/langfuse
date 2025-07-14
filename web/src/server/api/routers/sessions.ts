@@ -150,18 +150,6 @@ export const sessionRouter = createTRPCRouter({
           limit: input.limit,
         });
 
-        const scores = await getScoresForSessions({
-          projectId: ctx.session.projectId,
-          sessionIds: sessions.map((s) => s.session_id),
-          limit: 1000,
-          offset: 0,
-        });
-
-        const validatedScores = filterAndValidateDbScoreList({
-          scores,
-          onParseError: traceException,
-        });
-
         const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
           where: {
             id: {
@@ -183,11 +171,6 @@ export const sessionRouter = createTRPCRouter({
               userIds: s.user_ids,
               countTraces: s.trace_count,
               traceTags: s.trace_tags,
-              scores: aggregateScores(
-                validatedScores.filter(
-                  (score) => score.sessionId === s.session_id,
-                ),
-              ),
               createdAt: new Date(s.min_timestamp),
               bookmarked:
                 prismaSessionInfo.find((p) => p.id === s.session_id)
@@ -271,6 +254,18 @@ export const sessionRouter = createTRPCRouter({
           },
         });
 
+        const scores = await getScoresForSessions({
+          projectId: ctx.session.projectId,
+          sessionIds: sessions.map((s) => s.session_id),
+          limit: 1000,
+          offset: 0,
+        });
+
+        const validatedScores = filterAndValidateDbScoreList({
+          scores,
+          onParseError: traceException,
+        });
+
         return sessions.map((s) => ({
           id: s.session_id,
           userIds: s.user_ids,
@@ -293,6 +288,9 @@ export const sessionRouter = createTRPCRouter({
           promptTokens: Number(s.session_input_usage),
           completionTokens: Number(s.session_output_usage),
           totalTokens: Number(s.session_total_usage),
+          scores: aggregateScores(
+            validatedScores.filter((score) => score.sessionId === s.session_id),
+          ),
         }));
       } catch (e) {
         logger.error("Error in sessions.metrics", e);
