@@ -28,30 +28,54 @@ services:
       - .env
 
   my-keycloak:
-    image: quay.io/keycloak/keycloak:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.keycloak.yml
+    # Set memory limit for optimal JVM performance (recommended: 2GB for production)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
     environment:
-      KC_HOSTNAME: localhost
-      KC_HOSTNAME_PORT: 7080
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_HEALTH_ENABLED: "true"
-      KC_LOG_LEVEL: info
-      KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
-      KC_HOSTNAME_STRICT_REDIRECT: "false"
+      # Bootstrap admin credentials
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Database configuration
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgresql-keycloak:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak
+      # Network configuration
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 7080
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: 7080
+      KC_HTTPS_PORT: 7443
+      # Health and metrics
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      # Logging
+      KC_LOG_LEVEL: info
+      # Development settings for flexibility
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+      KC_HOSTNAME_STRICT_REDIRECT: "false"
+    volumes:
+      # Mount realm-export.json for automatic import
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7080/health/ready"]
-      interval: 15s
-      timeout: 2s
-      retries: 15
-    command: ["start-dev", "--http-port", "7080", "--https-port", "7443"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health/ready"]
+      interval: 30s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
+    command: ["start", "--optimized", "--import-realm"]
     ports:
       - "7080:7080"
       - "7443:7443"
+      - "9000:9000"  # Health and metrics endpoint
     depends_on:
       postgresql-keycloak:
         condition: service_healthy

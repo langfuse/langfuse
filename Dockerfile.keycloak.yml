@@ -1,13 +1,30 @@
-FROM alpine:latest AS downloader
-RUN apk add --no-cache curl
-RUN curl "https://github.com/Metatavu/keycloak-scim-server/packages/2454996"
+# from: https://github.com/bwalia/webimpetus-src/blob/fb1663305341056e8c1f500e7bb4fa4d273877f0/devops/docker/Dockerfile.keycloak#L11
+# Use the official Keycloak image
+FROM quay.io/keycloak/keycloak:20.0
 
-FROM quay.io/keycloak/keycloak AS builder
-COPY --from=downloader /keycloak-scim-1.0-SNAPSHOT-all.jar /opt/keycloak/providers/keycloak-scim-1.0-SNAPSHOT-all.jar
+# Set environment variables
+ENV KC_DB=dev-mem
+ENV KC_HOSTNAME=localhost
+ENV KC_HTTP_ENABLED=true
+ENV KEYCLOAK_ADMIN=admin
+ENV KEYCLOAK_ADMIN_PASSWORD=admin
+
+COPY ./keycloak-scim-1.0-SNAPSHOT-all.jar /opt/keycloak/providers/
+# RUN mkdir -p /opt/keycloak/import
+# RUN chmod +x /opt/keycloak/import
+# RUN chown keycloak /opt/keycloak/import
+
+# COPY ./keycloak/import /opt/keycloak/import
+
+# ENV KEYCLOAK_IMPORT=/opt/keycloak/import/realm-config.json
+
+# RUN /opt/keycloak/bin/kc.sh import --file /opt/keycloak/import/realm-export.json
+
 RUN /opt/keycloak/bin/kc.sh build
 
-FROM quay.io/keycloak/keycloak
-COPY --from=builder /opt/keycloak/ /opt/keycloak/
-WORKDIR /opt/keycloak
-ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
-CMD ["start"]
+
+# Expose Keycloak ports
+EXPOSE 3010
+
+# Run the Keycloak server in development mode
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh", "start-dev"]
