@@ -172,6 +172,7 @@ jobs:
           cp .env.dev.example .env
           grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
+          echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
       - name: Run dev containers
         run: |
@@ -434,8 +435,6 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
-          echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d

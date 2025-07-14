@@ -156,6 +156,24 @@ export const getQueuePrefix = (queueName: string): string | undefined => {
   return undefined;
 };
 
+/**
+ * Execute multiple Redis DEL operations safely in cluster mode
+ */
+export const safeMultiDel = async (
+  redis: Redis | Cluster | null,
+  keys: string[],
+): Promise<void> => {
+  if (!redis || keys.length === 0) return;
+
+  if (env.REDIS_CLUSTER_ENABLED === "true") {
+    // In cluster mode, delete keys in separate commands to avoid CROSSSLOT errors
+    await Promise.all(keys.map(async (key: string) => redis.del(key)));
+  } else {
+    // In single-node mode, can delete all keys at once
+    await redis.del(keys);
+  }
+};
+
 const createRedisClient = () => {
   try {
     return createNewRedisInstance();
