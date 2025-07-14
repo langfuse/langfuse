@@ -28,11 +28,12 @@ export class PromptService {
     private metricIncrementer?: // used for otel metrics
     // eslint-disable-next-line no-unused-vars
     (name: string, value?: number) => void,
-    cacheEnabled?: boolean, // used for testing
+    cacheEnabled: boolean = true, // used for testing
   ) {
     this.cacheEnabled =
       Boolean(redis) &&
-      (cacheEnabled || env.LANGFUSE_CACHE_PROMPT_ENABLED === "true");
+      cacheEnabled &&
+      env.LANGFUSE_CACHE_PROMPT_ENABLED === "true";
 
     this.ttlSeconds = env.LANGFUSE_CACHE_PROMPT_TTL_SECONDS;
   }
