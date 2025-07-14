@@ -7,7 +7,11 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import type Stripe from "stripe";
-import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
+import {
+  CloudConfigSchema,
+  type Organization,
+  parseDbOrg,
+} from "@langfuse/shared";
 import { traceException, redis, logger } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
@@ -91,39 +95,45 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
   return NextResponse.json({ received: true }, { status: 200 });
 }
 
-async function handleSubscriptionChanged(
-  subscription: Stripe.Subscription,
-  action: "created" | "deleted" | "updated",
-) {
-  const subscriptionId = subscription.id;
+async function getOrgBasedOnActiveSubscriptionId(
+  subscriptionId: string,
+): Promise<Organization | null> {
+  const orgBasedOnSubscriptionId = await prisma.organization.findFirst({
+    where: {
+      cloudConfig: {
+        path: ["stripe", "activeSubscriptionId"],
+        equals: subscriptionId,
+      },
+    },
+  });
+  return orgBasedOnSubscriptionId;
+}
 
+async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
+  subscriptionId: string,
+): Promise<Organization | null> {
   // get the checkout session from the subscription to retrieve the client reference for this subscription
   const checkoutSessionsResponse = await stripeClient?.checkout.sessions.list({
     subscription: subscriptionId,
     limit: 1,
   });
   if (!checkoutSessionsResponse || checkoutSessionsResponse.data.length !== 1) {
-    logger.error("[Stripe Webhook] No checkout session found");
-    traceException("[Stripe Webhook] No checkout session found");
-    return;
+    logger.warn("[Stripe Webhook] No checkout session found");
+    return null;
   }
   const checkoutSession = checkoutSessionsResponse.data[0];
 
   // the client reference is passed to the stripe checkout session via the pricing page
   const clientReference = checkoutSession.client_reference_id;
   if (!clientReference) {
-    logger.error("[Stripe Webhook] No client reference");
-    traceException("[Stripe Webhook] No client reference");
-    return NextResponse.json(
-      { message: "No client reference" },
-      { status: 400 },
-    );
+    logger.warn("[Stripe Webhook] No client reference");
+    return null;
   }
   if (!isStripeClientReferenceFromCurrentCloudRegion(clientReference)) {
     logger.info(
       "[Stripe Webhook] Client reference not from current cloud region",
     );
-    return;
+    return null;
   }
   const orgId = getOrgIdFromStripeClientReference(clientReference);
 
@@ -133,9 +143,31 @@ async function handleSubscriptionChanged(
       id: orgId,
     },
   });
+  return organization;
+}
+
+async function handleSubscriptionChanged(
+  subscription: Stripe.Subscription,
+  action: "created" | "deleted" | "updated",
+) {
+  const subscriptionId = subscription.id;
+
+  let organization: Organization | null = null;
+
+  // For existing subscriptions, we can use the active subscription id to find the org
+  // More reliable than the checkout session attached to the subscription for subscriptions that were manually set up
+  organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
+
+  // Required fallback for new subscriptions
   if (!organization) {
-    logger.error("[Stripe Webhook] Organization not found");
-    traceException("[Stripe Webhook] Organization not found");
+    organization =
+      await getOrgBasedOnCheckoutSessionAttachedToSubscription(subscriptionId);
+  }
+
+  if (!organization) {
+    logger.info(
+      "[Stripe Webhook] Organization not found for this subscription",
+    );
     return;
   }
   const parsedOrg = parseDbOrg(organization);

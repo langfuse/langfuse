@@ -40,9 +40,19 @@ describe("/models API Endpoints", () => {
     });
     await prisma.price.createMany({
       data: [
-        { modelId: "model-1", usageType: "input", price: 0.001 },
-        { modelId: "model-1", usageType: "output", price: 0.002 },
-        { modelId: "model-1", usageType: "total", price: 0.1 },
+        {
+          modelId: "model-1",
+          projectId: null,
+          usageType: "input",
+          price: 0.001,
+        },
+        {
+          modelId: "model-1",
+          projectId: null,
+          usageType: "output",
+          price: 0.002,
+        },
+        { modelId: "model-1", projectId: null, usageType: "total", price: 0.1 },
       ],
     });
     await prisma.model.create({
@@ -60,8 +70,18 @@ describe("/models API Endpoints", () => {
     });
     await prisma.price.createMany({
       data: [
-        { modelId: "model-2", usageType: "input", price: 0.002 },
-        { modelId: "model-2", usageType: "output", price: 0.004 },
+        {
+          modelId: "model-2",
+          projectId: null,
+          usageType: "input",
+          price: 0.02,
+        },
+        {
+          modelId: "model-2",
+          projectId: null,
+          usageType: "output",
+          price: 0.04,
+        },
       ],
     });
   });

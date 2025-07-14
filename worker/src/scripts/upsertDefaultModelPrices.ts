@@ -178,6 +178,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
                     },
                     create: {
                       modelId: defaultModelPrice.id,
+                      projectId: null,
                       usageType,
                       price,
                       createdAt: defaultModelPrice.created_at,

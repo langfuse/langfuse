@@ -1,12 +1,12 @@
-import { z } from "zod/v4";
+import { StringNoHTMLNonEmpty } from "../../utils/zod";
 
 /**
  * Prompt name validation schema for API, tRPC and client
  */
-export const PromptNameSchema = z
-  .string()
-  .min(1, "Enter a name")
-  .regex(/^[^|]*$/, "Prompt name cannot contain '|' character")
+export const PromptNameSchema = StringNoHTMLNonEmpty.regex(
+  /^[^|]*$/,
+  "Prompt name cannot contain '|' character",
+)
   .regex(/^[^/]/, "Name cannot start with a slash")
   .regex(/^(?!.*\/\/)/, "Name cannot contain consecutive slashes")
   .regex(/^.*[^/]$/, "Name cannot end with a slash")

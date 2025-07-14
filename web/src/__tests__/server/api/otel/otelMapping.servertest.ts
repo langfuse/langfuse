@@ -1,5 +1,5 @@
 import { OtelIngestionProcessor } from "@/src/features/otel/server/OtelIngestionProcessor";
-import { ingestionEvent } from "@langfuse/shared/src/server";
+import { createIngestionEventSchema } from "@langfuse/shared/src/server";
 
 // Test helper function to maintain backward compatibility with existing tests
 // This mimics the old convertOtelSpanToIngestionEvent function signature
@@ -771,9 +771,8 @@ describe("OTel Resource Span Mapping", () => {
 
       // Then
       // Will throw an error if the parsing fails
-      const parsedEvents = langfuseEvents.map((event) =>
-        ingestionEvent.parse(event),
-      );
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
     });
 
@@ -890,9 +889,8 @@ describe("OTel Resource Span Mapping", () => {
 
       // Then
       // Will throw an error if the parsing fails
-      const parsedEvents = langfuseEvents.map((event) =>
-        ingestionEvent.parse(event),
-      );
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
     });
 
@@ -1011,9 +1009,8 @@ describe("OTel Resource Span Mapping", () => {
 
       // Then
       // Will throw an error if the parsing fails
-      const parsedEvents = langfuseEvents.map((event) =>
-        ingestionEvent.parse(event),
-      );
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
 
       // Check that input contains both system and user messages
@@ -1272,6 +1269,16 @@ describe("OTel Resource Span Mapping", () => {
           otelAttributeValue: { stringValue: "session-1" },
           entityAttributeKey: "sessionId",
           entityAttributeValue: "session-1",
+        },
+      ],
+      [
+        "should extract sessionId on trace from gen_ai.conversation.id",
+        {
+          entity: "trace",
+          otelAttributeKey: "gen_ai.conversation.id",
+          otelAttributeValue: { stringValue: "conversation-1" },
+          entityAttributeKey: "sessionId",
+          entityAttributeValue: "conversation-1",
         },
       ],
       [
@@ -3148,6 +3155,154 @@ describe("OTel Resource Span Mapping", () => {
       // Verify both spans were created
       expect(spanEvents[0].body.name).toBe("child-span");
       expect(spanEvents[1].body.name).toBe("root-span");
+    });
+
+    it("should prioritize langfuse.session.id over gen_ai.conversation.id when both are present", async () => {
+      const otelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "test-scope",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [
+                      149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                      49, 17, 32,
+                    ],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  name: "root-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1149405088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.session.id",
+                      value: { stringValue: "langfuse-session-123" },
+                    },
+                    {
+                      key: "gen_ai.conversation.id",
+                      value: { stringValue: "otel-conversation-456" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+          ),
+        )
+      ).flat();
+
+      const traceEvent = events.find((e) => e.type === "trace-create");
+      expect(traceEvent).toBeDefined();
+      expect(traceEvent.body.sessionId).toBe("langfuse-session-123");
+    });
+
+    it("should prioritize session.id over gen_ai.conversation.id when both are present", async () => {
+      const otelSpans = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "test-scope",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: [
+                      149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                      49, 17, 32,
+                    ],
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: [212, 62, 55, 183, 209, 126, 84, 118],
+                  },
+                  name: "root-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1047784088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 1149405088,
+                    high: 406627672,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "session.id",
+                      value: { stringValue: "session-id-123" },
+                    },
+                    {
+                      key: "gen_ai.conversation.id",
+                      value: { stringValue: "otel-conversation-456" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = (
+        await Promise.all(
+          otelSpans.map(
+            async (span) =>
+              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
+          ),
+        )
+      ).flat();
+
+      const traceEvent = events.find((e) => e.type === "trace-create");
+      expect(traceEvent).toBeDefined();
+      expect(traceEvent.body.sessionId).toBe("session-id-123");
     });
   });
 });
