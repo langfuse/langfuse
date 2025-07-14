@@ -30,7 +30,7 @@ export class PromptService {
     (name: string, value?: number) => void,
     cacheEnabled?: boolean, // used for testing
   ) {
-    if (cacheEnabled) {
+    if (cacheEnabled !== undefined) {
       this.cacheEnabled = cacheEnabled;
     } else {
       this.cacheEnabled =
