@@ -1,4 +1,4 @@
-import { Terminal } from "lucide-react";
+import { Terminal, ChevronDown } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import { z } from "zod/v4";
@@ -6,6 +6,12 @@ import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -67,7 +73,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { addWindowWithId } = usePersistedWindowIds();
+  const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
 
@@ -125,8 +131,10 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     }
   }, [capturedState, setIsAvailable]);
 
-  const handleClick = () => {
-    capture(props.analyticsEventName);
+  const handlePlaygroundAction = (useFreshPlayground: boolean) => {
+    capture(props.analyticsEventName, {
+      playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
+    });
 
     // First, ensure we have state to save
     if (!capturedState) {
@@ -134,19 +142,28 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
       return;
     }
 
-    // Add the window to the list first
-    const addedWindowId = addWindowWithId(stableWindowId);
+    if (useFreshPlayground) {
+      // Clear all existing playground data and reset to single window
+      clearAllCache(stableWindowId);
+    } else {
+      // Add to existing playground
+      const addedWindowId = addWindowWithId(stableWindowId);
 
-    if (!addedWindowId) {
-      console.warn("Failed to add window to list, maximum windows reached");
-      return;
+      if (!addedWindowId) {
+        console.warn(
+          "Failed to add window to existing playground, maximum windows reached",
+        );
+        return;
+      }
     }
 
     // Use requestAnimationFrame to ensure the state update has been processed
     requestAnimationFrame(() => {
       try {
         setPlaygroundCache(capturedState);
-        console.log(`Cache saved for window ${stableWindowId}`);
+        console.log(
+          `Cache saved for existing playground window ${stableWindowId}`,
+        );
 
         // Navigate after cache is successfully saved
         router.push(`/project/${projectId}/playground`);
@@ -158,28 +175,40 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     });
   };
 
+  const tooltipMessage = isAvailable
+    ? "Test in LLM playground"
+    : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
+
   return (
-    <Button
-      variant={props.variant ?? "secondary"}
-      disabled={!isAvailable}
-      title={
-        isAvailable
-          ? "Test in LLM playground"
-          : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue."
-      }
-      onClick={handleClick}
-      asChild
-      className={
-        !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer"
-      }
-    >
-      <span>
-        <Terminal className="h-4 w-4" />
-        <span className={cn("hidden md:ml-2 md:inline", props.className)}>
-          Playground
-        </span>
-      </span>
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant={props.variant ?? "secondary"}
+          disabled={!isAvailable}
+          title={tooltipMessage}
+          className={cn(
+            "flex items-center gap-1",
+            !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+          )}
+        >
+          <Terminal className="h-4 w-4" />
+          <span className={cn("hidden md:inline", props.className)}>
+            Playground
+          </span>
+          <ChevronDown className="h-3 w-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => handlePlaygroundAction(true)}>
+          <Terminal className="mr-2 h-4 w-4" />
+          Fresh playground
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handlePlaygroundAction(false)}>
+          <Terminal className="mr-2 h-4 w-4" />
+          Add to existing
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 

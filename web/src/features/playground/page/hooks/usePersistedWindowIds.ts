@@ -100,9 +100,9 @@ export function usePersistedWindowIds() {
   /**
    * Clears all playground data from storage and resets to a single window.
    */
-  const clearAllCache = useCallback(() => {
+  const clearAllCache = useCallback((windowId?: string) => {
     clearAllPlaygroundData();
-    setWindowIds([uuidv4()]);
+    setWindowIds([windowId ?? uuidv4()]);
   }, []);
 
   return {
