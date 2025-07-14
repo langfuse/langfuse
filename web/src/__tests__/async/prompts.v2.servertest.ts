@@ -506,7 +506,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         auth,
       );
 
-      console.log(`Response body: ${JSON.stringify(response.body, null, 2)}`);
       expect(response.status).toBe(201);
 
       const { body: fetchedPrompt } = await makeAPICall(
