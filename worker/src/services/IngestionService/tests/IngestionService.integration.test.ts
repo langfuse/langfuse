@@ -1247,6 +1247,7 @@ describe("Ingestion end-to-end tests", () => {
       data: {
         id: "cm2uio8ef006mh6qlzc2mqa0e",
         modelId: "clyrjpbe20000t0mzcbwc42rg",
+        projectId: null,
         price: 0.00000015,
         usageType: "input",
       },
@@ -1256,6 +1257,7 @@ describe("Ingestion end-to-end tests", () => {
       data: {
         id: "cm2uio8ef006oh6qlldn36376",
         modelId: "clyrjpbe20000t0mzcbwc42rg",
+        projectId: null,
         price: 0.0000006,
         usageType: "output",
       },
@@ -1363,6 +1365,7 @@ describe("Ingestion end-to-end tests", () => {
       data: {
         id: "cm2uio8ef006mh6qlzc2mqa0e",
         modelId: "clyrjpbe20000t0mzcbwc42rg",
+        projectId: null,
         price: 0.00000015,
         usageType: "input",
       },
@@ -1372,6 +1375,7 @@ describe("Ingestion end-to-end tests", () => {
       data: {
         id: "cm2uio8ef006oh6qlldn36376",
         modelId: "clyrjpbe20000t0mzcbwc42rg",
+        projectId: null,
         price: 0.0000006,
         usageType: "output",
       },
