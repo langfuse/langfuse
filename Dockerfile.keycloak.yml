@@ -1,4 +1,5 @@
 # from: https://github.com/bwalia/webimpetus-src/blob/fb1663305341056e8c1f500e7bb4fa4d273877f0/devops/docker/Dockerfile.keycloak#L11
+# alternative: https://github.com/bwalia/opsapi/blob/724813312baba89bb548e2746fab384ef78d9d43/lapis/Dockerfile.keycloak#L11
 # Use the official Keycloak image
 FROM quay.io/keycloak/keycloak:20.0
 
