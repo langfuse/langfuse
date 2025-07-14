@@ -1,0 +1,13 @@
+FROM alpine:latest AS downloader
+RUN apk add --no-cache curl
+RUN curl "https://github.com/Metatavu/keycloak-scim-server/packages/2454996"
+
+FROM quay.io/keycloak/keycloak AS builder
+COPY --from=downloader /keycloak-scim-1.0-SNAPSHOT-all.jar /opt/keycloak/providers/keycloak-scim-1.0-SNAPSHOT-all.jar
+RUN /opt/keycloak/bin/kc.sh build
+
+FROM quay.io/keycloak/keycloak
+COPY --from=builder /opt/keycloak/ /opt/keycloak/
+WORKDIR /opt/keycloak
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+CMD ["start"]
