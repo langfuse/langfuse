@@ -7,7 +7,13 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { paginationZod, DatasetStatus, singleFilter } from "@langfuse/shared";
+import {
+  paginationZod,
+  DatasetStatus,
+  singleFilter,
+  StringNoHTML,
+  StringNoHTMLNonEmpty,
+} from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
   createDatasetRunsTable,
@@ -426,8 +432,8 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        name: z.string(),
-        description: z.string().nullish(),
+        name: StringNoHTMLNonEmpty,
+        description: StringNoHTML.nullish(),
         metadata: z.string().nullish(),
       }),
     )
@@ -466,8 +472,8 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        name: z.string().nullish(),
-        description: z.string().nullish(),
+        name: StringNoHTMLNonEmpty.nullish(),
+        description: StringNoHTML.nullish(),
         metadata: z.string().nullish(),
       }),
     )

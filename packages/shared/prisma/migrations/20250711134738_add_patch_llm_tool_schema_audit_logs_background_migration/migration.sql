@@ -1,0 +1,2 @@
+INSERT INTO background_migrations (id, name, script, args)
+VALUES ('3445cac4-d9d5-4750-8b65-351135c1b85e', '20250711_1347_patch_llm_tool_schema_audit_logs', 'patchLLMToolAndLLLMSchemaAuditLogs', '{}');
