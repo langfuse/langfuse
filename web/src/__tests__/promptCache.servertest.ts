@@ -54,6 +54,7 @@ describe("PromptService", () => {
       mockPrisma,
       mockRedis,
       mockMetricIncrementer,
+      true,
     );
   });
 
