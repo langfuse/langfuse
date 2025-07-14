@@ -8,9 +8,8 @@ export const MessagePlaceholders = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <p className="font-semibold">Message Placeholders</p>
       {messagePlaceholders.length === 0 ? (
-        <div className="mt-4 text-xs">
+        <div className="text-xs">
           <p className="mb-2">No message placeholders defined.</p>
           <p>
             Placeholders can be used to e.g. inject message histories into
