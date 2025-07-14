@@ -3,12 +3,7 @@ import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import {
-  DateTimeFilter,
-  FilterList,
-  orderByToClickhouseSql,
-  StringFilter,
-} from "../queries";
+import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
 import {
   getProjectIdDefaultFilter,
   createFilterFromFilterState,
