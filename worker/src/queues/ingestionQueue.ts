@@ -157,7 +157,7 @@ export const ingestionQueueProcessorBuilder = (
         recordHistogram("langfuse.ingestion.s3DownloadSizeBytes", fileSize, {
           skippedS3List: "true",
         });
-        totalS3DownloadSizeBytes += file.length;
+        totalS3DownloadSizeBytes += fileSize;
 
         const parsedFile = JSON.parse(file);
         events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
@@ -173,7 +173,7 @@ export const ingestionQueueProcessorBuilder = (
           recordHistogram("langfuse.ingestion.s3DownloadSizeBytes", fileSize, {
             skippedS3List: "false",
           });
-          totalS3DownloadSizeBytes += file.length;
+          totalS3DownloadSizeBytes += fileSize;
 
           const parsedFile = JSON.parse(file);
           return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
