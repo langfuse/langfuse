@@ -202,7 +202,7 @@ export const ingestionQueueProcessorBuilder = (
       );
       span?.setAttribute("langfuse.ingestion.event.kind", clickhouseEntityType);
       span?.setAttribute(
-        "langfuse.ingestion.event.totalS3DownloadSizeBytes",
+        "langfuse.ingestion.s3_all_files_download_size_bytes",
         totalS3DownloadSizeBytes,
       );
 
