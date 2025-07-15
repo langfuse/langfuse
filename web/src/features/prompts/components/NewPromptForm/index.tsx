@@ -41,7 +41,7 @@ import {
 } from "./validation";
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
-import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { SquareArrowOutUpRight } from "lucide-react";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
@@ -236,10 +236,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                         {errorMessage?.includes("already exist") ? (
                           <Link
                             href={`/project/${projectId}/prompts/${currentName.trim()}`}
-                            className="flex flex-row"
+                            className="flex flex-row items-center"
                           >
-                            Create a new version for it here.{" "}
-                            <ArrowTopRightIcon />
+                            Create a new version for it here.
+                            <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
                           </Link>
                         ) : null}
                       </div>

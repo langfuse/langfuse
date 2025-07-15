@@ -5,6 +5,7 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
+import bundleAnalyzer from "@next/bundle-analyzer";
 
 /**
  * CSP headers
@@ -191,7 +192,7 @@ const nextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+const sentryConfig = withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options
 
@@ -232,3 +233,11 @@ export default withSentryConfig(nextConfig, {
   // https://vercel.com/docs/cron-jobs
   automaticVercelMonitors: false,
 });
+
+// Enable bundle analyzer in analyze mode, otherwise use standard config
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+  openAnalyzer: false, // Open analyzer in browser
+});
+
+export default withBundleAnalyzer(sentryConfig);
