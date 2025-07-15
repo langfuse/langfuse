@@ -1,4 +1,3 @@
-import { StreamingTextResponse } from "ai";
 import { NextResponse, type NextRequest } from "next/server";
 
 import {
@@ -75,7 +74,13 @@ export default async function chatCompletionHandler(req: NextRequest) {
         streaming,
       });
 
-      return new StreamingTextResponse(completion);
+      return new NextResponse(completion, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
     } else {
       const { completion } = await fetchLLMCompletion({
         ...fetchLLMCompletionParams,

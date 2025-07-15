@@ -269,6 +269,12 @@ export const env = createEnv({
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: z.string().optional(),
     // UI customization - comma-separated list of hidden product modules
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES: z.string().optional(),
+
+    // AI Features
+    LANGFUSE_AI_OPENAI_API_KEY: z.string().optional(),
+    LANGFUSE_AI_LANGFUSE_HOST: z.string().url().optional(),
+    LANGFUSE_AI_LANGFUSE_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_AI_LANGFUSE_SECRET_KEY: z.string().optional(),
   },
 
   /**
@@ -497,6 +503,13 @@ export const env = createEnv({
       process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:
       process.env.LANGFUSE_UI_HIDDEN_PRODUCT_MODULES,
+    // AI Features
+    LANGFUSE_AI_OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    LANGFUSE_AI_LANGFUSE_HOST: process.env.LANGFUSE_AI_LANGFUSE_HOST,
+    LANGFUSE_AI_LANGFUSE_PUBLIC_KEY:
+      process.env.LANGFUSE_AI_LANGFUSE_PUBLIC_KEY,
+    LANGFUSE_AI_LANGFUSE_SECRET_KEY:
+      process.env.LANGFUSE_AI_LANGFUSE_SECRET_KEY,
     // Playground
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT:
       process.env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT,

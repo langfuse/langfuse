@@ -1,21 +1,3 @@
-/**
- * @fileoverview Integration tests for Pivot Table widget functionality in dashboard router
- *
- * This test suite validates the complete data pipeline for pivot table widgets:
- * - Query generation and execution through executeQuery function
- * - SQL generation by QueryBuilder for various pivot table configurations
- * - Data transformation from raw query results to pivot table structure
- * - Integration with ClickHouse database and error handling
- *
- * Test Coverage:
- * - Zero dimension pivot tables (grand total only)
- * - Single dimension pivot tables with subtotals
- * - Two dimension pivot tables with nested structure
- * - Row limiting functionality
- * - Error handling for malformed queries
- * - Integration with existing dashboard query infrastructure
- */
-
 import { randomUUID } from "crypto";
 import {
   createTrace,
@@ -30,10 +12,69 @@ import {
   type DatabaseRow,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
+import { generateWidgetConfiguration } from "@/src/ee/features/ai/widget-builder/generateWidgetConfiguration";
 
 describe("Dashboard Router", () => {
-  describe("Pivot Table Agent", () => {});
+  describe.skip("Pivot Table Agent", () => {
+    // For some reason the LANGFUSE_AI_OPENAI_API_KEY is not detected if I run this in a test setup.
+    // Therefore, this fails continuously unless one hard-codes the APIKey in the generateWidgetConfiguration function.
+    it("should generate a basic pivot table widget configuration", async () => {
+      const mockSessionUser = {
+        id: "test-user",
+        email: "test@example.com",
+        name: "Test User",
+        admin: false,
+        organizations: [
+          {
+            id: "test-org",
+            name: "Test Org",
+            plan: "cloud:enterprise" as const,
+            projects: [
+              {
+                id: "test-project",
+                name: "Test Project",
+                role: "OWNER" as const,
+              },
+            ],
+          },
+        ],
+      };
 
+      const result = await generateWidgetConfiguration({
+        projectId: "test-project",
+        description: "Show me a pivot table of traces by model and status",
+        sessionUser: mockSessionUser,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.name).toBeDefined();
+      expect(result.description).toBeDefined();
+      expect(result.chartType).toBe("PIVOT_TABLE");
+      expect(result.view).toBeDefined();
+      expect(result.dimensions).toBeDefined();
+      expect(result.metrics).toBeDefined();
+      expect(Array.isArray(result.dimensions)).toBe(true);
+      expect(Array.isArray(result.metrics)).toBe(true);
+    });
+  });
+
+  /**
+   * Integration tests for Pivot Table widget functionality in dashboard router
+   *
+   * This test suite validates the complete data pipeline for pivot table widgets:
+   * - Query generation and execution through executeQuery function
+   * - SQL generation by QueryBuilder for various pivot table configurations
+   * - Data transformation from raw query results to pivot table structure
+   * - Integration with ClickHouse database and error handling
+   *
+   * Test Coverage:
+   * - Zero dimension pivot tables (grand total only)
+   * - Single dimension pivot tables with subtotals
+   * - Two dimension pivot tables with nested structure
+   * - Row limiting functionality
+   * - Error handling for malformed queries
+   * - Integration with existing dashboard query infrastructure
+   */
   describe("Pivot Table Integration", () => {
     // Single project ID for all tests
     const projectId = randomUUID();

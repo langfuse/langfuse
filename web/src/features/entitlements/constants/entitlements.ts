@@ -13,6 +13,7 @@ const entitlements = [
   "data-retention",
   "prompt-protected-labels",
   "admin-api",
+  "ai",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -67,7 +68,7 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:pro": {
-    entitlements: [...cloudAllPlansEntitlements],
+    entitlements: [...cloudAllPlansEntitlements, "ai"],
     entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
@@ -85,6 +86,7 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "prompt-protected-labels",
       "admin-api",
+      "ai",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -103,6 +105,7 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "prompt-protected-labels",
       "admin-api",
+      "ai",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
