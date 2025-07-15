@@ -1,6 +1,5 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Plus } from "lucide-react";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
