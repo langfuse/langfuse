@@ -204,7 +204,7 @@ describe("automations trpc", () => {
               authorization: encrypt("Bearer secret-token-456"),
             },
             secretHeaderKeys: ["x-api-key", "authorization"],
-            displayHeaderValues: {
+            displayHeaders: {
               "content-type": "application/json",
               "x-api-key": "secr***123",
               authorization: "Bear***456",
@@ -234,17 +234,11 @@ describe("automations trpc", () => {
       const automationConfig = response[0].action.config;
 
       // Should have display values, not encrypted values
-      expect(automationConfig.displayHeaderValues).toEqual({
+      expect(automationConfig.displayHeaders).toEqual({
         "content-type": "application/json",
         "x-api-key": "secr***123",
         authorization: "Bear***456",
       });
-
-      // Should have secret header keys list
-      expect(automationConfig.secretHeaderKeys).toEqual([
-        "x-api-key",
-        "authorization",
-      ]);
 
       // Should NOT have the raw headers with encrypted values
       expect(automationConfig).not.toHaveProperty("headers");
@@ -324,7 +318,7 @@ describe("automations trpc", () => {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
             headers: { "Content-Type": "application/json" },
-            displayHeaderValues: { "Content-Type": "application/json" },
+            displayHeaders: { "Content-Type": "application/json" },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -361,7 +355,7 @@ describe("automations trpc", () => {
       expect(response.action.config).toHaveProperty("displaySecretKey");
       expect(response.action.config.url).toBe("https://example.com/webhook");
       expect(response.action.config).not.toHaveProperty("headers");
-      expect(response.action.config.displayHeaderValues).toEqual({
+      expect(response.action.config.displayHeaders).toEqual({
         "Content-Type": "application/json",
       });
       expect(response.action.config.apiVersion).toEqual({ prompt: "v1" });
@@ -399,7 +393,7 @@ describe("automations trpc", () => {
               "x-secret": encrypt("secret-value-789"),
             },
             secretHeaderKeys: ["x-secret"],
-            displayHeaderValues: {
+            displayHeaders: {
               "content-type": "application/json",
               "x-custom": "public-value",
               "x-secret": "secr***789",
@@ -428,14 +422,11 @@ describe("automations trpc", () => {
       const config = response.action.config;
 
       // Should have display values
-      expect(config.displayHeaderValues).toEqual({
+      expect(config.displayHeaders).toEqual({
         "content-type": "application/json",
         "x-custom": "public-value",
         "x-secret": "secr***789",
       });
-
-      // Should have secret header keys
-      expect(config.secretHeaderKeys).toEqual(["x-secret"]);
 
       // Should NOT have raw encrypted headers
       expect(config).not.toHaveProperty("headers");
@@ -483,8 +474,9 @@ describe("automations trpc", () => {
         actionConfig: {
           type: "WEBHOOK",
           url: "https://example.com/new-webhook",
-          headers: { "Content-Type": "application/json" },
-          secretHeaderKeys: [],
+          requestHeaders: {
+            "Content-Type": { secret: false, value: "application/json" },
+          },
           apiVersion: { prompt: "v1" },
         },
       });
@@ -548,13 +540,12 @@ describe("automations trpc", () => {
         actionConfig: {
           type: "WEBHOOK",
           url: "https://example.com/mixed-headers",
-          headers: {
-            "content-type": "application/json",
-            "x-public": "public-value",
-            "x-api-key": "secret-key-123",
-            authorization: "Bearer secret-token-456",
+          requestHeaders: {
+            "content-type": { secret: false, value: "application/json" },
+            "x-public": { secret: false, value: "public-value" },
+            "x-api-key": { secret: true, value: "secret-key-123" },
+            authorization: { secret: true, value: "Bearer secret-token-456" },
           },
-          secretHeaderKeys: ["x-api-key", "authorization"],
           apiVersion: { prompt: "v1" },
         },
       });
@@ -567,25 +558,30 @@ describe("automations trpc", () => {
       expect(createdAction?.config).toMatchObject({
         type: "WEBHOOK",
         url: "https://example.com/mixed-headers",
-        secretHeaderKeys: ["x-api-key", "authorization"],
       });
 
       // Headers should be encrypted for secret ones, plain for others
       const config = createdAction?.config as WebhookActionConfigWithSecrets;
-      expect(config.headers["content-type"]).toBe("application/json");
-      expect(config.headers["x-public"]).toBe("public-value");
-      expect(config.headers["x-api-key"]).not.toBe("secret-key-123"); // Should be encrypted
-      expect(config.headers["authorization"]).not.toBe(
+      expect(config.requestHeaders["content-type"].value).toBe(
+        "application/json",
+      );
+      expect(config.requestHeaders["x-public"].value).toBe("public-value");
+      expect(config.requestHeaders["x-api-key"].secret).toBe(true);
+      expect(config.requestHeaders["x-api-key"].value).not.toBe(
+        "secret-key-123",
+      ); // Should be encrypted
+      expect(config.requestHeaders["authorization"].secret).toBe(true);
+      expect(config.requestHeaders["authorization"].value).not.toBe(
         "Bearer secret-token-456",
       ); // Should be encrypted
 
       // Display values should be present
-      expect(config.displayHeaderValues).toMatchObject({
-        "content-type": "application/json",
-        "x-public": "public-value",
+      expect(config.displayHeaders).toMatchObject({
+        "content-type": { secret: false, value: "application/json" },
+        "x-public": { secret: false, value: "public-value" },
       });
-      expect(config.displayHeaderValues["x-api-key"]).toBe("secr...-123");
-      expect(config.displayHeaderValues["authorization"]).toBe("Bear...-456");
+      expect(config.displayHeaders["x-api-key"].value).toBe("secr...-123");
+      expect(config.displayHeaders["authorization"].value).toBe("Bear...-456");
     });
 
     it("should create automation with secret headers that do not expose values in response", async () => {
@@ -602,33 +598,34 @@ describe("automations trpc", () => {
         actionConfig: {
           type: "WEBHOOK",
           url: "https://example.com/webhook",
-          headers: {
-            "content-type": "application/json",
-            "x-public": "public-value",
-            "x-api-key": "secret-value-123",
-            authorization: "Bearer token-456",
+          requestHeaders: {
+            "content-type": { secret: false, value: "application/json" },
+            "x-public": { secret: false, value: "public-value" },
+            "x-api-key": { secret: true, value: "secret-value-123" },
+            authorization: { secret: true, value: "Bearer token-456" },
           },
-          secretHeaderKeys: ["x-api-key", "authorization"],
           apiVersion: { prompt: "v1" },
         },
       });
 
       const responseConfig = response.action.config as SafeWebhookActionConfig;
       // Response should NOT contain the raw secret values
-      expect(responseConfig.displayHeaderValues).not.toMatchObject({
-        "x-api-key": "secret-value-123",
-        authorization: "Bearer token-456",
+      expect(responseConfig.displayHeaders).not.toMatchObject({
+        "x-api-key": { secret: true, value: "secret-value-123" },
+        authorization: { secret: true, value: "Bearer token-456" },
       });
 
       // Response should contain masked values
-      expect(responseConfig.displayHeaderValues).toMatchObject({
-        "content-type": "application/json",
-        "x-public": "public-value",
+      expect(responseConfig.displayHeaders).toMatchObject({
+        "content-type": { secret: false, value: "application/json" },
+        "x-public": { secret: false, value: "public-value" },
+        "x-api-key": { secret: true, value: "secr...-123" },
+        authorization: { secret: true, value: "Bear...-456" },
       });
 
       // Verify secrets fields are not present in response
       expect(responseConfig).not.toHaveProperty("headers");
-      expect(responseConfig).not.toHaveProperty("secretKey");
+      expect(responseConfig).not.toHaveProperty("requestHeaders");
 
       // Check the actual stored data in the database
       const createdAction = await prisma.action.findUnique({
@@ -636,23 +633,26 @@ describe("automations trpc", () => {
       });
 
       const config = createdAction?.config as WebhookActionConfigWithSecrets;
-      expect(config.secretHeaderKeys).toEqual(["x-api-key", "authorization"]);
-
-      // Secret headers should be encrypted in storage
-      expect(config.headers["x-api-key"]).not.toBe("secret-value-123");
-      expect(config.headers["authorization"]).not.toBe("Bearer token-456");
-
       // Public headers should remain plain
-      expect(config.headers["content-type"]).toBe("application/json");
-      expect(config.headers["x-public"]).toBe("public-value");
+      // Secret headers should be encrypted in storage
+      expect(config.requestHeaders).toMatchObject({
+        "content-type": { secret: false, value: "application/json" },
+        "x-public": { secret: false, value: "public-value" },
+      });
+      expect(config.requestHeaders["x-api-key"].value).not.toBe(
+        "secret-value-123",
+      );
+      expect(config.requestHeaders["authorization"].value).not.toBe(
+        "Bearer token-456",
+      );
 
       // Display values should be present with masked secrets
-      expect(config.displayHeaderValues).toMatchObject({
-        "content-type": "application/json",
-        "x-public": "public-value",
+      expect(config.displayHeaders).toMatchObject({
+        "content-type": { secret: false, value: "application/json" },
+        "x-public": { secret: false, value: "public-value" },
+        "x-api-key": { secret: true, value: "secr...-123" },
+        authorization: { secret: true, value: "Bear...-456" },
       });
-      expect(config.displayHeaderValues["x-api-key"]).toBe("secr...-123");
-      expect(config.displayHeaderValues["authorization"]).toBe("Bear...-456");
     });
 
     it("should throw error when user lacks automations:CUD access", async () => {
@@ -697,8 +697,7 @@ describe("automations trpc", () => {
           actionConfig: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {},
-            secretHeaderKeys: [],
+            requestHeaders: {},
             apiVersion: { prompt: "v1" },
           },
         }),
@@ -720,8 +719,7 @@ describe("automations trpc", () => {
           actionConfig: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {},
-            secretHeaderKeys: [],
+            requestHeaders: {},
             apiVersion: { prompt: "v1" },
           },
         }),
@@ -754,7 +752,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -783,8 +783,10 @@ describe("automations trpc", () => {
         actionConfig: {
           type: "WEBHOOK",
           url: "https://example.com/updated-webhook",
-          headers: { "Content-Type": "application/json", "X-Custom": "value" },
-          secretHeaderKeys: [],
+          requestHeaders: {
+            "Content-Type": { secret: false, value: "application/json" },
+            "X-Custom": { secret: false, value: "value" },
+          },
           apiVersion: { prompt: "v1" },
         },
       });
@@ -800,9 +802,9 @@ describe("automations trpc", () => {
       expect(response.action.config).toMatchObject({
         type: "WEBHOOK",
         url: "https://example.com/updated-webhook",
-        displayHeaderValues: {
-          "Content-Type": "application/json",
-          "X-Custom": "value",
+        displayHeaders: {
+          "Content-Type": { secret: false, value: "application/json" },
+          "X-Custom": { secret: false, value: "value" },
         },
       });
 
@@ -844,12 +846,11 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {
-              "content-type": "application/json",
-              "x-old-header": "old-value",
+            requestHeaders: {
+              "content-type": { secret: false, value: "application/json" },
+              "x-old-header": { secret: false, value: "old-value" },
             },
-            secretHeaderKeys: [],
-            displayHeaderValues: {
+            displayHeaders: {
               "content-type": "application/json",
               "x-old-header": "old-value",
             },
@@ -881,28 +882,24 @@ describe("automations trpc", () => {
         actionConfig: {
           type: "WEBHOOK",
           url: "https://example.com/updated-webhook",
-          headers: {
-            "content-type": "application/json",
-            "x-public": "new-public-value",
-            "x-secret-key": "new-secret-123",
-            authorization: "Bearer new-token-456",
+          requestHeaders: {
+            "content-type": { secret: false, value: "application/json" },
+            "x-public": { secret: false, value: "new-public-value" },
+            "x-secret-key": { secret: true, value: "new-secret-123" },
+            authorization: { secret: true, value: "Bearer new-token-456" },
           },
-          secretHeaderKeys: ["x-secret-key", "authorization"],
           apiVersion: { prompt: "v1" },
         },
       });
 
       // Verify the API response contains safe display values
-      expect(response.action.config.displayHeaderValues).toMatchObject({
-        "content-type": "application/json",
-        "x-public": "new-public-value",
+      expect(response.action.config.displayHeaders).toMatchObject({
+        "content-type": { secret: false, value: "application/json" },
+        "x-public": { secret: false, value: "new-public-value" },
+        "x-secret-key": { secret: true, value: "new-...-123" },
+        authorization: { secret: true, value: "Bear...-456" },
       });
-      expect(response.action.config.displayHeaderValues["x-secret-key"]).toBe(
-        "new-...-123",
-      );
-      expect(response.action.config.displayHeaderValues["authorization"]).toBe(
-        "Bear...-456",
-      );
+
       expect(response.action.config).not.toHaveProperty("headers");
       expect(response.action.config).not.toHaveProperty("secretKey");
 
@@ -912,26 +909,28 @@ describe("automations trpc", () => {
       });
 
       const config = updatedAction?.config as any;
-      expect(config.secretHeaderKeys).toEqual([
-        "x-secret-key",
-        "authorization",
-      ]);
 
       // Public headers should remain plain
-      expect(config.headers["content-type"]).toBe("application/json");
-      expect(config.headers["x-public"]).toBe("new-public-value");
+      expect(config.requestHeaders["content-type"].value).toBe(
+        "application/json",
+      );
+      expect(config.requestHeaders["x-public"].value).toBe("new-public-value");
 
       // Secret headers should be encrypted
-      expect(config.headers["x-secret-key"]).not.toBe("new-secret-123");
-      expect(config.headers["authorization"]).not.toBe("Bearer new-token-456");
+      expect(config.requestHeaders["x-secret-key"].value).not.toBe(
+        "new-secret-123",
+      );
+      expect(config.requestHeaders["authorization"].value).not.toBe(
+        "Bearer new-token-456",
+      );
 
       // Display values should be present with masked secrets
-      expect(config.displayHeaderValues).toMatchObject({
-        "content-type": "application/json",
-        "x-public": "new-public-value",
+      expect(config.displayHeaders).toMatchObject({
+        "content-type": { secret: false, value: "application/json" },
+        "x-public": { secret: false, value: "new-public-value" },
+        "x-secret-key": { secret: true, value: "new-...-123" },
+        authorization: { secret: true, value: "Bear...-456" },
       });
-      expect(config.displayHeaderValues["x-secret-key"]).toBe("new-...-123");
-      expect(config.displayHeaderValues["authorization"]).toBe("Bear...-456");
     });
 
     it("should handle switching header types from secret to plain and vice versa", async () => {
@@ -958,16 +957,15 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {
-              "content-type": "application/json",
-              "x-currently-public": "public-value",
-              "x-currently-secret": encrypt("secret-value"),
+            requestHeaders: {
+              "content-type": { secret: false, value: "application/json" },
+              "x-currently-public": { secret: false, value: "public-value" },
+              "x-currently-secret": { secret: true, value: "secret-value" },
             },
-            secretHeaderKeys: ["x-currently-secret"],
-            displayHeaderValues: {
-              "content-type": "application/json",
-              "x-currently-public": "public-value",
-              "x-currently-secret": "secr***alue",
+            displayHeaders: {
+              "content-type": { secret: false, value: "application/json" },
+              "x-currently-public": { secret: false, value: "public-value" },
+              "x-currently-secret": { secret: true, value: "secr***alue" },
             },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
@@ -998,23 +996,20 @@ describe("automations trpc", () => {
         actionConfig: {
           type: "WEBHOOK",
           url: "https://example.com/updated-webhook",
-          headers: {
-            "content-type": "application/json",
-            "x-currently-public": "now-secret-value", // Was public, now secret
-            "x-currently-secret": "now-public-value", // Was secret, now public
+          requestHeaders: {
+            "content-type": { secret: false, value: "application/json" },
+            "x-currently-public": { secret: true, value: "now-secret-value" }, // Was public, now secret
+            "x-currently-secret": { secret: false, value: "now-public-value" }, // Was secret, now public
           },
-          secretHeaderKeys: ["x-currently-public"], // Switch: was [], now includes previously public header
           apiVersion: { prompt: "v1" },
         },
       });
 
       // Verify the API response contains safe display values reflecting the switch
-      expect(
-        response.action.config.displayHeaderValues["x-currently-public"],
-      ).toBe("now-...alue");
-      expect(
-        response.action.config.displayHeaderValues["x-currently-secret"],
-      ).toBe("now-public-value");
+      expect(response.action.config.displayHeaders).toMatchObject({
+        "x-currently-public": { secret: true, value: "now-...alue" },
+        "x-currently-secret": { secret: false, value: "now-public-value" },
+      });
       expect(response.action.config).not.toHaveProperty("headers");
       expect(response.action.config).not.toHaveProperty("secretKey");
 
@@ -1024,21 +1019,22 @@ describe("automations trpc", () => {
       });
 
       const config = updatedAction?.config as any;
-      expect(config.secretHeaderKeys).toEqual(["x-currently-public"]);
 
       // x-currently-public should now be encrypted (was plain, now secret)
-      expect(config.headers["x-currently-public"]).not.toBe("now-secret-value");
+      expect(config.requestHeaders["x-currently-public"].value).not.toBe(
+        "now-secret-value",
+      );
 
       // x-currently-secret should now be plain (was secret, now public)
-      expect(config.headers["x-currently-secret"]).toBe("now-public-value");
-
-      // Display values should reflect the changes
-      expect(config.displayHeaderValues["x-currently-public"]).toBe(
-        "now-...alue",
-      );
-      expect(config.displayHeaderValues["x-currently-secret"]).toBe(
+      expect(config.requestHeaders["x-currently-secret"].value).toBe(
         "now-public-value",
       );
+
+      // Display values should reflect the changes
+      expect(config.displayHeaders).toMatchObject({
+        "x-currently-public": { secret: true, value: "now-...alue" },
+        "x-currently-secret": { secret: false, value: "now-public-value" },
+      });
     });
   });
 
@@ -1067,7 +1063,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -1183,7 +1181,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -1261,7 +1261,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -1348,7 +1350,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -1409,7 +1413,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(originalSecretKey),
             displaySecretKey: originalDisplaySecretKey,
@@ -1485,7 +1491,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
