@@ -44,6 +44,7 @@ import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 type ProcessTracedEvents = () => Promise<void>;
 
 type LLMCompletionParams = {
+  runName?: string;
   messages: ChatMessage[];
   modelParams: ModelParams;
   structuredOutputSchema?: ZodSchema | LLMJSONSchema;
@@ -116,6 +117,7 @@ export async function fetchLLMCompletion(
 }> {
   // the apiKey must never be printed to the console
   const {
+    runName,
     messages,
     tools,
     modelParams,
@@ -334,7 +336,7 @@ export async function fetchLLMCompletion(
   const runConfig = {
     callbacks: finalCallbacks,
     runId: traceParams?.traceId,
-    runName: traceParams?.traceName,
+    runName: traceParams?.traceName || runName,
   };
 
   try {
