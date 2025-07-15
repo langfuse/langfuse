@@ -154,7 +154,7 @@ describe("Webhook Integration Tests", () => {
           type: "WEBHOOK",
           url: "https://webhook.example.com/test",
           headers: {
-            "content-type": "application/json",
+            "Content-Type": "application/json",
             "X-Custom-Header": "test-value",
           },
           apiVersion: { prompt: "v1" },
