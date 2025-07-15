@@ -7,10 +7,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 
@@ -60,8 +59,6 @@ export function NavMain({
     ungrouped: NavMainItem[];
   };
 }) {
-  const { open, isMobile } = useSidebar();
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   return (
     <>
       <SidebarGroup>
@@ -77,7 +74,7 @@ export function NavMain({
                   >
                     <Link
                       href={item.url}
-                      target={item.newTab ? "blank" : undefined}
+                      target={item.newTab ? "_blank" : undefined}
                     >
                       <NavItemContent item={item} />
                     </Link>
@@ -104,7 +101,7 @@ export function NavMain({
                       >
                         <Link
                           href={item.url}
-                          target={item.newTab ? "blank" : undefined}
+                          target={item.newTab ? "_blank" : undefined}
                         >
                           <NavItemContent item={item} />
                         </Link>
