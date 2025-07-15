@@ -1,5 +1,4 @@
 import Decimal from "decimal.js";
-import { ScoreAggregate } from "../../features/scores";
 import { OrderByState } from "../../interfaces/orderBy";
 import { datasetRunItemsTableUiColumnDefinitions } from "../../tableDefinitions";
 import { FilterState } from "../../types";
@@ -8,16 +7,13 @@ import {
   FilterList,
   orderByToClickhouseSql,
 } from "../queries";
-import {
-  type FullDatasetRunItem,
-  type FullDatasetRunItems,
-} from "../queries/createDatasetRunItemsQuery";
+import { type FullDatasetRunItems } from "../queries/createDatasetRunItemsQuery";
 import { queryClickhouse } from "./clickhouse";
-import { jsonSchema } from "../../utils/zod";
-import { z } from "zod/v4";
-import { convertToDatasetRunItem } from "./dataset_run_items_converters";
+import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-converters";
 import { DatasetRunItemRecordReadType } from "./definitions";
 import { JsonValue } from "@prisma/client/runtime/library";
+import { prisma } from "../../db";
+import z from "zod/v4";
 
 type DatasetRunItemsTableQuery = {
   projectId: string;
@@ -59,22 +55,53 @@ type DatasetRunTableWithoutMetrics = {
   countRunItems: number;
   datasetId: string;
 };
+const datasetRunTimestampReturn = z.discriminatedUnion("success", [
+  z.object({
+    success: z.literal(true),
+    timestamp: z.date(),
+    datasetRunId: z.string(),
+  }),
+  z.object({
+    success: z.literal(false),
+    error: z.string(),
+  }),
+]);
 
-type DatasetRunItemTableWithoutMetrics = Omit<
-  FullDatasetRunItem,
-  "datasetRunDescription" | "datasetRunName" | "datasetRunMetadata"
-> & {
-  name: string;
-  description: string;
-  metadata: JsonValue;
+type DatasetRunTimestampReturn = z.infer<typeof datasetRunTimestampReturn>;
 
-  datasetId: string;
-  countRunItems: number;
+// TODO: use this across queries
+export const validateDatasetRunAndFetch = async (
+  datasetId: string,
+  runName: string,
+  projectId: string,
+): Promise<DatasetRunTimestampReturn> => {
+  const datasetRun = await prisma.datasetRuns.findUnique({
+    where: {
+      datasetId_projectId_name: {
+        datasetId,
+        name: runName,
+        projectId,
+      },
+    },
+    select: {
+      createdAt: true,
+      id: true,
+    },
+  });
 
-  // trace metrics (always undefined)
-  avgTotalCost: undefined;
-  avgLatency: undefined;
-  scores: undefined;
+  if (!datasetRun) {
+    return {
+      success: false,
+      error:
+        "Dataset run not found for the given project, dataset id and run name",
+    };
+  }
+
+  return {
+    success: true,
+    timestamp: datasetRun.createdAt,
+    datasetRunId: datasetRun.id,
+  };
 };
 
 const getDatasetRunItemsTableInternal = async <T>(
@@ -176,7 +203,7 @@ export const getDatasetRunItemsTableCh = async (
       tags: { kind: "list" },
     });
 
-  return rows.map(convertToDatasetRunItem);
+  return rows.map(convertDatasetRunItemClickhouseToDomain);
 };
 
 const getDatasetRunsTableGeneric = async (

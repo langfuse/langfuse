@@ -15,6 +15,8 @@ export const DatasetRunItemSchema = z.object({
   datasetRunMetadata: jsonSchema.nullable(),
   datasetItemInput: jsonSchema.nullable(),
   datasetItemExpectedOutput: jsonSchema.nullable(),
+  datasetRunCreatedAt: z.date(),
+  datasetId: z.string(),
 });
 
 export type DatasetRunItemDomain = z.infer<typeof DatasetRunItemSchema>;

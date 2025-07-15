@@ -1,5 +1,5 @@
 import { env } from "../../env";
-import { logger } from "../logger";
+import { logger } from "../../server/logger";
 
 /**
  * Returns the execution strategy for dataset run items based on environment variables.

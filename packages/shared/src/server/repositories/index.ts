@@ -14,3 +14,4 @@ export * from "./blobStorageLog";
 export * from "./environments";
 export * from "./dataset-run-items";
 export * from "./automation-repository";
+export * from "./dataset-run-items-converters";
