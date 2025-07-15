@@ -23,7 +23,6 @@ import { ArrowUpToLine, LoaderCircle, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { BsMarkdown } from "react-icons/bs";
 import { type z } from "zod/v4";
 
 export function CommentList({
@@ -143,7 +142,6 @@ export function CommentList({
             <div className="text-xs text-muted-foreground">
               supports markdown
             </div>
-            <BsMarkdown className="ml-2 h-4 w-4 text-muted-foreground" />
           </div>
           <Form {...form}>
             <form className="relative">
