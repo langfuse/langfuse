@@ -14,6 +14,7 @@ import { DatasetRunItemRecordReadType } from "./definitions";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { prisma } from "../../db";
 import z from "zod/v4";
+import { jsonSchema } from "../..";
 
 type DatasetRunItemsTableQuery = {
   projectId: string;
@@ -58,8 +59,16 @@ type DatasetRunTableWithoutMetrics = {
 const datasetRunTimestampReturn = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),
-    timestamp: z.date(),
-    datasetRunId: z.string(),
+    datasetRun: z.object({
+      id: z.string(),
+      name: z.string(),
+      createdAt: z.date(),
+      updatedAt: z.date(),
+      projectId: z.string(),
+      description: z.string().nullish(),
+      metadata: jsonSchema.nullish(),
+      datasetId: z.string(),
+    }),
   }),
   z.object({
     success: z.literal(false),
@@ -69,7 +78,6 @@ const datasetRunTimestampReturn = z.discriminatedUnion("success", [
 
 type DatasetRunTimestampReturn = z.infer<typeof datasetRunTimestampReturn>;
 
-// TODO: use this across queries
 export const validateDatasetRunAndFetch = async (
   datasetId: string,
   runName: string,
@@ -83,10 +91,6 @@ export const validateDatasetRunAndFetch = async (
         projectId,
       },
     },
-    select: {
-      createdAt: true,
-      id: true,
-    },
   });
 
   if (!datasetRun) {
@@ -99,8 +103,7 @@ export const validateDatasetRunAndFetch = async (
 
   return {
     success: true,
-    timestamp: datasetRun.createdAt,
-    datasetRunId: datasetRun.id,
+    datasetRun: datasetRun,
   };
 };
 

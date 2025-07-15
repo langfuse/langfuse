@@ -11,9 +11,22 @@ export const datasetRunItemsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'dri."dataset_run_id"',
   },
   {
+    uiTableName: "Dataset Run Name",
+    uiTableId: "datasetRunName",
+    clickhouseTableName: "dataset_run_items",
+    clickhouseSelect: 'dri."dataset_run_name"',
+  },
+  // TODO: consider adding dataset run item created_at
+  {
     uiTableName: "Dataset Item ID",
     uiTableId: "datasetItemId",
     clickhouseTableName: "dataset_run_items",
     clickhouseSelect: 'dri."dataset_item_id"',
+  },
+  {
+    uiTableName: "Dataset ID",
+    uiTableId: "datasetId",
+    clickhouseTableName: "dataset_run_items",
+    clickhouseSelect: 'dri."dataset_id"',
   },
 ];
