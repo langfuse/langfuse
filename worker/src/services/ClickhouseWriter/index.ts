@@ -159,7 +159,7 @@ export class ClickhouseWriter {
     if (
       "input" in record &&
       record.input &&
-      JSON.stringify(record.input).length > maxFieldSize
+      record.input.length > maxFieldSize
     ) {
       record.input = truncateField(record.input);
     }
@@ -168,7 +168,7 @@ export class ClickhouseWriter {
     if (
       "output" in record &&
       record.output &&
-      JSON.stringify(record.output).length > maxFieldSize
+      record.output.length > maxFieldSize
     ) {
       record.output = truncateField(record.output);
     }
