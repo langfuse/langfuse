@@ -369,7 +369,7 @@ const SidebarHeader = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex min-h-12 flex-col py-2 md:h-fit", className)}
+      className={cn("flex min-h-12 flex-col pt-2 md:h-fit", className)}
       {...props}
     />
   );
@@ -415,7 +415,7 @@ const SidebarContent = React.forwardRef<
       ref={ref}
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
         className,
       )}
       {...props}

@@ -17,6 +17,7 @@ import {
   Home,
   SquarePercent,
   ClipboardPen,
+  Clock,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -101,6 +102,14 @@ export const ROUTES: Route[] = [
     group: RouteGroup.Observability,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/traces`,
+  },
+  {
+    title: "Sessions",
+    icon: Clock,
+    productModule: "tracing",
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+    pathname: `/project/[projectId]/sessions`,
   },
   {
     title: "Users",

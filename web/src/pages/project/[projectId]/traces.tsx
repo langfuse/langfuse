@@ -7,13 +7,11 @@ import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
 import {
   getTracingTabs,
   TRACING_TABS,
-  useTracingTabLocalStorage,
 } from "@/src/features/navigation/utils/tracing-tabs";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const [, setActiveTab] = useTracingTabLocalStorage();
 
   // Check if the user has any traces
   const { data: hasAnyTrace, isLoading } = api.traces.hasAny.useQuery(
@@ -30,11 +28,6 @@ export default function Traces() {
   );
 
   const showOnboarding = !isLoading && !hasAnyTrace;
-
-  // Update local storage when this page loads
-  React.useEffect(() => {
-    setActiveTab(TRACING_TABS.TRACES);
-  }, [setActiveTab]);
 
   return (
     <Page
