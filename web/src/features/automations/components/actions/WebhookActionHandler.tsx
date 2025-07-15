@@ -138,6 +138,19 @@ export class WebhookActionHandler
           }
         }
       });
+
+      // check if header name is already in the form
+      // Check for duplicate header names (case-insensitive)
+      const headerNames = formData.webhook.headers
+        .filter((h) => h.name.trim()) // Only check non-empty header names
+        .map((h) => h.name.trim().toLowerCase());
+
+      const uniqueHeaderNames = new Set(headerNames);
+      if (uniqueHeaderNames.size < headerNames.length) {
+        errors.push(
+          "Duplicate header names are not allowed (case-insensitive)",
+        );
+      }
     }
 
     return {

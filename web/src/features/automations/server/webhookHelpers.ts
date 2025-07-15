@@ -15,6 +15,7 @@ import {
   createDisplayHeaders,
   encryptSecretHeaders,
 } from "@langfuse/shared/src/server";
+import { TRPCError } from "@trpc/server";
 
 interface WebhookConfigOptions {
   actionConfig: ActionCreate;
@@ -110,9 +111,10 @@ function processWebhookHeaders(
 
     // Validate secret toggle: can only change secret status when providing a value
     if (headerObj.secret && headerObj.value.trim() === "" && !existingHeader) {
-      throw new Error(
-        `Header "${key}" cannot be made secret without providing a value`,
-      );
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Header "${key}" cannot be made secret without providing a value`,
+      });
     }
 
     // If changing secret status, ensure a value is provided
@@ -121,9 +123,10 @@ function processWebhookHeaders(
       headerObj.secret !== existingHeader.secret &&
       headerObj.value.trim() === ""
     ) {
-      throw new Error(
-        `Header "${key}" secret status can only be changed when providing a value`,
-      );
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Header "${key}" secret status can only be changed when providing a value`,
+      });
     }
 
     // If value is empty, preserve existing value if it exists

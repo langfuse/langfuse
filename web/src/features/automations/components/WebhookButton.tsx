@@ -27,7 +27,7 @@ export const WebhookButton = ({
   ) : (
     <span
       className={
-        "ml-1.5 inline-flex w-6 items-center justify-center rounded-sm bg-input px-1 text-xs shadow-sm"
+        "ml-1.5 inline-flex w-6 items-center justify-center rounded-sm bg-input px-1 text-xs shadow-sm @6xl:inline @6xl:hidden"
       }
     >
       {numberOfWebHooks.data}
