@@ -4,13 +4,24 @@ import {
   GetDatasetRunV1Response,
   DeleteDatasetRunV1Query,
   DeleteDatasetRunV1Response,
-  transformDbDatasetRunItemToAPIDatasetRunItem,
+  transformDbDatasetRunItemToAPIDatasetRunItemPg,
   transformDbDatasetRunToAPIDatasetRun,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  ApiError,
+  DatasetRunItemsOperationType,
+  executeWithDatasetRunItemsStrategy,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  DatasetRunItemsDeleteQueue,
+  validateDatasetRunAndFetch,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -19,44 +30,57 @@ export default withMiddlewares({
     responseSchema: GetDatasetRunV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      const datasetRuns = await prisma.datasetRuns.findMany({
-        where: {
-          projectId: auth.scope.projectId,
-          name: query.runName,
-          dataset: {
-            name: query.name,
-            projectId: auth.scope.projectId,
-          },
-        },
-        include: {
-          datasetRunItems: true,
-          dataset: {
-            select: {
-              name: true,
+      const res = await executeWithDatasetRunItemsStrategy({
+        input: query,
+        operationType: DatasetRunItemsOperationType.READ,
+        postgresExecution: async (queryInput: typeof query) => {
+          const datasetRuns = await prisma.datasetRuns.findMany({
+            where: {
+              projectId: auth.scope.projectId,
+              name: queryInput.runName,
+              dataset: {
+                name: queryInput.name,
+                projectId: auth.scope.projectId,
+              },
             },
-          },
+            include: {
+              datasetRunItems: true,
+              dataset: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          });
+
+          if (datasetRuns.length > 1)
+            throw new ApiError(
+              "Found more than one dataset run with this name",
+            );
+          if (!datasetRuns[0])
+            throw new LangfuseNotFoundError("Dataset run not found");
+
+          const { dataset, datasetRunItems, ...run } = datasetRuns[0];
+
+          return {
+            ...transformDbDatasetRunToAPIDatasetRun({
+              ...run,
+              datasetName: dataset.name,
+            }),
+            datasetRunItems: datasetRunItems
+              .map((item) => ({
+                ...item,
+                datasetRunName: run.name,
+              }))
+              .map(transformDbDatasetRunItemToAPIDatasetRunItemPg),
+          };
+        },
+        clickhouseExecution: async (queryInput: typeof query) => {
+          return {};
         },
       });
 
-      if (datasetRuns.length > 1)
-        throw new ApiError("Found more than one dataset run with this name");
-      if (!datasetRuns[0])
-        throw new LangfuseNotFoundError("Dataset run not found");
-
-      const { dataset, datasetRunItems, ...run } = datasetRuns[0];
-
-      return {
-        ...transformDbDatasetRunToAPIDatasetRun({
-          ...run,
-          datasetName: dataset.name,
-        }),
-        datasetRunItems: datasetRunItems
-          .map((item) => ({
-            ...item,
-            datasetRunName: run.name,
-          }))
-          .map(transformDbDatasetRunItemToAPIDatasetRunItem),
-      };
+      return res;
     },
   }),
   DELETE: createAuthedProjectAPIRoute({
@@ -65,51 +89,99 @@ export default withMiddlewares({
     responseSchema: DeleteDatasetRunV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      // First get the dataset run to check if it exists
-      const datasetRuns = await prisma.datasetRuns.findMany({
-        where: {
-          projectId: auth.scope.projectId,
-          name: query.runName,
-          dataset: {
-            name: query.name,
+      const res = await executeWithDatasetRunItemsStrategy({
+        input: query,
+        operationType: DatasetRunItemsOperationType.WRITE,
+        postgresExecution: async (queryInput: typeof query) => {
+          // First get the dataset run to check if it exists
+          const res = await validateDatasetRunAndFetch(
+            queryInput.name,
+            queryInput.runName,
+            auth.scope.projectId,
+          );
+
+          if (!res.success) {
+            throw new LangfuseNotFoundError(res.error);
+          }
+
+          // Delete the dataset run
+          await prisma.datasetRuns.delete({
+            where: {
+              id_projectId: {
+                projectId: auth.scope.projectId,
+                id: res.datasetRun.id,
+              },
+            },
+          });
+
+          await auditLog({
+            action: "delete",
+            resourceType: "datasetRun",
+            resourceId: res.datasetRun.id,
             projectId: auth.scope.projectId,
-          },
+            orgId: auth.scope.orgId,
+            apiKeyId: auth.scope.apiKeyId,
+            before: res.datasetRun,
+          });
+
+          return {
+            message: "Dataset run successfully deleted" as const,
+          };
+        },
+        clickhouseExecution: async (queryInput: typeof query) => {
+          const res = await validateDatasetRunAndFetch(
+            queryInput.name,
+            queryInput.runName,
+            auth.scope.projectId,
+          );
+
+          if (!res.success) {
+            throw new LangfuseNotFoundError(res.error);
+          }
+
+          // Delete the dataset run
+          await prisma.datasetRuns.delete({
+            where: {
+              id_projectId: {
+                projectId: auth.scope.projectId,
+                id: res.datasetRun.id,
+              },
+            },
+          });
+
+          // Trigger async delete of dataset run items
+          if (redis) {
+            await DatasetRunItemsDeleteQueue.getInstance()?.add(
+              QueueJobs.DatasetRunItemsDelete,
+              {
+                payload: {
+                  projectId: auth.scope.projectId,
+                  datasetRunId: res.datasetRun.id,
+                  datasetId: res.datasetRun.datasetId,
+                },
+                id: randomUUID(),
+                timestamp: new Date(),
+                name: QueueJobs.DatasetRunItemsDelete as const,
+              },
+            );
+          }
+
+          await auditLog({
+            action: "delete",
+            resourceType: "datasetRun",
+            resourceId: res.datasetRun.id,
+            projectId: auth.scope.projectId,
+            orgId: auth.scope.orgId,
+            apiKeyId: auth.scope.apiKeyId,
+            before: res.datasetRun,
+          });
+
+          return {
+            message: "Dataset run successfully deleted" as const,
+          };
         },
       });
-
-      if (datasetRuns.length === 0) {
-        throw new LangfuseNotFoundError("Dataset run not found");
-      }
-      if (datasetRuns.length > 1) {
-        throw new ApiError(
-          "Found more than one dataset run with this name and dataset",
-        );
-      }
-      const datasetRun = datasetRuns[0];
-
-      // Delete the dataset run
-      await prisma.datasetRuns.delete({
-        where: {
-          id_projectId: {
-            projectId: auth.scope.projectId,
-            id: datasetRun.id,
-          },
-        },
-      });
-
-      await auditLog({
-        action: "delete",
-        resourceType: "datasetRun",
-        resourceId: datasetRun.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        before: datasetRun,
-      });
-
-      return {
-        message: "Dataset run successfully deleted" as const,
-      };
+      return res;
     },
   }),
 });
