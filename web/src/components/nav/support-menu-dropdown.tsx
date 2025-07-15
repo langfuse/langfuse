@@ -21,7 +21,6 @@ import {
 import { useMemo, type ReactNode } from "react";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
-import { SiDiscord } from "react-icons/si";
 import { env } from "@/src/env.mjs";
 import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 
@@ -73,7 +72,7 @@ export const SupportMenuDropdown = () => {
       items.push({
         title: "Discord",
         pathname: "https://langfuse.com/discord",
-        icon: SiDiscord,
+        icon: MessageCircle,
       });
     }
 

@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "../context";
-import { CheckIcon, CopyIcon, PlusIcon } from "@radix-ui/react-icons";
 import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
-import { BracesIcon } from "lucide-react";
+import { BracesIcon, Check, Copy, Plus } from "lucide-react";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
@@ -68,7 +67,7 @@ export const GenerationOutput = () => {
           onClick={!isCopied ? handleCopy : undefined}
           title="Copy output"
         >
-          {isCopied ? <CheckIcon /> : <CopyIcon />}
+          {isCopied ? <Check /> : <Copy />}
         </Button>
 
         <Button
@@ -78,7 +77,7 @@ export const GenerationOutput = () => {
           title="Add as assistant message"
           disabled={isAdded}
         >
-          {isAdded ? <CheckIcon /> : <PlusIcon />}
+          {isAdded ? <Check /> : <Plus />}
           <span className="text-xs">Add to messages</span>
         </Button>
       </div>
