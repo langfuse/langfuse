@@ -108,9 +108,9 @@ test.describe("Create project", () => {
   });
 
   [
-    { title: "Traces", url: "/traces" },
+    { title: "Tracing", url: "/traces" },
     { title: "Sessions", url: "/sessions" },
-    { title: "Observations", url: "/observations" },
+    { title: "Tracing", url: "/observations" },
     { title: "Scores", url: "/scores" },
   ].forEach(({ title, url }) => {
     test(`Check ${title} page`, async ({ page }) => {
