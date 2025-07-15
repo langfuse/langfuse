@@ -15,7 +15,7 @@ import {
   SafeWebhookActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
-import { decryptSecretHeaders } from "../automations/headerUtils";
+import { decryptSecretHeaders, mergeHeaders } from "../automations/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
   projectId,
@@ -39,7 +39,7 @@ export const getActionByIdWithSecrets = async ({
 
   // Decrypt secret headers for webhook execution using new structure
   const { decryptedHeaders, decryptedRequestHeaders } = config.requestHeaders
-    ? decryptSecretHeaders(config.requestHeaders)
+    ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
     : {
         decryptedHeaders: config.headers || {},
         decryptedRequestHeaders: {},

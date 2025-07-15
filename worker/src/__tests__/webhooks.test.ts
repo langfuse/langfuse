@@ -515,15 +515,20 @@ describe("Webhook Integration Tests", () => {
 
       const updatedConfig = {
         ...(action.config as WebhookActionConfigWithSecrets),
-        headers: {
-          "x-public-header": "public-value",
-          "x-secret-api-key": encrypt("secret-api-key-value"),
-          "x-secret-token": encrypt("bearer-token-value"),
+        requestHeaders: {
+          "x-public-header": { secret: false, value: "public-value" },
+          "x-secret-api-key": {
+            secret: true,
+            value: encrypt("secret-api-key-value"),
+          },
+          "x-secret-token": {
+            secret: true,
+            value: encrypt("bearer-token-value"),
+          },
         },
-        secretHeaderKeys: ["x-secret-api-key", "x-secret-token"],
-        displayHeaderValues: {
-          "x-secret-api-key": "secr***alue",
-          "x-secret-token": "bear***alue",
+        displayHeaders: {
+          "x-secret-api-key": { secret: true, value: "secr***alue" },
+          "x-secret-token": { secret: true, value: "bear***alue" },
         },
       };
 
@@ -604,14 +609,16 @@ describe("Webhook Integration Tests", () => {
 
       const updatedConfig = {
         ...(action.config as WebhookActionConfigWithSecrets),
-        headers: {
-          authorization: encrypt("Bearer secret-token-12345"),
-          "x-api-key": encrypt("api-key-67890"),
+        requestHeaders: {
+          authorization: {
+            secret: true,
+            value: encrypt("Bearer secret-token-12345"),
+          },
+          "x-api-key": { secret: true, value: encrypt("api-key-67890") },
         },
-        secretHeaderKeys: ["authorization", "x-api-key"],
-        displayHeaderValues: {
-          authorization: "Bear***12345",
-          "x-api-key": "api-***67890",
+        displayHeaders: {
+          authorization: { secret: true, value: "Bear***12345" },
+          "x-api-key": { secret: true, value: "api-***67890" },
         },
       };
 
@@ -669,7 +676,7 @@ describe("Webhook Integration Tests", () => {
       expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
     });
 
-    it("should handle webhook with only public headers", async () => {
+    it("should handle webhook with only legacy public headers", async () => {
       // Get the full prompt for the payload
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },
@@ -691,7 +698,7 @@ describe("Webhook Integration Tests", () => {
           "x-public-header-2": "public-value-2",
         },
         secretHeaderKeys: [], // No secret headers
-        displayHeaderValues: {},
+        displayHeaders: {},
       };
 
       await prisma.action.update({
@@ -746,6 +753,92 @@ describe("Webhook Integration Tests", () => {
       expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
     });
 
+    it("should handle webhook with legacy public headers + new public and secret headers", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      // Update action config to include only public headers
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      const updatedConfig = {
+        ...(action.config as WebhookActionConfigWithSecrets),
+        headers: {
+          "x-public-header-1": "public-value-1",
+          "x-public-header-2": "public-value-2",
+        },
+        requestHeaders: {
+          "x-public-header-3": { secret: false, value: "public-value-3" },
+          "x-secret-header-4": {
+            secret: true,
+            value: encrypt("secret-value-4"),
+          },
+          "x-public-header-1": { secret: false, value: "public-value-5" },
+        },
+        displayHeaders: {},
+      };
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: updatedConfig,
+        },
+      });
+
+      const newExecutionId = v4();
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId: newExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: newExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify webhook request was made with public headers
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1); // This test only
+
+      const request = requests[0]; // Get the request
+      expect(request.url).toBe("https://webhook.example.com/test");
+
+      // Verify public headers are present
+      expect(request.headers["x-public-header-1"]).toBe("public-value-5");
+      expect(request.headers["x-public-header-2"]).toBe("public-value-2");
+      expect(request.headers["x-public-header-3"]).toBe("public-value-3");
+      expect(request.headers["x-secret-header-4"]).toBe("secret-value-4");
+
+      // Verify database execution record was updated
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: newExecutionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
     it("should handle decryption failure gracefully", async () => {
       // Get the full prompt for the payload
       const fullPrompt = await prisma.prompt.findUnique({
@@ -763,13 +856,15 @@ describe("Webhook Integration Tests", () => {
 
       const updatedConfig = {
         ...(action.config as WebhookActionConfigWithSecrets),
-        headers: {
-          "x-valid-header": "valid-public-value",
-          "x-invalid-secret": "invalid-encrypted-value", // This is not properly encrypted
+        requestHeaders: {
+          "x-valid-header": { secret: false, value: "valid-public-value" },
+          "x-invalid-secret": {
+            secret: true,
+            value: "invalid-encrypted-value", // This is not properly encrypted
+          },
         },
-        secretHeaderKeys: ["x-invalid-secret"],
-        displayHeaderValues: {
-          "x-invalid-secret": "inva***alue",
+        displayHeaders: {
+          "x-invalid-secret": { secret: true, value: "inva***alue" },
         },
       };
 
