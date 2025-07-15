@@ -311,9 +311,7 @@ model TraceSession {
   environment String   @default("default")
 
   @@id([id, projectId])
-  @@index([projectId])
-  @@index([createdAt])
-  @@index([updatedAt])
+  @@index([projectId, createdAt(sort: Desc)])
   @@map("trace_sessions")
 }
 
