@@ -43,7 +43,6 @@ import {
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import React from "react";
 
 export const webhookSchema = z.object({
   url: z.url(),

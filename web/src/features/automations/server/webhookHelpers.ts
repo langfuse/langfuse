@@ -15,7 +15,6 @@ import {
   createDisplayHeaders,
   encryptSecretHeaders,
 } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
 
 interface WebhookConfigOptions {
   actionConfig: ActionCreate;
@@ -55,9 +54,40 @@ export async function processWebhookActionConfig({
   const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
     generateWebhookSecret();
 
+  // Process headers and generate final action config
+  const finalActionConfig = processWebhookHeaders(
+    actionConfig,
+    existingAction?.config,
+  );
+
+  return {
+    finalActionConfig: {
+      ...finalActionConfig,
+      secretKey: existingAction?.config.secretKey ?? encrypt(newSecretKey),
+      displaySecretKey:
+        existingAction?.config.displaySecretKey ?? newDisplaySecretKey,
+    },
+    newUnencryptedWebhookSecret: existingAction?.config.secretKey
+      ? undefined
+      : newSecretKey,
+  };
+}
+
+/**
+ * Processes webhook headers by:
+ * 1. Merging legacy headers with new requestHeaders
+ * 2. Handling header removal (headers not in input are removed)
+ * 3. Preserving existing values when empty values are submitted
+ * 4. Encrypting secret headers based on secret flag
+ * 5. Generating display values for secret headers
+ */
+function processWebhookHeaders(
+  actionConfig: ActionCreate,
+  existingConfig: WebhookActionConfigWithSecrets | undefined,
+): ActionConfig {
   // Get existing headers for comparison
-  const existingLegacyHeaders = existingAction?.config.headers ?? {};
-  const existingRequestHeaders = existingAction?.config.requestHeaders ?? {};
+  const existingLegacyHeaders = existingConfig?.headers ?? {};
+  const existingRequestHeaders = existingConfig?.requestHeaders ?? {};
   const mergedExistingHeaders = mergeHeaders(
     existingLegacyHeaders,
     existingRequestHeaders,
@@ -74,14 +104,15 @@ export async function processWebhookActionConfig({
 
   // Process each header from input
   for (const [key, headerObj] of Object.entries(inputRequestHeaders)) {
-    const existingHeader = mergedExistingHeaders[key];
+    // Convert header key to lowercase for comparison
+    const normalizedKey = key.toLowerCase();
+    const existingHeader = mergedExistingHeaders[normalizedKey];
 
     // Validate secret toggle: can only change secret status when providing a value
     if (headerObj.secret && headerObj.value.trim() === "" && !existingHeader) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `Header "${key}" cannot be made secret without providing a value`,
-      });
+      throw new Error(
+        `Header "${key}" cannot be made secret without providing a value`,
+      );
     }
 
     // If changing secret status, ensure a value is provided
@@ -90,10 +121,9 @@ export async function processWebhookActionConfig({
       headerObj.secret !== existingHeader.secret &&
       headerObj.value.trim() === ""
     ) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `Header "${key}" secret status can only be changed when providing a value`,
-      });
+      throw new Error(
+        `Header "${key}" secret status can only be changed when providing a value`,
+      );
     }
 
     // If value is empty, preserve existing value if it exists
@@ -106,21 +136,13 @@ export async function processWebhookActionConfig({
     // If value is empty and no existing header, skip it (effectively removing it)
   }
 
-  const finalActionConfig = {
+  return {
     ...actionConfig,
     headers: existingLegacyHeaders, // Keep legacy headers for compatibility
     requestHeaders: encryptSecretHeaders(finalRequestHeaders),
     displayHeaders: createDisplayHeaders(finalRequestHeaders),
-    secretKey: existingAction?.config.secretKey ?? encrypt(newSecretKey),
-    displaySecretKey:
-      existingAction?.config.displaySecretKey ?? newDisplaySecretKey,
-  };
-
-  return {
-    finalActionConfig,
-    newUnencryptedWebhookSecret: existingAction?.config.secretKey
-      ? undefined
-      : newSecretKey,
+    secretKey: "", // will be overwritten by the caller
+    displaySecretKey: "", // will be overwritten by the caller
   };
 }
 
