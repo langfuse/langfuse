@@ -9,6 +9,7 @@ import {
   logger,
   instrumentAsync,
   addUserToSpan,
+  safeMultiDel,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -48,9 +49,10 @@ export class ApiAuthService {
 
     if (this.redis) {
       logger.info(`Invalidating API keys in redis for ${identifier}`);
-      await this.redis.del(
-        filteredHashKeys.map((hash) => this.createRedisKey(hash)),
+      const keysToDelete = filteredHashKeys.map((hash) =>
+        this.createRedisKey(hash),
       );
+      await safeMultiDel(this.redis, keysToDelete);
     }
   }
 

@@ -26,7 +26,12 @@ import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
-import { paginationZod, orderBy, InvalidRequestError } from "@langfuse/shared";
+import {
+  paginationZod,
+  orderBy,
+  InvalidRequestError,
+  StringNoHTML,
+} from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 // Define the dashboard list input schema
@@ -53,15 +58,15 @@ const UpdateDashboardDefinitionInput = z.object({
 const UpdateDashboardInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
-  name: z.string().min(1, "Dashboard name is required"),
-  description: z.string(),
+  name: StringNoHTML.min(1, "Dashboard name is required"),
+  description: StringNoHTML,
 });
 
 // Create dashboard input schema
 const CreateDashboardInput = z.object({
   projectId: z.string(),
-  name: z.string().min(1, "Dashboard name is required"),
-  description: z.string(),
+  name: StringNoHTML.min(1, "Dashboard name is required"),
+  description: StringNoHTML,
 });
 
 // Clone dashboard input schema

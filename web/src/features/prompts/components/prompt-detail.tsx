@@ -25,6 +25,10 @@ import {
   PRODUCTION_LABEL,
   PromptType,
 } from "@langfuse/shared";
+import {
+  getPromptTabs,
+  PROMPT_TABS,
+} from "@/src/features/navigation/utils/prompt-tabs";
 import { PromptHistoryNode } from "./prompt-history";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
@@ -56,7 +60,6 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { WebhookButton } from "@/src/features/automations/components/WebhookButton";
 
 const getPythonCode = (
   name: string,
@@ -282,20 +285,10 @@ export const PromptDetail = ({
             href: `/project/${projectId}/prompts/`,
           },
         ],
-        tabsComponent: (
-          <TabsBar value="versions">
-            <TabsBarList>
-              <TabsBarTrigger value="versions">Versions</TabsBarTrigger>
-              <TabsBarTrigger value="metrics" asChild>
-                <Link
-                  href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/metrics`}
-                >
-                  Metrics
-                </Link>
-              </TabsBarTrigger>
-            </TabsBarList>
-          </TabsBar>
-        ),
+        tabsProps: {
+          tabs: getPromptTabs(projectId as string, promptName as string),
+          activeTab: PROMPT_TABS.VERSIONS,
+        },
         actionButtonsLeft: (
           <TagPromptDetailsPopover
             tags={prompt.tags}
@@ -306,7 +299,6 @@ export const PromptDetail = ({
         ),
         actionButtonsRight: (
           <>
-            {projectId && <WebhookButton projectId={projectId} />}
             {projectId && (
               <DuplicatePromptButton
                 promptId={prompt.id}

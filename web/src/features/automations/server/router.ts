@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import {
   ActionCreateSchema,
   ActionType,
+  ActionTypeSchema,
   JobConfigState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -15,7 +16,7 @@ import {
   getConsecutiveAutomationFailures,
   logger,
 } from "@langfuse/shared/src/server";
-import { generateWebhookSecret } from "@langfuse/shared/encryption";
+import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -109,7 +110,7 @@ export const automationsRouter = createTRPCRouter({
       // Update action config with new secret
       const updatedConfig = {
         ...(existingAction.config as any),
-        secretKey: newSecretKey,
+        secretKey: encrypt(newSecretKey),
         displaySecretKey: newDisplaySecretKey,
       };
 
@@ -475,5 +476,24 @@ export const automationsRouter = createTRPCRouter({
           before: existingAutomation,
         });
       });
+    }),
+
+  count: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), type: ActionTypeSchema }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
+      const count = await ctx.prisma.action.count({
+        where: {
+          projectId: input.projectId,
+          ...(input.type === "WEBHOOK" && { type: "WEBHOOK" }),
+        },
+      });
+
+      return count;
     }),
 });

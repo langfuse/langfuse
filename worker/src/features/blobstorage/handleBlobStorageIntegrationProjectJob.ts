@@ -15,8 +15,33 @@ import {
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BlobStorageExportMode,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+
+const getMinTimestampForExport = (
+  lastSyncAt: Date | null,
+  exportMode: BlobStorageExportMode,
+  exportStartDate: Date | null,
+): Date => {
+  // If we have a lastSyncAt, use it (this is for subsequent exports)
+  if (lastSyncAt) {
+    return lastSyncAt;
+  }
+
+  // For first export, use the export mode to determine start date
+  switch (exportMode) {
+    case BlobStorageExportMode.FULL_HISTORY:
+      return new Date(0); // Export all historical data
+    case BlobStorageExportMode.FROM_TODAY:
+    case BlobStorageExportMode.FROM_CUSTOM_DATE:
+      return exportStartDate || new Date(); // Use export start date or current time as fallback
+    default:
+      // eslint-disable-next-line no-case-declarations, no-unused-vars
+      const _exhaustiveCheck: never = exportMode;
+      throw new Error(`Invalid export mode: ${exportMode}`);
+  }
+};
 
 const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
   switch (fileType) {
@@ -48,7 +73,7 @@ const processBlobStorageExport = async (config: {
   maxTimestamp: Date;
   bucketName: string;
   endpoint: string | null;
-  region?: string;
+  region: string;
   accessKeyId: string | undefined;
   secretAccessKey: string | undefined;
   prefix?: string;
@@ -174,7 +199,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   // Sync between lastSyncAt and now - 30 minutes
-  const minTimestamp = blobStorageIntegration.lastSyncAt || new Date(0);
+  const minTimestamp = getMinTimestampForExport(
+    blobStorageIntegration.lastSyncAt,
+    blobStorageIntegration.exportMode,
+    blobStorageIntegration.exportStartDate,
+  );
   const maxTimestamp = new Date(new Date().getTime() - 30 * 60 * 1000);
 
   try {
@@ -185,7 +214,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       maxTimestamp,
       bucketName: blobStorageIntegration.bucketName,
       endpoint: blobStorageIntegration.endpoint,
-      region: blobStorageIntegration.region || undefined,
+      region: blobStorageIntegration.region || "auto",
       accessKeyId: blobStorageIntegration.accessKeyId || undefined,
       secretAccessKey: blobStorageIntegration.secretAccessKey
         ? decrypt(blobStorageIntegration.secretAccessKey)

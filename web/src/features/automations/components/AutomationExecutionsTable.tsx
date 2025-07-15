@@ -113,14 +113,11 @@ export const AutomationExecutionsTable: React.FC<
       accessorKey: "error",
       header: "Error",
       id: "error",
+      size: 150,
       cell: ({ row }) => {
         const value = row.getValue("error") as string | null;
         if (!value) return <span className="text-muted-foreground">-</span>;
-        return (
-          <div className="max-w-xs">
-            <span className="break-words text-xs text-red-600">{value}</span>
-          </div>
-        );
+        return value;
       },
     },
   ];

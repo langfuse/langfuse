@@ -18,14 +18,12 @@ import {
   WebhookInput,
   createOrgProjectAndApiKey,
   executeWebhook,
-  logger,
-  redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createSignatureHeader,
   decrypt,
   encrypt,
+  generateWebhookSignature,
 } from "@langfuse/shared/encryption";
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
@@ -251,10 +249,21 @@ describe("Webhook Integration Tests", () => {
       }
 
       const decryptedSecret = decrypt(secretKey);
-      const expectedSignature = createSignatureHeader(
+
+      // Extract timestamp from the actual signature to avoid timing issues
+      const timestampMatch = signature.match(/^t=(\d+),v1=/);
+      if (!timestampMatch) {
+        throw new Error("Invalid signature format");
+      }
+      const timestamp = parseInt(timestampMatch[1]);
+
+      // Generate expected signature using the same timestamp
+      const expectedSignatureHash = generateWebhookSignature(
         JSON.stringify(payload),
+        timestamp,
         decryptedSecret,
       );
+      const expectedSignature = `t=${timestamp},v1=${expectedSignatureHash}`;
 
       expect(signature).toBe(expectedSignature);
 
@@ -487,6 +496,35 @@ describe("Webhook Integration Tests", () => {
         where: { id: triggerId },
       });
       expect(trigger?.status).toBe(JobConfigState.INACTIVE);
+    });
+
+    it("should handle missing automation gracefully without throwing error", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const executionId = v4();
+      const nonExistentAutomationId = v4(); // Use a random ID that doesn't exist
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId: nonExistentAutomationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      // Should not throw an error, but return gracefully
+      await expect(executeWebhook(webhookInput)).resolves.toBeUndefined();
+
+      // Verify that no execution record was created since automation doesn't exist
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution).toBeNull();
     });
   });
 });

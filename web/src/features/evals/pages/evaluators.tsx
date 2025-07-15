@@ -1,15 +1,13 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Plus } from "lucide-react";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  TabsBar,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
+  getEvalsTabs,
+  EVALS_TABS,
+} from "@/src/features/navigation/utils/evals-tabs";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
@@ -86,20 +84,10 @@ export default function EvaluatorsPage() {
               "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
             href: "https://langfuse.com/docs/scores/model-based-evals",
           },
-          tabsComponent: (
-            <TabsBar value="configs">
-              <TabsBarList>
-                <TabsBarTrigger value="configs">
-                  Running Evaluators
-                </TabsBarTrigger>
-                <TabsBarTrigger value="templates" asChild>
-                  <Link href={`/project/${projectId}/evals/templates`}>
-                    Evaluator Library
-                  </Link>
-                </TabsBarTrigger>
-              </TabsBarList>
-            </TabsBar>
-          ),
+          tabsProps: {
+            tabs: getEvalsTabs(projectId),
+            activeTab: EVALS_TABS.CONFIGS,
+          },
           actionButtonsRight: (
             <>
               <ManageDefaultEvalModel projectId={projectId} />

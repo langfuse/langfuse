@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.78.2",
+  "version": "3.81.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -11,7 +11,6 @@
     "dev": "dotenv -e ../.env -- next dev --turbopack",
     "lint": "dotenv -e ../.env -- next lint --max-warnings 0",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
-    "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
     "test": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --detectOpenHandles --selectProjects async-server",
@@ -136,7 +135,7 @@
     "react-dom": "19.1.0",
     "react-grid-layout": "^1.5.1",
     "react-hook-form": "^7.57.0",
-    "react-icons": "^5.2.1",
+    "react-icons": "^5.5.0",
     "react-markdown": "^9.0.1",
     "react-resizable-panels": "^2.1.1",
     "react-responsive": "^10.0.0",
@@ -163,6 +162,7 @@
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
     "@mermaid-js/mermaid-cli": "^11.2.0",
+    "@next/bundle-analyzer": "^15.4.1",
     "@playwright/test": "^1.47.2",
     "@tailwindcss/forms": "^0.5.7",
     "@testing-library/jest-dom": "^6.4.6",
@@ -190,8 +190,8 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "node-mocks-http": "^1.14.1",
-    "prettier": "^3.3.3",
-    "prettier-plugin-tailwindcss": "^0.6.6",
+    "prettier": "^3.6.2",
+    "prettier-plugin-tailwindcss": "^0.6.13",
     "tailwindcss": "^3.4.17",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",

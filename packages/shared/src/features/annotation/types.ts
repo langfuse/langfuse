@@ -1,5 +1,6 @@
 import z from "zod/v4";
 import { type ScoreDataType } from "../../db";
+import { StringNoHTML, StringNoHTMLNonEmpty } from "../../utils/zod";
 
 const NUMERIC: ScoreDataType = "NUMERIC";
 const CATEGORICAL: ScoreDataType = "CATEGORICAL";
@@ -47,12 +48,12 @@ export type ScoreTargetSession = z.infer<typeof ScoreTargetSession>;
 export type ScoreTarget = z.infer<typeof ScoreTarget>;
 
 const CreateAnnotationScoreBase = z.object({
-  name: z.string(),
+  name: StringNoHTMLNonEmpty,
   projectId: z.string(),
   environment: z.string().default("default"),
   scoreTarget: ScoreTarget,
   configId: z.string().optional(),
-  comment: z.string().nullish(),
+  comment: StringNoHTML.nullish(),
   queueId: z.string().nullish(),
 });
 
@@ -83,8 +84,8 @@ export const UpdateAnnotationScoreData = z.discriminatedUnion("dataType", [
 // annotation queues
 
 export const CreateQueueData = z.object({
-  name: z.string().min(1).max(35),
-  description: z.string().max(1000).optional(),
+  name: StringNoHTMLNonEmpty.max(35),
+  description: StringNoHTML.max(1000).optional(),
   scoreConfigIds: z.array(z.string()).min(1, {
     message: "At least 1 score config must be selected",
   }),

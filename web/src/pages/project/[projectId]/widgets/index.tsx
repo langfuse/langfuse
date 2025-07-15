@@ -6,11 +6,9 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "lucide-react";
 import { DashboardWidgetTable } from "@/src/features/widgets";
 import {
-  TabsBar,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
-import Link from "next/link";
+  getDashboardTabs,
+  DASHBOARD_TABS,
+} from "@/src/features/navigation/utils/dashboard-tabs";
 
 export default function Widgets() {
   const router = useRouter();
@@ -29,18 +27,10 @@ export default function Widgets() {
           description: "Manage and create widgets for your dashboard.",
           href: "https://langfuse.com/docs/analytics/custom-dashboards",
         },
-        tabsComponent: (
-          <TabsBar value="widgets">
-            <TabsBarList>
-              <TabsBarTrigger value="dashboards" asChild>
-                <Link href={`/project/${projectId}/dashboards`}>
-                  Dashboards
-                </Link>
-              </TabsBarTrigger>
-              <TabsBarTrigger value="widgets">Widgets</TabsBarTrigger>
-            </TabsBarList>
-          </TabsBar>
-        ),
+        tabsProps: {
+          tabs: getDashboardTabs(projectId),
+          activeTab: DASHBOARD_TABS.WIDGETS,
+        },
         actionButtonsRight: (
           <ActionButton
             icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
