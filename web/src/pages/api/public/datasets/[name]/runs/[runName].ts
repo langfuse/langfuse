@@ -22,6 +22,7 @@ import {
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -76,7 +77,41 @@ export default withMiddlewares({
           };
         },
         clickhouseExecution: async (queryInput: typeof query) => {
-          return {};
+          const datasetRuns = await prisma.datasetRuns.findMany({
+            where: {
+              projectId: auth.scope.projectId,
+              name: queryInput.runName,
+              dataset: {
+                name: queryInput.name,
+                projectId: auth.scope.projectId,
+              },
+            },
+          });
+
+          if (datasetRuns.length > 1)
+            throw new ApiError(
+              "Found more than one dataset run with this name",
+            );
+          if (!datasetRuns[0])
+            throw new LangfuseNotFoundError("Dataset run not found");
+
+          const run = datasetRuns[0];
+
+          const datasetRunItems = await generateDatasetRunItemsForPublicApi({
+            props: {
+              datasetId: run.datasetId,
+              runName: run.name,
+              projectId: auth.scope.projectId,
+            },
+          });
+
+          return {
+            ...transformDbDatasetRunToAPIDatasetRun({
+              ...run,
+              datasetName: queryInput.name,
+            }),
+            datasetRunItems,
+          };
         },
       });
 
