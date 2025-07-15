@@ -214,7 +214,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       maxTimestamp,
       bucketName: blobStorageIntegration.bucketName,
       endpoint: blobStorageIntegration.endpoint,
-      region: blobStorageIntegration.region ?? "auto",
+      region: blobStorageIntegration.region || "auto",
       accessKeyId: blobStorageIntegration.accessKeyId || undefined,
       secretAccessKey: blobStorageIntegration.secretAccessKey
         ? decrypt(blobStorageIntegration.secretAccessKey)
