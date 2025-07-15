@@ -474,9 +474,7 @@ export const formatWebhookHeaders = (
     isSecret: boolean;
     wasSecret: boolean;
   }[],
-): {
-  requestHeaders: Record<string, { secret: boolean; value: string }>;
-} => {
+): Record<string, { secret: boolean; value: string }> => {
   const requestHeaders: Record<string, { secret: boolean; value: string }> = {};
   const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
 
@@ -492,5 +490,5 @@ export const formatWebhookHeaders = (
     }
   });
 
-  return { requestHeaders };
+  return requestHeaders;
 };

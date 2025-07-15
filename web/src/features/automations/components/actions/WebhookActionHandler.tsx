@@ -161,17 +161,16 @@ export class WebhookActionHandler
 
   buildActionConfig(formData: WebhookActionFormData): ActionCreate {
     // Convert headers array to requestHeaders format
-    let requestHeaders: Record<string, { secret: boolean; value: string }> = {};
+    let headersObject: Record<string, { secret: boolean; value: string }> = {};
 
     if (formData.webhook?.headers) {
-      const formatted = formatWebhookHeaders(formData.webhook.headers);
-      requestHeaders = formatted.requestHeaders;
+      headersObject = formatWebhookHeaders(formData.webhook.headers);
     }
 
     return {
       type: "WEBHOOK",
       url: formData.webhook?.url || "",
-      requestHeaders: requestHeaders,
+      requestHeaders: headersObject,
       apiVersion: formData.webhook?.apiVersion || { prompt: "v1" },
     };
   }

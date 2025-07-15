@@ -198,7 +198,6 @@ export const AutomationForm = ({
     }
 
     const actionConfig = handler.buildActionConfig(data);
-    const actionCreateConfig = actionConfig;
 
     if (isEditing && automation) {
       // Update existing automation
@@ -211,7 +210,7 @@ export const AutomationForm = ({
         filter: data.filter && data.filter.length > 0 ? data.filter : null,
         status: data.status as JobConfigState,
         actionType: data.actionType,
-        actionConfig: actionCreateConfig,
+        actionConfig: actionConfig,
       });
 
       showSuccessToast({
@@ -230,7 +229,7 @@ export const AutomationForm = ({
         filter: data.filter && data.filter.length > 0 ? data.filter : null,
         status: data.status as JobConfigState,
         actionType: data.actionType,
-        actionConfig: actionCreateConfig,
+        actionConfig: actionConfig,
       });
 
       showSuccessToast({
