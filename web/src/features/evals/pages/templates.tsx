@@ -7,10 +7,9 @@ import { Lock, Plus } from "lucide-react";
 import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  TabsBar,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
+  getEvalsTabs,
+  EVALS_TABS,
+} from "@/src/features/navigation/utils/evals-tabs";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 
 export default function TemplatesPage() {

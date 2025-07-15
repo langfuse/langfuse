@@ -1,12 +1,19 @@
+import React from "react";
 import { useRouter } from "next/router";
 import ObservationsTable from "@/src/components/table/use-cases/observations";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
+import {
+  getTracingTabs,
+  TRACING_TABS,
+  useTracingTabLocalStorage,
+} from "@/src/features/navigation/utils/tracing-tabs";
 
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const [, setActiveTab] = useTracingTabLocalStorage();
 
   // Check if the user has any traces
   const { data: hasAnyTrace, isLoading } = api.traces.hasAny.useQuery(
@@ -24,14 +31,23 @@ export default function Generations() {
 
   const showOnboarding = !isLoading && !hasAnyTrace;
 
+  // Update local storage when this page loads
+  React.useEffect(() => {
+    setActiveTab(TRACING_TABS.OBSERVATIONS);
+  }, [setActiveTab]);
+
   return (
     <Page
       headerProps={{
-        title: "Observations",
+        title: "Tracing",
         help: {
           description:
             "An observation captures a single function call in an application. See docs to learn more.",
           href: "https://langfuse.com/docs/tracing-data-model",
+        },
+        tabsProps: {
+          tabs: getTracingTabs(projectId),
+          activeTab: TRACING_TABS.OBSERVATIONS,
         },
       }}
       scrollable={showOnboarding}
