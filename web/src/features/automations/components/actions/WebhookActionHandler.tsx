@@ -6,7 +6,7 @@ import {
   type AutomationDomain,
   AvailableWebhookApiSchema,
   WebhookDefaultHeaders,
-  type SafeWebhookActionConfig,
+  type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
@@ -20,7 +20,9 @@ const WebhookActionFormSchema = z.object({
         z.object({
           name: z.string(),
           value: z.string(),
+          displayValue: z.string(),
           isSecret: z.boolean(),
+          wasSecret: z.boolean(),
         }),
       )
       .default([]),
@@ -34,7 +36,9 @@ type WebhookActionFormData = z.infer<typeof WebhookActionFormSchema>;
 type HeaderPair = {
   name: string;
   value: string;
+  displayValue: string;
   isSecret: boolean;
+  wasSecret: boolean;
 };
 
 export class WebhookActionHandler
@@ -47,18 +51,18 @@ export class WebhookActionHandler
     if (
       automation?.action?.type === "WEBHOOK" &&
       automation?.action?.config &&
-      "displayHeaderValues" in automation.action.config &&
-      automation.action.config.displayHeaderValues
+      "displayHeaders" in automation.action.config &&
+      automation.action.config.displayHeaders
     ) {
       try {
-        const headersObject = automation.action.config.displayHeaderValues;
-        const secretHeaderKeys =
-          automation.action.config.secretHeaderKeys || [];
+        const displayHeaders = automation.action.config.displayHeaders;
 
-        return Object.entries(headersObject).map(([name, value]) => ({
+        return Object.entries(displayHeaders).map(([name, headerObj]) => ({
           name,
-          value: value as string,
-          isSecret: secretHeaderKeys.includes(name),
+          value: headerObj.secret ? "" : headerObj.value,
+          displayValue: headerObj.value,
+          isSecret: headerObj.secret,
+          wasSecret: headerObj.secret,
         }));
       } catch (e) {
         console.error("Failed to parse headers:", e);
@@ -114,8 +118,13 @@ export class WebhookActionHandler
           if (!header.name.trim()) {
             errors.push(`Header ${index + 1}: Name cannot be empty`);
           }
-          if (!header.value.trim()) {
+          if (!header.value.trim() && !header.isSecret) {
             errors.push(`Header ${index + 1}: Value cannot be empty`);
+          }
+          if (header.wasSecret !== header.isSecret && !header.value.trim()) {
+            errors.push(
+              `Header ${index + 1}: A value must be provided when making a header ${header.wasSecret ? "public" : "secret"}`,
+            );
           }
 
           // Check if header name conflicts with default headers
@@ -137,25 +146,20 @@ export class WebhookActionHandler
     };
   }
 
-  buildActionConfig(
-    formData: WebhookActionFormData,
-  ): Omit<SafeWebhookActionConfig, "displaySecretKey"> {
-    // Convert headers array to object and extract secret header keys
-    let headersObject: Record<string, string> = {};
-    let secretHeaderKeys: string[] = [];
+  buildActionConfig(formData: WebhookActionFormData): ActionCreate {
+    // Convert headers array to requestHeaders format
+    let requestHeaders: Record<string, { secret: boolean; value: string }> = {};
 
     if (formData.webhook?.headers) {
       const formatted = formatWebhookHeaders(formData.webhook.headers);
-      headersObject = formatted.headers;
-      secretHeaderKeys = formatted.secretHeaderKeys;
+      requestHeaders = formatted.requestHeaders;
     }
 
     return {
       type: "WEBHOOK",
       url: formData.webhook?.url || "",
-      secretHeaderKeys,
+      requestHeaders: requestHeaders,
       apiVersion: formData.webhook?.apiVersion || { prompt: "v1" },
-      displayHeaderValues: headersObject,
     };
   }
 

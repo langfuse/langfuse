@@ -43,6 +43,7 @@ import {
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import React from "react";
 
 export const webhookSchema = z.object({
   url: z.url(),
@@ -60,7 +61,9 @@ export const webhookSchema = z.object({
         },
       ),
       value: z.string(),
+      displayValue: z.string(),
       isSecret: z.boolean(),
+      wasSecret: z.boolean(),
     }),
   ),
   apiVersion: AvailableWebhookApiSchema,
@@ -218,6 +221,10 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           const isSecret = form.watch(
             `webhook.headers.${originalIndex}.isSecret`,
           );
+          const displayValue = form.watch(
+            `webhook.headers.${originalIndex}.displayValue`,
+          );
+
           return (
             <div
               key={field.id}
@@ -246,7 +253,11 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                   <FormItem>
                     <FormControl>
                       <Input
-                        placeholder="Value"
+                        placeholder={
+                          isSecret && displayValue
+                            ? displayValue
+                            : displayValue || "Value"
+                        }
                         {...field}
                         disabled={disabled}
                         type={isSecret ? "password" : "text"}
@@ -458,24 +469,22 @@ export const RegenerateWebhookSecretButton = ({
 export const formatWebhookHeaders = (
   headers: { name: string; value: string; isSecret?: boolean }[],
 ): {
-  headers: Record<string, string>;
-  secretHeaderKeys: string[];
+  requestHeaders: Record<string, { secret: boolean; value: string }>;
 } => {
-  const headersObject: Record<string, string> = {};
-  const secretHeaderKeys: string[] = [];
+  const requestHeaders: Record<string, { secret: boolean; value: string }> = {};
   const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
 
   headers.forEach((header) => {
-    if (header.name.trim() && header.value.trim()) {
+    if (header.name.trim()) {
       // Exclude default headers - they will be added automatically by the API
       if (!defaultHeaderKeys.includes(header.name.trim().toLowerCase())) {
-        headersObject[header.name.trim()] = header.value.trim();
-        if (header.isSecret) {
-          secretHeaderKeys.push(header.name.trim());
-        }
+        requestHeaders[header.name.trim()] = {
+          secret: header.isSecret || false,
+          value: header.value.trim(),
+        };
       }
     }
   });
 
-  return { headers: headersObject, secretHeaderKeys };
+  return { requestHeaders };
 };

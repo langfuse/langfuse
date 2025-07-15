@@ -9,7 +9,13 @@ import {
   type SafeWebhookActionConfig,
   type WebhookActionConfigWithSecrets,
 } from "@langfuse/shared";
-import { getActionByIdWithSecrets } from "@langfuse/shared/src/server";
+import {
+  getActionByIdWithSecrets,
+  mergeHeaders,
+  createDisplayHeaders,
+  encryptSecretHeaders,
+} from "@langfuse/shared/src/server";
+import { TRPCError } from "@trpc/server";
 
 interface WebhookConfigOptions {
   actionConfig: ActionCreate;
@@ -19,11 +25,13 @@ interface WebhookConfigOptions {
 
 /**
  * Processes webhook action configuration by:
- * 1. Adding default headers
- * 2. Encrypting secret headers based on secretHeaderKeys
- * 3. Generating display values for secret headers
- * 4. Generating or preserving webhook secrets
- * 5. Encrypting secrets for storage
+ * 1. Merging legacy headers with new requestHeaders
+ * 2. Handling header removal (headers not in input are removed)
+ * 3. Preserving existing values when empty values are submitted
+ * 4. Encrypting secret headers based on secret flag
+ * 5. Generating display values for secret headers
+ * 6. Generating or preserving webhook secrets
+ * 7. Encrypting secrets for storage
  */
 export async function processWebhookActionConfig({
   actionConfig,
@@ -47,19 +55,62 @@ export async function processWebhookActionConfig({
   const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
     generateWebhookSecret();
 
-  // Process headers - encrypt secret headers and create display values
-  const processedHeaders = processHeaders(
-    actionConfig.headers,
-    actionConfig.secretHeaderKeys,
-    existingAction?.config.headers ?? {},
-    existingAction?.config.secretHeaderKeys ?? [],
+  // Get existing headers for comparison
+  const existingLegacyHeaders = existingAction?.config.headers ?? {};
+  const existingRequestHeaders = existingAction?.config.requestHeaders ?? {};
+  const mergedExistingHeaders = mergeHeaders(
+    existingLegacyHeaders,
+    existingRequestHeaders,
   );
+
+  // Process new headers from input
+  const inputRequestHeaders = actionConfig.requestHeaders || {};
+
+  // Start with empty headers - only include what's in the input
+  const finalRequestHeaders: Record<
+    string,
+    { secret: boolean; value: string }
+  > = {};
+
+  // Process each header from input
+  for (const [key, headerObj] of Object.entries(inputRequestHeaders)) {
+    const existingHeader = mergedExistingHeaders[key];
+
+    // Validate secret toggle: can only change secret status when providing a value
+    if (headerObj.secret && headerObj.value.trim() === "" && !existingHeader) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Header "${key}" cannot be made secret without providing a value`,
+      });
+    }
+
+    // If changing secret status, ensure a value is provided
+    if (
+      existingHeader &&
+      headerObj.secret !== existingHeader.secret &&
+      headerObj.value.trim() === ""
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Header "${key}" secret status can only be changed when providing a value`,
+      });
+    }
+
+    // If value is empty, preserve existing value if it exists
+    if (headerObj.value.trim() === "" && existingHeader) {
+      finalRequestHeaders[key] = existingHeader;
+    } else if (headerObj.value.trim() !== "") {
+      // Only process non-empty values
+      finalRequestHeaders[key] = headerObj;
+    }
+    // If value is empty and no existing header, skip it (effectively removing it)
+  }
 
   const finalActionConfig = {
     ...actionConfig,
-    headers: processedHeaders.headers,
-    secretHeaderKeys: processedHeaders.secretHeaderKeys,
-    displayHeaderValues: processedHeaders.displayHeaderValues,
+    headers: existingLegacyHeaders, // Keep legacy headers for compatibility
+    requestHeaders: encryptSecretHeaders(finalRequestHeaders),
+    displayHeaders: createDisplayHeaders(finalRequestHeaders),
     secretKey: existingAction?.config.secretKey ?? encrypt(newSecretKey),
     displaySecretKey:
       existingAction?.config.displaySecretKey ?? newDisplaySecretKey,
@@ -71,113 +122,6 @@ export async function processWebhookActionConfig({
       ? undefined
       : newSecretKey,
   };
-}
-
-/**
- * Processes headers for webhook config:
- * - Encrypts headers marked as secret
- * - Creates display values for secret headers
- * - Preserves existing encrypted values when possible
- */
-function processHeaders(
-  newHeaders: Record<string, string>,
-  newSecretHeaderKeys: string[],
-  existingHeaders: Record<string, string>,
-  existingSecretHeaderKeys: string[],
-): {
-  headers: Record<string, string>;
-  secretHeaderKeys: string[];
-  displayHeaderValues: Record<string, string>;
-} {
-  const headers: Record<string, string> = {};
-  const secretHeaderKeys: string[] =
-    newSecretHeaderKeys ?? existingSecretHeaderKeys ?? [];
-  const displayHeaderValues: Record<string, string> = {};
-
-  // Process each header
-  for (const [headerName, headerValue] of Object.entries(newHeaders)) {
-    const isSecret = newSecretHeaderKeys.includes(headerName);
-    const wasSecret = existingSecretHeaderKeys.includes(headerName);
-
-    if (isSecret) {
-      // This header should be encrypted
-      if (
-        wasSecret &&
-        headerValue ===
-          getDisplayValueForEncryptedHeader(
-            headerName,
-            existingHeaders[headerName],
-          )
-      ) {
-        // Value hasn't changed, keep existing encrypted value
-        headers[headerName] = existingHeaders[headerName];
-        displayHeaderValues[headerName] = headerValue;
-      } else {
-        // New or changed secret header, encrypt it
-        headers[headerName] = encrypt(headerValue);
-        displayHeaderValues[headerName] = createDisplayValue(headerValue);
-      }
-    } else {
-      // This header should be in plaintext
-      headers[headerName] = headerValue;
-      displayHeaderValues[headerName] = headerValue;
-    }
-  }
-
-  return { headers, secretHeaderKeys, displayHeaderValues };
-}
-
-/**
- * Creates a display value for a secret header (masks the value)
- */
-function createDisplayValue(value: string): string {
-  if (value.length <= 8) {
-    return "****";
-  }
-
-  // For longer values, show first 4 and last 4 characters
-  return `${value.substring(0, 4)}...${value.substring(value.length - 4)}`;
-}
-
-/**
- * Gets the display value for a header from existing encrypted value
- */
-function getDisplayValueForEncryptedHeader(
-  headerName: string,
-  encryptedValue: string,
-): string {
-  try {
-    const decryptedValue = decrypt(encryptedValue);
-    return createDisplayValue(decryptedValue);
-  } catch (error) {
-    // If decryption fails, return a generic display value
-    return "****";
-  }
-}
-
-/**
- * Decrypts secret headers for use in webhook execution
- */
-export function decryptSecretHeaders(
-  headers: Record<string, string>,
-  secretHeaderKeys: string[],
-): Record<string, string> {
-  const decryptedHeaders: Record<string, string> = {};
-
-  for (const [headerName, headerValue] of Object.entries(headers)) {
-    if (secretHeaderKeys.includes(headerName)) {
-      try {
-        decryptedHeaders[headerName] = decrypt(headerValue);
-      } catch (error) {
-        console.error(`Failed to decrypt header ${headerName}:`, error);
-        // Skip this header if decryption fails
-      }
-    } else {
-      decryptedHeaders[headerName] = headerValue;
-    }
-  }
-
-  return decryptedHeaders;
 }
 
 /**
@@ -207,8 +151,7 @@ export function convertToSafeWebhookConfig(
   return {
     type: webhookConfig.type,
     url: webhookConfig.url,
-    secretHeaderKeys: webhookConfig.secretHeaderKeys || [],
-    displayHeaderValues: webhookConfig.displayHeaderValues || {},
+    displayHeaders: webhookConfig.displayHeaders,
     apiVersion: webhookConfig.apiVersion,
     displaySecretKey: webhookConfig.displaySecretKey,
   };

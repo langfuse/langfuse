@@ -15,33 +15,7 @@ import {
   SafeWebhookActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
-import { decrypt } from "../../encryption";
-import { logger } from "../logger";
-
-/**
- * Decrypts secret headers for webhook execution
- */
-function decryptSecretHeaders(
-  headers: Record<string, string>,
-  secretHeaderKeys: string[],
-): Record<string, string> {
-  const decryptedHeaders: Record<string, string> = {};
-
-  for (const [headerName, headerValue] of Object.entries(headers)) {
-    if (secretHeaderKeys.includes(headerName)) {
-      try {
-        decryptedHeaders[headerName] = decrypt(headerValue);
-      } catch (error) {
-        logger.error(`Failed to decrypt header ${headerName}:`, error);
-        // Skip this header if decryption fails
-      }
-    } else {
-      decryptedHeaders[headerName] = headerValue;
-    }
-  }
-
-  return decryptedHeaders;
-}
+import { decryptSecretHeaders } from "../automations/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
   projectId,
@@ -63,20 +37,22 @@ export const getActionByIdWithSecrets = async ({
 
   const config = actionConfig.config as WebhookActionConfigWithSecrets;
 
-  // Decrypt secret headers for webhook execution
-  const decryptedHeaders = decryptSecretHeaders(
-    config.headers || {},
-    config.secretHeaderKeys || [],
-  );
+  // Decrypt secret headers for webhook execution using new structure
+  const { decryptedHeaders, decryptedRequestHeaders } = config.requestHeaders
+    ? decryptSecretHeaders(config.requestHeaders)
+    : {
+        decryptedHeaders: config.headers || {},
+        decryptedRequestHeaders: {},
+      };
 
   return {
     ...actionConfig,
     config: {
       type: config.type,
       url: config.url,
-      headers: decryptedHeaders, // Decrypted headers for execution
-      secretHeaderKeys: config.secretHeaderKeys || [],
-      displayHeaderValues: config.displayHeaderValues || {},
+      headers: decryptedHeaders,
+      requestHeaders: decryptedRequestHeaders,
+      displayHeaders: config.displayHeaders,
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
       secretKey: config.secretKey,
@@ -152,13 +128,13 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
 
 const convertActionToDomain = (action: Action): ActionDomain => {
   const config = action.config as WebhookActionConfigWithSecrets;
+
   return {
     ...action,
     config: {
       type: config.type,
       url: config.url,
-      secretHeaderKeys: config.secretHeaderKeys,
-      displayHeaderValues: config.displayHeaderValues,
+      displayHeaders: config.displayHeaders,
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
     } as SafeWebhookActionConfig,
