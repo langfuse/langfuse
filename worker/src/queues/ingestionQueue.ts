@@ -170,7 +170,7 @@ export const ingestionQueueProcessorBuilder = (
           const file = await s3Client.download(fileRef.file);
           const fileSize = file.length;
 
-          recordHistogram("langfuse.ingestion.s3DownloadSizeBytes", fileSize, {
+          recordHistogram("langfuse.ingestion.s3_file_download_size_bytes", fileSize, {
             skippedS3List: "false",
           });
           totalS3DownloadSizeBytes += fileSize;
