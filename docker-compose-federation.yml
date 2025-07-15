@@ -28,9 +28,10 @@ services:
       - .env
 
   my-keycloak:
-    build:
-      context: .
-      dockerfile: Dockerfile.keycloak.yml
+    # build:
+      # context: .
+      # dockerfile: Dockerfile.keycloak.yml
+    image: quay.io/keycloak/keycloak:latest
     # Set memory limit for optimal JVM performance (recommended: 2GB for production)
     deploy:
       resources:
