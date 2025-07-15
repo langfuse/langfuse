@@ -204,11 +204,6 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                   />
                 </FormControl>
               </FormItem>
-              <div className="flex w-8 items-center justify-center">
-                <Lock className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="w-10" />{" "}
-              {/* Spacer to align with editable headers */}
             </div>
           ))}
         </div>
