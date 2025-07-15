@@ -103,7 +103,13 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
 
   // Function to add a new header pair
   const addHeader = () => {
-    appendHeader({ name: "", value: "", isSecret: false });
+    appendHeader({
+      name: "",
+      value: "",
+      displayValue: "",
+      isSecret: false,
+      wasSecret: false,
+    });
   };
 
   // Function to toggle secret status of a header
@@ -466,7 +472,13 @@ export const RegenerateWebhookSecretButton = ({
 
 // Function to convert the array of header objects to a Record for API
 export const formatWebhookHeaders = (
-  headers: { name: string; value: string; isSecret?: boolean }[],
+  headers: {
+    name: string;
+    value: string;
+    displayValue: string;
+    isSecret: boolean;
+    wasSecret: boolean;
+  }[],
 ): {
   requestHeaders: Record<string, { secret: boolean; value: string }>;
 } => {
