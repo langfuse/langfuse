@@ -18,10 +18,10 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { SiDiscord } from "react-icons/si";
 import { useMemo, type ReactNode } from "react";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
-import { SiDiscord } from "react-icons/si";
 import { env } from "@/src/env.mjs";
 import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 

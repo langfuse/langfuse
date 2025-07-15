@@ -11,7 +11,7 @@ import {
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media/validation";
-import { FileIcon, ImageIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
+import { File, Image as ImageIcon, Volume2 } from "lucide-react";
 
 export const LangfuseMediaView = ({
   mediaReferenceString,
@@ -127,9 +127,9 @@ function FileViewer({
         {fileType === "image" ? (
           <ImageIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
         ) : fileType === "audio" ? (
-          <SpeakerLoudIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
+          <Volume2 className="h-5 w-5 transition-transform group-hover:scale-110" />
         ) : (
-          <FileIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
+          <File className="h-5 w-5 transition-transform group-hover:scale-110" />
         )}
 
         <div className="flex flex-col items-center gap-1">

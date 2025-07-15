@@ -3,7 +3,6 @@ import Link from "next/link";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { type UIModelParams } from "@langfuse/shared";
-import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export const LLMApiKeyComponent = (p: {
@@ -54,22 +53,6 @@ export const LLMApiKeyComponent = (p: {
           </Link>
         ) : undefined}
       </div>
-      {/* Custom form message to include a link to the already existing prompt */}
-      {!apiKey ? (
-        <div className="flex flex-col font-medium text-destructive">
-          {`No LLM API key found for provider ${modelProvider}.`}
-
-          <Link
-            href={`/project/${p.projectId}/settings/api-keys`}
-            className="flex flex-row"
-          >
-            Create a new LLM API key here. <ArrowTopRightIcon />
-          </Link>
-        </div>
-      ) : undefined}
-      <p className="text-muted-foreground">
-        The LLM API key is used for each execution and will incur costs.
-      </p>
     </div>
   );
 };
