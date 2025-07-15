@@ -5,11 +5,11 @@ import {
 } from "@langfuse/shared/src/server";
 
 type DatasetRunItemsQueryType = {
+  projectId: string;
   datasetId: string;
   runName: string;
-  page: number;
-  limit: number;
-  projectId: string;
+  page?: number;
+  limit?: number;
 };
 
 export const generateDatasetRunItemsForPublicApi = async ({
@@ -40,7 +40,7 @@ export const generateDatasetRunItemsForPublicApi = async ({
       order: "DESC",
     },
     limit: limit,
-    offset: page * limit,
+    offset: page && limit ? page * limit : undefined,
   });
 
   return result.map(transformDbDatasetRunItemToAPIDatasetRunItemCh);
