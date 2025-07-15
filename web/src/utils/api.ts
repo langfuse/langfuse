@@ -57,7 +57,6 @@ let buildId: string | null = null;
 const CLIENT_STALE_CACHE_CODES = [404, 400];
 
 const handleTrpcError = (error: unknown) => {
-  captureException(error);
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
@@ -72,6 +71,13 @@ const handleTrpcError = (error: unknown) => {
         return;
       }
     }
+    // Only send server errors (5xx) to Sentry, not client errors (4xx)
+    if (httpStatus >= 500 && httpStatus < 600) {
+      captureException(error);
+    }
+  } else {
+    // For non-TRPC errors, still send to Sentry
+    captureException(error);
   }
 
   trpcErrorToast(error);
@@ -123,9 +129,10 @@ export const api = createTRPCNext<AppRouter>({
       links: [
         buildIdLink(),
         loggerLink({
-          enabled: (opts) =>
-            process.env.NODE_ENV === "development" ||
-            (opts.direction === "down" && opts.result instanceof Error),
+          // Only enable in development - production logs would be captured by Sentry
+          // in an unreadable format. We handle 5xx errors via captureException() in
+          // handleTrpcError and use DataDog for additional server-side logging.
+          enabled: () => process.env.NODE_ENV === "development",
         }),
         splitLink({
           condition(op) {
@@ -180,9 +187,10 @@ export const directApi = createTRPCProxyClient<AppRouter>({
   transformer: superjson,
   links: [
     loggerLink({
-      enabled: (opts) =>
-        process.env.NODE_ENV === "development" ||
-        (opts.direction === "down" && opts.result instanceof Error),
+      // Only enable in development - production logs would be captured by Sentry
+      // in an unreadable format. We handle 5xx errors via captureException() in
+      // handleTrpcError and use DataDog for additional server-side logging.
+      enabled: () => process.env.NODE_ENV === "development",
     }),
     httpBatchLink({
       url: `${getBaseUrl()}/api/trpc`,

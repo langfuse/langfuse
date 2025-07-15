@@ -12,13 +12,14 @@ import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
 import PromptMetrics from "./metrics";
 import { useQueryParams, StringParam } from "use-query-params";
 import React from "react";
+import { WebhookButton } from "@/src/features/automations/components/WebhookButton";
 
 export default function PromptsWithFolder() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const routeSegments = router.query.folder;
   const [queryParams] = useQueryParams({ folder: StringParam });
-  const folderQueryParam = queryParams.folder || '';
+  const folderQueryParam = queryParams.folder || "";
 
   // Determine view type based on route segments
   // NOTE: there is a bug here, that if the user directly accesses a prompt name which ends in `/metrics`,
@@ -26,10 +27,15 @@ export default function PromptsWithFolder() {
   // this in the UI (we URL encode here and don't strip metrics). We could resolve this with another API call
   // to check the prompt name existence.
   const segmentsArray = Array.isArray(routeSegments) ? routeSegments : [];
-  const isMetricsPage = segmentsArray.length > 0 && segmentsArray[segmentsArray.length - 1] === 'metrics';
-  const promptNameFromRoute = segmentsArray.length > 0
-    ? (isMetricsPage ? segmentsArray.slice(0, -1).join('/') : segmentsArray.join('/'))
-    : '';
+  const isMetricsPage =
+    segmentsArray.length > 0 &&
+    segmentsArray[segmentsArray.length - 1] === "metrics";
+  const promptNameFromRoute =
+    segmentsArray.length > 0
+      ? isMetricsPage
+        ? segmentsArray.slice(0, -1).join("/")
+        : segmentsArray.join("/")
+      : "";
 
   const capture = usePostHogClientCapture();
   const hasCUDAccess = useHasProjectAccess({
@@ -83,19 +89,22 @@ export default function PromptsWithFolder() {
           href: "https://langfuse.com/docs/prompts",
         },
         actionButtonsRight: (
-          <ActionButton
-            icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
-            hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ''}`}
-            variant="default"
-            limit={promptLimit}
-            limitValue={Number(count?.totalCount ?? 0)}
-            onClick={() => {
-              capture("prompts:new_form_open");
-            }}
-          >
-            New prompt
-          </ActionButton>
+          <>
+            {projectId && <WebhookButton projectId={projectId} />}
+            <ActionButton
+              icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+              hasAccess={hasCUDAccess}
+              href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
+              variant="default"
+              limit={promptLimit}
+              limitValue={Number(count?.totalCount ?? 0)}
+              onClick={() => {
+                capture("prompts:new_form_open");
+              }}
+            >
+              New prompt
+            </ActionButton>
+          </>
         ),
       }}
       scrollable={showOnboarding}

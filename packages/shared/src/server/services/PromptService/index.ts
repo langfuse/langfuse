@@ -3,6 +3,7 @@ import { Redis, Cluster } from "ioredis";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import { escapeRegex } from "./utils";
+import { safeMultiDel } from "../../redis/redis";
 import {
   PromptGraph,
   PromptParams,
@@ -30,9 +31,12 @@ export class PromptService {
     (name: string, value?: number) => void,
     cacheEnabled?: boolean, // used for testing
   ) {
-    this.cacheEnabled =
-      Boolean(redis) &&
-      (cacheEnabled || env.LANGFUSE_CACHE_PROMPT_ENABLED === "true");
+    if (cacheEnabled !== undefined) {
+      this.cacheEnabled = cacheEnabled;
+    } else {
+      this.cacheEnabled =
+        Boolean(redis) && env.LANGFUSE_CACHE_PROMPT_ENABLED === "true";
+    }
 
     this.ttlSeconds = env.LANGFUSE_CACHE_PROMPT_TTL_SECONDS;
   }
@@ -237,13 +241,14 @@ export class PromptService {
     const legacyKeyIndexKey = `${keyIndexKey}:${params.promptName}`;
     const legacyKeys = await this.redis?.smembers(legacyKeyIndexKey);
 
-    // Delete all keys for the prefix and the key index
-    await this.redis?.del([
+    // Delete all keys for the prefix and the key index using safe multi-delete
+    const keysToDelete = [
       ...(keys ?? []),
       keyIndexKey,
       ...(legacyKeys ?? []),
       legacyKeyIndexKey,
-    ]);
+    ];
+    await safeMultiDel(this.redis, keysToDelete);
   }
 
   private getCacheKey(params: PromptParams): string {

@@ -10,7 +10,12 @@ import {
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { Settings2, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import {
+  Settings2,
+  ChevronsUpDown,
+  ChevronsDownUp,
+  Download,
+} from "lucide-react";
 import { useCallback, useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
@@ -205,6 +210,27 @@ export function Trace(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const downloadTraceAsJson = useCallback(() => {
+    const exportData = {
+      trace: props.trace,
+      observations: props.observations,
+    };
+
+    const jsonString = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `trace-${props.trace.id}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    capture("trace_detail:download_button_click");
+  }, [props.trace, props.observations, capture]);
+
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${props.trace.id}-expanded`,
     [`trace-${props.trace.id}`],
@@ -388,6 +414,14 @@ export function Trace(props: {
                     </DropdownMenuSub>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={downloadTraceAsJson}
+                  title="Download trace as JSON"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
                 <Switch
                   checked={props.selectedTab?.includes("timeline")}
                   onCheckedChange={(checked) =>

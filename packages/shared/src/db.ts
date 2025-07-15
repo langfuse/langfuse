@@ -88,6 +88,7 @@ declare const globalThis: {
   kyselyPrismaGlobal: { $kysely: Kysely<DB> } | undefined;
 } & typeof global;
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 if (process.env.NODE_ENV === "development") {
   globalThis.prismaGlobal ??= createPrismaInstance(); // regular instantiation
   globalThis.kyselyPrismaGlobal ??= globalThis.prismaGlobal.$extends(

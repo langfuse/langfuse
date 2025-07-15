@@ -11,7 +11,6 @@ import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
 import {
   NumberParam,
   StringParam,
@@ -33,6 +32,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Slash, Folder, Home } from "lucide-react";
+import { promptsTableColsWithOptions } from "@langfuse/shared";
 
 type PromptTableRow = {
   id: string;
@@ -66,12 +66,6 @@ function isFolder(
   row: PromptTableRow,
 ): row is PromptTableRow & { type: "folder" } {
   return row.type === "folder";
-}
-
-function getDisplayName(fullPath: string, currentFolderPath: string): string {
-  return currentFolderPath === ""
-    ? fullPath
-    : fullPath.substring(currentFolderPath.length + 1);
 }
 
 function createBreadcrumbItems(currentFolderPath: string) {
@@ -180,74 +174,56 @@ export function PromptTable() {
     })),
   );
 
-  // Filter and group prompts based on current folder path
+  // Backend returns folder representatives, so we just need to detect them
   const processedRowData = useMemo(() => {
     if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
 
-    const uniqueFolders = new Set<string>();
-    const matchingPrompts: typeof promptsRowData.rows = [];
+    const combinedRows: PromptTableRow[] = [];
 
-    // Identify immediate subfolders from backend-filtered prompts
     for (const prompt of promptsRowData.rows) {
       const promptName = prompt.id;
 
-      if (currentFolderPath) {
-        const prefix = `${currentFolderPath}/`;
-        if (promptName.startsWith(prefix)) {
-          const remainingPath = promptName.substring(prefix.length);
-          const slashIndex = remainingPath.indexOf("/");
+      // Check if this prompt represents a folder
+      const isFolderRepresentative = currentFolderPath
+        ? promptName.includes("/") &&
+          promptName.startsWith(`${currentFolderPath}/`) &&
+          promptName.substring(currentFolderPath.length + 1).includes("/")
+        : promptName.includes("/");
 
-          if (slashIndex > 0) {
-            // Subfolder
-            const subFolderName = remainingPath.substring(0, slashIndex);
-            const fullSubFolderPath = `${currentFolderPath}/${subFolderName}`;
-            uniqueFolders.add(fullSubFolderPath);
-          } else {
-            // Direct prompt in current folder
-            matchingPrompts.push(prompt);
-          }
-        }
+      if (isFolderRepresentative) {
+        // Convert folder representative to folder item
+        const folderPath = currentFolderPath
+          ? `${currentFolderPath}/${promptName.substring(currentFolderPath.length + 1).split("/")[0]}`
+          : promptName.split("/")[0];
+
+        const folderName = currentFolderPath
+          ? folderPath.substring(currentFolderPath.length + 1)
+          : folderPath;
+
+        combinedRows.push(
+          createRow({
+            id: folderPath,
+            name: folderName,
+            type: "folder",
+          }),
+        );
       } else {
-        // Root level
-        const slashIndex = promptName.indexOf("/");
-        if (slashIndex > 0) {
-          const folderName = promptName.substring(0, slashIndex);
-          uniqueFolders.add(folderName);
-        } else {
-          matchingPrompts.push(prompt);
-        }
+        // Regular prompt
+        combinedRows.push(
+          createRow({
+            id: prompt.id,
+            name: currentFolderPath
+              ? prompt.id.substring(currentFolderPath.length + 1)
+              : prompt.id,
+            type: prompt.type as "text" | "chat",
+            version: prompt.version,
+            createdAt: prompt.createdAt,
+            labels: prompt.labels,
+            tags: prompt.tags,
+            numberOfObservations: Number(prompt.observationCount ?? 0),
+          }),
+        );
       }
-    }
-
-    // Create combined rows: folders first, then prompts
-    const combinedRows: PromptTableRow[] = [];
-
-    // Add folder rows
-    for (const folderPath of uniqueFolders) {
-      const folderName = getDisplayName(folderPath, currentFolderPath);
-      combinedRows.push(
-        createRow({
-          id: folderPath,
-          name: folderName,
-          type: "folder",
-        }),
-      );
-    }
-
-    // Add matching prompts
-    for (const prompt of matchingPrompts) {
-      combinedRows.push(
-        createRow({
-          id: prompt.id,
-          name: prompt.id,
-          type: prompt.type as "text" | "chat",
-          version: prompt.version,
-          createdAt: prompt.createdAt,
-          labels: prompt.labels,
-          tags: prompt.tags,
-          numberOfObservations: Number(prompt.observationCount ?? 0),
-        }),
-      );
     }
 
     return {
@@ -298,26 +274,25 @@ export function PromptTable() {
         const rowData = row.row.original;
 
         if (isFolder(rowData)) {
-          const displayName = getDisplayName(rowData.id, currentFolderPath);
           return (
             <TableLink
               path={""}
-              value={displayName} // To satisfy table-link, fallback
+              value={name} // To satisfy table-link, fallback
               className="flex items-center gap-2"
               icon={
                 <>
                   <Folder className="h-4 w-4" />
-                  {displayName}
+                  {name}
                 </>
               }
               onClick={() => {
                 setQueryParams({
-                  folder: rowData.id,
+                  folder: rowData.id, // rowData.id contains the full folder path
                   pageIndex: 0,
                   pageSize: queryParams.pageSize,
                 });
               }}
-              title={displayName || ""}
+              title={name || ""}
             />
           );
         }
@@ -326,6 +301,7 @@ export function PromptTable() {
           <TableLink
             path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.id)}`}
             value={name}
+            title={rowData.id} // Show full prompt path on hover
           />
         ) : undefined;
       },
@@ -484,7 +460,7 @@ export function PromptTable() {
         setFilterState={useDebounce(setFilterState)}
         columnsWithCustomSelect={["labels", "tags"]}
         searchConfig={{
-          metadataSearchFields: ["Name"],
+          metadataSearchFields: ["Name", "Tags"],
           updateQuery: useDebounce(setSearchQuery, 300),
           currentQuery: searchQuery ?? undefined,
           tableAllowsFullTextSearch: false,
@@ -508,12 +484,7 @@ export function PromptTable() {
                   isError: false,
                   data: processedRowData.rows?.map((item) => ({
                     id: item.id,
-                    name:
-                      item.type === "folder"
-                        ? item.name
-                        : currentFolderPath
-                          ? item.name.substring(currentFolderPath.length + 1)
-                          : item.name,
+                    name: item.name,
                     version: item.version,
                     createdAt: item.createdAt,
                     type: item.type,

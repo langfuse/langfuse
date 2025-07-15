@@ -13,3 +13,4 @@ export * from "./scores-utils";
 export * from "./blobStorageLog";
 export * from "./environments";
 export * from "./dataset-run-items";
+export * from "./automation-repository";

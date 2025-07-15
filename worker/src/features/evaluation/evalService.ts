@@ -49,13 +49,11 @@ import {
   TraceDomain,
   Observation,
   DatasetItem,
+  QUEUE_ERROR_MESSAGES,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
-import {
-  callStructuredLLM,
-  compileHandlebarString,
-} from "../../features/utilities";
+import { callStructuredLLM, compileHandlebarString } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 
@@ -877,11 +875,11 @@ export async function extractVariablesFromTracingData({
       // user facing errors
       if (!observation) {
         logger.warn(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
+          `Observation ${mapping.objectName} for trace ${traceId} not found. ${QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR}`,
         );
         // this should only happen for deleted data or data replication lags across clickhouse nodes.
         throw new LangfuseNotFoundError(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
+          `Observation ${mapping.objectName} for trace ${traceId} not found. ${QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR}`,
         );
       }
 

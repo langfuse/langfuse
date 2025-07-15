@@ -3,11 +3,11 @@ import { orderBy } from "../interfaces/orderBy";
 import z from "zod/v4";
 
 export enum TableViewPresetTableName {
-  Traces = "traces",
-  Observations = "observations",
-  Scores = "scores",
-  Sessions = "sessions",
-  Datasets = "datasets",
+  Traces = "traces", // eslint-disable-line no-unused-vars
+  Observations = "observations", // eslint-disable-line no-unused-vars
+  Scores = "scores", // eslint-disable-line no-unused-vars
+  Sessions = "sessions", // eslint-disable-line no-unused-vars
+  Datasets = "datasets", // eslint-disable-line no-unused-vars
 }
 
 const TableViewPresetDomainSchema = z.object({

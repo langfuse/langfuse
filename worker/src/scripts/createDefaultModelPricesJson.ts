@@ -68,7 +68,7 @@ async function main() {
     await fs.writeFile(EXPORT_PATH, JSON.stringify(modelPrices, null, 2));
 
     console.log(
-      `✅ ${modelPrices.length} default model prices written to ${EXPORT_PATH}.`
+      `✅ ${modelPrices.length} default model prices written to ${EXPORT_PATH}.`,
     );
   } catch (error) {
     console.error(error);

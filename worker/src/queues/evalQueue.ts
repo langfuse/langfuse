@@ -1,5 +1,10 @@
 import { Job } from "bullmq";
-import { ApiError, BaseError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  ApiError,
+  BaseError,
+  LangfuseNotFoundError,
+  QUEUE_ERROR_MESSAGES,
+} from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -9,10 +14,10 @@ import {
   traceException,
   EvalExecutionQueue,
   QueueJobs,
-  recordIncrement,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
-import { randomUUID } from "crypto";
+import { delayInMs } from "./utils/delays";
+import { handleRetryableError } from "../features/utils";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -83,52 +88,18 @@ export const evalJobExecutorQueueProcessor = async (
     return true;
   } catch (e) {
     // If the job fails with a 429, we want to retry it unless it's older than 24h.
-    if (
-      (e instanceof ApiError && e.httpCode === 429) || // retry all rate limits
-      (e instanceof ApiError && e.httpCode >= 500) // retry all 5xx errors
-    ) {
-      try {
-        // Check if the job execution is older than 24h
-        const jobExecution = await kyselyPrisma.$kysely
-          .selectFrom("job_executions")
-          .select("created_at")
-          .where("id", "=", job.data.payload.jobExecutionId)
-          .where("project_id", "=", job.data.payload.projectId)
-          .executeTakeFirstOrThrow();
-        if (
-          // Do nothing if job execution is older than 24h
-          jobExecution.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)
-        ) {
-          logger.info(
-            `Job ${job.data.payload.jobExecutionId} is rate limited for more than 24h. Stop retrying.`,
-          );
-        } else {
-          // Add the job into the queue with a random delay between 1 and 10min and return
-          const delay = Math.floor(Math.random() * 9 + 1) * 60 * 1000;
-          logger.info(
-            `Job ${job.data.payload.jobExecutionId} is rate limited. Retrying in ${delay}ms.`,
-          );
-          recordIncrement("langfuse.evaluation-execution.rate-limited");
-          await EvalExecutionQueue.getInstance()?.add(
-            QueueName.EvaluationExecution,
-            {
-              name: QueueJobs.EvaluationExecution,
-              id: randomUUID(),
-              timestamp: new Date(),
-              payload: job.data.payload,
-            },
-            {
-              delay,
-            },
-          );
-          return;
-        }
-      } catch (innerErr) {
-        logger.error(
-          `Failed to handle 429 retry for ${job.data.payload.jobExecutionId}. Continuing regular processing.`,
-          innerErr,
-        );
-      }
+    const wasRetried = await handleRetryableError(e, job, {
+      table: "job_executions",
+      idField: "jobExecutionId",
+      queue: EvalExecutionQueue.getInstance(),
+      queueName: QueueName.EvaluationExecution,
+      jobName: QueueJobs.EvaluationExecution,
+      metricName: "langfuse.evaluation-execution.rate-limited",
+      delayFn: delayInMs,
+    });
+
+    if (wasRetried) {
+      return;
     }
 
     // we are left with 4xx and application errors here.
@@ -150,22 +121,20 @@ export const evalJobExecutorQueueProcessor = async (
       e instanceof LangfuseNotFoundError ||
       (e instanceof BaseError &&
         e.message.includes(
-          "Could not parse response content as the length limit was reached",
+          QUEUE_ERROR_MESSAGES.OUTPUT_TOKENS_TOO_LONG_ERROR,
         )) || // output tokens too long
-      (e instanceof BaseError && e.message.includes("API key for provider")) || // api key not provided
       (e instanceof BaseError &&
-        e.message.includes(
-          "`No default model or custom model found for project",
-        )) || // api key not provided
+        e.message.includes(QUEUE_ERROR_MESSAGES.API_KEY_ERROR)) || // api key not provided
+      (e instanceof BaseError &&
+        e.message.includes(QUEUE_ERROR_MESSAGES.NO_DEFAULT_MODEL_ERROR)) || // api key not provided
       (e instanceof ApiError && e.httpCode >= 400 && e.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
       (e instanceof ApiError && e.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
       (e instanceof ApiError &&
-        e.message.includes("Error: Unterminated string in JSON at position")) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
-      (e instanceof ApiError && e.message.includes("is not valid JSON")) || // When evaluator model is not consistently returning valid JSON on structured output calls
+        e.message.includes(QUEUE_ERROR_MESSAGES.TOO_LOW_MAX_TOKENS_ERROR)) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
+      (e instanceof ApiError &&
+        e.message.includes(QUEUE_ERROR_MESSAGES.INVALID_JSON_ERROR)) || // When evaluator model is not consistently returning valid JSON on structured output calls
       (e instanceof BaseError &&
-        e.message.includes(
-          "Please ensure the mapped data exists and consider extending the job delay.",
-        )) // Trace not found.
+        e.message.includes(QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR)) // Trace not found.
     ) {
       return;
     }

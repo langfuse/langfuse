@@ -9,8 +9,8 @@ export function transformStreamToJson(): Transform {
 
     transform(
       row: any,
-      encoding: BufferEncoding,
-      callback: TransformCallback
+      encoding: BufferEncoding, // eslint-disable-line no-unused-vars
+      callback: TransformCallback,
     ): void {
       if (isFirstElement) {
         this.push("["); // Push the opening bracket for the first element

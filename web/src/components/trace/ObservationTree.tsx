@@ -391,13 +391,15 @@ const ObservationTreeNodeCard = ({
           ref={currentObservationRef}
         >
           {/* Type badge and name */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-shrink-0 items-center gap-2">
             <ItemBadge
               type={observation.type}
               isSmall
               className="flex-shrink-0 scale-75"
             />
-            <span className="text-sm font-medium whitespace-nowrap">{observation.name}</span>
+            <span className="whitespace-nowrap text-sm font-medium">
+              {observation.name}
+            </span>
           </div>
 
           {/* Duration and Comments */}

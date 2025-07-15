@@ -12,6 +12,8 @@ import {
   DatasetStatus,
   singleFilter,
   type ScoreAggregate,
+  StringNoHTML,
+  StringNoHTMLNonEmpty,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -596,8 +598,8 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        name: z.string(),
-        description: z.string().nullish(),
+        name: StringNoHTMLNonEmpty,
+        description: StringNoHTML.nullish(),
         metadata: z.string().nullish(),
       }),
     )
@@ -636,8 +638,8 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        name: z.string().nullish(),
-        description: z.string().nullish(),
+        name: StringNoHTMLNonEmpty.nullish(),
+        description: StringNoHTML.nullish(),
         metadata: z.string().nullish(),
       }),
     )

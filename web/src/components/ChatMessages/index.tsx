@@ -69,7 +69,10 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
         }
         // prevent reordering system messages, placeholders can be reordered
         const targetMessage = messages[newIndex];
-        if (targetMessage.type !== ChatMessageType.Placeholder && SYSTEM_ROLES.includes(targetMessage.role)) {
+        if (
+          targetMessage.type !== ChatMessageType.Placeholder &&
+          SYSTEM_ROLES.includes(targetMessage.role)
+        ) {
           return;
         }
         const newMessages = arrayMove(messages, oldIndex, newIndex);
@@ -123,7 +126,13 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
   addMessage,
 }) => {
   // Skip placeholder messages when determining last roles
-  const lastMessageWithRole = messages.slice().reverse().find((msg): msg is ChatMessageWithId & { role: string } => msg.type !== ChatMessageType.Placeholder);
+  const lastMessageWithRole = messages
+    .slice()
+    .reverse()
+    .find(
+      (msg): msg is ChatMessageWithId & { role: string } =>
+        msg.type !== ChatMessageType.Placeholder,
+    );
   const lastMessageRole = lastMessageWithRole?.role;
   const nextMessageRole =
     lastMessageRole === ChatMessageRole.User
@@ -178,7 +187,11 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p className="text-xs">Adds a placeholder to inject message pairs, e.g. a message history (with &quot;role&quot;, &quot;content&quot; pairs) when compiling the message in the SDK.</p>
+            <p className="text-xs">
+              Adds a placeholder to inject message pairs, e.g. a message history
+              (with &quot;role&quot;, &quot;content&quot; pairs) when compiling
+              the message in the SDK.
+            </p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

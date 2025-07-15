@@ -128,7 +128,7 @@ Langfuse 팀이 관리하는 배포 방식으로, 후한 무료 플랜(취미 �
 
 - [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Helm을 사용해 Kubernetes 클러스터에서 Langfuse를 실행합니다. 이는 권장되는 프로덕션 배포 방식입니다.
 - [VM](https://langfuse.com/self-hosting/docker-compose): Docker Compose를 사용해 단일 가상 머신에서 Langfuse를 실행합니다.
-- 예정: 클라우드별 배포 가이드 – 아래 스레드에서 투표 및 댓글을 남겨주세요: [AWS](https://github.com/orgs/langfuse/discussions/4645), [Google Cloud](https://github.com/orgs/langfuse/discussions/4646), [Azure](https://github.com/orgs/langfuse/discussions/4647).
+- Terraform 템플릿: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)
 
 자세한 내용은 [자체 호스팅 문서](https://langfuse.com/self-hosting)를 참조하세요.
 
@@ -158,6 +158,7 @@ Langfuse 팀이 관리하는 배포 방식으로, 후한 무료 플랜(취미 �
 | [Mirascope](https://langfuse.com/docs/integrations/mirascope)           | 라이브러리         | LLM 애플리케이션 구축을 위한 Python 툴킷입니다.                                                                    |
 | [Ollama](https://langfuse.com/docs/integrations/ollama)                 | 모델 (로컬)        | 자신의 컴퓨터에서 오픈 소스 LLM을 손쉽게 실행할 수 있습니다.                                                      |
 | [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock) | 모델               | AWS에서 기본 및 파인튜닝된 모델을 실행합니다.                                                                      |
+| [Google VertexAI and Gemini](https://langfuse.com/docs/integrations/google-vertex-ai) | 모델               | Google에서 기본 및 파인튜닝된 모델을 실행합니다.                                                                      |
 | [AutoGen](https://langfuse.com/docs/integrations/autogen)               | 에이전트 프레임워크 | 분산 에이전트 구축을 위한 오픈 소스 LLM 플랫폼입니다.                                                              |
 | [Flowise](https://langfuse.com/docs/integrations/flowise)               | 채팅/에이전트 UI    | 맞춤형 LLM 플로우를 위한 JS/TS 코드 없는(no-code) 빌더입니다.                                                       |
 | [Langflow](https://langfuse.com/docs/integrations/langflow)             | 채팅/에이전트 UI    | react-flow를 활용하여 실험 및 프로토타이핑을 손쉽게 할 수 있도록 디자인된 LangChain용 Python 기반 UI입니다.          |

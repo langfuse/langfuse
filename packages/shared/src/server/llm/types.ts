@@ -176,7 +176,12 @@ export type ToolResultMessage = z.infer<typeof ToolResultMessageSchema>;
 
 export const PlaceholderMessageSchema = z.object({
   type: z.literal(ChatMessageType.Placeholder),
-  name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, "Placeholder name must start with a letter and contain only alphanumeric characters and underscores"),
+  name: z
+    .string()
+    .regex(
+      /^[a-zA-Z][a-zA-Z0-9_]*$/,
+      "Placeholder name must start with a letter and contain only alphanumeric characters and underscores",
+    ),
 });
 export type PlaceholderMessage = z.infer<typeof PlaceholderMessageSchema>;
 
@@ -191,7 +196,7 @@ export const ChatMessageSchema = z.union([
   z
     .object({
       role: z.union([ChatMessageDefaultRoleSchema, z.string()]), // Users may ingest any string as role via API/SDK
-      content: z.string(),
+      content: z.union([z.string(), z.array(z.any()), z.any()]), // Support arbitrary content types for message placeholders
     })
     .transform((msg) => {
       return {
@@ -202,8 +207,10 @@ export const ChatMessageSchema = z.union([
 ]);
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-export type ChatMessageWithId = (ChatMessage & { id: string }) | (PlaceholderMessage & { id: string });
-export type ChatMessageWithIdNoPlaceholders = (ChatMessage & { id: string });
+export type ChatMessageWithId =
+  | (ChatMessage & { id: string })
+  | (PlaceholderMessage & { id: string });
+export type ChatMessageWithIdNoPlaceholders = ChatMessage & { id: string };
 
 export const PromptChatMessageSchema = z.union([
   z.object({
@@ -335,9 +342,12 @@ export const anthropicModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
-  "gemini-2.0-flash",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite-preview-06-17",
   "gemini-2.5-pro-preview-05-06",
   "gemini-2.5-flash-preview-05-20",
+  "gemini-2.0-flash",
   "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash-001",
   "gemini-2.0-flash-lite-preview-02-05",
@@ -349,6 +359,9 @@ export const vertexAIModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
 export const googleAIStudioModels = [
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash-lite-preview-06-17",
   "gemini-2.5-pro-preview-05-06",
   "gemini-2.5-flash-preview-05-20",
   "gemini-2.0-flash",
@@ -406,11 +419,17 @@ export type LLMApiKey =
     ? z.infer<typeof LLMApiKeySchema>
     : never;
 
+// NOTE: This string is whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
+export const PROMPT_EXPERIMENT_ENVIRONMENT =
+  "langfuse-prompt-experiment" as const;
+
+type PromptExperimentEnvironment = typeof PROMPT_EXPERIMENT_ENVIRONMENT;
+
 export type TraceParams = {
   traceName: string;
   traceId: string;
   projectId: string;
-  tags: string[];
+  environment: PromptExperimentEnvironment;
   tokenCountDelegate: TokenCountDelegate;
   authCheck: AuthHeaderValidVerificationResult;
 };
