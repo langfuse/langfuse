@@ -255,7 +255,7 @@ export const StructuredOutputSchemaSection = () => {
                   </div>
                 </div>
                 <p
-                  className="line-clamp-2 text-xs text-muted-foreground"
+                  className="line-clamp-2 break-all text-xs text-muted-foreground"
                   title={structuredOutputSchema.description}
                 >
                   {structuredOutputSchema.description}
