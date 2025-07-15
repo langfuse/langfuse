@@ -11,7 +11,7 @@ import {
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media/validation";
-import { File, Image, Volume2 } from "lucide-react";
+import { File, Image as ImageIcon, Volume2 } from "lucide-react";
 
 export const LangfuseMediaView = ({
   mediaReferenceString,
@@ -125,7 +125,7 @@ function FileViewer({
     >
       <div className="flex flex-col items-center gap-2">
         {fileType === "image" ? (
-          <Image className="h-5 w-5 transition-transform group-hover:scale-110" />
+          <ImageIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
         ) : fileType === "audio" ? (
           <Volume2 className="h-5 w-5 transition-transform group-hover:scale-110" />
         ) : (
