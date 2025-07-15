@@ -527,8 +527,8 @@ describe("Webhook Integration Tests", () => {
           },
         },
         displayHeaders: {
-          "x-secret-api-key": { secret: true, value: "secr***alue" },
-          "x-secret-token": { secret: true, value: "bear***alue" },
+          "x-secret-api-key": { secret: true, value: "secr...alue" },
+          "x-secret-token": { secret: true, value: "bear...alue" },
         },
       };
 
@@ -864,7 +864,7 @@ describe("Webhook Integration Tests", () => {
           },
         },
         displayHeaders: {
-          "x-invalid-secret": { secret: true, value: "inva***alue" },
+          "x-invalid-secret": { secret: true, value: "inva...alue" },
         },
       };
 
