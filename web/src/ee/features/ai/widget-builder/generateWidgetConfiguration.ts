@@ -1,16 +1,12 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateObject, type JSONValue } from "ai";
+import { generateObject } from "ai";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { type User } from "next-auth";
 import { TRPCError } from "@trpc/server";
 import { logger } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { z } from "zod/v4";
-import {
-  StringNoHTMLNonEmpty,
-  StringNoHTML,
-  singleFilter,
-} from "@langfuse/shared";
+import { StringNoHTMLNonEmpty, StringNoHTML } from "@langfuse/shared";
 import { metricAggregations, views } from "@/src/features/query";
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
@@ -97,11 +93,31 @@ interface GenerateWidgetConfigurationParams {
   sessionUser: User;
 }
 
+const generationSchema = z.object({
+  name: StringNoHTMLNonEmpty,
+  description: StringNoHTML.optional(),
+  view: views,
+  metrics: z.array(
+    z.object({
+      measure: z.string(),
+      agg: metricAggregations,
+    }),
+  ),
+  chartType: z.enum(DashboardWidgetChartType),
+  dimensions: z.array(
+    z.object({
+      field: z.string(),
+    }),
+  ),
+});
+
 export async function generateWidgetConfiguration({
   projectId,
   description,
   sessionUser,
-}: GenerateWidgetConfigurationParams): Promise<Record<string, unknown>> {
+}: GenerateWidgetConfigurationParams): Promise<
+  z.infer<typeof generationSchema>
+> {
   // Check entitlements
   throwIfNoEntitlement({
     entitlement: "ai",
@@ -126,32 +142,7 @@ export async function generateWidgetConfiguration({
       })("gpt-4o-mini"),
       system: WIDGET_BUILDER_PROMPT,
       prompt: `Generate a widget configuration for: "${description}"`,
-      schema: z.object({
-        name: StringNoHTMLNonEmpty,
-        description: StringNoHTML.optional(),
-        view: views,
-        metrics: z.array(
-          z.object({
-            measure: z.string(),
-            agg: metricAggregations,
-          }),
-        ),
-        chartType: z.enum(DashboardWidgetChartType),
-        dimensions: z.array(
-          z.object({
-            field: z.string(),
-          }),
-        ),
-      }),
-      maxOutputTokens: 1000,
-      experimental_telemetry: {
-        isEnabled: true,
-        metadata: {
-          userId: sessionUser.id,
-          userName: sessionUser.name || "unknown",
-          projectId,
-        },
-      },
+      schema: generationSchema,
     });
 
     logger.info("Generated widget configuration", {

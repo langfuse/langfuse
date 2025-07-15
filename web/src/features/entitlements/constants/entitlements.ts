@@ -20,9 +20,11 @@ export type Entitlement = (typeof entitlements)[number];
 const cloudAllPlansEntitlements: Entitlement[] = [
   "cloud-billing",
   "trace-deletion",
+  "ai", // TODO: Review
 ];
 
-const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion"];
+// TODO: Review
+const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion", "ai"];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
 const entitlementLimits = [
@@ -68,7 +70,7 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:pro": {
-    entitlements: [...cloudAllPlansEntitlements, "ai"],
+    entitlements: [...cloudAllPlansEntitlements],
     entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
@@ -86,7 +88,6 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "prompt-protected-labels",
       "admin-api",
-      "ai",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -105,7 +106,6 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "prompt-protected-labels",
       "admin-api",
-      "ai",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
