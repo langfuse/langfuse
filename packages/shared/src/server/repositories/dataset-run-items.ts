@@ -8,7 +8,7 @@ import {
   orderByToClickhouseSql,
 } from "../queries";
 import { type FullDatasetRunItems } from "../queries/createDatasetRunItemsQuery";
-import { queryClickhouse } from "./clickhouse";
+import { queryClickhouse, commandClickhouse } from "./clickhouse";
 import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-converters";
 import { DatasetRunItemRecordReadType } from "./definitions";
 import { JsonValue } from "@prisma/client/runtime/library";
@@ -503,5 +503,34 @@ export const getDatasetRunsTableWithoutMetricsCh = async (
       countRunItems: runItem.count_run_items,
       datasetId: runItem.dataset_id,
     };
+  });
+};
+
+export const deleteDatasetRunItemsByDatasetRunId = async (
+  projectId: string,
+  datasetRunId: string,
+  datasetId: string,
+) => {
+  const query = `
+    DELETE FROM dataset_run_items
+    WHERE project_id = {projectId: String}
+    AND dataset_run_id = {datasetRunId: String}
+    AND dataset_id = {datasetId: String}
+  `;
+
+  await commandClickhouse({
+    query,
+    params: {
+      projectId,
+      datasetRunId,
+      datasetId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+    tags: {
+      feature: "datasets",
+      action: "delete",
+    },
   });
 };

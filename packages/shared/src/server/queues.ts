@@ -40,6 +40,11 @@ export const ScoresQueueEventSchema = z.object({
   projectId: z.string(),
   scoreIds: z.array(z.string()),
 });
+export const DatasetRunItemsDeleteEventSchema = z.object({
+  projectId: z.string(),
+  datasetRunId: z.string(),
+  datasetId: z.string(),
+});
 export const ProjectQueueEventSchema = z.object({
   projectId: z.string(),
   orgId: z.string(),
@@ -165,6 +170,9 @@ export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
 export type ScoresQueueEventType = z.infer<typeof ScoresQueueEventSchema>;
+export type DatasetRunItemsDeleteEventType = z.infer<
+  typeof DatasetRunItemsDeleteEventSchema
+>;
 export type ProjectQueueEventType = z.infer<typeof ProjectQueueEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
@@ -214,6 +222,7 @@ export enum QueueName {
   BatchActionQueue = "batch-action-queue",
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
+  DatasetRunItemsDelete = "dataset-run-items-delete",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
@@ -241,6 +250,7 @@ export enum QueueJobs {
   BatchActionProcessingJob = "batch-action-processing-job",
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
+  DatasetRunItemsDelete = "dataset-run-items-delete",
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
@@ -264,6 +274,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: ScoresQueueEventType;
     name: QueueJobs.ScoreDelete;
+  };
+  [QueueName.DatasetRunItemsDelete]: {
+    timestamp: Date;
+    id: string;
+    payload: DatasetRunItemsDeleteEventType;
+    name: QueueJobs.DatasetRunItemsDelete;
   };
   [QueueName.ProjectDelete]: {
     timestamp: Date;
