@@ -47,6 +47,10 @@ export const GenerationOutput = () => {
     }
   }, [output]);
 
+  const checkIcon = <Check className="h-2 w-2" />;
+  const copyIcon = <Copy className="h-2 w-2" />;
+  const plusIcon = <Plus className="h-2 w-2" />;
+
   const copyButton =
     output || outputToolCalls.length ? (
       <div className="absolute right-3 top-2 flex space-x-1 opacity-50">
@@ -67,7 +71,7 @@ export const GenerationOutput = () => {
           onClick={!isCopied ? handleCopy : undefined}
           title="Copy output"
         >
-          {isCopied ? <Check /> : <Copy />}
+          {isCopied ? checkIcon : copyIcon}
         </Button>
 
         <Button
@@ -77,7 +81,7 @@ export const GenerationOutput = () => {
           title="Add as assistant message"
           disabled={isAdded}
         >
-          {isAdded ? <Check /> : <Plus />}
+          {isAdded ? checkIcon : plusIcon}
           <span className="text-xs">Add to messages</span>
         </Button>
       </div>
