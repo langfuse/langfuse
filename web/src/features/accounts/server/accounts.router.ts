@@ -5,6 +5,8 @@ import {
 import { createSupabaseAdminClient } from "@/src/server/supabase";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
+import { env } from "@/src/env.mjs";
+import * as crypto from "crypto";
 
 export const accountsRouter = createTRPCRouter({
   getUsers: protectedProjectProcedure
@@ -14,7 +16,8 @@ export const accountsRouter = createTRPCRouter({
 
       const { data, error } = await supabase
         .from("test_users")
-        .select("username, id");
+        .select("username, id")
+        .order("created_at", { ascending: false });
 
       if (error) {
         throw new TRPCError({
@@ -35,14 +38,29 @@ export const accountsRouter = createTRPCRouter({
       z.object({
         username: z.string(),
         password: z.string(),
+        projectId: z.string(),
       }),
     )
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
+      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
+      const authSecret = env.CHAINLIT_AUTH_SECRET;
+      if (!authSecret) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "CHAINLIT_AUTH_SECRET is not configured",
+        });
+      }
+
+      const hashedPassword = crypto
+        .createHash("sha256")
+        .update(input.password + authSecret)
+        .digest("hex");
+
       const { data, error } = await supabase.from("test_users").insert({
         username: input.username,
-        password: input.password,
+        password: hashedPassword,
       });
 
       if (error) {
@@ -114,7 +132,7 @@ export const accountsRouter = createTRPCRouter({
       return data;
     }),
   deleteUser: protectedProjectProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string(), projectId: z.string() }))
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 

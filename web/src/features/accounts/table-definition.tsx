@@ -20,6 +20,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { toast } from "sonner";
+import { api } from "@/src/utils/api";
 
 export const accountTableColumns: LangfuseColumnDef<
   RouterOutput["accounts"]["getUsers"][number]
@@ -58,10 +60,19 @@ export const accountTableColumns: LangfuseColumnDef<
     header: "Manage",
     size: 80,
     cell: ({ row }) => {
+      const utils = api.useUtils();
+
       const [editDialogOpen, setEditDialogOpen] = useState(false);
       const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
       const [editUsername, setEditUsername] = useState(row.original.username);
       const [editPassword, setEditPassword] = useState("");
+
+      const deleteUser = api.accounts.deleteUser.useMutation({
+        onSuccess: () => {
+          toast.success("User deleted");
+          utils.accounts.getUsers.invalidate();
+        },
+      });
 
       return (
         <div className="flex items-center gap-2">
@@ -175,7 +186,14 @@ export const accountTableColumns: LangfuseColumnDef<
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => setDeleteDialogOpen(false)}
+                  onClick={() => {
+                    deleteUser.mutate({
+                      id: row.original.id,
+                      projectId: row.original.projectId,
+                    });
+
+                    setDeleteDialogOpen(false);
+                  }}
                 >
                   Delete
                 </Button>

@@ -3,11 +3,11 @@ import { DataTable } from "@/src/components/table/data-table";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { Button } from "@/src/components/ui/button";
-import { Plus } from "lucide-react";
+import { CreateUserDialog } from "@/src/features/accounts/CreateUserDialog";
 
 export function AccountsPage() {
   const router = useRouter();
+
   const projectId = router.query.projectId as string;
 
   const { data, isLoading, isError } = api.accounts.getUsers.useQuery({
@@ -21,14 +21,7 @@ export function AccountsPage() {
         breadcrumb: [
           { name: "Accounts", href: `/project/${projectId}/accounts` },
         ],
-        actionButtonsRight: (
-          <>
-            <Button variant="outline" className="gap-1">
-              <Plus size={12} />
-              Add User
-            </Button>
-          </>
-        ),
+        actionButtonsRight: <CreateUserDialog />,
       }}
     >
       <DataTable
