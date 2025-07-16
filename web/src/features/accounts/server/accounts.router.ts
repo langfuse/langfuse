@@ -12,7 +12,7 @@ export const accountsRouter = createTRPCRouter({
     .query(async ({ ctx }) => {
       const supabase = createSupabaseAdminClient();
 
-      const { data, error } = await supabase.from("User").select("identifier")
+      const { data, error } = await supabase.from("User").select("identifier");
 
       if (error) {
         throw new TRPCError({

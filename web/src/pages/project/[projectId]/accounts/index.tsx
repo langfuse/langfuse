@@ -1,7 +1,7 @@
 import Page from "@/src/components/layouts/page";
+import { AccountsTable } from "@/src/features/accounts/AccountsTable";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { type RouterOutput } from "@/src/utils/types";
 
 export default function AccountsPage() {
   const router = useRouter();
@@ -26,15 +26,5 @@ export default function AccountsPage() {
         {data && <AccountsTable users={data} />}
       </div>
     </Page>
-  );
-}
-
-function AccountsTable({
-  users,
-}: {
-  users: RouterOutput["accounts"]["getUsers"];
-}) {
-  return (
-    <div className="grid gap-4">{users.map((user) => user.identifier)}</div>
   );
 }
