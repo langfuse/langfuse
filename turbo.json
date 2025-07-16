@@ -21,17 +21,17 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate", "@langfuse/shared#build"]
+      "dependsOn": ["db:generate"]
     },
     "dev:worker": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate", "@langfuse/shared#build"]
+      "dependsOn": ["db:generate"]
     },
     "dev:web": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate", "@langfuse/shared#build"]
+      "dependsOn": ["db:generate"]
     },
     "db:generate": {
       "cache": false,
