@@ -11,9 +11,13 @@ module.exports = {
       {
         patterns: [
           {
-            group: ["react-icons", "react-icons/*"],
+            group: [
+              "react-icons",
+              "react-icons/!(si|tb)",
+              "react-icons/!(si|tb)/*",
+            ],
             message:
-              "react-icons import not allowed. Please use lucide-react instead.",
+              "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
           },
         ],
       },
