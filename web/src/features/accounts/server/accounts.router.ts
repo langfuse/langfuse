@@ -8,6 +8,8 @@ import z from "zod";
 import { env } from "@/src/env.mjs";
 import * as crypto from "crypto";
 
+// todo add new protected procedure, only project djb-dev and only from users with Admin rights
+
 export const accountsRouter = createTRPCRouter({
   getUsers: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
