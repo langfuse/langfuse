@@ -23,6 +23,8 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
+      // TODO - add any langfuse user checks here
+
       return data.map((user) => ({
         ...user,
         projectId: input.projectId, // adding projectId for convenience in table definitions
@@ -51,5 +53,99 @@ export const accountsRouter = createTRPCRouter({
       }
 
       return data;
+    }),
+  updateUser: protectedProjectProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        username: z.string(),
+        password: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const supabase = createSupabaseAdminClient();
+
+      const userRes = await supabase
+        .from("test_users")
+        .select("*")
+        .eq("id", input.id)
+        .single();
+
+      if (userRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userRes.error.message,
+        });
+      }
+
+      const { data, error } = await supabase
+        .from("test_users")
+        .update({
+          username: input.username,
+          password: input.password,
+        })
+        .eq("id", input.id)
+        .select("username")
+        .single();
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      const userUpdateRes = await supabase
+        .from("User")
+        .update({
+          identifier: data.username,
+        })
+        .eq("identifier", data.username);
+
+      if (userUpdateRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userUpdateRes.error.message,
+        });
+      }
+
+      // TODO - add any langfuse user updates here
+
+      return data;
+    }),
+  deleteUser: protectedProjectProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const supabase = createSupabaseAdminClient();
+
+      const testUserRes = await supabase
+        .from("test_users")
+        .delete()
+        .eq("id", input.id)
+        .select("username")
+        .single();
+
+      if (testUserRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: testUserRes.error.message,
+        });
+      }
+
+      const userRes = await supabase
+        .from("User")
+        .delete()
+        .eq("identifier", testUserRes.data?.username);
+
+      if (userRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userRes.error.message,
+        });
+      }
+
+      // TODO - add any langfuse user deletes here
+
+      return testUserRes.data;
     }),
 });
