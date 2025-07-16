@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import {
   GetObservationV1Query,
-  GetObservationV1Response,
   transformDbToApiObservation,
 } from "@/src/features/public-api/types/observations";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -12,13 +11,14 @@ import {
   replaceIdentifierWithContent,
   clickhouseCompliantRandomCharacters,
 } from "@langfuse/shared/src/server";
+import { z } from "zod/v4";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observation",
     querySchema: GetObservationV1Query,
-    responseSchema: GetObservationV1Response,
-    fn: async ({ query, auth }) => {
+    responseSchema: z.string(),
+    fn: async ({ query, auth, res }) => {
       const clickhouseObservation = await getObservationById({
         id: query.observationId,
         projectId: auth.scope.projectId,
@@ -105,7 +105,8 @@ export default withMiddlewares({
         );
       }
 
-      return JSON.parse(stringified);
+      res.setHeader("Content-Type", "application/json");
+      return stringified;
     },
   }),
 });

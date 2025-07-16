@@ -5,7 +5,6 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 
 import {
   GetObservationsV1Query,
-  GetObservationsV1Response,
   transformDbToApiObservation,
 } from "@/src/features/public-api/types/observations";
 import {
@@ -17,13 +16,14 @@ import {
   replaceIdentifierWithContent,
 } from "@langfuse/shared/src/server";
 import { InternalServerError } from "@langfuse/shared";
+import z from "zod/v4";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observations",
     querySchema: GetObservationsV1Query,
-    responseSchema: GetObservationsV1Response,
-    fn: async ({ query, auth }) => {
+    responseSchema: z.string(),
+    fn: async ({ query, auth, res }) => {
       const filterProps = {
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
@@ -128,7 +128,8 @@ export default withMiddlewares({
         }
       });
 
-      return JSON.parse(stringified);
+      res.setHeader("Content-Type", "application/json");
+      return stringified;
     },
   }),
 });

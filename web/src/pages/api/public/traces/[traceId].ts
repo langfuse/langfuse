@@ -26,13 +26,14 @@ import Decimal from "decimal.js";
 import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod/v4";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Single Trace",
     querySchema: GetTraceV1Query,
-    responseSchema: GetTraceV1Response,
-    fn: async ({ query, auth }) => {
+    responseSchema: z.string(),
+    fn: async ({ query, auth, res }) => {
       const { traceId } = query;
       const trace = await getTraceById<true>({
         traceId,
@@ -195,7 +196,8 @@ export default withMiddlewares({
         }
       });
 
-      return JSON.parse(stringified);
+      res.setHeader("Content-Type", "application/json");
+      return stringified;
     },
   }),
 
