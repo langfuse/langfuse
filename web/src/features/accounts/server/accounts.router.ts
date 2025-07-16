@@ -57,7 +57,7 @@ export const accountsRouter = createTRPCRouter({
 
       const hashedPassword = crypto
         .createHash("sha256")
-        .update(input.password + authSecret)
+        .update(input.password + authSecret, "utf-8")
         .digest("hex");
 
       const { data, error } = await supabase.from("test_users").insert({
@@ -113,7 +113,7 @@ export const accountsRouter = createTRPCRouter({
           ? null
           : crypto
               .createHash("sha256")
-              .update(input.password + authSecret)
+              .update(input.password + authSecret, "utf-8")
               .digest("hex");
 
       // Prepare update data - keep existing password if input password is empty
