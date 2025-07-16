@@ -19,6 +19,8 @@ import {
   traceException,
   QueueJobs,
   TraceDeleteQueue,
+  clickhouseCompliantRandomCharacters,
+  replaceIdentifierWithContent,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { randomUUID } from "crypto";
@@ -95,8 +97,8 @@ export default withMiddlewares({
           new Decimal(0);
 
         // Generate unique identifiers for observation input/output
-        const inputIdentifier = `__OBS_INPUT_${index}_${Math.random().toString(36).substr(2, 9)}__`;
-        const outputIdentifier = `__OBS_OUTPUT_${index}_${Math.random().toString(36).substr(2, 9)}__`;
+        const inputIdentifier = clickhouseCompliantRandomCharacters();
+        const outputIdentifier = clickhouseCompliantRandomCharacters();
 
         // Observations use string conversion to avoid JSON parsing performance issues
         return {
@@ -140,9 +142,9 @@ export default withMiddlewares({
                 obsStartTimes[0]!.getTime()
               : undefined
           : undefined;
-      // If we need to avoid JSON.parse on large input/output, use string replacement
-      const inputIdentifier = `__INPUT_${Math.random().toString(36).substr(2, 9)}__`;
-      const outputIdentifier = `__OUTPUT_${Math.random().toString(36).substr(2, 9)}__`;
+      // Generate unique identifiers for trace input/output replacement
+      const inputIdentifier = clickhouseCompliantRandomCharacters();
+      const outputIdentifier = clickhouseCompliantRandomCharacters();
 
       const returnObject = {
         ...trace,
@@ -163,28 +165,35 @@ export default withMiddlewares({
 
       let stringified = JSON.stringify(returnObject);
 
-      // Replace identifiers with the raw input/output strings
+      // Replace identifiers with actual content
       if (trace.input) {
-        stringified = stringified.replace(`"${inputIdentifier}"`, trace.input);
+        stringified = replaceIdentifierWithContent(
+          stringified,
+          inputIdentifier,
+          trace.input,
+        );
       }
       if (trace.output) {
-        stringified = stringified.replace(
-          `"${outputIdentifier}"`,
+        stringified = replaceIdentifierWithContent(
+          stringified,
+          outputIdentifier,
           trace.output,
         );
       }
 
-      // Replace observation identifiers with raw strings
+      // Replace observation identifiers with actual content
       observationsView.forEach((obsView) => {
         if (obsView._originalInput) {
-          stringified = stringified.replace(
-            `"${obsView._inputIdentifier}"`,
+          stringified = replaceIdentifierWithContent(
+            stringified,
+            obsView._inputIdentifier,
             obsView._originalInput,
           );
         }
         if (obsView._originalOutput) {
-          stringified = stringified.replace(
-            `"${obsView._outputIdentifier}"`,
+          stringified = replaceIdentifierWithContent(
+            stringified,
+            obsView._outputIdentifier,
             obsView._originalOutput,
           );
         }
