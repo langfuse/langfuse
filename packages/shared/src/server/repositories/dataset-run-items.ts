@@ -13,8 +13,11 @@ import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-con
 import { DatasetRunItemRecordReadType } from "./definitions";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { prisma } from "../../db";
-import z from "zod/v4";
-import { jsonSchema } from "../..";
+import type { Prisma } from "@prisma/client";
+import { v4 } from "uuid";
+
+// Use Prisma's default inferred type for dataset runs (no field redefinition needed)
+type DatasetRun = Prisma.DatasetRunsGetPayload<{}>;
 
 type DatasetRunItemsTableQuery = {
   projectId: string;
@@ -56,33 +59,22 @@ type DatasetRunTableWithoutMetrics = {
   countRunItems: number;
   datasetId: string;
 };
-const datasetRunTimestampReturn = z.discriminatedUnion("success", [
-  z.object({
-    success: z.literal(true),
-    datasetRun: z.object({
-      id: z.string(),
-      name: z.string(),
-      createdAt: z.date(),
-      updatedAt: z.date(),
-      projectId: z.string(),
-      description: z.string().nullish(),
-      metadata: jsonSchema.nullish(),
-      datasetId: z.string(),
-    }),
-  }),
-  z.object({
-    success: z.literal(false),
-    error: z.string(),
-  }),
-]);
 
-type DatasetRunTimestampReturn = z.infer<typeof datasetRunTimestampReturn>;
+type ValidateDatasetRunAndFetchReturn =
+  | {
+      success: true;
+      datasetRun: DatasetRun;
+    }
+  | {
+      success: false;
+      error: string;
+    };
 
 export const validateDatasetRunAndFetch = async (
   datasetId: string,
   runName: string,
   projectId: string,
-): Promise<DatasetRunTimestampReturn> => {
+): Promise<ValidateDatasetRunAndFetchReturn> => {
   const datasetRun = await prisma.datasetRuns.findUnique({
     where: {
       datasetId_projectId_name: {
@@ -533,4 +525,66 @@ export const deleteDatasetRunItemsByDatasetRunId = async (
       action: "delete",
     },
   });
+};
+
+export const createOrFetchDatasetRun = async ({
+  projectId,
+  datasetId,
+  name,
+  description,
+  metadata,
+}: {
+  projectId: string;
+  datasetId: string;
+  name: string;
+  description?: string;
+  metadata?: JsonValue;
+}) => {
+  try {
+    // Attempt optimistic creation
+    const datasetRun = await prisma.datasetRuns.create({
+      data: {
+        id: v4(),
+        datasetId,
+        projectId,
+        name: name,
+        description: description || null,
+        metadata: metadata || {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    return datasetRun;
+  } catch (error) {
+    // Check if it's a unique constraint violation
+    if (isUniqueConstraintError(error)) {
+      // Fetch existing run
+      const existingRun = await prisma.datasetRuns.findUnique({
+        where: {
+          datasetId_projectId_name: {
+            datasetId,
+            projectId,
+            name: name,
+          },
+        },
+      });
+
+      if (existingRun) {
+        return existingRun;
+      }
+    } else {
+      throw error;
+    }
+  }
+
+  throw new Error("Failed to create or fetch dataset run");
+};
+
+const isUniqueConstraintError = (error: any): boolean => {
+  return (
+    error.code === "P2002" || // Prisma unique constraint
+    error.message?.includes("duplicate key") ||
+    error.message?.includes("UNIQUE constraint") ||
+    error.message?.includes("violates unique constraint")
+  );
 };

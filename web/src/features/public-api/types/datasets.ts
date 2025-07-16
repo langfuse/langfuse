@@ -54,6 +54,8 @@ const APIDatasetRunItem = z
   })
   .strict();
 
+export type APIDatasetRunItem = z.infer<typeof APIDatasetRunItem>;
+
 const APIDatasetItem = z
   .object({
     datasetName: z.string(),
