@@ -1,12 +1,8 @@
 import { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { RouterOutput } from "@/src/utils/types";
-import { ArrowUpRight, Ellipsis, LinkIcon } from "lucide-react";
+import { ArrowUpRight, Ellipsis } from "lucide-react";
 import Link from "next/link";
-
-export type AccountTableMeta = {
-  projectId: string;
-};
 
 export const accountTableColumns: LangfuseColumnDef<
   RouterOutput["accounts"]["getUsers"][number]
@@ -29,13 +25,11 @@ export const accountTableColumns: LangfuseColumnDef<
     accessorKey: "conversations",
     header: "Conversations",
     size: 100,
-    cell: ({ row, table }) => {
-      const projectId = (table.options.meta as AccountTableMeta).projectId;
-
+    cell: ({ row }) => {
       return (
         <Link
           className="flex items-center gap-1 whitespace-nowrap underline"
-          href={`/project/${projectId}/conversations?account=${row.original.identifier}`}
+          href={`/project/${row.original.projectId}/conversations?accountId=${row.original.id}`}
         >
           View conversations <ArrowUpRight size={12} />
         </Link>

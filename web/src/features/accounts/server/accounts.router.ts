@@ -9,10 +9,12 @@ import z from "zod";
 export const accountsRouter = createTRPCRouter({
   getUsers: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx }) => {
+    .query(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      const { data, error } = await supabase.from("User").select("identifier");
+      const { data, error } = await supabase
+        .from("User")
+        .select("identifier, id");
 
       if (error) {
         throw new TRPCError({
@@ -21,6 +23,9 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
-      return data as { identifier: string }[]; // todo consider loading supabase
+      return data.map((user) => ({
+        ...user,
+        projectId: input.projectId, // adding projectId for convenience in table definitions
+      })) as { identifier: string; projectId: string; id: string }[]; // todo consider loading supabase
     }),
 });

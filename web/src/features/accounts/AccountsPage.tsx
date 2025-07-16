@@ -1,7 +1,4 @@
-import {
-  accountTableColumns,
-  AccountTableMeta,
-} from "@/src/features/accounts/table-definition";
+import { accountTableColumns } from "@/src/features/accounts/table-definition";
 import { DataTable } from "@/src/components/table/data-table";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
