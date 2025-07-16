@@ -149,7 +149,8 @@ export class IngestionService {
           createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
         });
-      case "dataset_run_item":
+      }
+      case "dataset_run_item": {
         return await this.processDatasetRunItemEventList({
           projectId,
           entityId: eventBodyId,
