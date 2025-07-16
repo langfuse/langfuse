@@ -18,6 +18,13 @@ import {
   getTraceCountOfProjectsSinceCreationDate,
   logger,
 } from "@langfuse/shared/src/server";
+import {
+  createStripeAlert,
+  updateStripeAlert,
+  deleteStripeAlert,
+  getStripeAlerts,
+} from "./stripeAlertService";
+import { STRIPE_METERS } from "../utils/stripeProducts";
 
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
@@ -447,5 +454,171 @@ export const cloudBillingRouter = createTRPCRouter({
         usageCount: countTraces + countObservations + countScores,
         usageType: "units",
       };
+    }),
+  getBillingAlerts: protectedOrganizationProcedure
+    .input(z.object({ organizationId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.organizationId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.organizationId,
+      });
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: {
+          id: input.organizationId,
+        },
+      });
+      if (!org) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+
+      const parsedOrg = parseDbOrg(org);
+      return (
+        parsedOrg.cloudConfig?.billingAlerts || {
+          enabled: true,
+          thresholdAmount: 10000,
+          currency: "USD",
+          notifications: {
+            email: true,
+            recipients: [],
+          },
+        }
+      );
+    }),
+  updateBillingAlerts: protectedOrganizationProcedure
+    .input(
+      z.object({
+        organizationId: z.string(),
+        billingAlerts: z.object({
+          enabled: z.boolean(),
+          thresholdAmount: z.number().positive(),
+          currency: z.string().default("USD"),
+          notifications: z.object({
+            email: z.boolean(),
+            recipients: z.array(z.string().email()),
+          }),
+        }),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.organizationId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.organizationId,
+      });
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: {
+          id: input.organizationId,
+        },
+      });
+      if (!org) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+
+      const parsedOrg = parseDbOrg(org);
+      const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
+      const currentAlerts = parsedOrg.cloudConfig?.billingAlerts;
+
+      if (!stripeCustomerId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Organization must have a Stripe customer ID to configure billing alerts",
+        });
+      }
+
+      if (!stripeClient) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Stripe client not initialized",
+        });
+      }
+
+      let updatedAlerts = input.billingAlerts;
+
+      try {
+        // Handle Stripe alert creation/update/deletion
+        if (input.billingAlerts.enabled) {
+          if (currentAlerts?.stripeAlertId) {
+            // Update existing alert
+            await updateStripeAlert({
+              alertId: currentAlerts.stripeAlertId,
+              threshold: input.billingAlerts.thresholdAmount,
+            });
+          } else {
+            // Create new alert
+            const stripeAlert = await createStripeAlert({
+              customerId: stripeCustomerId,
+              threshold: input.billingAlerts.thresholdAmount,
+              meterId: STRIPE_METERS.TRACING_EVENTS,
+              currency: input.billingAlerts.currency,
+            });
+            updatedAlerts = {
+              ...updatedAlerts,
+              stripeAlertId: stripeAlert.id,
+            };
+          }
+        } else if (currentAlerts?.stripeAlertId) {
+          // Delete existing alert if disabled
+          await deleteStripeAlert(currentAlerts.stripeAlertId);
+          updatedAlerts = {
+            ...updatedAlerts,
+            stripeAlertId: undefined,
+          };
+        }
+
+        // Update organization with new billing alerts configuration
+        const newCloudConfig = {
+          ...parsedOrg.cloudConfig,
+          billingAlerts: updatedAlerts,
+        };
+
+        await ctx.prisma.organization.update({
+          where: {
+            id: input.organizationId,
+          },
+          data: {
+            cloudConfig: newCloudConfig,
+          },
+        });
+
+        auditLog({
+          session: ctx.session,
+          orgId: input.organizationId,
+          resourceType: "billingAlerts",
+          resourceId: input.organizationId,
+          action: "update",
+          after: updatedAlerts,
+        });
+
+        return updatedAlerts;
+      } catch (error) {
+        logger.error("Failed to update billing alerts", {
+          error,
+          organizationId: input.organizationId,
+        });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to update billing alerts",
+        });
+      }
     }),
 });

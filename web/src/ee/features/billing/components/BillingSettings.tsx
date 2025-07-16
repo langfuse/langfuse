@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useState } from "react";
 import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
+import { BillingAlerts } from "./BillingAlerts";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -56,7 +57,10 @@ export const BillingSettings = () => {
   return (
     <div>
       <Header title="Usage & Billing" />
-      <OrganizationUsageChart />
+      <div className="space-y-6">
+        <OrganizationUsageChart />
+        {orgId && <BillingAlerts organizationId={orgId} />}
+      </div>
     </div>
   );
 };

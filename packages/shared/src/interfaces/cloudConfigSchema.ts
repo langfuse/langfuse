@@ -18,6 +18,21 @@ export const CloudConfigSchema = z.object({
 
   // custom rate limits for an organization
   rateLimitOverrides: CloudConfigRateLimit.optional(),
+
+  // billing alert configuration
+  billingAlerts: z
+    .object({
+      enabled: z.boolean().default(true),
+      thresholdAmount: z.number().positive().default(10000), // $10,000 default
+      currency: z.string().default("USD"),
+      stripeAlertId: z.string().optional(), // Stripe alert ID for tracking
+      lastTriggeredAt: z.date().optional(),
+      notifications: z.object({
+        email: z.boolean().default(true),
+        recipients: z.array(z.string().email()).default([]),
+      }),
+    })
+    .optional(),
 });
 
 export type CloudConfigSchema = z.infer<typeof CloudConfigSchema>;
