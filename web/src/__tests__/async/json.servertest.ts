@@ -1,9 +1,6 @@
 /** @jest-environment node */
 
-import {
-  replaceIdentifierWithContent,
-  isNotJson,
-} from "@langfuse/shared/src/server";
+import { isNotJson } from "@langfuse/shared/src/server";
 
 describe("json utilities", () => {
   describe("isNotJson function", () => {
