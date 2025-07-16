@@ -1,24 +1,24 @@
-import { Job, Processor } from "bullmq";
-import { backOff } from "exponential-backoff";
 import {
-  ActionExecutionStatus,
-  JobConfigState,
-} from "../../../prisma/generated/types";
-import {
+  InternalServerError,
   PromptWebhookOutboundSchema,
   WebhookDefaultHeaders,
-} from "../../domain";
-import { prisma } from "../../db";
-import { TQueueJobTypes, QueueName, WebhookInput } from "../queues";
+  ActionExecutionStatus,
+  LangfuseNotFoundError,
+  JobConfigState,
+} from "@langfuse/shared";
+import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
+import { prisma } from "@langfuse/shared/src/db";
 import {
-  getActionByIdWithSecrets,
+  TQueueJobTypes,
+  QueueName,
+  WebhookInput,
   getAutomationById,
+  getActionByIdWithSecrets,
   getConsecutiveAutomationFailures,
-} from "../repositories";
-import { logger } from "..";
-import { createSignatureHeader } from "../../encryption/signature";
-import { decrypt } from "../../encryption";
-import { InternalServerError, LangfuseNotFoundError } from "../../errors";
+  logger,
+} from "@langfuse/shared/src/server";
+import { Processor, Job } from "bullmq";
+import { backOff } from "exponential-backoff";
 
 export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
