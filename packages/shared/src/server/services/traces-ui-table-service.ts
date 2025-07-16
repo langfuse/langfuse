@@ -21,9 +21,8 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   reduceUsageOrCostDetails,
-  getTimeframesTracesAMT,
-  measureAndReturn,
 } from "../repositories";
+import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
@@ -207,17 +206,7 @@ async function getTracesTableGeneric(
 ): Promise<Array<SelectReturnTypeMap[keyof SelectReturnTypeMap]>>;
 
 async function getTracesTableGeneric(props: FetchTracesTableProps) {
-  const {
-    select,
-    projectId,
-    filter,
-    orderBy,
-    limit,
-    page,
-    searchQuery,
-    searchType,
-    clickhouseConfigs,
-  } = props;
+  const { projectId, filter } = props;
 
   // Extract timestamp filter for AMT table selection
   const { tracesFilter: initialTracesFilter } = getProjectIdDefaultFilter(
@@ -227,10 +216,6 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
   initialTracesFilter.push(
     ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
   );
-  const timeStampFilter = initialTracesFilter.find(
-    (f) =>
-      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  ) as DateTimeFilter | undefined;
 
   return measureAndReturn({
     operationName: "getTracesTableGeneric",
@@ -509,7 +494,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
 
       return res;
     },
-    newExecution: async (props) => {
+    newExecution: async () => {
       // TODO: Implement AMT-based query execution
       // For now, return empty results to prevent errors
       return [];
