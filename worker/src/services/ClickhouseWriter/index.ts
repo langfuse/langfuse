@@ -199,6 +199,8 @@ export class ClickhouseWriter {
               projectId: record.project_id,
             },
           );
+        } else {
+          truncatedMetadata[key] = value;
         }
       }
       record.metadata = truncatedMetadata;
