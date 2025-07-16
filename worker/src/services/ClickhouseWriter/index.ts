@@ -194,7 +194,7 @@ export class ClickhouseWriter {
         if (value.length > maxFieldSize) {
           truncatedMetadata[key] = truncateField(value) || "";
           logger.info(
-            `Truncated oversized metadata for record ${record.metadata} of type ${tableName} and key ${key}`,
+            `Truncated oversized metadata for record ${record.id} of type ${tableName} and key ${key}`,
             {
               projectId: record.project_id,
             },
