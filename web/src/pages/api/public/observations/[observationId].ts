@@ -10,6 +10,7 @@ import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getObservationById,
   replaceIdentifierWithContent,
+  clickhouseCompliantRandomCharacters,
 } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
@@ -22,6 +23,7 @@ export default withMiddlewares({
         id: query.observationId,
         projectId: auth.scope.projectId,
         fetchWithInputOutput: true,
+        convertToString: true,
       });
       if (!clickhouseObservation) {
         throw new LangfuseNotFoundError(
@@ -61,8 +63,8 @@ export default withMiddlewares({
         : undefined;
 
       // Generate unique identifiers for input/output replacement
-      const inputIdentifier = `__OBS_INPUT_${Math.random().toString(36).substr(2, 9)}__`;
-      const outputIdentifier = `__OBS_OUTPUT_${Math.random().toString(36).substr(2, 9)}__`;
+      const inputIdentifier = clickhouseCompliantRandomCharacters();
+      const outputIdentifier = clickhouseCompliantRandomCharacters();
 
       const observation = {
         ...clickhouseObservation,
@@ -87,7 +89,7 @@ export default withMiddlewares({
       const apiObservation = transformDbToApiObservation(observation);
       let stringified = JSON.stringify(apiObservation);
 
-      // Replace identifiers with raw strings
+      // Replace identifiers with actual content
       if (clickhouseObservation.input) {
         stringified = replaceIdentifierWithContent(
           stringified,
@@ -96,8 +98,9 @@ export default withMiddlewares({
         );
       }
       if (clickhouseObservation.output) {
-        stringified = stringified.replace(
-          `"${outputIdentifier}"`,
+        stringified = replaceIdentifierWithContent(
+          stringified,
+          outputIdentifier,
           clickhouseObservation.output,
         );
       }

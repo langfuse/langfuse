@@ -315,13 +315,16 @@ export const getObservationForTraceIdByName = async (
   return records.map((record) => convertObservation({ record }));
 };
 
-export const getObservationById = async ({
+export const getObservationById = async <
+  ConvertToAsString extends boolean = false,
+>({
   id,
   projectId,
   fetchWithInputOutput = false,
   startTime,
   type,
   traceId,
+  convertToString = false as ConvertToAsString,
 }: {
   id: string;
   projectId: string;
@@ -329,7 +332,10 @@ export const getObservationById = async ({
   startTime?: Date;
   type?: ObservationType;
   traceId?: string;
-}) => {
+  convertToString?: ConvertToAsString;
+}): Promise<
+  ConvertToAsString extends true ? ObservationWithStringIO : Observation
+> => {
   const records = await getObservationByIdInternal({
     id,
     projectId,
@@ -338,7 +344,9 @@ export const getObservationById = async ({
     type,
     traceId,
   });
-  const mapped = records.map((record) => convertObservation({ record }));
+  const mapped = records.map((record) =>
+    convertObservation({ record, convertToString }),
+  );
 
   mapped.forEach((observation) => {
     recordDistribution(
@@ -361,7 +369,9 @@ export const getObservationById = async ({
       `Multiple observations found for id ${id} and project ${projectId}`,
     );
   }
-  return mapped.shift();
+  return mapped.shift() as ConvertToAsString extends true
+    ? ObservationWithStringIO
+    : Observation;
 };
 
 export const getObservationsById = async (
