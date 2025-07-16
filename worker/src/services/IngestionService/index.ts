@@ -27,6 +27,7 @@ import {
   QueueJobs,
   recordIncrement,
   ScoreEventType,
+  DatasetRunItemEventType,
   scoreRecordInsertSchema,
   ScoreRecordInsertType,
   scoreRecordReadSchema,
@@ -40,6 +41,7 @@ import {
   convertObservationToTraceMt,
   convertTraceToTraceMt,
   convertScoreToTraceMt,
+  DatasetRunItemRecordInsertType,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -57,12 +59,14 @@ import { SpanKind } from "@opentelemetry/api";
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
-  | ObservationRecordInsertType;
+  | ObservationRecordInsertType
+  | DatasetRunItemRecordInsertType;
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
   [TableName.Observations]: (keyof ObservationRecordInsertType)[];
+  [TableName.DatasetRunItems]: (keyof DatasetRunItemRecordInsertType)[];
 } = {
   [TableName.Traces]: [
     "id",
@@ -86,6 +90,17 @@ const immutableEntityKeys: {
     "start_time",
     "created_at",
     "environment",
+  ],
+  // TODO: review immutable keys for dataset run items
+  [TableName.DatasetRunItems]: [
+    "id",
+    "project_id",
+    "trace_id",
+    "observation_id",
+    "dataset_id",
+    "dataset_run_id",
+    "dataset_item_id",
+    "created_at",
   ],
 };
 
@@ -134,8 +149,24 @@ export class IngestionService {
           createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
         });
+      case "dataset_run_item":
+        return await this.processDatasetRunItemEventList({
+          projectId,
+          entityId: eventBodyId,
+          createdAtTimestamp,
+          datasetRunItemEventList: events as DatasetRunItemEventType[],
+        });
       }
     }
+  }
+
+  private async processDatasetRunItemEventList(params: {
+    projectId: string;
+    entityId: string;
+    createdAtTimestamp: Date;
+    datasetRunItemEventList: DatasetRunItemEventType[];
+  }) {
+    // TODO: Implement. Do we need merge step?
   }
 
   private async processScoreEventList(params: {

@@ -10,6 +10,7 @@ import {
   ScoreRecordInsertType,
   TraceRecordInsertType,
   TraceMtRecordInsertType,
+  DatasetRunItemRecordInsertType,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
@@ -42,6 +43,7 @@ export class ClickhouseWriter {
       [TableName.Scores]: [],
       [TableName.Observations]: [],
       [TableName.BlobStorageFileLog]: [],
+      [TableName.DatasetRunItems]: [],
     };
 
     this.start();
@@ -287,6 +289,7 @@ export enum TableName {
   Scores = "scores", // eslint-disable-line no-unused-vars
   Observations = "observations", // eslint-disable-line no-unused-vars
   BlobStorageFileLog = "blob_storage_file_log", // eslint-disable-line no-unused-vars
+  DatasetRunItems = "dataset_run_items", // eslint-disable-line no-unused-vars
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -299,7 +302,9 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
         ? TraceMtRecordInsertType
         : T extends TableName.BlobStorageFileLog
           ? BlobStorageFileLogInsertType
-          : never;
+          : T extends TableName.DatasetRunItems
+            ? DatasetRunItemRecordInsertType
+            : never;
 
 type ClickhouseQueue = {
   [T in TableName]: ClickhouseWriterQueueItem<T>[];

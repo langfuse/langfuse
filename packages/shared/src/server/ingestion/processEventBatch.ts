@@ -313,6 +313,8 @@ const isAuthorized = (
     );
   }
 
+  // TODO: Add authorization for dataset run items?
+
   return authScope.scope.accessLevel === "project";
 };
 

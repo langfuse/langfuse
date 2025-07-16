@@ -3,6 +3,7 @@ import { QueueName } from "../queues";
 import { BatchExportQueue } from "./batchExport";
 import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
+import { DatasetRunItemsDeleteQueue } from "./datasetRunItemsDelete";
 import { EvalExecutionQueue } from "./evalExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { SecondaryIngestionQueue } from "./ingestionQueue";
@@ -36,6 +37,8 @@ export function getQueue(
       return CloudUsageMeteringQueue.getInstance();
     case QueueName.DatasetRunItemUpsert:
       return DatasetRunItemUpsertQueue.getInstance();
+    case QueueName.DatasetRunItemsDelete:
+      return DatasetRunItemsDeleteQueue.getInstance();
     case QueueName.EvaluationExecution:
       return EvalExecutionQueue.getInstance();
     case QueueName.ExperimentCreate:
