@@ -108,12 +108,14 @@ test.describe("Create project", () => {
   });
 
   [
-    { title: "Traces", url: "/traces" },
+    { title: "Tracing", url: "/traces", subTitle: "Traces" },
     { title: "Sessions", url: "/sessions" },
-    { title: "Observations", url: "/observations" },
+    { title: "Tracing", url: "/observations", subTitle: "Observations" },
     { title: "Scores", url: "/scores" },
-  ].forEach(({ title, url }) => {
-    test(`Check ${title} page`, async ({ page }) => {
+  ].forEach(({ title, url, subTitle }) => {
+    test(`Check ${title} ${subTitle ? `- ${subTitle}` : ""} page`, async ({
+      page,
+    }) => {
       // const errors = await checkConsoleErrors(page);
       await signin(page);
 

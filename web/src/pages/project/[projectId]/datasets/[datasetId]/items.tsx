@@ -1,11 +1,9 @@
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import {
-  TabsBar,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
-import Link from "next/link";
+  getDatasetTabs,
+  DATASET_TABS,
+} from "@/src/features/navigation/utils/dataset-tabs";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
@@ -46,18 +44,10 @@ export default function DatasetItems() {
         breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
         ],
-        tabsComponent: (
-          <TabsBar value="items">
-            <TabsBarList>
-              <TabsBarTrigger value="runs" asChild>
-                <Link href={`/project/${projectId}/datasets/${datasetId}`}>
-                  Runs
-                </Link>
-              </TabsBarTrigger>
-              <TabsBarTrigger value="items">Items</TabsBarTrigger>
-            </TabsBarList>
-          </TabsBar>
-        ),
+        tabsProps: {
+          tabs: getDatasetTabs(projectId, datasetId),
+          activeTab: DATASET_TABS.ITEMS,
+        },
         actionButtonsRight: (
           <>
             <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
