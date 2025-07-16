@@ -82,9 +82,10 @@ export default async function chatCompletionHandler(req: NextRequest) {
             .reverse();
 
           // Find the first matching tool call by name
+          // Note: using 'as any' because we filtered for assistant-tool-call messages above
           for (const prevMsg of assistantMessages) {
-            const matchingToolCall = prevMsg.toolCalls.find(
-              (tc) => tc.name === (msg as any)._originalRole,
+            const matchingToolCall = (prevMsg as any).toolCalls.find(
+              (tc: any) => tc.name === (msg as any)._originalRole,
             );
             if (matchingToolCall && matchingToolCall.id) {
               return {
