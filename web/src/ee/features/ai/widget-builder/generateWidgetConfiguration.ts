@@ -87,25 +87,14 @@ export async function generateWidgetConfiguration({
   });
 
   try {
-    const systemPrompt = await langfuse.getPrompt(`${USE_CASE}_system`);
-    const userPrompt = await langfuse.getPrompt(`${USE_CASE}_user`);
+    const prompt = await langfuse.getPrompt(USE_CASE);
 
     const result = await fetchLLMCompletion({
       runName: USE_CASE,
       streaming: false,
       apiKey,
-      messages: [
-        {
-          role: ChatMessageRole.System,
-          content: systemPrompt.compile(),
-          type: ChatMessageType.System,
-        },
-        {
-          role: ChatMessageRole.User,
-          content: `${userPrompt.compile()}: "${description}"`,
-          type: ChatMessageType.User,
-        },
-      ],
+      // Make typescript happy as SDK infers a string for compile
+      messages: prompt.compile({ description }) as any, 
       modelParams: {
         provider: "openai",
         model: "gpt-4o-mini",
@@ -115,6 +104,7 @@ export async function generateWidgetConfiguration({
       callbacks: [
         new CallbackHandler({
           userId: sessionUser.id,
+          tags: [USE_CASE, "dogfooding"],
           metadata: {
             projectId,
           },
