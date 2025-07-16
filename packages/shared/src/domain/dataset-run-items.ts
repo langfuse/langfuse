@@ -10,12 +10,16 @@ export const DatasetRunItemSchema = z.object({
   updatedAt: z.date(),
   datasetRunId: z.string(),
   datasetItemId: z.string(),
+  error: z.string().nullable(),
+  // dataset run fields
   datasetRunName: z.string(),
   datasetRunDescription: z.string().nullable(),
   datasetRunMetadata: jsonSchema.nullable(),
+  datasetRunCreatedAt: z.date(),
+  // dataset item fields
   datasetItemInput: jsonSchema.nullable(),
   datasetItemExpectedOutput: jsonSchema.nullable(),
-  datasetRunCreatedAt: z.date(),
+  // TODO: output would be EPIC, let's see if we can make this work
   datasetId: z.string(),
 });
 

@@ -211,6 +211,7 @@ const datasetRunItemRecordBaseSchema = z.object({
   dataset_item_expected_output: z.string(),
   dataset_item_metadata: z.string().nullish(),
   is_deleted: z.number(),
+  error: z.string().nullish(),
 });
 
 const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({

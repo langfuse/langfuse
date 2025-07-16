@@ -43,6 +43,7 @@ export const convertDatasetRunItemDomainToClickhouse = (
     dataset_run_created_at: convertDateToClickhouseDateTime(
       datasetRunItem.datasetRunCreatedAt,
     ),
+    error: datasetRunItem.error,
   };
 };
 
@@ -65,5 +66,6 @@ export const convertDatasetRunItemClickhouseToDomain = (
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
     datasetId: row.dataset_id,
+    error: row.error ?? null,
   };
 };

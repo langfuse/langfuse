@@ -6,8 +6,7 @@ CREATE TABLE dataset_run_items (
     `dataset_item_id` String,
     `trace_id` String,
     `observation_id` Nullable(String),
-
-    -- TODO: do these need an environment? 
+    `error` Nullable(String),
 
     -- denormalized immutable dataset run fields
     `dataset_id` String,
