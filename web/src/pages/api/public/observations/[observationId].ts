@@ -7,7 +7,10 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { getObservationById } from "@langfuse/shared/src/server";
+import {
+  getObservationById,
+  replaceIdentifierWithContent,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -86,8 +89,9 @@ export default withMiddlewares({
 
       // Replace identifiers with raw strings
       if (clickhouseObservation.input) {
-        stringified = stringified.replace(
-          `"${inputIdentifier}"`,
+        stringified = replaceIdentifierWithContent(
+          stringified,
+          inputIdentifier,
           clickhouseObservation.input,
         );
       }

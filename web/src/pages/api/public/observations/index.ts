@@ -12,6 +12,11 @@ import {
   generateObservationsForPublicApi,
   getObservationsCountForPublicApi,
 } from "@/src/features/public-api/server/observations";
+import {
+  clickhouseCompliantRandomCharacters,
+  replaceIdentifierWithContent,
+} from "@langfuse/shared/src/server";
+import { InternalServerError } from "@langfuse/shared";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -63,12 +68,12 @@ export default withMiddlewares({
       const finalCount = count ? count : 0;
 
       // Process observations with identifiers for string replacement
-      const processedItems = items.map((i, index) => {
+      const processedItems = items.map((i) => {
         const model = models.find((m) => m.id === i.internalModelId);
 
         // Generate unique identifiers for input/output replacement
-        const inputIdentifier = `__OBS_INPUT_${index}_${Math.random().toString(36).substr(2, 9)}__`;
-        const outputIdentifier = `__OBS_OUTPUT_${index}_${Math.random().toString(36).substr(2, 9)}__`;
+        const inputIdentifier = clickhouseCompliantRandomCharacters();
+        const outputIdentifier = clickhouseCompliantRandomCharacters();
 
         return {
           ...i,
@@ -81,11 +86,6 @@ export default withMiddlewares({
             model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
           totalPrice:
             model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
-          // Store original values and identifiers for replacement
-          _originalInput: i.input,
-          _originalOutput: i.output,
-          _inputIdentifier: inputIdentifier,
-          _outputIdentifier: outputIdentifier,
         };
       });
 
@@ -104,17 +104,26 @@ export default withMiddlewares({
       // Apply string replacement for all observations
       let stringified = JSON.stringify(returnObject);
 
+      // enrich the observations with the actual input and output
+
       processedItems.forEach((item) => {
-        if (item._originalInput) {
-          stringified = stringified.replace(
-            `"${item._inputIdentifier}"`,
-            item._originalInput,
+        const obs = items.find((i) => i.id === item.id);
+        if (!obs) {
+          throw new InternalServerError("Observation not found");
+        }
+
+        if (item.input && obs.input) {
+          stringified = replaceIdentifierWithContent(
+            stringified,
+            item.input,
+            obs.input,
           );
         }
-        if (item._originalOutput) {
-          stringified = stringified.replace(
-            `"${item._outputIdentifier}"`,
-            item._originalOutput,
+        if (item.output && obs.output) {
+          stringified = replaceIdentifierWithContent(
+            stringified,
+            item.output,
+            obs.output,
           );
         }
       });

@@ -89,7 +89,6 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
     },
   });
 
-  // Use string conversion to avoid JSON parsing performance issues
   return result.map((record) =>
     convertObservation({ record, convertToString: true }),
   );
