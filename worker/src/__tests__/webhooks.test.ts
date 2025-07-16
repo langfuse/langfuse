@@ -11,13 +11,13 @@ import { v4 } from "uuid";
 import {
   ActionExecutionStatus,
   JobConfigState,
+  JsonNested,
   PromptDomainSchema,
   WebhookActionConfigWithSecrets,
 } from "@langfuse/shared";
 import {
   WebhookInput,
   createOrgProjectAndApiKey,
-  executeWebhook,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -28,6 +28,7 @@ import {
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
+import { executeWebhook } from "../queues/webhooks";
 
 // Mock webhook server for testing HTTP requests
 class WebhookTestServer {
