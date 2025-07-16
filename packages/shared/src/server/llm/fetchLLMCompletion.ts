@@ -192,11 +192,12 @@ export async function fetchLLMCompletion(
       )
         return new SystemMessage(safeContent);
 
-      if (message.type === ChatMessageType.ToolResult)
+      if (message.type === ChatMessageType.ToolResult) {
         return new ToolMessage({
           content: safeContent,
           tool_call_id: message.toolCallId,
         });
+      }
 
       return new AIMessage({
         content: safeContent,
