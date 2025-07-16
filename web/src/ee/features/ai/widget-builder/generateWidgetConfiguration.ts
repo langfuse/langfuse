@@ -94,7 +94,7 @@ export async function generateWidgetConfiguration({
       streaming: false,
       apiKey,
       // Make typescript happy as SDK infers a string for compile
-      messages: prompt.compile({ description }) as any, 
+      messages: prompt.compile({ description }) as any,
       modelParams: {
         provider: "openai",
         model: "gpt-4o-mini",
