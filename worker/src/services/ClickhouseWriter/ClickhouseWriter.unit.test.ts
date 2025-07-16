@@ -354,7 +354,10 @@ describe("ClickhouseWriter", () => {
         metadata: { key: "value" },
       } as any;
 
-      const truncatedRecord = writer["truncateOversizedRecord"](record);
+      const truncatedRecord = writer["truncateOversizedRecord"](
+        TableName.Traces,
+        record,
+      );
 
       expect(truncatedRecord.id).toBe("1");
       expect((truncatedRecord as any).output).toBe("normal output");
@@ -379,7 +382,10 @@ describe("ClickhouseWriter", () => {
         metadata: { key: "value" },
       };
 
-      const truncatedRecord = writer["truncateOversizedRecord"](record);
+      const truncatedRecord = writer["truncateOversizedRecord"](
+        TableName.Traces,
+        record,
+      );
 
       expect(truncatedRecord.id).toBe("1");
       expect(truncatedRecord.input).toBe("normal input");
@@ -406,7 +412,10 @@ describe("ClickhouseWriter", () => {
         },
       };
 
-      const truncatedRecord = writer["truncateOversizedRecord"](record);
+      const truncatedRecord = writer["truncateOversizedRecord"](
+        TableName.Traces,
+        record,
+      );
 
       expect(truncatedRecord.id).toBe("1");
       expect(truncatedRecord.input).toBe("normal input");
@@ -434,7 +443,10 @@ describe("ClickhouseWriter", () => {
         metadata: { key: "value" },
       };
 
-      const truncatedRecord = writer["truncateOversizedRecord"](normalRecord);
+      const truncatedRecord = writer["truncateOversizedRecord"](
+        TableName.Traces,
+        normalRecord,
+      );
 
       expect(truncatedRecord).toEqual(normalRecord);
     });
