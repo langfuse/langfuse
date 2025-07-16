@@ -8,14 +8,14 @@ export const accountTableColumns: LangfuseColumnDef<
   RouterOutput["accounts"]["getUsers"][number]
 >[] = [
   {
-    accessorKey: "identifier",
-    id: "identifier",
-    header: "Identifier",
+    accessorKey: "username",
+    id: "username",
+    header: "username",
 
     cell: ({ row }) => {
       return (
         <span className="truncate py-3 font-mono text-sm font-semibold">
-          {row.original.identifier}
+          {row.original.username}
         </span>
       );
     },

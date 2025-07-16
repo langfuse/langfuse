@@ -13,8 +13,8 @@ export const accountsRouter = createTRPCRouter({
       const supabase = createSupabaseAdminClient();
 
       const { data, error } = await supabase
-        .from("User")
-        .select("identifier, id");
+        .from("test_users")
+        .select("username, id");
 
       if (error) {
         throw new TRPCError({
@@ -26,6 +26,30 @@ export const accountsRouter = createTRPCRouter({
       return data.map((user) => ({
         ...user,
         projectId: input.projectId, // adding projectId for convenience in table definitions
-      })) as { identifier: string; projectId: string; id: string }[]; // todo consider loading supabase
+      })) satisfies { username: string; projectId: string; id: string }[]; // todo consider loading supabase
+    }),
+  createUser: protectedProjectProcedure
+    .input(
+      z.object({
+        username: z.string(),
+        password: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const supabase = createSupabaseAdminClient();
+
+      const { data, error } = await supabase.from("test_users").insert({
+        username: input.username,
+        password: input.password,
+      });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      return data;
     }),
 });
