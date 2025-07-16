@@ -20,15 +20,7 @@ interface BillingAlertEmailProps {
   organizationName: string;
   currentUsage: number;
   threshold: number;
-  currency: string;
-  billingPeriod: string;
-  usageBreakdown: {
-    traces: number;
-    observations: number;
-    scores: number;
-  };
-  dashboardUrl: string;
-  manageAlertsUrl: string;
+  billingUrl: string;
   receiverEmail: string;
 }
 
@@ -36,10 +28,7 @@ export const BillingAlertEmailTemplate = ({
   organizationName,
   currentUsage,
   threshold,
-  billingPeriod,
-  usageBreakdown,
-  dashboardUrl,
-  manageAlertsUrl,
+  billingUrl,
   receiverEmail,
 }: BillingAlertEmailProps) => {
   const overageAmount = currentUsage - threshold;
@@ -49,8 +38,8 @@ export const BillingAlertEmailTemplate = ({
     <Html>
       <Head />
       <Preview>
-        Your current usage is ${currentUsage.toFixed(2)} for the {billingPeriod}{" "}
-        billing period
+        Your current Langfuse Cloud usage is {`${currentUsage}`} events for the
+        current billing period
       </Preview>
       <Tailwind>
         <Body className="bg-white my-auto mx-auto font-sans">
@@ -90,7 +79,7 @@ export const BillingAlertEmailTemplate = ({
                       Current Usage
                     </Text>
                     <Text className="text-2xl font-bold text-gray-900 m-0">
-                      ${currentUsage.toFixed(2)}
+                      ${currentUsage}
                     </Text>
                   </Column>
                   <Column className="text-center">
@@ -98,92 +87,20 @@ export const BillingAlertEmailTemplate = ({
                       Alert Threshold
                     </Text>
                     <Text className="text-2xl font-bold text-gray-900 m-0">
-                      ${threshold.toFixed(2)}
+                      ${threshold}
                     </Text>
                   </Column>
                 </Row>
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <Row>
-                    <Column className="text-center">
-                      <Text className="text-gray-600 text-sm font-medium m-0 mb-1">
-                        Billing Period
-                      </Text>
-                      <Text className="text-sm text-gray-900 m-0">
-                        {billingPeriod}
-                      </Text>
-                    </Column>
-                    <Column className="text-center">
-                      <Text className="text-gray-600 text-sm font-medium m-0 mb-1">
-                        Overage
-                      </Text>
-                      <Text className="text-sm font-semibold text-orange-600 m-0">
-                        ${overageAmount.toFixed(2)} ({overagePercentage}%)
-                      </Text>
-                    </Column>
-                  </Row>
-                </div>
-              </div>
-            </Section>
-
-            <Section className="mt-[32px]">
-              <Heading className="text-black text-[18px] font-semibold">
-                Usage Breakdown
-              </Heading>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <Text className="text-gray-700 text-sm m-0">Traces</Text>
-                    <Text className="text-gray-900 text-sm font-medium m-0">
-                      {usageBreakdown.traces.toLocaleString()} events
-                    </Text>
-                  </div>
-                  <div className="flex justify-between">
-                    <Text className="text-gray-700 text-sm m-0">
-                      Observations
-                    </Text>
-                    <Text className="text-gray-900 text-sm font-medium m-0">
-                      {usageBreakdown.observations.toLocaleString()} events
-                    </Text>
-                  </div>
-                  <div className="flex justify-between">
-                    <Text className="text-gray-700 text-sm m-0">Scores</Text>
-                    <Text className="text-gray-900 text-sm font-medium m-0">
-                      {usageBreakdown.scores.toLocaleString()} events
-                    </Text>
-                  </div>
-                  <Hr className="border-gray-300 my-2" />
-                  <div className="flex justify-between">
-                    <Text className="text-gray-900 text-sm font-semibold m-0">
-                      Total
-                    </Text>
-                    <Text className="text-gray-900 text-sm font-semibold m-0">
-                      {(
-                        usageBreakdown.traces +
-                        usageBreakdown.observations +
-                        usageBreakdown.scores
-                      ).toLocaleString()}{" "}
-                      events
-                    </Text>
-                  </div>
-                </div>
               </div>
             </Section>
 
             <Section className="mt-[32px] text-center">
               <Button
                 className="bg-blue-600 text-white px-6 py-3 rounded-md text-sm font-medium no-underline"
-                href={dashboardUrl}
+                href={billingUrl}
               >
-                View Usage Dashboard
+                View Billing Page and Manage Alerts
               </Button>
-              <div className="mt-4">
-                <Button
-                  className="bg-gray-100 text-gray-700 px-6 py-3 rounded-md text-sm font-medium no-underline border border-gray-300"
-                  href={manageAlertsUrl}
-                >
-                  Manage Alert Settings
-                </Button>
-              </div>
             </Section>
 
             <Section className="mt-[32px]">

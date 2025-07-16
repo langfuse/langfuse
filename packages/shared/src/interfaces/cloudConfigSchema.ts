@@ -27,7 +27,6 @@ export const CloudConfigSchema = z.object({
       threshold: z.number().int().positive(),
       alertId: z.string(), // Alert ID for tracking
       meterId: z.string(), // Meter ID for usage tracking
-      lastTriggeredAt: z.date().optional(),
       notifications: z.object({
         email: z.boolean().default(true),
         recipients: z.array(z.string().email()).default([]),

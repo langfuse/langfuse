@@ -11,15 +11,7 @@ export interface BillingAlertEmailProps {
   organizationName: string;
   currentUsage: number;
   threshold: number;
-  currency: string;
-  billingPeriod: string;
-  usageBreakdown: {
-    traces: number;
-    observations: number;
-    scores: number;
-  };
-  dashboardUrl: string;
-  manageAlertsUrl: string;
+  billingUrl: string;
   receiverEmail: string;
 }
 
@@ -28,11 +20,7 @@ export const sendBillingAlertEmail = async ({
   organizationName,
   currentUsage,
   threshold,
-  currency,
-  billingPeriod,
-  usageBreakdown,
-  dashboardUrl,
-  manageAlertsUrl,
+  billingUrl,
   receiverEmail,
 }: BillingAlertEmailProps) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
@@ -45,17 +33,13 @@ export const sendBillingAlertEmail = async ({
   try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
 
-    const emailSubject = `Billing Alert: ${organizationName} exceeded $${threshold.toFixed(2)} usage threshold`;
+    const emailSubject = `Langfuse Cloud Billing Alert: ${organizationName} usage exceeded ${threshold} events`;
     const emailHtml = await render(
       BillingAlertEmailTemplate({
         organizationName,
         currentUsage,
         threshold,
-        currency,
-        billingPeriod,
-        usageBreakdown,
-        dashboardUrl,
-        manageAlertsUrl,
+        billingUrl,
         receiverEmail,
       }),
     );

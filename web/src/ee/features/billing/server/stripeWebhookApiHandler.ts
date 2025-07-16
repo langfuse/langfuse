@@ -14,9 +14,8 @@ import {
 } from "@langfuse/shared";
 import { traceException, redis, logger } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-// import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
-// import { Role } from "@langfuse/shared";
-// import { createStripeAlert } from "./usageAlertService";
+import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
+import { Role } from "@langfuse/shared";
 
 /*
  * Sign-up endpoint (email/password users), creates user in database.
@@ -91,13 +90,13 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
       });
       await handleSubscriptionChanged(deletedSubscription, "deleted");
       break;
-    // case "billing.alert.triggered":
-    //   const alertData = event.data.object;
-    //   logger.info("[Stripe Webhook] Start billing.alert.triggered", {
-    //     payload: alertData,
-    //   });
-    //   await handleBillingAlertTriggered(alertData);
-    //   break;
+    case "billing.alert.triggered":
+      const alertData = event.data.object;
+      logger.info("[Stripe Webhook] Start billing.alert.triggered", {
+        payload: alertData,
+      });
+      await handleBillingAlertTriggered(alertData);
+      break;
     default:
       logger.warn(`Unhandled event type ${event.type}`);
   }
@@ -284,215 +283,177 @@ async function handleSubscriptionChanged(
   return;
 }
 
-// async function handleBillingAlertTriggered(alertData: Stripe.Billing.Alert) {
-//   try {
-//     // Find organization by Stripe customer ID
-//     const customerId = alertData.filter?.customer;
-//     if (!customerId) {
-//       logger.error("[Stripe Webhook] No customer ID found in billing alert");
-//       return;
-//     }
-//
-//     const organization = await prisma.organization.findFirst({
-//       where: {
-//         cloudConfig: {
-//           path: ["stripe", "customerId"],
-//           equals: customerId,
-//         },
-//       },
-//     });
-//
-//     if (!organization) {
-//       logger.error("[Stripe Webhook] Organization not found for customer ID", {
-//         customerId,
-//       });
-//       return;
-//     }
-//
-//     const parsedOrg = parseDbOrg(organization);
-//     const billingAlerts = parsedOrg.cloudConfig?.billingAlerts;
-//
-//     if (!billingAlerts || !billingAlerts.enabled) {
-//       logger.info(
-//         "[Stripe Webhook] Billing alerts not enabled for organization",
-//         {
-//           organizationId: organization.id,
-//         },
-//       );
-//       return;
-//     }
-//
-//     // Extract usage information from alert data
-//     const usageAmount = alertData.usage_threshold_config?.gte || 0;
-//     const threshold = billingAlerts.threshold;
-//     const currency = billingAlerts.currency || "USD";
-//
-//     // Send email notifications if enabled
-//     if (billingAlerts.notifications.email) {
-//       await sendBillingAlertNotifications({
-//         organization,
-//         billingAlerts,
-//         usageAmount,
-//         threshold,
-//         currency,
-//         alertId: alertData.id,
-//       });
-//     }
-//
-//     logger.info("[Stripe Webhook] Billing alert triggered", {
-//       organizationId: organization.id,
-//       organizationName: organization.name,
-//       usageAmount,
-//       threshold,
-//       currency,
-//       alertId: alertData.id,
-//     });
-//
-//     // Update lastTriggeredAt timestamp
-//     const updatedBillingAlerts = {
-//       ...billingAlerts,
-//       lastTriggeredAt: new Date(),
-//     };
-//
-//     const updatedCloudConfig = {
-//       ...parsedOrg.cloudConfig,
-//       billingAlerts: updatedBillingAlerts,
-//     };
-//
-//     await prisma.organization.update({
-//       where: {
-//         id: organization.id,
-//       },
-//       data: {
-//         cloudConfig: updatedCloudConfig,
-//       },
-//     });
-//
-//     logger.info("[Stripe Webhook] Billing alert processed successfully", {
-//       organizationId: organization.id,
-//       alertId: alertData.id,
-//     });
-//   } catch (error) {
-//     logger.error("[Stripe Webhook] Error processing billing alert", {
-//       error,
-//       alertId: alertData.id,
-//     });
-//     traceException("[Stripe Webhook] Error processing billing alert");
-//   }
-// }
-//
-// async function sendBillingAlertNotifications({
-//   organization,
-//   billingAlerts,
-//   usageAmount,
-//   threshold,
-//   currency,
-//   alertId,
-// }: {
-//   organization: Organization;
-//   billingAlerts: NonNullable<
-//     ReturnType<typeof parseDbOrg>["cloudConfig"]
-//   >["billingAlerts"];
-//   usageAmount: number;
-//   threshold: number;
-//   currency: string;
-//   alertId: string;
-// }) {
-//   try {
-//     // Get organization admins and owners
-//     const adminMembers = await prisma.organizationMembership.findMany({
-//       where: {
-//         orgId: organization.id,
-//         role: {
-//           in: [Role.ADMIN, Role.OWNER],
-//         },
-//       },
-//       include: {
-//         user: {
-//           select: {
-//             email: true,
-//           },
-//         },
-//       },
-//     });
-//
-//     // Collect all recipients
-//     const recipients = new Set<string>();
-//
-//     // Add admin/owner emails
-//     adminMembers.forEach((member) => {
-//       if (member.user.email) {
-//         recipients.add(member.user.email);
-//       }
-//     });
-//
-//     // Add additional recipients from settings
-//     if (billingAlerts?.notifications.recipients) {
-//       billingAlerts.notifications.recipients.forEach((email) => {
-//         recipients.add(email);
-//       });
-//     }
-//
-//     // Mock usage breakdown for now (in production, this would come from actual usage data)
-//     const usageBreakdown = {
-//       traces: Math.floor(usageAmount * 0.2), // 20% traces
-//       observations: Math.floor(usageAmount * 0.7), // 70% observations
-//       scores: Math.floor(usageAmount * 0.1), // 10% scores
-//     };
-//
-//     // Generate URLs
-//     const dashboardUrl = `${env.NEXTAUTH_URL}/organization/${organization.id}/settings/billing`;
-//     const manageAlertsUrl = `${env.NEXTAUTH_URL}/organization/${organization.id}/settings/billing`;
-//
-//     // Get billing period info (mock for now)
-//     const billingPeriod = new Date().toLocaleDateString("en-US", {
-//       month: "short",
-//       day: "numeric",
-//       year: "numeric",
-//     });
-//
-//     // Send email to all recipients
-//     const emailPromises = Array.from(recipients).map(async (email) => {
-//       try {
-//         await sendBillingAlertEmail({
-//           organizationName: organization.name,
-//           currentUsage: usageAmount,
-//           threshold,
-//           currency,
-//           billingPeriod,
-//           usageBreakdown,
-//           dashboardUrl,
-//           manageAlertsUrl,
-//           receiverEmail: email,
-//         });
-//
-//         logger.info("[Stripe Webhook] Billing alert email sent", {
-//           organizationId: organization.id,
-//           recipientEmail: email,
-//           alertId,
-//         });
-//       } catch (error) {
-//         logger.error("[Stripe Webhook] Failed to send billing alert email", {
-//           organizationId: organization.id,
-//           recipientEmail: email,
-//           alertId,
-//           error,
-//         });
-//       }
-//     });
-//
-//     await Promise.all(emailPromises);
-//
-//     logger.info("[Stripe Webhook] Billing alert notifications sent", {
-//       organizationId: organization.id,
-//       recipientCount: recipients.size,
-//       alertId,
-//     });
-//   } catch (error) {
-//     logger.error("[Stripe Webhook] Error sending billing alert notifications", {
-//       organizationId: organization.id,
-//       alertId,
-//       error,
-//     });
-//   }
-// }
+async function handleBillingAlertTriggered(
+  alertData: Stripe.Billing.AlertTriggered,
+) {
+  try {
+    // Find organization by Stripe customer ID
+    const customerId = alertData.customer;
+    if (!customerId) {
+      logger.error("[Stripe Webhook] No customer ID found in billing alert");
+      return;
+    }
+
+    const organization = await prisma.organization.findFirst({
+      where: {
+        cloudConfig: {
+          path: ["stripe", "customerId"],
+          equals: customerId,
+        },
+      },
+    });
+
+    if (!organization) {
+      logger.warn(
+        "[Stripe Webhook] Organization not found for customer ID - Potentially received the webhook on wrong environment",
+        {
+          customerId,
+        },
+      );
+      return;
+    }
+
+    const parsedOrg = parseDbOrg(organization);
+    const usageAlerts = parsedOrg.cloudConfig?.usageAlerts;
+
+    if (!usageAlerts || !usageAlerts.enabled) {
+      logger.info(
+        "[Stripe Webhook] Usage alerts not enabled for organization",
+        {
+          orgId: organization.id,
+        },
+      );
+      return;
+    }
+
+    // Extract usage information from alert data
+    const usageAmount = alertData.value;
+    const threshold = usageAlerts.threshold;
+
+    // Send email notifications if enabled
+    if (usageAlerts.notifications.email) {
+      await sendBillingAlertNotifications({
+        organization,
+        usageAlerts,
+        usageAmount,
+        threshold,
+        alertId: alertData.alert.id,
+      });
+    }
+
+    logger.info("[Stripe Webhook] Billing alert triggered", {
+      organizationId: organization.id,
+      organizationName: organization.name,
+      usageAmount,
+      threshold,
+      alertId: alertData.alert.id,
+    });
+
+    logger.info("[Stripe Webhook] Billing alert processed successfully", {
+      orgId: organization.id,
+      alertId: alertData.alert.id,
+    });
+  } catch (error) {
+    logger.error("[Stripe Webhook] Error processing billing alert", {
+      error,
+      alertId: alertData.alert.id,
+    });
+    traceException("[Stripe Webhook] Error processing billing alert");
+  }
+}
+
+async function sendBillingAlertNotifications({
+  organization,
+  usageAlerts,
+  usageAmount,
+  threshold,
+  alertId,
+}: {
+  organization: Organization;
+  usageAlerts: NonNullable<
+    ReturnType<typeof parseDbOrg>["cloudConfig"]
+  >["usageAlerts"];
+  usageAmount: number;
+  threshold: number;
+  alertId: string;
+}) {
+  try {
+    // Get organization admins and owners
+    const adminMembers = await prisma.organizationMembership.findMany({
+      where: {
+        orgId: organization.id,
+        role: {
+          in: [Role.ADMIN, Role.OWNER],
+        },
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Collect all recipients
+    const recipients = new Set<string>();
+
+    // Add admin/owner emails
+    adminMembers.forEach((member) => {
+      if (member.user.email) {
+        recipients.add(member.user.email);
+      }
+    });
+
+    // Add additional recipients from settings
+    if (usageAlerts?.notifications.recipients) {
+      usageAlerts.notifications.recipients.forEach((email) => {
+        recipients.add(email);
+      });
+    }
+
+    // Generate URLs
+    const billingUrl = `${env.NEXTAUTH_URL}/organization/${organization.id}/settings/billing`;
+
+    // Send email to all recipients
+    const emailPromises = Array.from(recipients).map(async (email) => {
+      try {
+        await sendBillingAlertEmail({
+          env,
+          organizationName: organization.name,
+          currentUsage: usageAmount,
+          threshold,
+          billingUrl,
+          receiverEmail: email,
+        });
+
+        logger.info("[Stripe Webhook] Billing alert email sent", {
+          organizationId: organization.id,
+          recipientEmail: email,
+          alertId,
+        });
+      } catch (error) {
+        logger.error("[Stripe Webhook] Failed to send billing alert email", {
+          organizationId: organization.id,
+          recipientEmail: email,
+          alertId,
+          error,
+        });
+      }
+    });
+
+    await Promise.all(emailPromises);
+
+    logger.info("[Stripe Webhook] Billing alert notifications sent", {
+      organizationId: organization.id,
+      recipientCount: recipients.size,
+      alertId,
+    });
+  } catch (error) {
+    logger.error("[Stripe Webhook] Error sending billing alert notifications", {
+      organizationId: organization.id,
+      alertId,
+      error,
+    });
+  }
+}
