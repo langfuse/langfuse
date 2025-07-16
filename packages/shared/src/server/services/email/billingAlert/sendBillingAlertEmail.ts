@@ -41,59 +41,35 @@ export const sendBillingAlertEmail = async ({
     );
     return;
   }
-  const emailSubject = `Billing Alert: ${organizationName} exceeded $${threshold.toFixed(2)} usage threshold`;
-
-  const emailHtml = await render(
-    BillingAlertEmailTemplate({
-      organizationName,
-      currentUsage,
-      threshold,
-      currency,
-      billingPeriod,
-      usageBreakdown,
-      dashboardUrl,
-      manageAlertsUrl,
-      receiverEmail,
-    }),
-  );
-
-  const emailText = `
-Billing Alert: Usage Threshold Exceeded
-
-Organization: ${organizationName}
-Current Usage: $${currentUsage.toFixed(2)}
-Alert Threshold: $${threshold.toFixed(2)}
-Billing Period: ${billingPeriod}
-
-Usage Breakdown:
-- Traces: ${usageBreakdown.traces.toLocaleString()} events
-- Observations: ${usageBreakdown.observations.toLocaleString()} events
-- Scores: ${usageBreakdown.scores.toLocaleString()} events
-- Total: ${(usageBreakdown.traces + usageBreakdown.observations + usageBreakdown.scores).toLocaleString()} events
-
-What happens next?
-• Your current billing cycle continues normally
-• Charges will appear on your next invoice
-• You can adjust usage or modify alert thresholds
-• Contact support if you have questions about your bill
-
-View Usage Dashboard: ${dashboardUrl}
-Manage Alert Settings: ${manageAlertsUrl}
-
-Questions? Contact us at support@langfuse.com
-`;
 
   try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
 
+    const emailSubject = `Billing Alert: ${organizationName} exceeded $${threshold.toFixed(2)} usage threshold`;
+    const emailHtml = await render(
+      BillingAlertEmailTemplate({
+        organizationName,
+        currentUsage,
+        threshold,
+        currency,
+        billingPeriod,
+        usageBreakdown,
+        dashboardUrl,
+        manageAlertsUrl,
+        receiverEmail,
+      }),
+    );
+
     await mailer.sendMail({
       to: receiverEmail,
-      from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
+      from: {
+        address: env.EMAIL_FROM_ADDRESS,
+        name: "Langfuse",
+      },
       subject: emailSubject,
       html: emailHtml,
-      text: emailText,
     });
   } catch (error) {
-    logger.error(error);
+    logger.error(`Failed to send billing alert email`, error);
   }
 };
