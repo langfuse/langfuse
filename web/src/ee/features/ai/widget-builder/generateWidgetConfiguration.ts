@@ -2,8 +2,6 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import { type User } from "next-auth";
 import { TRPCError } from "@trpc/server";
 import {
-  ChatMessageRole,
-  ChatMessageType,
   fetchLLMCompletion,
   LLMAdapter,
   logger,
@@ -114,23 +112,6 @@ export async function generateWidgetConfiguration({
         }),
       ],
     });
-
-    // const result = await generateObject({
-    //   model: createOpenAI({
-    //     apiKey,
-    //   })("gpt-4o-mini"),
-    //   system: WIDGET_BUILDER_PROMPT,
-    //   prompt: `Generate a widget configuration for: "${description}"`,
-    //   schema: generationSchema,
-    //   experimental_telemetry: {
-    //     isEnabled: true,
-    //     functionId: USE_CASE,
-    //     tracer: tracerProvider.getTracer(USE_CASE),
-    //     metadata: {
-    //       "langfuse.trace.name": USE_CASE,
-    //     },
-    //   },
-    // });
 
     logger.info("Generated widget configuration", {
       projectId,

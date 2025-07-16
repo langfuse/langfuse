@@ -21,7 +21,6 @@
     "test:e2e:server": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server"
   },
   "dependencies": {
-    "@ai-sdk/openai": "2.0.0-beta.7",
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.7.3",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
@@ -98,7 +97,6 @@
     "@trpc/server": "^10.45.0",
     "@uiw/codemirror-themes": "^4.23.7",
     "@uiw/react-codemirror": "^4.21.24",
-    "ai": "5.0.0-beta.18",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.10",
     "class-variance-authority": "^0.7.0",

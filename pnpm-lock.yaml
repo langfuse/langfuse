@@ -60,7 +60,7 @@ importers:
         version: 14.2.30(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       next-auth:
         specifier: ^4.24.11
-        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       zod:
         specifier: ^3.25.62
         version: 3.25.62
@@ -234,7 +234,7 @@ importers:
         version: 4.1.1
       next-auth:
         specifier: ^4.24.11
-        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       nodemailer:
         specifier: ^6.9.15
         version: 6.9.15
@@ -332,9 +332,6 @@ importers:
 
   web:
     dependencies:
-      '@ai-sdk/openai':
-        specifier: 2.0.0-beta.7
-        version: 2.0.0-beta.7(zod@3.25.62)
       '@anthropic-ai/tokenizer':
         specifier: ^0.0.4
         version: 0.0.4
@@ -563,9 +560,6 @@ importers:
       '@uiw/react-codemirror':
         specifier: ^4.21.24
         version: 4.23.7(@babel/runtime@7.27.6)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.10.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)(@lezer/common@1.2.3))(@codemirror/language@6.10.8)(@codemirror/lint@6.8.4)(@codemirror/search@6.5.6)(@codemirror/state@6.5.1)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.36.2)(codemirror@6.0.1(@lezer/common@1.2.3))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      ai:
-        specifier: 5.0.0-beta.18
-        version: 5.0.0-beta.18(zod@3.25.62)
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -640,7 +634,7 @@ importers:
         version: 14.2.30(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       next-auth:
         specifier: ^4.24.11
-        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       next-query-params:
         specifier: ^5.0.1
         version: 5.0.1(next@14.2.30(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(use-query-params@2.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
@@ -1060,28 +1054,6 @@ packages:
 
   '@adobe/css-tools@4.4.0':
     resolution: {integrity: sha512-Ff9+ksdQQB3rMncgqDK78uLznstjyfIf2Arnh22pW8kBpLs6rpKDwgnZT46hin5Hl1WzazzK64DOrhSwYpS7bQ==}
-
-  '@ai-sdk/gateway@1.0.0-beta.7':
-    resolution: {integrity: sha512-0TOWFetxYximugqdmA/uxk+NRkz51Lyo+anntc3hPzm2OnsbE/Q2wWkKJ14YzoCAfWZ9ZhvxsJRp8xzvvQREsA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.49
-
-  '@ai-sdk/openai@2.0.0-beta.7':
-    resolution: {integrity: sha512-sI0l8jzQkqG8dLuRUUpv7JG6qBRG7GSWagcvAMpxbKP1066OdmZIWUV6I8PRHg+5juNzH2DeJDKsz/0l9ztIZA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.49
-
-  '@ai-sdk/provider-utils@3.0.0-beta.2':
-    resolution: {integrity: sha512-H4K+4weOVgWqrDDeAbQWoA4U5mN4WrQPHQFdH7ynQYcnhj/pzctU9Q6mGlR5ESMWxaXxazxlOblSITlXo9bahA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.49
-
-  '@ai-sdk/provider@2.0.0-beta.1':
-    resolution: {integrity: sha512-Z8SPncMtS3RsoXITmT7NVwrAq6M44dmw0DoUOYJqNNtCu8iMWuxB8Nxsoqpa0uEEy9R1V1ZThJAXTYgjTUxl3w==}
-    engines: {node: '>=18'}
 
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
@@ -5001,9 +4973,6 @@ packages:
     resolution: {integrity: sha512-xs/KAwWOeCklq8aMlnpk25LgxEYHKOEodfjfKclDMLcBJEVEKzDLxZxBQyztcuPJ7F54213NJS8PxoiHNMdItQ==}
     engines: {node: '>=16.0.0'}
 
-  '@standard-schema/spec@1.0.0':
-    resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
-
   '@standard-schema/utils@0.3.0':
     resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
 
@@ -5819,12 +5788,6 @@ packages:
   aggregate-error@3.1.0:
     resolution: {integrity: sha512-4I7Td01quW/RpocfNayFdFVk1qSuoh0E7JrbRJ16nH01HhKFQ88INq9Sd+nd72zqRySlr9BmDA8xlEJ6vJMrYA==}
     engines: {node: '>=8'}
-
-  ai@5.0.0-beta.18:
-    resolution: {integrity: sha512-gUkO9WF315aT6Al7FxBpY41z3aOVE11BdQUIdIekP1sebys4dElMmKjs9AoaNeYPcf+PklwQ6ZofztiT0egd4A==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.49
 
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
@@ -7510,10 +7473,6 @@ packages:
     resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
     engines: {node: '>=0.8.x'}
 
-  eventsource-parser@3.0.3:
-    resolution: {integrity: sha512-nVpZkTMM9rF6AQ9gPJpFsNAMt48wIzB5TQgiTLdHiuO8XEDhUgZEhqKlZWXbIzo9VmJ/HvysHqEaVeD5v9TPvA==}
-    engines: {node: '>=20.0.0'}
-
   execa@5.1.1:
     resolution: {integrity: sha512-8uSpZZocAZRBAPIEINJj3Lo9HyGitllczc27Eh5YYojjMFMn8yHMDMaUHE2Jqfq05D/wucwI4JGURyXt1vchyg==}
     engines: {node: '>=10'}
@@ -8689,9 +8648,6 @@ packages:
 
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
-
-  json-schema@0.4.0:
-    resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
 
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
@@ -11965,11 +11921,6 @@ packages:
     peerDependencies:
       zod: ^3.23.3
 
-  zod-to-json-schema@3.24.6:
-    resolution: {integrity: sha512-h/z3PKvcTcTetyjl1fkj79MHNEjm+HpD6NXheWjzOekY7kV+lwDYnHw+ivHkijnCSMz1yJaWBD9vu/Fcmk+vEg==}
-    peerDependencies:
-      zod: ^3.24.1
-
   zod@3.22.4:
     resolution: {integrity: sha512-iC+8Io04lddc+mVqQ9AZ7OQ2MrUKGN+oIQyq1vemgt46jwCwLfhq7/pwnBnNXXXZb8VTVLKwp9EDkx+ryxIWmg==}
 
@@ -11987,30 +11938,6 @@ snapshots:
   '@aashutoshrathi/word-wrap@1.2.6': {}
 
   '@adobe/css-tools@4.4.0': {}
-
-  '@ai-sdk/gateway@1.0.0-beta.7(zod@3.25.62)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0-beta.1
-      '@ai-sdk/provider-utils': 3.0.0-beta.2(zod@3.25.62)
-      zod: 3.25.62
-
-  '@ai-sdk/openai@2.0.0-beta.7(zod@3.25.62)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0-beta.1
-      '@ai-sdk/provider-utils': 3.0.0-beta.2(zod@3.25.62)
-      zod: 3.25.62
-
-  '@ai-sdk/provider-utils@3.0.0-beta.2(zod@3.25.62)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0-beta.1
-      '@standard-schema/spec': 1.0.0
-      eventsource-parser: 3.0.3
-      zod: 3.25.62
-      zod-to-json-schema: 3.24.6(zod@3.25.62)
-
-  '@ai-sdk/provider@2.0.0-beta.1':
-    dependencies:
-      json-schema: 0.4.0
 
   '@alloc/quick-lru@5.2.0': {}
 
@@ -14866,7 +14793,7 @@ snapshots:
   '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.10.1(prisma@6.10.1(typescript@5.4.5))(typescript@5.4.5))(next-auth@4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
     dependencies:
       '@prisma/client': 6.10.1(prisma@6.10.1(typescript@5.4.5))(typescript@5.4.5)
-      next-auth: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      next-auth: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
 
   '@next/env@14.2.30': {}
 
@@ -17432,8 +17359,6 @@ snapshots:
       '@smithy/types': 3.5.0
       tslib: 2.8.1
 
-  '@standard-schema/spec@1.0.0': {}
-
   '@standard-schema/utils@0.3.0': {}
 
   '@swc/counter@0.1.3': {}
@@ -18194,7 +18119,7 @@ snapshots:
       '@typescript-eslint/eslint-plugin': 7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
       '@typescript-eslint/parser': 7.12.0(eslint@8.57.0)(typescript@5.4.5)
       eslint-config-prettier: 9.1.0(eslint@8.57.0)
-      eslint-import-resolver-alias: 1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))
+      eslint-import-resolver-alias: 1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0))
       eslint-import-resolver-typescript: 3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0)
       eslint-plugin-eslint-comments: 3.2.0(eslint@8.57.0)
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
@@ -18419,14 +18344,6 @@ snapshots:
     dependencies:
       clean-stack: 2.2.0
       indent-string: 4.0.0
-
-  ai@5.0.0-beta.18(zod@3.25.62):
-    dependencies:
-      '@ai-sdk/gateway': 1.0.0-beta.7(zod@3.25.62)
-      '@ai-sdk/provider': 2.0.0-beta.1
-      '@ai-sdk/provider-utils': 3.0.0-beta.2(zod@3.25.62)
-      '@opentelemetry/api': 1.9.0
-      zod: 3.25.62
 
   ajv-formats@2.1.1(ajv@8.17.1):
     optionalDependencies:
@@ -20093,7 +20010,7 @@ snapshots:
       eslint-plugin-turbo: 2.5.4(eslint@8.57.0)(turbo@2.5.4)
       turbo: 2.5.4
 
-  eslint-import-resolver-alias@1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)):
+  eslint-import-resolver-alias@1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)):
     dependencies:
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
 
@@ -20184,7 +20101,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
+      eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
       hasown: 2.0.2
       is-core-module: 2.15.1
       is-glob: 4.0.3
@@ -20211,7 +20128,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
+      eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
       hasown: 2.0.2
       is-core-module: 2.15.1
       is-glob: 4.0.3
@@ -20481,8 +20398,6 @@ snapshots:
   eventemitter3@4.0.7: {}
 
   events@3.3.0: {}
-
-  eventsource-parser@3.0.3: {}
 
   execa@5.1.1:
     dependencies:
@@ -22048,8 +21963,6 @@ snapshots:
 
   json-schema-traverse@1.0.0: {}
 
-  json-schema@0.4.0: {}
-
   json-stable-stringify-without-jsonify@1.0.1: {}
 
   json5@1.0.2:
@@ -22913,7 +22826,7 @@ snapshots:
     dependencies:
       type-fest: 2.19.0
 
-  next-auth@4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
+  next-auth@4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@14.2.30(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       '@babel/runtime': 7.26.0
       '@panva/hkdf': 1.1.1
@@ -25788,10 +25701,6 @@ snapshots:
       readable-stream: 3.6.2
 
   zod-to-json-schema@3.23.5(zod@3.25.62):
-    dependencies:
-      zod: 3.25.62
-
-  zod-to-json-schema@3.24.6(zod@3.25.62):
     dependencies:
       zod: 3.25.62
 
