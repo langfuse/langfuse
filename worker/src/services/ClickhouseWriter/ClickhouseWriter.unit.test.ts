@@ -355,7 +355,7 @@ describe("ClickhouseWriter", () => {
       } as any;
 
       const truncatedRecord = writer["truncateOversizedRecord"](
-        "traces",
+        TableName.Traces,
         record,
       );
 
@@ -383,7 +383,7 @@ describe("ClickhouseWriter", () => {
       };
 
       const truncatedRecord = writer["truncateOversizedRecord"](
-        "traces",
+        TableName.Traces,
         record,
       );
 
@@ -413,7 +413,7 @@ describe("ClickhouseWriter", () => {
       };
 
       const truncatedRecord = writer["truncateOversizedRecord"](
-        "traces",
+        TableName.Traces,
         record,
       );
 
@@ -444,7 +444,7 @@ describe("ClickhouseWriter", () => {
       };
 
       const truncatedRecord = writer["truncateOversizedRecord"](
-        "traces",
+        TableName.Traces,
         normalRecord,
       );
 
