@@ -21,6 +21,6 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
-      return data;
+      return data as { identifier: string }[]; // todo consider loading supabase
     }),
 });
