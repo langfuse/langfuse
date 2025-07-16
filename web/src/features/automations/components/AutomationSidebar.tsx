@@ -55,10 +55,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
 
   return (
     <div
-      className={cn(
-        "flex min-h-[60vh] flex-col border-r bg-muted/10",
-        sidebarWidth,
-      )}
+      className={cn("flex h-full flex-col border-r bg-muted/10", sidebarWidth)}
     >
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="px-4 pt-4">

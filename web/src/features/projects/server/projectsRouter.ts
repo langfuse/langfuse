@@ -148,24 +148,6 @@ export const projectsRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "project:delete",
       });
-      const beforeProject = await ctx.prisma.project.findUnique({
-        where: {
-          id: input.projectId,
-        },
-      });
-      if (!beforeProject) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Project not found",
-        });
-      }
-      await auditLog({
-        session: ctx.session,
-        resourceType: "project",
-        resourceId: input.projectId,
-        before: beforeProject,
-        action: "delete",
-      });
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
       await new ApiAuthService(ctx.prisma, redis).invalidateProjectApiKeys(
@@ -180,7 +162,7 @@ export const projectsRouter = createTRPCRouter({
         },
       });
 
-      await ctx.prisma.project.update({
+      const project = await ctx.prisma.project.update({
         where: {
           id: input.projectId,
           orgId: ctx.session.orgId,
@@ -188,6 +170,14 @@ export const projectsRouter = createTRPCRouter({
         data: {
           deletedAt: new Date(),
         },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "project",
+        resourceId: input.projectId,
+        before: project,
+        action: "delete",
       });
 
       const projectDeleteQueue = ProjectDeleteQueue.getInstance();

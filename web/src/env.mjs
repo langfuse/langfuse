@@ -199,8 +199,8 @@ export const env = createEnv({
       .optional(),
 
     // langfuse caching
-    LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
-    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
+    LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
+    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
