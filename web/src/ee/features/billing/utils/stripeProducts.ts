@@ -91,8 +91,3 @@ export const stripeProducts: StripeProduct[] = [
 export const mapStripeProductIdToPlan = (productId: string): Plan | null =>
   stripeProducts.find((product) => product.stripeProductId === productId)
     ?.mappedPlan ?? null;
-
-// Stripe meter IDs for billing alerts
-export const STRIPE_METERS = {
-  TRACING_EVENTS: env.STRIPE_TRACING_EVENTS_METER_ID || "mtr_default",
-} as const;
