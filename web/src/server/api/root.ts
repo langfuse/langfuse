@@ -41,6 +41,7 @@ import { TableViewPresetsRouter } from "@/src/server/api/routers/tableViewPreset
 import { automationsRouter } from "@/src/features/automations/server/router";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { plainRouter } from "@/src/features/support-chat/trpc/plain";
+import { accountsRouter } from "@/src/pages/project/[projectId]/accounts/server/accounts.router";
 
 /**
  * This is the primary router for your server.
@@ -90,6 +91,7 @@ export const appRouter = createTRPCRouter({
   TableViewPresets: TableViewPresetsRouter,
   automations: automationsRouter,
   plain: plainRouter,
+  accounts: accountsRouter,
 });
 
 // export type definition of API
