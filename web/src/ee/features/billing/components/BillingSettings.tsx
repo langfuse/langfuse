@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useState } from "react";
 import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
-import { BillingAlerts } from "./BillingAlerts";
+import { UsageAlerts } from "./UsageAlerts";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -42,6 +42,7 @@ export const BillingSettings = () => {
   });
 
   const entitled = useHasEntitlement("cloud-billing");
+  const isUsageAlertEntitled = useHasEntitlement("cloud-billing-alerts");
   if (!entitled) return null;
 
   if (!hasAccess)
@@ -59,7 +60,7 @@ export const BillingSettings = () => {
       <Header title="Usage & Billing" />
       <div className="space-y-6">
         <OrganizationUsageChart />
-        {orgId && <BillingAlerts organizationId={orgId} />}
+        {isUsageAlertEntitled && orgId && <UsageAlerts orgId={orgId} />}
       </div>
     </div>
   );

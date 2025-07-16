@@ -18,12 +18,7 @@ import {
   getTraceCountOfProjectsSinceCreationDate,
   logger,
 } from "@langfuse/shared/src/server";
-import {
-  createStripeAlert,
-  updateStripeAlert,
-  deleteStripeAlert,
-} from "./stripeAlertService";
-import { STRIPE_METERS } from "../utils/stripeProducts";
+import { UsageAlertService } from "./usageAlertService";
 
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
@@ -454,23 +449,23 @@ export const cloudBillingRouter = createTRPCRouter({
         usageType: "units",
       };
     }),
-  getBillingAlerts: protectedOrganizationProcedure
-    .input(z.object({ organizationId: z.string() }))
+  getUsageAlerts: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        organizationId: input.organizationId,
-        scope: "langfuseCloudBilling:CRUD",
-        session: ctx.session,
-      });
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
         sessionUser: ctx.session.user,
-        orgId: input.organizationId,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
       });
 
       const org = await ctx.prisma.organization.findUnique({
         where: {
-          id: input.organizationId,
+          id: input.orgId,
         },
       });
       if (!org) {
@@ -481,48 +476,37 @@ export const cloudBillingRouter = createTRPCRouter({
       }
 
       const parsedOrg = parseDbOrg(org);
-      return (
-        parsedOrg.cloudConfig?.billingAlerts || {
-          enabled: true,
-          thresholdAmount: 10000,
-          currency: "USD",
-          notifications: {
-            email: true,
-            recipients: [],
-          },
-        }
-      );
+      return parsedOrg.cloudConfig?.usageAlerts || null;
     }),
-  updateBillingAlerts: protectedOrganizationProcedure
+  upsertUsageAlerts: protectedOrganizationProcedure
     .input(
       z.object({
-        organizationId: z.string(),
-        billingAlerts: z.object({
+        orgId: z.string(),
+        usageAlerts: z.object({
           enabled: z.boolean(),
-          thresholdAmount: z.number().positive(),
-          currency: z.string().default("USD"),
+          threshold: z.number().int().positive(),
           notifications: z.object({
-            email: z.boolean(),
+            email: z.boolean().default(true),
             recipients: z.array(z.string().email()),
           }),
         }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        organizationId: input.organizationId,
-        scope: "langfuseCloudBilling:CRUD",
-        session: ctx.session,
-      });
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
         sessionUser: ctx.session.user,
-        orgId: input.organizationId,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
       });
 
       const org = await ctx.prisma.organization.findUnique({
         where: {
-          id: input.organizationId,
+          id: input.orgId,
         },
       });
       if (!org) {
@@ -534,13 +518,15 @@ export const cloudBillingRouter = createTRPCRouter({
 
       const parsedOrg = parseDbOrg(org);
       const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
-      const currentAlerts = parsedOrg.cloudConfig?.billingAlerts;
+      const subscriptionId =
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+      const currentAlerts = parsedOrg.cloudConfig?.usageAlerts;
 
-      if (!stripeCustomerId) {
+      if (!stripeCustomerId || !subscriptionId) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message:
-            "Organization must have a Stripe customer ID to configure billing alerts",
+            "Organization must have a Stripe customer with active subscription to configure usage alerts",
         });
       }
 
@@ -551,72 +537,122 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      let updatedAlerts = input.billingAlerts;
+      let updatedAlerts = input.usageAlerts;
+
+      // Get the meterId for the given subscription
+      const subscription =
+        await stripeClient.subscriptions.retrieve(subscriptionId);
+      if (!subscription) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Stripe subscription not found",
+        });
+      }
+      const meterId = subscription.items.data.filter((subItem) =>
+        Boolean(subItem.plan.meter),
+      )[0]?.plan.meter;
 
       try {
-        // Handle Stripe alert creation/update/deletion
-        if (input.billingAlerts.enabled) {
-          if (currentAlerts?.stripeAlertId) {
-            // Update existing alert
-            await updateStripeAlert({
-              alertId: currentAlerts.stripeAlertId,
-              threshold: input.billingAlerts.thresholdAmount,
-            });
-          } else {
-            // Create new alert
-            const stripeAlert = await createStripeAlert({
-              customerId: stripeCustomerId,
-              threshold: input.billingAlerts.thresholdAmount,
-              meterId: STRIPE_METERS.TRACING_EVENTS,
-              currency: input.billingAlerts.currency,
-            });
-            updatedAlerts = {
-              ...updatedAlerts,
-              stripeAlertId: stripeAlert.id,
-            };
-          }
-        } else if (currentAlerts?.stripeAlertId) {
-          // Delete existing alert if disabled
-          await deleteStripeAlert(currentAlerts.stripeAlertId);
-          updatedAlerts = {
-            ...updatedAlerts,
-            stripeAlertId: undefined,
-          };
-        }
-
-        // Update organization with new billing alerts configuration
-        const newCloudConfig = {
-          ...parsedOrg.cloudConfig,
-          billingAlerts: updatedAlerts,
+        const updatedUsageAlertConfig = {
+          enabled: updatedAlerts.enabled,
+          type: "STRIPE",
+          threshold: updatedAlerts.threshold,
+          alertId: currentAlerts?.alertId ?? null, // Keep the existing alert ID if it exists
+          meterId: meterId ?? null, // Use the meter ID from the subscription
+          notifications: {
+            email: updatedAlerts.notifications.email,
+            recipients: updatedAlerts.notifications.recipients,
+          },
         };
 
-        await ctx.prisma.organization.update({
+        // Disable the usage alert if it got disabled
+        if (
+          !updatedAlerts.enabled &&
+          currentAlerts?.alertId &&
+          currentAlerts?.enabled
+        ) {
+          await UsageAlertService.getInstance({
+            stripeClient,
+          }).deactivate({ id: currentAlerts?.alertId });
+        }
+
+        // If there is no existing alert, create a new one
+        if (!currentAlerts?.alertId) {
+          const alert = await UsageAlertService.getInstance({
+            stripeClient,
+          }).create({
+            orgId: input.orgId,
+            customerId: stripeCustomerId,
+            meterId,
+            amount: updatedAlerts.threshold,
+          });
+          updatedUsageAlertConfig.alertId = alert.id;
+        }
+
+        // If there is an existing alert with a different amount or meterId, replace it
+        if (
+          updatedAlerts.enabled &&
+          currentAlerts?.alertId &&
+          (currentAlerts?.threshold !== updatedAlerts.threshold ||
+            currentAlerts.meterId !== meterId)
+        ) {
+          const alert = await UsageAlertService.getInstance({
+            stripeClient,
+          }).recreate({
+            orgId: input.orgId,
+            customerId: stripeCustomerId,
+            meterId,
+            existingAlertId: currentAlerts.alertId,
+            amount: updatedAlerts.threshold,
+          });
+          updatedUsageAlertConfig.alertId = alert.id;
+        }
+
+        // If there is an existing, inactive alert, reactivate it
+        if (
+          updatedAlerts.enabled &&
+          currentAlerts?.alertId &&
+          !currentAlerts.enabled
+        ) {
+          await UsageAlertService.getInstance({
+            stripeClient,
+          }).activate({ id: currentAlerts.alertId });
+        }
+
+        // Update organization with new usage alerts configuration
+        const newCloudConfig = {
+          ...parsedOrg.cloudConfig,
+          usageAlerts: updatedUsageAlertConfig,
+        };
+
+        const updatedOrg = await ctx.prisma.organization.update({
           where: {
-            id: input.organizationId,
+            id: input.orgId,
           },
           data: {
             cloudConfig: newCloudConfig,
           },
         });
 
-        auditLog({
+        await auditLog({
           session: ctx.session,
-          orgId: input.organizationId,
-          resourceType: "billingAlerts",
-          resourceId: input.organizationId,
-          action: "update",
-          after: updatedAlerts,
+          orgId: input.orgId,
+          resourceType: "organization",
+          resourceId: input.orgId,
+          action: "updateUsageAlerts",
+          before: org,
+          after: updatedOrg,
         });
 
         return updatedAlerts;
       } catch (error) {
-        logger.error("Failed to update billing alerts", {
+        logger.error("Failed to update usage alerts", {
           error,
-          organizationId: input.organizationId,
+          orgId: input.orgId,
         });
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to update billing alerts",
+          message: "Failed to update usage alerts",
         });
       }
     }),

@@ -20,12 +20,13 @@ export const CloudConfigSchema = z.object({
   rateLimitOverrides: CloudConfigRateLimit.optional(),
 
   // billing alert configuration
-  billingAlerts: z
+  usageAlerts: z
     .object({
       enabled: z.boolean().default(true),
-      thresholdAmount: z.number().positive().default(1000), // $1,000 default
-      currency: z.string().default("USD"),
-      stripeAlertId: z.string().optional(), // Stripe alert ID for tracking
+      type: z.enum(["STRIPE"]).default("STRIPE"),
+      threshold: z.number().int().positive(),
+      alertId: z.string(), // Alert ID for tracking
+      meterId: z.string(), // Meter ID for usage tracking
       lastTriggeredAt: z.date().optional(),
       notifications: z.object({
         email: z.boolean().default(true),
