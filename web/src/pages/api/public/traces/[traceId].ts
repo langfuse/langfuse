@@ -84,7 +84,7 @@ export default withMiddlewares({
             })
           : [];
 
-      const observationsView = observations.map((o, index) => {
+      const observationsView = observations.map((o) => {
         const model = models.find((m) => m.id === o.internalModelId);
         const inputPrice =
           model?.Price.find((p) => p.usageType === "input")?.price ??
@@ -108,11 +108,6 @@ export default withMiddlewares({
           inputPrice,
           outputPrice,
           totalPrice,
-          // Store original values for replacement
-          _originalInput: o.input,
-          _originalOutput: o.output,
-          _inputIdentifier: inputIdentifier,
-          _outputIdentifier: outputIdentifier,
         };
       });
 
@@ -183,18 +178,19 @@ export default withMiddlewares({
 
       // Replace observation identifiers with actual content
       observationsView.forEach((obsView) => {
-        if (obsView._originalInput) {
+        const obs = observations.find((o) => o.id === obsView.id);
+        if (obs?.input && obsView.input) {
           stringified = replaceIdentifierWithContent(
             stringified,
-            obsView._inputIdentifier,
-            obsView._originalInput,
+            obsView.input,
+            obs.input,
           );
         }
-        if (obsView._originalOutput) {
+        if (obs?.output && obsView.output) {
           stringified = replaceIdentifierWithContent(
             stringified,
-            obsView._outputIdentifier,
-            obsView._originalOutput,
+            obsView.output,
+            obs.output,
           );
         }
       });
