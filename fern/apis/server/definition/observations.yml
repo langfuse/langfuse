@@ -33,7 +33,7 @@ service:
           type: optional<string>
           traceId: optional<string>
           level:
-            type: optional<string>
+            type: optional<commons.ObservationLevel>
             docs: Optional filter for observations with a specific level (e.g. "DEBUG", "DEFAULT", "WARNING", "ERROR").
           parentObservationId: optional<string>
           environment:
