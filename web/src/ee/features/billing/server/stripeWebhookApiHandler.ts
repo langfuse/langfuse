@@ -14,7 +14,7 @@ import {
 } from "@langfuse/shared";
 import { traceException, redis, logger } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { sendBillingAlertEmail } from "@langfuse/shared/src/server/services/email/billingAlert/sendBillingAlertEmail";
+import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { createStripeAlert } from "./stripeAlertService";
 import { STRIPE_METERS } from "../utils/stripeProducts";

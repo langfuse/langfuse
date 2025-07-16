@@ -22,7 +22,6 @@ import {
   createStripeAlert,
   updateStripeAlert,
   deleteStripeAlert,
-  getStripeAlerts,
 } from "./stripeAlertService";
 import { STRIPE_METERS } from "../utils/stripeProducts";
 

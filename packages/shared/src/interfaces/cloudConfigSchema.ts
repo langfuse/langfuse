@@ -23,7 +23,7 @@ export const CloudConfigSchema = z.object({
   billingAlerts: z
     .object({
       enabled: z.boolean().default(true),
-      thresholdAmount: z.number().positive().default(10000), // $10,000 default
+      thresholdAmount: z.number().positive().default(1000), // $1,000 default
       currency: z.string().default("USD"),
       stripeAlertId: z.string().optional(), // Stripe alert ID for tracking
       lastTriggeredAt: z.date().optional(),
