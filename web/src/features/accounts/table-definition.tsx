@@ -18,6 +18,8 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/src/components/ui/dialog";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 
 export const accountTableColumns: LangfuseColumnDef<
   RouterOutput["accounts"]["getUsers"][number]
@@ -58,6 +60,8 @@ export const accountTableColumns: LangfuseColumnDef<
     cell: ({ row }) => {
       const [editDialogOpen, setEditDialogOpen] = useState(false);
       const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+      const [editUsername, setEditUsername] = useState(row.original.username);
+      const [editPassword, setEditPassword] = useState("");
 
       return (
         <div className="flex items-center gap-2">
@@ -70,7 +74,11 @@ export const accountTableColumns: LangfuseColumnDef<
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                onClick={() => setEditDialogOpen(true)}
+                onClick={() => {
+                  setEditUsername(row.original.username);
+                  setEditPassword("");
+                  setEditDialogOpen(true);
+                }}
                 className="flex items-center gap-2"
               >
                 <Edit className="h-4 w-4" />
@@ -88,15 +96,36 @@ export const accountTableColumns: LangfuseColumnDef<
 
           {/* Edit Dialog */}
           <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent
+              closeOnInteractionOutside={true}
+              className="sm:max-w-[425px]"
+            >
               <DialogHeader>
                 <DialogTitle>Edit Account</DialogTitle>
               </DialogHeader>
               <DialogBody>
-                <p className="text-sm text-muted-foreground">
-                  Edit account: {row.original.username}
-                </p>
-                {/* TODO: Add edit form here */}
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="username">Username</Label>
+                    <Input
+                      id="username"
+                      value={editUsername}
+                      onChange={(e) => setEditUsername(e.target.value)}
+                      placeholder="Enter username"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      placeholder="Enter new password"
+                    />
+                  </div>
+                </div>
               </DialogBody>
               <DialogFooter>
                 <Button
@@ -105,7 +134,16 @@ export const accountTableColumns: LangfuseColumnDef<
                 >
                   Cancel
                 </Button>
-                <Button onClick={() => setEditDialogOpen(false)}>
+                <Button
+                  onClick={() => {
+                    // TODO: Add save logic here
+                    console.log("Saving:", {
+                      username: editUsername,
+                      password: editPassword,
+                    });
+                    setEditDialogOpen(false);
+                  }}
+                >
                   Save changes
                 </Button>
               </DialogFooter>
@@ -114,7 +152,10 @@ export const accountTableColumns: LangfuseColumnDef<
 
           {/* Delete Dialog */}
           <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent
+              closeOnInteractionOutside
+              className="sm:max-w-[425px]"
+            >
               <DialogHeader>
                 <DialogTitle>Delete Account</DialogTitle>
               </DialogHeader>
