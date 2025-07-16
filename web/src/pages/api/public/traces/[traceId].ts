@@ -3,7 +3,6 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
 import {
   GetTraceV1Query,
-  GetTraceV1Response,
   DeleteTraceV1Query,
   DeleteTraceV1Response,
 } from "@/src/features/public-api/types/traces";
