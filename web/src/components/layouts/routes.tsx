@@ -15,6 +15,8 @@ import {
   FileJson,
   Search,
   Home,
+  MessageSquare,
+  UserIcon,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -142,6 +144,16 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
     productModule: "datasets",
+  },
+  {
+    title: "Accounts",
+    pathname: `/project/[projectId]/accounts`,
+    icon: UserIcon,
+  },
+  {
+    title: "Conversations",
+    pathname: `/project/[projectId]/conversations`,
+    icon: MessageSquare,
   },
   {
     title: "Upgrade",
