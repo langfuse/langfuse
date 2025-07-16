@@ -58,7 +58,6 @@ export default async function chatCompletionHandler(req: NextRequest) {
       config: parsedKey.data.config,
     };
 
-    // Handle structured output as special case
     if (structuredOutputSchema) {
       const result = await fetchLLMCompletion({
         ...fetchLLMCompletionParams,
