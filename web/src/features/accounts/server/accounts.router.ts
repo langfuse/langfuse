@@ -78,6 +78,7 @@ export const accountsRouter = createTRPCRouter({
         id: z.string(),
         username: z.string(),
         password: z.string(),
+        projectId: z.string(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -96,12 +97,34 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
+      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
+      const authSecret = env.CHAINLIT_AUTH_SECRET;
+      if (!authSecret) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "CHAINLIT_AUTH_SECRET is not configured",
+        });
+      }
+
+      const newHashedPassword =
+        input.password.trim() === ""
+          ? null
+          : crypto
+              .createHash("sha256")
+              .update(input.password + authSecret)
+              .digest("hex");
+
+      // Prepare update data - keep existing password if input password is empty
+      const updateData: { username: string; password: string } = {
+        username: input.username,
+        password: !newHashedPassword
+          ? userRes.data.password
+          : newHashedPassword,
+      };
+
       const { data, error } = await supabase
         .from("test_users")
-        .update({
-          username: input.username,
-          password: input.password,
-        })
+        .update(updateData)
         .eq("id", input.id)
         .select("username")
         .single();

@@ -74,6 +74,13 @@ export const accountTableColumns: LangfuseColumnDef<
         },
       });
 
+      const updateUser = api.accounts.updateUser.useMutation({
+        onSuccess: () => {
+          toast.success("User updated");
+          utils.accounts.getUsers.invalidate();
+        },
+      });
+
       return (
         <div className="flex items-center gap-2">
           <DropdownMenu>
@@ -133,7 +140,7 @@ export const accountTableColumns: LangfuseColumnDef<
                       type="password"
                       value={editPassword}
                       onChange={(e) => setEditPassword(e.target.value)}
-                      placeholder="Enter new password"
+                      placeholder="Enter new password or leave blank to keep same"
                     />
                   </div>
                 </div>
@@ -147,11 +154,13 @@ export const accountTableColumns: LangfuseColumnDef<
                 </Button>
                 <Button
                   onClick={() => {
-                    // TODO: Add save logic here
-                    console.log("Saving:", {
+                    updateUser.mutate({
+                      id: row.original.id,
                       username: editUsername,
                       password: editPassword,
+                      projectId: row.original.projectId,
                     });
+
                     setEditDialogOpen(false);
                   }}
                 >
