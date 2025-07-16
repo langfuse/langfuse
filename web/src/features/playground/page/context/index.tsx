@@ -616,7 +616,6 @@ async function* getChatCompletionStream(
     return;
   }
 
-  // If messages contain tool results, we include tools in the request
   const hasToolResults = messages.some(
     (msg) => msg.type === ChatMessageType.ToolResult,
   );
@@ -677,7 +676,6 @@ async function getChatCompletionNonStreaming(
     throw new Error("Project ID is not set");
   }
 
-  // If messages contain tool results, we include tools in the request
   const hasToolResults = messages.some(
     (msg) => msg.type === ChatMessageType.ToolResult,
   );

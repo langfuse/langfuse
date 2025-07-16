@@ -282,7 +282,6 @@ const transformToPlaygroundMessage = (
 
     return playgroundMessage;
   } else if (regularMessage.role === "tool") {
-    // First check if tool_call_id is already provided
     let toolCallId = (regularMessage as any).tool_call_id;
 
     // Try to infer if tool_call_id is missing or empty (eg langgraph case)
@@ -364,17 +363,11 @@ const parsePrompt = (
       return null;
     }
 
-    try {
-      return {
-        messages: parsedMessages.data
-          .map((msg) => transformToPlaygroundMessage(msg, parsedMessages.data))
-          .filter(
-            (msg): msg is ChatMessage | PlaceholderMessage => msg !== null,
-          ),
-      };
-    } catch (error) {
-      return null;
-    }
+    return {
+      messages: parsedMessages.data
+        .map((msg) => transformToPlaygroundMessage(msg, parsedMessages.data))
+        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
+    };
   } else {
     const promptString = prompt.resolvedPrompt;
 
@@ -456,23 +449,17 @@ const parseGeneration = (
       return null;
     }
 
-    try {
-      const filteredMessages = parsedMessages.data.filter(
-        (m) => !isLangchainToolDefinitionMessage(m),
-      );
-      return {
-        messages: filteredMessages
-          .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
-          .filter(
-            (msg): msg is ChatMessage | PlaceholderMessage => msg !== null,
-          ),
-        modelParams,
-        tools,
-        structuredOutputSchema,
-      };
-    } catch (error) {
-      return null;
-    }
+    const filteredMessages = parsedMessages.data.filter(
+      (m) => !isLangchainToolDefinitionMessage(m),
+    );
+    return {
+      messages: filteredMessages
+        .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
+        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
+      modelParams,
+      tools,
+      structuredOutputSchema,
+    };
   }
 
   if (typeof input === "object" && "messages" in input) {
@@ -489,23 +476,17 @@ const parseGeneration = (
       return null;
     }
 
-    try {
-      const filteredMessages = parsedMessages.data.filter(
-        (m) => !isLangchainToolDefinitionMessage(m),
-      );
-      return {
-        messages: filteredMessages
-          .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
-          .filter(
-            (msg): msg is ChatMessage | PlaceholderMessage => msg !== null,
-          ),
-        modelParams,
-        tools,
-        structuredOutputSchema,
-      };
-    } catch (error) {
-      return null;
-    }
+    const filteredMessages = parsedMessages.data.filter(
+      (m) => !isLangchainToolDefinitionMessage(m),
+    );
+    return {
+      messages: filteredMessages
+        .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
+        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
+      modelParams,
+      tools,
+      structuredOutputSchema,
+    };
   }
 
   return null;
