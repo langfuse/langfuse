@@ -15,7 +15,7 @@ export const Variables = () => {
     </div>
   );
   const renderVariables = () => (
-    <div className="h-full overflow-auto">
+    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
       {promptVariables
         .slice()
         .sort((a, b) => {
