@@ -1,5 +1,4 @@
 import { expect, describe, it, vi } from "vitest";
-import { env } from "@shared/env";
 
 describe("Proxy Agent Creation", () => {
   // Mock HttpsProxyAgent
@@ -11,7 +10,7 @@ describe("Proxy Agent Creation", () => {
       return proxyUrl ? new MockHttpsProxyAgent(proxyUrl) : undefined;
     };
 
-    const proxyUrl = env.HTTP_PROXY || "http://proxy.example.com:8080";
+    const proxyUrl = "http://proxy.example.com:8080";
     const result = createProxyAgent(proxyUrl);
 
     expect(MockHttpsProxyAgent).toHaveBeenCalledWith(proxyUrl);
