@@ -5,7 +5,6 @@ import { cn } from "@/src/utils/tailwind";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Fragment } from "react";
-import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import {
   ChatMlArraySchema,
   type ChatMlMessageSchema,
@@ -83,9 +82,6 @@ export const IOPreview: React.FC<{
   const outChatMlArray = ChatMlArraySchema.safeParse(
     Array.isArray(output) ? output : [output],
   );
-
-  const inMarkdown = StringOrMarkdownSchema.safeParse(input);
-  const outMarkdown = StringOrMarkdownSchema.safeParse(output);
 
   // Pretty view is available for ChatML content OR any JSON content
   const isPrettyViewAvailable = true; // Always show the toggle, let individual components decide how to render
