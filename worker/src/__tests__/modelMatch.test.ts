@@ -378,7 +378,7 @@ describe("modelMatch", () => {
 
       expect(result).not.toBeNull();
       expect(result?.id).toEqual(projectModel.id);
-      expect(result?.inputPrice?.toString()).toEqual("2.0");
+      expect(result?.inputPrice?.toString()).toEqual("2");
 
       // Verify the correct model is cached
       const redisKey = getRedisModelKey({
