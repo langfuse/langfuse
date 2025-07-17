@@ -23,6 +23,7 @@ import GCPServiceAccountKeySchema, {
   BedrockConfigSchema,
   BedrockCredentialSchema,
   VertexAIConfigSchema,
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
@@ -264,7 +265,11 @@ export async function fetchLLMCompletion(
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
     const { region } = BedrockConfigSchema.parse(config);
-    const credentials = BedrockCredentialSchema.parse(JSON.parse(apiKey));
+    // Handle both explicit credentials and default provider chain
+    const credentials =
+      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS
+        ? undefined // undefined = use AWS SDK default credential provider chain
+        : BedrockCredentialSchema.parse(JSON.parse(apiKey));
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,
