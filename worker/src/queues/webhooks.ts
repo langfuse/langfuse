@@ -190,11 +190,6 @@ export const executeWebhook = async (input: WebhookInput) => {
         status: ActionExecutionStatus.COMPLETED,
         startedAt: executionStart,
         finishedAt: new Date(),
-        output: {
-          httpStatus,
-          responseBody: responseBody?.substring(0, 1000),
-          requestBody: webhookPayload.substring(0, 1000),
-        },
       },
     });
 
@@ -246,11 +241,8 @@ export const executeWebhook = async (input: WebhookInput) => {
             ? {
                 httpStatus,
                 responseBody: responseBody?.substring(0, 1000),
-                requestBody: webhookPayload.substring(0, 1000),
               }
-            : {
-                requestBody: webhookPayload.substring(0, 1000),
-              },
+            : undefined,
         },
       });
 
