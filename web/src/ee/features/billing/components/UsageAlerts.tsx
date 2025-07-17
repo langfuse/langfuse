@@ -263,7 +263,7 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
                             placeholder="Enter email address"
                             value={newRecipient}
                             onChange={(e) => setNewRecipient(e.target.value)}
-                            onKeyPress={(e) => {
+                            onKeyDown={(e) => {
                               if (e.key === "Enter") {
                                 e.preventDefault();
                                 addRecipient();
