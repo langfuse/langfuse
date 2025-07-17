@@ -17,25 +17,20 @@ export const Variables = () => {
   const renderVariables = () => (
     <div className="h-full overflow-auto">
       {promptVariables
+        .slice()
         .sort((a, b) => {
           if (a.isUsed && !b.isUsed) return -1;
           if (!a.isUsed && b.isUsed) return 1;
-
           return a.name.localeCompare(b.name);
         })
-        .map((promptVariable, index) => {
-          return (
-            <>
-              <PromptVariableComponent
-                promptVariable={promptVariable}
-                key={promptVariable.name}
-              />
-              {index !== promptVariables.length - 1 ? (
-                <Divider className="my-2 text-muted-foreground" />
-              ) : null}
-            </>
-          );
-        })}
+        .map((promptVariable, index) => (
+          <div key={promptVariable.name}>
+            <PromptVariableComponent promptVariable={promptVariable} />
+            {index !== promptVariables.length - 1 && (
+              <Divider className="my-2 text-muted-foreground" />
+            )}
+          </div>
+        ))}
     </div>
   );
 
