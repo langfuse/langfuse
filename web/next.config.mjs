@@ -66,10 +66,8 @@ const nextConfig = {
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
 
-  experimental: {
-    turbo: {
-      resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
-    },
+  turbopack: {
+    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
 
   /**
