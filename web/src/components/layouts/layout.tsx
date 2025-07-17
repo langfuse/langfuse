@@ -1,4 +1,4 @@
-import { ROUTES, type Route } from "@/src/components/layouts/routes";
+import { type Route } from "@/src/components/layouts/routes";
 import { type PropsWithChildren, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { getSession, signOut, useSession } from "next-auth/react";
@@ -16,6 +16,10 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
+import {
+  processNavigation,
+  type NavigationItem,
+} from "@/src/components/layouts/utilities/routes";
 
 const signOutUser = async () => {
   sessionStorage.clear();
@@ -200,13 +204,11 @@ export default function Layout(props: PropsWithChildren) {
     };
   };
 
-  const navigation = ROUTES.map((route) => mapNavigation(route)).filter(
-    (item): item is NavigationItem => Boolean(item),
-  );
-  const topNavigation = navigation.filter(({ bottom }) => !bottom);
-  const bottomNavigation = navigation.filter(({ bottom }) => bottom);
+  // Process navigation using the dedicated utility
+  const { mainNavigation, secondaryNavigation, navigation } =
+    processNavigation(mapNavigation);
 
-  const activePathName = navigation.find(({ isActive }) => isActive)?.title;
+  const activePathName = navigation.find((item) => item.isActive)?.title;
 
   if (session.status === "loading") return <Spinner message="Loading" />;
 
@@ -301,8 +303,8 @@ export default function Layout(props: PropsWithChildren) {
       <div>
         <SidebarProvider>
           <AppSidebar
-            navItems={topNavigation}
-            secondaryNavItems={bottomNavigation}
+            navItems={mainNavigation}
+            secondaryNavItems={secondaryNavigation}
             userNavProps={{
               items: getUserNavigation(),
               user: {
@@ -322,12 +324,3 @@ export default function Layout(props: PropsWithChildren) {
     </>
   );
 }
-
-export type NavigationItem = NestedNavigationItem & {
-  items?: NestedNavigationItem[];
-};
-
-type NestedNavigationItem = Omit<Route, "children" | "items"> & {
-  url: string;
-  isActive: boolean;
-};

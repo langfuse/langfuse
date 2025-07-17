@@ -1,5 +1,6 @@
 import {
   type Observation,
+  ObservationLevel,
   paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "@langfuse/shared";
@@ -159,6 +160,7 @@ export const GetObservationsV1Query = z.object({
   type: ObservationType.nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
+  level: z.enum(ObservationLevel).nullish(),
   traceId: z.string().nullish(),
   version: z.string().nullish(),
   parentObservationId: z.string().nullish(),

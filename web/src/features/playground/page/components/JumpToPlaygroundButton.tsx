@@ -243,7 +243,8 @@ const isLangchainToolDefinitionMessage = (
 
 const transformToPlaygroundMessage = (
   message: z.infer<typeof ParsedChatMessageListSchema>[0],
-): ChatMessage | PlaceholderMessage => {
+  allMessages?: z.infer<typeof ParsedChatMessageListSchema>,
+): ChatMessage | PlaceholderMessage | null => {
   // Return placeholder messages as-is
   if (isPlaceholder(message)) {
     return message;
@@ -281,11 +282,46 @@ const transformToPlaygroundMessage = (
 
     return playgroundMessage;
   } else if (regularMessage.role === "tool") {
+    let toolCallId = (regularMessage as any).tool_call_id;
+
+    // Try to infer if tool_call_id is missing or empty (eg langgraph case)
+    if (!toolCallId && allMessages && regularMessage._originalRole) {
+      // Find all assistant messages with tool calls, most recent first
+      const assistantMessages = allMessages
+        .filter(
+          (msg): msg is Exclude<typeof msg, PlaceholderMessage> =>
+            !isPlaceholder(msg) &&
+            msg.role === "assistant" &&
+            !!(msg.tool_calls || msg.additional_kwargs?.tool_calls),
+        )
+        .reverse();
+
+      // Look for the first matching tool call by name
+      for (const prevMessage of assistantMessages) {
+        const toolCalls =
+          prevMessage.tool_calls ??
+          prevMessage.additional_kwargs?.tool_calls ??
+          [];
+
+        const matchingCall = toolCalls.find((tc) => {
+          if ("function" in tc) {
+            return tc.function.name === regularMessage._originalRole;
+          }
+          return tc.name === regularMessage._originalRole;
+        });
+
+        if (matchingCall && matchingCall.id) {
+          toolCallId = matchingCall.id;
+          break;
+        }
+      }
+    }
+
     const playgroundMessage: ChatMessage = {
       role: ChatMessageRole.Tool,
       content,
       type: ChatMessageType.ToolResult,
-      toolCallId: regularMessage.tool_call_id ?? "",
+      toolCallId: toolCallId || "",
     };
 
     return playgroundMessage;
@@ -323,9 +359,15 @@ const parsePrompt = (
     const parsedMessages =
       ParsedChatMessageListSchema.safeParse(normalizedMessages);
 
-    return parsedMessages.success
-      ? { messages: parsedMessages.data.map(transformToPlaygroundMessage) }
-      : null;
+    if (!parsedMessages.success) {
+      return null;
+    }
+
+    return {
+      messages: parsedMessages.data
+        .map((msg) => transformToPlaygroundMessage(msg, parsedMessages.data))
+        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
+    };
   } else {
     const promptString = prompt.resolvedPrompt;
 
@@ -403,15 +445,21 @@ const parseGeneration = (
     const parsedMessages =
       ParsedChatMessageListSchema.safeParse(normalizedMessages);
 
-    if (parsedMessages.success)
-      return {
-        messages: parsedMessages.data
-          .filter((m) => !isLangchainToolDefinitionMessage(m))
-          .map(transformToPlaygroundMessage),
-        modelParams,
-        tools,
-        structuredOutputSchema,
-      };
+    if (!parsedMessages.success) {
+      return null;
+    }
+
+    const filteredMessages = parsedMessages.data.filter(
+      (m) => !isLangchainToolDefinitionMessage(m),
+    );
+    return {
+      messages: filteredMessages
+        .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
+        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
+      modelParams,
+      tools,
+      structuredOutputSchema,
+    };
   }
 
   if (typeof input === "object" && "messages" in input) {
@@ -424,15 +472,21 @@ const parseGeneration = (
     const parsedMessages =
       ParsedChatMessageListSchema.safeParse(normalizedMessages);
 
-    if (parsedMessages.success)
-      return {
-        messages: parsedMessages.data
-          .filter((m) => !isLangchainToolDefinitionMessage(m))
-          .map(transformToPlaygroundMessage),
-        modelParams,
-        tools,
-        structuredOutputSchema,
-      };
+    if (!parsedMessages.success) {
+      return null;
+    }
+
+    const filteredMessages = parsedMessages.data.filter(
+      (m) => !isLangchainToolDefinitionMessage(m),
+    );
+    return {
+      messages: filteredMessages
+        .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
+        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
+      modelParams,
+      tools,
+      structuredOutputSchema,
+    };
   }
 
   return null;

@@ -307,7 +307,7 @@ export class OtelIngestionProcessor {
 
     for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
       const isLangfuseSDKSpans =
-        scopeSpan.scope?.name.startsWith("langfuse-sdk") ?? false;
+        scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
       this.validatePublicKey(

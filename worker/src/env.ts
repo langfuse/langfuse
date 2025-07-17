@@ -242,6 +242,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_WEBHOOK_TIMEOUT_MS: z.coerce.number().positive().default(10000),
   LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
