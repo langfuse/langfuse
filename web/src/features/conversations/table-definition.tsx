@@ -16,4 +16,28 @@ export const conversationTableColumns: LangfuseColumnDef<
       );
     },
   },
+  {
+    accessorKey: "createdAt",
+    id: "createdAt",
+    header: "createdAt",
+    cell: ({ row }) => {
+      return (
+        <span className="truncate py-3 font-mono text-sm font-semibold">
+          {row.original.createdAt.toLocaleString()}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "userId",
+    id: "userId",
+    header: "userId",
+    cell: ({ row }) => {
+      return (
+        <span className="truncate py-3 font-mono text-sm font-semibold">
+          {row.original.userIds.join(", ")}
+        </span>
+      );
+    },
+  },
 ];
