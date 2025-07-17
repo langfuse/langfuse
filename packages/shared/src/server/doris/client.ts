@@ -33,6 +33,7 @@ export interface DorisClientConfig {
   maxRetries?: number;
   retryDelay?: number;
   headers?: Record<string, string>;
+  maxOpenConnections?:number;
 }
 
 export type DorisClientType = DorisClient;
@@ -48,15 +49,16 @@ export class DorisClient {
 
   constructor(config: DorisClientConfig = {}) {
     this.config = {
-      feHttpUrl: config.feHttpUrl || env.DORIS_FE_HTTP_URL || "http://localhost:8030",
-      feQueryPort: config.feQueryPort || env.DORIS_FE_QUERY_PORT || 9030,
-      database: config.database !== undefined ? config.database : (env.DORIS_DB || "langfuse"),
-      username: config.username || env.DORIS_USER || "root",
-      password: config.password || env.DORIS_PASSWORD || "",
-      timeout: config.timeout || env.DORIS_REQUEST_TIMEOUT_MS || 30000,
+      feHttpUrl: config.feHttpUrl || env.DORIS_FE_HTTP_URL,
+      feQueryPort: config.feQueryPort || env.DORIS_FE_QUERY_PORT,
+      database: config.database || env.DORIS_DB,
+      username: config.username || env.DORIS_USER,
+      password: config.password || env.DORIS_PASSWORD,
+      timeout: config.timeout || env.DORIS_REQUEST_TIMEOUT_MS,
       maxRetries: config.maxRetries || 3,
       retryDelay: config.retryDelay || 1000,
       headers: config.headers || {},
+      maxOpenConnections : config.maxOpenConnections || env.DORIS_MAX_OPEN_CONNECTIONS
     };
 
     this.httpClient = axios.create({
@@ -120,7 +122,7 @@ export class DorisClient {
         user: this.config.username,
         password: this.config.password,
         waitForConnections: true,
-        connectionLimit: 10,
+        connectionLimit: this.config.maxOpenConnections,
         queueLimit: 0,
         enableKeepAlive: true,
         keepAliveInitialDelay: 0,
@@ -264,7 +266,9 @@ export class DorisClient {
     
     // Use unified parameter processor for consistency
     const processedQuery = DorisParameterProcessor.processQuery(query, query_params);
-    
+
+    logger.info(`doris:query ${processedQuery}`);
+
     // Execute the processed query
     const result = await this.query(processedQuery, []);
     
@@ -583,185 +587,112 @@ export const dorisClient = (config?: DorisClientConfig): DorisClientType => {
   return DorisClientManager.getInstance().getClient(config || {});
 };
 
+// Configuration for datetime field handling
+const TIMESTAMP_FIELDS = [
+  "timestamp", "created_at", "updated_at", "event_ts", 
+  "start_time", "end_time", "completion_start_time"
+] as const;
+
+const DATE_FIELD_MAPPINGS = {
+  traces: { sourceField: "timestamp", dateField: "timestamp_date" },
+  scores: { sourceField: "timestamp", dateField: "timestamp_date" },
+  observations: { sourceField: "start_time", dateField: "start_time_date" },
+} as const;
+
 /**
- * Utility function to format data for Doris insertion
- * Ensures proper data types and null handling
+ * Convert various timestamp formats to Date object
+ */
+const parseTimestamp = (value: unknown): Date | null => {
+  if (!value) return null;
+  
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  if (typeof value === "string") {
+    // Handle ISO format or space-separated datetime strings
+    if (value.includes("T") || value.includes(" ")) {
+      const date = new Date(value);
+      return isNaN(date.getTime()) ? null : date;
+    }
+    // Handle millisecond timestamp strings
+    const parsed = parseInt(value);
+    return parsed > 0 ? new Date(parsed) : null;
+  }
+  
+  return null;
+};
+
+/**
+ * Normalize field value for Doris compatibility
+ */
+const normalizeValue = (key: string, value: unknown): unknown => {
+  // Convert undefined to null
+  if (value === undefined) return null;
+  
+  // Handle arrays - empty arrays become null
+  if (Array.isArray(value)) return value.length > 0 ? value : null;
+  
+  // Handle Date objects - convert to ISO string
+  if (value instanceof Date) return value.toISOString();
+  
+  // Handle timestamp fields - convert to ISO string
+  if (TIMESTAMP_FIELDS.includes(key as any) && value != null) {
+    const date = parseTimestamp(value);
+    return date ? date.toISOString() : value;
+  }
+  
+  return value;
+};
+
+/**
+ * Generate date field from timestamp field
+ */
+const generateDateField = (
+  record: Record<string, any>, 
+  sourceField: string, 
+  dateField: string
+): void => {
+  if (record[sourceField] && !record[dateField]) {
+    try {
+      const date = parseTimestamp(record[sourceField]);
+      if (date) {
+        // Let Doris handle timezone conversion automatically for Date fields
+        record[dateField] = date.toISOString();
+      }
+    } catch (error) {
+      logger.warn(`Failed to generate ${dateField} from ${sourceField}`, {
+        sourceField,
+        value: record[sourceField],
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+};
+
+/**
+ * Elegant utility function to format data for Doris insertion
+ * Handles data type conversion, null values, and date field generation
  */
 export const formatDataForDoris = <T extends Record<string, any>>(
   data: T[],
   tableName?: string
 ): T[] => {
   return data.map(record => {
-    const formatted = { ...record } as T;
+    // Step 1: Normalize all field values
+    const formatted = Object.entries(record).reduce((acc, [key, value]) => {
+      (acc as any)[key] = normalizeValue(key, value);
+      return acc;
+    }, {} as T);
 
-    // Handle null values and data type conversions
-    Object.keys(formatted).forEach(key => {
-      const value = (formatted as any)[key];
-
-      // Convert undefined to null
-      if (value === undefined) {
-        (formatted as any)[key] = null;
-      }
-
-      // Ensure arrays are properly formatted
-      if (Array.isArray(value)) {
-        (formatted as any)[key] = value.length > 0 ? value : null;
-      }
-
-      // Handle Date objects - keep ISO format for Doris to handle timezone correctly
-      if (value instanceof Date) {
-        (formatted as any)[key] = value.toISOString();
-      }
-
-      // Convert timestamp fields to Doris DateTime(3) format
-      if (
-        (key === "timestamp" ||
-          key === "created_at" ||
-          key === "updated_at" ||
-          key === "event_ts" ||
-          key === "start_time" ||
-          key === "end_time" ||
-          key === "completion_start_time") &&
-        value != null
-      ) {
-        try {
-          let timestamp: number;
-          if (typeof value === "string") {
-            timestamp = parseInt(value);
-          } else if (typeof value === "number") {
-            timestamp = value;
-          } else if (value instanceof Date) {
-            timestamp = value.getTime();
-          } else {
-            // Skip conversion for invalid values
-            return;
-          }
-
-          if (timestamp > 0) {
-            // Convert millisecond timestamp to ISO format for Doris to handle timezone correctly
-            const date = new Date(timestamp);
-            (formatted as any)[key] = date.toISOString();
-          }
-        } catch (error) {
-          logger.warn(`Failed to convert ${key} to DateTime(3) format`, {
-            key,
-            value,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        }
-      }
-    });
-
-    // Generate date fields based on table type
-    if (tableName === "traces" || tableName === "scores") {
-      // For traces and scores tables: generate timestamp_date from timestamp
-      if ("timestamp" in formatted && formatted.timestamp && !formatted.timestamp_date) {
-        try {
-          let timestamp: number;
-          if (typeof formatted.timestamp === "string") {
-            // If it's already a DateTime string (ISO format or space-separated), parse it
-            if (formatted.timestamp.includes("T") || formatted.timestamp.includes(" ")) {
-              timestamp = new Date(formatted.timestamp).getTime();
-            } else {
-              timestamp = parseInt(formatted.timestamp);
-            }
-          } else if (typeof formatted.timestamp === "number") {
-            timestamp = formatted.timestamp;
-          } else {
-            timestamp = new Date(formatted.timestamp).getTime();
-          }
-
-          const date = new Date(timestamp);
-          (formatted as any).timestamp_date = date.toISOString().split("T")[0];
-        } catch (error) {
-          logger.warn("Failed to generate timestamp_date from timestamp", {
-            table: tableName,
-            timestamp: formatted.timestamp,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        }
-      }
-    } else if (tableName === "observations") {
-      // For observations table: generate start_time_date from start_time
-      if ("start_time" in formatted && formatted.start_time && !formatted.start_time_date) {
-        try {
-          let startTime: number;
-          if (typeof formatted.start_time === "string") {
-            // If it's already a DateTime string (ISO format or space-separated), parse it
-            if (formatted.start_time.includes("T") || formatted.start_time.includes(" ")) {
-              startTime = new Date(formatted.start_time).getTime();
-            } else {
-              startTime = parseInt(formatted.start_time);
-            }
-          } else if (typeof formatted.start_time === "number") {
-            startTime = formatted.start_time;
-          } else {
-            startTime = new Date(formatted.start_time).getTime();
-          }
-
-          const date = new Date(startTime);
-          (formatted as any).start_time_date = date.toISOString().split("T")[0];
-        } catch (error) {
-          logger.warn("Failed to generate start_time_date from start_time", {
-            table: tableName,
-            start_time: formatted.start_time,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        }
-      }
+    // Step 2: Generate date fields based on table type
+    const mapping = tableName ? DATE_FIELD_MAPPINGS[tableName as keyof typeof DATE_FIELD_MAPPINGS] : null;
+    
+    if (mapping) {
+      // Table-specific date field generation
+      generateDateField(formatted, mapping.sourceField, mapping.dateField);
     } else {
-      // Fallback: try to detect and generate date fields automatically if no table name provided
-      // Generate timestamp_date from timestamp if it doesn't exist
-      if ("timestamp" in formatted && formatted.timestamp && !formatted.timestamp_date) {
-        try {
-          let timestamp: number;
-          if (typeof formatted.timestamp === "string") {
-            if (formatted.timestamp.includes("T") || formatted.timestamp.includes(" ")) {
-              timestamp = new Date(formatted.timestamp).getTime();
-            } else {
-              timestamp = parseInt(formatted.timestamp);
-            }
-          } else if (typeof formatted.timestamp === "number") {
-            timestamp = formatted.timestamp;
-          } else {
-            timestamp = new Date(formatted.timestamp).getTime();
-          }
-
-          const date = new Date(timestamp);
-          (formatted as any).timestamp_date = date.toISOString().split("T")[0];
-        } catch (error) {
-          logger.warn("Failed to generate timestamp_date from timestamp", {
-            timestamp: formatted.timestamp,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        }
-      }
-
-      // Generate start_time_date from start_time for observations if it doesn't exist
-      if ("start_time" in formatted && formatted.start_time && !formatted.start_time_date) {
-        try {
-          let startTime: number;
-          if (typeof formatted.start_time === "string") {
-            if (formatted.start_time.includes("T") || formatted.start_time.includes(" ")) {
-              startTime = new Date(formatted.start_time).getTime();
-            } else {
-              startTime = parseInt(formatted.start_time);
-            }
-          } else if (typeof formatted.start_time === "number") {
-            startTime = formatted.start_time;
-          } else {
-            startTime = new Date(formatted.start_time).getTime();
-          }
-
-          const date = new Date(startTime);
-          (formatted as any).start_time_date = date.toISOString().split("T")[0];
-        } catch (error) {
-          logger.warn("Failed to generate start_time_date from start_time", {
-            start_time: formatted.start_time,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        }
-      }
+      // Fallback: generate both possible date fields
+      generateDateField(formatted, "timestamp", "timestamp_date");
+      generateDateField(formatted, "start_time", "start_time_date");
     }
 
     return formatted;
