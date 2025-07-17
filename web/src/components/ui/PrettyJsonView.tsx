@@ -80,11 +80,12 @@ function transformJsonToTableData(
     ? json.map((item, index) => [index.toString(), item])
     : Object.entries(json);
 
-  entries.forEach(([key, value], _index) => {
+  entries.forEach(([key, value]) => {
     const id = parentId ? `${parentId}-${key}` : key;
     const valueType = getValueType(value);
     const hasChildren =
-      valueType === "object" ||
+      (valueType === "object" &&
+        Object.keys(value as Record<string, unknown>).length > 0) ||
       (valueType === "array" && Array.isArray(value) && value.length > 0);
 
     const row: JsonTableRow = {
@@ -142,12 +143,16 @@ function ValueCell({ row }: { row: Row<JsonTableRow> }) {
       case "array":
         const arr = value as unknown[];
         if (arr.length === 0) {
-          return <span className="text-gray-600 dark:text-gray-400">[]</span>;
+          return (
+            <span className="italic text-gray-500 dark:text-gray-400">
+              empty list
+            </span>
+          );
         }
         if (arr.length <= 5) {
           // Show inline for small arrays
           const displayItems = arr
-            .map((item, _idx) => {
+            .map((item) => {
               const itemType = getValueType(item);
               if (itemType === "string") return `"${String(item)}"`;
               if (itemType === "object" || itemType === "array") return "...";
@@ -163,7 +168,7 @@ function ValueCell({ row }: { row: Row<JsonTableRow> }) {
           // Show truncated for large arrays
           const preview = arr
             .slice(0, 3)
-            .map((item, _idx) => {
+            .map((item) => {
               const itemType = getValueType(item);
               if (itemType === "string") return `"${String(item)}"`;
               if (itemType === "object" || itemType === "array") return "...";
@@ -205,13 +210,15 @@ function ValueCell({ row }: { row: Row<JsonTableRow> }) {
 }
 
 function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
-  // Calculate initial expanded state directly from data
-  const initialExpandedState = useMemo(() => {
-    const initialExpanded: ExpandedState = {};
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+
+  // Calculate and set expanded state when data changes
+  useEffect(() => {
+    const newExpanded: ExpandedState = {};
     const expandAllRows = (rows: JsonTableRow[]) => {
       rows.forEach((row) => {
         if (row.hasChildren) {
-          initialExpanded[row.id] = true;
+          newExpanded[row.id] = true;
           if (row.subRows) {
             expandAllRows(row.subRows);
           }
@@ -219,15 +226,8 @@ function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
       });
     };
     expandAllRows(data);
-    return initialExpanded;
+    setExpanded(newExpanded);
   }, [data]);
-
-  const [expanded, setExpanded] = useState<ExpandedState>(initialExpandedState);
-
-  // Update expanded state when data changes
-  useEffect(() => {
-    setExpanded(initialExpandedState);
-  }, [initialExpandedState]);
 
   const columns: LangfuseColumnDef<JsonTableRow, any>[] = [
     {
@@ -255,7 +255,7 @@ function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
               )}
             </Button>
           )}
-          <span className="font-mono text-sm font-medium text-blue-700 dark:text-blue-300">
+          <span className="font-mono text-sm font-medium">
             {row.original.key}
           </span>
         </div>
@@ -336,6 +336,70 @@ export function PrettyJsonView(props: {
       parsedJson !== null &&
       parsedJson !== undefined
     ) {
+      // Helper function to create rows from object entries at level 0
+      const createTopLevelRows = (
+        obj: Record<string, unknown>,
+      ): JsonTableRow[] => {
+        const entries = Object.entries(obj);
+        const rows: JsonTableRow[] = [];
+
+        entries.forEach(([key, value]) => {
+          const valueType = getValueType(value);
+          const hasChildren =
+            (valueType === "object" &&
+              Object.keys(value as Record<string, unknown>).length > 0) ||
+            (valueType === "array" && Array.isArray(value) && value.length > 0);
+
+          const row: JsonTableRow = {
+            id: key,
+            key,
+            value,
+            type: valueType,
+            hasChildren,
+            level: 0,
+            parentId: undefined,
+            childrenIds: [],
+          };
+
+          if (hasChildren) {
+            const children = transformJsonToTableData(value, key, 1, key);
+            row.subRows = children;
+            row.childrenIds = children.map((child) => child.id);
+          }
+
+          rows.push(row);
+        });
+
+        return rows;
+      };
+
+      // If top-level is an object, start with its properties directly
+      if (
+        typeof parsedJson === "object" &&
+        parsedJson !== null &&
+        !Array.isArray(parsedJson)
+      ) {
+        const entries = Object.entries(parsedJson);
+
+        // If there's only one property and it's an object, unwrap it
+        if (entries.length === 1) {
+          const [, value] = entries[0];
+          if (
+            typeof value === "object" &&
+            value !== null &&
+            !Array.isArray(value)
+          ) {
+            return createTopLevelRows(value);
+          } else {
+            // If single property is not an object, use regular transformation
+            return transformJsonToTableData(value);
+          }
+        }
+
+        // Regular top-level object handling
+        return createTopLevelRows(parsedJson);
+      }
+
       return transformJsonToTableData(parsedJson);
     }
     return [];
