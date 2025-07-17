@@ -4,7 +4,7 @@ import {
 } from "@/src/server/api/trpc";
 import { createSupabaseAdminClient } from "@/src/server/supabase";
 import { orderBy, paginationZod } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import { getSessionsTable, logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import z from "zod/v4";
 import { getFilteredSessions } from "./conversations-service";
@@ -20,6 +20,7 @@ export const conversationsRouter = createTRPCRouter({
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
       try {
+        const isDev = process.env.NODE_ENV === "development";
         const supabase = createSupabaseAdminClient();
 
         const allowedUsersIds = await supabase
@@ -35,13 +36,21 @@ export const conversationsRouter = createTRPCRouter({
 
         const usernames = allowedUsersIds.data.map((user) => user.username);
 
-        const sessions = await getFilteredSessions({
-          projectId: input.projectId,
-          allowedUserIds: usernames,
-          orderBy: input.orderBy,
-          page: input.page,
-          limit: input.limit,
-        });
+        const sessions = isDev
+          ? await getSessionsTable({
+              projectId: input.projectId,
+              filter: [],
+              orderBy: input.orderBy,
+              page: input.page,
+              limit: input.limit,
+            })
+          : await getFilteredSessions({
+              projectId: input.projectId,
+              allowedUserIds: usernames,
+              orderBy: input.orderBy,
+              page: input.page,
+              limit: input.limit,
+            });
 
         return {
           sessions: sessions.map((s) => ({
