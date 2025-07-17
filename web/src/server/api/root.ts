@@ -42,6 +42,7 @@ import { automationsRouter } from "@/src/features/automations/server/router";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { plainRouter } from "@/src/features/support-chat/trpc/plain";
 import { accountsRouter } from "@/src/features/accounts/server/accounts.router";
+import { conversationsRouter } from "@/src/features/conversations/server/conversations.router";
 
 /**
  * This is the primary router for your server.
@@ -92,6 +93,7 @@ export const appRouter = createTRPCRouter({
   automations: automationsRouter,
   plain: plainRouter,
   accounts: accountsRouter,
+  conversations: conversationsRouter,
 });
 
 // export type definition of API
