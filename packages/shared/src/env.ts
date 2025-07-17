@@ -131,6 +131,7 @@ const EnvSchema = z.object({
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
     .enum(["true", "false"])
     .default("false"),
+  HTTPS_PROXY: z.string().optional(),
 });
 
 export const env: z.infer<typeof EnvSchema> =

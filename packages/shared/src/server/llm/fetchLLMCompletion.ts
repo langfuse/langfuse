@@ -40,6 +40,8 @@ import {
 } from "./types";
 import { CallbackHandler } from "langfuse-langchain";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { env } from "../../env";
 
 type ProcessTracedEvents = () => Promise<void>;
 
@@ -213,6 +215,11 @@ export async function fetchLLMCompletion(
     (m) => m.content.length > 0 || "tool_calls" in m,
   );
 
+  // Common proxy configuration for all adapters
+  const proxyUrl = env.HTTPS_PROXY;
+  const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+
+
   let chatModel:
     | ChatOpenAI
     | ChatAnthropic
@@ -228,7 +235,11 @@ export async function fetchLLMCompletion(
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
-      clientOptions: { maxRetries, timeout: 1000 * 60 * 2 }, // 2 minutes timeout
+      clientOptions: {
+        maxRetries,
+        timeout: 1000 * 60 * 2, // 2 minutes timeout
+        ...(proxyAgent && { httpAgent: proxyAgent }),
+      },
     });
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     chatModel = new ChatOpenAI({
@@ -243,6 +254,7 @@ export async function fetchLLMCompletion(
       configuration: {
         baseURL,
         defaultHeaders: extraHeaders,
+        ...(proxyAgent && { httpAgent: proxyAgent }),
       },
       timeout: 1000 * 60 * 2, // 2 minutes timeout
     });
@@ -260,6 +272,7 @@ export async function fetchLLMCompletion(
       timeout: 1000 * 60 * 2, // 2 minutes timeout
       configuration: {
         defaultHeaders: extraHeaders,
+        ...(proxyAgent && { httpAgent: proxyAgent }),
       },
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
@@ -321,6 +334,7 @@ export async function fetchLLMCompletion(
       configuration: {
         baseURL: baseURL,
         defaultHeaders: extraHeaders,
+        ...(proxyAgent && { httpAgent: proxyAgent }),
       },
       timeout: 1000 * 60, // 1 minute timeout
     });
@@ -384,6 +398,7 @@ export async function fetchLLMCompletion(
           },
           configuration: {
             baseURL,
+            ...(proxyAgent && { httpAgent: proxyAgent }),
           },
           timeout: 1000 * 60 * 2, // 2 minutes timeout
         })
