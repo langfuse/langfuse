@@ -59,9 +59,18 @@ const nextConfig = {
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
     "kysely",
+    "@aws-sdk/client-s3",
+    "import-in-the-middle",
+    "require-in-the-middle",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
+
+  experimental: {
+    turbo: {
+      resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
+    },
+  },
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config
