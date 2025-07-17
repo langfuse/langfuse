@@ -25,6 +25,7 @@ export default withMiddlewares({
         limit: query.limit ?? undefined,
         traceId: query.traceId ?? undefined,
         userId: query.userId ?? undefined,
+        level: query.level ?? undefined,
         name: query.name ?? undefined,
         type: query.type ?? undefined,
         environment: query.environment ?? undefined,
