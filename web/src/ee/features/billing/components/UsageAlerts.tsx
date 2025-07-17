@@ -24,7 +24,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { toast } from "sonner";
-import { AlertTriangle, Bell, Plus, X } from "lucide-react";
+import { Bell, Plus, X } from "lucide-react";
 
 const usageAlertsSchema = z.object({
   enabled: z.boolean(),
@@ -307,23 +307,6 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
                     </div>
                   </div>
                 </div>
-                {usageAlerts?.lastTriggeredAt && (
-                  <div className="rounded-lg bg-yellow-50 p-4 dark:bg-yellow-900/20">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                      <div>
-                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                          Last Alert Triggered
-                        </p>
-                        <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                          {new Date(
-                            usageAlerts.lastTriggeredAt,
-                          ).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </>
             )}
 

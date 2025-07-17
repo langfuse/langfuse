@@ -31,9 +31,6 @@ export const BillingAlertEmailTemplate = ({
   billingUrl,
   receiverEmail,
 }: BillingAlertEmailProps) => {
-  const overageAmount = currentUsage - threshold;
-  const overagePercentage = ((overageAmount / threshold) * 100).toFixed(1);
-
   return (
     <Html>
       <Head />
