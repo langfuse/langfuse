@@ -109,6 +109,7 @@ export default withMiddlewares({
               tx.price.create({
                 data: {
                   modelId: createdModel.id,
+                  projectId: createdModel.projectId,
                   usageType,
                   price: price as number, // type guard checked in array filter
                 },

@@ -11,13 +11,13 @@ import { v4 } from "uuid";
 import {
   ActionExecutionStatus,
   JobConfigState,
+  JsonNested,
   PromptDomainSchema,
   WebhookActionConfigWithSecrets,
 } from "@langfuse/shared";
 import {
   WebhookInput,
   createOrgProjectAndApiKey,
-  executeWebhook,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -28,6 +28,7 @@ import {
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
+import { executeWebhook } from "../queues/webhooks";
 
 // Mock webhook server for testing HTTP requests
 class WebhookTestServer {
@@ -496,6 +497,35 @@ describe("Webhook Integration Tests", () => {
         where: { id: triggerId },
       });
       expect(trigger?.status).toBe(JobConfigState.INACTIVE);
+    });
+
+    it("should handle missing automation gracefully without throwing error", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const executionId = v4();
+      const nonExistentAutomationId = v4(); // Use a random ID that doesn't exist
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId: nonExistentAutomationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      // Should not throw an error, but return gracefully
+      await expect(executeWebhook(webhookInput)).resolves.toBeUndefined();
+
+      // Verify that no execution record was created since automation doesn't exist
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution).toBeNull();
     });
   });
 });

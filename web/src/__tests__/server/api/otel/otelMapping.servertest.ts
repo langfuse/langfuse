@@ -1,5 +1,5 @@
 import { OtelIngestionProcessor } from "@/src/features/otel/server/OtelIngestionProcessor";
-import { ingestionEvent } from "@langfuse/shared/src/server";
+import { createIngestionEventSchema } from "@langfuse/shared/src/server";
 
 // Test helper function to maintain backward compatibility with existing tests
 // This mimics the old convertOtelSpanToIngestionEvent function signature
@@ -771,9 +771,8 @@ describe("OTel Resource Span Mapping", () => {
 
       // Then
       // Will throw an error if the parsing fails
-      const parsedEvents = langfuseEvents.map((event) =>
-        ingestionEvent.parse(event),
-      );
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
     });
 
@@ -890,9 +889,8 @@ describe("OTel Resource Span Mapping", () => {
 
       // Then
       // Will throw an error if the parsing fails
-      const parsedEvents = langfuseEvents.map((event) =>
-        ingestionEvent.parse(event),
-      );
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
     });
 
@@ -1011,9 +1009,8 @@ describe("OTel Resource Span Mapping", () => {
 
       // Then
       // Will throw an error if the parsing fails
-      const parsedEvents = langfuseEvents.map((event) =>
-        ingestionEvent.parse(event),
-      );
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
 
       // Check that input contains both system and user messages

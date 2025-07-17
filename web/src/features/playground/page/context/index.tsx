@@ -23,7 +23,6 @@ import {
   ToolCallResponseSchema,
   type UIModelParams,
   type ToolCallResponse,
-  type LLMToolDefinition,
   type LLMToolCall,
   ChatMessageType,
   type ChatMessage,
@@ -138,7 +137,12 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       structuredOutputSchema: cachedStructuredOutputSchema,
     } = playgroundCache;
 
-    setMessages(cachedMessages.map((m) => ({ ...m, id: uuidv4() })));
+    setMessages(
+      cachedMessages.map((m) => ({
+        ...m,
+        id: "id" in m && typeof m.id === "string" ? m.id : uuidv4(),
+      })),
+    );
 
     if (cachedOutput) {
       // Try parsing a previous output with tool calls
@@ -291,7 +295,9 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           messagePlaceholders,
         );
         const leftOverVariables = extractVariables(
-          finalMessages.map((m) => m.content).join("\n"),
+          finalMessages
+            .map((m) => (typeof m.content === "string" ? m.content : ""))
+            .join("\n"),
         );
 
         if (!modelParams.provider.value || !modelParams.model.value) {
@@ -533,6 +539,7 @@ async function getChatCompletionWithTools(
     tools,
     streaming,
   });
+
   const result = await fetch(
     `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
     {
@@ -609,12 +616,20 @@ async function* getChatCompletionStream(
     return;
   }
 
+  const hasToolResults = messages.some(
+    (msg) => msg.type === ChatMessageType.ToolResult,
+  );
+
   const body = JSON.stringify({
     projectId,
     messages,
     modelParams: getFinalModelParams(modelParams),
     streaming: true,
+    // Include empty tools array if there are tool result messages to ensure processing
+    // E.g. if tool call was picked up through traces but not defined
+    ...(hasToolResults && { tools: [] }),
   });
+
   const result = await fetch(
     `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
     {
@@ -661,11 +676,18 @@ async function getChatCompletionNonStreaming(
     throw new Error("Project ID is not set");
   }
 
+  const hasToolResults = messages.some(
+    (msg) => msg.type === ChatMessageType.ToolResult,
+  );
+
   const body = JSON.stringify({
     projectId,
     messages,
     modelParams: getFinalModelParams(modelParams),
     streaming: false,
+    // Include empty tools array if there are tool result messages to ensure processing
+    // E.g. if tool call was picked up through traces but not defined
+    ...(hasToolResults && { tools: [] }),
   });
 
   const result = await fetch(
@@ -732,18 +754,28 @@ function getFinalMessages(
   );
 
   // Filter empty messages (except tool calls), e.g. if placeholder value was empty
-  return compiledMessages.filter(
-    (m) =>
-      m.content.length > 0 ||
-      ("toolCalls" in m && m.toolCalls && m.toolCalls.length > 0),
-  );
+  return compiledMessages.filter((m) => {
+    // Standard ChatMessage filtering
+    if (typeof m.content === "string") {
+      return (
+        m.content.length > 0 ||
+        ("toolCalls" in m &&
+          m.toolCalls &&
+          Array.isArray(m.toolCalls) &&
+          m.toolCalls.length > 0)
+      );
+    }
+
+    // For arbitrary objects, keep them (assume they have meaningful content)
+    return true;
+  });
 }
 
 function getOutputJson(
   output: string,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
-  tools: LLMToolDefinition[],
+  tools: PlaygroundTool[],
   structuredOutputSchema: PlaygroundSchema | null,
 ) {
   return JSON.stringify(

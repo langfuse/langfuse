@@ -439,4 +439,178 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       }
     }
   });
+
+  describe("BlobStorageExportMode minTimestamp behavior", () => {
+    it("should use epoch date for FULL_HISTORY mode on first export", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      // Create trace with old timestamp
+      const epochTrace = createTrace({
+        project_id: projectId,
+        timestamp: 1000, // Very old timestamp
+        name: "Epoch Trace",
+      });
+      await createTracesCh([epochTrace]);
+
+      // Create integration with FULL_HISTORY mode and no lastSyncAt
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: `${projectId}/test-full-history/`,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportMode: "FULL_HISTORY",
+          exportStartDate: null,
+          lastSyncAt: null, // First export
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Check that the trace file exists (indicating it found data from epoch)
+      const files = await storageService.listFiles(
+        `${projectId}/test-full-history/`,
+      );
+      const projectFiles = files.filter((f) => f.file.includes(projectId));
+      const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+
+      expect(traceFile).toBeDefined();
+
+      // Verify the file contains the old trace data
+      if (traceFile) {
+        const content = await storageService.download(traceFile.file);
+        expect(content).toContain(epochTrace.id);
+      }
+    });
+
+    it("should use current date for FROM_TODAY mode on first export", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const veryOldTrace = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days ago
+
+      // Create traces from different time periods
+      const oldTrace = createTrace({
+        project_id: projectId,
+        timestamp: yesterday.getTime(),
+        name: "Old Trace",
+      });
+      const veryOldTraceObj = createTrace({
+        project_id: projectId,
+        timestamp: veryOldTrace.getTime(),
+        name: "Very Old Trace",
+      });
+      await createTracesCh([oldTrace, veryOldTraceObj]);
+
+      // Create integration with FROM_TODAY mode
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: `${projectId}/test-today/`,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportMode: "FROM_TODAY" as any,
+          exportStartDate: new Date(), // Use current date
+          lastSyncAt: null, // First export
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await storageService.listFiles(`${projectId}/test-today/`);
+      const projectFiles = files.filter((f) => f.file.includes(projectId));
+      const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+
+      // On azure the empty file is not created, for others we proceed to check that it's empty.
+      if (traceFile) {
+        const content = await storageService.download(traceFile.file);
+        // With FROM_TODAY mode and a current exportStartDate, the minTimestamp is set to the provided date (current time)
+        // which means only traces within the last 30 minutes would be exported
+        // Our test traces are older, so content should be empty or not contain old traces
+        expect(content).not.toContain(oldTrace.id);
+        expect(content).not.toContain(veryOldTraceObj.id);
+      }
+    });
+
+    it("should use custom date for FROM_CUSTOM_DATE mode on first export", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const now = new Date();
+      const customDate = new Date(now.getTime() - 12 * 60 * 60 * 1000); // 12 hours ago
+      const beforeCustomDate = new Date(customDate.getTime() - 60 * 60 * 1000); // 13 hours ago
+      const afterCustomDate = new Date(
+        customDate.getTime() + 2 * 60 * 60 * 1000,
+      ); // 10 hours ago (safe margin)
+
+      // Create traces before and after custom date
+      const oldTrace = createTrace({
+        project_id: projectId,
+        timestamp: beforeCustomDate.getTime(),
+        name: "Before Custom Date Trace",
+      });
+      const recentTrace = createTrace({
+        project_id: projectId,
+        timestamp: afterCustomDate.getTime(),
+        name: "After Custom Date Trace",
+      });
+      await createTracesCh([oldTrace, recentTrace]);
+
+      // Create integration with FROM_CUSTOM_DATE mode
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: `${projectId}/test-custom/`,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportMode: "FROM_CUSTOM_DATE" as any,
+          exportStartDate: customDate,
+          lastSyncAt: null, // First export
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await storageService.listFiles(`${projectId}/test-custom/`);
+      const projectFiles = files.filter((f) => f.file.includes(projectId));
+      const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+
+      expect(traceFile).toBeDefined();
+
+      // Should only include traces from custom date onwards
+      if (traceFile) {
+        const content = await storageService.download(traceFile.file);
+        expect(content).not.toContain(oldTrace.id);
+        expect(content).toContain(recentTrace.id);
+      }
+    });
+  });
 });
