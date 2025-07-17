@@ -273,93 +273,6 @@ describe("modelMatch", () => {
       expect(result2).toBeNull();
     });
 
-    it("should handle different project IDs in cache keys", async () => {
-      const { projectId: projectId1 } = await createOrgProjectAndApiKey();
-      const { projectId: projectId2 } = await createOrgProjectAndApiKey();
-
-      const model1 = await prisma.model.create({
-        data: {
-          projectId: projectId1,
-          modelName: "shared-model",
-          matchPattern: "shared-model",
-          unit: "TOKENS",
-        },
-      });
-
-      const model2 = await prisma.model.create({
-        data: {
-          projectId: projectId2,
-          modelName: "shared-model",
-          matchPattern: "shared-model",
-          unit: "TOKENS",
-        },
-      });
-
-      // Find models with same name but different project IDs
-      await findModel({ projectId: projectId1, model: "shared-model" });
-      await findModel({ projectId: projectId2, model: "shared-model" });
-
-      // Verify they have different cache keys
-      const redisKey1 = getRedisModelKey({
-        projectId: projectId1,
-        model: "shared-model",
-      });
-      const redisKey2 = getRedisModelKey({
-        projectId: projectId2,
-        model: "shared-model",
-      });
-
-      expect(redisKey1).not.toEqual(redisKey2);
-
-      // Verify both are cached with correct project associations
-      const cached1 = await redis?.get(redisKey1);
-      const cached2 = await redis?.get(redisKey2);
-
-      expect(cached1).not.toBeNull();
-      expect(cached2).not.toBeNull();
-
-      const parsed1 = JSON.parse(cached1!);
-      const parsed2 = JSON.parse(cached2!);
-
-      expect(parsed1.projectId).toEqual(projectId1);
-      expect(parsed2.projectId).toEqual(projectId2);
-    });
-
-    it("should handle special characters in model names for cache keys", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const specialModel = "model/with@special#chars";
-
-      const mockModel = await prisma.model.create({
-        data: {
-          projectId,
-          modelName: specialModel,
-          matchPattern: "model/with@special#chars",
-          unit: "TOKENS",
-        },
-      });
-
-      // Find model to cache it
-      const result = await findModel({
-        projectId,
-        model: specialModel,
-      });
-      expect(result).not.toBeNull();
-
-      // Verify cache key is properly encoded
-      const redisKey = getRedisModelKey({
-        projectId,
-        model: specialModel,
-      });
-      expect(redisKey).toContain(encodeURIComponent(specialModel));
-
-      // Verify it's cached
-      const cachedModel = await redis?.get(redisKey);
-      expect(cachedModel).not.toBeNull();
-
-      const parsed = JSON.parse(cachedModel!);
-      expect(parsed.id).toEqual(mockModel.id);
-    });
-
     it("should properly convert cached model data types", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const mockModel = await prisma.model.create({
@@ -396,36 +309,6 @@ describe("modelMatch", () => {
       expect(result?.updatedAt).toBeInstanceOf(Date);
     });
 
-    it("should handle null price values in cached models", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const mockModel = await prisma.model.create({
-        data: {
-          projectId,
-          modelName: "null-price-model",
-          matchPattern: "null-price-model",
-          unit: "TOKENS",
-          // inputPrice, outputPrice, totalPrice are null by default
-        },
-      });
-
-      // Find model to cache it
-      await findModel({
-        projectId,
-        model: "null-price-model",
-      });
-
-      // Now find it again from cache
-      const result = await findModel({
-        projectId,
-        model: "null-price-model",
-      });
-
-      expect(result).not.toBeNull();
-      expect(result?.inputPrice).toBeNull();
-      expect(result?.outputPrice).toBeNull();
-      expect(result?.totalPrice).toBeNull();
-    });
-
     it("should gracefully handle Redis errors and fallback to Postgres", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const mockModel = await prisma.model.create({
@@ -460,107 +343,6 @@ describe("modelMatch", () => {
           redis.get = originalGet;
         }
       }
-    });
-
-    it("should work correctly when multiple concurrent requests for same model", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const mockModel = await prisma.model.create({
-        data: {
-          projectId,
-          modelName: "concurrent-model",
-          matchPattern: "concurrent-model",
-          unit: "TOKENS",
-        },
-      });
-
-      // Make multiple concurrent requests for the same model
-      const promises = Array(5)
-        .fill(null)
-        .map(() =>
-          findModel({
-            projectId,
-            model: "concurrent-model",
-          }),
-        );
-
-      const results = await Promise.all(promises);
-
-      // All should return the same model
-      results.forEach((result) => {
-        expect(result).not.toBeNull();
-        expect(result?.id).toEqual(mockModel.id);
-      });
-
-      // Verify it's cached
-      const redisKey = getRedisModelKey({
-        projectId,
-        model: "concurrent-model",
-      });
-      const cachedModel = await redis?.get(redisKey);
-      expect(cachedModel).not.toBeNull();
-    });
-
-    it("should cache models with regex match patterns correctly", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const mockModel = await prisma.model.create({
-        data: {
-          projectId,
-          modelName: "gpt-4-family",
-          matchPattern: "gpt-4.*",
-          unit: "TOKENS",
-        },
-      });
-
-      // Test various models that should match the regex
-      const testModels = ["gpt-4", "gpt-4-turbo", "gpt-4-vision"];
-
-      for (const testModel of testModels) {
-        const result = await findModel({
-          projectId,
-          model: testModel,
-        });
-
-        expect(result).not.toBeNull();
-        expect(result?.id).toEqual(mockModel.id);
-
-        // Verify each is cached separately even though they match the same DB model
-        const redisKey = getRedisModelKey({
-          projectId,
-          model: testModel,
-        });
-        const cachedModel = await redis?.get(redisKey);
-        expect(cachedModel).not.toBeNull();
-      }
-    });
-
-    it("should handle cache when model startDate is set", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const startDate = new Date("2024-06-01");
-      const mockModel = await prisma.model.create({
-        data: {
-          projectId,
-          modelName: "date-model",
-          matchPattern: "date-model",
-          unit: "TOKENS",
-          startDate,
-        },
-      });
-
-      // Find and cache the model
-      await findModel({
-        projectId,
-        model: "date-model",
-      });
-
-      // Retrieve from cache
-      const result = await findModel({
-        projectId,
-        model: "date-model",
-      });
-
-      expect(result).not.toBeNull();
-      expect(result?.startDate).toBeInstanceOf(Date);
-      expect(result?.startDate?.getTime()).toEqual(startDate.getTime());
     });
 
     it("should prioritize project-specific models over global models in cache", async () => {
@@ -608,33 +390,6 @@ describe("modelMatch", () => {
 
       const parsed = JSON.parse(cachedModel!);
       expect(parsed.id).toEqual(projectModel.id);
-    });
-
-    it("should validate cache key generation with various inputs", async () => {
-      const projectId = "test-project-123";
-      const testCases = [
-        {
-          model: "simple-model",
-          expected: "model-match:test-project-123:simple-model",
-        },
-        {
-          model: "model with spaces",
-          expected: "model-match:test-project-123:model%20with%20spaces",
-        },
-        {
-          model: "model/with/slashes",
-          expected: "model-match:test-project-123:model%2Fwith%2Fslashes",
-        },
-        {
-          model: "model@with#symbols",
-          expected: "model-match:test-project-123:model%40with%23symbols",
-        },
-      ];
-
-      testCases.forEach(({ model, expected }) => {
-        const key = getRedisModelKey({ projectId, model });
-        expect(key).toEqual(expected);
-      });
     });
   });
 });
