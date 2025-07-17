@@ -5,7 +5,7 @@ const entitlements = [
   // features
   "rbac-project-roles",
   "cloud-billing",
-  "cloud-billing-alerts",
+  "cloud-usage-alerts",
   "cloud-multi-tenant-sso",
   "self-host-ui-customization",
   "self-host-allowed-organization-creators",
@@ -58,7 +58,7 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:core": {
-    entitlements: [...cloudAllPlansEntitlements, "cloud-billing-alerts"],
+    entitlements: [...cloudAllPlansEntitlements, "cloud-usage-alerts"],
     entitlementLimits: {
       "organization-member-count": false,
       "data-access-days": 90,
@@ -68,7 +68,7 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:pro": {
-    entitlements: [...cloudAllPlansEntitlements, "cloud-billing-alerts"],
+    entitlements: [...cloudAllPlansEntitlements, "cloud-usage-alerts"],
     entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
@@ -86,7 +86,7 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "prompt-protected-labels",
       "admin-api",
-      "cloud-billing-alerts",
+      "cloud-usage-alerts",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -105,7 +105,7 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "prompt-protected-labels",
       "admin-api",
-      "cloud-billing-alerts",
+      "cloud-usage-alerts",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

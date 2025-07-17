@@ -42,7 +42,7 @@ export const BillingSettings = () => {
   });
 
   const entitled = useHasEntitlement("cloud-billing");
-  const isUsageAlertEntitled = useHasEntitlement("cloud-billing-alerts");
+  const isUsageAlertEntitled = useHasEntitlement("cloud-usage-alerts");
   if (!entitled) return null;
 
   if (!hasAccess)
