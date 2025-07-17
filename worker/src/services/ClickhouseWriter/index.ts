@@ -138,6 +138,7 @@ export class ClickhouseWriter {
   }
 
   private truncateOversizedRecord<T extends TableName>(
+    tableName: T,
     record: RecordInsertType<T>,
   ): RecordInsertType<T> {
     const maxFieldSize = 1024 * 1024; // 1MB per field as safety margin
@@ -162,6 +163,12 @@ export class ClickhouseWriter {
       record.input.length > maxFieldSize
     ) {
       record.input = truncateField(record.input);
+      logger.info(
+        `Truncated oversized input field for record ${record.id} of type ${tableName}`,
+        {
+          projectId: record.project_id,
+        },
+      );
     }
 
     // Truncate output field if present
@@ -171,6 +178,12 @@ export class ClickhouseWriter {
       record.output.length > maxFieldSize
     ) {
       record.output = truncateField(record.output);
+      logger.info(
+        `Truncated oversized output field for record ${record.id} of type ${tableName}`,
+        {
+          projectId: record.project_id,
+        },
+      );
     }
 
     // Truncate metadata field if present
@@ -178,7 +191,17 @@ export class ClickhouseWriter {
       const metadata = record.metadata;
       const truncatedMetadata: Record<string, string> = {};
       for (const [key, value] of Object.entries(metadata)) {
-        truncatedMetadata[key] = truncateField(value) || "";
+        if (value.length > maxFieldSize) {
+          truncatedMetadata[key] = truncateField(value) || "";
+          logger.info(
+            `Truncated oversized metadata for record ${record.id} of type ${tableName} and key ${key}`,
+            {
+              projectId: record.project_id,
+            },
+          );
+        } else {
+          truncatedMetadata[key] = value;
+        }
       }
       record.metadata = truncatedMetadata;
     }
@@ -252,7 +275,7 @@ export class ClickhouseWriter {
 
               // Truncate oversized records
               recordsToWrite = recordsToWrite.map((record) =>
-                this.truncateOversizedRecord(record),
+                this.truncateOversizedRecord(tableName, record),
               );
               hasBeenTruncated = true;
 

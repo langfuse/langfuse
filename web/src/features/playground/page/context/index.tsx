@@ -539,6 +539,7 @@ async function getChatCompletionWithTools(
     tools,
     streaming,
   });
+
   const result = await fetch(
     `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
     {
@@ -615,12 +616,20 @@ async function* getChatCompletionStream(
     return;
   }
 
+  const hasToolResults = messages.some(
+    (msg) => msg.type === ChatMessageType.ToolResult,
+  );
+
   const body = JSON.stringify({
     projectId,
     messages,
     modelParams: getFinalModelParams(modelParams),
     streaming: true,
+    // Include empty tools array if there are tool result messages to ensure processing
+    // E.g. if tool call was picked up through traces but not defined
+    ...(hasToolResults && { tools: [] }),
   });
+
   const result = await fetch(
     `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
     {
@@ -667,11 +676,18 @@ async function getChatCompletionNonStreaming(
     throw new Error("Project ID is not set");
   }
 
+  const hasToolResults = messages.some(
+    (msg) => msg.type === ChatMessageType.ToolResult,
+  );
+
   const body = JSON.stringify({
     projectId,
     messages,
     modelParams: getFinalModelParams(modelParams),
     streaming: false,
+    // Include empty tools array if there are tool result messages to ensure processing
+    // E.g. if tool call was picked up through traces but not defined
+    ...(hasToolResults && { tools: [] }),
   });
 
   const result = await fetch(

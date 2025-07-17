@@ -15,7 +15,7 @@ import {
   SafeWebhookActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
-import { decryptSecretHeaders, mergeHeaders } from "../automations/headerUtils";
+import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
   projectId,
