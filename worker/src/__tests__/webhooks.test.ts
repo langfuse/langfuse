@@ -286,7 +286,11 @@ describe("Webhook Integration Tests", () => {
         where: { id: executionId },
       });
       expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
-      expect(execution?.output).toBeNull();
+      expect(execution?.output).toMatchObject({
+        httpStatus: 200,
+        responseBody: '{"success":true}',
+        requestBody: expect.stringContaining('"prompt"'),
+      });
       expect(execution?.startedAt).toBeDefined();
       expect(execution?.finishedAt).toBeDefined();
     });
@@ -418,6 +422,7 @@ describe("Webhook Integration Tests", () => {
       expect(execution?.output).toMatchObject({
         httpStatus: 500,
         responseBody: '{"error":"Internal Server Error"}',
+        requestBody: expect.stringContaining('"prompt"'),
       });
     });
 
