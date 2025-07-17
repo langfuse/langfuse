@@ -38,72 +38,65 @@ export const BillingAlertEmailTemplate = ({
     <Html>
       <Head />
       <Preview>
-        Your current Langfuse Cloud usage is {`${currentUsage}`} events for the
-        current billing period
+        Your Langfuse Cloud usage is {`${currentUsage}`} events for the current
+        billing period
       </Preview>
       <Tailwind>
-        <Body className="bg-white my-auto mx-auto font-sans">
-          <Container className="border border-solid border-[#eaeaea] rounded my-[40px] mx-auto p-[20px] max-w-[465px]">
-            <Section className="mt-[32px]">
+        <Body className="bg-background my-auto mx-auto font-sans">
+          <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
+            <Section className="mt-8">
               <Img
-                src={`https://langfuse.com/langfuse-logo.png`}
+                src="https://static.langfuse.com/langfuse_logo_transactional_email.png"
                 width="40"
                 height="40"
                 alt="Langfuse"
-                className="my-0 mx-auto"
+                className="mx-auto my-0"
               />
             </Section>
 
-            <Section className="text-center mt-[32px]">
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
-                <div className="flex items-center justify-center mb-2">
-                  <div className="bg-orange-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
-                    !
-                  </div>
-                </div>
-                <Heading className="text-orange-800 text-xl font-semibold mb-1">
-                  Usage Threshold Exceeded
-                </Heading>
-                <Text className="text-orange-700 text-sm m-0">
-                  {organizationName} has exceeded the configured billing
-                  threshold
-                </Text>
-              </div>
+            <Section>
+              <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
+                Usage Threshold Exceeded
+              </Heading>
+              <Text className="text-gray-700 text-sm leading-6">
+                Your organization &quot;{organizationName}&quot; has exceeded
+                the configured billing threshold
+              </Text>
             </Section>
 
-            <Section className="mt-[32px]">
+            <Section className="mt-8">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <Row>
                   <Column className="text-center">
                     <Text className="text-gray-600 text-sm font-medium m-0 mb-1">
-                      Current Usage
+                      Current Usage (# Events)
                     </Text>
                     <Text className="text-2xl font-bold text-gray-900 m-0">
-                      ${currentUsage}
+                      {currentUsage}
                     </Text>
                   </Column>
                   <Column className="text-center">
                     <Text className="text-gray-600 text-sm font-medium m-0 mb-1">
-                      Alert Threshold
+                      Alert Threshold (# Events)
                     </Text>
                     <Text className="text-2xl font-bold text-gray-900 m-0">
-                      ${threshold}
+                      {threshold}
                     </Text>
                   </Column>
                 </Row>
               </div>
             </Section>
 
-            <Section className="mt-[32px] text-center">
+            <Section className="mt-8 text-center">
               <Button
-                className="bg-blue-600 text-white px-6 py-3 rounded-md text-sm font-medium no-underline"
+                className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
                 href={billingUrl}
               >
                 View Billing Page and Manage Alerts
               </Button>
             </Section>
 
-            <Section className="mt-[32px]">
+            <Section className="mt-8">
               <Heading className="text-black text-[18px] font-semibold">
                 What happens next?
               </Heading>
@@ -121,10 +114,8 @@ export const BillingAlertEmailTemplate = ({
 
             <Section>
               <Text className="text-[#666666] text-[12px] leading-[24px]">
-                This email was sent to{" "}
-                <span className="text-black">{receiverEmail}</span> regarding
-                billing alerts for{" "}
-                <span className="text-black">{organizationName}</span>.
+                This email was sent to {receiverEmail} regarding billing alerts
+                for &quot;{organizationName}&quot;.
               </Text>
               <Text className="text-[#666666] text-[12px] leading-[24px]">
                 Questions? Contact us at{" "}
