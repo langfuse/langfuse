@@ -152,34 +152,25 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="h-5 w-5" />
-          Usage Alerts
-        </CardTitle>
-        <CardDescription>
-          Get notified when your usage exceeds a specified threshold to avoid
-          billing surprises. The alert triggers at most once per billing cycle
-          and will only consider &quot;future&quot; usage from the time of
-          creation or last update.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="flex items-start justify-between">
+          <div className="pr-8">
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Usage Alerts
+            </CardTitle>
+            <CardDescription className="mt-2">
+              Get notified when your usage exceeds a specified threshold to
+              avoid billing surprises. The alert triggers at most once per
+              billing cycle and will only consider &quot;future&quot; usage from
+              the time of creation or last update.
+            </CardDescription>
+          </div>
+          <Form {...form}>
             <FormField
               control={form.control}
               name="enabled"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">
-                      Enable Usage Alerts
-                    </FormLabel>
-                    <FormDescription>
-                      Receive notifications when your usage exceeds the
-                      threshold.
-                    </FormDescription>
-                  </div>
+                <FormItem>
                   <FormControl>
                     <Switch
                       checked={field.value}
@@ -189,7 +180,12 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
                 </FormItem>
               )}
             />
-
+          </Form>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {isEnabled && (
               <>
                 <FormField

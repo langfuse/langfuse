@@ -536,6 +536,13 @@ async function handleInvoiceCreated(invoice: Stripe.Invoice): Promise<void> {
         cloudConfig: parsedOrg.cloudConfig!,
       },
     });
+    logger.info(
+      `[Stripe Webhook] Recreated usage alert for ${parsedOrg.id} after invoice`,
+      {
+        orgId: parsedOrg.id,
+        alertId: updatedAlert.id,
+      },
+    );
   } catch (error) {
     logger.error("[Stripe Webhook] Error handling invoice created", {
       error,
