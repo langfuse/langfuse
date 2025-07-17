@@ -1,33 +1,36 @@
 # Slack Integration Implementation Plan
 
 ## Dependencies & Setup
+
 - [ ] Step 1: Install Slack SDK dependencies
   - **Task**: Add Slack SDK libraries to project dependencies
-  - **Files**: 
+  - **Files**:
     - `web/package.json`: Add @slack/web-api and @slack/oauth dependencies
     - `worker/package.json`: Add @slack/web-api dependency
   - **Step Dependencies**: None
   - **User Instructions**: Run `pnpm install` after adding dependencies
 
 ## Database Schema & Domain Models
-- [ ] Step 2: Add Slack-specific database tables and types
-  - **Task**: Create database migration for Slack integration tables and extend existing automation types
-  - **Files**: 
-    - `packages/shared/prisma/migrations/[timestamp]_add_slack_integration.sql`: New migration file
-    - `packages/shared/prisma/schema.prisma`: Add slack_integrations table, extend ActionType enum
+
+- [ ] Step 2: Add Slack integration database table and types
+  - **Task**: Create database migration for Slack integration table and extend existing automation types
+  - **Files**:
+    - `packages/shared/prisma/migrations/[timestamp]_add_slack_integration.sql`: New migration file for SlackIntegration table
+    - `packages/shared/prisma/schema.prisma`: Add SlackIntegration model, extend ActionType enum
     - `packages/shared/src/domain/automations.ts`: Add SlackActionConfig types and schemas
   - **Step Dependencies**: Step 1
   - **User Instructions**: Run `pnpm run db:migrate` in packages/shared after migration is created
 
 - [ ] Step 3: Update shared types and validation schemas
-  - **Task**: Extend domain types and Zod schemas for Slack actions
+  - **Task**: Extend domain types and Zod schemas for Slack actions with centralized token storage
   - **Files**:
-    - `packages/shared/src/domain/automations.ts`: Add SLACK to ActionType enum, create SlackActionConfigSchema
+    - `packages/shared/src/domain/automations.ts`: Add SLACK to ActionType enum, create SlackActionConfigSchema (without token fields)
     - `packages/shared/src/domain/index.ts`: Export new Slack types
   - **Step Dependencies**: Step 2
   - **User Instructions**: None
 
 ## Slack App Infrastructure
+
 - [ ] Step 4: Create Slack service with official SDK
   - **Task**: Set up Slack service using @slack/web-api and @slack/oauth libraries
   - **Files**:
@@ -37,6 +40,7 @@
   - **User Instructions**: Create Slack App at api.slack.com with OAuth redirect URI pointing to callback endpoint
 
 ## tRPC API Routes & Channel Management
+
 - [ ] Step 5: Create Slack tRPC router with OAuth and channel endpoints
   - **Task**: Build tRPC endpoints for Slack OAuth and channel management using SDK
   - **Files**:
@@ -46,6 +50,7 @@
   - **User Instructions**: None
 
 ## Slack Action Handler
+
 - [ ] Step 6: Implement Slack action handler
   - **Task**: Create action handler for Slack following existing webhook pattern
   - **Files**:
@@ -66,6 +71,7 @@
   - **User Instructions**: None
 
 ## Message Sending Service
+
 - [ ] Step 8: Slack message service using Web API
   - **Task**: Implement message sending using @slack/web-api with built-in rate limiting
   - **Files**:
@@ -77,6 +83,7 @@
   - **User Instructions**: None
 
 ## Automation Integration
+
 - [ ] Step 9: Extend automation system for Slack
   - **Task**: Integrate Slack actions into existing automation event processing
   - **Files**:
@@ -86,6 +93,7 @@
   - **User Instructions**: None
 
 ## Frontend Components
+
 - [ ] Step 10: Slack connection and channel selection UI
   - **Task**: Create UI components for OAuth connection and channel selection
   - **Files**:
@@ -97,6 +105,7 @@
   - **User Instructions**: None
 
 ## Settings Pages & Integration
+
 - [ ] Step 11: Integration with existing automation UI
   - **Task**: Integrate Slack actions into existing automation form and create settings page
   - **Files**:
@@ -109,6 +118,7 @@
   - **User Instructions**: None
 
 ## Error Handling & Reliability
+
 - [ ] Step 12: Error handling using SDK error types
   - **Task**: Implement error handling leveraging built-in SDK error types and recovery
   - **Files**:
@@ -120,6 +130,7 @@
   - **User Instructions**: None
 
 ## Testing
+
 - [ ] Step 13: Comprehensive test suite
   - **Task**: Create test suite for Slack integration using SDK mocking
   - **Files**:
@@ -131,6 +142,7 @@
   - **User Instructions**: None
 
 ## Documentation & Polish
+
 - [ ] Step 14: Navigation, documentation and final polish
   - **Task**: Add navigation, help content, and performance optimizations
   - **Files**:
@@ -141,33 +153,3 @@
     - `web/src/features/slack/components/SlackLoadingStates.tsx`: Loading state components
   - **Step Dependencies**: Step 13
   - **User Instructions**: None
-
-## Summary
-
-This implementation plan provides a streamlined roadmap for building the Slack integration feature using official Slack SDK libraries. The plan reduces complexity by leveraging `@slack/web-api` and `@slack/oauth` while following existing codebase patterns and architecture.
-
-### Key Architectural Decisions:
-1. **Official Slack SDKs**: Uses `@slack/web-api` and `@slack/oauth` for robust, well-maintained functionality
-2. **Reuse Existing Patterns**: Leverages the existing automation architecture with triggers, actions, and the ActionHandlerRegistry
-3. **Secure Token Management**: Implements OAuth v2 flow with built-in security features and encrypted token storage
-4. **Built-in Rate Limiting**: Leverages automatic rate limiting and retry logic from the Web API client
-5. **TypeScript Support**: Full type safety with official SDK types
-6. **Multi-tenant Safety**: Ensures proper isolation between projects and workspaces
-
-### Technical Implementation Benefits:
-- **Simplified OAuth**: Built-in state management, CSRF protection, and secure token exchange
-- **Automatic Rate Limiting**: No custom rate limiting implementation needed - handled by SDK
-- **Built-in Error Handling**: Proper Slack error types and automatic retry logic
-- **Smaller Bundle Size**: ~110KB total vs 2MB+ for Bolt.js alternative
-- **Better Maintainability**: Official SDK support and consistent patterns
-- **Reduced Complexity**: 14 steps vs 22 in the original complex approach
-
-### Implementation Strategy:
-The implementation reduces from 22 to 14 steps by:
-- Consolidating OAuth and channel management with SDK utilities
-- Eliminating custom rate limiting (built into Web API client)
-- Simplifying error handling with SDK error types
-- Combining related UI components into fewer steps
-- Leveraging SDK features to reduce custom code
-
-**Estimated implementation time: 1-2 weeks** with significantly reduced maintenance overhead and better integration with existing Langfuse patterns.
