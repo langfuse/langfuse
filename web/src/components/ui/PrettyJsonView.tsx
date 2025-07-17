@@ -8,7 +8,7 @@ import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Code } from "lucide-react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -329,10 +329,14 @@ export function PrettyJsonView(props: {
   currentView?: "pretty" | "json";
 }) {
   const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
+  const [localCurrentView, setLocalCurrentView] = useState<
+    "pretty" | "json" | null
+  >(null);
+  const actualCurrentView = localCurrentView ?? props.currentView ?? "pretty";
 
   const tableData = useMemo(() => {
     if (
-      props.currentView === "pretty" &&
+      actualCurrentView === "pretty" &&
       parsedJson !== null &&
       parsedJson !== undefined
     ) {
@@ -403,7 +407,7 @@ export function PrettyJsonView(props: {
       return transformJsonToTableData(parsedJson);
     }
     return [];
-  }, [parsedJson, props.currentView]);
+  }, [parsedJson, actualCurrentView]);
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event) {
@@ -418,9 +422,15 @@ export function PrettyJsonView(props: {
     }
   };
 
+  const handleToggleView = () => {
+    const currentEffectiveView =
+      localCurrentView ?? props.currentView ?? "pretty";
+    setLocalCurrentView(currentEffectiveView === "pretty" ? "json" : "pretty");
+  };
+
   const body = (
     <>
-      {props.currentView === "pretty" ? (
+      {actualCurrentView === "pretty" ? (
         <div
           className={cn(
             "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
@@ -488,7 +498,28 @@ export function PrettyJsonView(props: {
           canEnableMarkdown={false}
           handleOnValueChange={() => {}} // No-op since parent handles state
           handleOnCopy={handleOnCopy}
-          controlButtons={props.controlButtons}
+          controlButtons={
+            <>
+              {props.controlButtons}
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={handleToggleView}
+                className={cn(
+                  "-mr-2 hover:bg-border",
+                  actualCurrentView === "json" &&
+                    "bg-muted text-muted-foreground",
+                )}
+                title={
+                  actualCurrentView === "pretty"
+                    ? "Show JSON view"
+                    : "Show pretty view"
+                }
+              >
+                <Code className="h-3 w-3" />
+              </Button>
+            </>
+          }
         />
       ) : null}
       {props.scrollable ? (
