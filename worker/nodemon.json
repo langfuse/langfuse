@@ -1,12 +1,5 @@
 {
   "watch": ["src"],
   "ext": "ts,json",
-  "exec": "ts-node --esm src/index.ts",
-  "env": {
-    "NODE_OPTIONS": "--loader ts-node/esm"
-  },
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  }
+  "exec": "ts-node src/index.ts"
 }
