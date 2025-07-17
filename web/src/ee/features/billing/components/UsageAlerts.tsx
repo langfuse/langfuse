@@ -158,7 +158,9 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
         </CardTitle>
         <CardDescription>
           Get notified when your usage exceeds a specified threshold to avoid
-          billing surprises.
+          billing surprises. The alert triggers at most once per billing cycle
+          and will only consider &quot;future&quot; usage from the time of
+          creation or last update.
         </CardDescription>
       </CardHeader>
       <CardContent>

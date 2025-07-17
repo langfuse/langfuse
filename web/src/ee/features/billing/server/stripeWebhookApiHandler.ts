@@ -16,6 +16,7 @@ import { traceException, redis, logger } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
+import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
 
 /*
  * Sign-up endpoint (email/password users), creates user in database.
@@ -89,6 +90,13 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
         payload: deletedSubscription,
       });
       await handleSubscriptionChanged(deletedSubscription, "deleted");
+      break;
+    case "invoice.created":
+      const invoiceData = event.data.object;
+      logger.info("[Stripe Webhook] Start invoice.created", {
+        payload: invoiceData,
+      });
+      await handleInvoiceCreated(invoiceData);
       break;
     case "billing.alert.triggered":
       const alertData = event.data.object;
@@ -455,5 +463,84 @@ async function sendBillingAlertNotifications({
       alertId,
       error,
     });
+  }
+}
+
+/**
+ * Whenever a stripe invoice is created, we recreate the usage alert.
+ * This is necessary, because usage alerts trigger only once globally and with this setup,
+ * we can ensure that they trigger once per billing period.
+ * @param invoice
+ */
+async function handleInvoiceCreated(invoice: Stripe.Invoice): Promise<void> {
+  try {
+    // Find organization by Stripe customer ID
+    const customerId =
+      typeof invoice.customer === "string"
+        ? invoice.customer
+        : invoice.customer?.id;
+    if (!customerId) {
+      logger.error("[Stripe Webhook] No customer ID found in billing alert");
+      return;
+    }
+
+    const organization = await prisma.organization.findFirst({
+      where: {
+        cloudConfig: {
+          path: ["stripe", "customerId"],
+          equals: customerId,
+        },
+      },
+    });
+
+    if (!organization) {
+      logger.warn(
+        "[Stripe Webhook] Organization not found for customer ID - Potentially received the webhook on wrong environment",
+        {
+          customerId,
+        },
+      );
+      return;
+    }
+
+    const parsedOrg = parseDbOrg(organization);
+    const usageAlerts = parsedOrg.cloudConfig?.usageAlerts;
+
+    if (!usageAlerts || !usageAlerts.enabled) {
+      logger.info(
+        "[Stripe Webhook] Usage alerts not enabled for organization",
+        {
+          orgId: organization.id,
+        },
+      );
+      return;
+    }
+
+    const updatedAlert = await UsageAlertService.getInstance({
+      stripeClient,
+    }).recreate({
+      orgId: parsedOrg.id,
+      customerId: customerId,
+      meterId: usageAlerts.meterId,
+      existingAlertId: usageAlerts.alertId,
+      amount: usageAlerts.threshold,
+    });
+    // We can use ! here as we'd never reach this point if the fields are undefined
+    parsedOrg.cloudConfig!.usageAlerts!.alertId = updatedAlert.id;
+
+    await prisma.organization.update({
+      where: {
+        id: parsedOrg.id,
+      },
+      data: {
+        cloudConfig: parsedOrg.cloudConfig!,
+      },
+    });
+  } catch (error) {
+    logger.error("[Stripe Webhook] Error handling invoice created", {
+      error,
+      invoiceId: invoice.id,
+    });
+    traceException("[Stripe Webhook] Error handling invoice created");
   }
 }
