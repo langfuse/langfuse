@@ -219,7 +219,6 @@ export async function fetchLLMCompletion(
   const proxyUrl = env.HTTPS_PROXY;
   const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
 
-
   let chatModel:
     | ChatOpenAI
     | ChatAnthropic
