@@ -1,0 +1,471 @@
+import { useMemo, useState, useEffect } from "react";
+import { cn } from "@/src/utils/tailwind";
+import { deepParseJson } from "@langfuse/shared";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { Button } from "@/src/components/ui/button";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getExpandedRowModel,
+  flexRender,
+  type ExpandedState,
+  type Row,
+} from "@tanstack/react-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/src/components/ui/table";
+
+interface JsonTableRow {
+  id: string;
+  key: string;
+  value: unknown;
+  type:
+    | "string"
+    | "number"
+    | "boolean"
+    | "object"
+    | "array"
+    | "null"
+    | "undefined";
+  hasChildren: boolean;
+  level: number;
+  parentId?: string;
+  childrenIds?: string[];
+  subRows?: JsonTableRow[];
+}
+
+function getValueType(value: unknown): JsonTableRow["type"] {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (Array.isArray(value)) return "array";
+  return typeof value as JsonTableRow["type"];
+}
+
+function transformJsonToTableData(
+  json: unknown,
+  parentKey = "",
+  level = 0,
+  parentId = "",
+): JsonTableRow[] {
+  const rows: JsonTableRow[] = [];
+
+  if (typeof json !== "object" || json === null) {
+    return [
+      {
+        id: parentId || "0",
+        key: parentKey || "root",
+        value: json,
+        type: getValueType(json),
+        hasChildren: false,
+        level,
+        parentId: parentId || undefined,
+        childrenIds: [],
+      },
+    ];
+  }
+
+  const entries = Array.isArray(json)
+    ? json.map((item, index) => [index.toString(), item])
+    : Object.entries(json);
+
+  entries.forEach(([key, value], _index) => {
+    const id = parentId ? `${parentId}-${key}` : key;
+    const valueType = getValueType(value);
+    const hasChildren =
+      valueType === "object" ||
+      (valueType === "array" && Array.isArray(value) && value.length > 0);
+
+    const row: JsonTableRow = {
+      id,
+      key,
+      value,
+      type: valueType,
+      hasChildren,
+      level,
+      parentId: parentId || undefined,
+      childrenIds: [],
+    };
+
+    if (hasChildren) {
+      const children = transformJsonToTableData(value, key, level + 1, id);
+      row.subRows = children;
+      row.childrenIds = children.map((child) => child.id);
+    }
+
+    rows.push(row);
+  });
+
+  return rows;
+}
+
+function ValueCell({ row }: { row: Row<JsonTableRow> }) {
+  const { value, type } = row.original;
+
+  const renderValue = () => {
+    switch (type) {
+      case "string":
+        return (
+          <span className="text-green-600 dark:text-green-400">
+            &quot;{String(value)}&quot;
+          </span>
+        );
+      case "number":
+        return (
+          <span className="text-blue-600 dark:text-blue-400">
+            {String(value)}
+          </span>
+        );
+      case "boolean":
+        return (
+          <span className="text-orange-600 dark:text-orange-400">
+            {String(value)}
+          </span>
+        );
+      case "null":
+        return <span className="text-gray-500 dark:text-gray-400">null</span>;
+      case "undefined":
+        return (
+          <span className="text-gray-500 dark:text-gray-400">undefined</span>
+        );
+      case "array":
+        const arr = value as unknown[];
+        if (arr.length === 0) {
+          return <span className="text-gray-600 dark:text-gray-400">[]</span>;
+        }
+        if (arr.length <= 5) {
+          // Show inline for small arrays
+          const displayItems = arr
+            .map((item, _idx) => {
+              const itemType = getValueType(item);
+              if (itemType === "string") return `"${String(item)}"`;
+              if (itemType === "object" || itemType === "array") return "...";
+              return String(item);
+            })
+            .join(", ");
+          return (
+            <span className="text-gray-600 dark:text-gray-400">
+              [{displayItems}]
+            </span>
+          );
+        } else {
+          // Show truncated for large arrays
+          const preview = arr
+            .slice(0, 3)
+            .map((item, _idx) => {
+              const itemType = getValueType(item);
+              if (itemType === "string") return `"${String(item)}"`;
+              if (itemType === "object" || itemType === "array") return "...";
+              return String(item);
+            })
+            .join(", ");
+          return (
+            <span className="text-gray-600 dark:text-gray-400">
+              [{preview}, ...{arr.length - 3} more]
+            </span>
+          );
+        }
+      case "object":
+        const obj = value as Record<string, unknown>;
+        const keys = Object.keys(obj);
+        if (keys.length === 0) {
+          return (
+            <span className="italic text-gray-500 dark:text-gray-400">
+              empty object
+            </span>
+          );
+        }
+        return (
+          <span className="text-gray-600 dark:text-gray-400">
+            {"{"}
+            {keys.length} keys{"}"}
+          </span>
+        );
+      default:
+        return (
+          <span className="text-gray-600 dark:text-gray-400">
+            {String(value)}
+          </span>
+        );
+    }
+  };
+
+  return <div className="font-mono text-sm">{renderValue()}</div>;
+}
+
+function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
+  // Calculate initial expanded state directly from data
+  const initialExpandedState = useMemo(() => {
+    const initialExpanded: ExpandedState = {};
+    const expandAllRows = (rows: JsonTableRow[]) => {
+      rows.forEach((row) => {
+        if (row.hasChildren) {
+          initialExpanded[row.id] = true;
+          if (row.subRows) {
+            expandAllRows(row.subRows);
+          }
+        }
+      });
+    };
+    expandAllRows(data);
+    return initialExpanded;
+  }, [data]);
+
+  const [expanded, setExpanded] = useState<ExpandedState>(initialExpandedState);
+
+  // Update expanded state when data changes
+  useEffect(() => {
+    setExpanded(initialExpandedState);
+  }, [initialExpandedState]);
+
+  const columns: LangfuseColumnDef<JsonTableRow, any>[] = [
+    {
+      accessorKey: "key",
+      header: "Path",
+      cell: ({ row }) => (
+        <div
+          className="flex items-center"
+          style={{ paddingLeft: `${row.original.level * 16}px` }}
+        >
+          {row.original.hasChildren && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                row.toggleExpanded();
+              }}
+              className="mr-1 h-4 w-4 p-0"
+            >
+              {row.getIsExpanded() ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+            </Button>
+          )}
+          <span className="font-mono text-sm font-medium text-blue-700 dark:text-blue-300">
+            {row.original.key}
+          </span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "value",
+      header: "Value",
+      cell: ({ row }) => <ValueCell row={row} />,
+    },
+  ];
+
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+    getSubRows: (row) => row.subRows,
+    state: {
+      expanded,
+    },
+    onExpandedChange: setExpanded,
+  });
+
+  return (
+    <div className="w-full rounded-sm border">
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <TableHead key={header.id} className="px-3 py-2">
+                  {header.isPlaceholder
+                    ? null
+                    : flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id}>
+              {row.getVisibleCells().map((cell) => (
+                <TableCell key={cell.id} className="px-3 py-2">
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+export function PrettyJsonView(props: {
+  json?: unknown;
+  title?: string;
+  className?: string;
+  isLoading?: boolean;
+  codeClassName?: string;
+  collapseStringsAfterLength?: number | null;
+  media?: MediaReturnType[];
+  scrollable?: boolean;
+  projectIdForPromptButtons?: string;
+  controlButtons?: React.ReactNode;
+  currentView?: "pretty" | "json";
+}) {
+  const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
+
+  const tableData = useMemo(() => {
+    if (
+      props.currentView === "pretty" &&
+      parsedJson !== null &&
+      parsedJson !== undefined
+    ) {
+      return transformJsonToTableData(parsedJson);
+    }
+    return [];
+  }, [parsedJson, props.currentView]);
+
+  const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
+    if (event) {
+      event.preventDefault();
+    }
+    const textToCopy = stringifyJsonNode(parsedJson);
+    void copyTextToClipboard(textToCopy);
+
+    // Keep focus on the copy button to prevent focus shifting
+    if (event) {
+      event.currentTarget.focus();
+    }
+  };
+
+  const body = (
+    <>
+      {props.currentView === "pretty" ? (
+        <div
+          className={cn(
+            "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
+            props.title === "assistant" || props.title === "Output"
+              ? "bg-accent-light-green dark:border-accent-dark-green"
+              : "",
+            props.title === "system" || props.title === "Input"
+              ? "bg-primary-foreground"
+              : "",
+            props.scrollable ? "" : "rounded-sm border",
+            props.codeClassName,
+          )}
+        >
+          {props.isLoading ? (
+            <Skeleton className="h-3 w-3/4" />
+          ) : (
+            <div className="w-full">
+              <JsonPrettyTable data={tableData} />
+            </div>
+          )}
+        </div>
+      ) : (
+        <JSONView
+          json={props.json}
+          title={undefined} // Title is handled by our header
+          className=""
+          isLoading={props.isLoading}
+          codeClassName={props.codeClassName}
+          collapseStringsAfterLength={props.collapseStringsAfterLength}
+          media={props.media}
+          scrollable={props.scrollable}
+          projectIdForPromptButtons={props.projectIdForPromptButtons}
+        />
+      )}
+      {props.media && props.media.length > 0 && (
+        <>
+          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+            Media
+          </div>
+          <div className="flex flex-wrap gap-2 p-4 pt-1">
+            {props.media.map((m) => (
+              <LangfuseMediaView
+                mediaAPIReturnValue={m}
+                asFileIcon={true}
+                key={m.mediaId}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <div
+      className={cn(
+        "flex max-h-full min-h-0 flex-col",
+        props.className,
+        props.scrollable ? "overflow-hidden" : "",
+      )}
+    >
+      {props.title ? (
+        <MarkdownJsonViewHeader
+          title={props.title}
+          canEnableMarkdown={false}
+          handleOnValueChange={() => {}} // No-op since parent handles state
+          handleOnCopy={handleOnCopy}
+          controlButtons={props.controlButtons}
+        />
+      ) : null}
+      {props.scrollable ? (
+        <div className="flex h-full min-h-0 overflow-hidden rounded-sm border">
+          <div className="max-h-full min-h-0 w-full overflow-y-auto">
+            {body}
+          </div>
+        </div>
+      ) : (
+        body
+      )}
+    </div>
+  );
+}
+
+function stringifyJsonNode(node: unknown) {
+  // return single string nodes without quotes
+  if (typeof node === "string") {
+    return node;
+  }
+
+  try {
+    return JSON.stringify(
+      node,
+      (key, value) => {
+        switch (typeof value) {
+          case "bigint":
+            return String(value) + "n";
+          case "number":
+          case "boolean":
+          case "object":
+          case "string":
+            return value as string;
+          default:
+            return String(value);
+        }
+      },
+      4,
+    );
+  } catch (error) {
+    console.error("JSON stringify error", error);
+    return "Error: JSON.stringify failed";
+  }
+}
