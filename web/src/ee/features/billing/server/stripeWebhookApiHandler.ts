@@ -298,7 +298,7 @@ async function handleBillingAlertTriggered(
     // Find organization by Stripe customer ID
     const customerId = alertData.customer;
     if (!customerId) {
-      logger.error("[Stripe Webhook] No customer ID found in billing alert");
+      logger.error("[Stripe Webhook] No customer ID found in usage alert");
       return;
     }
 
@@ -349,24 +349,19 @@ async function handleBillingAlertTriggered(
       });
     }
 
-    logger.info("[Stripe Webhook] Billing alert triggered", {
+    logger.info("[Stripe Webhook] Usage alert triggered successfully", {
       organizationId: organization.id,
       organizationName: organization.name,
       usageAmount,
       threshold,
       alertId: alertData.alert.id,
     });
-
-    logger.info("[Stripe Webhook] Billing alert processed successfully", {
-      orgId: organization.id,
-      alertId: alertData.alert.id,
-    });
   } catch (error) {
-    logger.error("[Stripe Webhook] Error processing billing alert", {
+    logger.error("[Stripe Webhook] Error processing usage alert", {
       error,
       alertId: alertData.alert.id,
     });
-    traceException("[Stripe Webhook] Error processing billing alert");
+    traceException("[Stripe Webhook] Error processing usage alert");
   }
 }
 
@@ -435,13 +430,13 @@ async function sendBillingAlertNotifications({
           receiverEmail: email,
         });
 
-        logger.info("[Stripe Webhook] Billing alert email sent", {
+        logger.info("[Stripe Webhook] Usage alert email sent", {
           organizationId: organization.id,
           recipientEmail: email,
           alertId,
         });
       } catch (error) {
-        logger.error("[Stripe Webhook] Failed to send billing alert email", {
+        logger.error("[Stripe Webhook] Failed to send usage alert email", {
           organizationId: organization.id,
           recipientEmail: email,
           alertId,
@@ -458,7 +453,7 @@ async function sendBillingAlertNotifications({
       alertId,
     });
   } catch (error) {
-    logger.error("[Stripe Webhook] Error sending billing alert notifications", {
+    logger.error("[Stripe Webhook] Error sending usage alert notifications", {
       organizationId: organization.id,
       alertId,
       error,
@@ -480,7 +475,9 @@ async function handleInvoiceCreated(invoice: Stripe.Invoice): Promise<void> {
         ? invoice.customer
         : invoice.customer?.id;
     if (!customerId) {
-      logger.error("[Stripe Webhook] No customer ID found in billing alert");
+      logger.error(
+        "[Stripe Webhook] No customer ID found in invoice created event",
+      );
       return;
     }
 
@@ -508,7 +505,7 @@ async function handleInvoiceCreated(invoice: Stripe.Invoice): Promise<void> {
 
     if (!usageAlerts || !usageAlerts.enabled) {
       logger.info(
-        "[Stripe Webhook] Usage alerts not enabled for organization",
+        "[Stripe Webhook] Usage alerts not enabled for organization - skipping recreation",
         {
           orgId: organization.id,
         },
@@ -537,7 +534,7 @@ async function handleInvoiceCreated(invoice: Stripe.Invoice): Promise<void> {
       },
     });
     logger.info(
-      `[Stripe Webhook] Recreated usage alert for ${parsedOrg.id} after invoice`,
+      `[Stripe Webhook] Recreated usage alert for ${parsedOrg.id} after invoice creation`,
       {
         orgId: parsedOrg.id,
         alertId: updatedAlert.id,
