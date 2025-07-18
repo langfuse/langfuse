@@ -52,9 +52,10 @@ export async function callStructuredLLM<T extends ZodV3Schema>(
   provider: string,
   model: string,
   structuredOutputSchema: T,
+  traceParams?: Omit<TraceParams, "tokenCountDelegate">,
 ): Promise<zodV3.infer<T>> {
   return withLLMErrorHandling(async () => {
-    const { completion } = await fetchLLMCompletion({
+    const { completion, processTracedEvents } = await fetchLLMCompletion({
       streaming: false,
       apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
       extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
@@ -66,10 +67,17 @@ export async function callStructuredLLM<T extends ZodV3Schema>(
         adapter: llmApiKey.adapter,
         ...modelParams,
       },
+      traceParams: traceParams
+        ? { ...traceParams, tokenCountDelegate: tokenCount }
+        : undefined,
       structuredOutputSchema,
       config: llmApiKey.config,
       maxRetries: 1,
     });
+
+    if (traceParams) {
+      await processTracedEvents();
+    }
 
     return structuredOutputSchema.parse(completion);
   }, "call LLM");
