@@ -155,7 +155,7 @@ describe("Webhook Integration Tests", () => {
           type: "WEBHOOK",
           url: "https://webhook.example.com/test",
           headers: {
-            "Content-Type": "application/json",
+            "X-Custom-Header-2": "test-value-2",
             "X-Custom-Header": "test-value",
           },
           apiVersion: { prompt: "v1" },
@@ -227,7 +227,7 @@ describe("Webhook Integration Tests", () => {
       const request = requests[0];
       expect(request.url).toBe("https://webhook.example.com/test");
       expect(request.method).toBe("POST");
-      expect(request.headers["content-type"]).toBe("application/json");
+      expect(request.headers["x-custom-header-2"]).toBe("test-value-2");
       expect(request.headers["x-custom-header"]).toBe("test-value");
 
       expect(request.headers["x-langfuse-signature"]).toMatch(
