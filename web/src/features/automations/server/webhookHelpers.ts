@@ -58,8 +58,7 @@ export async function processWebhookActionConfig({
   // Process headers and generate final action config
   const finalActionConfig = processWebhookHeaders(
     actionConfig,
-    existingAction,
-    existingAction?.config,
+    existingAction?.config as WebhookActionConfigWithSecrets | undefined,
   );
 
   return {
@@ -85,7 +84,6 @@ export async function processWebhookActionConfig({
  */
 function processWebhookHeaders(
   actionConfig: ActionCreate,
-  existingAction: { config: WebhookActionConfigWithSecrets } | undefined,
   existingConfig: WebhookActionConfigWithSecrets | undefined,
 ): ActionConfig {
   // Get existing headers for comparison
