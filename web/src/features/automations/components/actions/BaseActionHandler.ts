@@ -3,7 +3,7 @@ import {
   type ActionDomain,
   type ActionType,
   type AutomationDomain,
-  type SafeWebhookActionConfig,
+  type ActionCreate,
 } from "@langfuse/shared";
 
 export interface BaseActionHandler<
@@ -21,9 +21,7 @@ export interface BaseActionHandler<
   };
 
   // Build the action config for API submission
-  buildActionConfig(
-    formData: TFormData,
-  ): Omit<SafeWebhookActionConfig, "displaySecretKey">;
+  buildActionConfig(formData: TFormData): ActionCreate;
 
   // Render the action form UI - using any for form to allow flexibility
   renderForm(props: {

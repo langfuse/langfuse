@@ -6,7 +6,7 @@ import {
   type AutomationDomain,
   AvailableWebhookApiSchema,
   WebhookDefaultHeaders,
-  type SafeWebhookActionConfig,
+  type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
@@ -131,9 +131,7 @@ export class WebhookActionHandler
     };
   }
 
-  buildActionConfig(
-    formData: WebhookActionFormData,
-  ): Omit<SafeWebhookActionConfig, "displaySecretKey"> {
+  buildActionConfig(formData: WebhookActionFormData): ActionCreate {
     // Convert headers array to object
     let headersObject: Record<string, string> = {};
 

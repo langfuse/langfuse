@@ -2,7 +2,7 @@
 
 ## Dependencies & Setup
 
-- [ ] Step 1: Install Slack SDK dependencies
+- [x] Step 1: Install Slack SDK dependencies
   - **Task**: Add Slack SDK libraries to project dependencies
   - **Files**:
     - `web/package.json`: Add @slack/web-api and @slack/oauth dependencies
@@ -12,7 +12,7 @@
 
 ## Database Schema & Domain Models
 
-- [ ] Step 2: Add Slack integration database table and types
+- [x] Step 2: Add Slack integration database table and types
   - **Task**: Create database migration for Slack integration table and extend existing automation types
   - **Files**:
     - `packages/shared/prisma/migrations/[timestamp]_add_slack_integration.sql`: New migration file for SlackIntegration table
@@ -21,7 +21,7 @@
   - **Step Dependencies**: Step 1
   - **User Instructions**: Run `pnpm run db:migrate` in packages/shared after migration is created
 
-- [ ] Step 3: Update shared types and validation schemas
+- [x] Step 3: Update shared types and validation schemas
   - **Task**: Extend domain types and Zod schemas for Slack actions with centralized token storage
   - **Files**:
     - `packages/shared/src/domain/automations.ts`: Add SLACK to ActionType enum, create SlackActionConfigSchema (without token fields)
@@ -31,27 +31,26 @@
 
 ## Slack App Infrastructure
 
-- [ ] Step 4: Create Slack service with official SDK
+- [x] Step 4: Create Slack service with official SDK
   - **Task**: Set up Slack service using @slack/web-api and @slack/oauth libraries
   - **Files**:
     - `web/src/features/slack/server/slackService.ts`: Unified service using Slack SDK libraries
-    - `web/src/pages/api/slack/oauth.ts`: Simplified OAuth callback handler
+    - `web/src/pages/api/public/slack/oauth.ts`: Simplified OAuth callback handler
   - **Step Dependencies**: Step 3
   - **User Instructions**: Create Slack App at api.slack.com with OAuth redirect URI pointing to callback endpoint
 
 ## tRPC API Routes & Channel Management
 
-- [ ] Step 5: Create Slack tRPC router with OAuth and channel endpoints
+- [x] Step 5: Create Slack tRPC router with OAuth and channel endpoints
   - **Task**: Build tRPC endpoints for Slack OAuth and channel management using SDK
   - **Files**:
-    - `web/src/server/api/routers/slack.ts`: Slack tRPC router with OAuth and channel endpoints
-    - `web/src/server/api/root.ts`: Register slack router
+    - `web/src/features/slack/server/router.ts`: Slack tRPC router with OAuth and channel endpoints
   - **Step Dependencies**: Step 4
   - **User Instructions**: None
 
 ## Slack Action Handler
 
-- [ ] Step 6: Implement Slack action handler
+- [x] Step 6: Implement Slack action handler
   - **Task**: Create action handler for Slack following existing webhook pattern
   - **Files**:
     - `web/src/features/automations/components/actions/SlackActionHandler.ts`: Slack action handler implementation
@@ -94,7 +93,7 @@
 
 ## Frontend Components
 
-- [ ] Step 10: Slack connection and channel selection UI
+- [x] Step 10: Slack connection and channel selection UI
   - **Task**: Create UI components for OAuth connection and channel selection
   - **Files**:
     - `web/src/features/slack/components/SlackConnectionCard.tsx`: Connection status and management
@@ -106,7 +105,7 @@
 
 ## Settings Pages & Integration
 
-- [ ] Step 11: Integration with existing automation UI
+- [x] Step 11: Integration with existing automation UI
   - **Task**: Integrate Slack actions into existing automation form and create settings page
   - **Files**:
     - `web/src/features/automations/components/automationForm.tsx`: Add Slack action type

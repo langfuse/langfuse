@@ -6,6 +6,7 @@ import {
   ActionType,
   ActionTypeSchema,
   JobConfigState,
+  type SafeWebhookActionConfig,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -100,7 +101,8 @@ export const automationsRouter = createTRPCRouter({
         resourceId: input.actionId,
         action: "update",
         before: {
-          displaySecretKey: existingAction.config.displaySecretKey,
+          displaySecretKey: (existingAction.config as SafeWebhookActionConfig)
+            .displaySecretKey,
         },
         after: {
           displaySecretKey: newDisplaySecretKey,

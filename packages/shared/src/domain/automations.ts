@@ -30,14 +30,14 @@ export type AutomationDomain = {
 };
 
 export type ActionDomain = Omit<Action, "config"> & {
-  config: SafeWebhookActionConfig;
+  config: SafeActionConfig;
 };
 
 export type ActionDomainWithSecrets = Omit<Action, "config"> & {
-  config: WebhookActionConfigWithSecrets;
+  config: ActionConfigWithSecrets;
 };
 
-export const ActionTypeSchema = z.enum(["WEBHOOK"]);
+export const ActionTypeSchema = z.enum(["WEBHOOK", "SLACK"]);
 
 export const AvailableWebhookApiSchema = z.record(
   z.enum(["prompt"]),
@@ -66,18 +66,37 @@ export const WebhookActionCreateSchema = WebhookActionConfigSchema.omit({
   displaySecretKey: true,
 });
 
+export const SlackActionConfigSchema = z.object({
+  type: z.literal("SLACK"),
+  channelId: z.string(),
+  channelName: z.string(),
+  messageTemplate: z.string().optional(),
+});
+
+export type SlackActionConfig = z.infer<typeof SlackActionConfigSchema>;
+
 export const ActionConfigSchema = z.discriminatedUnion("type", [
   WebhookActionConfigSchema,
+  SlackActionConfigSchema,
 ]);
 
 export const ActionCreateSchema = z.discriminatedUnion("type", [
   WebhookActionCreateSchema,
+  SlackActionConfigSchema,
+]);
+
+export const SafeActionConfigSchema = z.discriminatedUnion("type", [
+  SafeWebhookActionConfigSchema,
+  SlackActionConfigSchema,
 ]);
 
 export type ActionTypes = z.infer<typeof ActionTypeSchema>;
 export type ActionConfig = z.infer<typeof ActionConfigSchema>;
 export type ActionCreate = z.infer<typeof ActionCreateSchema>;
+export type SafeActionConfig = z.infer<typeof SafeActionConfigSchema>;
 
 export type WebhookActionConfigWithSecrets = z.infer<
   typeof WebhookActionConfigSchema
 >;
+
+export type ActionConfigWithSecrets = z.infer<typeof ActionConfigSchema>;

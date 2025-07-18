@@ -3,7 +3,11 @@ import {
   encrypt,
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
-import { type ActionCreate, type ActionConfig } from "@langfuse/shared";
+import {
+  type ActionCreate,
+  type ActionConfig,
+  type WebhookActionConfigWithSecrets,
+} from "@langfuse/shared";
 import { getActionByIdWithSecrets } from "@langfuse/shared/src/server";
 
 interface WebhookConfigOptions {
@@ -40,19 +44,21 @@ export async function processWebhookActionConfig({
   const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
     generateWebhookSecret();
 
+  const existingActionConfig =
+    existingAction?.config as WebhookActionConfigWithSecrets;
   const finalActionConfig = {
     ...actionConfig,
     headers: {
       ...actionConfig.headers,
     },
-    secretKey: existingAction?.config.secretKey ?? encrypt(newSecretKey),
+    secretKey: existingActionConfig.secretKey ?? encrypt(newSecretKey),
     displaySecretKey:
-      existingAction?.config.displaySecretKey ?? newDisplaySecretKey,
+      existingActionConfig.displaySecretKey ?? newDisplaySecretKey,
   };
 
   return {
     finalActionConfig,
-    newUnencryptedWebhookSecret: existingAction?.config.secretKey
+    newUnencryptedWebhookSecret: existingActionConfig.secretKey
       ? undefined
       : newSecretKey,
   };

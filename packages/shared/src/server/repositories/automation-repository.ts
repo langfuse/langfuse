@@ -13,6 +13,7 @@ import {
   ActionDomain,
   AutomationDomain,
   SafeWebhookActionConfig,
+  ActionDomainWithSecrets,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 
@@ -22,7 +23,7 @@ export const getActionByIdWithSecrets = async ({
 }: {
   projectId: string;
   actionId: string;
-}) => {
+}): Promise<ActionDomainWithSecrets | null> => {
   const actionConfig = await prisma.action.findFirst({
     where: {
       id: actionId,

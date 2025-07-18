@@ -1,0 +1,406 @@
+/**
+ * Slack Integration Service
+ *
+ * Simplified service that properly uses the official Slack SDK libraries:
+ * - @slack/oauth InstallProvider for OAuth flow management
+ * - @slack/web-api WebClient for Slack API operations
+ * - Metadata-based project-to-team mapping
+ */
+
+import { WebClient } from "@slack/web-api";
+import { InstallProvider, type InstallURLOptions } from "@slack/oauth";
+import { logger } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { prisma } from "@langfuse/shared/src/db";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
+import { type NextApiRequest, type NextApiResponse } from "next";
+
+// Types for Slack integration
+export interface SlackChannel {
+  id: string;
+  name: string;
+  isPrivate: boolean;
+  isMember: boolean;
+}
+
+export interface SlackMessageParams {
+  client: WebClient;
+  channelId: string;
+  blocks: any[];
+  text?: string;
+}
+
+export interface SlackMessageResponse {
+  messageTs: string;
+  channel: string;
+}
+
+/**
+ * Slack Service Class
+ *
+ * Uses InstallProvider for OAuth flow and metadata-based project mapping.
+ * Much simpler than the previous implementation while maintaining all functionality.
+ */
+export class SlackService {
+  /**
+   * InstallProvider instance with simplified installation store
+   */
+  private static installer = new InstallProvider({
+    clientId: env.SLACK_CLIENT_ID!,
+    clientSecret: env.SLACK_CLIENT_SECRET!,
+    stateSecret: env.SALT!,
+    installUrlOptions: {
+      scopes: ["channels:read", "chat:write", "chat:write.public"],
+    },
+    installationStore: {
+      storeInstallation: async (installation) => {
+        try {
+          const projectId = installation.metadata as string;
+
+          if (!projectId) {
+            throw new Error("Missing projectId in installation metadata");
+          }
+
+          logger.info("Storing Slack installation for project", {
+            projectId,
+            teamId: installation.team?.id,
+            teamName: installation.team?.name,
+          });
+
+          // Store by projectId (one integration per project)
+          await prisma.slackIntegration.upsert({
+            where: { projectId },
+            create: {
+              projectId,
+              teamId: installation.team?.id!,
+              teamName: installation.team?.name!,
+              botToken: encrypt(installation.bot?.token!),
+              botUserId: installation.bot?.userId!,
+            },
+            update: {
+              teamId: installation.team?.id!,
+              teamName: installation.team?.name!,
+              botToken: encrypt(installation.bot?.token!),
+              botUserId: installation.bot?.userId!,
+            },
+          });
+
+          logger.info("Slack installation stored successfully", {
+            projectId,
+            teamId: installation.team?.id,
+          });
+        } catch (error) {
+          logger.error("Failed to store Slack installation", { error });
+          throw error;
+        }
+      },
+
+      fetchInstallation: async (installQuery) => {
+        try {
+          // Handle both teamId and projectId lookups
+          // When SDK calls with teamId, we treat it as projectId
+          const lookupId = installQuery.teamId;
+
+          if (!lookupId) {
+            throw new Error("No lookup ID provided");
+          }
+
+          const integration = await prisma.slackIntegration.findFirst({
+            where: {
+              OR: [
+                { teamId: lookupId }, // Actual team ID lookup
+                { projectId: lookupId }, // Project ID lookup (our custom usage)
+              ],
+            },
+          });
+
+          if (!integration) {
+            throw new Error("Slack integration not found");
+          }
+
+          // Return full Installation interface as expected by SDK
+          return {
+            team: {
+              id: integration.teamId,
+              name: integration.teamName,
+            },
+            bot: {
+              id: integration.botUserId,
+              token: decrypt(integration.botToken),
+              userId: integration.botUserId,
+              scopes: [],
+            },
+            enterprise: undefined,
+            user: {
+              token: undefined,
+              refreshToken: undefined,
+              expiresAt: undefined,
+              scopes: undefined,
+              id: integration.botUserId,
+            },
+          };
+        } catch (error) {
+          logger.error("Failed to fetch Slack installation", { error });
+          throw error;
+        }
+      },
+
+      deleteInstallation: async (installQuery) => {
+        try {
+          const lookupId = installQuery.teamId;
+
+          if (!lookupId) {
+            throw new Error("No lookup ID provided for deletion");
+          }
+
+          await prisma.slackIntegration.deleteMany({
+            where: {
+              OR: [{ teamId: lookupId }, { projectId: lookupId }],
+            },
+          });
+
+          logger.info("Slack installation deleted successfully", {
+            lookupId,
+          });
+        } catch (error) {
+          logger.error("Failed to delete Slack installation", { error });
+          throw error;
+        }
+      },
+    },
+  });
+
+  /**
+   * Generate OAuth URL for project-specific installation
+   */
+  static async generateOAuthUrl(projectId: string): Promise<string> {
+    try {
+      const oauthUrl = await this.installer.generateInstallUrl({
+        scopes: ["channels:read", "chat:write", "chat:write.public"],
+        metadata: projectId, // Pass projectId as metadata
+      });
+
+      logger.info("Generated OAuth URL for project", { projectId });
+      return oauthUrl;
+    } catch (error) {
+      logger.error("Failed to generate OAuth URL", { error, projectId });
+      throw new Error(
+        `Failed to generate OAuth URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Delete Slack integration for a project
+   */
+  static async deleteIntegration(projectId: string): Promise<void> {
+    try {
+      if (!this.installer.installationStore?.deleteInstallation) {
+        throw new Error("Installation store not configured");
+      }
+
+      await this.installer.installationStore.deleteInstallation({
+        teamId: projectId,
+        isEnterpriseInstall: false,
+        enterpriseId: undefined,
+      });
+
+      logger.info("Slack integration deleted for project", { projectId });
+    } catch (error) {
+      logger.error("Failed to delete Slack integration", { error, projectId });
+      throw new Error(
+        `Failed to delete integration: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Handle OAuth install path using InstallProvider
+   */
+  static async handleInstallPath(
+    req: NextApiRequest,
+    res: NextApiResponse,
+    projectId: string,
+  ) {
+    try {
+      // Use InstallProvider's handleInstallPath method to render the installation page
+      // This method will:
+      // 1. Generate the OAuth URL with proper state parameter
+      // 2. Set session cookies for state validation
+      // 3. Render the installation page with "Add to Slack" button
+      return await this.installer.handleInstallPath(req, res, undefined, {
+        scopes: ["channels:read", "chat:write", "chat:write.public"],
+        metadata: projectId,
+      } as InstallURLOptions);
+    } catch (error) {
+      logger.error("Install path handler failed", { error, projectId });
+      throw error;
+    }
+  }
+
+  /**
+   * Handle OAuth callback using InstallProvider
+   */
+  static async handleCallback(req: NextApiRequest, res: NextApiResponse) {
+    try {
+      return await this.installer.handleCallback(req, res, {
+        success: async (installation, installOptions) => {
+          const projectId = (installation as any)?.metadata as string;
+
+          if (!projectId) {
+            logger.error("No project ID found in installation", {
+              teamId: installation.team?.id,
+            });
+            res.redirect("/settings/slack?error=missing_project_id");
+            return;
+          }
+
+          logger.info("OAuth callback successful", {
+            projectId,
+            teamId: installation.team?.id,
+            teamName: installation.team?.name,
+          });
+
+          // Redirect to project-specific Slack settings page
+          const redirectUrl = `/project/${projectId}/settings/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
+          res.redirect(redirectUrl);
+        },
+
+        failure: async (error, installOptions) => {
+          logger.error("OAuth callback failed", { error: error.message });
+
+          // Redirect to generic Slack settings page with error
+          const redirectUrl = `/settings/slack?error=${encodeURIComponent(error.message)}`;
+          res.redirect(redirectUrl);
+        },
+      });
+    } catch (error) {
+      logger.error("OAuth callback handler failed", { error });
+
+      // Redirect to generic Slack settings page with error
+      res.redirect("/settings/slack?error=oauth_failed");
+    }
+  }
+
+  /**
+   * Get WebClient for a specific project
+   */
+  static async getWebClientForProject(projectId: string): Promise<WebClient> {
+    try {
+      // Use projectId as the teamId parameter (handled by our fetchInstallation)
+      const auth = await this.installer.authorize({
+        teamId: projectId,
+        isEnterpriseInstall: false,
+        enterpriseId: undefined,
+      });
+
+      if (!auth.botToken) {
+        throw new Error("No bot token found for project");
+      }
+
+      const client = new WebClient(auth.botToken);
+      logger.debug("Created WebClient for project", { projectId });
+
+      return client;
+    } catch (error) {
+      logger.error("Failed to create WebClient for project", {
+        error,
+        projectId,
+      });
+      throw new Error(
+        `Failed to create WebClient: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Get channels accessible to the bot
+   */
+  static async getChannels(client: WebClient): Promise<SlackChannel[]> {
+    try {
+      const result = await client.conversations.list({
+        exclude_archived: true,
+        types: "public_channel",
+        limit: 200,
+      });
+
+      if (!result.ok) {
+        throw new Error(`Slack API error: ${result.error}`);
+      }
+
+      const channels: SlackChannel[] = (result.channels || []).map(
+        (channel) => ({
+          id: channel.id!,
+          name: channel.name!,
+          isPrivate: channel.is_private || false,
+          isMember: channel.is_member || false,
+        }),
+      );
+
+      logger.debug("Retrieved channels from Slack", {
+        channelCount: channels.length,
+      });
+
+      return channels;
+    } catch (error) {
+      logger.error("Failed to fetch channels", { error });
+      throw new Error(
+        `Failed to fetch channels: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Send a message to a Slack channel
+   */
+  static async sendMessage(
+    params: SlackMessageParams,
+  ): Promise<SlackMessageResponse> {
+    try {
+      const result = await params.client.chat.postMessage({
+        channel: params.channelId,
+        blocks: params.blocks,
+        text: params.text || "Langfuse Notification",
+        unfurl_links: false,
+        unfurl_media: false,
+      });
+
+      if (!result.ok) {
+        throw new Error(`Failed to send message: ${result.error}`);
+      }
+
+      const response = {
+        messageTs: result.ts!,
+        channel: result.channel!,
+      };
+
+      logger.info("Message sent successfully to Slack", {
+        channel: params.channelId,
+        messageTs: response.messageTs,
+      });
+
+      return response;
+    } catch (error) {
+      logger.error("Failed to send message", {
+        error,
+        channelId: params.channelId,
+      });
+      throw new Error(
+        `Failed to send message: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Validate a WebClient instance
+   */
+  static async validateClient(client: WebClient): Promise<boolean> {
+    try {
+      const result = await client.auth.test();
+      return result.ok || false;
+    } catch (error) {
+      logger.warn("Client validation failed", { error });
+      return false;
+    }
+  }
+}
