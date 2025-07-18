@@ -70,6 +70,9 @@ export function ConversationsPage() {
     >
       <DataTable
         columns={conversationTableColumns}
+        onRowClick={(row) => {
+          router.push(`/project/${projectId}/conversations/${row.id}`);
+        }}
         data={
           sessions.isLoading
             ? { isLoading: true, isError: false }
