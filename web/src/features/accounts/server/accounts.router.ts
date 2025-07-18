@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import z from "zod";
 import { env } from "@/src/env.mjs";
 import * as crypto from "crypto";
+import { getTracesGroupedByAllowedUsers } from "@/src/features/accounts/server/queries";
 
 // todo add new protected procedure, only project djb-dev and only from users with Admin rights
 
@@ -16,24 +17,40 @@ export const accountsRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      const { data, error } = await supabase
+      // Fetch Supabase users as the "allowed list"
+      const { data: supabaseUsers, error: supabaseError } = await supabase
         .from("test_users")
         .select("username, id")
         .order("created_at", { ascending: false });
 
-      if (error) {
+      if (supabaseError) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: error.message,
+          message: supabaseError.message,
         });
       }
 
-      // TODO - add any langfuse user checks here
+      // Extract allowed usernames
+      const allowedUsernames = supabaseUsers.map((user) => user.username);
 
-      return data.map((user) => ({
-        ...user,
-        projectId: input.projectId, // adding projectId for convenience in table definitions
-      })) satisfies { username: string; projectId: string; id: string }[]; // todo consider loading supabase
+      // Fetch Langfuse users filtered by allowed usernames on the database side
+      const langfuseUsers = await getTracesGroupedByAllowedUsers(
+        input.projectId,
+        allowedUsernames,
+      );
+
+      // Transform Langfuse users to match the expected format
+      return langfuseUsers.map((user) => ({
+        username: user.user,
+        id: user.user, // using user ID as the ID
+        projectId: input.projectId,
+        totalTraces: BigInt(user.count),
+      })) satisfies {
+        username: string;
+        projectId: string;
+        id: string;
+        totalTraces: bigint;
+      }[];
     }),
   createUser: protectedProjectProcedure
     .input(
