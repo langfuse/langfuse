@@ -31,6 +31,8 @@ export const getFilteredSessions = async (props: {
       WHERE t.session_id IS NOT NULL 
         AND t.project_id = {projectId: String}
         AND t.user_id IN {allowedUserIds: Array(String)}
+        AND t.user_id IS NOT NULL
+        AND t.user_id != ''
         ORDER BY event_ts DESC
         LIMIT 1 BY id, project_id
     ),
@@ -43,6 +45,8 @@ export const getFilteredSessions = async (props: {
         WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
             AND t.user_id IN {allowedUserIds: Array(String)}
+            AND t.user_id IS NOT NULL
+            AND t.user_id != ''
         GROUP BY t.session_id
     )
     SELECT 
@@ -50,6 +54,8 @@ export const getFilteredSessions = async (props: {
         user_ids,
         min_timestamp
     FROM session_data s
+    WHERE length(user_ids) > 0
+    AND hasAny(user_ids, {allowedUserIds: Array(String)})
     ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
     ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;

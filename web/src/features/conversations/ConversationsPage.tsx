@@ -6,7 +6,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { withDefault } from "use-query-params";
-import { NumberParam, useQueryParams } from "use-query-params";
+import { NumberParam, StringParam, useQueryParams } from "use-query-params";
 
 export function ConversationsPage() {
   const router = useRouter();
@@ -18,6 +18,10 @@ export function ConversationsPage() {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const [queryParams] = useQueryParams({
+    accountId: StringParam,
+  });
+
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("sessions", "s");
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -27,7 +31,7 @@ export function ConversationsPage() {
 
   const payloadCount = {
     projectId,
-
+    accountId: queryParams.accountId || undefined,
     orderBy: null,
     page: 0,
     limit: 1,
