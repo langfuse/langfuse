@@ -97,48 +97,4 @@ export const conversationRouter = createTRPCRouter({
         });
       }
     }),
-
-  getTraceDetails: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        traceId: z.string(),
-        timestamp: z.date().optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      try {
-        const trace = await getTraceById({
-          traceId: input.traceId,
-          projectId: ctx.session.projectId,
-          timestamp: input.timestamp,
-        });
-
-        if (!trace) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found",
-          });
-        }
-
-        return {
-          id: trace.id,
-          name: trace.name,
-          timestamp: trace.timestamp,
-          input: trace.input ? JSON.stringify(trace.input) : null,
-          output: trace.output ? JSON.stringify(trace.output) : null,
-          userId: trace.userId,
-          metadata: trace.metadata ? JSON.stringify(trace.metadata) : null,
-          tags: trace.tags,
-          environment: trace.environment,
-          sessionId: trace.sessionId,
-        };
-      } catch (e) {
-        logger.error("Unable to call conversations.getTraceDetails", e);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Unable to get trace details",
-        });
-      }
-    }),
 });
