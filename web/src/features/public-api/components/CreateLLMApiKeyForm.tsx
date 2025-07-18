@@ -6,6 +6,7 @@ import {
   type VertexAIConfig,
   LLMAdapter,
   type LlmApiKeys,
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod/v4";
@@ -37,6 +38,8 @@ import { DialogFooter } from "@/src/components/ui/dialog";
 import { DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 
+const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
 const createFormSchema = (mode: "create" | "update") =>
   z
     .object({
@@ -65,11 +68,23 @@ const createFormSchema = (mode: "create" | "update") =>
       path: ["withDefaultModels"],
     })
     .refine(
-      (data) =>
-        data.adapter !== LLMAdapter.Bedrock ||
-        (data.awsAccessKeyId && data.awsSecretAccessKey && data.awsRegion),
+      (data) => {
+        if (data.adapter !== LLMAdapter.Bedrock) return true;
+
+        // For cloud deployments, AWS credentials are required
+        if (isLangfuseCloud) {
+          return (
+            data.awsAccessKeyId && data.awsSecretAccessKey && data.awsRegion
+          );
+        }
+
+        // For self-hosted deployments, only region is required
+        return data.awsRegion;
+      },
       {
-        message: "AWS credentials are required when using Bedrock adapter.",
+        message: isLangfuseCloud
+          ? "AWS credentials are required for Bedrock"
+          : "AWS region is required.",
         path: ["adapter"],
       },
     )
@@ -224,11 +239,19 @@ export function CreateLLMApiKeyForm({
     let config: BedrockConfig | VertexAIConfig | undefined;
 
     if (currentAdapter === LLMAdapter.Bedrock) {
-      const credentials: BedrockCredential = {
-        accessKeyId: values.awsAccessKeyId ?? "",
-        secretAccessKey: values.awsSecretAccessKey ?? "",
-      };
-      secretKey = JSON.stringify(credentials);
+      // For self-hosted deployments, allow empty credentials to use default provider chain
+      if (
+        !isLangfuseCloud &&
+        (!values.awsAccessKeyId || !values.awsSecretAccessKey)
+      ) {
+        secretKey = BEDROCK_USE_DEFAULT_CREDENTIALS;
+      } else {
+        const credentials: BedrockCredential = {
+          accessKeyId: values.awsAccessKeyId ?? "",
+          secretAccessKey: values.awsSecretAccessKey ?? "",
+        };
+        secretKey = JSON.stringify(credentials);
+      }
 
       config = {
         region: values.awsRegion ?? "",
@@ -428,10 +451,19 @@ export function CreateLLMApiKeyForm({
                 name="awsAccessKeyId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>AWS Access Key ID</FormLabel>
+                    <FormLabel>
+                      AWS Access Key ID
+                      {!isLangfuseCloud && (
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          (optional)
+                        </span>
+                      )}
+                    </FormLabel>
                     <FormDescription>
-                      These should be long-lived credentials for an AWS user
-                      with `bedrock:InvokeModel` permission.
+                      {isLangfuseCloud
+                        ? "These should be long-lived credentials for an AWS user with `bedrock:InvokeModel` permission."
+                        : "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain."}
                     </FormDescription>
                     <FormControl>
                       <Input {...field} />
@@ -445,7 +477,15 @@ export function CreateLLMApiKeyForm({
                 name="awsSecretAccessKey"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>AWS Secret Access Key</FormLabel>
+                    <FormLabel>
+                      AWS Secret Access Key
+                      {!isLangfuseCloud && (
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          (optional)
+                        </span>
+                      )}
+                    </FormLabel>
                     <FormControl>
                       <PasswordInput {...field} />
                     </FormControl>
@@ -453,6 +493,34 @@ export function CreateLLMApiKeyForm({
                   </FormItem>
                 )}
               />
+              {!isLangfuseCloud && (
+                <div className="space-y-2 border-l-2 border-blue-200 pl-4 text-sm text-muted-foreground">
+                  <p>
+                    <strong>Default credential provider chain:</strong> When AWS
+                    credentials are omitted, the system will automatically check
+                    for credentials in this order:
+                  </p>
+                  <ul className="ml-2 list-inside list-disc space-y-1">
+                    <li>
+                      Environment variables (AWS_ACCESS_KEY_ID,
+                      AWS_SECRET_ACCESS_KEY)
+                    </li>
+                    <li>AWS credentials file (~/.aws/credentials)</li>
+                    <li>IAM roles for EC2 instances</li>
+                    <li>IAM roles for ECS tasks</li>
+                  </ul>
+                  <p>
+                    <a
+                      href="https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/setting-credentials-node.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline hover:text-blue-800"
+                    >
+                      Learn more about AWS credential providers →
+                    </a>
+                  </p>
+                </div>
+              )}
             </>
           ) : (
             <FormField
@@ -462,7 +530,7 @@ export function CreateLLMApiKeyForm({
                 <FormItem>
                   <FormLabel>API Key</FormLabel>
                   <FormDescription>
-                    {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+                    {isLangfuseCloud
                       ? "Your API keys are stored encrypted on our servers."
                       : "Your API keys are stored encrypted in your database."}
                   </FormDescription>
@@ -537,10 +605,7 @@ export function CreateLLMApiKeyForm({
                   <FormDescription>
                     Optional additional HTTP headers to include with requests
                     towards LLM provider. All header values stored encrypted{" "}
-                    {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-                      ? "on our servers"
-                      : "in your database"}
-                    .
+                    {isLangfuseCloud ? "on our servers" : "in your database"}.
                   </FormDescription>
 
                   {headerFields.map((header, index) => (
