@@ -1,29 +1,19 @@
 name: Snyk Container
 on:
-  pull_request:
-    branches:
-      - "**"
   push:
     branches:
-      - main
-  # Snyk cannot upload results in merge group. Hence, we only run on PRs and when pushingon the main branch https://github.com/github/codeql-action/issues/1572
+      - "**"
+  # Snyk cannot upload results in merge group. Hence, we only run when pushing https://github.com/github/codeql-action/issues/1572
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   snyk:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Build a Docker image
-        run: docker compose -f docker-compose.build.yml up -d
-
-      - name: Tag images for Snyk
-        run: |
-          docker tag $(docker compose -f docker-compose.build.yml images -q langfuse-web)   langfuse-langfuse-web
-          docker tag $(docker compose -f docker-compose.build.yml images -q langfuse-worker) langfuse-langfuse-worker
 
       - name: Run Snyk to check Docker image for vulnerabilities (langfuse-web)
         continue-on-error: true
@@ -31,7 +21,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse-langfuse-web
+          image: langfuse/langfuse
           args: --file=web/Dockerfile
 
       # Workaround for https://github.com/github/codeql-action/issues/2187
@@ -53,7 +43,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse-langfuse-worker
+          image: langfuse/langfuse-worker
           args: --file=worker/Dockerfile
 
       # Workaround for https://github.com/github/codeql-action/issues/2187
