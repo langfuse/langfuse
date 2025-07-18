@@ -114,7 +114,7 @@ export const MULTI_WINDOW_CONFIG = {
   /** Maximum number of windows allowed */
   MAX_WINDOWS: 10,
   /** Minimum window width in pixels */
-  MIN_WINDOW_WIDTH: 320,
+  MIN_WINDOW_WIDTH: 400,
   /** Default window ID for single-window mode */
   DEFAULT_WINDOW_ID: "default",
 } as const;

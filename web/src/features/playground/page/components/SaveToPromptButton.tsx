@@ -1,4 +1,4 @@
-import { Check, FileInput } from "lucide-react";
+import { Check, Save } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState } from "react";
 
@@ -92,7 +92,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
           className={cn("h-6 w-6 p-0 hover:bg-muted", className)}
           title="Save current configuration as a prompt template for reuse across your project"
         >
-          <FileInput size={14} />
+          <Save size={14} />
           <span className="sr-only">Save as prompt</span>
         </Button>
       </PopoverTrigger>
