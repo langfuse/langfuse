@@ -2,7 +2,7 @@ name: Snyk Container
 on:
   push:
     branches:
-      - "**"
+      - "main"
   # Snyk cannot upload results in merge group. Hence, we only run when pushing https://github.com/github/codeql-action/issues/1572
 
 concurrency:
