@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { jsonSchema, jsonSchemaNullable } from "../utils/zod";
+import { jsonSchema } from "../utils/zod";
 import { MetadataDomain } from "./traces";
 
 export const DatasetRunItemSchema = z.object({
