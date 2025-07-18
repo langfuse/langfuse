@@ -53,10 +53,7 @@ import {
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
-import {
-  callStructuredLLM,
-  compileHandlebarString,
-} from "../../features/utilities";
+import { callStructuredLLM, compileHandlebarString } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 

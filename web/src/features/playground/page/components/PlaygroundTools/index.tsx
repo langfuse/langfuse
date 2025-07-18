@@ -258,7 +258,7 @@ export const PlaygroundTools = () => {
                     </div>
                   </div>
                   <p
-                    className="line-clamp-2 text-xs text-muted-foreground"
+                    className="line-clamp-2 break-all text-xs text-muted-foreground"
                     title={tool.description}
                   >
                     {tool.description}
