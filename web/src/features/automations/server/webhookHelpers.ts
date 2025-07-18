@@ -85,6 +85,7 @@ export async function processWebhookActionConfig({
  */
 function processWebhookHeaders(
   actionConfig: ActionCreate,
+  existingAction: { config: WebhookActionConfigWithSecrets } | undefined,
   existingConfig: WebhookActionConfigWithSecrets | undefined,
 ): ActionConfig {
   // Get existing headers for comparison
@@ -104,38 +105,50 @@ function processWebhookHeaders(
     { secret: boolean; value: string }
   > = {};
 
-  // Process each header from input
-  for (const [key, headerObj] of Object.entries(inputRequestHeaders)) {
-    const existingHeader = mergedExistingHeaders[key];
-
-    // Validate secret toggle: can only change secret status when providing a value
-    if (headerObj.secret && headerObj.value.trim() === "" && !existingHeader) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `Header "${key}" cannot be made secret without providing a value`,
-      });
-    }
-
-    // If changing secret status, ensure a value is provided
-    if (
-      existingHeader &&
-      headerObj.secret !== existingHeader.secret &&
-      headerObj.value.trim() === ""
-    ) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `Header "${key}" secret status can only be changed when providing a value`,
-      });
-    }
-
-    // If value is empty, preserve existing value if it exists
-    if (headerObj.value.trim() === "" && existingHeader) {
-      finalRequestHeaders[key] = existingHeader;
-    } else if (headerObj.value.trim() !== "") {
-      // Only process non-empty values
+  // If no headers are provided in input, preserve all existing headers
+  // This allows URL-only updates without requiring all headers to be resent
+  if (Object.keys(inputRequestHeaders).length === 0) {
+    for (const [key, headerObj] of Object.entries(mergedExistingHeaders)) {
       finalRequestHeaders[key] = headerObj;
     }
-    // If value is empty and no existing header, skip it (effectively removing it)
+  } else {
+    // Process each header from input
+    for (const [key, headerObj] of Object.entries(inputRequestHeaders)) {
+      const existingHeader = mergedExistingHeaders[key];
+
+      // Validate secret toggle: can only change secret status when providing a value
+      if (
+        headerObj.secret &&
+        headerObj.value.trim() === "" &&
+        !existingHeader
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Header "${key}" cannot be made secret without providing a value`,
+        });
+      }
+
+      // If changing secret status, ensure a value is provided
+      if (
+        existingHeader &&
+        headerObj.secret !== existingHeader.secret &&
+        headerObj.value.trim() === ""
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Header "${key}" secret status can only be changed when providing a value`,
+        });
+      }
+
+      // If value is empty, preserve existing value if it exists
+      if (headerObj.value.trim() === "" && existingHeader) {
+        finalRequestHeaders[key] = existingHeader;
+      } else if (headerObj.value.trim() !== "") {
+        // Only process non-empty values
+        finalRequestHeaders[key] = headerObj;
+      }
+      // If value is empty and no existing header, skip it (effectively removing it)
+    }
   }
 
   return {
