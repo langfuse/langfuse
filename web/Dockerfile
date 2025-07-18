@@ -84,7 +84,6 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
-ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING 1
 
 RUN NODE_OPTIONS='--max-old-space-size=8192' turbo run build --filter=web...
 
