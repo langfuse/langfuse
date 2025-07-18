@@ -238,6 +238,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         setRowHeight={setRowHeight}
       />
       <DataTable
+        tableName={"annotationQueues"}
         columns={columns}
         data={
           queues.isLoading

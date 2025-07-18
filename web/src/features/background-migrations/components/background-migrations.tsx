@@ -87,6 +87,7 @@ export default function BackgroundMigrationsTable() {
       <Header title="Background Migrations" />
       <DataTableToolbar columns={columns} />
       <DataTable
+        tableName={"backgroundMigrations"}
         columns={columns}
         data={
           backgroundMigrations.isLoading

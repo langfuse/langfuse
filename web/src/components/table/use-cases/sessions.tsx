@@ -590,6 +590,7 @@ export default function SessionsTable({
         }}
       />
       <DataTable
+        tableName={"sessions"}
         columns={columns}
         data={
           sessions.isLoading || isViewLoading

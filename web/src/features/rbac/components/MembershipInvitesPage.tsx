@@ -210,6 +210,7 @@ export function MembershipInvitesPage({
       <Header title="Membership Invites" />
       <DataTableToolbar columns={columns} />
       <DataTable
+        tableName={"membershipInvites"}
         columns={columns}
         data={
           invites.isLoading

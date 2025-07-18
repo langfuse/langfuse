@@ -1207,6 +1207,7 @@ export default function TracesTable({
         rowHeight={rowHeight}
         pinFirstColumn={!hideControls}
         peekView={peekConfig}
+        tableName={"traces"}
       />
     </>
   );

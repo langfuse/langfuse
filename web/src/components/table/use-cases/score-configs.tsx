@@ -254,6 +254,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       />
       <SettingsTableCard>
         <DataTable
+          tableName={"scoreConfigs"}
           columns={columns}
           data={
             configs.isLoading

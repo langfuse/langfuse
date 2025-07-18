@@ -282,6 +282,7 @@ export function DatasetsTable(props: { projectId: string }) {
         }}
       />
       <DataTable
+        tableName={"datasets"}
         columns={columns}
         data={
           datasets.isLoading || isViewLoading
