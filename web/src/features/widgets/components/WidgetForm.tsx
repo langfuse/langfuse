@@ -50,6 +50,7 @@ import {
   Table,
   Plus,
   X,
+  Sparkles,
 } from "lucide-react";
 import {
   buildWidgetName,
@@ -60,6 +61,8 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
+import { AiWidgetAssistantDialog } from "@/src/features/widgets/components/AiWidgetAssistantDialog";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -192,6 +195,61 @@ export function WidgetForm({
   // Disables further auto-updates once the user edits name or description
   const [autoLocked, setAutoLocked] = useState<boolean>(isExistingWidget);
 
+  const metricMapper = (metric: {
+    measure: string;
+    agg: z.infer<typeof metricAggregations> | string;
+  }) => ({
+    id: `${metric.agg}_${metric.measure}`,
+    measure: metric.measure,
+    aggregation: metric.agg as z.infer<typeof metricAggregations>,
+    label: `${startCase(metric.agg)} ${startCase(metric.measure)}`,
+  });
+
+  // AI Assistant state
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const hasAiEntitlement = useHasEntitlement("ai");
+
+  // AI widget generation mutation
+  const generateWidgetMutation =
+    api.dashboard.generateWidgetConfiguration.useMutation({
+      onSuccess: (data) => {
+        // Update form state with AI generated configuration
+        setWidgetName(data.name);
+        setWidgetDescription(data.description || "");
+        setSelectedView(data.view as z.infer<typeof views>);
+        setSelectedChartType(data.chartType);
+
+        // Set metrics/dimensions based on chart type
+        if (data.chartType === "PIVOT_TABLE") {
+          setSelectedMetrics(data.metrics.map(metricMapper) || []);
+          setPivotDimensions(data.dimensions?.map((d) => d.field) || []);
+        } else {
+          if (data.metrics && data.metrics.length > 0) {
+            setSelectedMeasure(data.metrics[0].measure);
+            setSelectedAggregation(
+              data.metrics[0].agg as z.infer<typeof metricAggregations>,
+            );
+          }
+          if (data.dimensions && data.dimensions.length > 0) {
+            setSelectedDimension(data.dimensions[0].field);
+          }
+        }
+
+        setAutoLocked(true); // Prevent auto-updates after AI generation
+        setAiDialogOpen(false);
+      },
+      onError: (error) => {
+        showErrorToast("Failed to generate widget", error.message);
+      },
+    });
+
+  const handleAiGenerate = (description: string) => {
+    generateWidgetMutation.mutate({
+      projectId,
+      description,
+    });
+  };
+
   const [selectedView, setSelectedView] = useState<z.infer<typeof views>>(
     initialValues.view,
   );
@@ -208,20 +266,13 @@ export function WidgetForm({
   const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetric[]>(
     initialValues.chartType === "PIVOT_TABLE" && initialValues.metrics?.length
       ? // Initialize from complete metrics data (editing mode)
-        initialValues.metrics.map((metric) => ({
-          id: `${metric.agg}_${metric.measure}`,
-          measure: metric.measure,
-          aggregation: metric.agg as z.infer<typeof metricAggregations>,
-          label: `${startCase(metric.agg)} ${startCase(metric.measure)}`,
-        }))
+        initialValues.metrics.map(metricMapper)
       : // Default to single metric (new widget)
         [
-          {
-            id: `${initialValues.aggregation}_${initialValues.measure}`,
+          metricMapper({
+            agg: initialValues.aggregation,
             measure: initialValues.measure,
-            aggregation: initialValues.aggregation,
-            label: `${startCase(initialValues.aggregation)} ${startCase(initialValues.measure)}`,
-          },
+          }),
         ],
   );
 
@@ -1539,12 +1590,37 @@ export function WidgetForm({
             </div>
           </CardContent>
           <CardFooter className="mt-auto">
-            <Button className="w-full" size="lg" onClick={handleSaveWidget}>
-              Save Widget
-            </Button>
+            <div className="flex w-full gap-2">
+              {hasAiEntitlement && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => setAiDialogOpen(true)}
+                  className="flex-1"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  AI Assistant
+                </Button>
+              )}
+              <Button
+                className={hasAiEntitlement ? "flex-1" : "w-full"}
+                size="lg"
+                onClick={handleSaveWidget}
+              >
+                Save Widget
+              </Button>
+            </div>
           </CardFooter>
         </Card>
       </div>
+
+      {/* AI Assistant Dialog */}
+      <AiWidgetAssistantDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        onGenerate={handleAiGenerate}
+        isGenerating={generateWidgetMutation.isLoading}
+      />
 
       {/* Right column - Chart */}
       <div className="w-2/3">

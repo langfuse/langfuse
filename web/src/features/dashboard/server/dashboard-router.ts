@@ -33,6 +33,7 @@ import {
   StringNoHTML,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { generateWidgetConfiguration } from "@/src/ee/features/ai/widget-builder/generateWidgetConfiguration";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -316,6 +317,42 @@ export const dashboardRouter = createTRPCRouter({
       );
 
       return { success: true };
+    }),
+
+  // Generate AI widget configuration
+  generateWidgetConfiguration: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        description: z.string().min(1, "Description is required"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      try {
+        const widgetConfig = await generateWidgetConfiguration({
+          projectId: input.projectId,
+          description: input.description,
+          sessionUser: ctx.session.user,
+        });
+
+        return widgetConfig;
+      } catch (error) {
+        logger.error("Error generating widget configuration", error, {
+          projectId: input.projectId,
+          description: input.description,
+        });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to generate widget configuration",
+          cause: error,
+        });
+      }
     }),
 });
 
