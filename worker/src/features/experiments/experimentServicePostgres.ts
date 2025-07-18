@@ -1,26 +1,14 @@
 import { z } from "zod/v4";
 import {
-  LLMApiKeySchema,
   logger,
-  ExperimentMetadataSchema,
-  PromptContentSchema,
   DatasetRunItemUpsertQueue,
   type ChatMessage,
   PROMPT_EXPERIMENT_ENVIRONMENT,
   TraceParams,
-  extractPlaceholderNames,
-  type PromptMessage,
 } from "@langfuse/shared/src/server";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { type ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
-import {
-  extractVariables,
-  InvalidRequestError,
-  LangfuseNotFoundError,
-  type Prisma,
-  PromptType,
-  QUEUE_ERROR_MESSAGES,
-} from "@langfuse/shared";
+import { InvalidRequestError, type Prisma } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utils";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
@@ -28,10 +16,9 @@ import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 import { DatasetStatus } from "../../../../packages/shared/dist/prisma/generated/types";
 import {
-  fetchDatasetRun,
-  fetchPrompt,
   parseDatasetItemInput,
   replaceVariablesInPrompt,
+  validateAndSetupExperiment,
   validateDatasetItem,
 } from "./utils";
 
@@ -47,55 +34,12 @@ export const createExperimentJobPostgres = async ({
    * INPUT VALIDATION *
    ********************/
 
-  const datasetRun = await fetchDatasetRun(runId, projectId);
-  if (!datasetRun) {
-    throw new LangfuseNotFoundError(`Dataset run ${runId} not found`);
-  }
+  const experimentConfig = await validateAndSetupExperiment(event);
 
-  const validatedRunMetadata = ExperimentMetadataSchema.safeParse(
-    datasetRun.metadata,
-  );
-  if (!validatedRunMetadata.success) {
-    throw new InvalidRequestError(
-      "Langfuse in-app experiments can only be run with prompt and model configurations in metadata.",
-    );
-  }
+  /********************
+   * FETCH DATASET ITEMS *
+   ********************/
 
-  const { prompt_id, provider, model, model_params } =
-    validatedRunMetadata.data;
-  const prompt = await fetchPrompt(prompt_id, projectId);
-
-  if (!prompt) {
-    throw new LangfuseNotFoundError(`Prompt ${prompt_id} not found`);
-  }
-
-  const validatedPrompt = PromptContentSchema.safeParse(prompt.prompt);
-  if (!validatedPrompt.success) {
-    throw new InvalidRequestError(
-      `Prompt ${prompt_id} not found in expected format`,
-    );
-  }
-
-  // fetch and validate API key
-  const apiKey = await prisma.llmApiKeys.findFirst({
-    where: {
-      projectId: event.projectId,
-      provider,
-    },
-  });
-  if (!apiKey) {
-    throw new LangfuseNotFoundError(
-      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found`,
-    );
-  }
-  const validatedApiKey = LLMApiKeySchema.safeParse(apiKey);
-  if (!validatedApiKey.success) {
-    throw new InvalidRequestError(
-      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found.`,
-    );
-  }
-
-  // fetch dataset items
   const datasetItems = await prisma.datasetItem.findMany({
     where: {
       datasetId,
@@ -107,28 +51,16 @@ export const createExperimentJobPostgres = async ({
     },
   });
 
-  // extract variables from prompt
-  const extractedVariables = extractVariables(
-    prompt?.type === PromptType.Text
-      ? (prompt.prompt?.toString() ?? "")
-      : JSON.stringify(prompt.prompt),
-  );
-
-  // also extract placeholder names if prompt is a chat prompt
-  const placeholderNames =
-    prompt?.type === PromptType.Chat && Array.isArray(validatedPrompt.data)
-      ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
-      : [];
-  const allVariables = [...extractedVariables, ...placeholderNames];
-
   // validate dataset items against prompt configuration
   const validatedDatasetItems = datasetItems
-    .filter(({ input }) => validateDatasetItem(input, allVariables))
+    .filter(({ input }) =>
+      validateDatasetItem(input, experimentConfig.allVariables),
+    )
     .map((datasetItem) => ({
       ...datasetItem,
       input: parseDatasetItemInput(
         datasetItem.input as Prisma.JsonObject, // this is safe because we already filtered for valid input
-        allVariables,
+        experimentConfig.allVariables,
       ),
     }));
 
@@ -166,10 +98,10 @@ export const createExperimentJobPostgres = async ({
     let messages: ChatMessage[] = [];
     try {
       messages = replaceVariablesInPrompt(
-        validatedPrompt.data,
+        experimentConfig.validatedPrompt,
         datasetItem.input, // validated format
-        allVariables,
-        placeholderNames,
+        experimentConfig.allVariables,
+        experimentConfig.placeholderNames,
       );
     } catch (error) {
       // skip this dataset item if there is an error replacing variables
@@ -216,11 +148,11 @@ export const createExperimentJobPostgres = async ({
     await backOff(
       async () =>
         await callLLM(
-          validatedApiKey.data,
+          experimentConfig.validatedApiKey,
           messages,
-          model_params,
-          provider,
-          model,
+          experimentConfig.model_params,
+          experimentConfig.provider,
+          experimentConfig.model,
           traceParams,
         ),
       {

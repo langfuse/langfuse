@@ -4,6 +4,10 @@ import {
   ChatMessageType,
   compileChatMessages,
   datasetItemMatchesVariable,
+  extractPlaceholderNames,
+  extractVariables,
+  InvalidRequestError,
+  LangfuseNotFoundError,
   MessagePlaceholderValues,
   Prisma,
   PromptContent,
@@ -15,8 +19,13 @@ import {
   PromptService,
   type PromptMessage,
   redis,
+  ExperimentCreateEventSchema,
+  ExperimentMetadataSchema,
+  LLMApiKeySchema,
+  PromptContentSchema,
 } from "@langfuse/shared/src/server";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import z from "zod/v4";
 
 const isValidPrismaJsonObject = (
   input: Prisma.JsonValue,
@@ -171,3 +180,88 @@ export const replaceVariablesInPrompt = (
     type: ChatMessageType.PublicAPICreated as const,
   }));
 };
+
+export async function validateAndSetupExperiment(
+  event: z.infer<typeof ExperimentCreateEventSchema>,
+) {
+  const { datasetId, projectId, runId } = event;
+
+  // Validate dataset run exists
+  const datasetRun = await fetchDatasetRun(runId, projectId);
+
+  if (!datasetRun) {
+    throw new LangfuseNotFoundError(`Dataset run ${runId} not found`);
+  }
+
+  // Validate experiment metadata
+  const validatedRunMetadata = ExperimentMetadataSchema.safeParse(
+    datasetRun.metadata,
+  );
+  if (!validatedRunMetadata.success) {
+    throw new InvalidRequestError(
+      "Langfuse in-app experiments can only be run with prompt and model configurations in metadata.",
+    );
+  }
+
+  const { prompt_id, provider, model, model_params } =
+    validatedRunMetadata.data;
+
+  // Fetch and validate prompt
+  const prompt = await fetchPrompt(prompt_id, projectId);
+  if (!prompt) {
+    throw new LangfuseNotFoundError(`Prompt ${prompt_id} not found`);
+  }
+
+  const validatedPrompt = PromptContentSchema.safeParse(prompt.prompt);
+  if (!validatedPrompt.success) {
+    throw new InvalidRequestError(
+      `Prompt ${prompt_id} not found in expected format`,
+    );
+  }
+
+  // Fetch and validate API key
+  const apiKey = await prisma.llmApiKeys.findFirst({
+    where: { projectId, provider },
+  });
+  if (!apiKey) {
+    throw new LangfuseNotFoundError(
+      `API key for provider ${provider} not found`,
+    );
+  }
+
+  const validatedApiKey = LLMApiKeySchema.safeParse(apiKey);
+  if (!validatedApiKey.success) {
+    throw new InvalidRequestError(
+      `API key for provider ${provider} not found.`,
+    );
+  }
+
+  // Extract variables from prompt
+  const extractedVariables = extractVariables(
+    prompt?.type === "text"
+      ? (prompt.prompt?.toString() ?? "")
+      : JSON.stringify(prompt.prompt),
+  );
+
+  const placeholderNames =
+    prompt?.type !== "text" && Array.isArray(validatedPrompt.data)
+      ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
+      : [];
+
+  const allVariables = [...extractedVariables, ...placeholderNames];
+
+  return {
+    datasetRun,
+    prompt,
+    validatedPrompt: validatedPrompt.data,
+    validatedApiKey: validatedApiKey.data,
+    provider,
+    model,
+    model_params,
+    allVariables,
+    placeholderNames,
+    projectId,
+    datasetId,
+    runId,
+  };
+}

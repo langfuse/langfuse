@@ -139,7 +139,7 @@ export default withMiddlewares({
               id: v4(),
               traceId: traceId,
               observationId: observationId,
-              error: null, // TODO: allow ingestion of error
+              error: null,
               input: datasetItem.input,
               expectedOutput: datasetItem.expectedOutput,
               createdAt: createdAt.toISOString(),
