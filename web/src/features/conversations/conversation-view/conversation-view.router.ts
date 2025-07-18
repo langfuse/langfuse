@@ -1,19 +1,144 @@
+import { z } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  getTraceById,
+  getTracesIdentifierForSession,
+  logger,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
+export type ConversationTraceMessage = {
+  id: string;
+  name: string | null;
+  timestamp: Date;
+  input: string | null;
+  output: string | null;
+  userId: string | null;
+  metadata: string | null;
+  tags: string[];
+  environment: string | null;
+};
+
 export const conversationRouter = createTRPCRouter({
-  all: protectedProjectProcedure.query(async ({ input, ctx }) => {
-    try {
-    } catch (e) {
-      logger.error("Unable to call sessions.all", e);
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "unable to get sessions",
-      });
-    }
-  }),
+  getSessionTraces: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        // Get trace identifiers for the session from ClickHouse
+        const traceIdentifiers = await getTracesIdentifierForSession(
+          ctx.session.projectId,
+          input.sessionId,
+        );
+
+        // Fetch detailed data for each trace from ClickHouse
+        const conversationTraces: (ConversationTraceMessage | null)[] =
+          await Promise.all(
+            traceIdentifiers.map(async (traceId) => {
+              try {
+                const detailedTrace = await getTraceById({
+                  traceId: traceId.id,
+                  projectId: ctx.session.projectId,
+                  timestamp: traceId.timestamp,
+                });
+
+                if (!detailedTrace) {
+                  return null;
+                }
+
+                return {
+                  id: detailedTrace.id,
+                  name: detailedTrace.name,
+                  timestamp: detailedTrace.timestamp,
+                  input: detailedTrace.input
+                    ? JSON.stringify(detailedTrace.input)
+                    : null,
+                  output: detailedTrace.output
+                    ? JSON.stringify(detailedTrace.output)
+                    : null,
+                  userId: detailedTrace.userId,
+                  metadata: detailedTrace.metadata
+                    ? JSON.stringify(detailedTrace.metadata)
+                    : null,
+                  tags: detailedTrace.tags,
+                  environment: detailedTrace.environment,
+                };
+              } catch (error) {
+                logger.warn(
+                  `Failed to fetch detailed trace data for ${traceId.id}`,
+                  error,
+                );
+                return null;
+              }
+            }),
+          );
+
+        // Filter out null values and sort by timestamp
+        const validTraces = conversationTraces
+          .filter((trace): trace is ConversationTraceMessage => trace !== null)
+          .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+        return {
+          traces: validTraces,
+          totalCount: validTraces.length,
+        };
+      } catch (e) {
+        logger.error("Unable to call conversations.getSessionTraces", e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to get session traces",
+        });
+      }
+    }),
+
+  getTraceDetails: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        timestamp: z.date().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const trace = await getTraceById({
+          traceId: input.traceId,
+          projectId: ctx.session.projectId,
+          timestamp: input.timestamp,
+        });
+
+        if (!trace) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found",
+          });
+        }
+
+        return {
+          id: trace.id,
+          name: trace.name,
+          timestamp: trace.timestamp,
+          input: trace.input ? JSON.stringify(trace.input) : null,
+          output: trace.output ? JSON.stringify(trace.output) : null,
+          userId: trace.userId,
+          metadata: trace.metadata ? JSON.stringify(trace.metadata) : null,
+          tags: trace.tags,
+          environment: trace.environment,
+          sessionId: trace.sessionId,
+        };
+      } catch (e) {
+        logger.error("Unable to call conversations.getTraceDetails", e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to get trace details",
+        });
+      }
+    }),
 });
