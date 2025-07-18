@@ -179,6 +179,7 @@ export function getDorisProjectIdDefaultFilter(
         field: "project_id",
         operator: "=",
         value: projectId,
+        tablePrefix: "s",
       }),
     ]),
     observationsFilter: new FilterList([

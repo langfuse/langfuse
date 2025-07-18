@@ -1,17 +1,16 @@
-#!/bin/bash
+#!/bin/sh
 
 # Load environment variables
 [ -f ../../.env ] && source ../../.env
 
-# Check if DORIS_URL is configured
-if [ -z "${DORIS_URL}" ]; then
-  echo "Info: DORIS_URL not configured, skipping migration."
+# Check if DORIS_FE_HTTP_URL and DORIS_FE_QUERY_PORT are configured
+if [ -z "${DORIS_FE_HTTP_URL}" ] || [ -z "${DORIS_FE_QUERY_PORT}" ]; then
+  echo "Info: DORIS_FE_HTTP_URL or DORIS_FE_QUERY_PORT not configured, skipping migration."
   exit 0
 fi
 
 # Check if mysql client is installed (Doris uses MySQL protocol)
-if ! command -v mysql &> /dev/null
-then
+if ! command -v mysql > /dev/null 2>&1; then
     echo "Error: mysql client is not installed or not in PATH."
     echo "Please install mysql client to run this script."
     exit 1
@@ -27,27 +26,18 @@ if [ -z "${DORIS_USER}" ]; then
     export DORIS_USER="root"
 fi
 
-# Parse DORIS_URL to extract host and port
-# Expected format: http://host:port or https://host:port or just host:port
-if [[ $DORIS_URL =~ ^https?://([^:]+):([0-9]+) ]]; then
-    # Format: http://host:port or https://host:port
-    DORIS_HOST="${BASH_REMATCH[1]}"
-    DORIS_PORT="${BASH_REMATCH[2]}"
-elif [[ $DORIS_URL =~ ^https?://([^:/]+) ]]; then
-    # Format: http://host or https://host (no port)
-    DORIS_HOST="${BASH_REMATCH[1]}"
-    DORIS_PORT="9030"
-elif [[ $DORIS_URL =~ ^([^:]+):([0-9]+)$ ]]; then
-    # Format: host:port
-    DORIS_HOST="${BASH_REMATCH[1]}"
-    DORIS_PORT="${BASH_REMATCH[2]}"
-else
-    # Format: just host
-    DORIS_HOST="$DORIS_URL"
-    DORIS_PORT="9030"
-fi
+# Parse DORIS_FE_HTTP_URL to extract host using POSIX-compatible method
+# Remove protocol (http:// or https://)
+url_without_protocol=$(echo "${DORIS_FE_HTTP_URL}" | sed 's|^http://||' | sed 's|^https://||')
+
+# Extract host (everything before the first colon or slash)
+DORIS_HOST=$(echo "${url_without_protocol}" | sed 's|[:/].*||')
+
+# Use DORIS_FE_QUERY_PORT for MySQL protocol connections
+DORIS_PORT="${DORIS_FE_QUERY_PORT}"
 
 echo "Connecting to Doris at ${DORIS_HOST}:${DORIS_PORT} with database ${DORIS_DB}"
+echo "Debug: DORIS_USER=${DORIS_USER}, DORIS_PASSWORD=${DORIS_PASSWORD}"
 
 # Create database if it doesn't exist
 echo "Creating database ${DORIS_DB} if not exists..."
@@ -98,20 +88,20 @@ echo "Executing migrations from ${MIGRATION_DIR}..."
 for migration_file in $(ls ${MIGRATION_DIR}/*.up.sql | sort); do
     # Extract version from filename (e.g., 0001_traces.up.sql -> 0001_traces)
     version=$(basename "${migration_file}" .up.sql)
-    
+
     echo "Processing migration: ${version}"
-    
+
     # Check if migration is already applied
     if is_migration_applied "${version}"; then
         echo "  Migration ${version} already applied, skipping..."
         continue
     fi
-    
+
     echo "  Applying migration ${version}..."
-    
+
     # Execute the migration
     mysql -h"${DORIS_HOST}" -P"${DORIS_PORT}" -u"${DORIS_USER}" -p"${DORIS_PASSWORD}" "${DORIS_DB}" < "${migration_file}"
-    
+
     if [ $? -eq 0 ]; then
         # Mark migration as applied
         mark_migration_applied "${version}"

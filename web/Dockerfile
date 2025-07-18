@@ -108,7 +108,7 @@ ENV DOCKER_BUILD 0
 # Set NEXT_MANUAL_SIG_HANDLE for runtime
 ENV NEXT_MANUAL_SIG_HANDLE true
 
-RUN apk add --no-cache dumb-init tzdata
+RUN apk add --no-cache dumb-init tzdata mysql-client
 
 # Don't run production as root
 ARG UID=1001
@@ -139,6 +139,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/clickhouse ./packages/shared/clickhouse
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/doris ./packages/shared/doris
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 COPY --chown=nextjs:nodejs ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql

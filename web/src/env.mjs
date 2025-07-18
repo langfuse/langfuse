@@ -173,6 +173,20 @@ export const env = createEnv({
     CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
 
+    // Analytics backend selection
+    LANGFUSE_ANALYTICS_BACKEND: z.enum(["clickhouse", "doris"]).default("clickhouse"),
+
+    // doris
+    DORIS_URL: z.string().optional().optional(),
+    DORIS_FE_HTTP_URL: z.string().url().optional(),
+    DORIS_FE_QUERY_PORT: z.coerce.number().positive().default(9030).optional(),
+    DORIS_DB: z.string().default("langfuse").optional(),
+    DORIS_USER: z.string().optional(),
+    DORIS_PASSWORD: z.string().optional(),
+    DORIS_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25).optional(),
+    DORIS_REQUEST_TIMEOUT_MS: z.coerce.number().default(30000).optional(),
+    LANGFUSE_AUTO_DORIS_MIGRATION_DISABLED: z.enum(["true", "false"]).default("false"),
+
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
     LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
@@ -486,6 +500,18 @@ export const env = createEnv({
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
+    // Analytics backend
+    LANGFUSE_ANALYTICS_BACKEND: process.env.LANGFUSE_ANALYTICS_BACKEND,
+    // doris
+    DORIS_MAX_OPEN_CONNECTIONS: process.env.DORIS_MAX_OPEN_CONNECTIONS,
+    DORIS_REQUEST_TIMEOUT_MS: process.env.DORIS_REQUEST_TIMEOUT_MS,
+    DORIS_URL: process.env.DORIS_URL,
+    DORIS_FE_HTTP_URL: process.env.DORIS_FE_HTTP_URL,
+    DORIS_FE_QUERY_PORT: process.env.DORIS_FE_QUERY_PORT,
+    DORIS_DB: process.env.DORIS_DB,
+    DORIS_USER: process.env.DORIS_USER,
+    DORIS_PASSWORD: process.env.DORIS_PASSWORD,
+    LANGFUSE_AUTO_DORIS_MIGRATION_DISABLED: process.env.LANGFUSE_AUTO_DORIS_MIGRATION_DISABLED,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,

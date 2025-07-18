@@ -48,6 +48,11 @@
     "ch:drop": "bash clickhouse/scripts/drop.sh",
     "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed",
     "ch:seed": "dotenv -e ../../.env -- ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options '{\"module\":\"CommonJS\"}' clickhouse/scripts/seed.ts",
+    "doris:up": "bash doris/scripts/up.sh",
+    "doris:down": "bash doris/scripts/down.sh",
+    "doris:drop": "bash doris/scripts/drop.sh",
+    "doris:seed": "dotenv -e ../../.env -- ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options '{\"module\":\"CommonJS\"}' doris/scripts/seed.ts",
+    "doris:reset": "pnpm run doris:drop && pnpm run doris:up && pnpm run doris:seed",
     "load:setup": "dotenv -e ../../.env -- tsx scripts/load-seed.ts"
   },
   "prisma": {
@@ -86,6 +91,7 @@
     "langfuse-langchain": "3.37.4",
     "lodash": "^4.17.21",
     "lossless-json": "^4.0.2",
+    "mysql2": "^3.14.1",
     "next-auth": "^4.24.11",
     "nodemailer": "^6.9.15",
     "prisma-extension-kysely": "^2.1.0",

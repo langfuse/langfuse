@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Load environment variables
 [ -f ../../.env ] && source ../../.env
@@ -10,8 +10,7 @@ if [ -z "${DORIS_URL}" ]; then
 fi
 
 # Check if mysql client is installed (Doris uses MySQL protocol)
-if ! command -v mysql &> /dev/null
-then
+if ! command -v mysql > /dev/null 2>&1; then
     echo "Error: mysql client is not installed or not in PATH."
     echo "Please install mysql client to run this script."
     exit 1
@@ -27,23 +26,18 @@ if [ -z "${DORIS_USER}" ]; then
     export DORIS_USER="root"
 fi
 
-# Parse DORIS_URL to extract host and port
-# Expected format: http://host:port or https://host:port or just host:port
-if [[ $DORIS_URL =~ ^https?://([^:]+):([0-9]+) ]]; then
-    # Format: http://host:port or https://host:port
-    DORIS_HOST="${BASH_REMATCH[1]}"
-    DORIS_PORT="${BASH_REMATCH[2]}"
-elif [[ $DORIS_URL =~ ^https?://([^:/]+) ]]; then
-    # Format: http://host or https://host (no port)
-    DORIS_HOST="${BASH_REMATCH[1]}"
-    DORIS_PORT="9030"
-elif [[ $DORIS_URL =~ ^([^:]+):([0-9]+)$ ]]; then
-    # Format: host:port
-    DORIS_HOST="${BASH_REMATCH[1]}"
-    DORIS_PORT="${BASH_REMATCH[2]}"
+# Parse DORIS_URL to extract host and port using POSIX-compatible method
+# Remove protocol if present (http:// or https://)
+url_without_protocol=$(echo "${DORIS_URL}" | sed 's|^http://||' | sed 's|^https://||')
+
+# Check if there's a port specified
+if echo "${url_without_protocol}" | grep -q ':'; then
+    # Extract host and port
+    DORIS_HOST=$(echo "${url_without_protocol}" | sed 's|:.*||')
+    DORIS_PORT=$(echo "${url_without_protocol}" | sed 's|.*:||' | sed 's|/.*||')
 else
-    # Format: just host
-    DORIS_HOST="$DORIS_URL"
+    # No port specified, use default
+    DORIS_HOST=$(echo "${url_without_protocol}" | sed 's|/.*||')
     DORIS_PORT="9030"
 fi
 

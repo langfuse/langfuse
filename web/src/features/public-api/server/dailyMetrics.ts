@@ -22,14 +22,14 @@ export const generateDailyMetrics = async (props: QueryType) => {
     props,
     filterParams,
   );
-  const hasTracesFilter = filter.some((f) => f.clickhouseTable === "traces");
-  const tracesFilter = filter.filter((f) => f.clickhouseTable === "traces");
+  const hasTracesFilter = filter.some((f) => f.table === "traces");
+  const tracesFilter = filter.filter((f) => f.table === "traces");
   const appliedFilter = filter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
   const timeFilter = filter.find(
     (f) =>
-      f.clickhouseTable === "traces" &&
+      f.table === "traces" &&
       f.field.includes("timestamp") &&
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
@@ -140,7 +140,7 @@ export const getDailyMetricsCount = async (props: QueryType) => {
     filterParams,
   );
   const appliedFilter = filter
-    .filter((f) => f.clickhouseTable === "traces")
+    .filter((f) => f.table === "traces")
     .apply();
 
   const query = `

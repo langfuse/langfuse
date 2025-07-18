@@ -99,7 +99,8 @@ function generateTraces(projectId: string, count: number, numberOfDays: number) 
     
     traces.push({
       project_id: projectId,
-      timestamp_date: timestampDate.toISOString().split('T')[0],
+      // Let Doris handle timezone conversion automatically for Date fields
+      timestamp_date: timestampDate.toISOString(),
       timestamp: timestamp.toISOString().replace('T', ' ').replace('Z', ''),
       id: `trace_${i}_${projectId}`,
       name: `Trace ${i}`,
@@ -138,7 +139,8 @@ function generateObservations(projectId: string, count: number, tracesCount: num
     observations.push({
       project_id: projectId,
       type,
-      start_time_date: startTimeDate.toISOString().split('T')[0],
+      // Let Doris handle timezone conversion automatically for Date fields
+        start_time_date: startTimeDate.toISOString(),
       id: `obs_${i}_${projectId}`,
       trace_id: `trace_${Math.floor(Math.random() * tracesCount)}_${projectId}`,
       parent_observation_id: Math.random() > 0.7 ? null : `obs_${Math.floor(Math.random() * i)}_${projectId}`,
@@ -198,7 +200,8 @@ function generateScores(projectId: string, count: number, tracesCount: number, o
     
     scores.push({
       project_id: projectId,
-      timestamp_date: timestamp.toISOString().split('T')[0],
+      // Let Doris handle timezone conversion automatically for Date fields
+        timestamp_date: timestamp.toISOString(),
       timestamp: timestamp.toISOString().replace('T', ' ').replace('Z', ''),
       id: `score_${i}_${projectId}`,
       trace_id: `trace_${Math.floor(Math.random() * tracesCount)}_${projectId}`,

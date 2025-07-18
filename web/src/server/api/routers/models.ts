@@ -14,7 +14,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
-import { queryClickhouse } from "@langfuse/shared/src/server";
+import { queryClickhouse, queryDoris, isDorisBackend, convertDateToAnalyticsDateTime } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
@@ -148,12 +148,28 @@ export const modelRouter = createTRPCRouter({
                 internal_model_id
       `;
 
-      const lastUsedQueryResult = ModelLastUsedQueryResult.safeParse(
-        await queryClickhouse({
-          query: lastUsedQuery,
-          params: { projectId },
-        }),
-      );
+      let lastUsedQueryResult;
+      if (isDorisBackend()) {
+        lastUsedQueryResult = ModelLastUsedQueryResult.safeParse(
+          await queryDoris({
+            query: lastUsedQuery,
+            params: { projectId },
+            tags: {
+              feature: "models",
+              type: "lastUsed",
+              kind: "analytic",
+              projectId,
+            },
+          }),
+        );
+      } else {
+        lastUsedQueryResult = ModelLastUsedQueryResult.safeParse(
+          await queryClickhouse({
+            query: lastUsedQuery,
+            params: { projectId },
+          }),
+        );
+      }
 
       if (lastUsedQueryResult.success) {
         const lastUsedMap = new Map(

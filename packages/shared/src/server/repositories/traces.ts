@@ -20,7 +20,7 @@ import {
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { FilterList } from "../queries";
 import { TraceRecordReadType } from "./definitions";
-import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
+import { tracesTableUiColumnDefinitions, tracesTableUiColumnDefinitionsForDoris } from "../../tableDefinitions/mapTracesTable";
 import { UiColumnMappings } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
@@ -42,6 +42,7 @@ import {
   DateTimeFilter as DorisDateTimeFilter,
 } from "../queries/doris-sql/doris-filter";
 import { dorisSearchCondition, DorisSearchContext } from "../queries/doris-sql/search";
+import { logger } from "../logger";
 
 
 /**
@@ -83,7 +84,7 @@ export const checkTraceExists = async ({
     ) as DorisDateTimeFilter | undefined;
 
     tracesFilter.push(
-      ...createDorisFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+      ...createDorisFilterFromFilterState(filter, tracesTableUiColumnDefinitionsForDoris),
       new DorisStringFilter({
         dorisTable: "t",
         field: "id",
@@ -709,6 +710,11 @@ export const getTraceById = async ({
       },
     });
 
+    logger.info(`Doris getTraceById records:`, { 
+      recordsCount: records.length, 
+      records: records.length > 0 ? records : 'No records found' 
+    });
+
     const res = records.map(convertClickhouseToDomain);
 
     res.forEach((trace) => {
@@ -1061,6 +1067,21 @@ export const getTracesIdentifierForSession = async (
   projectId: string,
   sessionId: string,
 ) => {
+  // Helper function to parse timestamps from different backends
+  const parseTimestamp = (timestamp: string | Date): Date => {
+    // Only apply special handling for Doris backend
+    if (isDorisBackend() && timestamp instanceof Date) {
+      return timestamp;
+    }
+    
+    // Default ClickHouse behavior - always expect string
+    if (typeof timestamp === 'string') {
+      return parseClickhouseUTCDateTimeFormat(timestamp);
+    }
+    
+    throw new Error(`Invalid timestamp format: ${typeof timestamp}`);
+  };
+
   if (isDorisBackend()) {
     // Use window function to achieve LIMIT 1 BY semantics in Doris
     const query = `
@@ -1092,7 +1113,7 @@ export const getTracesIdentifierForSession = async (
       id: string;
       user_id: string;
       name: string;
-      timestamp: string;
+      timestamp: string | Date;
       environment: string;
     }>({
       query: query,
@@ -1112,7 +1133,7 @@ export const getTracesIdentifierForSession = async (
       id: row.id,
       userId: row.user_id,
       name: row.name,
-      timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+      timestamp: parseTimestamp(row.timestamp),
       environment: row.environment,
     }));
   }
@@ -1361,7 +1382,7 @@ export const getTotalUserCount = async (
     });
 
     tracesFilter.push(
-      ...createDorisFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+      ...createDorisFilterFromFilterState(filter, tracesTableUiColumnDefinitionsForDoris),
     );
 
     const tracesFilterRes = tracesFilter.apply();
@@ -1437,18 +1458,38 @@ export const getUserMetrics = async (
     return [];
   }
 
+  // Helper function to parse timestamps from different backends
+  const parseTimestamp = (timestamp: string | Date): Date => {
+    // Only apply special handling for Doris backend
+    if (isDorisBackend() && timestamp instanceof Date) {
+      return timestamp;
+    }
+    
+    // Default ClickHouse behavior - always expect string
+    if (typeof timestamp === 'string') {
+      return parseClickhouseUTCDateTimeFormat(timestamp);
+    }
+    
+    throw new Error(`Invalid timestamp format: ${typeof timestamp}`);
+  };
+
   if (isDorisBackend()) {
-    // filter state contains date range filter for traces so far.
-    const dorisFilter = new FilterList(
-      createDorisFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
-    );
-    const dorisFilterRes = dorisFilter.apply();
+    // Use the same pattern as other methods - get default filter first
+    const { tracesFilter } = getDorisProjectIdDefaultFilter(projectId, {
+      tracesPrefix: "t",
+    });
 
-    const timestampFilter = dorisFilter.find(
+    tracesFilter.push(
+      ...createDorisFilterFromFilterState(filter, tracesTableUiColumnDefinitionsForDoris),
+    );
+
+    const tracesFilterRes = tracesFilter.apply();
+
+    const timestampFilter = tracesFilter.find(
       (f) => f.field === "timestamp" && f.operator === ">=",
-    );
+    ) as DorisDateTimeFilter | undefined;
 
-    // Doris version with simplified aggregation logic
+    // Doris version using map format with proper null handling
     const query = `
         WITH stats as (
           SELECT
@@ -1459,12 +1500,9 @@ export const getUserMetrics = async (
               max(t.timestamp) as max_timestamp,
               min(t.timestamp) as min_timestamp,
               count(distinct t.id) as trace_count,
-              sum(CASE WHEN o.usage_details LIKE '%input%' THEN 
-                CAST(JSON_EXTRACT(o.usage_details, '$.input') AS BIGINT) ELSE 0 END) as input_usage,
-              sum(CASE WHEN o.usage_details LIKE '%output%' THEN 
-                CAST(JSON_EXTRACT(o.usage_details, '$.output') AS BIGINT) ELSE 0 END) as output_usage,
-              sum(CASE WHEN o.usage_details LIKE '%total%' THEN 
-                CAST(JSON_EXTRACT(o.usage_details, '$.total') AS BIGINT) ELSE 0 END) as total_usage
+              sum(if(MAP_CONTAINS_KEY(o.usage_details,'input'),o.usage_details['input'],0)) as input_usage,
+              sum(if(MAP_CONTAINS_KEY(o.usage_details,'output'),o.usage_details['output'],0)) as output_usage,
+              sum(if(MAP_CONTAINS_KEY(o.usage_details,'total'),o.usage_details['total'],0)) as total_usage
           FROM
               (
                   SELECT
@@ -1481,17 +1519,17 @@ export const getUserMetrics = async (
                   FROM
                       observations o
                   WHERE
-                      o.project_id = {projectId: String }
+                      o.project_id = {projectId: String}
                       ${timestampFilter ? `AND o.start_time >= DATE_SUB({traceTimestamp: DateTime}, ${OBSERVATIONS_TO_TRACE_INTERVAL})` : ""}
                       AND o.trace_id in (
                           SELECT
                               distinct id
                           from
-                              traces
+                              traces t
                           where
                               user_id IN ({userIds: Array(String) })
-                              AND project_id = {projectId: String }
-                              ${filter.length > 0 ? `AND ${dorisFilterRes.query}` : ""}
+                              AND project_id = {projectId: String}
+                              ${tracesFilterRes.query ? `AND ${tracesFilterRes.query}` : ""}
                       )
                       AND o.type = 'GENERATION'
               ) as o
@@ -1511,8 +1549,8 @@ export const getUserMetrics = async (
                       traces t
                   WHERE
                       t.user_id IN ({userIds: Array(String) })
-                      AND t.project_id = {projectId: String }
-                      ${filter.length > 0 ? `AND ${dorisFilterRes.query}` : ""}
+                      AND t.project_id = {projectId: String}
+                      ${tracesFilterRes.query ? `AND ${tracesFilterRes.query}` : ""}
               ) as t on t.id = o.trace_id
               and t.project_id = o.project_id
           WHERE
@@ -1539,8 +1577,8 @@ export const getUserMetrics = async (
     const rows = await queryDoris<{
       user_id: string;
       environment: string;
-      max_timestamp: string;
-      min_timestamp: string;
+      max_timestamp: string | Date;
+      min_timestamp: string | Date;
       input_usage: string;
       output_usage: string;
       total_usage: string;
@@ -1552,12 +1590,10 @@ export const getUserMetrics = async (
       params: {
         projectId,
         userIds,
-        ...dorisFilterRes.params,
+        ...(tracesFilterRes ? tracesFilterRes.params : {}),
         ...(timestampFilter
           ? {
-              traceTimestamp: convertDateToAnalyticsDateTime(
-                (timestampFilter as DorisDateTimeFilter).value,
-              ),
+              traceTimestamp: convertDateToAnalyticsDateTime(timestampFilter.value),
             }
           : {}),
       },
@@ -1572,8 +1608,8 @@ export const getUserMetrics = async (
     return rows.map((row) => ({
       userId: row.user_id,
       environment: row.environment,
-      maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
-      minTimestamp: parseClickhouseUTCDateTimeFormat(row.min_timestamp),
+      maxTimestamp: parseTimestamp(row.max_timestamp),
+      minTimestamp: parseTimestamp(row.min_timestamp),
       inputUsage: Number(row.input_usage),
       outputUsage: Number(row.output_usage),
       totalUsage: Number(row.total_usage),
@@ -1825,10 +1861,10 @@ export const getTracesForPostHog = async function* (
                o.trace_id,
                sum(total_cost) as total_cost,
                count(*) as observation_count,
-               TIMESTAMPDIFF(MICROSECOND, 
-                 LEAST(min(start_time), min(end_time)), 
-                 GREATEST(max(start_time), max(end_time))
-               ) / 1000 as latency_milliseconds
+               milliseconds_diff(
+                 CASE WHEN max(start_time) > max(end_time) THEN max(start_time) ELSE max(end_time) END,
+                 CASE WHEN min(start_time) < min(end_time) THEN min(start_time) ELSE min(end_time) END
+               ) as latency_milliseconds
         FROM observations o
         WHERE o.project_id = {projectId: String}
         AND o.start_time >= DATE_SUB({minTimestamp: DateTime}, ${TRACE_TO_OBSERVATIONS_INTERVAL})
@@ -1844,7 +1880,7 @@ export const getTracesForPostHog = async function* (
         t.\`release\` as \`release\`,
         t.version as version,
         t.tags as tags,
-        JSON_EXTRACT(t.metadata, '$.$posthog_session_id') as posthog_session_id,
+        t.metadata['$posthog_session_id'] as posthog_session_id,
         o.total_cost as total_cost,
         o.latency_milliseconds / 1000 as latency,
         o.observation_count as observation_count

@@ -6,6 +6,7 @@ CREATE TABLE if not exists scores (
     `timestamp` DateTime(3),
     `trace_id` varchar(65533),
     `session_id` varchar(65533),
+    `dataset_run_id` varchar(65533),
     `observation_id` varchar(65533),
     `value` Float,
     `source` String,

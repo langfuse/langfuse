@@ -15,6 +15,7 @@ export * from "./utils/transforms";
 export * from "./clickhouse/client";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
+export * from "./doris/client";
 export * from "./repositories/definitions";
 export * from "../server/ingestion/types";
 export * from "./ingestion/processEventBatch";

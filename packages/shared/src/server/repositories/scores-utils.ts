@@ -1,5 +1,7 @@
 import { ScoreSourceType } from "../../domain";
 import { queryClickhouse } from "./clickhouse";
+import { queryDoris } from "./doris";
+import { isDorisBackend } from "./analytics";
 import { ScoreRecordReadType } from "./definitions";
 import { convertToScore } from "./scores_converters";
 
@@ -19,6 +21,39 @@ export const _handleGetScoreById = async ({
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
 }) => {
+  if (isDorisBackend()) {
+    const query = `
+      SELECT * FROM (
+        SELECT *,
+               ROW_NUMBER() OVER (PARTITION BY id, project_id ORDER BY event_ts DESC) as rn
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+        AND s.id = {scoreId: String}
+        ${source ? `AND s.source = {source: String}` : ""}
+        ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
+      ) ranked
+      WHERE rn = 1
+      ORDER BY event_ts DESC
+      LIMIT 1
+    `;
+
+    const rows = await queryDoris<ScoreRecordReadType>({
+      query,
+      params: {
+        projectId,
+        scoreId,
+        ...(source !== undefined ? { source } : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "score",
+        kind: "byId",
+        projectId,
+      },
+    });
+    return rows.map(convertToScore).shift();
+  }
+
   const query = `
   SELECT *
   FROM scores s
@@ -64,6 +99,38 @@ export const _handleGetScoresByIds = async ({
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
 }) => {
+  if (isDorisBackend()) {
+    const query = `
+      SELECT * FROM (
+        SELECT *,
+               ROW_NUMBER() OVER (PARTITION BY id, project_id ORDER BY event_ts DESC) as rn
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+        AND s.id IN ({scoreId: Array(String)})
+        ${source ? `AND s.source = {source: String}` : ""}
+        ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
+      ) ranked
+      WHERE rn = 1
+      ORDER BY event_ts DESC
+    `;
+
+    const rows = await queryDoris<ScoreRecordReadType>({
+      query,
+      params: {
+        projectId,
+        scoreId,
+        ...(source !== undefined ? { source } : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "score",
+        kind: "byId",
+        projectId,
+      },
+    });
+    return rows.map(convertToScore);
+  }
+
   const query = `
   SELECT *
   FROM scores s

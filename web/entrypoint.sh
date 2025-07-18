@@ -62,5 +62,29 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
+# Execute the Doris migration, except when disabled or not using doris backend.
+if [ "$LANGFUSE_ANALYTICS_BACKEND" = "doris" ] && [ "$LANGFUSE_AUTO_DORIS_MIGRATION_DISABLED" != "true" ]; then
+    # Check if DORIS_FE_HTTP_URL is configured
+    if [ -z "$DORIS_FE_HTTP_URL" ]; then
+        echo "Warning: LANGFUSE_ANALYTICS_BACKEND is 'doris' but DORIS_FE_HTTP_URL is not configured. Skipping Doris migrations."
+    else
+        echo "Applying Doris migrations..."
+        # Apply Doris migrations
+        cd ./packages/shared
+        sh ./doris/scripts/up.sh
+        status=$?
+        cd ../../
+        
+        # If migration fails (returns non-zero exit status), exit script with that status
+        if [ $status -ne 0 ]; then
+            echo "Applying doris migrations failed. This is mostly caused by the database being unavailable."
+            echo "Exiting..."
+            exit $status
+        fi
+    fi
+elif [ "$LANGFUSE_ANALYTICS_BACKEND" = "doris" ]; then
+    echo "Info: LANGFUSE_ANALYTICS_BACKEND is 'doris' but LANGFUSE_AUTO_DORIS_MIGRATION_DISABLED is also true. Skipping Doris migrations."
+fi
+
 # Run the command passed to the docker image on start
 exec "$@"

@@ -4,6 +4,25 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { parseJsonPrioritised } from "../../utils/json";
 import { TraceDomain } from "../../domain";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import { isDorisBackend } from "./analytics";
+
+
+// Helper function to parse timestamps from different backends
+const parseTimestamp = (timestamp: string | Date): Date => {
+  // Only apply special handling for Doris backend
+  if (isDorisBackend() && timestamp instanceof Date) {
+    return timestamp;
+  }
+  
+  // Default ClickHouse behavior - always expect string
+  if (typeof timestamp === 'string') {
+    return parseClickhouseUTCDateTimeFormat(timestamp);
+  }
+  
+  throw new Error(`Invalid timestamp format: ${typeof timestamp}`);
+};
+
+
 
 export const convertTraceDomainToClickhouse = (
   trace: TraceDomain,
@@ -38,7 +57,7 @@ export const convertClickhouseToDomain = (
     id: record.id,
     projectId: record.project_id,
     name: record.name ?? null,
-    timestamp: parseClickhouseUTCDateTimeFormat(record.timestamp),
+    timestamp: parseTimestamp(record.timestamp),
     environment: record.environment,
     tags: record.tags,
     bookmarked: record.bookmarked,
@@ -52,7 +71,7 @@ export const convertClickhouseToDomain = (
       ? (parseJsonPrioritised(record.output) ?? null)
       : null,
     metadata: parseMetadataCHRecordToDomain(record.metadata),
-    createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
-    updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
+    createdAt: parseTimestamp(record.created_at),
+    updatedAt: parseTimestamp(record.updated_at),
   };
 };

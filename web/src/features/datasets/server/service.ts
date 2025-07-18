@@ -22,6 +22,12 @@ import {
   queryClickhouse,
   type ScoreRecordReadType,
   traceException,
+  // Add Doris imports
+  queryDoris,
+  commandDoris,
+  isDorisBackend,
+  convertDateToAnalyticsDateTime,
+  dorisClient,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
@@ -163,6 +169,19 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
     })),
   );
 
+  if (isDorisBackend()) {
+    // Doris implementation using Stream Load
+    await dorisClient().streamLoad(tableName, rows, {
+      format: "json",
+      strip_outer_array: true,
+      read_json_by_line: false,
+      max_filter_ratio: 0.1,
+      timeout: 600, // 10 minutes
+    });
+    return;
+  }
+
+  // ClickHouse implementation (existing code)
   await clickhouseClient().insert({
     table: tableName,
     values: rows,
@@ -176,6 +195,33 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
 };
 
 export const createTempTableInClickhouse = async (tableName: string) => {
+  if (isDorisBackend()) {
+    // Doris implementation for creating temporary table
+    const query = `
+      CREATE TABLE IF NOT EXISTS ${tableName}
+      (
+          project_id varchar(65533),
+          dataset_id varchar(65533),
+          run_id varchar(65533),  
+          trace_id varchar(65533),
+          run_item_id varchar(65533),
+          observation_id STRING
+      ) 
+      UNIQUE KEY (project_id, dataset_id, run_id, trace_id)
+      DISTRIBUTED BY HASH(project_id, dataset_id, run_id, trace_id) BUCKETS AUTO
+      PROPERTIES (
+          "replication_allocation" = "tag.location.default: 1"
+      )
+    `;
+    await commandDoris({
+      query,
+      params: { tableName },
+      tags: { feature: "dataset" },
+    });
+    return;
+  }
+
+  // ClickHouse implementation (existing code)
   const query = `
       CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
       (
@@ -197,6 +243,20 @@ export const createTempTableInClickhouse = async (tableName: string) => {
 };
 
 export const deleteTempTableInClickhouse = async (tableName: string) => {
+  if (isDorisBackend()) {
+    // Doris implementation
+    const query = `
+      DROP TABLE IF EXISTS ${tableName}
+    `;
+    await commandDoris({
+      query,
+      params: { tableName },
+      tags: { feature: "dataset" },
+    });
+    return;
+  }
+
+  // ClickHouse implementation (existing code)
   const query = `
       DROP TABLE IF EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
   `;
@@ -245,6 +305,91 @@ const getTraceScoresFromTempTable = async (
   input: DatasetRunsTableInput,
   tableName: string,
 ) => {
+  if (isDorisBackend()) {
+    // Doris implementation using window functions
+    const query = `
+      SELECT 
+        project_id,
+        timestamp_date,
+        name,
+        id,
+        timestamp,
+        trace_id,
+        session_id,
+        observation_id,
+        value,
+        source,
+        comment,
+        author_user_id,
+        config_id,
+        data_type,
+        string_value,
+        queue_id,
+        created_at,
+        updated_at,
+        event_ts,
+        is_deleted,
+        environment,
+        CASE WHEN metadata IS NULL THEN 0 WHEN array_size(map_keys(metadata)) > 0 THEN 1 ELSE 0 END AS has_metadata,
+        run_id
+      FROM (
+        SELECT 
+          s.project_id,
+          s.timestamp_date,
+          s.name,
+          s.id,
+          s.timestamp,
+          s.trace_id,
+          s.session_id,
+          s.observation_id,
+          s.value,
+          s.source,
+          s.comment,
+          s.author_user_id,
+          s.config_id,
+          s.data_type,
+          s.string_value,
+          s.queue_id,
+          s.created_at,
+          s.updated_at,
+          s.event_ts,
+          s.is_deleted,
+          s.environment,
+          s.metadata,
+          tmp.run_id,
+          ROW_NUMBER() OVER (PARTITION BY s.id, s.project_id, tmp.run_id ORDER BY s.event_ts DESC) as rn
+        FROM ${tableName} tmp 
+        JOIN scores s ON tmp.project_id = s.project_id AND tmp.trace_id = s.trace_id
+        WHERE s.project_id = {projectId: String}
+        AND tmp.project_id = {projectId: String}
+        AND tmp.dataset_id = {datasetId: String}
+      ) ranked
+      WHERE rn = 1
+      ORDER BY event_ts DESC
+    `;
+
+    const rows = await queryDoris<
+      ScoreRecordReadType & {
+        run_id: string;
+        has_metadata: 0 | 1;
+      }
+    >({
+      query: query,
+      params: {
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+      },
+      tags: { feature: "dataset", projectId: input.projectId },
+    });
+
+    return rows.map((row) => ({
+      ...convertToScore({ ...row, metadata: {} }),
+      run_id: row.run_id,
+      hasMetadata: !!row.has_metadata,
+    }));
+  }
+
+  // ClickHouse implementation (existing code)
   // adds a setting to read data once it is replicated from the writer node.
   // Only then, we can guarantee that the created mergetree before was replicated.
   const query = `
@@ -293,6 +438,51 @@ const getObservationLatencyAndCostForDataset = async (
   input: DatasetRunsTableInput,
   tableName: string,
 ) => {
+  if (isDorisBackend()) {
+    // Doris implementation using milliseconds_diff
+    const query = `
+      WITH agg AS (
+        SELECT
+            milliseconds_diff(end_time, start_time) AS latency_ms,
+            total_cost AS cost,
+            run_id
+        FROM observations AS o
+        INNER JOIN ${tableName} AS tmp ON (o.id = tmp.observation_id) AND (o.project_id = tmp.project_id) AND (tmp.trace_id = o.trace_id)
+        WHERE 
+          o.project_id = {projectId: String}
+          AND tmp.project_id = {projectId: String}
+          AND tmp.dataset_id = {datasetId: String}
+          AND tmp.observation_id IS NOT NULL
+      )
+      SELECT 
+        run_id,
+        avg(latency_ms) as avg_latency_ms,
+        avg(cost) as avg_total_cost
+      FROM agg
+      GROUP BY run_id
+    `;
+
+    const rows = await queryDoris<{
+      run_id: string;
+      avg_latency_ms: string;
+      avg_total_cost: string;
+    }>({
+      query: query,
+      params: {
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+      },
+      tags: { feature: "dataset", projectId: input.projectId ?? "" },
+    });
+
+    return rows.map((row) => ({
+      runId: row.run_id,
+      latency: Number(row.avg_latency_ms) / 1000,
+      cost: Number(row.avg_total_cost),
+    }));
+  }
+
+  // ClickHouse implementation (existing code)
   // the subquery here will improve performance as it allows clickhouse to use skip-indices on
   // the observations table
   const query = `
@@ -350,6 +540,53 @@ const getTraceLatencyAndCostForDataset = async (
   input: DatasetRunsTableInput,
   tableName: string,
 ) => {
+  if (isDorisBackend()) {
+    // Doris implementation using milliseconds_diff
+    const query = `
+      WITH agg AS (
+        SELECT
+          o.trace_id,
+          run_id,
+          milliseconds_diff(max(end_time), min(start_time)) AS latency_ms,
+          sum(total_cost) AS cost
+        FROM observations o JOIN ${tableName} tmp
+          ON tmp.project_id = o.project_id 
+          AND tmp.trace_id = o.trace_id
+        WHERE o.project_id = {projectId: String}
+        AND tmp.project_id = {projectId: String}
+        AND tmp.dataset_id = {datasetId: String}
+        AND tmp.observation_id IS NULL
+        GROUP BY o.trace_id, run_id
+      )
+      SELECT 
+        run_id,
+        avg(latency_ms) as avg_latency_ms,
+        avg(cost) as avg_total_cost
+      FROM agg
+      GROUP BY run_id
+    `;
+
+    const rows = await queryDoris<{
+      run_id: string;
+      avg_latency_ms: string;
+      avg_total_cost: string;
+    }>({
+      query: query,
+      params: {
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+      },
+      tags: { feature: "dataset", projectId: input.projectId ?? "" },
+    });
+
+    return rows.map((row) => ({
+      runId: row.run_id,
+      latency: Number(row.avg_latency_ms) / 1000,
+      cost: Number(row.avg_total_cost),
+    }));
+  }
+
+  // ClickHouse implementation (existing code)
   const query = `
       WITH agg AS (
       SELECT

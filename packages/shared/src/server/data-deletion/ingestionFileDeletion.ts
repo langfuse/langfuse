@@ -9,6 +9,9 @@ import {
 import { env } from "../../env";
 import { clickhouseClient } from "../clickhouse/client";
 import { getS3EventStorageClient } from "../s3";
+// Add Doris imports
+import { isDorisBackend, convertDateToAnalyticsDateTime } from "../repositories/analytics";
+import { dorisClient } from "../doris/client";
 
 export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
   projectId: string;
@@ -72,7 +75,7 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
       await eventStorageClient.deleteFiles(
         blobStorageRefs.map((r) => r.bucket_path),
       );
-
+      logger.info("deleted s3 file")
       // soft delete the blob storage references in clickhouse
       await softDeleteInClickhouse(blobStorageRefs);
       batch++;
@@ -95,6 +98,20 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
 async function softDeleteInClickhouse(
   blobStorageRefs: BlobStorageFileRefRecordReadType[],
 ) {
+  if (isDorisBackend()) {
+    // Doris implementation using Stream Load
+    const records = blobStorageRefs.map((e) => ({
+      ...e,
+      is_deleted: "1",
+      event_ts: convertDateToAnalyticsDateTime(new Date()),
+      updated_at: convertDateToAnalyticsDateTime(new Date()),
+    }));
+    
+    await dorisClient().streamLoad("blob_storage_file_log", records);
+    return;
+  }
+
+  // ClickHouse implementation (existing code)
   await clickhouseClient().insert({
     table: "blob_storage_file_log",
     values: blobStorageRefs.map((e) => ({

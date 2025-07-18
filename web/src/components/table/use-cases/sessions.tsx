@@ -604,6 +604,27 @@ export default function SessionsTable({
                   isLoading: false,
                   isError: false,
                   data: sessionRowData.rows?.map<SessionTableRow>((session) => {
+                    // Ensure traceTags is always an array, similar to observations solution
+                    const processedTraceTags = (() => {
+                      if (Array.isArray(session.traceTags)) {
+                        return session.traceTags;
+                      } else if (typeof session.traceTags === 'string') {
+                        try {
+                          // Try to parse as JSON array
+                          const parsed = JSON.parse(session.traceTags);
+                          return Array.isArray(parsed) ? parsed : [session.traceTags];
+                        } catch {
+                          // If parsing fails, treat as single tag
+                          return session.traceTags ? [session.traceTags] : [];
+                        }
+                      } else if (session.traceTags == null) {
+                        return [];
+                      } else {
+                        // Convert any other type to empty array
+                        return [];
+                      }
+                    })();
+
                     return {
                       id: session.id,
                       createdAt: session.createdAt,
@@ -617,7 +638,7 @@ export default function SessionsTable({
                       inputTokens: session.promptTokens,
                       outputTokens: session.completionTokens,
                       totalTokens: session.totalTokens,
-                      traceTags: session.traceTags,
+                      traceTags: processedTraceTags,
                       environment: session.environment,
                       scores: session.scores
                         ? verifyAndPrefixScoreDataAgainstKeys(

@@ -4,7 +4,6 @@ export {
   type FullObservationsWithScores,
 } from "./createGenerationsQuery";
 export {
-  FilterList,
   StringFilter,
   DateTimeFilter,
   StringOptionsFilter,
@@ -15,7 +14,11 @@ export {
   NumberObjectFilter,
   StringObjectFilter,
   NullFilter,
-  type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
+
+export {
+  FilterList,
+  type DbOperator,
+} from "./filter"
 export { orderByToClickhouseSql } from "./clickhouse-sql/orderby-factory";
 export { createFilterFromFilterState } from "./clickhouse-sql/factory";

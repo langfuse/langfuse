@@ -7,7 +7,7 @@ import {
   CategoryOptionsFilter,
   StringFilter,
   NumberFilter,
-  type ClickhouseOperator,
+  type DbOperator,
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
@@ -16,7 +16,7 @@ export type ApiColumnMapping = {
   clickhouseSelect: string;
   clickhouseTable: string;
   filterType: string;
-  operator?: ClickhouseOperator;
+  operator?: DbOperator;
   clickhousePrefix?: string;
 };
 

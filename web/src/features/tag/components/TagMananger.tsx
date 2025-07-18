@@ -15,7 +15,7 @@ import { Label } from "@/src/components/ui/label";
 
 type TagManagerProps = {
   itemName: "prompt" | "trace";
-  tags: string[];
+  tags: string[] | string | null | undefined;
   allTags: string[];
   hasAccess: boolean;
   isLoading: boolean;
@@ -34,6 +34,27 @@ const TagManager = ({
   className,
   isTableCell = false,
 }: TagManagerProps) => {
+  // Ensure tags is always an array
+  const processedTags = (() => {
+    if (Array.isArray(tags)) {
+      return tags;
+    } else if (typeof tags === 'string') {
+      try {
+        // Try to parse as JSON array
+        const parsed = JSON.parse(tags);
+        return Array.isArray(parsed) ? parsed : [tags];
+      } catch {
+        // If parsing fails, treat as single tag
+        return tags ? [tags] : [];
+      }
+    } else if (tags == null) {
+      return [];
+    } else {
+      // Convert any other type to empty array
+      return [];
+    }
+  })();
+
   const {
     selectedTags,
     inputValue,
@@ -41,7 +62,7 @@ const TagManager = ({
     handleItemCreate,
     setInputValue,
     setSelectedTags,
-  } = useTagManager({ initialTags: tags, allTags });
+  } = useTagManager({ initialTags: processedTags, allTags });
   const capture = usePostHogClientCapture();
   const filteredTags = availableTags.filter(
     (value) =>

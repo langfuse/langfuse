@@ -208,7 +208,8 @@ export const upsertDorisScore = async (score: Partial<any>) => {
   // Ensure timestamp_date is derived from timestamp
   const enrichedScore = {
     ...score,
-    timestamp_date: score.timestamp ? new Date(score.timestamp).toISOString().split('T')[0] : undefined,
+    // Let Doris handle timezone conversion automatically for Date fields
+    timestamp_date: score.timestamp ? new Date(score.timestamp).toISOString() : undefined,
   };
   
   await upsertDoris({
@@ -236,7 +237,8 @@ export const upsertDorisTrace = async (trace: Partial<any>) => {
   // Ensure timestamp_date is derived from timestamp
   const enrichedTrace = {
     ...trace,
-    timestamp_date: trace.timestamp ? new Date(trace.timestamp).toISOString().split('T')[0] : undefined,
+    // Let Doris handle timezone conversion automatically for Date fields
+    timestamp_date: trace.timestamp ? new Date(trace.timestamp).toISOString() : undefined,
   };
   
   await upsertDoris({
@@ -264,7 +266,8 @@ export const upsertDorisObservation = async (observation: Partial<any>) => {
   // Ensure start_time_date is derived from start_time
   const enrichedObservation = {
     ...observation,
-    start_time_date: observation.start_time ? new Date(observation.start_time).toISOString().split('T')[0] : undefined,
+    // Let Doris handle timezone conversion automatically for Date fields
+    start_time_date: observation.start_time ? new Date(observation.start_time).toISOString() : undefined,
   };
   
   await upsertDoris({

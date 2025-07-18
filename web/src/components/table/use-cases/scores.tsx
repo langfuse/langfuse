@@ -572,6 +572,27 @@ export default function ScoresTable({
   const convertToTableRow = (
     score: RouterOutput["scores"]["all"]["scores"][0],
   ): ScoresTableRow => {
+    // Ensure traceTags is always an array, similar to observations solution
+    const processedTraceTags = (() => {
+      if (Array.isArray(score.traceTags)) {
+        return score.traceTags;
+      } else if (typeof score.traceTags === 'string') {
+        try {
+          // Try to parse as JSON array
+          const parsed = JSON.parse(score.traceTags);
+          return Array.isArray(parsed) ? parsed : [score.traceTags];
+        } catch {
+          // If parsing fails, treat as single tag
+          return score.traceTags ? [score.traceTags] : [];
+        }
+      } else if (score.traceTags == null) {
+        return [];
+      } else {
+        // Convert any other type to empty array
+        return [];
+      }
+    })();
+
     return {
       id: score.id,
       timestamp: score.timestamp,
@@ -596,7 +617,7 @@ export default function ScoresTable({
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
-      traceTags: score.traceTags ?? undefined,
+      traceTags: processedTraceTags,
       environment: score.environment ?? undefined,
     };
   };

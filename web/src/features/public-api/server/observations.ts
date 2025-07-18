@@ -23,7 +23,7 @@ type QueryType = {
 export const generateObservationsForPublicApi = async (props: QueryType) => {
   const chFilter = generateFilter(props);
   const appliedFilter = chFilter.apply();
-  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  const traceFilter = chFilter.find((f) => f.table === "traces");
 
   const query = `
     with clickhouse_keys as (
@@ -94,7 +94,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
 export const getObservationsCountForPublicApi = async (props: QueryType) => {
   const chFilter = generateFilter(props);
   const filter = chFilter.apply();
-  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  const traceFilter = chFilter.find((f) => f.table === "traces");
 
   const query = `
     SELECT count() as count

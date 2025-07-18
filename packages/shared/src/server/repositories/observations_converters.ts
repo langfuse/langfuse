@@ -7,6 +7,22 @@ import {
   ObservationType,
 } from "../../domain";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import { isDorisBackend } from "./analytics";
+
+// Helper function to parse timestamps from different backends
+const parseTimestamp = (timestamp: string | Date): Date => {
+  // Only apply special handling for Doris backend
+  if (isDorisBackend() && timestamp instanceof Date) {
+    return timestamp;
+  }
+  
+  // Default ClickHouse behavior - always expect string
+  if (typeof timestamp === 'string') {
+    return parseClickhouseUTCDateTimeFormat(timestamp);
+  }
+  
+  throw new Error(`Invalid timestamp format: ${typeof timestamp}`);
+};
 
 export const convertObservation = (
   record: ObservationRecordReadType,
@@ -21,9 +37,9 @@ export const convertObservation = (
     type: record.type as ObservationType,
     environment: record.environment,
     parentObservationId: record.parent_observation_id ?? null,
-    startTime: parseClickhouseUTCDateTimeFormat(record.start_time),
+    startTime: parseTimestamp(record.start_time),
     endTime: record.end_time
-      ? parseClickhouseUTCDateTimeFormat(record.end_time)
+      ? parseTimestamp(record.end_time)
       : null,
     name: record.name ?? null,
     metadata: parseMetadataCHRecordToDomain(record.metadata),
@@ -38,11 +54,11 @@ export const convertObservation = (
       ? (JSON.parse(record.model_parameters) ?? null)
       : null,
     completionStartTime: record.completion_start_time
-      ? parseClickhouseUTCDateTimeFormat(record.completion_start_time)
+      ? parseTimestamp(record.completion_start_time)
       : null,
     promptId: record.prompt_id ?? null,
-    createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
-    updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
+    createdAt: parseTimestamp(record.created_at),
+    updatedAt: parseTimestamp(record.updated_at),
     usageDetails: Object.fromEntries(
       Object.entries(record.usage_details ?? {}).map(([key, value]) => [
         key,
@@ -66,14 +82,14 @@ export const convertObservation = (
     promptName: record.prompt_name ?? null,
     promptVersion: record.prompt_version ?? null,
     latency: record.end_time
-      ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
-        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
+      ? parseTimestamp(record.end_time).getTime() -
+        parseTimestamp(record.start_time).getTime()
       : null,
     timeToFirstToken: record.completion_start_time
-      ? (parseClickhouseUTCDateTimeFormat(
+      ? (parseTimestamp(
           record.completion_start_time,
         ).getTime() -
-          parseClickhouseUTCDateTimeFormat(record.start_time).getTime()) /
+          parseTimestamp(record.start_time).getTime()) /
         1000
       : null,
     inputCost: reducedCostDetails.input,

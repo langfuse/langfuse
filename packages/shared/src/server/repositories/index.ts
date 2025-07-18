@@ -7,6 +7,8 @@ export * from "./traces_converters";
 export * from "./scores_converters";
 export * from "./observations_converters";
 export * from "./clickhouse";
+export * from "./doris";
+export * from "./analytics";
 export * from "./constants";
 export * from "./trace-sessions";
 export * from "./scores-utils";

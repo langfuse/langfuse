@@ -7,6 +7,9 @@ import {
   type DateTimeFilter,
   convertClickhouseToDomain,
   type TraceRecordReadType,
+  queryDoris,
+  isDorisBackend,
+  convertDateToAnalyticsDateTime,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
@@ -35,6 +38,157 @@ export const generateTracesForPublicApi = async ({
   props: TraceQueryType;
   orderBy: OrderByState;
 }) => {
+  if (isDorisBackend()) {
+    // Doris implementation - reuse same filter logic
+    const filter = convertApiProvidedFilterToClickhouseFilter(
+      props,
+      filterParams,
+    );
+    const appliedFilter = filter.apply();
+
+    const timeFilter = filter.find(
+      (f: any) =>
+        f.clickhouseTable === "traces" &&
+        f.field.includes("timestamp") &&
+        (f.operator === ">=" || f.operator === ">"),
+    ) as DateTimeFilter | undefined;
+
+    const environmentFilter = filter.filter((f: any) => f.field === "environment");
+    const appliedEnvironmentFilter = environmentFilter.apply();
+
+    // Skip indexes logic still applies to Doris
+    const shouldUseSkipIndexes = filter.some(
+      (f: any) =>
+        f.clickhouseTable === "traces" &&
+        ["user_id", "session_id", "metadata"].some((skipIndexCol) =>
+          f.field.includes(skipIndexCol),
+        ),
+    );
+
+    const dorisOrderBy =
+      (orderByToClickhouseSql(orderBy || [], orderByColumns) ||
+        "ORDER BY t.timestamp desc") +
+      (shouldUseSkipIndexes ? ", t.event_ts desc" : "");
+
+    const query = `
+      WITH observation_stats AS (
+        SELECT
+          trace_id,
+          project_id,
+          sum(total_cost) as total_cost,
+          TIMESTAMPDIFF(MICROSECOND, 
+            LEAST(min(start_time), min(end_time)), 
+            GREATEST(max(start_time), max(end_time))
+          ) / 1000 as latency_milliseconds,
+          collect_list(id) as observation_ids
+        FROM (
+          SELECT *,
+                 ROW_NUMBER() OVER (PARTITION BY id, project_id ORDER BY event_ts DESC) as rn
+          FROM observations
+          WHERE project_id = {projectId: String}
+          ${timeFilter ? `AND start_time >= DATE_SUB({cteTimeFilter: DateTime}, INTERVAL 2 DAY)` : ""}
+          ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
+        ) o
+        WHERE rn = 1
+        GROUP BY project_id, trace_id
+      ), score_stats AS (
+        SELECT
+          trace_id,
+          project_id,
+          collect_set(id) as score_ids
+        FROM scores
+        WHERE project_id = {projectId: String}
+        AND session_id IS NULL
+        AND dataset_run_id IS NULL
+        ${timeFilter ? `AND timestamp >= DATE_SUB({cteTimeFilter: DateTime}, INTERVAL 2 DAY)` : ""}
+        ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
+        GROUP BY project_id, trace_id
+      )
+
+      SELECT
+        t.id as id,
+        CONCAT('/project/', t.project_id, '/traces/', t.id) as htmlPath,
+        t.project_id as project_id,
+        t.timestamp as timestamp,
+        t.name as name,
+        t.environment as environment,
+        t.input as input,
+        t.output as output,
+        t.session_id as session_id,
+        t.metadata as metadata,
+        t.user_id as user_id,
+        t.release as release,
+        t.version as version,
+        t.bookmarked as bookmarked,
+        t.public as public,
+        t.tags as tags,
+        t.created_at as created_at,
+        t.updated_at as updated_at,
+        s.score_ids as scores,
+        o.observation_ids as observations,
+        COALESCE(o.latency_milliseconds / 1000, 0) as latency,
+        COALESCE(o.total_cost, 0) as totalCost
+      FROM ${shouldUseSkipIndexes 
+        ? `(
+            SELECT *,
+                   ROW_NUMBER() OVER (PARTITION BY id, project_id ORDER BY event_ts DESC) as rn
+            FROM traces
+            WHERE project_id = {projectId: String}
+            ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+          ) t
+          WHERE rn = 1`
+        : `(
+            SELECT *,
+                   ROW_NUMBER() OVER (PARTITION BY id, project_id ORDER BY event_ts DESC) as rn
+            FROM traces
+            WHERE project_id = {projectId: String}
+            ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+          ) t
+          WHERE rn = 1`
+      }
+      LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id
+      LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id
+      ${dorisOrderBy}
+      ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    `;
+
+    const result = await queryDoris<
+      TraceRecordReadType & {
+        observations: string[];
+        scores: string[];
+        totalCost: number;
+        latency: number;
+        htmlPath: string;
+      }
+    >({
+      query,
+      params: {
+        ...appliedEnvironmentFilter.params,
+        ...appliedFilter.params,
+        projectId: props.projectId,
+        ...(props.limit !== undefined ? { limit: props.limit } : {}),
+        ...(props.page !== undefined
+          ? { offset: (props.page - 1) * props.limit }
+          : {}),
+        ...(timeFilter
+          ? {
+              cteTimeFilter: convertDateToAnalyticsDateTime(timeFilter.value),
+            }
+          : {}),
+      },
+    });
+
+    return result.map((trace) => ({
+      ...convertClickhouseToDomain(trace),
+      observations: trace.observations,
+      scores: trace.scores,
+      totalCost: trace.totalCost,
+      latency: trace.latency,
+      htmlPath: trace.htmlPath,
+    }));
+  }
+
+  // ClickHouse implementation (existing code)
   const filter = convertApiProvidedFilterToClickhouseFilter(
     props,
     filterParams,
@@ -43,7 +197,7 @@ export const generateTracesForPublicApi = async ({
 
   const timeFilter = filter.find(
     (f) =>
-      f.clickhouseTable === "traces" &&
+      f.table === "traces" &&
       f.field.includes("timestamp") &&
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
@@ -55,7 +209,7 @@ export const generateTracesForPublicApi = async ({
   // Otherwise, we will ignore it in most cases due to `FINAL`.
   const shouldUseSkipIndexes = filter.some(
     (f) =>
-      f.clickhouseTable === "traces" &&
+      f.table === "traces" &&
       ["user_id", "session_id", "metadata"].some((skipIndexCol) =>
         f.field.includes(skipIndexCol),
       ),
@@ -172,6 +326,29 @@ export const getTracesCountForPublicApi = async ({
 }: {
   props: TraceQueryType;
 }) => {
+  if (isDorisBackend()) {
+    // Doris implementation - reuse same filter logic
+    const filter = convertApiProvidedFilterToClickhouseFilter(
+      props,
+      filterParams,
+    );
+    const appliedFilter = filter.apply();
+
+    const query = `
+      SELECT count() as count
+      FROM traces t
+      WHERE project_id = {projectId: String}
+      ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+    `;
+
+    const records = await queryDoris<{ count: string }>({
+      query,
+      params: { ...appliedFilter.params, projectId: props.projectId },
+    });
+    return records.map((record) => Number(record.count)).shift();
+  }
+
+  // ClickHouse implementation (existing code)
   const filter = convertApiProvidedFilterToClickhouseFilter(
     props,
     filterParams,
