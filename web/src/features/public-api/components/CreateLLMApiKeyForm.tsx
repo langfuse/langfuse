@@ -38,6 +38,8 @@ import { DialogFooter } from "@/src/components/ui/dialog";
 import { DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 
+const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
 const createFormSchema = (mode: "create" | "update") =>
   z
     .object({
@@ -67,8 +69,6 @@ const createFormSchema = (mode: "create" | "update") =>
     })
     .refine(
       (data) => {
-        const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-
         if (data.adapter !== LLMAdapter.Bedrock) return true;
 
         // For cloud deployments, AWS credentials are required
@@ -82,7 +82,7 @@ const createFormSchema = (mode: "create" | "update") =>
         return data.awsRegion;
       },
       {
-        message: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+        message: isLangfuseCloud
           ? "AWS credentials are required for Bedrock"
           : "AWS region is required.",
         path: ["adapter"],
@@ -210,8 +210,6 @@ export function CreateLLMApiKeyForm({
     if (mode !== "update") return false;
     return ["provider", "adapter"].includes(fieldName);
   };
-
-  const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!projectId) return console.error("No project ID found.");
@@ -532,7 +530,7 @@ export function CreateLLMApiKeyForm({
                 <FormItem>
                   <FormLabel>API Key</FormLabel>
                   <FormDescription>
-                    {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+                    {isLangfuseCloud
                       ? "Your API keys are stored encrypted on our servers."
                       : "Your API keys are stored encrypted in your database."}
                   </FormDescription>
@@ -607,10 +605,7 @@ export function CreateLLMApiKeyForm({
                   <FormDescription>
                     Optional additional HTTP headers to include with requests
                     towards LLM provider. All header values stored encrypted{" "}
-                    {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-                      ? "on our servers"
-                      : "in your database"}
-                    .
+                    {isLangfuseCloud ? "on our servers" : "in your database"}.
                   </FormDescription>
 
                   {headerFields.map((header, index) => (
