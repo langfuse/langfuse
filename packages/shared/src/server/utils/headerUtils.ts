@@ -60,11 +60,7 @@ export function encryptSecretHeaders(
 
 export function decryptSecretHeaders(
   requestHeaders: Record<string, { secret: boolean; value: string }>,
-): {
-  decryptedHeaders: Record<string, string>;
-  decryptedRequestHeaders: Record<string, { secret: boolean; value: string }>;
-} {
-  const decryptedHeaders: Record<string, string> = {};
+): Record<string, { secret: boolean; value: string }> {
   const decryptedRequestHeaders: Record<
     string,
     { secret: boolean; value: string }
@@ -73,7 +69,6 @@ export function decryptSecretHeaders(
   for (const [key, headerObj] of Object.entries(requestHeaders)) {
     if (headerObj.secret) {
       try {
-        decryptedHeaders[key] = decrypt(headerObj.value);
         decryptedRequestHeaders[key] = {
           secret: true,
           value: decrypt(headerObj.value),
@@ -82,15 +77,11 @@ export function decryptSecretHeaders(
         console.error(`Failed to decrypt header ${key}:`, error);
       }
     } else {
-      decryptedHeaders[key] = headerObj.value;
       decryptedRequestHeaders[key] = { secret: false, value: headerObj.value };
     }
   }
 
-  return {
-    decryptedHeaders: decryptedHeaders,
-    decryptedRequestHeaders: decryptedRequestHeaders,
-  };
+  return decryptedRequestHeaders;
 }
 
 function maskSecretValue(value: string): string {

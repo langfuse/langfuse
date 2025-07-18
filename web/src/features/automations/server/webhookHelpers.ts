@@ -58,6 +58,7 @@ export async function processWebhookActionConfig({
   // Process headers and generate final action config
   const finalActionConfig = processWebhookHeaders(
     actionConfig,
+    existingAction,
     existingAction?.config,
   );
 

@@ -97,13 +97,13 @@ export const executeWebhook = async (input: WebhookInput) => {
     const requestHeaders: Record<string, string> = {};
 
     // Add webhook config headers first
-    for (const [key, value] of Object.entries(webhookConfig.headers)) {
-      requestHeaders[key.toLowerCase()] = value;
+    for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
+      requestHeaders[key] = value;
     }
 
     // Add default headers with precedence
     for (const [key, value] of Object.entries(WebhookDefaultHeaders)) {
-      requestHeaders[key.toLowerCase()] = value;
+      requestHeaders[key] = value;
     }
 
     if (!webhookConfig.secretKey) {

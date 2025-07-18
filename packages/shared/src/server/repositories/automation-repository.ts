@@ -38,11 +38,10 @@ export const getActionByIdWithSecrets = async ({
   const config = actionConfig.config as WebhookActionConfigWithSecrets;
 
   // Decrypt secret headers for webhook execution using new structure
-  const { decryptedHeaders, decryptedRequestHeaders } = config.requestHeaders
+  const decryptedHeaders = config.requestHeaders
     ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
     : {
         decryptedHeaders: config.headers || {},
-        decryptedRequestHeaders: {},
       };
 
   return {
@@ -50,8 +49,7 @@ export const getActionByIdWithSecrets = async ({
     config: {
       type: config.type,
       url: config.url,
-      headers: decryptedHeaders,
-      requestHeaders: decryptedRequestHeaders,
+      requestHeaders: decryptedHeaders,
       displayHeaders: config.displayHeaders,
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
