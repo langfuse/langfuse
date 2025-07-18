@@ -87,8 +87,8 @@ function processWebhookHeaders(
   existingConfig: WebhookActionConfigWithSecrets | undefined,
 ): ActionConfig {
   // Get existing headers for comparison
-  const existingLegacyHeaders = existingConfig?.headers ?? {};
-  const existingRequestHeaders = existingConfig?.requestHeaders ?? {};
+  const existingLegacyHeaders = existingConfig?.headers ?? {}; // legacy headers
+  const existingRequestHeaders = existingConfig?.requestHeaders ?? {}; // new headers
   const mergedExistingHeaders = mergeHeaders(
     existingLegacyHeaders,
     existingRequestHeaders,
@@ -105,9 +105,7 @@ function processWebhookHeaders(
 
   // Process each header from input
   for (const [key, headerObj] of Object.entries(inputRequestHeaders)) {
-    // Convert header key to lowercase for comparison
-    const normalizedKey = key.toLowerCase();
-    const existingHeader = mergedExistingHeaders[normalizedKey];
+    const existingHeader = mergedExistingHeaders[key];
 
     // Validate secret toggle: can only change secret status when providing a value
     if (headerObj.secret && headerObj.value.trim() === "" && !existingHeader) {
@@ -141,7 +139,7 @@ function processWebhookHeaders(
 
   return {
     ...actionConfig,
-    headers: existingLegacyHeaders, // Keep legacy headers for compatibility
+    headers: {}, // remove legacy headers on write
     requestHeaders: encryptSecretHeaders(finalRequestHeaders),
     displayHeaders: createDisplayHeaders(finalRequestHeaders),
     secretKey: "", // will be overwritten by the caller

@@ -7,6 +7,7 @@ import {
   ActionType,
   ActionTypeSchema,
   JobConfigState,
+  singleFilter,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -30,7 +31,7 @@ export const CreateAutomationInputSchema = z.object({
   name: z.string().min(1, "Name is required"),
   eventSource: z.string(),
   eventAction: z.array(z.string()),
-  filter: z.array(z.any()).nullable(),
+  filter: z.array(singleFilter).nullable(),
   status: z.enum(JobConfigState).default(JobConfigState.ACTIVE),
   // Action fields
   actionType: z.enum(ActionType),

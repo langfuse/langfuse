@@ -8,12 +8,12 @@ export function mergeHeaders(
 
   // Add legacy headers as non-secret
   for (const [key, value] of Object.entries(legacyHeaders)) {
-    merged[key.toLowerCase()] = { secret: false, value };
+    merged[key] = { secret: false, value };
   }
 
   // requestHeaders takes precedence
   for (const [key, headerObj] of Object.entries(requestHeaders)) {
-    merged[key.toLowerCase()] = headerObj;
+    merged[key] = headerObj;
   }
 
   return merged;
