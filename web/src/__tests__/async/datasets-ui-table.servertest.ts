@@ -1,6 +1,6 @@
 import {
   createOrgProjectAndApiKey,
-  getDatasetRunItemsTableCount,
+  getDatasetRunItemsTableCountPg,
 } from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
@@ -65,7 +65,7 @@ describe("trpc.datasets", () => {
   });
   describe("GET datasetItems.countAll", () => {
     it("should GET all dataset run items with no filter", async () => {
-      const { totalCount } = await getDatasetRunItemsTableCount({
+      const { totalCount } = await getDatasetRunItemsTableCountPg({
         projectId: projectId,
         filter: [],
       });
@@ -74,7 +74,7 @@ describe("trpc.datasets", () => {
     });
 
     it("should GET all dataset run items with filter", async () => {
-      const { totalCount } = await getDatasetRunItemsTableCount({
+      const { totalCount } = await getDatasetRunItemsTableCountPg({
         projectId: projectId,
         filter: generateFilter([datasetIds[0]]),
       });

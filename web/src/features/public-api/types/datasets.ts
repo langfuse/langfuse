@@ -10,6 +10,7 @@ import {
   removeObjectKeys,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
+import { type DatasetRunItemDomain } from "../../../../../packages/shared/dist/src/domain/dataset-run-items";
 
 /**
  * Objects
@@ -53,6 +54,8 @@ const APIDatasetRunItem = z
   })
   .strict();
 
+export type APIDatasetRunItem = z.infer<typeof APIDatasetRunItem>;
+
 const APIDatasetItem = z
   .object({
     datasetName: z.string(),
@@ -83,10 +86,23 @@ export const transformDbDatasetItemToAPIDatasetItem = (
 ): z.infer<typeof APIDatasetItem> =>
   removeObjectKeys(dbDatasetItem, ["projectId"]);
 
-export const transformDbDatasetRunItemToAPIDatasetRunItem = (
+export const transformDbDatasetRunItemToAPIDatasetRunItemPg = (
   dbDatasetRunItem: DbDatasetRunItems & { datasetRunName: string },
 ): z.infer<typeof APIDatasetRunItem> =>
   removeObjectKeys(dbDatasetRunItem, ["projectId"]);
+
+export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
+  dbDatasetRunItem: DatasetRunItemDomain,
+): z.infer<typeof APIDatasetRunItem> =>
+  removeObjectKeys(dbDatasetRunItem, [
+    "projectId",
+    "datasetRunDescription",
+    "datasetRunMetadata",
+    "datasetItemInput",
+    "datasetItemExpectedOutput",
+    "datasetRunCreatedAt",
+    "datasetId",
+  ]);
 
 /**
  * Endpoints

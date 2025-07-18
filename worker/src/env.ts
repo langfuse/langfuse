@@ -94,6 +94,10 @@ const EnvSchema = z.object({
     .default(25),
   LANGFUSE_TRACE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_SCORE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
+  LANGFUSE_DATASET_RUN_ITEMS_DELETE_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(1),
   LANGFUSE_PROJECT_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
@@ -157,6 +161,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_DATASET_RUN_ITEMS_DELETE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_PROJECT_DELETE_QUEUE_IS_ENABLED: z

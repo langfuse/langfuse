@@ -2,6 +2,8 @@ import {
   TraceRecordInsertType,
   ObservationRecordInsertType,
   ScoreRecordInsertType,
+  DatasetRunItemRecordInsertType,
+  createDatasetRunItemsCh,
 } from "../../../src/server";
 import { SEED_TEXT_PROMPTS } from "./postgres-seed-constants";
 import {
@@ -40,6 +42,16 @@ export class ClickHouseQueryBuilder {
     observations: ObservationRecordInsertType[],
   ): Promise<InsertResult> {
     return await createObservationsCh(observations);
+  }
+
+  /**
+   * Creates INSERT query for dataset run items data using VALUES syntax.
+   * Use for: Small datasets, dataset run items that link to postgres data (e.g. dataset runs)
+   */
+  async executeDatasetRunItemsInsert(
+    datasetRunItems: DatasetRunItemRecordInsertType[],
+  ): Promise<InsertResult> {
+    return await createDatasetRunItemsCh(datasetRunItems);
   }
 
   /**

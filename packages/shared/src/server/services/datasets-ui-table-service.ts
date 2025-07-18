@@ -9,7 +9,7 @@ type FetchDatasetItemsTableProps = {
   filter: FilterState;
 };
 
-const getDatasetRunItemsTableGeneric = async <T>(
+const getDatasetRunItemsTableGenericPg = async <T>(
   props: FetchDatasetItemsTableProps,
 ) => {
   const { select, projectId, filter } = props;
@@ -45,11 +45,11 @@ const getDatasetRunItemsTableGeneric = async <T>(
   return res;
 };
 
-export const getDatasetRunItemsTableCount = async (props: {
+export const getDatasetRunItemsTableCountPg = async (props: {
   projectId: string;
   filter: FilterState;
 }) => {
-  const res = await getDatasetRunItemsTableGeneric<Array<{ count: bigint }>>({
+  const res = await getDatasetRunItemsTableGenericPg<Array<{ count: bigint }>>({
     select: "count",
     projectId: props.projectId,
     filter: props.filter,

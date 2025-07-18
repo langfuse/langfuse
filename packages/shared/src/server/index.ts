@@ -22,6 +22,7 @@ export * from "./repositories/definitions";
 export * from "../server/ingestion/types";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
+export * from "../server/ingestion/enrichedDatasetRunItem";
 export * from "./redis/redis";
 export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";
@@ -31,6 +32,7 @@ export * from "./redis/webhookQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
+export * from "./redis/datasetRunItemsDelete";
 export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
 export * from "./redis/batchActionQueue";
@@ -62,7 +64,6 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./clickhouse/measureAndReturn";
-
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 

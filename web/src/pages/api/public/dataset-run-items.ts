@@ -2,15 +2,32 @@ import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
+  type APIDatasetRunItem,
   GetDatasetRunItemsV1Query,
   GetDatasetRunItemsV1Response,
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
-  transformDbDatasetRunItemToAPIDatasetRunItem,
+  transformDbDatasetRunItemToAPIDatasetRunItemPg,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  executeWithDatasetRunItemsStrategy,
+  DatasetRunItemsOperationType,
+} from "@langfuse/shared";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
-import { getObservationById } from "@langfuse/shared/src/server";
+import {
+  eventTypes,
+  logger,
+  processEventBatch,
+  createOrFetchDatasetRun,
+  validateDatasetRunAndFetch,
+} from "@langfuse/shared/src/server";
+import {
+  generateDatasetRunItemsForPublicApi,
+  getDatasetRunItemsCountForPublicApi,
+  validateCreateDatasetRunItemBodyAndFetch,
+} from "@/src/features/public-api/server/dataset-run-items";
+import { v4 } from "uuid";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -18,105 +35,157 @@ export default withMiddlewares({
     bodySchema: PostDatasetRunItemsV1Body,
     responseSchema: PostDatasetRunItemsV1Response,
     rateLimitResource: "datasets",
-    fn: async ({ body, auth }) => {
-      const {
-        datasetItemId,
-        observationId,
-        traceId,
-        runName,
-        runDescription,
-        metadata,
-      } = body;
+    fn: async ({ body, auth, res }) => {
+      return await executeWithDatasetRunItemsStrategy({
+        input: body,
+        operationType: DatasetRunItemsOperationType.WRITE,
+        postgresExecution: async (bodyInput: typeof body) => {
+          /**************
+           * VALIDATION *
+           **************/
 
-      /**************
-       * VALIDATION *
-       **************/
+          const result = await validateCreateDatasetRunItemBodyAndFetch(
+            bodyInput,
+            auth.scope.projectId,
+          );
 
-      const datasetItem = await prisma.datasetItem.findUnique({
-        where: {
-          id_projectId: {
+          if (!result.success) {
+            throw new LangfuseNotFoundError(result.error);
+          }
+
+          /********************
+           *   RUN CREATION    *
+           ********************/
+
+          const { datasetItem, traceId, observationId } = result;
+
+          const run = await createOrFetchDatasetRun({
+            name: bodyInput.runName,
+            description: bodyInput.runDescription ?? undefined,
+            metadata: bodyInput.metadata ?? undefined,
             projectId: auth.scope.projectId,
-            id: datasetItemId,
-          },
-          status: "ACTIVE",
-        },
-        include: {
-          dataset: true,
-        },
-      });
-
-      if (!datasetItem) {
-        throw new LangfuseNotFoundError("Dataset item not found or not active");
-      }
-
-      let finalTraceId = traceId;
-
-      // Backwards compatibility: historically, dataset run items were linked to observations, not traces
-      if (!traceId && observationId) {
-        const observation = await getObservationById({
-          id: observationId,
-          projectId: auth.scope.projectId,
-          fetchWithInputOutput: true,
-        });
-        if (observationId && !observation) {
-          throw new LangfuseNotFoundError("Observation not found");
-        }
-        finalTraceId = observation?.traceId;
-      }
-
-      if (!finalTraceId) {
-        throw new InvalidRequestError("No traceId set");
-      }
-
-      /********************
-       * RUN ITEM CREATION *
-       ********************/
-
-      const run = await prisma.datasetRuns.upsert({
-        where: {
-          datasetId_projectId_name: {
             datasetId: datasetItem.datasetId,
-            name: runName,
+          });
+
+          /********************
+           * RUN ITEM CREATION *
+           ********************/
+
+          const runItem = await prisma.datasetRunItems.create({
+            data: {
+              datasetItemId: datasetItem.id,
+              traceId,
+              observationId,
+              datasetRunId: run.id,
+              projectId: auth.scope.projectId,
+            },
+          });
+
+          /********************
+           * ASYNC RUN ITEM EVAL *
+           ********************/
+
+          await addDatasetRunItemsToEvalQueue({
             projectId: auth.scope.projectId,
-          },
-        },
-        create: {
-          name: runName,
-          description: runDescription ?? undefined,
-          datasetId: datasetItem.datasetId,
-          metadata: metadata ?? undefined,
-          projectId: auth.scope.projectId,
-        },
-        update: {
-          metadata: metadata ?? undefined,
-          description: runDescription ?? undefined,
-        },
-      });
+            datasetItemId: datasetItem.id,
+            traceId,
+            observationId: observationId ?? undefined,
+          });
 
-      const runItem = await prisma.datasetRunItems.create({
-        data: {
-          datasetItemId,
-          traceId: finalTraceId,
-          observationId,
-          datasetRunId: run.id,
-          projectId: auth.scope.projectId,
+          return transformDbDatasetRunItemToAPIDatasetRunItemPg({
+            ...runItem,
+            datasetRunName: run.name,
+          });
         },
-      });
+        clickhouseExecution: async (bodyInput: typeof body) => {
+          /**************
+           * VALIDATION *
+           **************/
 
-      /********************
-       * ASYNC RUN ITEM EVAL *
-       ********************/
+          const result = await validateCreateDatasetRunItemBodyAndFetch(
+            bodyInput,
+            auth.scope.projectId,
+          );
 
-      await addDatasetRunItemsToEvalQueue({
-        projectId: auth.scope.projectId,
-        datasetItemId,
-        traceId: finalTraceId,
-        observationId: observationId ?? undefined,
-      });
+          if (!result.success) {
+            throw new LangfuseNotFoundError(result.error);
+          }
 
-      return transformDbDatasetRunItemToAPIDatasetRunItem({
-        ...runItem,
-        datasetRunName: run.name,
+          const { datasetItem, traceId, observationId } = result;
+
+          /********************
+           *   RUN CREATION    *
+           ********************/
+
+          const run = await createOrFetchDatasetRun({
+            name: bodyInput.runName,
+            description: bodyInput.runDescription ?? undefined,
+            metadata: bodyInput.metadata ?? undefined,
+            projectId: auth.scope.projectId,
+            datasetId: datasetItem.datasetId,
+          });
+
+          /********************
+           * RUN ITEM CREATION *
+           ********************/
+
+          const createdAt = new Date();
+
+          const event = {
+            id: v4(),
+            type: eventTypes.DATASET_RUN_ITEM_CREATE,
+            timestamp: new Date().toISOString(),
+            body: {
+              id: v4(),
+              traceId: traceId,
+              observationId: observationId,
+              error: null,
+              input: datasetItem.input,
+              expectedOutput: datasetItem.expectedOutput,
+              createdAt: createdAt.toISOString(),
+              datasetId: datasetItem.datasetId,
+              datasetRunId: run.id,
+              datasetItemId: datasetItem.id,
+            },
+          };
+          // note: currently we do not accept user defined ids for dataset run items
+          const ingestionResult = await processEventBatch([event], auth);
+          if (ingestionResult.errors.length > 0) {
+            const error = ingestionResult.errors[0];
+            res
+              .status(error.status)
+              .json({ message: error.error ?? error.message });
+            // TODO: figure out dummy return
+          }
+          if (ingestionResult.successes.length !== 1) {
+            logger.error("Failed to create dataset run item", { result });
+            throw new Error("Failed to create dataset run item");
+          }
+
+          /********************
+           * ASYNC RUN ITEM EVAL *
+           ********************/
+
+          await addDatasetRunItemsToEvalQueue({
+            projectId: auth.scope.projectId,
+            datasetItemId: datasetItem.id,
+            traceId,
+            observationId: observationId ?? undefined,
+          });
+
+          const mockDatasetRunItem: APIDatasetRunItem = {
+            id: event.body.id,
+            datasetRunId: run.id,
+            datasetRunName: run.name,
+            datasetItemId: datasetItem.id,
+            traceId: traceId,
+            observationId: observationId,
+            createdAt: createdAt,
+            updatedAt: createdAt,
+          };
+
+          return mockDatasetRunItem;
+        },
       });
     },
   }),
@@ -126,69 +195,118 @@ export default withMiddlewares({
     responseSchema: GetDatasetRunItemsV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      const { datasetId, runName, ...pagination } = query;
+      const res = await executeWithDatasetRunItemsStrategy({
+        input: query,
+        operationType: DatasetRunItemsOperationType.READ,
+        postgresExecution: async (queryInput: typeof query) => {
+          const { datasetId, runName, ...pagination } = queryInput;
 
-      /**************
-       * VALIDATION *
-       **************/
+          /**************
+           * VALIDATION *
+           **************/
 
-      const datasetRun = await prisma.datasetRuns.findUnique({
-        where: {
-          datasetId_projectId_name: {
+          const res = await validateDatasetRunAndFetch({
             datasetId,
-            name: runName,
+            runName,
             projectId: auth.scope.projectId,
-          },
+          });
+
+          if (!res.success) {
+            throw new LangfuseNotFoundError(res.error);
+          }
+
+          const datasetRunItems = await prisma.datasetRunItems.findMany({
+            where: {
+              datasetRunId: res.datasetRun.id,
+              projectId: auth.scope.projectId,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: pagination.limit,
+            skip: (pagination.page - 1) * pagination.limit,
+          });
+
+          const totalItems = await prisma.datasetRunItems.count({
+            where: {
+              datasetRunId: res.datasetRun.id,
+              projectId: auth.scope.projectId,
+            },
+          });
+
+          /**************
+           * RESPONSE *
+           **************/
+
+          return {
+            data: datasetRunItems.map((runItem) =>
+              transformDbDatasetRunItemToAPIDatasetRunItemPg({
+                ...runItem,
+                datasetRunName: queryInput.runName,
+              }),
+            ),
+            meta: {
+              page: pagination.page,
+              limit: pagination.limit,
+              totalItems,
+              totalPages: Math.ceil(totalItems / pagination.limit),
+            },
+          };
         },
-        select: {
-          id: true,
-          name: true,
+        clickhouseExecution: async (queryInput: typeof query) => {
+          const { datasetId, runName, ...pagination } = queryInput;
+
+          /**************
+           * VALIDATION *
+           **************/
+
+          const res = await validateDatasetRunAndFetch({
+            datasetId,
+            runName,
+            projectId: auth.scope.projectId,
+          });
+
+          if (!res.success) {
+            throw new LangfuseNotFoundError(res.error);
+          }
+
+          /**************
+           * RESPONSE *
+           **************/
+
+          const [items, count] = await Promise.all([
+            generateDatasetRunItemsForPublicApi({
+              props: {
+                datasetId,
+                runName,
+                projectId: auth.scope.projectId,
+                ...pagination,
+              },
+            }),
+            getDatasetRunItemsCountForPublicApi({
+              props: {
+                datasetId,
+                runName,
+                projectId: auth.scope.projectId,
+                ...pagination,
+              },
+            }),
+          ]);
+
+          const finalCount = count || 0;
+          return {
+            data: items,
+            meta: {
+              page: pagination.page,
+              limit: pagination.limit,
+              totalItems: finalCount,
+              totalPages: Math.ceil(finalCount / pagination.limit),
+            },
+          };
         },
       });
 
-      if (!datasetRun) {
-        throw new LangfuseNotFoundError(
-          "Dataset run not found for the given project and dataset id",
-        );
-      }
-
-      const datasetRunItems = await prisma.datasetRunItems.findMany({
-        where: {
-          datasetRunId: datasetRun.id,
-          projectId: auth.scope.projectId,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: pagination.limit,
-        skip: (pagination.page - 1) * pagination.limit,
-      });
-
-      const totalItems = await prisma.datasetRunItems.count({
-        where: {
-          datasetRunId: datasetRun.id,
-          projectId: auth.scope.projectId,
-        },
-      });
-
-      /**************
-       * RESPONSE *
-       **************/
-
-      return {
-        data: datasetRunItems.map((runItem) =>
-          transformDbDatasetRunItemToAPIDatasetRunItem({
-            ...runItem,
-            datasetRunName: datasetRun.name,
-          }),
-        ),
-        meta: {
-          page: pagination.page,
-          limit: pagination.limit,
-          totalItems,
-          totalPages: Math.ceil(totalItems / pagination.limit),
-        },
-      };
+      return res;
     },
   }),
 });
