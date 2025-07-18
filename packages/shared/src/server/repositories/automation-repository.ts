@@ -131,12 +131,25 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
 const convertActionToDomain = (action: Action): ActionDomain => {
   const config = action.config as WebhookActionConfigWithSecrets;
 
+  // Handle legacy headers - convert them to displayHeaders format if displayHeaders is undefined
+  let displayHeaders = config.displayHeaders;
+  if (!displayHeaders && config.headers) {
+    // Convert legacy headers to displayHeaders format
+    displayHeaders = Object.entries(config.headers).reduce(
+      (acc, [key, value]) => {
+        acc[key] = { secret: false, value };
+        return acc;
+      },
+      {} as Record<string, { secret: boolean; value: string }>,
+    );
+  }
+
   return {
     ...action,
     config: {
       type: config.type,
       url: config.url,
-      displayHeaders: config.displayHeaders,
+      displayHeaders,
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
     } as SafeWebhookActionConfig,

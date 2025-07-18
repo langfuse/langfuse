@@ -438,6 +438,70 @@ describe("automations trpc", () => {
       expect(config).not.toHaveProperty("headers");
     });
 
+    it("should return all legacy header values when reading automation", async () => {
+      const { project, caller } = await prepare();
+
+      // Create test trigger and action with legacy headers
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            // Legacy headers format - plain object with string values
+            headers: {
+              "content-type": "application/json",
+              "x-api-key": "legacy-api-key-value",
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Legacy Headers Read Test",
+        },
+      });
+
+      const response = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+      });
+
+      const config = response.action.config;
+
+      // Should have display values with all legacy header values returned
+      // Legacy headers are converted to the new format with secret: false
+      expect(config.displayHeaders).toEqual({
+        "content-type": { secret: false, value: "application/json" },
+        "x-api-key": { secret: false, value: "legacy-api-key-value" },
+      });
+
+      // Should NOT have raw headers object in response
+      expect(config).not.toHaveProperty("headers");
+      expect(config).not.toHaveProperty("requestHeaders");
+    });
+
     it("should throw error when automation not found", async () => {
       const { project, caller } = await prepare();
 
