@@ -1,5 +1,6 @@
 import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import { DatasetRunItemRecordReadType } from "./definitions";
 
 export const convertToDatasetRunMetrics = (row: any) => {
@@ -31,11 +32,18 @@ export const convertDatasetRunItemDomainToClickhouse = (
     dataset_run_id: datasetRunItem.datasetRunId,
     dataset_run_name: datasetRunItem.datasetRunName,
     dataset_run_description: datasetRunItem.datasetRunDescription,
-    dataset_run_metadata: datasetRunItem.datasetRunMetadata as string,
+    dataset_run_metadata: datasetRunItem.datasetRunMetadata as Record<
+      string,
+      string
+    >,
     dataset_item_id: datasetRunItem.datasetItemId,
     dataset_item_input: datasetRunItem.datasetItemInput as string,
     dataset_item_expected_output:
       datasetRunItem.datasetItemExpectedOutput as string,
+    dataset_item_metadata: datasetRunItem.datasetItemMetadata as Record<
+      string,
+      string
+    >,
     created_at: convertDateToClickhouseDateTime(datasetRunItem.createdAt),
     updated_at: convertDateToClickhouseDateTime(datasetRunItem.updatedAt),
     event_ts: convertDateToClickhouseDateTime(new Date()),
@@ -59,10 +67,14 @@ export const convertDatasetRunItemClickhouseToDomain = (
     datasetRunName: row.dataset_run_name,
     datasetRunDescription: row.dataset_run_description ?? null,
     datasetRunCreatedAt: new Date(row.dataset_run_created_at),
-    datasetRunMetadata: row.dataset_run_metadata ?? null,
+    datasetRunMetadata:
+      parseMetadataCHRecordToDomain(row.dataset_run_metadata) ?? null,
     datasetItemId: row.dataset_item_id,
     datasetItemInput: row.dataset_item_input,
     datasetItemExpectedOutput: row.dataset_item_expected_output,
+    datasetItemMetadata: parseMetadataCHRecordToDomain(
+      row.dataset_item_metadata,
+    ),
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
     datasetId: row.dataset_id,

@@ -42,6 +42,7 @@ import {
   convertTraceToTraceMt,
   convertScoreToTraceMt,
   DatasetRunItemRecordInsertType,
+  enrichedDatasetRunItem,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -167,7 +168,61 @@ export class IngestionService {
     createdAtTimestamp: Date;
     datasetRunItemEventList: DatasetRunItemEventType[];
   }) {
-    // TODO: Implement. Do we need merge step?
+    const { projectId, entityId, datasetRunItemEventList } = params;
+    if (datasetRunItemEventList.length === 0) return;
+
+    const finalDatasetRunItemRecords: (DatasetRunItemRecordInsertType | null)[] =
+      await Promise.all(
+        datasetRunItemEventList.map(async (event: DatasetRunItemEventType) => {
+          const enrichedItem = await enrichedDatasetRunItem({
+            body: event.body,
+            runItemId: entityId,
+            projectId,
+          });
+
+          if (!enrichedItem) return null;
+
+          return {
+            id: entityId,
+            project_id: projectId,
+            dataset_run_id: enrichedItem.datasetRunId,
+            dataset_item_id: enrichedItem.datasetItemId,
+            dataset_id: enrichedItem.datasetId,
+            trace_id: enrichedItem.traceId,
+            observation_id: enrichedItem.observationId,
+            error: enrichedItem.error,
+            dataset_run_name: enrichedItem.datasetRunName,
+            dataset_run_description: enrichedItem.datasetRunDescription,
+            dataset_run_metadata: enrichedItem.datasetRunMetadata
+              ? convertJsonSchemaToRecord(
+                  enrichedItem.datasetRunMetadata as any,
+                )
+              : {},
+            dataset_run_created_at: enrichedItem.datasetRunCreatedAt.getTime(),
+            dataset_item_input: JSON.stringify(enrichedItem.datasetItemInput),
+            dataset_item_expected_output: JSON.stringify(
+              enrichedItem.datasetItemExpectedOutput,
+            ),
+            dataset_item_metadata: enrichedItem.datasetItemMetadata
+              ? convertJsonSchemaToRecord(
+                  enrichedItem.datasetItemMetadata as any,
+                )
+              : {},
+            created_at: this.getMillisecondTimestamp(
+              enrichedItem.createdAt.toISOString(),
+            ),
+            updated_at: Date.now(),
+            event_ts: new Date(enrichedItem.createdAt).getTime(),
+            is_deleted: 0,
+          };
+        }),
+      );
+
+    finalDatasetRunItemRecords.forEach((record) => {
+      if (record) {
+        this.clickHouseWriter.addToQueue(TableName.DatasetRunItems, record);
+      }
+    });
   }
 
   private async processScoreEventList(params: {

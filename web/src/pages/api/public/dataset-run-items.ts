@@ -205,11 +205,11 @@ export default withMiddlewares({
            * VALIDATION *
            **************/
 
-          const res = await validateDatasetRunAndFetch(
+          const res = await validateDatasetRunAndFetch({
             datasetId,
             runName,
-            auth.scope.projectId,
-          );
+            projectId: auth.scope.projectId,
+          });
 
           if (!res.success) {
             throw new LangfuseNotFoundError(res.error);
@@ -260,11 +260,11 @@ export default withMiddlewares({
            * VALIDATION *
            **************/
 
-          const res = await validateDatasetRunAndFetch(
+          const res = await validateDatasetRunAndFetch({
             datasetId,
             runName,
-            auth.scope.projectId,
-          );
+            projectId: auth.scope.projectId,
+          });
 
           if (!res.success) {
             throw new LangfuseNotFoundError(res.error);

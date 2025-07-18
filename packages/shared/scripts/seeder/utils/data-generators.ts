@@ -95,11 +95,7 @@ export class DataGenerator {
       dataset_run_created_at: input.runCreatedAt,
       dataset_run_description:
         (input.runNumber || 0) % 2 === 0 ? "Dataset run description" : "",
-      dataset_run_metadata: JSON.stringify(
-        [undefined, "string", 100, { key: "value" }, ["tag1", "tag2"]][
-          input.runNumber || 0 % 5
-        ],
-      ),
+      dataset_run_metadata: { key: "value" },
       dataset_item_id: generateDatasetItemId(
         input.datasetName,
         input.itemIndex,

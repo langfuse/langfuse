@@ -18,6 +18,7 @@ import { v4 } from "uuid";
 
 // Use Prisma's default inferred type for dataset runs (no field redefinition needed)
 type DatasetRun = Prisma.DatasetRunsGetPayload<{}>;
+type DatasetItem = Prisma.DatasetItemGetPayload<{}>;
 
 type DatasetRunItemsTableQuery = {
   projectId: string;
@@ -70,11 +71,23 @@ type ValidateDatasetRunAndFetchReturn =
       error: string;
     };
 
-export const validateDatasetRunAndFetch = async (
-  datasetId: string,
-  runName: string,
-  projectId: string,
-): Promise<ValidateDatasetRunAndFetchReturn> => {
+type ValidateDatasetItemAndFetchReturn =
+  | {
+      success: true;
+      datasetItem: DatasetItem;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+export const validateDatasetRunAndFetch = async (params: {
+  datasetId: string;
+  runName: string;
+  projectId: string;
+}): Promise<ValidateDatasetRunAndFetchReturn> => {
+  const { datasetId, runName, projectId } = params;
+
   const datasetRun = await prisma.datasetRuns.findUnique({
     where: {
       datasetId_projectId_name: {
@@ -96,6 +109,36 @@ export const validateDatasetRunAndFetch = async (
   return {
     success: true,
     datasetRun: datasetRun,
+  };
+};
+
+export const validateDatasetItemAndFetch = async (params: {
+  datasetId: string;
+  itemId: string;
+  projectId: string;
+}): Promise<ValidateDatasetItemAndFetchReturn> => {
+  const { datasetId, itemId, projectId } = params;
+
+  const datasetItem = await prisma.datasetItem.findFirst({
+    where: {
+      datasetId,
+      projectId,
+      id: itemId,
+      status: "ACTIVE",
+    },
+  });
+
+  if (!datasetItem) {
+    return {
+      success: false,
+      error:
+        "Dataset item not found for the given project, dataset id and item id or is not active",
+    };
+  }
+
+  return {
+    success: true,
+    datasetItem: datasetItem,
   };
 };
 

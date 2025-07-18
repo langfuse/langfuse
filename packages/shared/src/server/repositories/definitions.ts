@@ -206,19 +206,19 @@ const datasetRunItemRecordBaseSchema = z.object({
   dataset_item_id: z.string(),
   dataset_run_name: z.string(),
   dataset_run_description: z.string().nullish(),
-  dataset_run_metadata: z.string().nullish(),
+  dataset_run_metadata: z.record(z.string(), z.string()),
   dataset_item_input: z.string(),
   dataset_item_expected_output: z.string(),
-  dataset_item_metadata: z.string().nullish(),
+  dataset_item_metadata: z.record(z.string(), z.string()),
   is_deleted: z.number(),
   error: z.string().nullish(),
 });
 
 const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
+  dataset_run_created_at: clickhouseStringDateSchema,
   created_at: clickhouseStringDateSchema,
   updated_at: clickhouseStringDateSchema,
   event_ts: clickhouseStringDateSchema,
-  dataset_run_created_at: clickhouseStringDateSchema,
 });
 export type DatasetRunItemRecordReadType = z.infer<
   typeof datasetRunItemRecordReadSchema

@@ -129,11 +129,11 @@ export default withMiddlewares({
         operationType: DatasetRunItemsOperationType.WRITE,
         postgresExecution: async (queryInput: typeof query) => {
           // First get the dataset run to check if it exists
-          const res = await validateDatasetRunAndFetch(
-            queryInput.name,
-            queryInput.runName,
-            auth.scope.projectId,
-          );
+          const res = await validateDatasetRunAndFetch({
+            datasetId: queryInput.name,
+            runName: queryInput.runName,
+            projectId: auth.scope.projectId,
+          });
 
           if (!res.success) {
             throw new LangfuseNotFoundError(res.error);
@@ -164,11 +164,11 @@ export default withMiddlewares({
           };
         },
         clickhouseExecution: async (queryInput: typeof query) => {
-          const res = await validateDatasetRunAndFetch(
-            queryInput.name,
-            queryInput.runName,
-            auth.scope.projectId,
-          );
+          const res = await validateDatasetRunAndFetch({
+            datasetId: queryInput.name,
+            runName: queryInput.runName,
+            projectId: auth.scope.projectId,
+          });
 
           if (!res.success) {
             throw new LangfuseNotFoundError(res.error);
