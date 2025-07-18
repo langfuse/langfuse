@@ -1,4 +1,4 @@
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { AnnotationQueueObjectType, type APIScoreV2 } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
@@ -408,22 +408,24 @@ export const ObservationPreview = ({
               </div>
               <div>
                 {preloadedObservation.statusMessage && (
-                  <JSONView
+                  <PrettyJsonView
                     key={preloadedObservation.id + "-status"}
                     title="Status Message"
                     json={preloadedObservation.statusMessage}
+                    currentView={currentView}
                   />
                 )}
               </div>
               <div>
                 {observationWithInputAndOutput.data?.metadata && (
-                  <JSONView
+                  <PrettyJsonView
                     key={observationWithInputAndOutput.data.id + "-metadata"}
                     title="Metadata"
                     json={observationWithInputAndOutput.data.metadata}
                     media={observationMedia.data?.filter(
                       (m) => m.field === "metadata",
                     )}
+                    currentView={currentView}
                   />
                 )}
               </div>

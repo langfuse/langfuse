@@ -11,7 +11,7 @@ import {
 import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { BracesIcon, MessageCircleMore } from "lucide-react";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -161,7 +161,11 @@ function AggregateScoreMetadataPeek({
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0">
         {metadataLoaded ? (
-          <JSONView codeClassName="!rounded-md" json={metadata} />
+          <PrettyJsonView
+            codeClassName="!rounded-md"
+            json={metadata}
+            currentView="pretty"
+          />
         ) : (
           <Skeleton className="h-12 w-full" />
         )}

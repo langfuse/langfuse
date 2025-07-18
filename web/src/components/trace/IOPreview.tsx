@@ -1,11 +1,10 @@
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { z } from "zod/v4";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Fragment } from "react";
-import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import {
   ChatMlArraySchema,
   type ChatMlMessageSchema,
@@ -84,11 +83,8 @@ export const IOPreview: React.FC<{
     Array.isArray(output) ? output : [output],
   );
 
-  const inMarkdown = StringOrMarkdownSchema.safeParse(input);
-  const outMarkdown = StringOrMarkdownSchema.safeParse(output);
-
-  const isPrettyViewAvailable =
-    inChatMlArray.success || inMarkdown.success || outMarkdown.success;
+  // Pretty view is available for ChatML content OR any JSON content
+  const isPrettyViewAvailable = true; // Always show the toggle, let individual components decide how to render
 
   useEffect(() => {
     props.setIsPrettyViewAvailable?.(isPrettyViewAvailable);
@@ -154,24 +150,28 @@ export const IOPreview: React.FC<{
                   : undefined
               }
               media={media ?? []}
+              currentView={selectedView}
             />
           ) : (
             <>
               {!(hideIfNull && !input) && !hideInput ? (
-                <MarkdownJsonView
+                <PrettyJsonView
                   title="Input"
                   className="ph-no-capture"
-                  content={input}
+                  json={input ?? null}
+                  isLoading={isLoading}
                   media={media?.filter((m) => m.field === "input") ?? []}
+                  currentView={selectedView}
                 />
               ) : null}
               {!(hideIfNull && !output) && !hideOutput ? (
-                <MarkdownJsonView
+                <PrettyJsonView
                   title="Output"
                   className="ph-no-capture"
-                  content={output}
-                  customCodeHeaderClassName="bg-secondary"
+                  json={outputClean}
+                  isLoading={isLoading}
                   media={media?.filter((m) => m.field === "output") ?? []}
+                  currentView={selectedView}
                 />
               ) : null}
             </>
@@ -181,21 +181,23 @@ export const IOPreview: React.FC<{
       {selectedView === "json" || !isPrettyViewAvailable ? (
         <>
           {!(hideIfNull && !input) && !hideInput ? (
-            <JSONView
+            <PrettyJsonView
               title="Input"
               className="ph-no-capture"
               json={input ?? null}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "input") ?? []}
+              currentView={selectedView}
             />
           ) : null}
           {!(hideIfNull && !output) && !hideOutput ? (
-            <JSONView
+            <PrettyJsonView
               title="Output"
               className="ph-no-capture"
               json={outputClean}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "output") ?? []}
+              currentView={selectedView}
             />
           ) : null}
         </>
@@ -212,6 +214,7 @@ export const OpenAiMessageView: React.FC<{
   media?: MediaReturnType[];
   additionalInput?: Record<string, unknown>;
   projectIdForPromptButtons?: string;
+  currentView?: "pretty" | "json";
 }> = ({
   title,
   messages,
@@ -220,6 +223,7 @@ export const OpenAiMessageView: React.FC<{
   collapseLongHistory = true,
   additionalInput,
   projectIdForPromptButtons,
+  currentView = "json",
 }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
@@ -272,10 +276,11 @@ export const OpenAiMessageView: React.FC<{
                       customCodeHeaderClassName={cn("bg-primary-foreground")}
                     />
                   ) : (
-                    <JSONView
+                    <PrettyJsonView
                       title="Placeholder"
                       json={message.name || "Unnamed placeholder"}
                       projectIdForPromptButtons={projectIdForPromptButtons}
+                      currentView={currentView}
                     />
                   )
                 ) : (
@@ -298,7 +303,7 @@ export const OpenAiMessageView: React.FC<{
                           audio={message.audio}
                         />
                       ) : (
-                        <JSONView
+                        <PrettyJsonView
                           title={message.name ?? message.role}
                           json={message.content}
                           projectIdForPromptButtons={projectIdForPromptButtons}
@@ -307,11 +312,12 @@ export const OpenAiMessageView: React.FC<{
                               !isPlaceholderMessage(message) &&
                               "rounded-b-none",
                           )}
+                          currentView={currentView}
                         />
                       ))}
                     {shouldRenderJson(message) &&
                       !isPlaceholderMessage(message) && (
-                        <JSONView
+                        <PrettyJsonView
                           title={
                             message.content
                               ? undefined
@@ -322,6 +328,7 @@ export const OpenAiMessageView: React.FC<{
                           className={cn(
                             !!message.content && "rounded-t-none border-t-0",
                           )}
+                          currentView={shouldRenderMarkdown ? "pretty" : "json"}
                         />
                       )}
                   </>
@@ -341,10 +348,11 @@ export const OpenAiMessageView: React.FC<{
             ))}
         </div>
         {additionalInput && (
-          <JSONView
+          <PrettyJsonView
             title="Additional Input"
             json={additionalInput}
             projectIdForPromptButtons={projectIdForPromptButtons}
+            currentView={shouldRenderMarkdown ? "pretty" : "json"}
           />
         )}
         {media && media.length > 0 && (
