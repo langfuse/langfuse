@@ -47,7 +47,7 @@ function CompletionHandler(response: HttpResponse) {
   });
 }
 
-function JsonCompletionHandler(data: object) {
+function JsonCompletionHandler(data: typeof DEFAULT_RESPONSE) {
   return CompletionHandler(HttpResponse.json(data));
 }
 
@@ -123,7 +123,7 @@ export class OpenAIServer {
     });
   }
 
-  respondWithData(data: object) {
+  respondWithData(data: typeof DEFAULT_RESPONSE) {
     this.internalServer.use(
       JsonCompletionHandler(data),
       MinioCompletionHandler(),

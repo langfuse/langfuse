@@ -51,20 +51,21 @@ const nextConfig = {
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
   transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
   reactStrictMode: true,
-  experimental: {
-    instrumentationHook: true,
-    serverComponentsExternalPackages: [
-      "dd-trace",
-      "@opentelemetry/api",
-      "@appsignal/opentelemetry-instrumentation-bullmq",
-      "bullmq",
-      "@opentelemetry/sdk-node",
-      "@opentelemetry/instrumentation-winston",
-      "kysely",
-    ],
-  },
+  serverExternalPackages: [
+    "dd-trace",
+    "@opentelemetry/api",
+    "@appsignal/opentelemetry-instrumentation-bullmq",
+    "bullmq",
+    "@opentelemetry/sdk-node",
+    "@opentelemetry/instrumentation-winston",
+    "kysely",
+  ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
+
+  turbopack: {
+    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
+  },
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config

@@ -28,7 +28,7 @@
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "axios": "^1.8.2",
     "https-proxy-agent": "^7.0.6",
-    "next": "^14.2.30",
+    "next": "^15.4.1",
     "next-auth": "^4.24.11",
     "zod": "^3.25.62"
   },
@@ -45,10 +45,5 @@
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "typescript": "^5.4.5"
-  },
-  "pnpm": {
-    "overrides": {
-      "nanoid": "^3.3.8"
-    }
   }
 }
