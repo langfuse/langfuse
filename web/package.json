@@ -82,8 +82,6 @@
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
     "@remixicon/react": "^4.2.0",
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
     "@sentry/nextjs": "^8.52.0",
     "@t3-oss/env-nextjs": "^0.11.1",
     "@tailwindcss/container-queries": "^0.1.1",
@@ -160,6 +158,8 @@
     "zod": "^3.25.62"
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
     "@jedmao/location": "^3.0.0",
     "@mermaid-js/mermaid-cli": "^11.2.0",
     "@next/bundle-analyzer": "^15.4.1",
