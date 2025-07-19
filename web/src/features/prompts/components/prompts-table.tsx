@@ -460,7 +460,7 @@ export function PromptTable() {
         setFilterState={useDebounce(setFilterState)}
         columnsWithCustomSelect={["labels", "tags"]}
         searchConfig={{
-          metadataSearchFields: ["Name", "Tags", "Labels", "Content"],
+          metadataSearchFields: ["Name", "Tags", "Content"],
           updateQuery: useDebounce(setSearchQuery, 300),
           currentQuery: searchQuery ?? undefined,
           tableAllowsFullTextSearch: true,
