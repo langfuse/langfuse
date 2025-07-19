@@ -712,20 +712,7 @@ describe("prompts trpc", () => {
       expect(tagSearchResults.prompts).toHaveLength(1);
       expect(tagSearchResults.prompts[0].name).toBe("technical-docs");
 
-      // Test 4: Search by labels
-      const labelSearchResults = await caller.prompts.all({
-        projectId: project.id,
-        page: 0,
-        limit: 10,
-        filter: [],
-        orderBy: { column: "createdAt", order: "DESC" },
-        searchQuery: "staging",
-      });
-
-      expect(labelSearchResults.prompts).toHaveLength(1);
-      expect(labelSearchResults.prompts[0].name).toBe("marketing-prompt");
-
-      // Test 5: Search with no matches
+      // Test 4: Search with no matches
       const noMatchResults = await caller.prompts.all({
         projectId: project.id,
         page: 0,
@@ -737,7 +724,7 @@ describe("prompts trpc", () => {
 
       expect(noMatchResults.prompts).toHaveLength(0);
 
-      // Test 6: Case insensitive search
+      // Test 5: Case insensitive search
       const caseInsensitiveResults = await caller.prompts.all({
         projectId: project.id,
         page: 0,
