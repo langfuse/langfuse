@@ -103,7 +103,12 @@ export const promptRouter = createTRPCRouter({
         input.searchQuery !== ""
           ? (() => {
               const q = input.searchQuery;
-              return Prisma.sql` AND (p.name ILIKE ${`%${q}%`} OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`}))`;
+              return Prisma.sql` AND (
+                p.name ILIKE ${`%${q}%`} 
+                OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})
+                OR EXISTS (SELECT 1 FROM UNNEST(p.labels) AS label WHERE label ILIKE ${`%${q}%`})
+                OR p.prompt::text ILIKE ${`%${q}%`}
+              )`;
             })()
           : Prisma.empty;
 
