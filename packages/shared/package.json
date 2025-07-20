@@ -118,7 +118,6 @@
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "tsx": "^4.19.1",
     "typescript": "^5.4.5"
   },
   "peerDependencies": {
