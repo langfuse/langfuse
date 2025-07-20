@@ -5,7 +5,7 @@ import { AutomationForm } from "@/src/features/automations/components/automation
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
@@ -20,6 +20,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
 import { ErrorPage } from "@/src/components/error-page";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export default function AutomationsPage() {
   const router = useRouter();
@@ -70,6 +71,39 @@ export default function AutomationsPage() {
       },
     );
 
+  // Helper function to navigate without creating history entry
+  const navigateWithoutHistory = useCallback(
+    (updates: { view?: string; automationId?: string; tab?: string }) => {
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams(url.search);
+      const pathname = getPathnameWithoutBasePath();
+
+      if (updates.view !== undefined) {
+        params.set("view", updates.view);
+      }
+      if (updates.automationId !== undefined) {
+        if (updates.automationId) {
+          params.set("automationId", updates.automationId);
+        } else {
+          params.delete("automationId");
+        }
+      }
+      if (updates.tab !== undefined) {
+        params.set("tab", updates.tab);
+      }
+
+      router.replace(
+        {
+          pathname,
+          query: params.toString(),
+        },
+        undefined,
+        { shallow: true },
+      );
+    },
+    [router],
+  );
+
   // Auto-select the topmost automation or clear selection if none exist
   useEffect(() => {
     if (automations !== undefined) {
@@ -86,14 +120,20 @@ export default function AutomationsPage() {
         view === "list"
       ) {
         // Auto-select the topmost automation if none is currently selected
-        setUrlParams({
-          view: "list",
+        // Use router.replace to avoid creating new history entry
+        navigateWithoutHistory({
           automationId: automations[0].id,
-          tab: urlParams.tab,
         });
       }
     }
-  }, [automations, selectedAutomation, view, setUrlParams, urlParams.tab]);
+  }, [
+    automations,
+    selectedAutomation,
+    view,
+    setUrlParams,
+    urlParams.tab,
+    navigateWithoutHistory,
+  ]);
 
   const handleCreateAutomation = () => {
     setUrlParams({
@@ -112,8 +152,8 @@ export default function AutomationsPage() {
   };
 
   const handleReturnToList = () => {
-    setUrlParams({
-      ...urlParams,
+    // Use router.replace to avoid creating history entry when canceling
+    navigateWithoutHistory({
       view: "list",
     });
   };
@@ -128,26 +168,24 @@ export default function AutomationsPage() {
       setShowSecretDialog(true);
     }
 
-    // Navigate to the newly created automation detail page
+    // Navigate to the newly created automation detail page without history entry
     if (automationId) {
-      setUrlParams({
+      navigateWithoutHistory({
         view: "list",
         automationId,
         tab: urlParams.tab,
       });
     } else {
-      setUrlParams({
-        ...urlParams,
+      navigateWithoutHistory({
         view: "list",
       });
     }
   };
 
   const handleEditSuccess = () => {
-    // Return to detail view of the edited automation
+    // Return to detail view of the edited automation without history entry
     utils.automations.invalidate();
-    setUrlParams({
-      ...urlParams,
+    navigateWithoutHistory({
       view: "list",
     });
   };
@@ -236,7 +274,7 @@ export default function AutomationsPage() {
 
     if (view === "create") {
       return (
-        <div className="p-6">
+        <div className="h-full p-6">
           <AutomationForm
             projectId={projectId}
             onSuccess={handleCreateSuccess}
@@ -249,7 +287,7 @@ export default function AutomationsPage() {
 
     if (view === "edit" && editingAutomation) {
       return (
-        <div className="p-6">
+        <div className="h-full p-6">
           <AutomationForm
             projectId={projectId}
             onSuccess={handleEditSuccess}
@@ -263,7 +301,7 @@ export default function AutomationsPage() {
 
     if (selectedAutomation) {
       return (
-        <div className="p-6">
+        <div className="h-full p-6">
           <AutomationDetails
             key={selectedAutomation.automationId}
             projectId={projectId}
@@ -277,7 +315,7 @@ export default function AutomationsPage() {
     }
 
     return (
-      <div className="p-6">
+      <div className="h-full p-6">
         <div className="flex h-full items-center justify-center text-muted-foreground">
           <div className="text-center">
             <h3 className="text-lg font-medium">Select a webhook</h3>
@@ -297,8 +335,8 @@ export default function AutomationsPage() {
         title: "Webhooks",
         breadcrumb: [
           {
-            name: "Webhooks",
-            href: `/project/${projectId}/automations`,
+            name: "Prompts",
+            href: `/project/${projectId}/prompts/`,
           },
         ],
         actionButtonsRight: (
@@ -309,15 +347,16 @@ export default function AutomationsPage() {
         ),
       }}
     >
-      <div className="flex h-full">
-        <AutomationSidebar
-          projectId={projectId}
-          selectedAutomation={selectedAutomation}
-          onAutomationSelect={handleAutomationSelect}
-        />
-        <div className="flex-1 overflow-auto">{renderMainContent()}</div>
+      <div className="h-full overflow-hidden contain-layout">
+        <div className="flex h-full">
+          <AutomationSidebar
+            projectId={projectId}
+            selectedAutomation={selectedAutomation}
+            onAutomationSelect={handleAutomationSelect}
+          />
+          <div className="flex-1 overflow-auto">{renderMainContent()}</div>
+        </div>
       </div>
-
       {/* Webhook Secret Dialog */}
       <Dialog open={showSecretDialog} onOpenChange={setShowSecretDialog}>
         <DialogContent className="max-w-4xl">

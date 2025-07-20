@@ -30,11 +30,10 @@ import {
   stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
-import { callLLM } from "../../features/utilities";
+import { callLLM, compileHandlebarString } from "../../features/utils";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
-import { compileHandlebarString } from "../../features/utilities";
 import { DatasetStatus } from "../../../../packages/shared/dist/prisma/generated/types";
 
 const isValidPrismaJsonObject = (

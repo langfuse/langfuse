@@ -480,7 +480,13 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                 include: {
                   organization: {
                     include: {
-                      projects: true,
+                      projects: {
+                        where: {
+                          deletedAt: {
+                            equals: null,
+                          },
+                        },
+                      },
                     },
                   },
                   ProjectMemberships: {

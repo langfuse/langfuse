@@ -137,7 +137,7 @@ Requirements
     cp .env.dev.example .env
    ```
 
-4. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it.
+4. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it. Also, this will fail on the very first run. Please run it again.
 
    ```bash
    pnpm run dx # first run only (resets db, docker containers, etc...)

@@ -11,7 +11,6 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod/v4";
-import { BsMarkdown } from "react-icons/bs";
 import { cn } from "@/src/utils/tailwind";
 
 type MarkdownJsonViewHeaderProps = {
@@ -41,7 +40,7 @@ export function MarkdownJsonViewHeader({
           <Button
             title={isMarkdownEnabled ? "Disable Markdown" : "Enable Markdown"}
             variant="ghost"
-            size="icon-xs"
+            size="sm"
             type="button"
             onClick={handleOnValueChange}
             className={cn(
@@ -49,7 +48,7 @@ export function MarkdownJsonViewHeader({
               !isMarkdownEnabled ? "opacity-50" : "opacity-100",
             )}
           >
-            <BsMarkdown className="h-4 w-4" />
+            {isMarkdownEnabled ? "View as JSON" : "View as markdown"}
           </Button>
         )}
         <Button

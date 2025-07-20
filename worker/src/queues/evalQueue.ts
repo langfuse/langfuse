@@ -14,10 +14,10 @@ import {
   traceException,
   EvalExecutionQueue,
   QueueJobs,
-  recordIncrement,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
-import { randomUUID } from "crypto";
+import { delayInMs } from "./utils/delays";
+import { handleRetryableError } from "../features/utils";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -88,52 +88,18 @@ export const evalJobExecutorQueueProcessor = async (
     return true;
   } catch (e) {
     // If the job fails with a 429, we want to retry it unless it's older than 24h.
-    if (
-      (e instanceof ApiError && e.httpCode === 429) || // retry all rate limits
-      (e instanceof ApiError && e.httpCode >= 500) // retry all 5xx errors
-    ) {
-      try {
-        // Check if the job execution is older than 24h
-        const jobExecution = await kyselyPrisma.$kysely
-          .selectFrom("job_executions")
-          .select("created_at")
-          .where("id", "=", job.data.payload.jobExecutionId)
-          .where("project_id", "=", job.data.payload.projectId)
-          .executeTakeFirstOrThrow();
-        if (
-          // Do nothing if job execution is older than 24h
-          jobExecution.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)
-        ) {
-          logger.info(
-            `Job ${job.data.payload.jobExecutionId} is retrying for more than 24h. Stop retrying.`,
-          );
-        } else {
-          // Add the job into the queue with a random delay between 1 and 10min and return
-          const delay = Math.floor(Math.random() * 9 + 1) * 60 * 1000;
-          logger.info(
-            `Job ${job.data.payload.jobExecutionId} is rate limited. Retrying in ${delay}ms.`,
-          );
-          recordIncrement("langfuse.evaluation-execution.rate-limited");
-          await EvalExecutionQueue.getInstance()?.add(
-            QueueName.EvaluationExecution,
-            {
-              name: QueueJobs.EvaluationExecution,
-              id: randomUUID(),
-              timestamp: new Date(),
-              payload: job.data.payload,
-            },
-            {
-              delay,
-            },
-          );
-          return;
-        }
-      } catch (innerErr) {
-        logger.error(
-          `Failed to handle 429 retry for ${job.data.payload.jobExecutionId}. Continuing regular processing.`,
-          innerErr,
-        );
-      }
+    const wasRetried = await handleRetryableError(e, job, {
+      table: "job_executions",
+      idField: "jobExecutionId",
+      queue: EvalExecutionQueue.getInstance(),
+      queueName: QueueName.EvaluationExecution,
+      jobName: QueueJobs.EvaluationExecution,
+      metricName: "langfuse.evaluation-execution.rate-limited",
+      delayFn: delayInMs,
+    });
+
+    if (wasRetried) {
+      return;
     }
 
     // we are left with 4xx and application errors here.
