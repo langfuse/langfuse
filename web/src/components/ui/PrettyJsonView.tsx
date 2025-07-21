@@ -232,11 +232,6 @@ function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
         if (row.hasChildren) {
           newExpanded[row.id] = true;
           if (row.subRows) {
-            // If this is an array with a single object, also expand that object
-            if (row.type === "array" && row.subRows.length === 1 && row.subRows[0].type === "object" && row.subRows[0].hasChildren) {
-              console.log("Auto-expanding single object in array:", row.subRows[0].key, row.subRows[0].id);
-              newExpanded[row.subRows[0].id] = true;
-            }
             expandAllRows(row.subRows);
           }
         }
