@@ -308,7 +308,7 @@ function JsonPrettyTable({
       expandableRows.length > 0 &&
       expandableRows.every((row) => row.getIsExpanded())
     );
-  }, [table, expanded]);
+  }, [table.getRowModel().flatRows, expanded]);
 
   // Notify parent of expand state changes
   useEffect(() => {
@@ -331,9 +331,6 @@ function JsonPrettyTable({
 
   useEffect(() => {
     setExpanded({});
-  }, [data]);
-
-  useEffect(() => {
     onExpandStateChange?.(false);
   }, [data, onExpandStateChange]);
 
@@ -402,57 +399,60 @@ export function PrettyJsonView(props: {
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
 
   const tableData = useMemo(() => {
-    if (
-      actualCurrentView === "pretty" &&
-      parsedJson !== null &&
-      parsedJson !== undefined
-    ) {
-      // Helper function to create rows from object entries at level 0
-      const createTopLevelRows = (
-        obj: Record<string, unknown>,
-      ): JsonTableRow[] => {
-        const entries = Object.entries(obj);
-        const rows: JsonTableRow[] = [];
-
-        entries.forEach(([key, value]) => {
-          const valueType = getValueType(value);
-          const childrenExist = hasChildren(value, valueType);
-
-          const row: JsonTableRow = {
-            id: key,
-            key,
-            value,
-            type: valueType,
-            hasChildren: childrenExist,
-            level: 0,
-          };
-
-          if (childrenExist) {
-            const children = transformJsonToTableData(value, key, 1, key);
-            row.subRows = children;
-          }
-
-          rows.push(row);
-        });
-
-        return rows;
-      };
-
-      // If top-level is an object, start with its properties directly
+    try {
       if (
-        typeof parsedJson === "object" &&
+        actualCurrentView === "pretty" &&
         parsedJson !== null &&
-        !Array.isArray(parsedJson) &&
-        parsedJson.constructor === Object
+        parsedJson !== undefined
       ) {
-        const entries = Object.entries(parsedJson);
+        // Helper function to create rows from object entries at level 0
+        const createTopLevelRows = (
+          obj: Record<string, unknown>,
+        ): JsonTableRow[] => {
+          const entries = Object.entries(obj);
+          const rows: JsonTableRow[] = [];
 
-        return createTopLevelRows(parsedJson as Record<string, unknown>);
+          entries.forEach(([key, value]) => {
+            const valueType = getValueType(value);
+            const childrenExist = hasChildren(value, valueType);
+
+            const row: JsonTableRow = {
+              id: key,
+              key,
+              value,
+              type: valueType,
+              hasChildren: childrenExist,
+              level: 0,
+            };
+
+            if (childrenExist) {
+              const children = transformJsonToTableData(value, key, 1, key);
+              row.subRows = children;
+            }
+
+            rows.push(row);
+          });
+
+          return rows;
+        };
+
+        // If top-level is an object, start with its properties directly
+        if (
+          typeof parsedJson === "object" &&
+          parsedJson !== null &&
+          !Array.isArray(parsedJson) &&
+          parsedJson.constructor === Object
+        ) {
+          return createTopLevelRows(parsedJson as Record<string, unknown>);
+        }
+
+        return transformJsonToTableData(parsedJson);
       }
-
-      return transformJsonToTableData(parsedJson);
+      return [];
+    } catch (error) {
+      console.error("Error transforming JSON to table data:", error);
+      return [];
     }
-    return [];
   }, [parsedJson, actualCurrentView]);
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
