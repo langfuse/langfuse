@@ -20,6 +20,9 @@ const WebhookActionFormSchema = z.object({
         z.object({
           name: z.string(),
           value: z.string(),
+          displayValue: z.string(),
+          isSecret: z.boolean(),
+          wasSecret: z.boolean(),
         }),
       )
       .default([]),
@@ -33,6 +36,9 @@ type WebhookActionFormData = z.infer<typeof WebhookActionFormSchema>;
 type HeaderPair = {
   name: string;
   value: string;
+  displayValue: string;
+  isSecret: boolean;
+  wasSecret: boolean;
 };
 
 export class WebhookActionHandler
@@ -45,14 +51,18 @@ export class WebhookActionHandler
     if (
       automation?.action?.type === "WEBHOOK" &&
       automation?.action?.config &&
-      "headers" in automation.action.config &&
-      automation.action.config.headers
+      "displayHeaders" in automation.action.config &&
+      automation.action.config.displayHeaders
     ) {
       try {
-        const headersObject = automation.action.config.headers;
-        return Object.entries(headersObject).map(([name, value]) => ({
+        const displayHeaders = automation.action.config.displayHeaders;
+
+        return Object.entries(displayHeaders).map(([name, headerObj]) => ({
           name,
-          value: value as string,
+          value: headerObj.secret ? "" : headerObj.value,
+          displayValue: headerObj.value,
+          isSecret: headerObj.secret,
+          wasSecret: headerObj.secret,
         }));
       } catch (e) {
         console.error("Failed to parse headers:", e);
@@ -108,8 +118,13 @@ export class WebhookActionHandler
           if (!header.name.trim()) {
             errors.push(`Header ${index + 1}: Name cannot be empty`);
           }
-          if (!header.value.trim()) {
+          if (!header.value.trim() && !header.isSecret) {
             errors.push(`Header ${index + 1}: Value cannot be empty`);
+          }
+          if (header.wasSecret !== header.isSecret && !header.value.trim()) {
+            errors.push(
+              `Header ${index + 1}: A value must be provided when making a header ${header.wasSecret ? "public" : "secret"}`,
+            );
           }
 
           // Check if header name conflicts with default headers
@@ -123,6 +138,19 @@ export class WebhookActionHandler
           }
         }
       });
+
+      // check if header name is already in the form
+      // Check for duplicate header names (case-insensitive)
+      const headerNames = formData.webhook.headers
+        .filter((h) => h.name.trim()) // Only check non-empty header names
+        .map((h) => h.name.trim().toLowerCase());
+
+      const uniqueHeaderNames = new Set(headerNames);
+      if (uniqueHeaderNames.size < headerNames.length) {
+        errors.push(
+          "Duplicate header names are not allowed (case-insensitive)",
+        );
+      }
     }
 
     return {
@@ -132,8 +160,8 @@ export class WebhookActionHandler
   }
 
   buildActionConfig(formData: WebhookActionFormData): ActionCreate {
-    // Convert headers array to object
-    let headersObject: Record<string, string> = {};
+    // Convert headers array to requestHeaders format
+    let headersObject: Record<string, { secret: boolean; value: string }> = {};
 
     if (formData.webhook?.headers) {
       headersObject = formatWebhookHeaders(formData.webhook.headers);
@@ -142,7 +170,7 @@ export class WebhookActionHandler
     return {
       type: "WEBHOOK",
       url: formData.webhook?.url || "",
-      headers: headersObject,
+      requestHeaders: headersObject,
       apiVersion: formData.webhook?.apiVersion || { prompt: "v1" },
     };
   }

@@ -2,11 +2,13 @@ import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
 import {
+  type WebhookActionConfigWithSecrets,
+  type SafeWebhookActionConfig,
   ActionCreateSchema,
   ActionType,
   ActionTypeSchema,
   JobConfigState,
-  type SafeWebhookActionConfig,
+  singleFilter,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -18,7 +20,10 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
-import { processWebhookActionConfig } from "./webhookHelpers";
+import {
+  processWebhookActionConfig,
+  convertToSafeWebhookConfig,
+} from "./webhookHelpers";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
@@ -27,7 +32,7 @@ export const CreateAutomationInputSchema = z.object({
   name: z.string().min(1, "Name is required"),
   eventSource: z.string(),
   eventAction: z.array(z.string()),
-  filter: z.array(z.any()).nullable(),
+  filter: z.array(singleFilter).nullable(),
   status: z.enum(JobConfigState).default(JobConfigState.ACTIVE),
   // Action fields
   actionType: z.enum(ActionType),
@@ -305,7 +310,12 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action,
+        action: {
+          ...action,
+          config: convertToSafeWebhookConfig(
+            action.config as WebhookActionConfigWithSecrets,
+          ),
+        },
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
@@ -410,7 +420,16 @@ export const automationsRouter = createTRPCRouter({
         },
       });
 
-      return { action, trigger, automation };
+      return {
+        action: {
+          ...action,
+          config: convertToSafeWebhookConfig(
+            action.config as WebhookActionConfigWithSecrets,
+          ),
+        },
+        trigger,
+        automation,
+      };
     }),
 
   // Delete an automation (both trigger and action)

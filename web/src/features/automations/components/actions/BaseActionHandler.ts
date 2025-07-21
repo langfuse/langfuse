@@ -1,9 +1,9 @@
 import { type UseFormReturn, type FieldValues } from "react-hook-form";
 import {
+  type ActionCreate,
   type ActionDomain,
   type ActionType,
   type AutomationDomain,
-  type ActionCreate,
 } from "@langfuse/shared";
 
 export interface BaseActionHandler<

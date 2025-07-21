@@ -617,4 +617,176 @@ describe("prompts trpc", () => {
       });
     });
   });
+
+  describe("prompts.all with search", () => {
+    it("should find prompts by searching in content, name, tags, and labels", async () => {
+      const { project, caller } = await prepare();
+
+      // Create test prompts with different searchable content
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "customer-service-prompt",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "You are a helpful customer support agent. Answer questions about billing and account issues.",
+          },
+          createdBy: "test-user",
+          tags: ["support", "customer"],
+          labels: ["production"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "marketing-prompt",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "Create engaging marketing content that drives sales and conversions.",
+          },
+          createdBy: "test-user",
+          tags: ["marketing", "content"],
+          labels: ["staging"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "technical-docs",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "Generate comprehensive technical documentation for APIs and software systems.",
+          },
+          createdBy: "test-user",
+          tags: ["technical", "documentation"],
+          labels: ["latest"],
+        },
+      });
+
+      // Test 1: Search by prompt content
+      const contentSearchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "customer support agent",
+      });
+
+      expect(contentSearchResults.prompts).toHaveLength(1);
+      expect(contentSearchResults.prompts[0].name).toBe(
+        "customer-service-prompt",
+      );
+
+      // Test 2: Search by prompt name
+      const nameSearchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "marketing",
+      });
+
+      expect(nameSearchResults.prompts).toHaveLength(1);
+      expect(nameSearchResults.prompts[0].name).toBe("marketing-prompt");
+
+      // Test 3: Search by tags
+      const tagSearchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "documentation",
+      });
+
+      expect(tagSearchResults.prompts).toHaveLength(1);
+      expect(tagSearchResults.prompts[0].name).toBe("technical-docs");
+
+      // Test 4: Search with no matches
+      const noMatchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "nonexistent content",
+      });
+
+      expect(noMatchResults.prompts).toHaveLength(0);
+
+      // Test 5: Case insensitive search
+      const caseInsensitiveResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "TECHNICAL",
+      });
+
+      expect(caseInsensitiveResults.prompts).toHaveLength(1);
+      expect(caseInsensitiveResults.prompts[0].name).toBe("technical-docs");
+    });
+
+    it("should find prompts with multiple versions when searching content", async () => {
+      const { project, caller } = await prepare();
+
+      // Create multiple versions of the same prompt with different content
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "evolving-prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "You are a basic chatbot. Answer simple questions." },
+          createdBy: "test-user",
+          tags: ["basic"],
+          labels: [],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "evolving-prompt",
+          version: 2,
+          type: "text",
+          prompt: {
+            text: "You are an advanced AI assistant with expertise in machine learning.",
+          },
+          createdBy: "test-user",
+          tags: ["advanced"],
+          labels: ["latest"],
+        },
+      });
+
+      // Search for content that exists in version 2 but not version 1
+      const searchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "machine learning",
+      });
+
+      // Should find the prompt because one of its versions contains the search term
+      expect(searchResults.prompts).toHaveLength(1);
+      expect(searchResults.prompts[0].name).toBe("evolving-prompt");
+      // The returned prompt should be the latest version
+      expect(searchResults.prompts[0].version).toBe(2);
+    });
+  });
 });
