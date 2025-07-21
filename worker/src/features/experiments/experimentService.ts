@@ -30,7 +30,11 @@ import {
   stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
-import { callLLM, compileHandlebarString } from "../../features/utils";
+import {
+  callLLM,
+  callStructuredLLM,
+  compileHandlebarString,
+} from "../../features/utils";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
@@ -365,20 +369,49 @@ export const createExperimentJob = async ({
       },
     };
 
-    await backOff(
-      async () =>
-        await callLLM(
-          validatedApiKey.data,
-          messages,
-          model_params,
-          provider,
-          model,
-          traceParams,
-        ),
-      {
-        numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
-      },
-    );
+    // Check if prompt config has response_format for structured output
+    const promptConfig = prompt.config as any;
+
+    const hasStructuredOutput =
+      promptConfig &&
+      typeof promptConfig === "object" &&
+      "structured_output" in promptConfig;
+
+    if (hasStructuredOutput) {
+      // Call structured LLM with structured_output as structuredOutputSchema
+      await backOff(
+        async () =>
+          await callStructuredLLM(
+            newTraceId, // jeId parameter
+            validatedApiKey.data,
+            messages,
+            model_params,
+            provider,
+            model,
+            promptConfig.structured_output, // structuredOutputSchema
+            traceParams,
+          ),
+        {
+          numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
+        },
+      );
+    } else {
+      // Call regular LLM
+      await backOff(
+        async () =>
+          await callLLM(
+            validatedApiKey.data,
+            messages,
+            model_params,
+            provider,
+            model,
+            traceParams,
+          ),
+        {
+          numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
+        },
+      );
+    }
 
     /********************
      * ASYNC RUN ITEM EVAL *
