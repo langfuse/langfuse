@@ -34,7 +34,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouse
       };
     }
 
-    // Check if ClickHouse traces table exists
+    // Check if ClickHouse dataset_run_items table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
     });
@@ -189,7 +189,9 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouse
   }
 
   async abort(): Promise<void> {
-    logger.info(`Aborting migration of traces from Postgres to clickhouse`);
+    logger.info(
+      `Aborting migration of dataset run items from Postgres to clickhouse`,
+    );
     this.isAborted = true;
   }
 }
