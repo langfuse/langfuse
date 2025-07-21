@@ -310,8 +310,11 @@ export class IngestionService {
           create: {
             id: finalTraceRecord.session_id,
             projectId,
+            environment: finalTraceRecord.environment,
           },
-          update: {},
+          update: {
+            environment: finalTraceRecord.environment,
+          },
         });
       } catch (e) {
         if (

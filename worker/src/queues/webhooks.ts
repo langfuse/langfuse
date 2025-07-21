@@ -94,10 +94,17 @@ export const executeWebhook = async (input: WebhookInput) => {
     });
 
     // Prepare headers with signature if secret exists
-    const requestHeaders: Record<string, string> = {
-      ...WebhookDefaultHeaders,
-      ...webhookConfig.headers,
-    };
+    const requestHeaders: Record<string, string> = {};
+
+    // Add webhook config headers first
+    for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
+      requestHeaders[key] = value.value;
+    }
+
+    // Add default headers with precedence
+    for (const [key, value] of Object.entries(WebhookDefaultHeaders)) {
+      requestHeaders[key] = value;
+    }
 
     if (!webhookConfig.secretKey) {
       logger.warn(
