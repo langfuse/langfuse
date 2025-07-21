@@ -1,7 +1,4 @@
-// Set environment variable before any imports to ensure it's picked up
-process.env.LANGFUSE_DATASET_RUN_ITEMS_WRITE_CH = "true";
-
-import { expect, test, describe, vi, beforeEach } from "vitest";
+import { expect, test, describe, vi, beforeEach, afterEach } from "vitest";
 import { Prompt, kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";
@@ -11,9 +8,12 @@ import { callLLM } from "../features/utils/utilities";
 import {
   getDatasetRunItemsByRunId,
   PROMPT_EXPERIMENT_ENVIRONMENT,
+  redis,
 } from "@langfuse/shared/src/server";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
 import waitForExpect from "wait-for-expect";
+import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { Cluster } from "ioredis";
 
 vi.mock("../features/utils/utilities", () => ({
   callLLM: vi.fn().mockResolvedValue({ id: "test-id" }),
@@ -24,8 +24,31 @@ vi.mock("../features/utils/utilities", () => ({
 }));
 
 describe("create experiment jobs", () => {
-  test("creates new experiment job", async () => {
+  let clickhouseWriter: ClickhouseWriter;
+
+  beforeEach(async () => {
+    if (!redis) throw new Error("Redis not initialized");
     await pruneDatabase();
+
+    if (redis instanceof Cluster) {
+      await Promise.all(redis.nodes("master").map((node) => node.flushall()));
+    } else {
+      await redis.flushall();
+    }
+
+    clickhouseWriter = ClickhouseWriter.getInstance();
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+
+    // Reset singleton instance
+    await clickhouseWriter.shutdown();
+
+    (ClickhouseWriter as any).instance = null;
+  });
+  test("creates new experiment job", async () => {
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
     const runId = randomUUID();
@@ -98,6 +121,8 @@ describe("create experiment jobs", () => {
       runId,
     };
     await createExperimentJobClickhouse({ event: payload });
+    await clickhouseWriter.shutdown();
+    clickhouseWriter = ClickhouseWriter.getInstance();
 
     await waitForExpect(async () => {
       const runItems = await getDatasetRunItemsByRunId({
@@ -113,7 +138,6 @@ describe("create experiment jobs", () => {
   }, 10_000);
 
   test("creates dataset run items with error for invalid metadata", async () => {
-    await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
     const runId = randomUUID();
@@ -163,6 +187,8 @@ describe("create experiment jobs", () => {
     };
 
     await createExperimentJobClickhouse({ event: payload });
+    await clickhouseWriter.shutdown();
+    clickhouseWriter = ClickhouseWriter.getInstance();
 
     await waitForExpect(async () => {
       const runItems = await getDatasetRunItemsByRunId({
@@ -178,7 +204,6 @@ describe("create experiment jobs", () => {
   }, 10_000);
 
   test("creates dataset run items with error if prompt has invalid content", async () => {
-    await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
     const runId = randomUUID();
@@ -230,6 +255,8 @@ describe("create experiment jobs", () => {
     };
 
     await createExperimentJobClickhouse({ event: payload });
+    await clickhouseWriter.shutdown();
+    clickhouseWriter = ClickhouseWriter.getInstance();
 
     await waitForExpect(async () => {
       const runItems = await getDatasetRunItemsByRunId({
@@ -245,7 +272,6 @@ describe("create experiment jobs", () => {
   }, 10_000);
 
   test("creates no dataset run items if no item in dataset matches prompt variables", async () => {
-    await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
     const runId = randomUUID();
@@ -324,11 +350,35 @@ describe("create experiment jobs", () => {
 });
 
 describe("create experiment jobs with placeholders", () => {
+  let clickhouseWriter: ClickhouseWriter;
+
+  beforeEach(async () => {
+    if (!redis) throw new Error("Redis not initialized");
+    await pruneDatabase();
+
+    if (redis instanceof Cluster) {
+      await Promise.all(redis.nodes("master").map((node) => node.flushall()));
+    } else {
+      await redis.flushall();
+    }
+
+    clickhouseWriter = ClickhouseWriter.getInstance();
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+
+    // Reset singleton instance
+    await clickhouseWriter.shutdown();
+
+    (ClickhouseWriter as any).instance = null;
+  });
+
   const setupPlaceholderTest = async (
     promptConfig: any,
     datasetItemInput: any,
   ) => {
-    await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
     const runId = randomUUID();
@@ -427,6 +477,8 @@ describe("create experiment jobs with placeholders", () => {
     };
 
     await createExperimentJobClickhouse({ event: payload });
+    await clickhouseWriter.shutdown();
+    clickhouseWriter = ClickhouseWriter.getInstance();
 
     await waitForExpect(async () => {
       const runItems = await getDatasetRunItemsByRunId({
@@ -461,6 +513,8 @@ describe("create experiment jobs with placeholders", () => {
     };
 
     await createExperimentJobClickhouse({ event: payload });
+    await clickhouseWriter.shutdown();
+    clickhouseWriter = ClickhouseWriter.getInstance();
 
     await waitForExpect(async () => {
       const runItems = await getDatasetRunItemsByRunId({
@@ -495,6 +549,8 @@ describe("create experiment jobs with placeholders", () => {
     };
 
     await createExperimentJobClickhouse({ event: payload });
+    await clickhouseWriter.shutdown();
+    clickhouseWriter = ClickhouseWriter.getInstance();
 
     await waitForExpect(async () => {
       const runItems = await getDatasetRunItemsByRunId({
