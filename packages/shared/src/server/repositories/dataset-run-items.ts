@@ -69,6 +69,7 @@ export const validateDatasetRunAndFetch = async (params: {
         error: "Dataset not found for the given project and dataset name",
       };
     }
+    datasetIdToUse = dataset.id;
   }
 
   let datasetRun: DatasetRun | null = null;
