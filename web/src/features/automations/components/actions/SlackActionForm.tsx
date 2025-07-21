@@ -74,8 +74,8 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
   };
 
   const handleConnectSlack = () => {
-    if (integrationStatus?.oauthUrl) {
-      window.open(integrationStatus.oauthUrl, "_blank");
+    if (integrationStatus?.installUrl) {
+      window.open(integrationStatus.installUrl, "_blank");
     }
   };
 

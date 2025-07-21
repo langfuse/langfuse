@@ -3,7 +3,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
-import { SlackService } from "./slackService";
+import { SlackService } from "@langfuse/shared/src/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";

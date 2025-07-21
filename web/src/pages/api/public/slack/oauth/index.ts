@@ -1,5 +1,5 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { SlackService } from "@/src/features/slack/server/slackService";
+import { SlackService } from "@langfuse/shared/src/server";
 import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 

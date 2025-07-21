@@ -367,12 +367,12 @@ export const SlackSettings: React.FC<SlackSettingsProps> = ({ projectId }) => {
                             onClick={handleTestMessage}
                             disabled={
                               !hasAccess ||
-                              testMessageMutation.isPending ||
+                              testMessageMutation.isLoading ||
                               !selectedChannel.isMember
                             }
                             className="flex items-center gap-2"
                           >
-                            {testMessageMutation.isPending ? (
+                            {testMessageMutation.isLoading ? (
                               <>
                                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                 Sending...

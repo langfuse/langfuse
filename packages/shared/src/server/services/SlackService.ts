@@ -10,7 +10,7 @@
 import { WebClient } from "@slack/web-api";
 import { InstallProvider, type InstallURLOptions } from "@slack/oauth";
 import { logger } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
+import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -244,7 +244,7 @@ export class SlackService {
   static async handleCallback(req: NextApiRequest, res: NextApiResponse) {
     try {
       return await this.installer.handleCallback(req, res, {
-        success: async (installation, installOptions) => {
+        success: async (installation) => {
           const projectId = (installation as any)?.metadata as string;
 
           if (!projectId) {
@@ -266,7 +266,7 @@ export class SlackService {
           res.redirect(redirectUrl);
         },
 
-        failure: async (error, installOptions) => {
+        failure: async (error) => {
           logger.error("OAuth callback failed", { error: error.message });
 
           // Redirect to generic Slack settings page with error
