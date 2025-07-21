@@ -14,6 +14,9 @@ import {
   type ScoreAggregate,
   StringNoHTML,
   StringNoHTMLNonEmpty,
+  addToDeleteDatasetRunItemsQueue,
+  executeWithDatasetRunItemsStrategy,
+  DatasetRunItemsOperationType,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -40,10 +43,6 @@ import {
   composeAggregateScoreKey,
 } from "@/src/features/scores/lib/aggregateScores";
 import type Decimal from "decimal.js";
-import {
-  executeWithDatasetRunItemsStrategy,
-  DatasetRunItemsOperationType,
-} from "@langfuse/shared/src/server";
 
 type RunItemsByRunIdOrItemIdQueryResult = {
   totalRunItems: number;
@@ -685,23 +684,69 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      const deletedDataset = await ctx.prisma.dataset.delete({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
+      return await executeWithDatasetRunItemsStrategy({
+        input,
+        operationType: DatasetRunItemsOperationType.READ,
+        postgresExecution: async (queryInput: typeof input) => {
+          const deletedDataset = await ctx.prisma.dataset.delete({
+            where: {
+              id_projectId: {
+                id: queryInput.datasetId,
+                projectId: queryInput.projectId,
+              },
+            },
+          });
+
+          await auditLog({
+            session: ctx.session,
+            resourceType: "dataset",
+            resourceId: deletedDataset.id,
+            action: "delete",
+            before: deletedDataset,
+          });
+          return deletedDataset;
+        },
+        clickhouseExecution: async (queryInput: typeof input) => {
+          // Fetch all dataset runs for the dataset
+          const datasetRuns = await ctx.prisma.datasetRuns.findMany({
+            where: {
+              datasetId: queryInput.datasetId,
+              projectId: queryInput.projectId,
+            },
+          });
+
+          const deletedDataset = await ctx.prisma.dataset.delete({
+            where: {
+              id_projectId: {
+                id: queryInput.datasetId,
+                projectId: queryInput.projectId,
+              },
+            },
+          });
+
+          Promise.all(
+            datasetRuns.map((run) => {
+              // Trigger async delete of dataset run items
+              addToDeleteDatasetRunItemsQueue({
+                projectId: queryInput.projectId,
+                runId: run.id,
+                datasetId: deletedDataset.id,
+              });
+            }),
+          );
+
+          await auditLog({
+            session: ctx.session,
+            resourceType: "dataset",
+            resourceId: deletedDataset.id,
+            action: "delete",
+            before: deletedDataset,
+          });
+          return deletedDataset;
         },
       });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "dataset",
-        resourceId: deletedDataset.id,
-        action: "delete",
-        before: deletedDataset,
-      });
-      return deletedDataset;
     }),
+
   deleteDatasetItem: protectedProjectProcedure
     .input(
       z.object({
@@ -1431,8 +1476,8 @@ export const datasetRouter = createTRPCRouter({
       });
 
       // Log audit entries for each deleted run
-      await Promise.all(
-        datasetRuns.map((run) =>
+      await Promise.all([
+        ...datasetRuns.map((run) =>
           auditLog({
             session: ctx.session,
             resourceType: "datasetRun",
@@ -1441,7 +1486,14 @@ export const datasetRouter = createTRPCRouter({
             before: run,
           }),
         ),
-      );
+        ...datasetRuns.map((run) =>
+          addToDeleteDatasetRunItemsQueue({
+            projectId: input.projectId,
+            runId: run.id,
+            datasetId: run.datasetId,
+          }),
+        ),
+      ]);
     }),
   getRunLevelScoreKeysAndProps: protectedProjectProcedure
     .input(

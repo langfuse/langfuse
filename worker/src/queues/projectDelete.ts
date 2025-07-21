@@ -1,5 +1,6 @@
 import { Job, Processor } from "bullmq";
 import {
+  deleteDatasetRunItemsByProjectId,
   deleteObservationsByProjectId,
   deleteScoresByProjectId,
   deleteTracesByProjectId,
@@ -91,6 +92,7 @@ export const projectDeleteProcessor: Processor = async (
     deleteTracesByProjectId(projectId),
     deleteObservationsByProjectId(projectId),
     deleteScoresByProjectId(projectId),
+    deleteDatasetRunItemsByProjectId(projectId),
   ]);
 
   logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);

@@ -15,6 +15,7 @@ import { JsonValue } from "@prisma/client/runtime/library";
 import { prisma } from "../../db";
 import type { Prisma } from "@prisma/client";
 import { v4 } from "uuid";
+import { env } from "../../env";
 
 // Use Prisma's default inferred type for dataset runs (no field redefinition needed)
 type DatasetRun = Prisma.DatasetRunsGetPayload<{}>;
@@ -545,4 +546,26 @@ const isUniqueConstraintError = (error: any): boolean => {
     error.message?.includes("UNIQUE constraint") ||
     error.message?.includes("violates unique constraint")
   );
+};
+
+export const deleteDatasetRunItemsByProjectId = async (projectId: string) => {
+  const query = `
+      DELETE FROM dataset_run_items
+      WHERE project_id = {projectId: String};
+    `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      kind: "delete",
+      projectId,
+    },
+  });
 };

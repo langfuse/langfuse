@@ -12,16 +12,12 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import {
   ApiError,
   DatasetRunItemsOperationType,
-  executeWithDatasetRunItemsStrategy,
+  addToDeleteDatasetRunItemsQueue,
   LangfuseNotFoundError,
+  executeWithDatasetRunItemsStrategy,
 } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  DatasetRunItemsDeleteQueue,
-  validateDatasetRunAndFetch,
-  QueueJobs,
-} from "@langfuse/shared/src/server";
-import { randomUUID } from "crypto";
+import { validateDatasetRunAndFetch } from "@langfuse/shared/src/server";
 import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
 
 export default withMiddlewares({
@@ -124,7 +120,7 @@ export default withMiddlewares({
     responseSchema: DeleteDatasetRunV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      const res = await executeWithDatasetRunItemsStrategy({
+      return await executeWithDatasetRunItemsStrategy({
         input: query,
         operationType: DatasetRunItemsOperationType.WRITE,
         postgresExecution: async (queryInput: typeof query) => {
@@ -185,21 +181,11 @@ export default withMiddlewares({
           });
 
           // Trigger async delete of dataset run items
-          if (redis) {
-            await DatasetRunItemsDeleteQueue.getInstance()?.add(
-              QueueJobs.DatasetRunItemsDelete,
-              {
-                payload: {
-                  projectId: auth.scope.projectId,
-                  datasetRunId: res.datasetRun.id,
-                  datasetId: res.datasetRun.datasetId,
-                },
-                id: randomUUID(),
-                timestamp: new Date(),
-                name: QueueJobs.DatasetRunItemsDelete as const,
-              },
-            );
-          }
+          await addToDeleteDatasetRunItemsQueue({
+            projectId: auth.scope.projectId,
+            runId: res.datasetRun.id,
+            datasetId: res.datasetRun.datasetId,
+          });
 
           await auditLog({
             action: "delete",
@@ -216,7 +202,6 @@ export default withMiddlewares({
           };
         },
       });
-      return res;
     },
   }),
 });

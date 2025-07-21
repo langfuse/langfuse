@@ -74,3 +74,4 @@ export * from "./domain";
 
 // dataset run items
 export * from "./features/datasetRunItems/datasetExecution";
+export * from "./features/datasetRunItems/addToDeleteQueue";
